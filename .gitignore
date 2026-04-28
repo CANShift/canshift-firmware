@@ -1,0 +1,22 @@
+# PlatformIO build cache and artifacts
+.pio/
+
+# Compiled binaries
+*.bin
+*.elf
+*.hex
+*.map
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*
+
+# Claude (local only)
+.claude/

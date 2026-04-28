@@ -1,0 +1,130 @@
+// can_manager.cpp — TWAI hardware manager
+
+#include "can_manager.h"
+#include "maxxecu_parser.h"
+#include "board_config.h"
+#include "app_config.h"
+#include "diag/logger.h"
+
+#include <driver/twai.h>
+#include <Arduino.h>
+
+// ---------------------------------------------------------------------------
+// Internal state
+// ---------------------------------------------------------------------------
+
+static uint32_t s_frameCount = 0;
+static uint32_t s_errorCount = 0;
+
+// ---------------------------------------------------------------------------
+// TWAI configuration helpers
+// ---------------------------------------------------------------------------
+
+namespace {
+
+    twai_timing_config_t getTimingConfig() {
+        // 500 kbps — default MaxxECU CAN speed
+        // TODO: Make configurable via signals.json "canSpeed" field
+#if CAN_SPEED_KBPS == 500
+        return TWAI_TIMING_CONFIG_500KBITS();
+#elif CAN_SPEED_KBPS == 1000
+        return TWAI_TIMING_CONFIG_1MBITS();
+#elif CAN_SPEED_KBPS == 250
+        return TWAI_TIMING_CONFIG_250KBITS();
+#else
+    #error "Unsupported CAN_SPEED_KBPS value — add case to getTimingConfig()"
+#endif
+    }
+
+    twai_filter_config_t getFilterConfig() {
+        // Accept all frames in the MaxxECU output range (0x370-0x37F)
+        // TWAI hardware filter: single filter mode
+        // Acceptance code/mask calculation for 11-bit IDs:
+        //   Code = (base_id << 21) | (0 << 20)  // RTR = 0
+        //   Mask = (range_mask << 21) | (0xFFFFF) // mask irrelevant bits
+        //
+        // To accept 0x370-0x37F: base 0x370, mask 0xF inverted → 0x7F0
+        // Accept code: 0x370 << 21 = 0x6E000000
+        // Accept mask: ~(0x7F0 << 21) = not trivial — use accept-all for now
+        //
+        // TODO: Calculate precise filter to accept only 0x370-0x37F
+        // For now: accept all frames (no filtering overhead at 500kbps)
+        return TWAI_FILTER_CONFIG_ACCEPT_ALL();
+    }
+
+} // namespace
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+void CanManager::initHardware() {
+    LOG_INFO("CAN", "Initializing TWAI driver...");
+    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", PIN_TWAI_TX, PIN_TWAI_RX, CAN_SPEED_KBPS);
+
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
+        static_cast<gpio_num_t>(PIN_TWAI_TX),
+        static_cast<gpio_num_t>(PIN_TWAI_RX),
+        TWAI_MODE_NORMAL
+    );
+    g_config.rx_queue_len = CAN_RX_QUEUE_DEPTH;
+    g_config.tx_queue_len = 5;
+
+    twai_timing_config_t t_config = getTimingConfig();
+    twai_filter_config_t f_config = getFilterConfig();
+
+    esp_err_t err = twai_driver_install(&g_config, &t_config, &f_config);
+    if (err != ESP_OK) {
+        LOG_ERROR("CAN", "TWAI driver install failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = twai_start();
+    if (err != ESP_OK) {
+        LOG_ERROR("CAN", "TWAI start failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Load dynamic signal definitions from config
+    MaxxEcuParser::loadSignalDefinitions();
+
+    LOG_INFO("CAN", "TWAI driver started successfully");
+}
+
+void CanManager::tick() {
+    twai_message_t message;
+
+    // Block for up to 10ms waiting for a frame
+    esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(10));
+
+    if (err == ESP_OK) {
+        s_frameCount++;
+
+        if (!(message.rtr)) {
+            // Data frame (not remote frame)
+            MaxxEcuParser::parseFrame(
+                message.identifier,
+                message.data,
+                static_cast<uint8_t>(message.data_length_code)
+            );
+        }
+    } else if (err == ESP_ERR_TIMEOUT) {
+        // Normal — no frame arrived within timeout window
+        // This happens when ECU is not sending or CAN bus is quiet
+    } else {
+        s_errorCount++;
+        LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err), s_errorCount);
+
+        // Check for bus-off condition
+        twai_status_info_t status;
+        if (twai_get_status_info(&status) == ESP_OK) {
+            if (status.state == TWAI_STATE_BUS_OFF) {
+                LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
+                twai_initiate_recovery();
+            }
+        }
+    }
+}
+
+uint32_t CanManager::getFrameCount()  { return s_frameCount; }
+uint32_t CanManager::getErrorCount()  { return s_errorCount; }
