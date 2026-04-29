@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift dashboard configuration — VW VR6 2.9 / MaxxECU Street",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "VR6 Main Dash",
   "description": "Default dashboard configuration for VW VR6 2.9 with MaxxECU Street",
   "defaultPageId": "main",
@@ -34,17 +34,19 @@
             "fontSize": 32
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
             "minValue": 0,
             "maxValue": 8000,
             "warningLevel": 6500,
             "dangerLevel": 7200,
-            "showNeedle": false,
-            "showArc": true
+            "decimalPlaces": 0,
+            "showNeedle": false
           }
         },
         {
           "id": "speed_label",
-          "type": "label",
+          "type": "gauge",
           "signal": "speed_kph",
           "layout": { "x": 160, "y": 0, "w": 158, "h": 80, "zOrder": 0 },
           "style": {
@@ -56,15 +58,20 @@
             "fontSize": 48
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 300,
+            "warningLevel": 240,
+            "dangerLevel": 280,
             "decimalPlaces": 0,
-            "prefix": "",
-            "suffix": "",
+            "suffix": " km/h",
             "hideWhenInvalid": false
           }
         },
         {
           "id": "speed_unit",
-          "type": "label",
+          "type": "gauge",
           "signal": "speed_kph",
           "layout": { "x": 160, "y": 80, "w": 158, "h": 28, "zOrder": 0 },
           "style": {
@@ -76,8 +83,13 @@
             "fontSize": 14
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 300,
+            "warningLevel": 240,
+            "dangerLevel": 280,
             "decimalPlaces": 0,
-            "prefix": "",
             "suffix": " km/h",
             "hideWhenInvalid": false
           }
@@ -96,15 +108,13 @@
             "fontSize": 32
           },
           "config": {
-            "decimalPlaces": 0,
-            "prefix": "",
-            "suffix": "",
-            "hideWhenInvalid": true
+            "type": "gear",
+            "decimalPlaces": 0
           }
         },
         {
           "id": "coolant_temp",
-          "type": "label",
+          "type": "gauge",
           "signal": "coolant_temp_c",
           "layout": { "x": 0, "y": 144, "w": 80, "h": 48, "zOrder": 0 },
           "style": {
@@ -116,15 +126,20 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 120,
+            "warningLevel": 95,
+            "dangerLevel": 110,
             "decimalPlaces": 0,
-            "prefix": "",
             "suffix": "°C",
             "hideWhenInvalid": false
           }
         },
         {
           "id": "oil_temp",
-          "type": "label",
+          "type": "gauge",
           "signal": "oil_temp_c",
           "layout": { "x": 80, "y": 144, "w": 80, "h": 48, "zOrder": 0 },
           "style": {
@@ -136,15 +151,20 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 150,
+            "warningLevel": 120,
+            "dangerLevel": 140,
             "decimalPlaces": 0,
-            "prefix": "",
             "suffix": "°",
             "hideWhenInvalid": false
           }
         },
         {
           "id": "afr_label",
-          "type": "label",
+          "type": "gauge",
           "signal": "afr_1",
           "layout": { "x": 160, "y": 160, "w": 80, "h": 40, "zOrder": 0 },
           "style": {
@@ -156,15 +176,20 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 10,
+            "maxValue": 18,
+            "warningLevel": 16,
+            "dangerLevel": 17,
             "decimalPlaces": 1,
-            "prefix": "",
             "suffix": " AFR",
             "hideWhenInvalid": false
           }
         },
         {
           "id": "battery_volts",
-          "type": "label",
+          "type": "gauge",
           "signal": "battery_volts",
           "layout": { "x": 244, "y": 160, "w": 76, "h": 40, "zOrder": 0 },
           "style": {
@@ -176,8 +201,13 @@
             "fontSize": 14
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 10,
+            "maxValue": 15,
+            "warningLevel": 11,
+            "dangerLevel": 10.5,
             "decimalPlaces": 1,
-            "prefix": "",
             "suffix": "V",
             "hideWhenInvalid": false
           }
@@ -196,6 +226,7 @@
             "fontSize": 12
           },
           "config": {
+            "type": "warning",
             "invertLogic": false,
             "threshold": 0.5
           }
@@ -214,6 +245,7 @@
             "fontSize": 12
           },
           "config": {
+            "type": "button",
             "label": "DETAIL",
             "actions": [
               { "category": "dashboard", "type": "navigate", "pageId": "detail" }
@@ -243,16 +275,18 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
             "minValue": -1.0,
             "maxValue": 2.0,
             "warningLevel": 1.5,
             "dangerLevel": 1.8,
-            "showArc": true
+            "decimalPlaces": 1
           }
         },
         {
           "id": "iat_label",
-          "type": "label",
+          "type": "gauge",
           "signal": "iat_c",
           "layout": { "x": 124, "y": 4, "w": 100, "h": 44, "zOrder": 0 },
           "style": {
@@ -264,6 +298,12 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": -20,
+            "maxValue": 60,
+            "warningLevel": 45,
+            "dangerLevel": 55,
             "decimalPlaces": 0,
             "prefix": "IAT ",
             "suffix": "°C",
@@ -272,7 +312,7 @@
         },
         {
           "id": "oil_press_label",
-          "type": "label",
+          "type": "gauge",
           "signal": "oil_press_bar",
           "layout": { "x": 124, "y": 54, "w": 100, "h": 44, "zOrder": 0 },
           "style": {
@@ -284,6 +324,12 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 6,
+            "warningLevel": 1,
+            "dangerLevel": 0.5,
             "decimalPlaces": 1,
             "prefix": "OilP ",
             "suffix": " bar",
@@ -292,7 +338,7 @@
         },
         {
           "id": "lambda_label",
-          "type": "label",
+          "type": "gauge",
           "signal": "lambda_1",
           "layout": { "x": 230, "y": 4, "w": 88, "h": 44, "zOrder": 0 },
           "style": {
@@ -304,9 +350,14 @@
             "fontSize": 20
           },
           "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0.7,
+            "maxValue": 1.3,
+            "warningLevel": 1.15,
+            "dangerLevel": 1.2,
             "decimalPlaces": 2,
             "prefix": "λ ",
-            "suffix": "",
             "hideWhenInvalid": false
           }
         },
@@ -324,10 +375,10 @@
             "fontSize": 12
           },
           "config": {
+            "type": "bar",
             "decimalPlaces": 0,
             "prefix": "TPS ",
-            "suffix": "%",
-            "hideWhenInvalid": false
+            "suffix": "%"
           }
         },
         {
@@ -344,6 +395,7 @@
             "fontSize": 12
           },
           "config": {
+            "type": "button",
             "label": "MAIN",
             "actions": [
               { "category": "dashboard", "type": "navigate", "pageId": "main" }
