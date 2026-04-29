@@ -144,12 +144,11 @@ void taskUI(void *pvParameters) {
 #include "can/can_manager.h"
 
 void taskCAN(void *pvParameters) {
-    CanManager::init();
-
+    // CanManager::initHardware() is called from BootSequence::run() before tasks start.
+    // This task only runs the receive/dispatch loop.
     while (true) {
         CanManager::tick();
-        // canManager tick is blocking on TWAI receive with a short timeout
-        // so we do not add an explicit delay here
+        // tick() blocks on TWAI receive with a short timeout — no delay needed
     }
 }
 
