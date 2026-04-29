@@ -3,6 +3,7 @@
 #include "page_manager.h"
 #include "widget_factory.h"
 #include "top_bar.h"
+#include "settings_page.h"
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
@@ -82,6 +83,69 @@ namespace {
         LOG_INFO("UI", "Navigated to page '%s'", s_pages[idx].id);
     }
 
+    // ---------------------------------------------------------------------------
+    // Gesture handling
+    // ---------------------------------------------------------------------------
+    //
+    // LVGL 8.3 gesture recognition lives in the indev layer, not in the object
+    // event system. Reading lv_indev_get_gesture_dir() here (after lv_task_handler
+    // has run) is the reliable path — it works even when buttons or sliders absorb
+    // the touch event and prevent LV_EVENT_GESTURE from reaching the screen object.
+    //
+    // Gesture map:
+    //   Swipe DOWN  → open settings panel (if closed)
+    //   Swipe UP    → close settings panel (if open)
+    //   Swipe LEFT  → next page           (only while settings is closed)
+    //   Swipe RIGHT → previous page       (only while settings is closed)
+
+    void onGesture(lv_dir_t dir) {
+        if (SettingsPage::isOpen()) {
+            if (dir == LV_DIR_TOP) {
+                SettingsPage::close();
+                LOG_DEBUG("UI", "Gesture: swipe up → settings closed");
+            }
+            // All other swipes are ignored while settings is visible
+            return;
+        }
+
+        switch (dir) {
+            case LV_DIR_BOTTOM:
+                SettingsPage::open();
+                LOG_DEBUG("UI", "Gesture: swipe down → settings opened");
+                break;
+            case LV_DIR_LEFT:
+                if (s_pageCount > 1) {
+                    showPage((s_currentIdx + 1) % s_pageCount);
+                    LOG_DEBUG("UI", "Gesture: swipe left → next page");
+                }
+                break;
+            case LV_DIR_RIGHT:
+                if (s_pageCount > 1) {
+                    showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1);
+                    LOG_DEBUG("UI", "Gesture: swipe right → prev page");
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    void checkGestures() {
+        // Iterate all registered indev instances and look for a pointer device.
+        // There is only one touch controller on this hardware.
+        lv_indev_t* indev = lv_indev_get_next(nullptr);
+        while (indev != nullptr) {
+            if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+                lv_dir_t dir = lv_indev_get_gesture_dir(indev);
+                if (dir != LV_DIR_NONE) {
+                    onGesture(dir);
+                }
+                break;
+            }
+            indev = lv_indev_get_next(indev);
+        }
+    }
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -158,12 +222,17 @@ const char* PageManager::getDefaultPageId() {
 }
 
 void PageManager::updateWidgets() {
-    // Delegate to WidgetFactory to update all widgets on the current screen
     if (s_pageCount == 0) return;
+
+    // Process swipe gestures before widget updates so navigation changes take
+    // effect on the same frame that LVGL renders.
+    checkGestures();
+
+    // Update widgets on the current page
     lv_obj_t* currentScreen = s_pages[s_currentIdx].screen;
     WidgetFactory::updateAll(currentScreen);
 
-    // Check timeouts periodically
+    // Check signal timeouts periodically (100ms interval is sufficient)
     static uint32_t lastTimeoutCheck = 0;
     uint32_t now = millis();
     if (now - lastTimeoutCheck > 100) {

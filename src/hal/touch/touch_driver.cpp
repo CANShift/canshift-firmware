@@ -48,6 +48,14 @@ void TouchDriver::init() {
     lv_indev_drv_init(&s_indevDrv);
     s_indevDrv.type    = LV_INDEV_TYPE_POINTER;
     s_indevDrv.read_cb = readCallback;
+
+    // Gesture recognition thresholds.
+    // gesture_limit: minimum travel distance in pixels before LVGL considers it a swipe.
+    // gesture_min_velocity: minimum pixels-per-handler-call to confirm intentional swipe.
+    // Lower gesture_limit = more sensitive; raise if accidental swipes open settings.
+    s_indevDrv.gesture_limit        = 40;
+    s_indevDrv.gesture_min_velocity = 3;
+
     lv_indev_drv_register(&s_indevDrv);
 
     LOG_INFO("TOUCH", "Touch driver registered");
