@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift dashboard configuration — VW VR6 2.9 / MaxxECU Street",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "VR6 Main Dash",
   "description": "Default dashboard configuration for VW VR6 2.9 with MaxxECU Street",
   "defaultPageId": "main",
@@ -214,9 +214,10 @@
             "fontSize": 12
           },
           "config": {
-            "targetPageId": "detail",
             "label": "DETAIL",
-            "iconPath": ""
+            "actions": [
+              { "category": "dashboard", "type": "navigate", "pageId": "detail" }
+            ]
           }
         }
       ]
@@ -343,9 +344,10 @@
             "fontSize": 12
           },
           "config": {
-            "targetPageId": "main",
             "label": "MAIN",
-            "iconPath": ""
+            "actions": [
+              { "category": "dashboard", "type": "navigate", "pageId": "main" }
+            ]
           }
         }
       ]
