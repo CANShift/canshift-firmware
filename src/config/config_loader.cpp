@@ -123,9 +123,7 @@ bool loadDashboard() {
     if (!json)
         return false;
 
-    JsonDocument doc; // ArduinoJson v7 uses JsonDocument directly
-    doc.capacity(CONFIG_JSON_DOC_DASHBOARD);
-
+    JsonDocument doc; // ArduinoJson v7 — dynamic, no capacity() needed
     DeserializationError err = deserializeJson(doc, json, jsonSize);
     free(json);
 
@@ -181,9 +179,7 @@ bool loadSignals() {
     if (!json)
         return false;
 
-    JsonDocument doc;
-    doc.capacity(CONFIG_JSON_DOC_SIGNALS);
-
+    JsonDocument doc; // ArduinoJson v7 — dynamic
     DeserializationError err = deserializeJson(doc, json, jsonSize);
     free(json);
 
@@ -228,9 +224,7 @@ bool loadTheme() {
     if (!json)
         return false;
 
-    JsonDocument doc;
-    doc.capacity(CONFIG_JSON_DOC_THEME);
-
+    JsonDocument doc; // ArduinoJson v7 — dynamic
     DeserializationError err = deserializeJson(doc, json, jsonSize);
     free(json);
 
