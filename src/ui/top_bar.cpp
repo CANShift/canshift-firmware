@@ -1,6 +1,7 @@
 // top_bar.cpp — Persistent top status bar
 
 #include "top_bar.h"
+#include "settings_page.h"
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
@@ -16,6 +17,8 @@
 static lv_obj_t* s_bar         = nullptr;
 static lv_obj_t* s_mapLabel    = nullptr;
 static lv_obj_t* s_milIcon     = nullptr;
+static lv_obj_t* s_gearBtn     = nullptr;
+static lv_obj_t* s_gearLabel   = nullptr;
 static int16_t   s_height      = 24;
 
 // Map name strings — MaxxECU may expose a numeric map index
@@ -55,14 +58,39 @@ void TopBar::init() {
         lv_label_set_text(s_mapLabel, "CANShift");
     }
 
-    // MIL icon (right side) — simple red dot
+    // MIL icon (right side, offset left to leave room for gear button)
     s_milIcon = lv_obj_create(s_bar);
-    lv_obj_set_size(s_milIcon, 10, 10);
-    lv_obj_align(s_milIcon, LV_ALIGN_RIGHT_MID, -4, 0);
+    lv_obj_set_size(s_milIcon, 8, 8);
+    lv_obj_align(s_milIcon, LV_ALIGN_RIGHT_MID, -(s_height + 4), 0);
     lv_obj_set_style_bg_color(s_milIcon, lv_color_hex(0xFF0000), LV_PART_MAIN);
     lv_obj_set_style_radius(s_milIcon, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_milIcon, 0, LV_PART_MAIN);
     lv_obj_add_flag(s_milIcon, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
+
+    // Gear / settings button — rightmost, toggles SettingsPage
+    s_gearBtn = lv_btn_create(s_bar);
+    lv_obj_set_size(s_gearBtn, s_height, s_height);
+    lv_obj_align(s_gearBtn, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_bg_opa(s_gearBtn, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_gearBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(s_gearBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_gearBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_gearBtn, 0, LV_PART_MAIN);
+
+    s_gearLabel = lv_label_create(s_gearBtn);
+    lv_label_set_text(s_gearLabel, LV_SYMBOL_SETTINGS);
+    lv_obj_set_style_text_color(s_gearLabel, lv_color_hex(0x555555), 0);
+    lv_obj_center(s_gearLabel);
+
+    lv_obj_add_event_cb(s_gearBtn, [](lv_event_t* /*e*/) {
+        bool nowOpen = SettingsPage::toggle();
+        lv_label_set_text(s_gearLabel, nowOpen ? LV_SYMBOL_CLOSE : LV_SYMBOL_SETTINGS);
+        lv_obj_set_style_text_color(s_gearLabel,
+            lv_color_hex(nowOpen ? 0xCC3333 : 0x555555), 0);
+    }, LV_EVENT_CLICKED, nullptr);
+
+    // Initialize settings page overlay (positioned directly below the top bar)
+    SettingsPage::init(s_height, static_cast<int16_t>(LV_VER_RES - s_height));
 
     LOG_INFO("UI", "Top bar initialized (height=%dpx)", s_height);
 }

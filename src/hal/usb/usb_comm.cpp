@@ -9,8 +9,13 @@
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
+#include "ui/settings_page.h"
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
+
+// Forward-declared FreeRTOS LVGL mutex from main.cpp
+extern SemaphoreHandle_t g_lvglMutex;
 
 // ---------------------------------------------------------------------------
 // Receive state machine
@@ -26,13 +31,44 @@ namespace {
     static char s_rxBuf[USB_RX_BUF_SIZE];
     static size_t s_rxPos = 0;
 
+    void handleScreenSettings(const JsonObjectConst& obj) {
+        uint8_t  brightness = obj["brightness"] | 80;
+        uint8_t  contrast   = obj["contrast"]   | 50;
+        uint32_t sleepS     = obj["sleep"]       | 0u;
+        uint16_t rotation   = obj["rotation"]    | 0u;
+
+        // Take LVGL mutex — SettingsPage uses LVGL objects
+        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            SettingsPage::applyFromUsb(brightness, contrast, sleepS, rotation);
+            xSemaphoreGive(g_lvglMutex);
+            Serial.println("{\"rsp\":128,\"msg\":\"screen_settings_ok\"}");
+        } else {
+            LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
+            Serial.println("{\"rsp\":129,\"msg\":\"busy\"}");
+        }
+    }
+
     void handleCommand(const char* jsonLine) {
-        // TODO: Parse jsonLine with ArduinoJson
-        // For now, just log receipt
         LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
 
-        // Stub response
-        Serial.println("{\"rsp\":128,\"msg\":\"ok\"}");
+        StaticJsonDocument<256> doc;
+        DeserializationError err = deserializeJson(doc, jsonLine);
+        if (err) {
+            LOG_WARN("USB", "JSON parse error: %s", err.c_str());
+            Serial.println("{\"rsp\":129,\"msg\":\"parse_error\"}");
+            return;
+        }
+
+        uint8_t cmd = doc["cmd"] | 0;
+        switch (cmd) {
+            case UsbComm::CMD_SCREEN_SETTINGS:
+                handleScreenSettings(doc.as<JsonObjectConst>());
+                break;
+            default:
+                LOG_DEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
+                Serial.println("{\"rsp\":128,\"msg\":\"ok\"}");
+                break;
+        }
     }
 
 } // namespace
