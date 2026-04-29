@@ -25,12 +25,14 @@ static lv_disp_drv_t s_dispDrv;
     #include "board_config.h"
     #include <TFT_eSPI.h>
     #include <Arduino.h>
+    #include <esp_heap_caps.h>
 
 static TFT_eSPI s_tft;
 
-// Two partial draw buffers — 40 lines each, double-buffered
-static lv_color_t s_buf1[HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT];
-static lv_color_t s_buf2[HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT];
+// Draw buffer pointers — allocated from DMA-capable heap in init() so they
+// do not occupy BSS (51 KB static would overflow dram0_0_seg).
+static lv_color_t *s_buf1 = nullptr;
+static lv_color_t *s_buf2 = nullptr;
 
 void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
                                   lv_color_t *colorMap) {
@@ -48,6 +50,18 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
 void DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing TFT_eSPI...");
 
+    // Allocate draw buffers from the DMA-capable internal heap.
+    // This keeps them out of the static BSS segment (which is severely limited).
+    const size_t bufBytes = HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT * sizeof(lv_color_t);
+    s_buf1 =
+        static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    s_buf2 =
+        static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    if (!s_buf1 || !s_buf2) {
+        LOG_ERROR("DISP", "Failed to allocate LVGL draw buffers (%u bytes each)", bufBytes);
+        return;
+    }
+
     s_tft.init();
     s_tft.setRotation(HW_DISPLAY_ROTATION);
     s_tft.fillScreen(TFT_BLACK);
@@ -62,6 +76,11 @@ void DisplayDriver::init() {
 
 void DisplayDriver::registerWithLVGL() {
     LOG_INFO("DISP", "Registering display with LVGL...");
+
+    if (!s_buf1 || !s_buf2) {
+        LOG_ERROR("DISP", "Cannot register display — draw buffers not allocated");
+        return;
+    }
 
     lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT);
 
