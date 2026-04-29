@@ -41,12 +41,22 @@ static void showSplash() {
     lv_obj_t* splash = lv_obj_create(lv_scr_act());
     lv_obj_set_size(splash, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(splash, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_border_width(splash, 0, 0);
+    lv_obj_set_style_pad_all(splash, 0, 0);
 
-    lv_obj_t* label = lv_label_create(splash);
-    lv_label_set_text(label, "CANShift\nv" APP_VERSION_STR);
-    lv_obj_set_style_text_color(label, lv_color_hex(0xFF4444), 0);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+    // App name — large, brand red
+    lv_obj_t* title = lv_label_create(splash);
+    lv_label_set_text(title, "CANShift");
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFF4444), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -10);
+
+    // Version — small, dim grey, below the title
+    lv_obj_t* ver = lv_label_create(splash);
+    lv_label_set_text(ver, "v" APP_VERSION_STR);
+    lv_obj_set_style_text_color(ver, lv_color_hex(0x555555), 0);
+    lv_obj_set_style_text_font(ver, &lv_font_montserrat_14, 0);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 20);
 
     lv_task_handler();
 }
