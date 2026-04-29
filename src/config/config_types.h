@@ -65,6 +65,8 @@ struct CfgStyle {
     CfgColor criticalColor;  // Critical state color (default red)
     CfgColor textColor;      // Label text color
     uint8_t fontSize;        // Font size (must be an enabled LV font size)
+    bool hasBorder;          // True if borderColor is active
+    CfgColor borderColor;    // Widget container border (1 px, only if hasBorder)
 };
 
 // ---------------------------------------------------------------------------

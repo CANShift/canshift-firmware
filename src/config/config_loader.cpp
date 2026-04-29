@@ -70,6 +70,10 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     parseColor(style["criticalColor"] | "#FF0000", &w->style.criticalColor);
     parseColor(style["textColor"] | "#FFFFFF", &w->style.textColor);
     w->style.fontSize = style["fontSize"] | 16;
+    const char *borderHex = style["borderColor"] | nullptr;
+    w->style.hasBorder = (borderHex != nullptr);
+    if (w->style.hasBorder)
+        parseColor(borderHex, &w->style.borderColor);
 
     JsonObjectConst cfg = src["config"];
     switch (w->type) {
