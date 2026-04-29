@@ -5,10 +5,10 @@
 
 namespace ThemeManager {
 
-    /**
+/**
      * Apply the loaded theme config to the LVGL default theme.
      * Call from BootSequence::run() after ConfigLoader::loadAll().
      */
-    void apply();
+void apply();
 
 } // namespace ThemeManager

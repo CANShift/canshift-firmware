@@ -15,51 +15,51 @@
 
 namespace AlertEngine {
 
-    enum class AlertLevel : uint8_t {
-        NORMAL   = 0,
-        CAUTION  = 1,   // Yellow — approaching threshold
-        WARNING  = 2,   // Orange — at threshold
-        CRITICAL = 3    // Red — over threshold, requires immediate attention
-    };
+enum class AlertLevel : uint8_t {
+    NORMAL = 0,
+    CAUTION = 1, // Yellow — approaching threshold
+    WARNING = 2, // Orange — at threshold
+    CRITICAL = 3 // Red — over threshold, requires immediate attention
+};
 
-    struct AlertState {
-        AlertLevel  revLimiter;
-        bool        revLimiterFlashActive; // True when flash effect should be shown
-        AlertLevel  coolantTemp;
-        AlertLevel  oilTemp;
-        AlertLevel  oilPressure;
-        bool        milActive;
-        AlertLevel  batteryVoltage;
-        AlertLevel  global;               // Highest of all alert levels
-    };
+struct AlertState {
+    AlertLevel revLimiter;
+    bool revLimiterFlashActive; // True when flash effect should be shown
+    AlertLevel coolantTemp;
+    AlertLevel oilTemp;
+    AlertLevel oilPressure;
+    bool milActive;
+    AlertLevel batteryVoltage;
+    AlertLevel global; // Highest of all alert levels
+};
 
-    /**
+/**
      * Initialize alert engine.
      * Call from BootSequence::run().
      */
-    void init();
+void init();
 
-    /**
+/**
      * Update alert states from current signal values.
      * Call from UI task at every render tick.
      */
-    void tick();
+void tick();
 
-    /**
+/**
      * Get current alert state snapshot (thread-safe copy).
      */
-    AlertState getState();
+AlertState getState();
 
-    /**
+/**
      * Return true if the rev limiter flash overlay should be shown right now.
      * This alternates at ALERT_REVLIMIT_FLASH_HZ frequency.
      */
-    bool isRevLimiterFlashOn();
+bool isRevLimiterFlashOn();
 
-    /**
+/**
      * Return the LVGL color to use for the rev limiter overlay.
      * Returns transparent color when flash is off.
      */
-    uint32_t getRevLimiterOverlayColor();
+uint32_t getRevLimiterOverlayColor();
 
 } // namespace AlertEngine

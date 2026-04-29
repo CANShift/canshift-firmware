@@ -11,43 +11,43 @@
 #include "app_config.h"
 
 namespace Logger {
-    void init();
+void init();
 }
 
 // Log levels
-#define LOG_LEVEL_ERROR   1
-#define LOG_LEVEL_WARN    2
-#define LOG_LEVEL_INFO    3
-#define LOG_LEVEL_DEBUG   4
+#define LOG_LEVEL_ERROR 1
+#define LOG_LEVEL_WARN 2
+#define LOG_LEVEL_INFO 3
+#define LOG_LEVEL_DEBUG 4
 #define LOG_LEVEL_VERBOSE 5
 
 // Logging macros — compile out levels above APP_LOG_LEVEL
 #if APP_LOG_LEVEL >= LOG_LEVEL_ERROR
-  #define LOG_ERROR(tag, fmt, ...) Serial.printf("[E][%s] " fmt "\n", tag, ##__VA_ARGS__)
+    #define LOG_ERROR(tag, fmt, ...) Serial.printf("[E][%s] " fmt "\n", tag, ##__VA_ARGS__)
 #else
-  #define LOG_ERROR(tag, fmt, ...)
+    #define LOG_ERROR(tag, fmt, ...)
 #endif
 
 #if APP_LOG_LEVEL >= LOG_LEVEL_WARN
-  #define LOG_WARN(tag, fmt, ...)  Serial.printf("[W][%s] " fmt "\n", tag, ##__VA_ARGS__)
+    #define LOG_WARN(tag, fmt, ...) Serial.printf("[W][%s] " fmt "\n", tag, ##__VA_ARGS__)
 #else
-  #define LOG_WARN(tag, fmt, ...)
+    #define LOG_WARN(tag, fmt, ...)
 #endif
 
 #if APP_LOG_LEVEL >= LOG_LEVEL_INFO
-  #define LOG_INFO(tag, fmt, ...)  Serial.printf("[I][%s] " fmt "\n", tag, ##__VA_ARGS__)
+    #define LOG_INFO(tag, fmt, ...) Serial.printf("[I][%s] " fmt "\n", tag, ##__VA_ARGS__)
 #else
-  #define LOG_INFO(tag, fmt, ...)
+    #define LOG_INFO(tag, fmt, ...)
 #endif
 
 #if APP_LOG_LEVEL >= LOG_LEVEL_DEBUG
-  #define LOG_DEBUG(tag, fmt, ...) Serial.printf("[D][%s] " fmt "\n", tag, ##__VA_ARGS__)
+    #define LOG_DEBUG(tag, fmt, ...) Serial.printf("[D][%s] " fmt "\n", tag, ##__VA_ARGS__)
 #else
-  #define LOG_DEBUG(tag, fmt, ...)
+    #define LOG_DEBUG(tag, fmt, ...)
 #endif
 
 #if APP_LOG_LEVEL >= LOG_LEVEL_VERBOSE
-  #define LOG_VERBOSE(tag, fmt, ...) Serial.printf("[V][%s] " fmt "\n", tag, ##__VA_ARGS__)
+    #define LOG_VERBOSE(tag, fmt, ...) Serial.printf("[V][%s] " fmt "\n", tag, ##__VA_ARGS__)
 #else
-  #define LOG_VERBOSE(tag, fmt, ...)
+    #define LOG_VERBOSE(tag, fmt, ...)
 #endif

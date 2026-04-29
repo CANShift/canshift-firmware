@@ -12,13 +12,13 @@
 // functions. We use TFT_eSPI's built-in touch support.
 // TODO: Confirm TFT_eSPI is compiled with TOUCH_CS defined (matches PIN_TOUCH_CS).
 
-static TFT_eSPI s_touch;   // Re-use the same TFT instance — touch shares SPI bus
-                            // TODO: Use a shared global TFT_eSPI instance rather than
-                            //       separate instances in display and touch drivers.
+static TFT_eSPI s_touch; // Re-use the same TFT instance — touch shares SPI bus
+                         // TODO: Use a shared global TFT_eSPI instance rather than
+                         //       separate instances in display and touch drivers.
 
 static lv_indev_drv_t s_indevDrv;
 
-void TouchDriver::readCallback(lv_indev_drv_t* drv, lv_indev_data_t* data) {
+void TouchDriver::readCallback(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     uint16_t rawX, rawY;
     bool pressed = s_touch.getTouch(&rawX, &rawY, 40 /* minimum Z pressure */);
 
@@ -31,7 +31,7 @@ void TouchDriver::readCallback(lv_indev_drv_t* drv, lv_indev_data_t* data) {
 
         data->point.x = static_cast<lv_coord_t>(rawX);
         data->point.y = static_cast<lv_coord_t>(rawY);
-        data->state   = LV_INDEV_STATE_PRESSED;
+        data->state = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
@@ -46,14 +46,14 @@ void TouchDriver::init() {
 
     // Register LVGL input device
     lv_indev_drv_init(&s_indevDrv);
-    s_indevDrv.type    = LV_INDEV_TYPE_POINTER;
+    s_indevDrv.type = LV_INDEV_TYPE_POINTER;
     s_indevDrv.read_cb = readCallback;
 
     // Gesture recognition thresholds.
     // gesture_limit: minimum travel distance in pixels before LVGL considers it a swipe.
     // gesture_min_velocity: minimum pixels-per-handler-call to confirm intentional swipe.
     // Lower gesture_limit = more sensitive; raise if accidental swipes open settings.
-    s_indevDrv.gesture_limit        = 40;
+    s_indevDrv.gesture_limit = 40;
     s_indevDrv.gesture_min_velocity = 3;
 
     lv_indev_drv_register(&s_indevDrv);

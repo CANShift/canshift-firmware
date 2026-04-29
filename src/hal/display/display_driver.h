@@ -13,29 +13,29 @@
 
 namespace DisplayDriver {
 
-    /**
+/**
      * Initialize the ILI9341 display via TFT_eSPI.
      * Sets up SPI, sends init commands, configures backlight PWM.
      * Must be called before lv_init() and registerWithLVGL().
      */
-    void init();
+void init();
 
-    /**
+/**
      * Register the display driver with LVGL.
      * Creates the LVGL draw buffers and sets the flush callback.
      * Call after lv_init().
      */
-    void registerWithLVGL();
+void registerWithLVGL();
 
-    /**
+/**
      * Set backlight brightness (0=off, 255=full).
      */
-    void setBacklight(uint8_t brightness);
+void setBacklight(uint8_t brightness);
 
-    /**
+/**
      * LVGL flush callback — do not call directly.
      * Called by LVGL when a screen region needs to be pushed to the display.
      */
-    void flushCallback(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* colorMap);
+void flushCallback(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorMap);
 
 } // namespace DisplayDriver

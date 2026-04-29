@@ -18,27 +18,27 @@
 
 namespace CanManager {
 
-    /**
+/**
      * Initialize TWAI hardware driver.
      * Called from BootSequence::run() (not from the CAN task).
      */
-    void initHardware();
+void initHardware();
 
-    /**
+/**
      * Main CAN receive and dispatch loop.
      * Blocks waiting for a frame (with timeout), then dispatches to parser.
      * Called repeatedly from the CAN FreeRTOS task.
      */
-    void tick();
+void tick();
 
-    /**
+/**
      * Return the number of CAN frames received since boot.
      */
-    uint32_t getFrameCount();
+uint32_t getFrameCount();
 
-    /**
+/**
      * Return the number of CAN parse errors since boot.
      */
-    uint32_t getErrorCount();
+uint32_t getErrorCount();
 
 } // namespace CanManager

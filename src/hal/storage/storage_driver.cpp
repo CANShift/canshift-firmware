@@ -7,13 +7,13 @@
 #include <Arduino.h>
 
 #if STORAGE_USE_SPIFFS
-  #include <SPIFFS.h>
-  #define FS_INSTANCE SPIFFS
+    #include <SPIFFS.h>
+    #define FS_INSTANCE SPIFFS
 #elif STORAGE_USE_SD
-  #include <SD.h>
-  #define FS_INSTANCE SD
+    #include <SD.h>
+    #define FS_INSTANCE SD
 #else
-  #error "No storage backend selected in board_config.h"
+    #error "No storage backend selected in board_config.h"
 #endif
 
 bool StorageDriver::init() {
@@ -38,20 +38,22 @@ bool StorageDriver::init() {
 #endif
 }
 
-char* StorageDriver::readFile(const char* path, size_t* outSize) {
+char *StorageDriver::readFile(const char *path, size_t *outSize) {
     File file = FS_INSTANCE.open(path, "r");
     if (!file || file.isDirectory()) {
         LOG_WARN("STORAGE", "Cannot open file: %s", path);
-        if (outSize) *outSize = 0;
+        if (outSize)
+            *outSize = 0;
         return nullptr;
     }
 
     size_t size = file.size();
-    char* buf = static_cast<char*>(malloc(size + 1));
+    char *buf = static_cast<char *>(malloc(size + 1));
     if (!buf) {
         LOG_ERROR("STORAGE", "malloc(%u) failed reading %s", size + 1, path);
         file.close();
-        if (outSize) *outSize = 0;
+        if (outSize)
+            *outSize = 0;
         return nullptr;
     }
 
@@ -59,12 +61,13 @@ char* StorageDriver::readFile(const char* path, size_t* outSize) {
     buf[read] = '\0';
     file.close();
 
-    if (outSize) *outSize = read;
+    if (outSize)
+        *outSize = read;
     LOG_DEBUG("STORAGE", "Read %u bytes from %s", read, path);
     return buf;
 }
 
-bool StorageDriver::writeFile(const char* path, const uint8_t* data, size_t length) {
+bool StorageDriver::writeFile(const char *path, const uint8_t *data, size_t length) {
     File file = FS_INSTANCE.open(path, "w");
     if (!file) {
         LOG_ERROR("STORAGE", "Cannot open for write: %s", path);
@@ -83,16 +86,20 @@ bool StorageDriver::writeFile(const char* path, const uint8_t* data, size_t leng
     return true;
 }
 
-bool StorageDriver::fileExists(const char* path) {
+bool StorageDriver::fileExists(const char *path) {
     return FS_INSTANCE.exists(path);
 }
 
-void StorageDriver::getSpaceInfo(size_t* totalBytes, size_t* usedBytes) {
+void StorageDriver::getSpaceInfo(size_t *totalBytes, size_t *usedBytes) {
 #if STORAGE_USE_SPIFFS
-    if (totalBytes) *totalBytes = SPIFFS.totalBytes();
-    if (usedBytes)  *usedBytes  = SPIFFS.usedBytes();
+    if (totalBytes)
+        *totalBytes = SPIFFS.totalBytes();
+    if (usedBytes)
+        *usedBytes = SPIFFS.usedBytes();
 #elif STORAGE_USE_SD
-    if (totalBytes) *totalBytes = SD.totalBytes();
-    if (usedBytes)  *usedBytes  = SD.usedBytes();
+    if (totalBytes)
+        *totalBytes = SD.totalBytes();
+    if (usedBytes)
+        *usedBytes = SD.usedBytes();
 #endif
 }

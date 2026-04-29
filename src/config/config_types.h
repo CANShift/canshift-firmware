@@ -15,43 +15,43 @@
 #define CONFIG_SCHEMA_VERSION "1.0.0"
 
 // Maximum string lengths for config values
-#define CFG_MAX_ID_LEN       32
-#define CFG_MAX_NAME_LEN     64
-#define CFG_MAX_SIGNAL_LEN   32
-#define CFG_MAX_PATH_LEN     64
-#define CFG_MAX_COLOR_LEN     8  // "#RRGGBB\0"
+#define CFG_MAX_ID_LEN 32
+#define CFG_MAX_NAME_LEN 64
+#define CFG_MAX_SIGNAL_LEN 32
+#define CFG_MAX_PATH_LEN 64
+#define CFG_MAX_COLOR_LEN 8 // "#RRGGBB\0"
 
 // ---------------------------------------------------------------------------
 // Color (RGB hex string → uint32_t)
 // ---------------------------------------------------------------------------
 struct CfgColor {
-    uint32_t rgb;   // 0x00RRGGBB
+    uint32_t rgb; // 0x00RRGGBB
 };
 
 // ---------------------------------------------------------------------------
 // Widget type enum
 // ---------------------------------------------------------------------------
 enum class WidgetType : uint8_t {
-    UNKNOWN     = 0,
-    GAUGE       = 1,  // Arc-based gauge (RPM, boost, etc.)
-    LABEL       = 2,  // Text label showing a signal value
-    WARNING     = 3,  // Warning indicator light (boolean signal)
-    BUTTON      = 4,  // Tap action button (page nav, etc.)
-    TOP_BAR     = 5,  // Reserved for top bar use
-    TIMER       = 6,  // Lap/session timer
-    BAR         = 7,  // Horizontal or vertical progress bar
-    GEAR_IND    = 8,  // Large gear indicator
-    IMAGE       = 9,  // Static or signal-driven image/icon
+    UNKNOWN = 0,
+    GAUGE = 1,    // Arc-based gauge (RPM, boost, etc.)
+    LABEL = 2,    // Text label showing a signal value
+    WARNING = 3,  // Warning indicator light (boolean signal)
+    BUTTON = 4,   // Tap action button (page nav, etc.)
+    TOP_BAR = 5,  // Reserved for top bar use
+    TIMER = 6,    // Lap/session timer
+    BAR = 7,      // Horizontal or vertical progress bar
+    GEAR_IND = 8, // Large gear indicator
+    IMAGE = 9,    // Static or signal-driven image/icon
 };
 
 // ---------------------------------------------------------------------------
 // Widget layout (position and size in pixels)
 // ---------------------------------------------------------------------------
 struct CfgLayout {
-    int16_t x;     // Left edge from screen left
-    int16_t y;     // Top edge from screen top (0 = below top bar)
-    int16_t w;     // Width in pixels
-    int16_t h;     // Height in pixels
+    int16_t x; // Left edge from screen left
+    int16_t y; // Top edge from screen top (0 = below top bar)
+    int16_t w; // Width in pixels
+    int16_t h; // Height in pixels
     uint8_t zOrder;
 };
 
@@ -59,70 +59,70 @@ struct CfgLayout {
 // Widget style (colors, fonts)
 // ---------------------------------------------------------------------------
 struct CfgStyle {
-    CfgColor primaryColor;    // Main value/indicator color
-    CfgColor secondaryColor;  // Background or track color
-    CfgColor warningColor;    // Warning state color (default orange)
-    CfgColor criticalColor;   // Critical state color (default red)
-    CfgColor textColor;       // Label text color
-    uint8_t  fontSize;        // Font size (must be an enabled LV font size)
+    CfgColor primaryColor;   // Main value/indicator color
+    CfgColor secondaryColor; // Background or track color
+    CfgColor warningColor;   // Warning state color (default orange)
+    CfgColor criticalColor;  // Critical state color (default red)
+    CfgColor textColor;      // Label text color
+    uint8_t fontSize;        // Font size (must be an enabled LV font size)
 };
 
 // ---------------------------------------------------------------------------
 // Widget config (type-specific parameters)
 // ---------------------------------------------------------------------------
 struct CfgGaugeParams {
-    float   minValue;
-    float   maxValue;
-    float   warningLevel;
-    float   dangerLevel;
+    float minValue;
+    float maxValue;
+    float warningLevel;
+    float dangerLevel;
     uint8_t numTicks;
-    bool    showNeedle;
-    bool    showArc;
+    bool showNeedle;
+    bool showArc;
 };
 
 struct CfgBarParams {
-    float   minValue;
-    float   maxValue;
-    float   warningLevel;   // Value at which indicator turns warning color
-    float   dangerLevel;    // Value at which indicator turns critical color
-    bool    isVertical;     // true = bottom-up fill, false = left-to-right
+    float minValue;
+    float maxValue;
+    float warningLevel; // Value at which indicator turns warning color
+    float dangerLevel;  // Value at which indicator turns critical color
+    bool isVertical;    // true = bottom-up fill, false = left-to-right
 };
 
 struct CfgLabelParams {
     uint8_t decimalPlaces;
-    char    prefix[16];
-    char    suffix[16];
-    bool    hideWhenInvalid;
+    char prefix[16];
+    char suffix[16];
+    bool hideWhenInvalid;
 };
 
 struct CfgWarningParams {
-    bool    invertLogic;    // True = lit when signal == 0 (e.g. oil pressure OK light)
-    float   threshold;      // Signal value that activates warning
+    bool invertLogic; // True = lit when signal == 0 (e.g. oil pressure OK light)
+    float threshold;  // Signal value that activates warning
 };
 
 struct CfgButtonParams {
-    char    targetPageId[CFG_MAX_ID_LEN];
-    char    label[CFG_MAX_NAME_LEN];
-    char    iconPath[CFG_MAX_PATH_LEN];
+    char targetPageId[CFG_MAX_ID_LEN];
+    char label[CFG_MAX_NAME_LEN];
+    char iconPath[CFG_MAX_PATH_LEN];
 };
 
 // ---------------------------------------------------------------------------
 // Widget definition
 // ---------------------------------------------------------------------------
 struct CfgWidget {
-    char        id[CFG_MAX_ID_LEN];
-    WidgetType  type;
-    char        signalId[CFG_MAX_SIGNAL_LEN];   // Signal name from signals.json
-    CfgLayout   layout;
-    CfgStyle    style;
+    char id[CFG_MAX_ID_LEN];
+    WidgetType type;
+    char signalId[CFG_MAX_SIGNAL_LEN]; // Signal name from signals.json
+    CfgLayout layout;
+    CfgStyle style;
 
     // Type-specific config — only one is active based on `type`
     union {
-        CfgGaugeParams   gauge;
-        CfgLabelParams   label;
+        CfgGaugeParams gauge;
+        CfgLabelParams label;
         CfgWarningParams warning;
-        CfgButtonParams  button;
-        CfgBarParams     bar;
+        CfgButtonParams button;
+        CfgBarParams bar;
     };
 };
 
@@ -130,22 +130,22 @@ struct CfgWidget {
 // Page definition
 // ---------------------------------------------------------------------------
 struct CfgPage {
-    char        id[CFG_MAX_ID_LEN];
-    char        name[CFG_MAX_NAME_LEN];
-    char        bgImagePath[CFG_MAX_PATH_LEN];  // Empty = no image
-    CfgColor    bgColor;
-    bool        showTopBar;
-    uint8_t     widgetCount;
-    CfgWidget   widgets[CONFIG_MAX_WIDGETS_PER_PAGE];
+    char id[CFG_MAX_ID_LEN];
+    char name[CFG_MAX_NAME_LEN];
+    char bgImagePath[CFG_MAX_PATH_LEN]; // Empty = no image
+    CfgColor bgColor;
+    bool showTopBar;
+    uint8_t widgetCount;
+    CfgWidget widgets[CONFIG_MAX_WIDGETS_PER_PAGE];
 };
 
 // ---------------------------------------------------------------------------
 // Top bar config
 // ---------------------------------------------------------------------------
 struct CfgTopBar {
-    uint8_t  height;           // Pixels (default 24)
-    bool     showMapName;
-    bool     showMapProfile;
+    uint8_t height; // Pixels (default 24)
+    bool showMapName;
+    bool showMapProfile;
     CfgColor bgColor;
     CfgColor textColor;
 };
@@ -154,64 +154,64 @@ struct CfgTopBar {
 // Dashboard config (root)
 // ---------------------------------------------------------------------------
 struct CfgDashboard {
-    char        version[16];
-    char        name[CFG_MAX_NAME_LEN];
-    char        defaultPageId[CFG_MAX_ID_LEN];
-    float       revLimitRpm;    // For alert engine
-    CfgTopBar   topBar;
-    uint8_t     pageCount;
-    CfgPage     pages[CONFIG_MAX_PAGES];
-    bool        loaded;         // True if successfully loaded from JSON
+    char version[16];
+    char name[CFG_MAX_NAME_LEN];
+    char defaultPageId[CFG_MAX_ID_LEN];
+    float revLimitRpm; // For alert engine
+    CfgTopBar topBar;
+    uint8_t pageCount;
+    CfgPage pages[CONFIG_MAX_PAGES];
+    bool loaded; // True if successfully loaded from JSON
 };
 
 // ---------------------------------------------------------------------------
 // Signal definition (from signals.json)
 // ---------------------------------------------------------------------------
 struct CfgSignalDef {
-    char        name[CFG_MAX_SIGNAL_LEN];   // Must match WidgetConfig.signalId
-    uint32_t    canFrameId;
-    uint8_t     startByte;
-    uint8_t     byteLength;     // 1, 2, or 4
-    bool        bigEndian;
-    bool        isSigned;
-    float       scale;
-    float       offset;
-    char        unit[16];
-    float       minValue;
-    float       maxValue;
-    uint32_t    timeoutMs;
+    char name[CFG_MAX_SIGNAL_LEN]; // Must match WidgetConfig.signalId
+    uint32_t canFrameId;
+    uint8_t startByte;
+    uint8_t byteLength; // 1, 2, or 4
+    bool bigEndian;
+    bool isSigned;
+    float scale;
+    float offset;
+    char unit[16];
+    float minValue;
+    float maxValue;
+    uint32_t timeoutMs;
 };
 
 struct CfgSignalConfig {
-    char            version[16];
-    char            protocol[32];   // e.g. "maxxecu_v1.2"
-    uint32_t        canSpeedKbps;
-    uint8_t         signalCount;
-    CfgSignalDef    signals[CONFIG_MAX_SIGNALS];
-    bool            loaded;
+    char version[16];
+    char protocol[32]; // e.g. "maxxecu_v1.2"
+    uint32_t canSpeedKbps;
+    uint8_t signalCount;
+    CfgSignalDef signals[CONFIG_MAX_SIGNALS];
+    bool loaded;
 };
 
 // ---------------------------------------------------------------------------
 // Theme config (from theme.json)
 // ---------------------------------------------------------------------------
 struct CfgTheme {
-    char        version[16];
-    char        name[CFG_MAX_NAME_LEN];
+    char version[16];
+    char name[CFG_MAX_NAME_LEN];
 
     // Palette
-    CfgColor    background;
-    CfgColor    surface;
-    CfgColor    primary;
-    CfgColor    accent;
-    CfgColor    text;
-    CfgColor    textDim;
-    CfgColor    warning;
-    CfgColor    danger;
-    CfgColor    success;
+    CfgColor background;
+    CfgColor surface;
+    CfgColor primary;
+    CfgColor accent;
+    CfgColor text;
+    CfgColor textDim;
+    CfgColor warning;
+    CfgColor danger;
+    CfgColor success;
 
     // Top bar
-    CfgColor    topBarBg;
-    CfgColor    topBarText;
+    CfgColor topBarBg;
+    CfgColor topBarText;
 
-    bool        loaded;
+    bool loaded;
 };

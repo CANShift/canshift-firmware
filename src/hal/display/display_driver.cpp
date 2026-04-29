@@ -22,13 +22,14 @@ static lv_color_t s_buf1[HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT];
 static lv_color_t s_buf2[HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT];
 
 static lv_disp_draw_buf_t s_drawBuf;
-static lv_disp_drv_t      s_dispDrv;
+static lv_disp_drv_t s_dispDrv;
 
 // ---------------------------------------------------------------------------
 // LVGL flush callback
 // ---------------------------------------------------------------------------
 
-void DisplayDriver::flushCallback(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* colorMap) {
+void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
+                                  lv_color_t *colorMap) {
     uint32_t w = (area->x2 - area->x1 + 1);
     uint32_t h = (area->y2 - area->y1 + 1);
 
@@ -36,7 +37,7 @@ void DisplayDriver::flushCallback(lv_disp_drv_t* disp, const lv_area_t* area, lv
     s_tft.setAddrWindow(area->x1, area->y1, w, h);
 
     // pushPixels expects 16-bit values. lv_color_t is RGB565 in our config.
-    s_tft.pushPixels(reinterpret_cast<uint16_t*>(colorMap), w * h);
+    s_tft.pushPixels(reinterpret_cast<uint16_t *>(colorMap), w * h);
 
     s_tft.endWrite();
 
@@ -73,19 +74,14 @@ void DisplayDriver::registerWithLVGL() {
     LOG_INFO("DISP", "Registering display with LVGL...");
 
     // Initialize draw buffer with two partial buffers
-    lv_disp_draw_buf_init(
-        &s_drawBuf,
-        s_buf1,
-        s_buf2,
-        HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT
-    );
+    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT);
 
     // Register display driver
     lv_disp_drv_init(&s_dispDrv);
-    s_dispDrv.hor_res   = HW_DISPLAY_WIDTH;
-    s_dispDrv.ver_res   = HW_DISPLAY_HEIGHT;
-    s_dispDrv.flush_cb  = flushCallback;
-    s_dispDrv.draw_buf  = &s_drawBuf;
+    s_dispDrv.hor_res = HW_DISPLAY_WIDTH;
+    s_dispDrv.ver_res = HW_DISPLAY_HEIGHT;
+    s_dispDrv.flush_cb = flushCallback;
+    s_dispDrv.draw_buf = &s_drawBuf;
 
     // Enable full dirty refresh for simplicity (may change to partial for performance)
     // s_dispDrv.full_refresh = 1;

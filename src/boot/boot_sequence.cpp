@@ -16,7 +16,7 @@
 #include "ui/theme_manager.h"
 
 #if !APP_SIMULATION_MODE
-#include "can/can_manager.h"
+    #include "can/can_manager.h"
 #endif
 
 #include <lvgl.h>
@@ -42,12 +42,12 @@ static void initDisplayAndLVGL() {
 // ---------------------------------------------------------------------------
 
 namespace {
-    static lv_obj_t* s_splashBar    = nullptr;
-    static lv_obj_t* s_splashStatus = nullptr;
-}
+static lv_obj_t *s_splashBar = nullptr;
+static lv_obj_t *s_splashStatus = nullptr;
+} // namespace
 
 static void showSplash() {
-    lv_obj_t* scr = lv_scr_act();
+    lv_obj_t *scr = lv_scr_act();
 
     // Full-screen background
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
@@ -55,14 +55,14 @@ static void showSplash() {
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
     // App name — bold, brand red, centered slightly above middle
-    lv_obj_t* title = lv_label_create(scr);
+    lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "CANShift");
     lv_obj_set_style_text_color(title, lv_color_hex(0xFF4444), 0);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_32, 0);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, -30);
 
     // Version — dim grey, right below the title
-    lv_obj_t* ver = lv_label_create(scr);
+    lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, "v" APP_VERSION_STR);
     lv_obj_set_style_text_color(ver, lv_color_hex(0x444444), 0);
     lv_obj_set_style_text_font(ver, &lv_font_montserrat_12, 0);
@@ -71,7 +71,7 @@ static void showSplash() {
     // Progress bar — 280 px wide, 4 px tall, below center
     static constexpr int16_t BAR_W = 280;
     static constexpr int16_t BAR_H = 4;
-    lv_obj_t* bar = lv_bar_create(scr);
+    lv_obj_t *bar = lv_bar_create(scr);
     lv_obj_set_size(bar, BAR_W, BAR_H);
     lv_obj_align(bar, LV_ALIGN_CENTER, 0, 48);
     lv_bar_set_range(bar, 0, 100);
@@ -89,22 +89,24 @@ static void showSplash() {
     lv_obj_set_style_radius(bar, 2, LV_PART_INDICATOR);
 
     // Status label — small, dim, below the bar
-    lv_obj_t* status = lv_label_create(scr);
+    lv_obj_t *status = lv_label_create(scr);
     lv_label_set_text(status, "Starting…");
     lv_obj_set_style_text_color(status, lv_color_hex(0x444444), 0);
-    lv_obj_set_style_text_font(status, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_font(status, &lv_font_montserrat_12, 0);
     lv_obj_align(status, LV_ALIGN_CENTER, 0, 66);
 
-    s_splashBar    = bar;
+    s_splashBar = bar;
     s_splashStatus = status;
 
     lv_task_handler();
 }
 
 // Call between each boot step to advance the bar and update the status text.
-static void updateSplash(const char* status, uint8_t pct) {
-    if (s_splashBar)    lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
-    if (s_splashStatus) lv_label_set_text(s_splashStatus, status);
+static void updateSplash(const char *status, uint8_t pct) {
+    if (s_splashBar)
+        lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
+    if (s_splashStatus)
+        lv_label_set_text(s_splashStatus, status);
     lv_task_handler();
 }
 
@@ -146,7 +148,7 @@ static void buildUI() {
 void BootSequence::run() {
     // 1. Display + LVGL must come early so we can show a splash
     initDisplayAndLVGL();
-    showSplash();                                    // 0 %
+    showSplash(); // 0 %
 
     // 2. Touch controller
     LOG_INFO("BOOT", "Initializing touch...");

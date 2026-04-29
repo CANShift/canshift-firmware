@@ -13,22 +13,22 @@
 
 namespace TopBar {
 
-    /**
+/**
      * Create the top bar on lv_layer_top().
      * Call once from PageManager::init().
      */
-    void init();
+void init();
 
-    /**
+/**
      * Update the top bar content (map name, icons).
      * Call from the UI task at a reduced rate (e.g. every 500ms).
      */
-    void update();
+void update();
 
-    /**
+/**
      * Return the top bar height in pixels.
      * Used by page manager to offset widget y positions.
      */
-    int16_t getHeight();
+int16_t getHeight();
 
 } // namespace TopBar

@@ -7,15 +7,15 @@
 
 namespace SimEngine {
 
-    /**
+/**
      * Initialize simulation state (RPM sweep direction, counters, etc.).
      */
-    void init();
+void init();
 
-    /**
+/**
      * Advance simulation one tick and update SignalStore.
      * Call from the simulation FreeRTOS task at SIM_UPDATE_MS intervals.
      */
-    void tick();
+void tick();
 
 } // namespace SimEngine

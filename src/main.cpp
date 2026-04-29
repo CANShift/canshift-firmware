@@ -14,12 +14,12 @@
 #include "diag/logger.h"
 
 // Task function forward declarations
-void taskUI(void* pvParameters);
-void taskCAN(void* pvParameters);
-void taskUSBComm(void* pvParameters);
+void taskUI(void *pvParameters);
+void taskCAN(void *pvParameters);
+void taskUSBComm(void *pvParameters);
 
 #if APP_SIMULATION_MODE
-void taskSim(void* pvParameters);
+void taskSim(void *pvParameters);
 #endif
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,9 @@ void setup() {
     g_lvglMutex = xSemaphoreCreateMutex();
     if (!g_lvglMutex) {
         LOG_ERROR("BOOT", "Failed to create LVGL mutex — halting");
-        while (true) { delay(1000); }
+        while (true) {
+            delay(1000);
+        }
     }
 
     // Run the synchronous boot sequence:
@@ -64,57 +66,29 @@ void setup() {
     // UI task — runs LVGL tick and handler on core 1
     // All UI rendering and touch input processing happens here.
     // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(
-        taskUI,
-        "ui",
-        TASK_STACK_UI,
-        nullptr,
-        TASK_PRIO_UI,
-        nullptr,
-        TASK_CORE_UI
-    );
+    xTaskCreatePinnedToCore(taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, nullptr,
+                            TASK_CORE_UI);
 
 #if !APP_SIMULATION_MODE
     // ---------------------------------------------------------------------------
     // CAN task — reads TWAI frames, parses them, writes to SignalStore
     // Runs on core 0 to avoid contention with LVGL on core 1
     // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(
-        taskCAN,
-        "can",
-        TASK_STACK_CAN,
-        nullptr,
-        TASK_PRIO_CAN,
-        nullptr,
-        TASK_CORE_CAN
-    );
+    xTaskCreatePinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN, nullptr,
+                            TASK_CORE_CAN);
 #else
     // ---------------------------------------------------------------------------
     // Simulation task — writes fake signal values to SignalStore
     // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(
-        taskSim,
-        "sim",
-        TASK_STACK_SIM,
-        nullptr,
-        TASK_PRIO_SIM,
-        nullptr,
-        TASK_CORE_SIM
-    );
+    xTaskCreatePinnedToCore(taskSim, "sim", TASK_STACK_SIM, nullptr, TASK_PRIO_SIM, nullptr,
+                            TASK_CORE_SIM);
 #endif
 
     // ---------------------------------------------------------------------------
     // USB comm task — Phase 1 config sync from desktop app
     // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(
-        taskUSBComm,
-        "usb",
-        TASK_STACK_USB,
-        nullptr,
-        TASK_PRIO_USB,
-        nullptr,
-        TASK_CORE_USB
-    );
+    xTaskCreatePinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB, nullptr,
+                            TASK_CORE_USB);
 
     LOG_INFO("BOOT", "All tasks started");
 }
@@ -138,7 +112,7 @@ void loop() {
 #include "runtime/alert_engine.h"
 #include <lvgl.h>
 
-void taskUI(void* pvParameters) {
+void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
 
     while (true) {
@@ -169,7 +143,7 @@ void taskUI(void* pvParameters) {
 // ---------------------------------------------------------------------------
 #include "can/can_manager.h"
 
-void taskCAN(void* pvParameters) {
+void taskCAN(void *pvParameters) {
     CanManager::init();
 
     while (true) {
@@ -184,7 +158,7 @@ void taskCAN(void* pvParameters) {
 // ---------------------------------------------------------------------------
 #include "hal/usb/usb_comm.h"
 
-void taskUSBComm(void* pvParameters) {
+void taskUSBComm(void *pvParameters) {
     UsbComm::init();
 
     while (true) {
@@ -197,9 +171,9 @@ void taskUSBComm(void* pvParameters) {
 // Simulation task
 // ---------------------------------------------------------------------------
 #if APP_SIMULATION_MODE
-#include "sim/sim_engine.h"
+    #include "sim/sim_engine.h"
 
-void taskSim(void* pvParameters) {
+void taskSim(void *pvParameters) {
     SimEngine::init();
 
     while (true) {

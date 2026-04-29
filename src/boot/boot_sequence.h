@@ -3,7 +3,7 @@
 
 namespace BootSequence {
 
-    /**
+/**
      * Run the full synchronous boot sequence:
      *   1. Initialize logging
      *   2. Initialize storage (SPIFFS/SD)
@@ -21,6 +21,6 @@ namespace BootSequence {
      * Call once from setup() before starting FreeRTOS tasks.
      * Panics (infinite loop) on any unrecoverable error.
      */
-    void run();
+void run();
 
 } // namespace BootSequence

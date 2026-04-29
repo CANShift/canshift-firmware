@@ -31,33 +31,33 @@
 
 namespace UsbComm {
 
-    /**
+/**
      * Initialize USB serial communication.
      * Sets up the receive buffer and state machine.
      */
-    void init();
+void init();
 
-    /**
+/**
      * Process incoming bytes from Serial and dispatch commands.
      * Call from the USB comm task at ~20ms intervals.
      */
-    void tick();
+void tick();
 
-    // ---------------------------------------------------------------------------
-    // Command IDs
-    // ---------------------------------------------------------------------------
-    static constexpr uint8_t CMD_GET_CONFIG      = 0x01;
-    static constexpr uint8_t CMD_PUT_CONFIG      = 0x02;
-    static constexpr uint8_t CMD_PUT_SIGNALS     = 0x03;
-    static constexpr uint8_t CMD_PUT_THEME       = 0x04;
-    // Push screen display settings (brightness, contrast, sleep, rotation)
-    // Payload: {"brightness":80,"contrast":50,"sleep":0,"rotation":0}
-    static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
-    static constexpr uint8_t CMD_GET_STATUS      = 0x10;
-    static constexpr uint8_t CMD_REBOOT          = 0xF0;
+// ---------------------------------------------------------------------------
+// Command IDs
+// ---------------------------------------------------------------------------
+static constexpr uint8_t CMD_GET_CONFIG = 0x01;
+static constexpr uint8_t CMD_PUT_CONFIG = 0x02;
+static constexpr uint8_t CMD_PUT_SIGNALS = 0x03;
+static constexpr uint8_t CMD_PUT_THEME = 0x04;
+// Push screen display settings (brightness, contrast, sleep, rotation)
+// Payload: {"brightness":80,"contrast":50,"sleep":0,"rotation":0}
+static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
+static constexpr uint8_t CMD_GET_STATUS = 0x10;
+static constexpr uint8_t CMD_REBOOT = 0xF0;
 
-    static constexpr uint8_t RSP_OK    = 0x80;
-    static constexpr uint8_t RSP_ERROR = 0x81;
-    static constexpr uint8_t RSP_DATA  = 0x82;
+static constexpr uint8_t RSP_OK = 0x80;
+static constexpr uint8_t RSP_ERROR = 0x81;
+static constexpr uint8_t RSP_DATA = 0x82;
 
 } // namespace UsbComm

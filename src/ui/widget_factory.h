@@ -12,7 +12,7 @@
 
 namespace WidgetFactory {
 
-    /**
+/**
      * Create a widget on the given parent screen.
      * Returns the LVGL object, or nullptr on failure.
      *
@@ -20,19 +20,19 @@ namespace WidgetFactory {
      * @param cfg       Widget config from dashboard.json
      * @param yOffset   Top-bar height offset applied to y positions
      */
-    lv_obj_t* create(lv_obj_t* parent, const CfgWidget& cfg, int16_t yOffset = 0);
+lv_obj_t *create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset = 0);
 
-    /**
+/**
      * Update all widgets under the given parent screen.
      * Reads current signal values from SignalStore and updates LVGL objects.
      * Call from PageManager::updateWidgets() at each render tick.
      */
-    void updateAll(lv_obj_t* parent);
+void updateAll(lv_obj_t *parent);
 
-    /**
+/**
      * Remove all registered widgets under a parent.
      * Call when navigating away from a page (if lazy creation is used).
      */
-    void clearAll(lv_obj_t* parent);
+void clearAll(lv_obj_t *parent);
 
 } // namespace WidgetFactory

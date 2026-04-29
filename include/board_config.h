@@ -20,36 +20,36 @@
 // ---------------------------------------------------------------------------
 
 // TODO: Verify — typical CrowPanel assignment
-#define PIN_TFT_MOSI    13
-#define PIN_TFT_MISO    12      // Often not used (display is write-only)
-#define PIN_TFT_SCLK    14
-#define PIN_TFT_CS      15
-#define PIN_TFT_DC       2      // Data/Command (RS)
-#define PIN_TFT_RST      4      // Reset — may be tied to EN/RST net
-#define PIN_TFT_BL      27      // Backlight PWM — 0=off, 255=full
+#define PIN_TFT_MOSI 13
+#define PIN_TFT_MISO 12 // Often not used (display is write-only)
+#define PIN_TFT_SCLK 14
+#define PIN_TFT_CS 15
+#define PIN_TFT_DC 2  // Data/Command (RS)
+#define PIN_TFT_RST 4 // Reset — may be tied to EN/RST net
+#define PIN_TFT_BL 27 // Backlight PWM — 0=off, 255=full
 
 // SPI clock speeds
-#define TFT_SPI_FREQ_HZ     40000000UL  // 40 MHz — reduce if display artifacts
-#define TOUCH_SPI_FREQ_HZ    2500000UL  // 2.5 MHz — XPT2046 max
+#define TFT_SPI_FREQ_HZ 40000000UL  // 40 MHz — reduce if display artifacts
+#define TOUCH_SPI_FREQ_HZ 2500000UL // 2.5 MHz — XPT2046 max
 
 // ---------------------------------------------------------------------------
 // Touch — XPT2046 (resistive, SPI)
 // ---------------------------------------------------------------------------
 
 // TODO: Verify — typical assignment
-#define PIN_TOUCH_CS    33
-#define PIN_TOUCH_IRQ   36      // GPIO 36 is input-only — no internal pull-up
+#define PIN_TOUCH_CS 33
+#define PIN_TOUCH_IRQ 36 // GPIO 36 is input-only — no internal pull-up
 
 // Touch calibration (raw ADC values → screen coordinates)
 // These WILL need calibration on the real board.
 // TODO: Run touch calibration routine and replace these values.
-#define TOUCH_CAL_X_MIN    300
-#define TOUCH_CAL_X_MAX   3800
-#define TOUCH_CAL_Y_MIN    300
-#define TOUCH_CAL_Y_MAX   3800
-#define TOUCH_SWAP_XY        0  // Set 1 if X/Y axes are swapped
-#define TOUCH_INVERT_X       0  // Set 1 if X axis is mirrored
-#define TOUCH_INVERT_Y       0  // Set 1 if Y axis is mirrored
+#define TOUCH_CAL_X_MIN 300
+#define TOUCH_CAL_X_MAX 3800
+#define TOUCH_CAL_Y_MIN 300
+#define TOUCH_CAL_Y_MAX 3800
+#define TOUCH_SWAP_XY 0  // Set 1 if X/Y axes are swapped
+#define TOUCH_INVERT_X 0 // Set 1 if X axis is mirrored
+#define TOUCH_INVERT_Y 0 // Set 1 if Y axis is mirrored
 
 // ---------------------------------------------------------------------------
 // CAN Bus — ESP32 TWAI controller + Adafruit CAN Pal (TJA1051T/3)
@@ -71,13 +71,13 @@
 
 // TODO: Choose GPIO pins that do not conflict with SPI or other peripherals
 //       These assignments assume SPI uses GPIO 12-15 and TWAI uses 21/22.
-#define PIN_TWAI_TX     22
-#define PIN_TWAI_RX     21
+#define PIN_TWAI_TX 22
+#define PIN_TWAI_RX 21
 
 // CAN bus speed — must match MaxxECU CAN output configuration
 // MaxxECU Street default is typically 500 kbps or 1 Mbps
 // TODO: Confirm MaxxECU CAN baud rate setting
-#define CAN_SPEED_KBPS  500
+#define CAN_SPEED_KBPS 500
 
 // ---------------------------------------------------------------------------
 // SD Card — (if present on board)
@@ -86,13 +86,13 @@
 
 // TODO: Confirm whether CrowPanel 2.8" has an SD slot and its SPI pins.
 //       Set PIN_SD_PRESENT 0 to disable SD support entirely.
-#define PIN_SD_PRESENT   0      // 0 = no SD, 1 = SD present
+#define PIN_SD_PRESENT 0 // 0 = no SD, 1 = SD present
 
 #if PIN_SD_PRESENT
-#define PIN_SD_MOSI     23
-#define PIN_SD_MISO     19
-#define PIN_SD_SCLK     18
-#define PIN_SD_CS        5
+    #define PIN_SD_MOSI 23
+    #define PIN_SD_MISO 19
+    #define PIN_SD_SCLK 18
+    #define PIN_SD_CS 5
 #endif
 
 // ---------------------------------------------------------------------------
@@ -100,17 +100,17 @@
 // Use SPIFFS if no SD card is present.
 // ---------------------------------------------------------------------------
 #if PIN_SD_PRESENT
-#define STORAGE_USE_SD      1
-#define STORAGE_USE_SPIFFS  0
+    #define STORAGE_USE_SD 1
+    #define STORAGE_USE_SPIFFS 0
 #else
-#define STORAGE_USE_SD      0
-#define STORAGE_USE_SPIFFS  1
+    #define STORAGE_USE_SD 0
+    #define STORAGE_USE_SPIFFS 1
 #endif
 
 // Config file paths on the filesystem
-#define CONFIG_PATH_DASHBOARD  "/config/dashboard.json"
-#define CONFIG_PATH_SIGNALS    "/config/signals.json"
-#define CONFIG_PATH_THEME      "/config/theme.json"
+#define CONFIG_PATH_DASHBOARD "/config/dashboard.json"
+#define CONFIG_PATH_SIGNALS "/config/signals.json"
+#define CONFIG_PATH_THEME "/config/theme.json"
 #define CONFIG_PATH_ASSETS_DIR "/assets/"
 
 // ---------------------------------------------------------------------------
@@ -121,22 +121,22 @@
 //
 // TODO: Consider using UART2 on different pins if UART0 conflict is an issue.
 // ---------------------------------------------------------------------------
-#define USB_SERIAL_BAUD    115200
+#define USB_SERIAL_BAUD 115200
 // Sentinel framing bytes for USB protocol packets
 #define USB_PKT_START_BYTE 0xAA
-#define USB_PKT_END_BYTE   0x55
+#define USB_PKT_END_BYTE 0x55
 
 // ---------------------------------------------------------------------------
 // Backlight PWM
 // ---------------------------------------------------------------------------
-#define BL_PWM_CHANNEL     0
-#define BL_PWM_FREQ_HZ  5000
-#define BL_PWM_BITS        8    // 8-bit: 0-255
-#define BL_DEFAULT_DUTY  200    // Default brightness (0-255)
+#define BL_PWM_CHANNEL 0
+#define BL_PWM_FREQ_HZ 5000
+#define BL_PWM_BITS 8       // 8-bit: 0-255
+#define BL_DEFAULT_DUTY 200 // Default brightness (0-255)
 
 // ---------------------------------------------------------------------------
 // Status LED (if present)
 // TODO: Check if CrowPanel has a user-controllable LED
 // ---------------------------------------------------------------------------
-#define PIN_LED_BUILTIN     2   // Standard ESP32 dev board LED — may not apply
-#define PIN_LED_PRESENT     0   // Set 1 if board has a usable status LED
+#define PIN_LED_BUILTIN 2 // Standard ESP32 dev board LED — may not apply
+#define PIN_LED_PRESENT 0 // Set 1 if board has a usable status LED

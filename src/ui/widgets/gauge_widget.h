@@ -17,13 +17,13 @@
 
 namespace GaugeWidget {
 
-    /**
+/**
      * Create a gauge widget on the parent object.
      * Returns the LVGL container object.
      */
-    lv_obj_t* create(lv_obj_t* parent, const CfgWidget& cfg, int16_t yOffset);
+lv_obj_t *create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset);
 
-    /**
+/**
      * Update the gauge with a new value.
      *
      * @param obj    The gauge container returned by create()
@@ -31,6 +31,6 @@ namespace GaugeWidget {
      * @param valid  False if signal timed out — shows "---"
      * @param cfg    Widget config (for min/max/thresholds)
      */
-    void update(lv_obj_t* obj, float value, bool valid, const CfgWidget& cfg);
+void update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg);
 
 } // namespace GaugeWidget

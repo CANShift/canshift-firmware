@@ -22,35 +22,35 @@ static uint32_t s_errorCount = 0;
 
 namespace {
 
-    twai_timing_config_t getTimingConfig() {
-        // 500 kbps — default MaxxECU CAN speed
-        // TODO: Make configurable via signals.json "canSpeed" field
+twai_timing_config_t getTimingConfig() {
+    // 500 kbps — default MaxxECU CAN speed
+    // TODO: Make configurable via signals.json "canSpeed" field
 #if CAN_SPEED_KBPS == 500
-        return TWAI_TIMING_CONFIG_500KBITS();
+    return TWAI_TIMING_CONFIG_500KBITS();
 #elif CAN_SPEED_KBPS == 1000
-        return TWAI_TIMING_CONFIG_1MBITS();
+    return TWAI_TIMING_CONFIG_1MBITS();
 #elif CAN_SPEED_KBPS == 250
-        return TWAI_TIMING_CONFIG_250KBITS();
+    return TWAI_TIMING_CONFIG_250KBITS();
 #else
     #error "Unsupported CAN_SPEED_KBPS value — add case to getTimingConfig()"
 #endif
-    }
+}
 
-    twai_filter_config_t getFilterConfig() {
-        // Accept all frames in the MaxxECU output range (0x370-0x37F)
-        // TWAI hardware filter: single filter mode
-        // Acceptance code/mask calculation for 11-bit IDs:
-        //   Code = (base_id << 21) | (0 << 20)  // RTR = 0
-        //   Mask = (range_mask << 21) | (0xFFFFF) // mask irrelevant bits
-        //
-        // To accept 0x370-0x37F: base 0x370, mask 0xF inverted → 0x7F0
-        // Accept code: 0x370 << 21 = 0x6E000000
-        // Accept mask: ~(0x7F0 << 21) = not trivial — use accept-all for now
-        //
-        // TODO: Calculate precise filter to accept only 0x370-0x37F
-        // For now: accept all frames (no filtering overhead at 500kbps)
-        return TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    }
+twai_filter_config_t getFilterConfig() {
+    // Accept all frames in the MaxxECU output range (0x370-0x37F)
+    // TWAI hardware filter: single filter mode
+    // Acceptance code/mask calculation for 11-bit IDs:
+    //   Code = (base_id << 21) | (0 << 20)  // RTR = 0
+    //   Mask = (range_mask << 21) | (0xFFFFF) // mask irrelevant bits
+    //
+    // To accept 0x370-0x37F: base 0x370, mask 0xF inverted → 0x7F0
+    // Accept code: 0x370 << 21 = 0x6E000000
+    // Accept mask: ~(0x7F0 << 21) = not trivial — use accept-all for now
+    //
+    // TODO: Calculate precise filter to accept only 0x370-0x37F
+    // For now: accept all frames (no filtering overhead at 500kbps)
+    return TWAI_FILTER_CONFIG_ACCEPT_ALL();
+}
 
 } // namespace
 
@@ -62,11 +62,9 @@ void CanManager::initHardware() {
     LOG_INFO("CAN", "Initializing TWAI driver...");
     LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", PIN_TWAI_TX, PIN_TWAI_RX, CAN_SPEED_KBPS);
 
-    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
-        static_cast<gpio_num_t>(PIN_TWAI_TX),
-        static_cast<gpio_num_t>(PIN_TWAI_RX),
-        TWAI_MODE_NORMAL
-    );
+    twai_general_config_t g_config =
+        TWAI_GENERAL_CONFIG_DEFAULT(static_cast<gpio_num_t>(PIN_TWAI_TX),
+                                    static_cast<gpio_num_t>(PIN_TWAI_RX), TWAI_MODE_NORMAL);
     g_config.rx_queue_len = CAN_RX_QUEUE_DEPTH;
     g_config.tx_queue_len = 5;
 
@@ -102,18 +100,16 @@ void CanManager::tick() {
 
         if (!(message.rtr)) {
             // Data frame (not remote frame)
-            MaxxEcuParser::parseFrame(
-                message.identifier,
-                message.data,
-                static_cast<uint8_t>(message.data_length_code)
-            );
+            MaxxEcuParser::parseFrame(message.identifier, message.data,
+                                      static_cast<uint8_t>(message.data_length_code));
         }
     } else if (err == ESP_ERR_TIMEOUT) {
         // Normal — no frame arrived within timeout window
         // This happens when ECU is not sending or CAN bus is quiet
     } else {
         s_errorCount++;
-        LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err), s_errorCount);
+        LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err),
+                 s_errorCount);
 
         // Check for bus-off condition
         twai_status_info_t status;
@@ -126,5 +122,9 @@ void CanManager::tick() {
     }
 }
 
-uint32_t CanManager::getFrameCount()  { return s_frameCount; }
-uint32_t CanManager::getErrorCount()  { return s_errorCount; }
+uint32_t CanManager::getFrameCount() {
+    return s_frameCount;
+}
+uint32_t CanManager::getErrorCount() {
+    return s_errorCount;
+}

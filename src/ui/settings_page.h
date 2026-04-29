@@ -21,27 +21,27 @@
 
 namespace SettingsPage {
 
-    /**
+/**
      * Create all LVGL objects for the settings overlay.
      * Must be called from TopBar::init(), after LVGL is ready.
      * @param yOffset  Top y-coordinate (= top bar height in pixels)
      * @param height   Available height (= 240 - yOffset)
      */
-    void init(int16_t yOffset, int16_t height);
+void init(int16_t yOffset, int16_t height);
 
-    /** Show the settings overlay. */
-    void open();
+/** Show the settings overlay. */
+void open();
 
-    /** Hide the settings overlay. */
-    void close();
+/** Hide the settings overlay. */
+void close();
 
-    /** Toggle open/close state. Returns true if now open. */
-    bool toggle();
+/** Toggle open/close state. Returns true if now open. */
+bool toggle();
 
-    /** Current visibility state. */
-    bool isOpen();
+/** Current visibility state. */
+bool isOpen();
 
-    /**
+/**
      * Apply settings pushed from the desktop Studio over USB.
      * Must be called while holding g_lvglMutex.
      * Applies backlight immediately, persists all values to NVS.
@@ -51,7 +51,7 @@ namespace SettingsPage {
      * @param sleepTimeoutS seconds (0 = never)
      * @param rotation      0, 90, 180, or 270
      */
-    void applyFromUsb(uint8_t brightness, uint8_t contrastPct,
-                      uint32_t sleepTimeoutS, uint16_t rotation);
+void applyFromUsb(uint8_t brightness, uint8_t contrastPct, uint32_t sleepTimeoutS,
+                  uint16_t rotation);
 
 } // namespace SettingsPage

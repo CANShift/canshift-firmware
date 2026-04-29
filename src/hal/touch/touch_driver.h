@@ -10,21 +10,21 @@
 
 namespace TouchDriver {
 
-    /**
+/**
      * Initialize the XPT2046 touch controller.
      * Must be called after DisplayDriver::init().
      */
-    void init();
+void init();
 
-    /**
+/**
      * Poll touch input and feed into LVGL.
      * Call this from the UI task at the LVGL handler rate.
      */
-    void poll();
+void poll();
 
-    /**
+/**
      * LVGL input device read callback — do not call directly.
      */
-    void readCallback(lv_indev_drv_t* drv, lv_indev_data_t* data);
+void readCallback(lv_indev_drv_t *drv, lv_indev_data_t *data);
 
 } // namespace TouchDriver

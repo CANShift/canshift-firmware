@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 static SignalStore::SignalValue s_signals[SIGNAL_STORE_MAX_SIGNALS];
-static SemaphoreHandle_t        s_mutex = nullptr;
+static SemaphoreHandle_t s_mutex = nullptr;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -21,17 +21,17 @@ static SemaphoreHandle_t        s_mutex = nullptr;
 
 namespace {
 
-    inline bool acquireLock() {
-        return xSemaphoreTake(s_mutex, pdMS_TO_TICKS(5)) == pdTRUE;
-    }
+inline bool acquireLock() {
+    return xSemaphoreTake(s_mutex, pdMS_TO_TICKS(5)) == pdTRUE;
+}
 
-    inline void releaseLock() {
-        xSemaphoreGive(s_mutex);
-    }
+inline void releaseLock() {
+    xSemaphoreGive(s_mutex);
+}
 
-    inline bool idValid(SignalId id) {
-        return id < SIGNAL_STORE_MAX_SIGNALS;
-    }
+inline bool idValid(SignalId id) {
+    return id < SIGNAL_STORE_MAX_SIGNALS;
+}
 
 } // namespace
 
@@ -48,27 +48,26 @@ void SignalStore::init() {
 
     // Initialize all signals to invalid state
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
-        s_signals[i] = {
-            .raw          = 0.0f,
-            .smoothed     = 0.0f,
-            .lastUpdateMs = 0,
-            .valid        = false,
-            .timeoutMs    = SIGNAL_DEFAULT_TIMEOUT_MS
-        };
+        s_signals[i] = {.raw = 0.0f,
+                        .smoothed = 0.0f,
+                        .lastUpdateMs = 0,
+                        .valid = false,
+                        .timeoutMs = SIGNAL_DEFAULT_TIMEOUT_MS};
     }
 
     LOG_INFO("STORE", "Signal store initialized (%d slots)", SIGNAL_STORE_MAX_SIGNALS);
 }
 
 void SignalStore::update(SignalId id, float value) {
-    if (!idValid(id)) return;
+    if (!idValid(id))
+        return;
 
     if (!acquireLock()) {
         LOG_WARN("STORE", "update() lock timeout for signal %d", id);
         return;
     }
 
-    SignalValue& sig = s_signals[id];
+    SignalValue &sig = s_signals[id];
 
     // Apply EMA smoothing: smoothed = α * raw + (1-α) * smoothed
     if (sig.valid) {
@@ -78,17 +77,19 @@ void SignalStore::update(SignalId id, float value) {
         sig.smoothed = value;
     }
 
-    sig.raw          = value;
+    sig.raw = value;
     sig.lastUpdateMs = millis();
-    sig.valid        = true;
+    sig.valid = true;
 
     releaseLock();
 }
 
 float SignalStore::read(SignalId id, float defaultValue) {
-    if (!idValid(id)) return defaultValue;
+    if (!idValid(id))
+        return defaultValue;
 
-    if (!acquireLock()) return defaultValue;
+    if (!acquireLock())
+        return defaultValue;
 
     float result = s_signals[id].valid ? s_signals[id].smoothed : defaultValue;
     releaseLock();
@@ -96,9 +97,11 @@ float SignalStore::read(SignalId id, float defaultValue) {
 }
 
 float SignalStore::readRaw(SignalId id, float defaultValue) {
-    if (!idValid(id)) return defaultValue;
+    if (!idValid(id))
+        return defaultValue;
 
-    if (!acquireLock()) return defaultValue;
+    if (!acquireLock())
+        return defaultValue;
 
     float result = s_signals[id].valid ? s_signals[id].raw : defaultValue;
     releaseLock();
@@ -106,9 +109,11 @@ float SignalStore::readRaw(SignalId id, float defaultValue) {
 }
 
 bool SignalStore::isValid(SignalId id) {
-    if (!idValid(id)) return false;
+    if (!idValid(id))
+        return false;
 
-    if (!acquireLock()) return false;
+    if (!acquireLock())
+        return false;
     bool result = s_signals[id].valid;
     releaseLock();
     return result;
@@ -116,18 +121,22 @@ bool SignalStore::isValid(SignalId id) {
 
 SignalStore::SignalValue SignalStore::get(SignalId id) {
     SignalValue copy = {};
-    if (!idValid(id)) return copy;
+    if (!idValid(id))
+        return copy;
 
-    if (!acquireLock()) return copy;
+    if (!acquireLock())
+        return copy;
     copy = s_signals[id];
     releaseLock();
     return copy;
 }
 
 void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
-    if (!idValid(id)) return;
+    if (!idValid(id))
+        return;
 
-    if (!acquireLock()) return;
+    if (!acquireLock())
+        return;
     s_signals[id].timeoutMs = timeoutMs;
     releaseLock();
 }
@@ -135,7 +144,8 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
 void SignalStore::checkTimeouts() {
     uint32_t now = millis();
 
-    if (!acquireLock()) return;
+    if (!acquireLock())
+        return;
 
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         if (s_signals[i].valid) {
