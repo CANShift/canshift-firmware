@@ -105,10 +105,13 @@ namespace {
     void handleCommand(const char* jsonLine) {
         LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
 
-        // Peek at cmd with a small doc to route before allocating a large buffer.
-        // For CMD_PUT_CONFIG the payload is too large for a 256-byte doc.
-        StaticJsonDocument<64> peekDoc;
-        deserializeJson(peekDoc, jsonLine);
+        // Extract only cmd using a filter — safe regardless of payload size or field order.
+        // Without filtering, ArduinoJson runs out of memory on PUT_CONFIG's large payload
+        // and may leave cmd unparsed.
+        JsonDocument cmdFilter;
+        cmdFilter["cmd"] = true;
+        JsonDocument peekDoc;
+        deserializeJson(peekDoc, jsonLine, DeserializationOption::Filter(cmdFilter));
         uint8_t cmd = peekDoc["cmd"] | 0;
 
         if (cmd == UsbComm::CMD_PUT_CONFIG) {
