@@ -1,12 +1,15 @@
 // usb_comm.cpp — USB serial communication layer
 //
-// Phase 1 implementation: JSON line-based command receiver + telemetry push.
-// Desktop sends: {"cmd": <id>, ...fields}\n
-// Firmware responds with a JSON line.
-// Firmware also pushes telemetry proactively every USB_TELE_PERIOD_TICKS ticks.
+// Protocol: JSON lines over USB serial (UART0 / CP210x bridge), 115200 baud.
+// Each message is one JSON object followed by \n.
 //
-// Telemetry format: {"tele":1,"v":{"rpm":1234.5,"coolant_temp_c":89.2,...}}\n
-// Command response: {"status":"ok"} or {"status":"error","message":"..."}\n
+// Desktop → device: {"cmd": <id>, ...fields}\n
+// Device → desktop (command response): {"status":"ok"} or {"status":"error","message":"..."}\n
+// Device → desktop (telemetry, proactive every ~200ms): {"tele":1,"v":{"rpm":...}}\n
+//
+// Static memory: only s_rxBuf (USB_RX_BUF_SIZE bytes, see app_config.h).
+//   handlePutConfig reuses s_rxBuf for serialization after parsing — safe because
+//   ArduinoJson 7 copies all values into the JsonDocument during parsing.
 
 #include "usb_comm.h"
 #include "board_config.h"
@@ -26,26 +29,18 @@
 extern SemaphoreHandle_t g_lvglMutex;
 
 // ---------------------------------------------------------------------------
-// Telemetry push — sent every USB_TELE_PERIOD_TICKS × 20ms ≈ 200ms
+// Telemetry signal table
 // ---------------------------------------------------------------------------
-
-// How many tick() calls between telemetry pushes. tick() runs every 20ms.
-static constexpr uint8_t USB_TELE_PERIOD_TICKS = 10; // 200ms
-
-// Static TX buffer — sized for ~20 signals × ~24 chars + wrapper overhead
-static constexpr size_t TELE_BUF_SIZE = 768;
-static char s_teleBuf[TELE_BUF_SIZE];
 
 namespace {
 
-// Signal name table — indexed by SignalId, empty string = not reported
 struct TeleEntry {
     SignalId id;
     const char *name;
 };
 
-// All signals exposed in signals.json / signal_map.h
-static constexpr TeleEntry TELE_SIGNALS[] = {
+// All signals exposed over USB telemetry (must match signals.json)
+static const TeleEntry TELE_SIGNALS[] = {
     {SignalIds::RPM, "rpm"},
     {SignalIds::THROTTLE_POS, "throttle_pos"},
     {SignalIds::MAP_KPA, "map_kpa"},
@@ -68,16 +63,35 @@ static constexpr TeleEntry TELE_SIGNALS[] = {
 static constexpr size_t TELE_SIGNAL_COUNT =
     sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
 
-// Send one telemetry line. Skips invalid (timed-out) signals.
+// ---------------------------------------------------------------------------
+// Receive state machine
+// ---------------------------------------------------------------------------
+
+// Single RX buffer — also reused as TX buffer in handlePutConfig after parsing.
+// Size defined in app_config.h: CONFIG_JSON_DOC_DASHBOARD + 256.
+static char s_rxBuf[USB_RX_BUF_SIZE];
+static size_t s_rxPos = 0;
+
+// Tick counter for telemetry scheduling (tick() runs every 20ms)
+static uint8_t s_tickCount = 0;
+
+// How many tick() calls between telemetry pushes: 10 × 20ms = 200ms
+static constexpr uint8_t TELE_PERIOD_TICKS = 10;
+
+// ---------------------------------------------------------------------------
+// Telemetry
+// ---------------------------------------------------------------------------
+
+// Telemetry buffer lives on the stack (768 B, fits in USB task 4096 B stack).
+// Format: {"tele":1,"v":{"rpm":1234.5,...}}\n
+// Only valid (non-timed-out) signals are included.
+static constexpr size_t TELE_BUF_SIZE = 768;
+
 void sendTelemetry() {
-    // Build the JSON manually into s_teleBuf to avoid heap allocation.
-    // Format: {"tele":1,"v":{"rpm":1234.1,"coolant_temp_c":89.0,...}}
-    // Only valid signals are included to reduce noise.
+    char buf[TELE_BUF_SIZE];
+    char *p = buf;
+    const char *end = buf + TELE_BUF_SIZE - 2; // reserve \n\0
 
-    char *p = s_teleBuf;
-    const char *end = s_teleBuf + TELE_BUF_SIZE - 2; // reserve \n\0
-
-    // Open object
     const char *prefix = "{\"tele\":1,\"v\":{";
     size_t prefixLen = strlen(prefix);
     if (p + prefixLen >= end) return;
@@ -89,45 +103,34 @@ void sendTelemetry() {
         if (!SignalStore::isValid(TELE_SIGNALS[i].id)) continue;
         float val = SignalStore::read(TELE_SIGNALS[i].id);
 
-        // comma separator
         if (!first) {
             if (p >= end) break;
             *p++ = ',';
         }
         first = false;
 
-        // "name":value
         int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":%.3g",
                          TELE_SIGNALS[i].name, static_cast<double>(val));
         if (n <= 0 || p + n >= end) break;
         p += n;
     }
 
-    // Close + newline
     if (p + 3 <= end) {
         *p++ = '}';
         *p++ = '}';
         *p++ = '\n';
         *p = '\0';
-        Serial.print(s_teleBuf);
+        Serial.print(buf);
     }
 }
 
 // ---------------------------------------------------------------------------
-// Receive state machine
+// Command handlers
 // ---------------------------------------------------------------------------
 
-static char s_rxBuf[USB_RX_BUF_SIZE];
-static size_t s_rxPos = 0;
-
-// Serialization buffer for writing dashboard.json back to SPIFFS.
-static char s_writeBuf[CONFIG_JSON_DOC_DASHBOARD];
-
-// Tick counter for telemetry scheduling
-static uint8_t s_tickCount = 0;
-
-// Handle CMD_PUT_CONFIG (0x02): receive dashboard JSON from studio,
-// write to SPIFFS, then reboot so the new config takes effect cleanly.
+// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to SPIFFS, then reboot.
+// After ArduinoJson parses into doc, s_rxBuf is no longer needed for reading,
+// so we reuse it as the serialization buffer for the payload.
 void handlePutConfig(const char *jsonLine) {
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, jsonLine);
@@ -144,15 +147,16 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    size_t written = serializeJson(payload, s_writeBuf, sizeof(s_writeBuf));
+    // Reuse s_rxBuf as the serialization buffer — doc is independent of jsonLine.
+    size_t written = serializeJson(payload, s_rxBuf, sizeof(s_rxBuf));
     if (written == 0) {
-        LOG_ERROR("USB", "PUT_CONFIG: serialization failed (buffer too small?)");
+        LOG_ERROR("USB", "PUT_CONFIG: serialization failed");
         Serial.println("{\"status\":\"error\",\"message\":\"serialize_failed\"}");
         return;
     }
 
     bool ok = StorageDriver::writeFile(CONFIG_PATH_DASHBOARD,
-                                       reinterpret_cast<const uint8_t *>(s_writeBuf), written);
+                                       reinterpret_cast<const uint8_t *>(s_rxBuf), written);
     if (!ok) {
         LOG_ERROR("USB", "PUT_CONFIG: SPIFFS write failed");
         Serial.println("{\"status\":\"error\",\"message\":\"write_failed\"}");
@@ -160,11 +164,9 @@ void handlePutConfig(const char *jsonLine) {
     }
 
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
-
     Serial.flush();
     Serial.println("{\"status\":\"ok\"}");
     Serial.flush();
-
     delay(150);
     esp_restart();
 }
@@ -188,7 +190,7 @@ void handleScreenSettings(const JsonObjectConst &obj) {
 void handleCommand(const char *jsonLine) {
     LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
 
-    // Peek at cmd first — avoid parsing large PUT_CONFIG payload in full doc
+    // Peek at cmd using a filter — avoids loading the full PUT_CONFIG payload
     JsonDocument cmdFilter;
     cmdFilter["cmd"] = true;
     JsonDocument peekDoc;
@@ -233,7 +235,6 @@ void UsbComm::init() {
 }
 
 void UsbComm::tick() {
-    // Read available bytes from Serial (UART0 / USB bridge)
     while (Serial.available() > 0) {
         char c = static_cast<char>(Serial.read());
 
@@ -251,8 +252,7 @@ void UsbComm::tick() {
         }
     }
 
-    // Push telemetry periodically
-    if (++s_tickCount >= USB_TELE_PERIOD_TICKS) {
+    if (++s_tickCount >= TELE_PERIOD_TICKS) {
         s_tickCount = 0;
         sendTelemetry();
     }

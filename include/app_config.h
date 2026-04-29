@@ -159,9 +159,10 @@
 // USB config sync (Phase 1)
 // ---------------------------------------------------------------------------
 
-// USB packet buffer size (bytes) — must fit the largest config JSON
-#define USB_RX_BUF_SIZE 16384
-#define USB_TX_BUF_SIZE 4096
+// USB RX buffer — must fit the largest inbound command.
+// PUT_CONFIG wraps dashboard JSON plus {"cmd":2,"payload":} framing (~256 B overhead).
+// Reusing this buffer for TX serialization in handlePutConfig avoids a second large static.
+#define USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256)
 
 // Protocol version — increment when USB wire protocol changes
 #define USB_PROTOCOL_VERSION 1
