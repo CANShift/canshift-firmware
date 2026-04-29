@@ -6,7 +6,7 @@
   "defaultPageId": "main",
   "revLimitRpm": 7200,
   "topBar": {
-    "height": 12,
+    "height": 15,
     "showMapName": true,
     "showMapProfile": false,
     "bgColor": "#0D0D0D",
