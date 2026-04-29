@@ -118,7 +118,7 @@ void handleCommand(const char *jsonLine) {
     }
 
     // All other commands fit in a small document
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, jsonLine);
     if (err) {
         LOG_WARN("USB", "JSON parse error: %s", err.c_str());

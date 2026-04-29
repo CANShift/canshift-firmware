@@ -14,7 +14,6 @@
 
 static CfgDashboard s_dashboard = {};
 static CfgSignalConfig s_signals = {};
-static CfgTheme s_theme = {};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,6 +156,17 @@ bool loadDashboard() {
         strlcpy(p.name, page["name"] | "", CFG_MAX_NAME_LEN);
         strlcpy(p.bgImagePath, page["backgroundImage"] | "", CFG_MAX_PATH_LEN);
         parseColor(page["backgroundColor"] | "#1A1A1A", &p.bgColor);
+
+        JsonObjectConst palette = page["palette"];
+        parseColor(palette["surface"] | "#1E1E1E", &p.palette.surface);
+        parseColor(palette["primary"] | "#FF4444", &p.palette.primary);
+        parseColor(palette["accent"] | "#FF8800", &p.palette.accent);
+        parseColor(palette["text"] | "#FFFFFF", &p.palette.text);
+        parseColor(palette["textDim"] | "#888888", &p.palette.textDim);
+        parseColor(palette["warning"] | "#FF8800", &p.palette.warning);
+        parseColor(palette["danger"] | "#FF4444", &p.palette.danger);
+        parseColor(palette["success"] | "#00CC44", &p.palette.success);
+
         p.showTopBar = page["showTopBar"] | true;
         p.widgetCount = 0;
 
@@ -218,44 +228,6 @@ bool loadSignals() {
     return true;
 }
 
-bool loadTheme() {
-    size_t jsonSize = 0;
-    char *json = StorageDriver::readFile(CONFIG_PATH_THEME, &jsonSize);
-    if (!json)
-        return false;
-
-    JsonDocument doc; // ArduinoJson v7 — dynamic
-    DeserializationError err = deserializeJson(doc, json, jsonSize);
-    free(json);
-
-    if (err) {
-        LOG_ERROR("CFG", "theme.json parse error: %s", err.c_str());
-        return false;
-    }
-
-    strlcpy(s_theme.version, doc["version"] | "", sizeof(s_theme.version));
-    strlcpy(s_theme.name, doc["name"] | "", sizeof(s_theme.name));
-
-    JsonObjectConst palette = doc["palette"];
-    parseColor(palette["background"] | "#111111", &s_theme.background);
-    parseColor(palette["surface"] | "#1E1E1E", &s_theme.surface);
-    parseColor(palette["primary"] | "#FF4444", &s_theme.primary);
-    parseColor(palette["accent"] | "#FF8800", &s_theme.accent);
-    parseColor(palette["text"] | "#FFFFFF", &s_theme.text);
-    parseColor(palette["textDim"] | "#888888", &s_theme.textDim);
-    parseColor(palette["warning"] | "#FF8800", &s_theme.warning);
-    parseColor(palette["danger"] | "#FF0000", &s_theme.danger);
-    parseColor(palette["success"] | "#00CC44", &s_theme.success);
-
-    JsonObjectConst topBar = doc["topBar"];
-    parseColor(topBar["bg"] | "#0D0D0D", &s_theme.topBarBg);
-    parseColor(topBar["text"] | "#AAAAAA", &s_theme.topBarText);
-
-    s_theme.loaded = true;
-    LOG_INFO("CFG", "theme.json loaded: %s", s_theme.name);
-    return true;
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -266,7 +238,6 @@ ConfigLoader::LoadResult ConfigLoader::loadAll() {
     LoadResult r;
     r.dashboardOk = loadDashboard();
     r.signalsOk = loadSignals();
-    r.themeOk = loadTheme();
     return r;
 }
 
@@ -276,10 +247,6 @@ const CfgDashboard &ConfigLoader::getDashboardConfig() {
 const CfgSignalConfig &ConfigLoader::getSignalConfig() {
     return s_signals;
 }
-const CfgTheme &ConfigLoader::getThemeConfig() {
-    return s_theme;
-}
-
 bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();
     LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d theme=%d", r.dashboardOk, r.signalsOk,

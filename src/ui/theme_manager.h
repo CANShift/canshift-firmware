@@ -1,5 +1,5 @@
 #pragma once
-// theme_manager.h — Apply loaded theme to LVGL
+// theme_manager.h — Initialize LVGL base theme
 
 #include <lvgl.h>
 

@@ -128,9 +128,6 @@ static void loadConfig() {
     if (!result.signalsOk) {
         LOG_WARN("BOOT", "signals.json missing or invalid — CAN parsing disabled");
     }
-    if (!result.themeOk) {
-        LOG_WARN("BOOT", "theme.json missing or invalid — using default theme");
-    }
 }
 
 static void buildUI() {

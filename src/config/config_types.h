@@ -127,6 +127,20 @@ struct CfgWidget {
 };
 
 // ---------------------------------------------------------------------------
+// Per-page color palette — widgets inherit these unless overridden individually
+// ---------------------------------------------------------------------------
+struct CfgPagePalette {
+    CfgColor surface;  // Widget card/surface background
+    CfgColor primary;  // Gauge arcs, bar fills, highlights
+    CfgColor accent;   // Secondary highlight
+    CfgColor text;     // Default widget text
+    CfgColor textDim;  // Muted / secondary text
+    CfgColor warning;  // Warning threshold indicator
+    CfgColor danger;   // Danger threshold indicator
+    CfgColor success;  // Normal / ok state
+};
+
+// ---------------------------------------------------------------------------
 // Page definition
 // ---------------------------------------------------------------------------
 struct CfgPage {
@@ -134,6 +148,7 @@ struct CfgPage {
     char name[CFG_MAX_NAME_LEN];
     char bgImagePath[CFG_MAX_PATH_LEN]; // Empty = no image
     CfgColor bgColor;
+    CfgPagePalette palette;
     bool showTopBar;
     uint8_t widgetCount;
     CfgWidget widgets[CONFIG_MAX_WIDGETS_PER_PAGE];
@@ -191,27 +206,3 @@ struct CfgSignalConfig {
     bool loaded;
 };
 
-// ---------------------------------------------------------------------------
-// Theme config (from theme.json)
-// ---------------------------------------------------------------------------
-struct CfgTheme {
-    char version[16];
-    char name[CFG_MAX_NAME_LEN];
-
-    // Palette
-    CfgColor background;
-    CfgColor surface;
-    CfgColor primary;
-    CfgColor accent;
-    CfgColor text;
-    CfgColor textDim;
-    CfgColor warning;
-    CfgColor danger;
-    CfgColor success;
-
-    // Top bar
-    CfgColor topBarBg;
-    CfgColor topBarText;
-
-    bool loaded;
-};

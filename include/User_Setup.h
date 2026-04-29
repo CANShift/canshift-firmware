@@ -28,10 +28,10 @@
 #define TFT_RST 4   // PIN_TFT_RST
 #define TFT_BL 27   // PIN_TFT_BL — backlight PWM, driven in display_driver.cpp
 
-// Touch CS intentionally NOT defined here:
-// XPT2046 is driven by touch_driver.cpp using its own SPI transaction,
-// not by TFT_eSPI's built-in touch support.
-// #define TOUCH_CS  33  // PIN_TOUCH_CS
+// XPT2046 touch — requires TOUCH_CS for TFT_eSPI getTouch() to compile.
+// touch_driver.cpp uses TFT_eSPI's built-in XPT2046 support.
+// TODO: Verify pin against CrowPanel 2.8" schematic before first flash.
+#define TOUCH_CS 33 // PIN_TOUCH_CS (assumed)
 
 // ---------------------------------------------------------------------------
 // SPI frequencies
