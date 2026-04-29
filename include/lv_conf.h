@@ -35,7 +35,11 @@
  *=========================*/
 
 /* Size of the memory available for `lv_mem_alloc()` in bytes */
-#define LV_MEM_SIZE (48U * 1024U)   /* 48 KB — tune based on available heap */
+#if APP_SIMULATION_MODE
+#define LV_MEM_SIZE (24U * 1024U)   /* 24 KB — sim mode, no hardware buffers needed */
+#else
+#define LV_MEM_SIZE (48U * 1024U)   /* 48 KB — hardware target */
+#endif
 
 /* Set an address for the memory pool instead of allocating it as a global array.
    Can be in external SRAM too. */

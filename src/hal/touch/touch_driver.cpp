@@ -1,37 +1,39 @@
 // touch_driver.cpp — XPT2046 resistive touch HAL
+// In sim mode: dummy input device that always reports "released".
+// In hardware mode: XPT2046 via TFT_eSPI built-in touch support.
 
 #include "touch_driver.h"
-#include "board_config.h"
-#include "hardware_profile.h"
+#include "app_config.h"
 #include "diag/logger.h"
 
-#include <TFT_eSPI.h>
 #include <lvgl.h>
-
-// TFT_eSPI provides a companion XPT2046_Touchscreen or uses its own touch
-// functions. We use TFT_eSPI's built-in touch support.
-// TODO: Confirm TFT_eSPI is compiled with TOUCH_CS defined (matches PIN_TOUCH_CS).
-
-static TFT_eSPI s_touch; // Re-use the same TFT instance — touch shares SPI bus
-                         // TODO: Use a shared global TFT_eSPI instance rather than
-                         //       separate instances in display and touch drivers.
 
 static lv_indev_drv_t s_indevDrv;
 
-void TouchDriver::readCallback(lv_indev_drv_t *drv, lv_indev_data_t *data) {
-    uint16_t rawX, rawY;
-    bool pressed = s_touch.getTouch(&rawX, &rawY, 40 /* minimum Z pressure */);
+// ---------------------------------------------------------------------------
+// HARDWARE MODE
+// ---------------------------------------------------------------------------
+
+#if !APP_SIMULATION_MODE
+
+#include "board_config.h"
+#include "hardware_profile.h"
+#include <TFT_eSPI.h>
+
+// Re-use a TFT_eSPI instance for touch — shares the SPI bus with the display.
+// TODO: Replace with a shared global TFT_eSPI instance to avoid duplicate objects.
+static TFT_eSPI s_touch;
+
+void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
+    uint16_t rawX = 0, rawY = 0;
+    const bool pressed = s_touch.getTouch(&rawX, &rawY, 40 /* minimum Z pressure */);
 
     if (pressed) {
-        // Map raw ADC values to screen coordinates using calibration values
-        // TFT_eSPI getTouch() already applies calibration if calibrateTouch() has been called.
-        // If not calibrated, map manually:
-        // int32_t screenX = map(rawX, TOUCH_CAL_X_MIN, TOUCH_CAL_X_MAX, 0, HW_DISPLAY_WIDTH  - 1);
-        // int32_t screenY = map(rawY, TOUCH_CAL_Y_MIN, TOUCH_CAL_Y_MAX, 0, HW_DISPLAY_HEIGHT - 1);
-
+        // TFT_eSPI getTouch() applies calibration if calibrateTouch() was called.
+        // TODO: Call s_touch.calibrateTouch() once and persist calibration values.
         data->point.x = static_cast<lv_coord_t>(rawX);
         data->point.y = static_cast<lv_coord_t>(rawY);
-        data->state = LV_INDEV_STATE_PRESSED;
+        data->state   = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
@@ -40,29 +42,41 @@ void TouchDriver::readCallback(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 void TouchDriver::init() {
     LOG_INFO("TOUCH", "Initializing touch controller...");
 
-    // TODO: Call s_touch.calibrateTouch() once to determine calibration values,
-    //       store them, then use setTouchCalibrate() on subsequent boots.
-    // For now: use default calibration (may require manual mapping above).
-
-    // Register LVGL input device
     lv_indev_drv_init(&s_indevDrv);
-    s_indevDrv.type = LV_INDEV_TYPE_POINTER;
+    s_indevDrv.type    = LV_INDEV_TYPE_POINTER;
     s_indevDrv.read_cb = readCallback;
 
-    // Gesture recognition thresholds.
-    // gesture_limit: minimum travel distance in pixels before LVGL considers it a swipe.
-    // gesture_min_velocity: minimum pixels-per-handler-call to confirm intentional swipe.
-    // Lower gesture_limit = more sensitive; raise if accidental swipes open settings.
-    s_indevDrv.gesture_limit = 40;
+    // Swipe detection thresholds — raise gesture_limit to reduce accidental swipes.
+    s_indevDrv.gesture_limit        = 40;
     s_indevDrv.gesture_min_velocity = 3;
 
     lv_indev_drv_register(&s_indevDrv);
-
     LOG_INFO("TOUCH", "Touch driver registered");
 }
 
 void TouchDriver::poll() {
-    // lv_task_handler() calls all registered input device read callbacks
-    // automatically, so explicit poll is a no-op here.
-    // This function exists as a hook for future IRQ-driven touch debounce logic.
+    // lv_task_handler() calls all registered input device read callbacks automatically.
+    // This function exists as a hook for future IRQ-driven debounce logic.
 }
+
+// ---------------------------------------------------------------------------
+// SIMULATION MODE — no hardware, always reports "released"
+// ---------------------------------------------------------------------------
+
+#else // APP_SIMULATION_MODE
+
+void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
+    data->state = LV_INDEV_STATE_RELEASED;
+}
+
+void TouchDriver::init() {
+    lv_indev_drv_init(&s_indevDrv);
+    s_indevDrv.type    = LV_INDEV_TYPE_POINTER;
+    s_indevDrv.read_cb = readCallback;
+    lv_indev_drv_register(&s_indevDrv);
+    LOG_INFO("TOUCH", "Sim mode — touch stub active (always released)");
+}
+
+void TouchDriver::poll() {}
+
+#endif // APP_SIMULATION_MODE
