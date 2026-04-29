@@ -221,7 +221,7 @@
 #define LV_USE_LABEL      1   /* Text labels */
 #define LV_USE_LINE       1
 #define LV_USE_ROLLER     0
-#define LV_USE_SLIDER     0
+#define LV_USE_SLIDER     1   /* Settings page brightness/contrast sliders */
 #define LV_USE_SWITCH     0
 #define LV_USE_TEXTAREA   0
 #define LV_USE_TABLE      0

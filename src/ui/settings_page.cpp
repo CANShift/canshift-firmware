@@ -237,7 +237,7 @@ static void onReset(lv_event_t * /*e*/) {
 // -----------------------------------------------------------------------
 
 static const lv_font_t *FONT_LG = &lv_font_montserrat_12;
-static const lv_font_t *FONT_SM = &lv_font_montserrat_10;
+static const lv_font_t *FONT_SM = &lv_font_montserrat_12;
 
 // Horizontal padding inside the panel
 static constexpr int16_t PAD_H = 8;
