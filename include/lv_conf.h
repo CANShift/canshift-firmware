@@ -36,7 +36,7 @@
 
 /* Size of the memory available for `lv_mem_alloc()` in bytes */
 #if APP_SIMULATION_MODE
-#define LV_MEM_SIZE (24U * 1024U)   /* 24 KB — sim mode, no hardware buffers needed */
+#define LV_MEM_SIZE (12U * 1024U)   /* 12 KB — sim mode (CI compile check only, no runtime) */
 #else
 #define LV_MEM_SIZE (48U * 1024U)   /* 48 KB — hardware target */
 #endif
