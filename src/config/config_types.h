@@ -80,6 +80,14 @@ struct CfgGaugeParams {
     bool    showArc;
 };
 
+struct CfgBarParams {
+    float   minValue;
+    float   maxValue;
+    float   warningLevel;   // Value at which indicator turns warning color
+    float   dangerLevel;    // Value at which indicator turns critical color
+    bool    isVertical;     // true = bottom-up fill, false = left-to-right
+};
+
 struct CfgLabelParams {
     uint8_t decimalPlaces;
     char    prefix[16];
@@ -114,6 +122,7 @@ struct CfgWidget {
         CfgLabelParams   label;
         CfgWarningParams warning;
         CfgButtonParams  button;
+        CfgBarParams     bar;
     };
 };
 

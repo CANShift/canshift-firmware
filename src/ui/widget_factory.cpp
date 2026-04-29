@@ -2,6 +2,7 @@
 
 #include "widget_factory.h"
 #include "widgets/gauge_widget.h"
+#include "widgets/bar_widget.h"
 #include "widgets/label_widget.h"
 #include "widgets/warning_widget.h"
 #include "widgets/button_widget.h"
@@ -78,6 +79,11 @@ namespace {
         return obj;
     }
 
+    lv_obj_t* createBar(lv_obj_t* parent, const CfgWidget& cfg, int16_t yOffset) {
+        lv_obj_t* obj = BarWidget::create(parent, cfg, yOffset);
+        return obj;
+    }
+
     void updateWidget(WidgetEntry& entry) {
         SignalId sid = resolveSignalId(entry.signalId);
         if (sid >= SignalIds::SIGNAL_COUNT) return;
@@ -89,6 +95,9 @@ namespace {
         switch (entry.type) {
             case WidgetType::GAUGE:
                 GaugeWidget::update(entry.obj, value, valid, entry.cfg);
+                break;
+            case WidgetType::BAR:
+                BarWidget::update(entry.obj, value, valid, entry.cfg);
                 break;
             case WidgetType::LABEL:
                 LabelWidget::update(entry.obj, rawValue, valid, entry.cfg);
@@ -122,11 +131,12 @@ lv_obj_t* WidgetFactory::create(lv_obj_t* parent, const CfgWidget& cfg, int16_t 
     lv_obj_t* obj = nullptr;
 
     switch (cfg.type) {
-        case WidgetType::GAUGE:   obj = createGauge(parent,   cfg, yOffset); break;
-        case WidgetType::LABEL:   obj = createLabel(parent,   cfg, yOffset); break;
-        case WidgetType::GEAR_IND:obj = createLabel(parent,   cfg, yOffset); break;
-        case WidgetType::WARNING: obj = createWarning(parent, cfg, yOffset); break;
-        case WidgetType::BUTTON:  obj = createButton(parent,  cfg, yOffset); break;
+        case WidgetType::GAUGE:    obj = createGauge(parent,   cfg, yOffset); break;
+        case WidgetType::BAR:      obj = createBar(parent,     cfg, yOffset); break;
+        case WidgetType::LABEL:    obj = createLabel(parent,   cfg, yOffset); break;
+        case WidgetType::GEAR_IND: obj = createLabel(parent,   cfg, yOffset); break;
+        case WidgetType::WARNING:  obj = createWarning(parent, cfg, yOffset); break;
+        case WidgetType::BUTTON:   obj = createButton(parent,  cfg, yOffset); break;
         default:
             LOG_WARN("WF", "Unknown widget type for '%s'", cfg.id);
             return nullptr;

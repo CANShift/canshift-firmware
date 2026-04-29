@@ -62,14 +62,29 @@ namespace {
 
         JsonObjectConst cfg = src["config"];
         switch (w->type) {
-            case WidgetType::GAUGE:
-                w->gauge.minValue     = cfg["minValue"]     | 0.0f;
-                w->gauge.maxValue     = cfg["maxValue"]     | 100.0f;
-                w->gauge.warningLevel = cfg["warningLevel"] | 80.0f;
-                w->gauge.dangerLevel  = cfg["dangerLevel"]  | 95.0f;
-                w->gauge.showNeedle   = cfg["showNeedle"]   | false;
-                w->gauge.showArc      = cfg["showArc"]      | true;
+            case WidgetType::GAUGE: {
+                // dashboard.json encodes bar gauges as type "gauge" with
+                // displayStyle "bar". Detect this here and reclassify.
+                const char* displayStyle = cfg["displayStyle"] | "arc";
+                if (strcmp(displayStyle, "bar") == 0) {
+                    // Reclassify: treat as BAR widget from this point on
+                    w->type               = WidgetType::BAR;
+                    w->bar.minValue       = cfg["minValue"]       | 0.0f;
+                    w->bar.maxValue       = cfg["maxValue"]       | 100.0f;
+                    w->bar.warningLevel   = cfg["warningLevel"]   | 80.0f;
+                    w->bar.dangerLevel    = cfg["dangerLevel"]    | 95.0f;
+                    const char* orient    = cfg["barOrientation"] | "horizontal";
+                    w->bar.isVertical     = (strcmp(orient, "vertical") == 0);
+                } else {
+                    w->gauge.minValue     = cfg["minValue"]       | 0.0f;
+                    w->gauge.maxValue     = cfg["maxValue"]       | 100.0f;
+                    w->gauge.warningLevel = cfg["warningLevel"]   | 80.0f;
+                    w->gauge.dangerLevel  = cfg["dangerLevel"]    | 95.0f;
+                    w->gauge.showNeedle   = cfg["showNeedle"]     | false;
+                    w->gauge.showArc      = cfg["showArc"]        | true;
+                }
                 break;
+            }
             case WidgetType::LABEL:
                 w->label.decimalPlaces = cfg["decimalPlaces"] | 0;
                 strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));

@@ -150,11 +150,12 @@ void taskUI(void* pvParameters) {
             // Process touch input
             TouchDriver::poll();
 
+            // Pull latest signal values into all widgets.
+            // Also checks signal timeouts and ticks the alert engine internally.
+            PageManager::updateWidgets();
+
             // Run LVGL task handler (processes all pending events and redraws)
             lv_task_handler();
-
-            // Update alert state (may trigger overlay effects like rev limiter flash)
-            AlertEngine::tick();
 
             xSemaphoreGive(g_lvglMutex);
         }
