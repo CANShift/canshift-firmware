@@ -132,14 +132,14 @@ struct CfgWidget {
 // Per-page color palette — widgets inherit these unless overridden individually
 // ---------------------------------------------------------------------------
 struct CfgPagePalette {
-    CfgColor surface;  // Widget card/surface background
-    CfgColor primary;  // Gauge arcs, bar fills, highlights
-    CfgColor accent;   // Secondary highlight
-    CfgColor text;     // Default widget text
-    CfgColor textDim;  // Muted / secondary text
-    CfgColor warning;  // Warning threshold indicator
-    CfgColor danger;   // Danger threshold indicator
-    CfgColor success;  // Normal / ok state
+    CfgColor surface; // Widget card/surface background
+    CfgColor primary; // Gauge arcs, bar fills, highlights
+    CfgColor accent;  // Secondary highlight
+    CfgColor text;    // Default widget text
+    CfgColor textDim; // Muted / secondary text
+    CfgColor warning; // Warning threshold indicator
+    CfgColor danger;  // Danger threshold indicator
+    CfgColor success; // Normal / ok state
 };
 
 // ---------------------------------------------------------------------------
@@ -207,4 +207,3 @@ struct CfgSignalConfig {
     CfgSignalDef signals[CONFIG_MAX_SIGNALS];
     bool loaded;
 };
-

@@ -60,8 +60,7 @@ static const TeleEntry TELE_SIGNALS[] = {
     {SignalIds::MAP_NUMBER, "map_number"},
 };
 
-static constexpr size_t TELE_SIGNAL_COUNT =
-    sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
+static constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
 
 // ---------------------------------------------------------------------------
 // Receive state machine
@@ -94,24 +93,28 @@ void sendTelemetry() {
 
     const char *prefix = "{\"tele\":1,\"v\":{";
     size_t prefixLen = strlen(prefix);
-    if (p + prefixLen >= end) return;
+    if (p + prefixLen >= end)
+        return;
     memcpy(p, prefix, prefixLen);
     p += prefixLen;
 
     bool first = true;
     for (size_t i = 0; i < TELE_SIGNAL_COUNT; i++) {
-        if (!SignalStore::isValid(TELE_SIGNALS[i].id)) continue;
+        if (!SignalStore::isValid(TELE_SIGNALS[i].id))
+            continue;
         float val = SignalStore::read(TELE_SIGNALS[i].id);
 
         if (!first) {
-            if (p >= end) break;
+            if (p >= end)
+                break;
             *p++ = ',';
         }
         first = false;
 
-        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":%.3g",
-                         TELE_SIGNALS[i].name, static_cast<double>(val));
-        if (n <= 0 || p + n >= end) break;
+        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":%.3g", TELE_SIGNALS[i].name,
+                         static_cast<double>(val));
+        if (n <= 0 || p + n >= end)
+            break;
         p += n;
     }
 

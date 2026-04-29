@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 static lv_disp_draw_buf_t s_drawBuf;
-static lv_disp_drv_t      s_dispDrv;
+static lv_disp_drv_t s_dispDrv;
 
 // ---------------------------------------------------------------------------
 // HARDWARE MODE
@@ -22,9 +22,9 @@ static lv_disp_drv_t      s_dispDrv;
 
 #if !APP_SIMULATION_MODE
 
-#include "board_config.h"
-#include <TFT_eSPI.h>
-#include <Arduino.h>
+    #include "board_config.h"
+    #include <TFT_eSPI.h>
+    #include <Arduino.h>
 
 static TFT_eSPI s_tft;
 
@@ -66,8 +66,8 @@ void DisplayDriver::registerWithLVGL() {
     lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT);
 
     lv_disp_drv_init(&s_dispDrv);
-    s_dispDrv.hor_res  = HW_DISPLAY_WIDTH;
-    s_dispDrv.ver_res  = HW_DISPLAY_HEIGHT;
+    s_dispDrv.hor_res = HW_DISPLAY_WIDTH;
+    s_dispDrv.ver_res = HW_DISPLAY_HEIGHT;
     s_dispDrv.flush_cb = flushCallback;
     s_dispDrv.draw_buf = &s_drawBuf;
     lv_disp_drv_register(&s_dispDrv);
@@ -103,8 +103,8 @@ void DisplayDriver::registerWithLVGL() {
     lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * SIM_BUF_LINES);
 
     lv_disp_drv_init(&s_dispDrv);
-    s_dispDrv.hor_res  = HW_DISPLAY_WIDTH;
-    s_dispDrv.ver_res  = HW_DISPLAY_HEIGHT;
+    s_dispDrv.hor_res = HW_DISPLAY_WIDTH;
+    s_dispDrv.ver_res = HW_DISPLAY_HEIGHT;
     s_dispDrv.flush_cb = flushCallback;
     s_dispDrv.draw_buf = &s_drawBuf;
     lv_disp_drv_register(&s_dispDrv);
