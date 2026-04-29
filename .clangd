@@ -1,0 +1,30 @@
+# .clangd — Language server config for canshift-firmware
+#
+# PlatformIO generates the real compile_commands.json after a first build:
+#   pio run -e crowpanel_28
+# clangd will pick it up from .pio/build/crowpanel_28/compile_commands.json
+#
+# Until then, this file silences the most common false-positive errors.
+
+CompileFlags:
+  Add:
+    - "-Isrc"
+    - "-Iinclude"
+    - "-std=gnu++17"
+    - "-DBOARD_CROWPANEL_28=1"
+    - "-DAPP_SIMULATION_MODE=0"
+    - "-DARDUINO=200"
+    - "-DARDUINO_JSON_VERSION=7"
+    # Suppress errors for Arduino/ESP32 headers not found without toolchain
+    - "-Wno-error=unknown-argument"
+  Remove:
+    - "-march=*"
+    - "-mabi=*"
+
+# Point clangd at the PlatformIO-generated compile_commands once available
+CompileCommandsDir: ".pio/build/crowpanel_28"
+
+Diagnostics:
+  # Suppress false positives from missing Arduino/ESP32 headers
+  Suppress:
+    - "pp_including_mainfile_in_preamble"
