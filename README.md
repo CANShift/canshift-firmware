@@ -1,4 +1,7 @@
 # canshift-firmware
+<p align="center">
+  <img src="../logo/CANShift_firmware_logo.png" alt="Firmware logo" width="600">
+</p>
 
 ESP32 embedded firmware for the configurable automotive dashboard.
 
