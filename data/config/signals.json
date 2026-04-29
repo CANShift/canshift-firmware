@@ -17,7 +17,9 @@
       "offset": 0.0,
       "unit": "rpm",
       "min": 0,
-      "max": 10000,
+      "max": 8000,
+      "warningLevel": 6500,
+      "dangerLevel": 7200,
       "timeoutMs": 500
     },
     {
@@ -46,6 +48,8 @@
       "unit": "kPa",
       "min": 0,
       "max": 400,
+      "warningLevel": 250,
+      "dangerLevel": 330,
       "timeoutMs": 500
     },
     {
@@ -59,7 +63,9 @@
       "offset": -40.0,
       "unit": "°C",
       "min": -40,
-      "max": 215,
+      "max": 100,
+      "warningLevel": 50,
+      "dangerLevel": 65,
       "timeoutMs": 1000
     },
     {
@@ -87,8 +93,10 @@
       "scale": 0.001,
       "offset": 0.0,
       "unit": "λ",
-      "min": 0.5,
-      "max": 2.0,
+      "min": 0.6,
+      "max": 1.6,
+      "warningLevel": 1.2,
+      "dangerLevel": 1.4,
       "timeoutMs": 500
     },
     {
@@ -132,6 +140,8 @@
       "unit": "°C",
       "min": -40,
       "max": 150,
+      "warningLevel": 100,
+      "dangerLevel": 115,
       "timeoutMs": 1000
     },
     {
@@ -146,6 +156,8 @@
       "unit": "°C",
       "min": -40,
       "max": 180,
+      "warningLevel": 130,
+      "dangerLevel": 150,
       "timeoutMs": 1000
     },
     {
@@ -175,6 +187,8 @@
       "unit": "V",
       "min": 8,
       "max": 18,
+      "warningLevel": 13.8,
+      "dangerLevel": 15.5,
       "timeoutMs": 2000
     },
     {
