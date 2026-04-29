@@ -249,7 +249,6 @@ const CfgSignalConfig &ConfigLoader::getSignalConfig() {
 }
 bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();
-    LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d theme=%d", r.dashboardOk, r.signalsOk,
-             r.themeOk);
+    LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d", r.dashboardOk, r.signalsOk);
     return r.dashboardOk; // Dashboard is mandatory
 }
