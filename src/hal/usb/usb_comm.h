@@ -1,30 +1,21 @@
 #pragma once
 // usb_comm.h — USB serial communication layer (Phase 1 config sync)
 //
-// Phase 1 strategy: configuration is exchanged over USB serial (UART0).
-// The desktop config studio (config-studio-desktop) connects to the ESP32
-// over USB serial and sends JSON-framed commands.
-//
-// Protocol (v1):
-//   Each packet is framed as:
-//     [START_BYTE][2-byte length, big-endian][payload bytes][END_BYTE][CRC8]
+// Protocol: JSON lines over USB serial (UART0 / CP210x bridge), 115200 baud.
+// Each message is one JSON object followed by \n.
 //
 //   Commands from desktop → device:
-//     CMD_GET_CONFIG   0x01  — Request current config JSON
-//     CMD_PUT_CONFIG   0x02  — Push new dashboard.json content
-//     CMD_PUT_SIGNALS  0x03  — Push new signals.json content
-//     CMD_PUT_THEME    0x04  — Push new theme.json content
-//     CMD_GET_STATUS   0x10  — Request firmware status (version, uptime, signals)
-//     CMD_REBOOT       0xF0  — Soft reboot the device
+//     CMD_PUT_CONFIG      0x02  — Push new dashboard.json content
+//     CMD_SCREEN_SETTINGS 0x05  — Push display settings (brightness, contrast, sleep, rotation)
+//     CMD_REBOOT          0xF0  — Soft reboot the device
 //
 //   Responses from device → desktop:
-//     RSP_OK           0x80
-//     RSP_ERROR        0x81
-//     RSP_DATA         0x82  — Followed by payload
+//     {"status":"ok"}
+//     {"status":"error","message":"..."}
 //
-// TODO: Finalize protocol with desktop implementation.
-//       Consider switching to length-prefixed JSON (simpler) if binary framing
-//       adds complexity without benefit.
+//   Telemetry pushed by device every ~200ms (proactive, no request needed):
+//     {"tele":1,"v":{"rpm":1234.5,"coolant_temp_c":89.2,...}}
+//     Only valid (non-timed-out) signals are included.
 
 #include <stdint.h>
 #include <stddef.h>

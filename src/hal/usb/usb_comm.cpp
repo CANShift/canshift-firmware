@@ -1,7 +1,12 @@
-// usb_comm.cpp — USB serial communication layer stub
+// usb_comm.cpp — USB serial communication layer
 //
-// Phase 1 implementation: minimal command receiver.
-// Full binary framing protocol is a TODO — see usb_comm.h for spec.
+// Phase 1 implementation: JSON line-based command receiver + telemetry push.
+// Desktop sends: {"cmd": <id>, ...fields}\n
+// Firmware responds with a JSON line.
+// Firmware also pushes telemetry proactively every USB_TELE_PERIOD_TICKS ticks.
+//
+// Telemetry format: {"tele":1,"v":{"rpm":1234.5,"coolant_temp_c":89.2,...}}\n
+// Command response: {"status":"ok"} or {"status":"error","message":"..."}\n
 
 #include "usb_comm.h"
 #include "board_config.h"
@@ -10,6 +15,8 @@
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
 #include "ui/settings_page.h"
+#include "runtime/signal_store.h"
+#include "can/signal_map.h"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -19,27 +26,109 @@
 extern SemaphoreHandle_t g_lvglMutex;
 
 // ---------------------------------------------------------------------------
-// Receive state machine
+// Telemetry push — sent every USB_TELE_PERIOD_TICKS × 20ms ≈ 200ms
 // ---------------------------------------------------------------------------
+
+// How many tick() calls between telemetry pushes. tick() runs every 20ms.
+static constexpr uint8_t USB_TELE_PERIOD_TICKS = 10; // 200ms
+
+// Static TX buffer — sized for ~20 signals × ~24 chars + wrapper overhead
+static constexpr size_t TELE_BUF_SIZE = 768;
+static char s_teleBuf[TELE_BUF_SIZE];
 
 namespace {
 
-// Simple line-based protocol stub:
-// Desktop sends: {"cmd": 1, "payload": "..."}\n
-// Firmware responds with a JSON line.
-// TODO: Replace with binary framing protocol defined in usb_comm.h
+// Signal name table — indexed by SignalId, empty string = not reported
+struct TeleEntry {
+    SignalId id;
+    const char *name;
+};
+
+// All signals exposed in signals.json / signal_map.h
+static constexpr TeleEntry TELE_SIGNALS[] = {
+    {SignalIds::RPM, "rpm"},
+    {SignalIds::THROTTLE_POS, "throttle_pos"},
+    {SignalIds::MAP_KPA, "map_kpa"},
+    {SignalIds::BOOST_BAR, "boost_bar"},
+    {SignalIds::IAT_C, "iat_c"},
+    {SignalIds::COOLANT_TEMP_C, "coolant_temp_c"},
+    {SignalIds::OIL_TEMP_C, "oil_temp_c"},
+    {SignalIds::OIL_PRESS_BAR, "oil_press_bar"},
+    {SignalIds::FUEL_PRESS_BAR, "fuel_press_bar"},
+    {SignalIds::LAMBDA_1, "lambda_1"},
+    {SignalIds::AFR_1, "afr_1"},
+    {SignalIds::SPEED_KPH, "speed_kph"},
+    {SignalIds::GEAR, "gear"},
+    {SignalIds::BATTERY_VOLTS, "battery_volts"},
+    {SignalIds::FLAG_MIL, "flag_mil"},
+    {SignalIds::FLAG_LAUNCH_CTRL, "flag_launch_ctrl"},
+    {SignalIds::MAP_NUMBER, "map_number"},
+};
+
+static constexpr size_t TELE_SIGNAL_COUNT =
+    sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
+
+// Send one telemetry line. Skips invalid (timed-out) signals.
+void sendTelemetry() {
+    // Build the JSON manually into s_teleBuf to avoid heap allocation.
+    // Format: {"tele":1,"v":{"rpm":1234.1,"coolant_temp_c":89.0,...}}
+    // Only valid signals are included to reduce noise.
+
+    char *p = s_teleBuf;
+    const char *end = s_teleBuf + TELE_BUF_SIZE - 2; // reserve \n\0
+
+    // Open object
+    const char *prefix = "{\"tele\":1,\"v\":{";
+    size_t prefixLen = strlen(prefix);
+    if (p + prefixLen >= end) return;
+    memcpy(p, prefix, prefixLen);
+    p += prefixLen;
+
+    bool first = true;
+    for (size_t i = 0; i < TELE_SIGNAL_COUNT; i++) {
+        if (!SignalStore::isValid(TELE_SIGNALS[i].id)) continue;
+        float val = SignalStore::read(TELE_SIGNALS[i].id);
+
+        // comma separator
+        if (!first) {
+            if (p >= end) break;
+            *p++ = ',';
+        }
+        first = false;
+
+        // "name":value
+        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":%.3g",
+                         TELE_SIGNALS[i].name, static_cast<double>(val));
+        if (n <= 0 || p + n >= end) break;
+        p += n;
+    }
+
+    // Close + newline
+    if (p + 3 <= end) {
+        *p++ = '}';
+        *p++ = '}';
+        *p++ = '\n';
+        *p = '\0';
+        Serial.print(s_teleBuf);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Receive state machine
+// ---------------------------------------------------------------------------
 
 static char s_rxBuf[USB_RX_BUF_SIZE];
 static size_t s_rxPos = 0;
 
 // Serialization buffer for writing dashboard.json back to SPIFFS.
-// Sized to match CONFIG_JSON_DOC_DASHBOARD (see app_config.h).
 static char s_writeBuf[CONFIG_JSON_DOC_DASHBOARD];
+
+// Tick counter for telemetry scheduling
+static uint8_t s_tickCount = 0;
 
 // Handle CMD_PUT_CONFIG (0x02): receive dashboard JSON from studio,
 // write to SPIFFS, then reboot so the new config takes effect cleanly.
 void handlePutConfig(const char *jsonLine) {
-    // Parse the full command JSON — payload may be several KB
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, jsonLine);
     if (err) {
@@ -55,7 +144,6 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    // Serialize the payload object back to a JSON string
     size_t written = serializeJson(payload, s_writeBuf, sizeof(s_writeBuf));
     if (written == 0) {
         LOG_ERROR("USB", "PUT_CONFIG: serialization failed (buffer too small?)");
@@ -63,7 +151,6 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    // Write new dashboard.json to SPIFFS
     bool ok = StorageDriver::writeFile(CONFIG_PATH_DASHBOARD,
                                        reinterpret_cast<const uint8_t *>(s_writeBuf), written);
     if (!ok) {
@@ -74,12 +161,11 @@ void handlePutConfig(const char *jsonLine) {
 
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
 
-    // Acknowledge before rebooting so the studio receives RSP_OK
     Serial.flush();
     Serial.println("{\"status\":\"ok\"}");
     Serial.flush();
 
-    delay(150); // Allow bytes to drain over USB before reset
+    delay(150);
     esp_restart();
 }
 
@@ -89,23 +175,20 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     uint32_t sleepS = obj["sleep"] | 0u;
     uint16_t rotation = obj["rotation"] | 0u;
 
-    // Take LVGL mutex — SettingsPage uses LVGL objects
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
         SettingsPage::applyFromUsb(brightness, contrast, sleepS, rotation);
         xSemaphoreGive(g_lvglMutex);
-        Serial.println("{\"rsp\":128,\"msg\":\"screen_settings_ok\"}");
+        Serial.println("{\"status\":\"ok\"}");
     } else {
         LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
-        Serial.println("{\"rsp\":129,\"msg\":\"busy\"}");
+        Serial.println("{\"status\":\"error\",\"message\":\"busy\"}");
     }
 }
 
 void handleCommand(const char *jsonLine) {
     LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
 
-    // Extract only cmd using a filter — safe regardless of payload size or field order.
-    // Without filtering, ArduinoJson runs out of memory on PUT_CONFIG's large payload
-    // and may leave cmd unparsed.
+    // Peek at cmd first — avoid parsing large PUT_CONFIG payload in full doc
     JsonDocument cmdFilter;
     cmdFilter["cmd"] = true;
     JsonDocument peekDoc;
@@ -117,7 +200,6 @@ void handleCommand(const char *jsonLine) {
         return;
     }
 
-    // All other commands fit in a small document
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, jsonLine);
     if (err) {
@@ -145,8 +227,9 @@ void handleCommand(const char *jsonLine) {
 
 void UsbComm::init() {
     s_rxPos = 0;
+    s_tickCount = 0;
     memset(s_rxBuf, 0, sizeof(s_rxBuf));
-    LOG_INFO("USB", "USB comm initialized (phase 1 stub)");
+    LOG_INFO("USB", "USB comm initialized");
 }
 
 void UsbComm::tick() {
@@ -155,7 +238,6 @@ void UsbComm::tick() {
         char c = static_cast<char>(Serial.read());
 
         if (c == '\n') {
-            // End of command line
             s_rxBuf[s_rxPos] = '\0';
             if (s_rxPos > 0) {
                 handleCommand(s_rxBuf);
@@ -164,9 +246,14 @@ void UsbComm::tick() {
         } else if (s_rxPos < USB_RX_BUF_SIZE - 1) {
             s_rxBuf[s_rxPos++] = c;
         } else {
-            // Buffer overflow — discard and reset
             LOG_WARN("USB", "RX buffer overflow — discarding packet");
             s_rxPos = 0;
         }
+    }
+
+    // Push telemetry periodically
+    if (++s_tickCount >= USB_TELE_PERIOD_TICKS) {
+        s_tickCount = 0;
+        sendTelemetry();
     }
 }
