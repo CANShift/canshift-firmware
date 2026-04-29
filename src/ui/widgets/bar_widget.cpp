@@ -12,11 +12,16 @@
 
 namespace {
 
-    // Clamp a float value to [min, max] and cast to int32_t for lv_bar.
-    inline int32_t clampToRange(float value, float minVal, float maxVal) {
-        if (value < minVal) return static_cast<int32_t>(minVal);
-        if (value > maxVal) return static_cast<int32_t>(maxVal);
-        return static_cast<int32_t>(value);
+    // lv_bar only accepts int32_t ranges. Multiplying by this factor gives
+    // 2 decimal places of resolution for fractional signals (boost, lambda, etc.)
+    // while keeping all scaled values well within int32_t bounds even for
+    // large-range signals (RPM 0–8000 → 0–800 000).
+    static constexpr int32_t BAR_SCALE = 100;
+
+    // Scale a float signal value to the integer range used by lv_bar.
+    inline int32_t scaleValue(float value, float minVal, float maxVal) {
+        float clamped = value < minVal ? minVal : (value > maxVal ? maxVal : value);
+        return static_cast<int32_t>(clamped * BAR_SCALE);
     }
 
     // Determine bar indicator color based on value thresholds.
@@ -62,11 +67,11 @@ lv_obj_t* BarWidget::create(lv_obj_t* parent, const CfgWidget& cfg, int16_t yOff
     lv_obj_align(bar, LV_ALIGN_CENTER, 0, 0);
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
 
-    // Set range from config
+    // Set scaled integer range — BAR_SCALE gives 0.01 resolution on fractional signals
     lv_bar_set_range(bar,
-        static_cast<int32_t>(cfg.bar.minValue),
-        static_cast<int32_t>(cfg.bar.maxValue));
-    lv_bar_set_value(bar, static_cast<int32_t>(cfg.bar.minValue), LV_ANIM_OFF);
+        static_cast<int32_t>(cfg.bar.minValue * BAR_SCALE),
+        static_cast<int32_t>(cfg.bar.maxValue * BAR_SCALE));
+    lv_bar_set_value(bar, static_cast<int32_t>(cfg.bar.minValue * BAR_SCALE), LV_ANIM_OFF);
 
     // Background track style
     lv_obj_set_style_bg_color(bar, lv_color_hex(cfg.style.secondaryColor.rgb), LV_PART_MAIN);
@@ -115,7 +120,8 @@ void BarWidget::update(lv_obj_t* obj, float value, bool valid, const CfgWidget& 
     if (!valid) {
         if (tag->wasValid) {
             // Signal just went invalid — reset to minimum and dim
-            lv_bar_set_value(tag->bar, static_cast<int32_t>(cfg.bar.minValue), LV_ANIM_OFF);
+            lv_bar_set_value(tag->bar,
+                static_cast<int32_t>(cfg.bar.minValue * BAR_SCALE), LV_ANIM_OFF);
             lv_obj_set_style_bg_color(tag->bar,
                 lv_color_hex(cfg.style.secondaryColor.rgb), LV_PART_INDICATOR);
             if (tag->valueLabel) {
@@ -131,8 +137,8 @@ void BarWidget::update(lv_obj_t* obj, float value, bool valid, const CfgWidget& 
     tag->lastValue = value;
     tag->wasValid  = true;
 
-    // Update bar position
-    lv_bar_set_value(tag->bar, clampToRange(value, cfg.bar.minValue, cfg.bar.maxValue), LV_ANIM_OFF);
+    // Update bar position — scaled to match the range set in create()
+    lv_bar_set_value(tag->bar, scaleValue(value, cfg.bar.minValue, cfg.bar.maxValue), LV_ANIM_OFF);
 
     // Update indicator color based on threshold
     lv_color_t color = getBarColor(value, cfg);
