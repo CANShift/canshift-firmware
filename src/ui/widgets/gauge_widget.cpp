@@ -38,6 +38,7 @@ lv_color_t getArcColor(float value, const CfgWidget &cfg) {
 struct GaugeTag {
     lv_obj_t *arc;
     lv_obj_t *valueLabel;
+    lv_obj_t *unitLabel; // Unit text below the value (e.g. "RPM", "°C")
     float lastValue;
 };
 
@@ -90,9 +91,10 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
     lv_obj_set_style_pad_all(arc, 0, LV_PART_KNOB);
 
-    // Value label in center
+    // Value label — offset slightly upward when a unit label is shown
+    bool hasUnit = cfg.gauge.suffix[0] != '\0';
     lv_obj_t *label = lv_label_create(cont);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
 
     // Choose font size based on widget height
@@ -104,8 +106,19 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, "---");
 
+    // Unit label below value (optional, from cfg.gauge.suffix e.g. "RPM", "°C")
+    lv_obj_t *unitLabel = nullptr;
+    if (hasUnit) {
+        unitLabel = lv_label_create(cont);
+        lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
+        lv_obj_set_style_text_color(unitLabel, lv_color_hex(cfg.style.textColor.rgb & 0x888888),
+                                    0);
+        lv_obj_set_style_text_font(unitLabel, &lv_font_montserrat_12, 0);
+        lv_label_set_text(unitLabel, cfg.gauge.suffix);
+    }
+
     // Allocate and attach tag
-    GaugeTag *tag = new GaugeTag{arc, label, 0.0f};
+    GaugeTag *tag = new GaugeTag{arc, label, unitLabel, 0.0f};
     lv_obj_set_user_data(cont, tag);
 
     return cont;

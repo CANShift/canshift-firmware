@@ -8,6 +8,7 @@
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/storage/storage_driver.h"
+#include "hal/storage/lvgl_fs_driver.h"
 #include "hal/usb/usb_comm.h"
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
@@ -116,6 +117,8 @@ static void initStorage() {
         LOG_ERROR("BOOT", "Storage init failed — no config will be loaded");
         // Non-fatal: firmware can run with defaults
     }
+    // Register LVGL FS driver so image widgets can load BMPs from SPIFFS
+    LvglFsDriver::init();
 }
 
 static void loadConfig() {

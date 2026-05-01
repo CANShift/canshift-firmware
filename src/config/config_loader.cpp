@@ -97,6 +97,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->gauge.dangerLevel = cfg["dangerLevel"] | 95.0f;
                 w->gauge.showNeedle = cfg["showNeedle"] | false;
                 w->gauge.showArc = cfg["showArc"] | true;
+                strlcpy(w->gauge.suffix, cfg["suffix"] | "", sizeof(w->gauge.suffix));
             }
             break;
         }
@@ -114,6 +115,20 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             strlcpy(w->button.targetPageId, cfg["targetPageId"] | "", CFG_MAX_ID_LEN);
             strlcpy(w->button.label, cfg["label"] | "", CFG_MAX_NAME_LEN);
             strlcpy(w->button.iconPath, cfg["iconPath"] | "", CFG_MAX_PATH_LEN);
+            break;
+        case WidgetType::TIMER:
+            w->timer.autoStart = cfg["autoStart"] | false;
+            w->timer.formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
+            break;
+        case WidgetType::IMAGE:
+            strlcpy(w->image.imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
+            break;
+        case WidgetType::GEAR_IND:
+            // Gear indicator reuses label params for prefix/suffix/hideWhenInvalid
+            w->label.decimalPlaces = 0;
+            strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
+            strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
+            w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
             break;
         default:
             break;

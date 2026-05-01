@@ -35,12 +35,20 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg) {
     lv_obj_set_style_bg_color(screen, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
 
-    // TODO: Load background image from cfg.bgImagePath if set
-    // if (strlen(cfg.bgImagePath) > 0) {
-    //   lv_obj_t* img = lv_img_create(screen);
-    //   lv_img_set_src(img, cfg.bgImagePath);
-    //   lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
-    // }
+    // Load background image from SPIFFS if set.
+    // Requires LvglFsDriver registered (boot_sequence.cpp).
+    // Path in cfg.bgImagePath is a SPIFFS path (e.g. "/images/bg.bmp").
+    if (strlen(cfg.bgImagePath) > 0) {
+        // Build LVGL FS path: "S:" + SPIFFS path
+        static char lvglPath[CFG_MAX_PATH_LEN + 4];
+        snprintf(lvglPath, sizeof(lvglPath), "S:%s", cfg.bgImagePath);
+
+        lv_obj_t *img = lv_img_create(screen);
+        lv_img_set_src(img, lvglPath);
+        lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_set_style_opa(img, LV_OPA_COVER, LV_PART_MAIN);
+        LOG_DEBUG("UI", "Background image: %s", lvglPath);
+    }
 }
 
 void buildPage(uint8_t idx, const CfgPage &cfg) {

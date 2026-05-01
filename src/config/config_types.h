@@ -80,6 +80,7 @@ struct CfgGaugeParams {
     uint8_t numTicks;
     bool showNeedle;
     bool showArc;
+    char suffix[16]; // Unit label shown below the value (e.g. "RPM", "°C")
 };
 
 struct CfgBarParams {
@@ -108,6 +109,15 @@ struct CfgButtonParams {
     char iconPath[CFG_MAX_PATH_LEN];
 };
 
+struct CfgTimerParams {
+    bool autoStart;
+    bool formatMsec; // true = "ss.mmm", false = "mm:ss"
+};
+
+struct CfgImageParams {
+    char imagePath[CFG_MAX_PATH_LEN]; // SPIFFS path e.g. "/images/bg.bmp"
+};
+
 // ---------------------------------------------------------------------------
 // Widget definition
 // ---------------------------------------------------------------------------
@@ -125,6 +135,8 @@ struct CfgWidget {
         CfgWarningParams warning;
         CfgButtonParams button;
         CfgBarParams bar;
+        CfgTimerParams timer;
+        CfgImageParams image;
     };
 };
 

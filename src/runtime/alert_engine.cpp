@@ -92,8 +92,9 @@ void AlertEngine::init() {
     s_lastFlashToggleMs = 0;
     s_flashPhase = false;
 
-    // TODO: Load rev limit from dashboard config
-    // s_revLimitRpm = ConfigLoader::getDashboardConfig().revLimitRpm;
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (dash.loaded && dash.revLimitRpm > 0.0f)
+        s_revLimitRpm = dash.revLimitRpm;
 
     LOG_INFO("ALERT", "Alert engine initialized (revLimit=%.0f RPM)", s_revLimitRpm);
 }

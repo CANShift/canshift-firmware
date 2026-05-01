@@ -6,6 +6,9 @@
 #include "widgets/label_widget.h"
 #include "widgets/warning_widget.h"
 #include "widgets/button_widget.h"
+#include "widgets/gear_widget.h"
+#include "widgets/timer_widget.h"
+#include "widgets/image_widget.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "diag/logger.h"
@@ -100,6 +103,18 @@ lv_obj_t *createBar(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     return obj;
 }
 
+lv_obj_t *createGear(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    return GearWidget::create(parent, cfg, yOffset);
+}
+
+lv_obj_t *createTimer(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    return TimerWidget::create(parent, cfg, yOffset);
+}
+
+lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    return ImageWidget::create(parent, cfg, yOffset);
+}
+
 void updateWidget(WidgetEntry &entry) {
     SignalId sid = resolveSignalId(entry.signalId);
     if (sid >= SignalIds::SIGNAL_COUNT)
@@ -123,10 +138,16 @@ void updateWidget(WidgetEntry &entry) {
             WarningWidget::update(entry.obj, rawValue, valid, entry.cfg);
             break;
         case WidgetType::BUTTON:
-            // Buttons don't need signal updates (they respond to touch events)
+            // Buttons respond to touch events — no signal-driven update needed
             break;
         case WidgetType::GEAR_IND:
-            LabelWidget::update(entry.obj, rawValue, valid, entry.cfg);
+            GearWidget::update(entry.obj, rawValue, valid, entry.cfg);
+            break;
+        case WidgetType::TIMER:
+            TimerWidget::update(entry.obj, value, valid, entry.cfg);
+            break;
+        case WidgetType::IMAGE:
+            // Static image — no per-frame update needed
             break;
         default:
             break;
@@ -158,7 +179,13 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
             obj = createLabel(parent, cfg, yOffset);
             break;
         case WidgetType::GEAR_IND:
-            obj = createLabel(parent, cfg, yOffset);
+            obj = createGear(parent, cfg, yOffset);
+            break;
+        case WidgetType::TIMER:
+            obj = createTimer(parent, cfg, yOffset);
+            break;
+        case WidgetType::IMAGE:
+            obj = createImage(parent, cfg, yOffset);
             break;
         case WidgetType::WARNING:
             obj = createWarning(parent, cfg, yOffset);
