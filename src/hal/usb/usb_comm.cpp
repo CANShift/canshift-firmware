@@ -214,6 +214,14 @@ void handleCommand(const char *jsonLine) {
     }
 
     switch (cmd) {
+        case UsbComm::CMD_GET_STATUS: {
+            char resp[80];
+            snprintf(resp, sizeof(resp),
+                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u}", APP_VERSION_STR,
+                     static_cast<unsigned>(USB_PROTOCOL_VERSION));
+            Serial.println(resp);
+            break;
+        }
         case UsbComm::CMD_SCREEN_SETTINGS:
             handleScreenSettings(doc.as<JsonObjectConst>());
             break;
