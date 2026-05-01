@@ -24,6 +24,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <esp_system.h> // esp_restart()
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 // Forward-declared FreeRTOS LVGL mutex from main.cpp
 extern SemaphoreHandle_t g_lvglMutex;
@@ -76,6 +78,17 @@ static uint8_t s_tickCount = 0;
 
 // How many tick() calls between telemetry pushes: 10 × 20ms = 200ms
 static constexpr uint8_t TELE_PERIOD_TICKS = 10;
+
+// ---------------------------------------------------------------------------
+// CAN scan queue
+// ---------------------------------------------------------------------------
+
+// When scan mode is active, raw CAN frames are queued here by the CAN task
+// (core 0) and drained by the USB task (core 1) in tick().
+// Queue depth: 64 frames — sufficient for ~1s of bus traffic before dropping.
+static constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
+static QueueHandle_t s_canScanQueue = nullptr;
+static volatile bool s_canScanMode = false;
 
 // ---------------------------------------------------------------------------
 // Telemetry
@@ -225,10 +238,58 @@ void handleCommand(const char *jsonLine) {
         case UsbComm::CMD_SCREEN_SETTINGS:
             handleScreenSettings(doc.as<JsonObjectConst>());
             break;
+        case UsbComm::CMD_CAN_SCAN_START:
+            s_canScanMode = true;
+            if (s_canScanQueue) xQueueReset(s_canScanQueue);
+            LOG_INFO("USB", "CAN scan started");
+            Serial.println("{\"status\":\"ok\"}");
+            break;
+        case UsbComm::CMD_CAN_SCAN_STOP:
+            s_canScanMode = false;
+            if (s_canScanQueue) xQueueReset(s_canScanQueue);
+            LOG_INFO("USB", "CAN scan stopped");
+            Serial.println("{\"status\":\"ok\"}");
+            break;
         default:
             LOG_DEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
             Serial.println("{\"status\":\"ok\"}");
             break;
+    }
+}
+
+// Drain queued CAN scan frames and write them to Serial.
+// Each frame is serialized as: {"can":1,"id":<id>,"len":<n>,"d":[b0,...,bn]}\n
+// Called from tick() on the USB task — single writer, safe to call Serial.print().
+void drainCanScanQueue() {
+    if (!s_canScanQueue) return;
+
+    UsbComm::CanScanFrame frame;
+    // Drain at most 32 frames per tick to avoid blocking telemetry
+    uint8_t drained = 0;
+    while (drained < 32 && xQueueReceive(s_canScanQueue, &frame, 0) == pdTRUE) {
+        // Max line length: {"can":1,"id":536870911,"len":8,"d":[255,255,255,255,255,255,255,255]}
+        // ≈ 70 chars — 96-byte buffer is safe.
+        char buf[96];
+        char *p = buf;
+        const char *limit = buf + sizeof(buf) - 4; // reserve \n\0
+
+        p += snprintf(p, static_cast<size_t>(limit - p), "{\"can\":1,\"id\":%lu,\"len\":%u,\"d\":[",
+                      static_cast<unsigned long>(frame.id),
+                      static_cast<unsigned>(frame.len));
+
+        for (uint8_t i = 0; i < frame.len && p < limit; i++) {
+            if (i > 0 && p < limit) *p++ = ',';
+            p += snprintf(p, static_cast<size_t>(limit - p), "%u",
+                          static_cast<unsigned>(frame.data[i]));
+        }
+
+        if (p < limit) *p++ = ']';
+        if (p < limit) *p++ = '}';
+        if (p < limit) *p++ = '\n';
+        *p = '\0';
+
+        Serial.print(buf);
+        drained++;
     }
 }
 
@@ -242,7 +303,17 @@ void UsbComm::init() {
     s_rxPos = 0;
     s_tickCount = 0;
     memset(s_rxBuf, 0, sizeof(s_rxBuf));
+    s_canScanQueue = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(CanScanFrame));
+    if (!s_canScanQueue) {
+        LOG_ERROR("USB", "Failed to create CAN scan queue");
+    }
     LOG_INFO("USB", "USB comm initialized");
+}
+
+bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
+    if (!s_canScanMode || !s_canScanQueue) return false;
+    // Non-blocking: drop frame silently if queue is full
+    return xQueueSend(s_canScanQueue, &frame, 0) == pdTRUE;
 }
 
 void UsbComm::tick() {
@@ -262,6 +333,9 @@ void UsbComm::tick() {
             s_rxPos = 0;
         }
     }
+
+    // Drain CAN scan queue — send queued frames before telemetry
+    drainCanScanQueue();
 
     if (++s_tickCount >= TELE_PERIOD_TICKS) {
         s_tickCount = 0;

@@ -5,9 +5,11 @@
 #include "board_config.h"
 #include "app_config.h"
 #include "diag/logger.h"
+#include "hal/usb/usb_comm.h"
 
 #include <driver/twai.h>
 #include <Arduino.h>
+#include <string.h> // memcpy
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -102,6 +104,13 @@ void CanManager::tick() {
             // Data frame (not remote frame)
             MaxxEcuParser::parseFrame(message.identifier, message.data,
                                       static_cast<uint8_t>(message.data_length_code));
+
+            // Forward raw frame to USB scan queue if scanner is active (best-effort, no lock)
+            UsbComm::CanScanFrame sf;
+            sf.id = message.identifier;
+            sf.len = static_cast<uint8_t>(message.data_length_code);
+            memcpy(sf.data, message.data, sf.len);
+            UsbComm::pushCanFrame(sf);
         }
     } else if (err == ESP_ERR_TIMEOUT) {
         // Normal — no frame arrived within timeout window
