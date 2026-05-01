@@ -79,4 +79,14 @@ struct CanScanFrame {
  */
 bool pushCanFrame(const CanScanFrame &frame);
 
+/**
+ * Update the CAN health stats to be emitted on the next tick().
+ * Called from the CAN task (core 0). Written with volatile — safe for our use case
+ * (worst case: one stale read on the USB task side, acceptable for a status display).
+ *
+ * fpsX10: frames per second multiplied by 10 (e.g. 125 → 12.5 fps)
+ * errors: total TWAI receive errors since boot
+ */
+void updateCanStats(uint32_t fpsX10, uint32_t errors);
+
 } // namespace UsbComm

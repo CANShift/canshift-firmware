@@ -18,6 +18,11 @@
 static uint32_t s_frameCount = 0;
 static uint32_t s_errorCount = 0;
 
+// Health stats — frame rate window (reset every STAT_INTERVAL_MS)
+static uint32_t s_windowFrames = 0;
+static uint32_t s_lastStatMs = 0;
+static constexpr uint32_t STAT_INTERVAL_MS = 2000;
+
 // ---------------------------------------------------------------------------
 // TWAI configuration helpers
 // ---------------------------------------------------------------------------
@@ -99,6 +104,7 @@ void CanManager::tick() {
 
     if (err == ESP_OK) {
         s_frameCount++;
+        s_windowFrames++;
 
         if (!(message.rtr)) {
             // Data frame (not remote frame)
@@ -128,6 +134,18 @@ void CanManager::tick() {
                 twai_initiate_recovery();
             }
         }
+    }
+
+    // Emit health stats every STAT_INTERVAL_MS — reads millis() which is safe from any task
+    const uint32_t nowMs = millis();
+    if (s_lastStatMs == 0) {
+        s_lastStatMs = nowMs;
+    } else if (nowMs - s_lastStatMs >= STAT_INTERVAL_MS) {
+        const uint32_t elapsed = nowMs - s_lastStatMs;
+        const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
+        UsbComm::updateCanStats(fpsX10, s_errorCount);
+        s_windowFrames = 0;
+        s_lastStatMs = nowMs;
     }
 }
 

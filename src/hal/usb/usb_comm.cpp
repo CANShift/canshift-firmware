@@ -91,6 +91,19 @@ static QueueHandle_t s_canScanQueue = nullptr;
 static volatile bool s_canScanMode = false;
 
 // ---------------------------------------------------------------------------
+// CAN health stats
+// ---------------------------------------------------------------------------
+
+// Written by CAN task (core 0), read by USB task (core 1).
+// Volatile struct + pending flag — worst case: one stale display value.
+struct CanHealthStats {
+    uint32_t fpsX10;
+    uint32_t errors;
+};
+static volatile CanHealthStats s_canStats = {0, 0};
+static volatile bool s_canStatsPending = false;
+
+// ---------------------------------------------------------------------------
 // Telemetry
 // ---------------------------------------------------------------------------
 
@@ -310,6 +323,11 @@ void UsbComm::init() {
     LOG_INFO("USB", "USB comm initialized");
 }
 
+void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
+    s_canStats = {fpsX10, errors};
+    s_canStatsPending = true;
+}
+
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
     if (!s_canScanMode || !s_canScanQueue) return false;
     // Non-blocking: drop frame silently if queue is full
@@ -336,6 +354,19 @@ void UsbComm::tick() {
 
     // Drain CAN scan queue — send queued frames before telemetry
     drainCanScanQueue();
+
+    // Emit CAN health stats if the CAN task pushed new data
+    if (s_canStatsPending) {
+        s_canStatsPending = false;
+        // Format: {"can_stat":1,"fps":12.5,"errors":0}\n
+        char statBuf[72];
+        const CanHealthStats stats = {s_canStats.fpsX10, s_canStats.errors};
+        snprintf(statBuf, sizeof(statBuf), "{\"can_stat\":1,\"fps\":%lu.%lu,\"errors\":%lu}\n",
+                 static_cast<unsigned long>(stats.fpsX10 / 10),
+                 static_cast<unsigned long>(stats.fpsX10 % 10),
+                 static_cast<unsigned long>(stats.errors));
+        Serial.print(statBuf);
+    }
 
     if (++s_tickCount >= TELE_PERIOD_TICKS) {
         s_tickCount = 0;
