@@ -324,7 +324,8 @@ void UsbComm::init() {
 }
 
 void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
-    s_canStats = {fpsX10, errors};
+    s_canStats.fpsX10 = fpsX10;
+    s_canStats.errors = errors;
     s_canStatsPending = true;
 }
 
