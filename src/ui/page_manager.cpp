@@ -4,6 +4,7 @@
 #include "widget_factory.h"
 #include "top_bar.h"
 #include "settings_page.h"
+#include "theme_manager.h"
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
@@ -30,6 +31,7 @@ static Page s_pages[MAX_PAGES];
 static uint8_t s_pageCount = 0;
 static uint8_t s_currentIdx = 0;
 static lv_obj_t *s_revOverlay = nullptr; // Red flash overlay, global
+static bool s_rebuildRequested = false;  // Set by ThemeManager::toggleDayMode()
 
 void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg) {
     lv_obj_set_style_bg_color(screen, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
@@ -60,7 +62,10 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
     lv_obj_set_size(p.screen, LV_HOR_RES, LV_VER_RES);
     lv_obj_clear_flag(p.screen, LV_OBJ_FLAG_SCROLLABLE);
 
-    applyPageBackground(p.screen, cfg);
+    // Apply theme-aware background (day vs night)
+    CfgPage effectiveCfg = cfg;
+    effectiveCfg.bgColor = ThemeManager::getEffectiveBgColor(cfg.bgColor);
+    applyPageBackground(p.screen, effectiveCfg);
 
     // Adjust content area for top bar
     int16_t contentY = cfg.showTopBar ? TopBar::getHeight() : 0;
@@ -73,6 +78,47 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
     p.built = true;
     LOG_DEBUG("UI", "Built page '%s' with %d widgets", cfg.id, cfg.widgetCount);
+}
+
+void rebuildAllPages() {
+    s_rebuildRequested = false;
+
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (!dash.loaded || s_pageCount == 0)
+        return;
+
+    uint8_t savedIdx = s_currentIdx;
+
+    // Load a blank screen so we can safely delete all page screens
+    lv_obj_t *dummy = lv_obj_create(nullptr);
+    lv_scr_load(dummy);
+
+    // Destroy all existing page screens
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        if (s_pages[i].screen) {
+            lv_obj_del(s_pages[i].screen);
+            s_pages[i].screen = nullptr;
+            s_pages[i].built = false;
+        }
+    }
+
+    // Rebuild with the active theme colors
+    for (uint8_t i = 0; i < s_pageCount && i < dash.pageCount; ++i) {
+        buildPage(i, dash.pages[i]);
+    }
+
+    // Return to the page that was active before the rebuild
+    if (savedIdx < s_pageCount && s_pages[savedIdx].screen) {
+        lv_scr_load(s_pages[savedIdx].screen);
+        s_currentIdx = savedIdx;
+    }
+
+    lv_obj_del(dummy);
+
+    // Update top bar colors for the new theme
+    TopBar::reapplyTheme();
+
+    LOG_INFO("UI", "Pages rebuilt for theme toggle");
 }
 
 void showPage(uint8_t idx) {
@@ -170,6 +216,9 @@ void PageManager::init() {
         return;
     }
 
+    // Load persisted day/night preference before building pages
+    ThemeManager::init();
+
     // Initialize the top bar (persistent overlay, not part of any page)
     TopBar::init();
 
@@ -229,9 +278,19 @@ const char *PageManager::getDefaultPageId() {
     return dash.defaultPageId;
 }
 
+void PageManager::requestRebuild() {
+    s_rebuildRequested = true;
+}
+
 void PageManager::updateWidgets() {
     if (s_pageCount == 0)
         return;
+
+    // Rebuild all pages when a theme switch has been requested
+    if (s_rebuildRequested) {
+        rebuildAllPages();
+        return; // Skip widget updates this tick; next tick runs normally
+    }
 
     // Process swipe gestures before widget updates so navigation changes take
     // effect on the same frame that LVGL renders.

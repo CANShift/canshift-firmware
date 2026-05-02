@@ -31,4 +31,11 @@ void update();
      */
 int16_t getHeight();
 
+/**
+     * Re-apply bar background and text colors after a theme switch.
+     * Called by PageManager::rebuildAllPages() after rebuilding page screens.
+     * Also updates the theme toggle button icon to reflect the new mode.
+     */
+void reapplyTheme();
+
 } // namespace TopBar

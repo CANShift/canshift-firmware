@@ -180,6 +180,14 @@ struct CfgTopBar {
 };
 
 // ---------------------------------------------------------------------------
+// Day theme preset — stored at dashboard root, mirrors TypeScript ThemePreset
+// ---------------------------------------------------------------------------
+struct CfgDayTheme {
+    CfgColor bgColor;        // Page background for day mode
+    CfgPagePalette palette;  // Widget palette for day mode
+};
+
+// ---------------------------------------------------------------------------
 // Dashboard config (root)
 // ---------------------------------------------------------------------------
 struct CfgDashboard {
@@ -188,6 +196,10 @@ struct CfgDashboard {
     char defaultPageId[CFG_MAX_ID_LEN];
     float revLimitRpm; // For alert engine
     CfgTopBar topBar;
+    // Optional day theme — when present the top bar shows a ☀/N toggle.
+    // The active mode is persisted in NVS so it survives power cycles.
+    bool hasDayTheme;
+    CfgDayTheme dayTheme;
     uint8_t pageCount;
     CfgPage pages[CONFIG_MAX_PAGES];
     bool loaded; // True if successfully loaded from JSON

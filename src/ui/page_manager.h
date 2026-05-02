@@ -71,8 +71,15 @@ void updateWidgets();
 void setRevLimiterOverlay(bool visible);
 
 /**
-     * Return total number of pages.
-     */
+ * Return total number of pages.
+ */
 uint8_t getPageCount();
+
+/**
+ * Request a full page rebuild on the next updateWidgets() tick.
+ * Called by ThemeManager::toggleDayMode() to re-apply the active theme.
+ * Safe to call from LVGL event callbacks.
+ */
+void requestRebuild();
 
 } // namespace PageManager
