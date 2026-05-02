@@ -14,19 +14,23 @@ ESP32 firmware for the CANShift automotive dashboard.
 
 ## What Is Working
 
-- LVGL 8.3 rendering — gauge (numeric / arc / bar), warning, button, gear, image, timer widgets
+- LVGL 8.3 rendering — gauge (numeric / arc / bar / needle), warning, button, gear, image, timer widgets
 - ESP32 TWAI CAN reception at 500 kbps
+- Dynamic CAN signal loading from `signals.json` at boot — runtime dispatch table with bitmask support
 - MaxxECU CAN frame parsing (RPM, throttle, MAP, boost, IAT, coolant, oil temp / pressure, fuel pressure, lambda, AFR, speed, gear, battery, flags)
 - Config loaded from SPIFFS JSON at boot (`dashboard.json`, `signals.json`)
+- Touch calibration via TFT_eSPI `calibrateTouch()` with NVS persistence (namespace `touch`, key `cal`)
+- Day/night theme toggle — rebuilds all LVGL pages with new color scheme
 - USB serial communication (JSON lines, 115200 baud):
   - `CMD_PUT_CONFIG` — receive new dashboard config, write to SPIFFS, reboot
   - `CMD_SCREEN_SETTINGS` — update brightness, contrast, sleep timeout, rotation
   - `CMD_GET_STATUS` — return firmware version and protocol number
   - `CMD_CAN_SCAN_START` / `CMD_CAN_SCAN_STOP` — forward raw frames to desktop
   - `CMD_REBOOT` — soft reboot
-- CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains to USB in 96-byte serialized packets
-- CAN health stats — emits `{"can_stat":1,"fps":X.X,"errors":N}` every 2 s to the USB task via volatile struct
-- Telemetry push — all live signal values serialized as `{"tele":1,"v":{...}}` every ~200 ms
+- CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains to USB
+- CAN health stats — emits `{"can_stat":1,"fps":X.X,"errors":N}` every 2 s
+- Telemetry push — all live signal values as `{"tele":1,"v":{...}}` every ~200 ms
+- Config error fallback page — shown when `dashboard.json` is missing or invalid
 - Simulation mode — `[env:sim]` generates realistic VR6 data without live ECU
 - LVGL draw buffers allocated from DMA heap — avoids DRAM overflow
 
@@ -53,7 +57,7 @@ pio run -e sim --target upload
 
 ### First Flash Checklist
 1. Verify all pins in `include/board_config.h` against your CrowPanel 2.8" schematic
-2. Set `APP_SIMULATION_MODE 1` in `include/app_config.h` for initial UI test (no CAN hardware needed)
+2. Set `APP_SIMULATION_MODE 1` in `include/app_config.h` for initial UI test
 3. `pio run --target upload` — flash firmware
 4. `pio run --target uploadfs` — upload config JSON files
 5. Confirm display initializes and shows a dashboard page
@@ -66,7 +70,7 @@ pio run -e sim --target upload
 
 ```
 canshift-firmware/
-├── platformio.ini              # Build environments (default, sim)
+├── platformio.ini              # Build environments (crowpanel_28, sim)
 ├── include/
 │   ├── board_config.h          # !! All GPIO assignments — verify before flash
 │   ├── app_config.h            # Feature flags, task stack sizes, buffer sizes
@@ -77,30 +81,31 @@ canshift-firmware/
 │   │   └── boot_sequence.cpp   # Power-on init (HAL, config, UI)
 │   ├── hal/
 │   │   ├── display/            # TFT_eSPI wrapper (ILI9341, DMA flush)
-│   │   ├── touch/              # XPT2046 touch input
-│   │   ├── storage/            # SPIFFS read/write
+│   │   ├── touch/              # XPT2046 — calibration via setTouch() / calibrateTouch()
+│   │   ├── storage/            # SPIFFS read/write + LVGL FS driver
 │   │   └── usb/
 │   │       ├── usb_comm.h      # USB protocol declarations
 │   │       └── usb_comm.cpp    # JSON line parser, command dispatch, CAN scan queue
 │   ├── can/
-│   │   ├── can_manager.cpp     # TWAI receive loop, CAN health stats emission
-│   │   ├── maxxecu_parser.cpp  # MaxxECU CAN frame → signal values
-│   │   └── signal_map.h        # Signal ID constants
+│   │   ├── can_manager.cpp     # TWAI receive loop, CAN health stats
+│   │   ├── maxxecu_parser.cpp  # Dynamic runtime signal table + hardcoded fallback
+│   │   └── signal_map.h        # SignalId enum
 │   ├── config/
-│   │   ├── config_loader.cpp   # SPIFFS JSON → domain structs
-│   │   └── config_types.h      # Dashboard / Page / Widget structs (mirrors canshift-core)
+│   │   ├── config_loader.cpp   # SPIFFS JSON → domain structs, builds runtime signal table
+│   │   └── config_types.h      # Dashboard / Page / Widget / Signal structs (mirrors canshift-core)
 │   ├── runtime/
 │   │   ├── signal_store.cpp    # Thread-safe live signal value store with timeout
 │   │   └── alert_engine.cpp    # Rev limiter flash, warning states
 │   ├── ui/
-│   │   ├── page_manager.cpp    # Page navigation and lifecycle
+│   │   ├── page_manager.cpp    # Page navigation, theme rebuild, config error fallback
+│   │   ├── top_bar.cpp         # Status bar — page map, MIL icon, day/night toggle
 │   │   ├── widget_factory.cpp  # Instantiate widgets from config
-│   │   ├── settings_page.cpp   # Display settings apply (brightness, rotation, …)
+│   │   ├── theme_manager.cpp   # Day/night color scheme
 │   │   └── widgets/            # Gauge, bar, warning, button, gear, image, timer
 │   ├── sim/
 │   │   └── sim_engine.cpp      # Triangle-wave RPM + slow temp ramp for UI dev
 │   └── diag/
-│       └── logger.cpp          # Leveled LOG_INFO / LOG_WARN / LOG_ERROR macros
+│       └── logger.cpp          # LOG_INFO / LOG_WARN / LOG_ERROR macros
 └── data/config/
     ├── dashboard.json          # Dashboard layout, pages, widgets, signal bindings
     └── signals.json            # MaxxECU CAN signal definitions (IDs UNVERIFIED)
@@ -118,8 +123,7 @@ canshift-firmware/
 | Sim task (sim mode only) | 1 | 1 | 2048 B |
 
 Data flows through `SignalStore` — a central store for live engine values.
-The CAN task writes to it after parsing each frame.
-The UI task reads from it at each LVGL render tick.
+The CAN task writes to it; the UI task reads from it at each LVGL render tick.
 This decouples the CAN receive rate from the UI frame rate.
 
 ---
@@ -133,11 +137,11 @@ JSON lines at 115200 baud. Each message is one JSON object followed by `\n`.
 | Cmd | Value | Payload | Behaviour |
 |-----|-------|---------|-----------|
 | `CMD_PUT_CONFIG` | 0x02 | `{"cmd":2,"payload":{...}}` | Write new `dashboard.json` to SPIFFS, send `{"status":"ok"}`, reboot |
-| `CMD_SCREEN_SETTINGS` | 0x05 | `{"cmd":5,"brightness":80,"contrast":50,"sleep":0,"rotation":0}` | Apply display settings via LVGL mutex |
+| `CMD_SCREEN_SETTINGS` | 0x05 | `{"cmd":5,"brightness":80,"contrast":50,"sleep":0,"rotation":0}` | Apply display settings |
 | `CMD_GET_STATUS` | 0x10 | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":N}` |
-| `CMD_CAN_SCAN_START` | 0x20 | `{"cmd":32}` | Enable CAN scan mode, reset queue |
+| `CMD_CAN_SCAN_START` | 0x20 | `{"cmd":32}` | Enable CAN scan mode |
 | `CMD_CAN_SCAN_STOP` | 0x21 | `{"cmd":33}` | Disable CAN scan mode |
-| `CMD_REBOOT` | 0xF0 | `{"cmd":240}` | `esp_restart()` — no ack sent |
+| `CMD_REBOOT` | 0xF0 | `{"cmd":240}` | `esp_restart()` |
 
 ### Proactive output (device → desktop)
 
@@ -149,21 +153,23 @@ JSON lines at 115200 baud. Each message is one JSON object followed by `\n`.
 
 ---
 
-## CAN Scan Mode
+## Dynamic CAN Signal Loading
 
-When `CMD_CAN_SCAN_START` is received:
-- `s_canScanMode = true` — all received frames are pushed to a FreeRTOS queue (depth 64, non-blocking)
-- The USB task drains up to 32 frames per tick and serializes each as a `can` packet
-- The CAN task still parses frames normally — scan mode is additive, not a replacement
+At boot, `ConfigLoader` reads `signals.json` and builds a `RuntimeSignal[]` table in `maxxecu_parser.cpp`.
+Each entry maps a CAN frame ID and byte offset to a `SignalId` with scale, offset, endianness, sign, and optional bitmask.
+
+`parseFrame()` iterates the runtime table first; unmatched frames fall through to the hardcoded switch for compatibility.
+Signals not found in `signals.json` use the hardcoded fallback values.
+
+The bitmask field (`"bitMask": "0x01"`) supports flag-type signals that share a byte.
 
 ---
 
-## CAN Health Stats
+## Touch Calibration
 
-The CAN task tracks a 2-second sliding window of received frames.
-Every 2 s it calls `UsbComm::updateCanStats(fpsX10, errorCount)` which stores the values in a volatile struct.
-On the next `tick()`, the USB task reads the pending stats and emits a `can_stat` packet.
-This cross-task communication is intentionally simple (volatile + pending flag) — a stale display value is the worst case.
+`TouchDriver::calibrate()` runs TFT_eSPI's built-in `calibrateTouch()` (4-point crosshair sequence), stores the 10-byte result in NVS, and applies it with `setTouch()`.
+
+On boot, `init()` loads the stored calibration if present; otherwise falls back to the `TOUCH_CAL_*` constants in `board_config.h`.
 
 ---
 
@@ -173,7 +179,7 @@ Build with `[env:sim]` or set `APP_SIMULATION_MODE=1` in `platformio.ini`.
 
 - TWAI (CAN) hardware is not initialized
 - `SimEngine` generates a triangle-wave RPM sweep and a slow temperature ramp
-- All USB communication still works — useful for testing the studio ↔ firmware protocol
+- All USB communication still works
 - Config loading, page navigation, and widget rendering all function normally
 
 ---
@@ -199,12 +205,10 @@ Build with `[env:sim]` or set `APP_SIMULATION_MODE=1` in `platformio.ini`.
 CAN speed: 500 kbps — must match MaxxECU CAN output settings.
 MaxxECU CAN frame IDs in `signals.json` are **unverified** — confirm in MaxxECU software.
 
-See `include/board_config.h` for all definitions.
-
 ---
 
 ## Connections to Other Projects
 
-- **canshift-studio** → pushes updated `dashboard.json` over USB, runs CAN scan, triggers firmware updates
+- **canshift-studio** → pushes updated `dashboard.json` over USB, runs CAN scan, flashes firmware via esptool
 - **canshift-core** → defines the JSON schema the firmware config files must comply with (mirrored in `config_types.h`)
 - **canshift-mobile** (Phase 2+) → will send config over Wi-Fi / BLE
