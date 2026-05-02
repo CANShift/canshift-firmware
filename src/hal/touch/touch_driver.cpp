@@ -58,11 +58,11 @@ void TouchDriver::init() {
     if (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE) {
         p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
         p.end();
-        s_touch.setTouchCalibrate(calData);
+        s_touch.setTouch(calData);
         LOG_INFO("TOUCH", "Calibration loaded from NVS");
     } else {
         p.end();
-        s_touch.setTouchCalibrate(calData);
+        s_touch.setTouch(calData);
         LOG_WARN("TOUCH",
                  "No NVS calibration — using board_config.h defaults. "
                  "Run Settings → Calibrate Touch for accuracy.");
@@ -101,7 +101,7 @@ void TouchDriver::calibrate() {
     p.putBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
     p.end();
 
-    s_touch.setTouchCalibrate(calData);
+    s_touch.setTouch(calData);
     LOG_INFO("TOUCH", "Calibration complete and saved to NVS");
 }
 
