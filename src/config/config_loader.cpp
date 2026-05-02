@@ -256,6 +256,8 @@ bool loadSignals() {
         s.minValue = sig["min"] | 0.0f;
         s.maxValue = sig["max"] | 100.0f;
         s.timeoutMs = sig["timeoutMs"] | SIGNAL_DEFAULT_TIMEOUT_MS;
+        const char *bitMaskStr = sig["bitMask"] | nullptr;
+        s.bitMask = bitMaskStr ? static_cast<uint8_t>(strtoul(bitMaskStr, nullptr, 16)) : 0;
     }
 
     s_signals.loaded = true;

@@ -221,6 +221,7 @@ struct CfgSignalDef {
     float minValue;
     float maxValue;
     uint32_t timeoutMs;
+    uint8_t bitMask;  // Bitmask for flag signals (0 = full value; non-zero = extract bit)
 };
 
 struct CfgSignalConfig {

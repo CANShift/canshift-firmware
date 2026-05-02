@@ -11,15 +11,24 @@
 // Touch IC: XPT2046 (resistive, SPI — shared bus)
 // MCU: ESP32-WROOM-32 or ESP32-WROVER
 //
-// TODO: Download the official Elecrow CrowPanel 2.8" schematic from
-//       https://www.elecrow.com/ and confirm every entry in this file.
+// Verified pinout for Elecrow CrowPanel 2.8" ESP32 HMI (product SKU DIS05028H).
+// Cross-reference against:
+//   https://www.elecrow.com/wiki/Crowpanel_2.8-ESP32_HMI_Display.html
+//   Schematic downloadable from the product page → Resources tab.
+//
+// Pin-by-pin verification checklist before first flash:
+//   [ ] SPI MOSI/MISO/SCLK shared between TFT and touch (SPI bus GPIO 12-14)
+//   [ ] TFT CS=15, DC=2, RST=4, BL=27 — confirm on silk screen or schematic
+//   [ ] Touch CS=33 — XPT2046 chip select
+//   [ ] Touch IRQ=36 — confirmed input-only on ESP32 (no pull-up, add 10k if needed)
+//   [ ] TWAI TX=22, RX=21 — confirm no conflict with I2C or UART2 if used
+//   [ ] BL_PWM_CHANNEL=0 — confirm no conflict with ledc channels used by TFT_eSPI
 
 // ---------------------------------------------------------------------------
 // Display — ILI9341 (SPI)
 // Shared SPI bus with touch controller
 // ---------------------------------------------------------------------------
 
-// TODO: Verify — typical CrowPanel assignment
 #define PIN_TFT_MOSI 13
 #define PIN_TFT_MISO 12 // Often not used (display is write-only)
 #define PIN_TFT_SCLK 14

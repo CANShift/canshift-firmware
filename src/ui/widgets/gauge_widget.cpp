@@ -105,6 +105,7 @@ struct GaugeTag {
     uint16_t dangerAngle;
     bool hasWarning;
     bool hasDanger;
+    bool showNeedle;
 };
 
 } // namespace
@@ -209,7 +210,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     GaugeTag *tag = new GaugeTag{arcValue, label, unitLabel,
                                   minV, maxV, 0.0f,
                                   warnAngle, dangerAngle,
-                                  hasWarning, hasDanger};
+                                  hasWarning, hasDanger,
+                                  cfg.gauge.showNeedle};
     lv_obj_set_user_data(cont, tag);
 
     return cont;
@@ -241,7 +243,17 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
 
     // Advance value indicator to current position
     uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
-    lv_arc_set_angles(tag->arcValue, 0, angle);
+    if (tag->showNeedle) {
+        // Needle mode: thin 4-degree arc tip at the current angle
+        const uint16_t half = 2;
+        const uint16_t start = angle > half ? angle - half : 0;
+        const uint16_t end = angle + half < static_cast<uint16_t>(kArcSweep)
+                             ? angle + half
+                             : static_cast<uint16_t>(kArcSweep);
+        lv_arc_set_angles(tag->arcValue, start, end);
+    } else {
+        lv_arc_set_angles(tag->arcValue, 0, angle);
+    }
 
     // Tint the value label to match the active zone
     uint32_t labelColor = cfg.style.textColor.rgb;

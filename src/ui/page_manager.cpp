@@ -211,8 +211,28 @@ void PageManager::init() {
     s_currentIdx = 0;
 
     if (!dash.loaded) {
-        LOG_WARN("UI", "Dashboard config not loaded — creating placeholder page");
-        // TODO: Create a minimal fallback "Config Error" page
+        LOG_WARN("UI", "Dashboard config not loaded — showing error page");
+
+        // Minimal error screen — shown until a valid config is pushed over USB
+        lv_obj_t *errScreen = lv_obj_create(nullptr);
+        lv_obj_set_size(errScreen, LV_HOR_RES, LV_VER_RES);
+        lv_obj_set_style_bg_color(errScreen, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(errScreen, LV_OPA_COVER, LV_PART_MAIN);
+
+        lv_obj_t *errLabel = lv_label_create(errScreen);
+        lv_label_set_text(errLabel,
+                          "CONFIG ERROR\n"
+                          "dashboard.json not found.\n\n"
+                          "Connect via USB and push\n"
+                          "a config from CANShift Studio.");
+        lv_obj_set_style_text_color(errLabel, lv_color_hex(0xFF4444), 0);
+        lv_obj_set_style_text_font(errLabel, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_align(errLabel, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(errLabel, LV_HOR_RES - 20);
+        lv_label_set_long_mode(errLabel, LV_LABEL_LONG_WRAP);
+        lv_obj_align(errLabel, LV_ALIGN_CENTER, 0, 0);
+
+        lv_scr_load(errScreen);
         return;
     }
 

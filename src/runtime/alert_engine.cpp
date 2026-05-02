@@ -18,7 +18,7 @@ static uint32_t s_lastFlashToggleMs = 0;
 static bool s_flashPhase = false;
 
 // Rev limiter RPM (loaded from config at boot)
-static float s_revLimitRpm = 7200.0f; // VR6 2.9 typical — TODO: load from config
+static float s_revLimitRpm = 7200.0f; // Overridden in init() from config
 
 // Flash period in milliseconds
 static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2);
