@@ -205,12 +205,11 @@ void handlePutConfig(const char *jsonLine) {
 
 void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
-    uint8_t contrast = obj["contrast"] | 50;
     uint32_t sleepS = obj["sleep"] | 0u;
     uint16_t rotation = obj["rotation"] | 0u;
 
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        SettingsPage::applyFromUsb(brightness, contrast, sleepS, rotation);
+        SettingsPage::applyFromUsb(brightness, sleepS, rotation);
         xSemaphoreGive(g_lvglMutex);
         Serial.println("{\"status\":\"ok\"}");
     } else {

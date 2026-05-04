@@ -2,6 +2,7 @@
 
 #include "settings_page.h"
 #include "hal/display/display_driver.h"
+#include "hal/touch/touch_driver.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -16,7 +17,6 @@
 
 static constexpr char NVS_NS[] = "screen_cfg";
 static constexpr char KEY_BRIGHTNESS[] = "brightness"; // uint8  (10–100 %)
-static constexpr char KEY_CONTRAST[] = "contrast";     // uint8  (0–100 %)
 static constexpr char KEY_SLEEP_S[] = "sleep_s";       // uint32 (0/30/60/300)
 static constexpr char KEY_ROTATION[] = "rotation";     // uint8  (0/90/180/270)
 
@@ -25,7 +25,6 @@ static constexpr char KEY_ROTATION[] = "rotation";     // uint8  (0/90/180/270)
 // ---------------------------------------------------------------------------
 
 static constexpr uint8_t DEFAULT_BRIGHTNESS = 80;
-static constexpr uint8_t DEFAULT_CONTRAST = 50;
 static constexpr uint32_t DEFAULT_SLEEP_S = 0;
 static constexpr uint8_t DEFAULT_ROTATION = 0;
 
@@ -45,7 +44,7 @@ static constexpr uint8_t ROT_OPTION_COUNT = 4;
 static constexpr uint16_t ROT_OPTIONS[ROT_OPTION_COUNT] = {0, 90, 180, 270};
 
 // ---------------------------------------------------------------------------
-// Colors (hex, no alpha prefix needed for lv_color_hex)
+// Colors
 // ---------------------------------------------------------------------------
 
 static constexpr uint32_t CLR_BG = 0x0D0D0D;
@@ -65,22 +64,17 @@ static constexpr uint32_t CLR_SAVE_TEXT = 0x55AA55;
 
 namespace {
 
-// Current settings (in-memory)
 static uint8_t s_brightness = DEFAULT_BRIGHTNESS;
-static uint8_t s_contrast = DEFAULT_CONTRAST;
 static uint32_t s_sleepTimeoutS = DEFAULT_SLEEP_S;
 static uint16_t s_rotation = DEFAULT_ROTATION;
+static bool s_sleeping = false;
 
-// LVGL objects
-static lv_obj_t *s_panel = nullptr; // Root overlay container
+static lv_obj_t *s_panel = nullptr;
 static lv_obj_t *s_brSlider = nullptr;
-static lv_obj_t *s_brValue = nullptr; // "80%" label
-static lv_obj_t *s_ctSlider = nullptr;
-static lv_obj_t *s_ctValue = nullptr;
+static lv_obj_t *s_brValue = nullptr;
 static lv_obj_t *s_sleepBtns[SLEEP_OPTION_COUNT] = {};
 static lv_obj_t *s_rotBtns[ROT_OPTION_COUNT] = {};
 
-// True when settings overlay is visible
 static bool s_open = false;
 
 // -----------------------------------------------------------------------
@@ -91,35 +85,29 @@ void nvsLoad() {
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/true);
     s_brightness = p.getUChar(KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
-    s_contrast = p.getUChar(KEY_CONTRAST, DEFAULT_CONTRAST);
     s_sleepTimeoutS = p.getUInt(KEY_SLEEP_S, DEFAULT_SLEEP_S);
     s_rotation = p.getUChar(KEY_ROTATION, DEFAULT_ROTATION);
     p.end();
 
-    // Clamp to valid ranges
     if (s_brightness < 10 || s_brightness > 100)
         s_brightness = DEFAULT_BRIGHTNESS;
-    if (s_contrast > 100)
-        s_contrast = DEFAULT_CONTRAST;
 }
 
 void nvsSave() {
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/false);
     p.putUChar(KEY_BRIGHTNESS, s_brightness);
-    p.putUChar(KEY_CONTRAST, s_contrast);
     p.putUInt(KEY_SLEEP_S, s_sleepTimeoutS);
     p.putUChar(KEY_ROTATION, s_rotation);
     p.end();
-    LOG_INFO("Settings", "Saved — brightness=%d%% contrast=%d%% sleep=%ds rotation=%d",
-             s_brightness, s_contrast, s_sleepTimeoutS, s_rotation);
+    LOG_INFO("Settings", "Saved — brightness=%d%% sleep=%ds rotation=%d",
+             s_brightness, s_sleepTimeoutS, s_rotation);
 }
 
 // -----------------------------------------------------------------------
 // Apply helpers
 // -----------------------------------------------------------------------
 
-// Map brightness percentage (10–100) to LEDC duty (0–255)
 inline uint8_t brightnessToBacklight(uint8_t pct) {
     return static_cast<uint8_t>((static_cast<uint16_t>(pct) * 255u) / 100u);
 }
@@ -136,14 +124,6 @@ void updateBrValue() {
     lv_label_set_text(s_brValue, buf);
 }
 
-void updateCtValue() {
-    if (!s_ctValue)
-        return;
-    char buf[8];
-    snprintf(buf, sizeof(buf), "%d%%", s_contrast);
-    lv_label_set_text(s_ctValue, buf);
-}
-
 void updateSleepButtons() {
     for (uint8_t i = 0; i < SLEEP_OPTION_COUNT; ++i) {
         if (!s_sleepBtns[i])
@@ -154,9 +134,8 @@ void updateSleepButtons() {
         lv_obj_set_style_border_color(
             s_sleepBtns[i], lv_color_hex(active ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
         lv_obj_t *lbl = lv_obj_get_child(s_sleepBtns[i], 0);
-        if (lbl) {
+        if (lbl)
             lv_obj_set_style_text_color(lbl, lv_color_hex(active ? CLR_ACCENT : CLR_MUTED), 0);
-        }
     }
 }
 
@@ -167,12 +146,11 @@ void updateRotButtons() {
         bool active = (ROT_OPTIONS[i] == s_rotation);
         lv_obj_set_style_bg_color(s_rotBtns[i], lv_color_hex(active ? CLR_BTN_ACT : CLR_BTN_BG),
                                   LV_PART_MAIN);
-        lv_obj_set_style_border_color(s_rotBtns[i], lv_color_hex(active ? CLR_ACCENT : CLR_BTN_BDR),
-                                      LV_PART_MAIN);
+        lv_obj_set_style_border_color(s_rotBtns[i],
+                                      lv_color_hex(active ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
         lv_obj_t *lbl = lv_obj_get_child(s_rotBtns[i], 0);
-        if (lbl) {
+        if (lbl)
             lv_obj_set_style_text_color(lbl, lv_color_hex(active ? CLR_ACCENT : CLR_MUTED), 0);
-        }
     }
 }
 
@@ -184,14 +162,7 @@ static void onBrightnessChanged(lv_event_t *e) {
     lv_obj_t *slider = lv_event_get_target(e);
     s_brightness = static_cast<uint8_t>(lv_slider_get_value(slider));
     updateBrValue();
-    applyBrightness(); // Live preview
-}
-
-static void onContrastChanged(lv_event_t *e) {
-    lv_obj_t *slider = lv_event_get_target(e);
-    s_contrast = static_cast<uint8_t>(lv_slider_get_value(slider));
-    updateCtValue();
-    // TODO: Apply contrast hardware control when available
+    applyBrightness();
 }
 
 static void onSleepBtn(lv_event_t *e) {
@@ -199,8 +170,8 @@ static void onSleepBtn(lv_event_t *e) {
     if (idx >= SLEEP_OPTION_COUNT)
         return;
     s_sleepTimeoutS = SLEEP_OPTIONS[idx];
+    s_sleeping = false;
     updateSleepButtons();
-    // TODO: Start/reset sleep timer in power management module
 }
 
 static void onRotBtn(lv_event_t *e) {
@@ -209,8 +180,13 @@ static void onRotBtn(lv_event_t *e) {
         return;
     s_rotation = ROT_OPTIONS[idx];
     updateRotButtons();
-    // TODO: lv_disp_set_rotation() — requires reinit, applied on next boot
-    // For now, store and apply on next boot via NVS
+    // Rotation applied on next boot via NVS; lv_disp_set_rotation() requires reinit
+}
+
+static void onCalibrateTouch(lv_event_t * /*e*/) {
+    // Close settings so calibration crosshairs are unobstructed
+    SettingsPage::close();
+    TouchDriver::calibrate();
 }
 
 static void onSave(lv_event_t * /*e*/) {
@@ -219,14 +195,12 @@ static void onSave(lv_event_t * /*e*/) {
 
 static void onReset(lv_event_t * /*e*/) {
     s_brightness = DEFAULT_BRIGHTNESS;
-    s_contrast = DEFAULT_CONTRAST;
     s_sleepTimeoutS = DEFAULT_SLEEP_S;
     s_rotation = DEFAULT_ROTATION;
+    s_sleeping = false;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
-    lv_slider_set_value(s_ctSlider, s_contrast, LV_ANIM_OFF);
     updateBrValue();
-    updateCtValue();
     updateSleepButtons();
     updateRotButtons();
     applyBrightness();
@@ -239,42 +213,7 @@ static void onReset(lv_event_t * /*e*/) {
 static const lv_font_t *FONT_LG = &lv_font_montserrat_12;
 static const lv_font_t *FONT_SM = &lv_font_montserrat_12;
 
-// Horizontal padding inside the panel
 static constexpr int16_t PAD_H = 8;
-
-lv_obj_t *makeRow(lv_obj_t *parent, int16_t y, int16_t h, const char *label,
-                  lv_obj_t **valueLabel) {
-    int16_t panelW = lv_obj_get_width(parent);
-    int16_t rowW = panelW - PAD_H * 2;
-
-    // Row container
-    lv_obj_t *row = lv_obj_create(parent);
-    lv_obj_set_pos(row, PAD_H, y);
-    lv_obj_set_size(row, rowW, h);
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-
-    // Label (left)
-    lv_obj_t *lbl = lv_label_create(row);
-    lv_label_set_text(lbl, label);
-    lv_obj_set_style_text_font(lbl, FONT_SM, 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 0, 0);
-
-    // Value (right)
-    if (valueLabel) {
-        lv_obj_t *val = lv_label_create(row);
-        lv_label_set_text(val, "");
-        lv_obj_set_style_text_font(val, FONT_SM, 0);
-        lv_obj_set_style_text_color(val, lv_color_hex(CLR_TEXT), 0);
-        lv_obj_align(val, LV_ALIGN_TOP_RIGHT, 0, 0);
-        *valueLabel = val;
-    }
-
-    return row;
-}
 
 lv_obj_t *makeSlider(lv_obj_t *parent, int32_t vmin, int32_t vmax, int32_t initial,
                      lv_event_cb_t cb) {
@@ -324,7 +263,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
 
     const int16_t panelW = LV_HOR_RES;
 
-    // Root overlay — sibling of top bar on lv_layer_top(), drawn above it
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_pos(s_panel, 0, yOffset);
     lv_obj_set_size(s_panel, panelW, height);
@@ -336,7 +274,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
 
-    // ---- Layout constants ----
     const int16_t rowW = panelW - PAD_H * 2;
     const int16_t sliderH = 12;
     const int16_t labelH = 12;
@@ -359,7 +296,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     // ---- Brightness ----
     y += gapRow;
     {
-        // Header row: "BRIGHTNESS" + "80%"
         lv_obj_t *row = lv_obj_create(s_panel);
         lv_obj_set_pos(row, PAD_H, y);
         lv_obj_set_size(row, rowW, labelH);
@@ -385,37 +321,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         s_brSlider = makeSlider(s_panel, 10, 100, s_brightness, onBrightnessChanged);
         lv_obj_set_pos(s_brSlider, PAD_H, y);
         lv_obj_set_size(s_brSlider, rowW, sliderH);
-        y += sliderH;
-    }
-
-    // ---- Contrast ----
-    y += gapRow;
-    {
-        lv_obj_t *row = lv_obj_create(s_panel);
-        lv_obj_set_pos(row, PAD_H, y);
-        lv_obj_set_size(row, rowW, labelH);
-        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
-        lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
-        lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-
-        lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, "CONTRAST");
-        lv_obj_set_style_text_font(lbl, FONT_SM, 0);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-
-        s_ctValue = lv_label_create(row);
-        lv_obj_set_style_text_font(s_ctValue, FONT_SM, 0);
-        lv_obj_set_style_text_color(s_ctValue, lv_color_hex(CLR_TEXT), 0);
-        lv_obj_align(s_ctValue, LV_ALIGN_RIGHT_MID, 0, 0);
-        updateCtValue();
-
-        y += labelH + gapInner;
-
-        s_ctSlider = makeSlider(s_panel, 0, 100, s_contrast, onContrastChanged);
-        lv_obj_set_pos(s_ctSlider, PAD_H, y);
-        lv_obj_set_size(s_ctSlider, rowW, sliderH);
         y += sliderH;
     }
 
@@ -455,13 +360,34 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         const int16_t btnW = (rowW - gap * (ROT_OPTION_COUNT - 1)) / ROT_OPTION_COUNT;
         char rotLabel[6];
         for (uint8_t i = 0; i < ROT_OPTION_COUNT; ++i) {
-            snprintf(rotLabel, sizeof(rotLabel), "%d\xC2\xB0", ROT_OPTIONS[i]); // UTF-8 °
+            snprintf(rotLabel, sizeof(rotLabel), "%d\xC2\xB0", ROT_OPTIONS[i]);
             bool active = (ROT_OPTIONS[i] == s_rotation);
             s_rotBtns[i] = makeSegButton(s_panel, rotLabel, active, onRotBtn,
                                          reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
             lv_obj_set_pos(s_rotBtns[i], PAD_H + i * (btnW + gap), y);
             lv_obj_set_size(s_rotBtns[i], btnW, btnH);
         }
+        y += btnH;
+    }
+
+    // ---- Touch calibration ----
+    y += gapRow;
+    {
+        lv_obj_t *calBtn = lv_btn_create(s_panel);
+        lv_obj_set_pos(calBtn, PAD_H, y);
+        lv_obj_set_size(calBtn, rowW, btnH);
+        lv_obj_set_style_bg_color(calBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
+        lv_obj_set_style_border_color(calBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
+        lv_obj_set_style_border_width(calBtn, 1, LV_PART_MAIN);
+        lv_obj_set_style_radius(calBtn, 3, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(calBtn, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(calBtn, 3, LV_PART_MAIN);
+        lv_obj_t *calLbl = lv_label_create(calBtn);
+        lv_label_set_text(calLbl, "CALIBRATE TOUCH");
+        lv_obj_set_style_text_font(calLbl, FONT_SM, 0);
+        lv_obj_set_style_text_color(calLbl, lv_color_hex(CLR_MUTED), 0);
+        lv_obj_center(calLbl);
+        lv_obj_add_event_cb(calBtn, onCalibrateTouch, LV_EVENT_CLICKED, nullptr);
         y += btnH;
     }
 
@@ -472,7 +398,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         const int16_t resetW = (rowW - gap) / 3;
         const int16_t saveW = rowW - resetW - gap;
 
-        // RESET button
         lv_obj_t *resetBtn = lv_btn_create(s_panel);
         lv_obj_set_pos(resetBtn, PAD_H, actionY);
         lv_obj_set_size(resetBtn, resetW, btnH);
@@ -489,7 +414,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_center(resetLbl);
         lv_obj_add_event_cb(resetBtn, onReset, LV_EVENT_CLICKED, nullptr);
 
-        // SAVE button
         lv_obj_t *saveBtn = lv_btn_create(s_panel);
         lv_obj_set_pos(saveBtn, PAD_H + resetW + gap, actionY);
         lv_obj_set_size(saveBtn, saveW, btnH);
@@ -529,11 +453,10 @@ void SettingsPage::close() {
 }
 
 bool SettingsPage::toggle() {
-    if (s_open) {
+    if (s_open)
         close();
-    } else {
+    else
         open();
-    }
     return s_open;
 }
 
@@ -541,35 +464,45 @@ bool SettingsPage::isOpen() {
     return s_open;
 }
 
-void SettingsPage::applyFromUsb(uint8_t brightness, uint8_t contrastPct, uint32_t sleepTimeoutS,
-                                uint16_t rotation) {
-    // Validate and clamp
+uint32_t SettingsPage::getSleepTimeoutS() {
+    return s_sleepTimeoutS;
+}
+
+void SettingsPage::tickSleep() {
+    if (s_sleepTimeoutS == 0)
+        return;
+
+    uint32_t inactiveMs = lv_disp_get_inactive_time(nullptr);
+    bool shouldSleep = (inactiveMs >= s_sleepTimeoutS * 1000u);
+
+    if (shouldSleep && !s_sleeping) {
+        s_sleeping = true;
+        DisplayDriver::setBacklight(0);
+    } else if (!shouldSleep && s_sleeping) {
+        s_sleeping = false;
+        applyBrightness();
+    }
+}
+
+void SettingsPage::applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS, uint16_t rotation) {
     if (brightness < 10 || brightness > 100)
         brightness = DEFAULT_BRIGHTNESS;
-    if (contrastPct > 100)
-        contrastPct = DEFAULT_CONTRAST;
 
     s_brightness = brightness;
-    s_contrast = contrastPct;
     s_sleepTimeoutS = sleepTimeoutS;
     s_rotation = rotation;
+    s_sleeping = false;
 
-    // Apply immediately
     applyBrightness();
 
-    // Sync UI if panel has been built
     if (s_brSlider)
         lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
-    if (s_ctSlider)
-        lv_slider_set_value(s_ctSlider, s_contrast, LV_ANIM_OFF);
     updateBrValue();
-    updateCtValue();
     updateSleepButtons();
     updateRotButtons();
 
-    // Persist to NVS
     nvsSave();
 
-    LOG_INFO("Settings", "Applied from USB — brightness=%d%% contrast=%d%%", s_brightness,
-             s_contrast);
+    LOG_INFO("Settings", "Applied from USB — brightness=%d%% sleep=%ds rotation=%d",
+             s_brightness, s_sleepTimeoutS, s_rotation);
 }

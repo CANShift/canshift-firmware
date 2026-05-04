@@ -3,13 +3,13 @@
 //
 // A full-canvas overlay (below the top bar) that exposes:
 //   - Brightness (slider, live preview via DisplayDriver::setBacklight)
-//   - Contrast    (slider, stored — hardware support TBD)
 //   - Sleep timeout (segmented buttons: Off / 30s / 1m / 5m)
 //   - Screen rotation (segmented buttons: 0° / 90° / 180° / 270°)
+//   - Calibrate Touch (runs TFT_eSPI crosshair calibration, stores to NVS)
 //
 // Navigation:
-//   - Opened by tapping the gear icon in the top bar
-//   - Closed by tapping the same icon (shows X while open)
+//   - Opened by swiping down from the top of the screen (via top bar gesture)
+//   - Closed by tapping the X icon in the top bar
 //   - Save button persists to NVS (Preferences namespace "screen_cfg")
 //   - Reset button restores firmware defaults
 //
@@ -21,12 +21,7 @@
 
 namespace SettingsPage {
 
-/**
-     * Create all LVGL objects for the settings overlay.
-     * Must be called from TopBar::init(), after LVGL is ready.
-     * @param yOffset  Top y-coordinate (= top bar height in pixels)
-     * @param height   Available height (= 240 - yOffset)
-     */
+/** Create all LVGL objects for the settings overlay. Must be called after LVGL is ready. */
 void init(int16_t yOffset, int16_t height);
 
 /** Show the settings overlay. */
@@ -41,17 +36,21 @@ bool toggle();
 /** Current visibility state. */
 bool isOpen();
 
+/** Returns the configured sleep timeout in seconds (0 = disabled). */
+uint32_t getSleepTimeoutS();
+
 /**
-     * Apply settings pushed from the desktop Studio over USB.
-     * Must be called while holding g_lvglMutex.
-     * Applies backlight immediately, persists all values to NVS.
-     *
-     * @param brightness    0–100 %
-     * @param contrastPct   0–100 %
-     * @param sleepTimeoutS seconds (0 = never)
-     * @param rotation      0, 90, 180, or 270
-     */
-void applyFromUsb(uint8_t brightness, uint8_t contrastPct, uint32_t sleepTimeoutS,
-                  uint16_t rotation);
+ * Called each UI tick from PageManager::updateWidgets().
+ * Dims backlight after inactivity period; restores on touch.
+ * No-op when sleep timeout is 0.
+ */
+void tickSleep();
+
+/**
+ * Apply settings pushed from the desktop Studio over USB.
+ * Must be called while holding g_lvglMutex.
+ * Applies backlight immediately and persists all values to NVS.
+ */
+void applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS, uint16_t rotation);
 
 } // namespace SettingsPage
