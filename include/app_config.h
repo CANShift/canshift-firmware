@@ -95,7 +95,7 @@
 // ---------------------------------------------------------------------------
 
 // Maximum number of signals the runtime store can hold
-#define SIGNAL_STORE_MAX_SIGNALS 64
+#define SIGNAL_STORE_MAX_SIGNALS 32
 
 // Default signal timeout — if no new CAN frame arrives within this period,
 // mark the signal as invalid/stale
@@ -122,14 +122,18 @@
 
 // Maximum JSON document size for each config file (bytes)
 // Increase if configs grow larger
-#define CONFIG_JSON_DOC_DASHBOARD 8192
-#define CONFIG_JSON_DOC_SIGNALS 4096
+#define CONFIG_JSON_DOC_DASHBOARD 6144
+#define CONFIG_JSON_DOC_SIGNALS 2048
 #define CONFIG_JSON_DOC_THEME 2048
 
 // Maximum number of pages, widgets, and signals
-#define CONFIG_MAX_PAGES 8
-#define CONFIG_MAX_WIDGETS_PER_PAGE 16
-#define CONFIG_MAX_SIGNALS 64
+// NOTE: CfgDashboard and CfgPage are statically sized arrays in BSS.
+// Each CfgWidget is ~264 bytes. Reducing these frees ~26 KB of DRAM to fit
+// NimBLE + WiFi alongside the application on the ESP32's 320 KB DRAM.
+// A 320×240 display is not well-served by more than 4 pages or 12 widgets anyway.
+#define CONFIG_MAX_PAGES 4
+#define CONFIG_MAX_WIDGETS_PER_PAGE 12
+#define CONFIG_MAX_SIGNALS 32
 
 // ---------------------------------------------------------------------------
 // Alert engine

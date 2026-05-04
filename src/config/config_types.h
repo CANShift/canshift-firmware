@@ -16,9 +16,9 @@
 
 // Maximum string lengths for config values
 #define CFG_MAX_ID_LEN 32
-#define CFG_MAX_NAME_LEN 64
+#define CFG_MAX_NAME_LEN 32
 #define CFG_MAX_SIGNAL_LEN 32
-#define CFG_MAX_PATH_LEN 64
+#define CFG_MAX_PATH_LEN 48
 #define CFG_MAX_COLOR_LEN 8 // "#RRGGBB\0"
 
 // ---------------------------------------------------------------------------
