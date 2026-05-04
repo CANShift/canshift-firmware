@@ -134,6 +134,11 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     lv_obj_set_user_data(cont, tag);
 
+    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
+        auto* t = static_cast<TimerTag*>(lv_event_get_user_data(e));
+        delete t;
+    }, LV_EVENT_DELETE, tag);
+
     // Register touch events for start/stop/reset
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);

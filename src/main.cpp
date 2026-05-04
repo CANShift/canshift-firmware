@@ -117,7 +117,9 @@ void taskUI(void *pvParameters) {
 
     while (true) {
         // Acquire LVGL mutex before any LVGL call
-        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+            LOG_WARN("UI", "LVGL mutex timeout — skipping update");
+        } else {
             // Advance LVGL tick
             lv_tick_inc(LVGL_HANDLER_PERIOD_MS);
 

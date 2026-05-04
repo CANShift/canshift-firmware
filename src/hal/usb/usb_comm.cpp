@@ -90,6 +90,9 @@ static constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
 static QueueHandle_t s_canScanQueue = nullptr;
 static volatile bool s_canScanMode = false;
 
+// Count of frames dropped due to a full scan queue since the last scan start.
+static uint32_t s_scanDrops = 0;
+
 // ---------------------------------------------------------------------------
 // CAN health stats
 // ---------------------------------------------------------------------------
@@ -252,17 +255,22 @@ void handleCommand(const char *jsonLine) {
             handleScreenSettings(doc.as<JsonObjectConst>());
             break;
         case UsbComm::CMD_CAN_SCAN_START:
+            s_scanDrops = 0;
             s_canScanMode = true;
             if (s_canScanQueue) xQueueReset(s_canScanQueue);
             LOG_INFO("USB", "CAN scan started");
             Serial.println("{\"status\":\"ok\"}");
             break;
-        case UsbComm::CMD_CAN_SCAN_STOP:
+        case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
             if (s_canScanQueue) xQueueReset(s_canScanQueue);
-            LOG_INFO("USB", "CAN scan stopped");
-            Serial.println("{\"status\":\"ok\"}");
+            LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
+            char stopResp[64];
+            snprintf(stopResp, sizeof(stopResp), "{\"status\":\"ok\",\"drops\":%lu}",
+                     (unsigned long)s_scanDrops);
+            Serial.println(stopResp);
             break;
+        }
         default:
             LOG_DEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
             Serial.println("{\"status\":\"ok\"}");
@@ -331,8 +339,12 @@ void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
 
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
     if (!s_canScanMode || !s_canScanQueue) return false;
-    // Non-blocking: drop frame silently if queue is full
-    return xQueueSend(s_canScanQueue, &frame, 0) == pdTRUE;
+    // Non-blocking: drop frame and count it if queue is full
+    if (xQueueSend(s_canScanQueue, &frame, 0) != pdTRUE) {
+        s_scanDrops++;
+        return false;
+    }
+    return true;
 }
 
 void UsbComm::tick() {

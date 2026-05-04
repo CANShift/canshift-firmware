@@ -214,6 +214,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                                   cfg.gauge.showNeedle};
     lv_obj_set_user_data(cont, tag);
 
+    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
+        auto* t = static_cast<GaugeTag*>(lv_event_get_user_data(e));
+        delete t;
+    }, LV_EVENT_DELETE, tag);
+
     return cont;
 }
 

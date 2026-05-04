@@ -59,6 +59,11 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
     lv_obj_set_user_data(cont, tag);
 
+    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
+        auto* t = static_cast<ImageTag*>(lv_event_get_user_data(e));
+        delete t;
+    }, LV_EVENT_DELETE, tag);
+
     LOG_DEBUG("IMG", "Image widget created: %s", tag->lvglPath);
     return cont;
 }
