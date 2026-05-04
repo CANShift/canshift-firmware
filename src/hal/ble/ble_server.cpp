@@ -122,14 +122,15 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         const char *cmd = doc["cmd"] | "";
 
         if (strcmp(cmd, "start_wifi_ap") == 0) {
-            LOG_INFO("BLE", "CMD: starting WiFi AP for OTA — SSID: %s", WifiAp::getSsid());
-            WifiAp::start();
-            // Immediately push STATUS so mobile gets the real SSID without polling
+            WifiAp::start(); // builds SSID synchronously before returning
+            LOG_INFO("BLE", "CMD: starting WiFi AP — SSID: %s", WifiAp::getSsid());
             updateStatus();
             if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
         } else if (strcmp(cmd, "stop_wifi_ap") == 0) {
             LOG_INFO("BLE", "CMD: stopping WiFi AP");
             WifiAp::stop();
+            updateStatus();
+            if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
         } else if (strcmp(cmd, "reboot") == 0) {
             LOG_INFO("BLE", "CMD: reboot");
             delay(100);
@@ -209,11 +210,17 @@ void BleServer::tick() {
     s_pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
     s_pTele->notify();
 
-    // Refresh STATUS periodically (piggybacked on tele tick)
+    // Refresh STATUS every 2s; notify if AP state changed (e.g. timeout)
     static uint8_t s_statusDiv = 0;
-    if (++s_statusDiv >= 20) { // every 2s at 10Hz
+    static bool s_prevApActive = false;
+    if (++s_statusDiv >= 20) {
         updateStatus();
         s_statusDiv = 0;
+        bool apNow = WifiAp::isActive();
+        if (apNow != s_prevApActive) {
+            s_prevApActive = apNow;
+            if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+        }
     }
 }
 
