@@ -131,20 +131,22 @@
  *    FONT USAGE
  *==================*/
 
-/* Montserrat fonts — include only what is needed to save flash */
+/* Montserrat fonts — only 14 kept as built-in fallback.
+   All other sizes loaded at runtime from SPIFFS via FontManager (font_manager.h).
+   Disabling 6 sizes saves ~60 KB of flash. */
 #define LV_FONT_MONTSERRAT_8  0
 #define LV_FONT_MONTSERRAT_10 0
-#define LV_FONT_MONTSERRAT_12 1   /* Small labels, status bar */
-#define LV_FONT_MONTSERRAT_14 1   /* Standard UI labels */
-#define LV_FONT_MONTSERRAT_16 1   /* Medium values */
+#define LV_FONT_MONTSERRAT_12 0
+#define LV_FONT_MONTSERRAT_14 1   /* Fallback — used if SPIFFS font load fails */
+#define LV_FONT_MONTSERRAT_16 0
 #define LV_FONT_MONTSERRAT_18 0
-#define LV_FONT_MONTSERRAT_20 1   /* Large labels */
+#define LV_FONT_MONTSERRAT_20 0
 #define LV_FONT_MONTSERRAT_22 0
-#define LV_FONT_MONTSERRAT_24 1   /* Large numeric values */
+#define LV_FONT_MONTSERRAT_24 0
 #define LV_FONT_MONTSERRAT_26 0
 #define LV_FONT_MONTSERRAT_28 0
 #define LV_FONT_MONTSERRAT_30 0
-#define LV_FONT_MONTSERRAT_32 1   /* Main value display (RPM, Speed) */
+#define LV_FONT_MONTSERRAT_32 0
 #define LV_FONT_MONTSERRAT_34 0
 #define LV_FONT_MONTSERRAT_36 0
 #define LV_FONT_MONTSERRAT_38 0
@@ -152,7 +154,7 @@
 #define LV_FONT_MONTSERRAT_42 0
 #define LV_FONT_MONTSERRAT_44 0
 #define LV_FONT_MONTSERRAT_46 0
-#define LV_FONT_MONTSERRAT_48 1   /* Extra large for speed display */
+#define LV_FONT_MONTSERRAT_48 0
 
 /* Demonstrate a font here if you need something other than normal range */
 #define LV_FONT_MONTSERRAT_12_SUBPX      0

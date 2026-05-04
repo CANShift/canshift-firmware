@@ -9,6 +9,7 @@
 // Font is auto-selected from the largest that fits the widget height.
 
 #include "gear_widget.h"
+#include "ui/font_manager.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -22,14 +23,14 @@ namespace {
 
 const lv_font_t *selectFont(int16_t height) {
     if (height >= 120)
-        return &lv_font_montserrat_48;
+        return FontManager::get(48);
     if (height >= 80)
-        return &lv_font_montserrat_32;
+        return FontManager::get(32);
     if (height >= 56)
-        return &lv_font_montserrat_24;
+        return FontManager::get(24);
     if (height >= 40)
-        return &lv_font_montserrat_20;
-    return &lv_font_montserrat_16;
+        return FontManager::get(20);
+    return FontManager::get(16);
 }
 
 } // namespace

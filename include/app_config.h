@@ -88,7 +88,7 @@
 // For 320x240x2 bytes = 153,600 bytes per full buffer — too large for IRAM.
 // Use partial buffers: N lines × width × 2 bytes.
 // ---------------------------------------------------------------------------
-#define LVGL_BUF_LINE_COUNT 40 // Lines per draw buffer (40 lines = 25,600 bytes each)
+#define LVGL_BUF_LINE_COUNT 20 // Lines per draw buffer (20 lines = 12,800 bytes each, saves ~25 KB RAM)
 
 // ---------------------------------------------------------------------------
 // Signal store

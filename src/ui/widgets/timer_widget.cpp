@@ -8,6 +8,7 @@
 // The timer state is self-contained in TimerTag — no CAN signal binding.
 
 #include "timer_widget.h"
+#include "ui/font_manager.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -113,11 +114,11 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
 
-    const lv_font_t *font = &lv_font_montserrat_20;
+    const lv_font_t *font = FontManager::get(20);
     if (cfg.layout.h >= 80)
-        font = &lv_font_montserrat_24;
+        font = FontManager::get(24);
     if (cfg.layout.h >= 110)
-        font = &lv_font_montserrat_32;
+        font = FontManager::get(32);
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 

@@ -1,6 +1,7 @@
 // page_manager.cpp — Dashboard page lifecycle and navigation
 
 #include "page_manager.h"
+#include "ui/font_manager.h"
 #include "widget_factory.h"
 #include "top_bar.h"
 #include "error_bar.h"
@@ -217,7 +218,7 @@ void showSetupScreen() {
     // ---------- Logo ----------
     lv_obj_t *logo = lv_label_create(scr);
     lv_label_set_text(logo, "CANShift");
-    lv_obj_set_style_text_font(logo, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(logo, FontManager::get(32), 0);
     lv_obj_set_style_text_color(logo, lv_color_hex(0xFF4444), 0);
     lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 28);
 
@@ -226,7 +227,7 @@ void showSetupScreen() {
     snprintf(verBuf, sizeof(verBuf), "v" APP_VERSION_STR);
     lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, verBuf);
-    lv_obj_set_style_text_font(ver, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(ver, FontManager::get(12), 0);
     lv_obj_set_style_text_color(ver, lv_color_hex(0x444444), 0);
     lv_obj_align_to(ver, logo, LV_ALIGN_OUT_BOTTOM_MID, 0, 4);
 
@@ -242,14 +243,14 @@ void showSetupScreen() {
     // ---------- "Ready to configure" ----------
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Ready to configure");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(title, FontManager::get(16), 0);
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, -8);
 
     // ---------- Instruction ----------
     lv_obj_t *instr = lv_label_create(scr);
     lv_label_set_text(instr, "Open CANShift Studio and connect\nthis device via USB.");
-    lv_obj_set_style_text_font(instr, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(instr, FontManager::get(12), 0);
     lv_obj_set_style_text_color(instr, lv_color_hex(0x666666), 0);
     lv_obj_set_style_text_align(instr, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(instr, LV_LABEL_LONG_WRAP);
@@ -259,7 +260,7 @@ void showSetupScreen() {
     // ---------- Pulsing dot — "waiting" ----------
     lv_obj_t *dot = lv_label_create(scr);
     lv_label_set_text(dot, "\xE2\x97\x8F"); // ● filled circle
-    lv_obj_set_style_text_font(dot, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(dot, FontManager::get(16), 0);
     lv_obj_set_style_text_color(dot, lv_color_hex(0xFF4444), 0);
     lv_obj_align(dot, LV_ALIGN_BOTTOM_MID, 0, -24);
 

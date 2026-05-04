@@ -160,7 +160,7 @@ void sendTelemetry() {
 // Command handlers
 // ---------------------------------------------------------------------------
 
-// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to SPIFFS, then reboot.
+// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to SD, then reboot.
 // After ArduinoJson parses into doc, s_rxBuf is no longer needed for reading,
 // so we reuse it as the serialization buffer for the payload.
 void handlePutConfig(const char *jsonLine) {
@@ -190,7 +190,7 @@ void handlePutConfig(const char *jsonLine) {
     bool ok = StorageDriver::writeFile(CONFIG_PATH_DASHBOARD,
                                        reinterpret_cast<const uint8_t *>(s_rxBuf), written);
     if (!ok) {
-        LOG_ERROR("USB", "PUT_CONFIG: SPIFFS write failed");
+        LOG_ERROR("USB", "PUT_CONFIG: SD write failed");
         Serial.println("{\"status\":\"error\",\"message\":\"write_failed\"}");
         return;
     }

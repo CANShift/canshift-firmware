@@ -15,6 +15,7 @@
 #include "runtime/alert_engine.h"
 #include "ui/page_manager.h"
 #include "ui/theme_manager.h"
+#include "ui/font_manager.h"
 
 #if !APP_SIMULATION_MODE
     #include "can/can_manager.h"
@@ -47,59 +48,83 @@ static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
 } // namespace
 
-static void showSplash() {
+// Build the dark splash background — used by both normal boot and error screen.
+// Uses LV_FONT_DEFAULT (montserrat_14, always in flash) because fonts from SD
+// are not yet loaded at this point in the boot sequence.
+static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
-
-    // Full-screen background
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    // App name — bold, brand red, centered slightly above middle
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "CANShift");
     lv_obj_set_style_text_color(title, lv_color_hex(0xFF4444), 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_32, 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -40);
 
-    // Version — dim grey, right below the title
     lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, "v" APP_VERSION_STR);
     lv_obj_set_style_text_color(ver, lv_color_hex(0x444444), 0);
-    lv_obj_set_style_text_font(ver, &lv_font_montserrat_12, 0);
-    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 4);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, -20);
 
-    // Progress bar — 280 px wide, 4 px tall, below center
+    return scr;
+}
+
+static void showSplash() {
+    lv_obj_t *scr = buildSplashBase();
+
     static constexpr int16_t BAR_W = 280;
     static constexpr int16_t BAR_H = 4;
     lv_obj_t *bar = lv_bar_create(scr);
     lv_obj_set_size(bar, BAR_W, BAR_H);
-    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 48);
+    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 30);
     lv_bar_set_range(bar, 0, 100);
     lv_bar_set_value(bar, 0, LV_ANIM_OFF);
-
-    // Bar track (background)
     lv_obj_set_style_bg_color(bar, lv_color_hex(0x222222), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(bar, 2, LV_PART_MAIN);
     lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
-
-    // Bar indicator (filled portion)
     lv_obj_set_style_bg_color(bar, lv_color_hex(0xFF4444), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar, 2, LV_PART_INDICATOR);
 
-    // Status label — small, dim, below the bar
     lv_obj_t *status = lv_label_create(scr);
-    lv_label_set_text(status, "Starting…");
+    lv_label_set_text(status, "Starting\xe2\x80\xa6");
     lv_obj_set_style_text_color(status, lv_color_hex(0x444444), 0);
-    lv_obj_set_style_text_font(status, &lv_font_montserrat_12, 0);
-    lv_obj_align(status, LV_ALIGN_CENTER, 0, 66);
+    lv_obj_align(status, LV_ALIGN_CENTER, 0, 52);
 
     s_splashBar = bar;
     s_splashStatus = status;
 
     lv_task_handler();
+}
+
+// Shown when the SD card is absent or fails to mount.
+// Halts — the dashboard cannot run without the SD card.
+static void showSDError() {
+    buildSplashBase();
+    lv_obj_t *scr = lv_scr_act();
+
+    lv_obj_t *icon = lv_label_create(scr);
+    lv_label_set_text(icon, "!");
+    lv_obj_set_style_text_color(icon, lv_color_hex(0xFF4444), 0);
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, 10);
+
+    lv_obj_t *msg = lv_label_create(scr);
+    lv_label_set_text(msg, "SD card missing\nInsert SD and restart");
+    lv_obj_set_style_text_color(msg, lv_color_hex(0xCCCCCC), 0);
+    lv_label_set_long_mode(msg, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(msg, 280);
+    lv_obj_set_style_text_align(msg, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(msg, LV_ALIGN_CENTER, 0, 40);
+
+    lv_task_handler();
+    LOG_ERROR("BOOT", "SD card missing — dashboard halted");
+
+    while (true) {
+        lv_task_handler();
+        delay(100);
+    }
 }
 
 // Call between each boot step to advance the bar and update the status text.
@@ -111,14 +136,15 @@ static void updateSplash(const char *status, uint8_t pct) {
     lv_task_handler();
 }
 
-static void initStorage() {
-    LOG_INFO("BOOT", "Initializing storage...");
+// Returns false if SD is absent — caller must halt.
+static bool initStorage() {
+    LOG_INFO("BOOT", "Initializing SD card...");
     if (!StorageDriver::init()) {
-        LOG_ERROR("BOOT", "Storage init failed — no config will be loaded");
-        // Non-fatal: firmware can run with defaults
+        return false;
     }
-    // Register LVGL FS driver so image widgets can load BMPs from SPIFFS
     LvglFsDriver::init();
+    FontManager::init();
+    return true;
 }
 
 static void loadConfig() {
@@ -155,9 +181,12 @@ void BootSequence::run() {
     TouchDriver::init();
     updateSplash("Initializing touch\xe2\x80\xa6", 15);
 
-    // 3. Storage
-    initStorage();
-    updateSplash("Loading storage\xe2\x80\xa6", 30);
+    // 3. Storage — fatal if SD missing
+    updateSplash("Checking SD card\xe2\x80\xa6", 20);
+    if (!initStorage()) {
+        showSDError(); // halts
+    }
+    updateSplash("SD ready\xe2\x80\xa6", 35);
 
     // 4. Config
     loadConfig();

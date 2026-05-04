@@ -1,0 +1,438 @@
+{
+  "_comment": "CANShift dashboard configuration — VW VR6 2.9 / MaxxECU Street",
+  "version": "1.2.0",
+  "name": "VR6 Main Dash",
+  "description": "Default dashboard configuration for VW VR6 2.9 with MaxxECU Street",
+  "defaultPageId": "main",
+  "revLimitRpm": 7200,
+  "topBar": {
+    "height": 16,
+    "showMapName": true,
+    "showMapProfile": false,
+    "bgColor": "#0D0D0D",
+    "textColor": "#AAAAAA"
+  },
+  "pages": [
+    {
+      "id": "main",
+      "name": "Main",
+      "backgroundImage": null,
+      "backgroundColor": "#111111",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "rpm_arc",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#FFFFFF",
+            "fontSize": 28
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "minValue": 0,
+            "maxValue": 8000,
+            "warningLevel": 6500,
+            "dangerLevel": 7200,
+            "decimalPlaces": 0,
+            "suffix": "rpm",
+            "showNeedle": true
+          }
+        },
+        {
+          "id": "speed_num",
+          "type": "gauge",
+          "signal": "speed_kph",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "textColor": "#FFFFFF",
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 48
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 300,
+            "warningLevel": 240,
+            "dangerLevel": 280,
+            "decimalPlaces": 0,
+            "suffix": "km/h"
+          }
+        },
+        {
+          "id": "coolant_num",
+          "type": "gauge",
+          "signal": "coolant_temp_c",
+          "layout": { "x": 0, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#44AAFF",
+            "primaryColor": "#44AAFF",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 120,
+            "warningLevel": 95,
+            "dangerLevel": 110,
+            "decimalPlaces": 0,
+            "suffix": "°C"
+          }
+        },
+        {
+          "id": "oil_temp_num",
+          "type": "gauge",
+          "signal": "oil_temp_c",
+          "layout": { "x": 80, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#FF8800",
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 150,
+            "warningLevel": 120,
+            "dangerLevel": 140,
+            "decimalPlaces": 0,
+            "suffix": "°C"
+          }
+        },
+        {
+          "id": "gear_ind",
+          "type": "gear",
+          "signal": "gear",
+          "layout": { "x": 160, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#FF4444",
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 32
+          },
+          "config": { "type": "gear", "decimalPlaces": 0 }
+        },
+        {
+          "id": "afr_num",
+          "type": "gauge",
+          "signal": "afr_1",
+          "layout": { "x": 240, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#44FF88",
+            "primaryColor": "#44FF88",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 10,
+            "maxValue": 18,
+            "warningLevel": 16,
+            "dangerLevel": 17,
+            "decimalPlaces": 1,
+            "suffix": "AFR"
+          }
+        },
+        {
+          "id": "tps_bar",
+          "type": "gauge",
+          "signal": "throttle_pos",
+          "layout": { "x": 0, "y": 168, "w": 320, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#FFFFFF",
+            "fontSize": 10
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "bar",
+            "barOrientation": "horizontal",
+            "minValue": 0,
+            "maxValue": 100,
+            "warningLevel": 80,
+            "dangerLevel": 95,
+            "decimalPlaces": 0,
+            "suffix": "%"
+          }
+        },
+        {
+          "id": "mil_warn",
+          "type": "warning",
+          "signal": "flag_mil",
+          "layout": { "x": 160, "y": 196, "w": 80, "h": 28, "zOrder": 1 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#FF4444",
+            "fontSize": 12
+          },
+          "config": { "type": "warning", "invertLogic": false, "threshold": 0.5 }
+        },
+        {
+          "id": "nav_detail",
+          "type": "button",
+          "signal": "",
+          "layout": { "x": 240, "y": 196, "w": 80, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#2A2A2A",
+            "secondaryColor": "#1A1A1A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#888888",
+            "fontSize": 10
+          },
+          "config": {
+            "type": "button",
+            "label": "DETAIL",
+            "showLabel": true,
+            "showIcon": false,
+            "actions": [{ "category": "dashboard", "type": "navigate", "pageId": "detail" }]
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail",
+      "name": "Detail",
+      "backgroundImage": null,
+      "backgroundColor": "#111111",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "boost_arc",
+          "type": "gauge",
+          "signal": "boost_bar",
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF4444",
+            "criticalColor": "#FF0000",
+            "textColor": "#FFFFFF",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "minValue": -1.0,
+            "maxValue": 2.0,
+            "warningLevel": 1.5,
+            "dangerLevel": 1.8,
+            "decimalPlaces": 1,
+            "suffix": "bar"
+          }
+        },
+        {
+          "id": "iat_num",
+          "type": "gauge",
+          "signal": "iat_c",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#AAAAAA",
+            "primaryColor": "#AAAAAA",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": -20,
+            "maxValue": 60,
+            "warningLevel": 45,
+            "dangerLevel": 55,
+            "decimalPlaces": 0,
+            "suffix": "°C"
+          }
+        },
+        {
+          "id": "oil_press_num",
+          "type": "gauge",
+          "signal": "oil_press_bar",
+          "layout": { "x": 160, "y": 56, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#FF8800",
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF4444",
+            "criticalColor": "#FF0000",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0,
+            "maxValue": 6,
+            "warningLevel": 1,
+            "dangerLevel": 0.5,
+            "decimalPlaces": 1,
+            "suffix": "bar"
+          }
+        },
+        {
+          "id": "rpm_bar",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 0, "y": 112, "w": 40, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#FFFFFF",
+            "fontSize": 10
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "bar",
+            "barOrientation": "vertical",
+            "minValue": 0,
+            "maxValue": 8000,
+            "warningLevel": 6500,
+            "dangerLevel": 7200,
+            "decimalPlaces": 0,
+            "suffix": "rpm"
+          }
+        },
+        {
+          "id": "lambda_num",
+          "type": "gauge",
+          "signal": "lambda_1",
+          "layout": { "x": 40, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#44FF88",
+            "primaryColor": "#44FF88",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 0.7,
+            "maxValue": 1.3,
+            "warningLevel": 1.15,
+            "dangerLevel": 1.2,
+            "decimalPlaces": 2,
+            "suffix": "λ"
+          }
+        },
+        {
+          "id": "batt_num",
+          "type": "gauge",
+          "signal": "battery_volts",
+          "layout": { "x": 40, "y": 168, "w": 80, "h": 56, "zOrder": 0 },
+          "style": {
+            "textColor": "#AAAAAA",
+            "primaryColor": "#AAAAAA",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "fontSize": 14
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": 10,
+            "maxValue": 15,
+            "warningLevel": 11,
+            "dangerLevel": 10.5,
+            "decimalPlaces": 1,
+            "suffix": "V"
+          }
+        },
+        {
+          "id": "tps_hbar",
+          "type": "gauge",
+          "signal": "throttle_pos",
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#FFFFFF",
+            "fontSize": 10
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "bar",
+            "barOrientation": "horizontal",
+            "minValue": 0,
+            "maxValue": 100,
+            "warningLevel": 80,
+            "dangerLevel": 95,
+            "decimalPlaces": 0,
+            "suffix": "%"
+          }
+        },
+        {
+          "id": "nav_main",
+          "type": "button",
+          "signal": "",
+          "layout": { "x": 160, "y": 196, "w": 80, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#2A2A2A",
+            "secondaryColor": "#1A1A1A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#888888",
+            "fontSize": 10
+          },
+          "config": {
+            "type": "button",
+            "label": "MAIN",
+            "showLabel": true,
+            "showIcon": false,
+            "actions": [{ "category": "dashboard", "type": "navigate", "pageId": "main" }]
+          }
+        },
+        {
+          "id": "mil_warn2",
+          "type": "warning",
+          "signal": "flag_mil",
+          "layout": { "x": 240, "y": 196, "w": 80, "h": 28, "zOrder": 1 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#333333",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF0000",
+            "textColor": "#FF4444",
+            "fontSize": 12
+          },
+          "config": { "type": "warning", "invertLogic": false, "threshold": 0.5 }
+        }
+      ]
+    }
+  ]
+}

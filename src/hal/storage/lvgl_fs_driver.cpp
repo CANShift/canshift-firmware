@@ -1,18 +1,18 @@
-// lvgl_fs_driver.cpp — LVGL FS driver backed by SPIFFS
+// lvgl_fs_driver.cpp — LVGL FS driver backed by SD card
 //
-// Registers drive letter 'S' so LVGL can load BMP images from SPIFFS.
-// Requires LV_USE_BMP=1 in lv_conf.h (already set).
+// Registers drive letter 'S' so LVGL can load fonts and images from SD.
+// Requires SD to be mounted via StorageDriver::init() before calling init().
 //
 // Path mapping:
-//   LVGL src string:   "S:/images/bg.bmp"
-//   LVGL strips "S:"   → callback receives "/images/bg.bmp"
-//   Opened on SPIFFS   → SPIFFS.open("/images/bg.bmp", "r")
+//   LVGL src string:   "S:/fonts/montserrat_32.bin"
+//   LVGL strips "S:"   → callback receives "/fonts/montserrat_32.bin"
+//   Opened on SD       → SD.open("/fonts/montserrat_32.bin", "r")
 
 #include "lvgl_fs_driver.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
-#include <SPIFFS.h>
+#include <SD.h>
 
 // ---------------------------------------------------------------------------
 // FS callbacks (static — no state other than the open File object)
@@ -22,7 +22,7 @@ namespace {
 
 void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
     const char *modeStr = (mode == LV_FS_MODE_WR) ? "w" : "r";
-    File *f = new File(SPIFFS.open(path, modeStr));
+    File *f = new File(SD.open(path, modeStr));
     if (!*f) {
         delete f;
         LOG_WARN("FS", "Cannot open: %s", path);
@@ -81,5 +81,5 @@ void LvglFsDriver::init() {
     drv.tell_cb = fs_tell;
 
     lv_fs_drv_register(&drv);
-    LOG_INFO("FS", "LVGL SPIFFS FS driver registered (drive 'S:')");
+    LOG_INFO("FS", "LVGL SD FS driver registered (drive 'S:')");
 }

@@ -1,6 +1,7 @@
 // error_bar.cpp — Persistent bottom error overlay (lv_layer_top).
 
 #include "error_bar.h"
+#include "ui/font_manager.h"
 #include "diag/error_store.h"
 
 #include <lvgl.h>
@@ -21,7 +22,7 @@ static constexpr uint32_t COL_CODE   = 0xCC4444; // Source:code text
 static constexpr uint32_t COL_MSG    = 0xDDAAAA; // Message text
 static constexpr uint32_t COL_DIM    = 0x664444; // Dimmed / dismiss button
 
-static const lv_font_t *FONT = &lv_font_montserrat_12;
+static const lv_font_t *FONT = FontManager::get(12);
 
 // ---------------------------------------------------------------------------
 // Internal state

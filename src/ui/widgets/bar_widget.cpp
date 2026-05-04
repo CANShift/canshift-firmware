@@ -1,6 +1,7 @@
 // bar_widget.cpp — Horizontal / vertical progress bar widget implementation
 
 #include "bar_widget.h"
+#include "ui/font_manager.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -98,7 +99,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     if (hasRoom) {
         valueLabel = lv_label_create(cont);
         lv_obj_set_style_text_color(valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
-        lv_obj_set_style_text_font(valueLabel, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(valueLabel, FontManager::get(14), 0);
         lv_obj_align(valueLabel, LV_ALIGN_CENTER, 0, 0);
         lv_label_set_text(valueLabel, "---");
     }

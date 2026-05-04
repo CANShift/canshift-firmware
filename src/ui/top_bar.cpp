@@ -1,6 +1,7 @@
 // top_bar.cpp — Persistent top status bar
 
 #include "top_bar.h"
+#include "ui/font_manager.h"
 #include "settings_page.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
@@ -60,7 +61,7 @@ void TopBar::init() {
         s_mapLabel = lv_label_create(s_bar);
         lv_obj_align(s_mapLabel, LV_ALIGN_LEFT_MID, 4, 0);
         lv_obj_set_style_text_color(s_mapLabel, lv_color_hex(cfg.textColor.rgb), 0);
-        lv_obj_set_style_text_font(s_mapLabel, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(s_mapLabel, FontManager::get(12), 0);
         lv_label_set_text(s_mapLabel, "CANShift");
     }
 

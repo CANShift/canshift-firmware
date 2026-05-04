@@ -1,6 +1,7 @@
 // settings_page.cpp — On-device LVGL screen settings page
 
 #include "settings_page.h"
+#include "ui/font_manager.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "diag/logger.h"
@@ -210,8 +211,8 @@ static void onReset(lv_event_t * /*e*/) {
 // Layout helpers
 // -----------------------------------------------------------------------
 
-static const lv_font_t *FONT_LG = &lv_font_montserrat_12;
-static const lv_font_t *FONT_SM = &lv_font_montserrat_12;
+static const lv_font_t *FONT_LG = FontManager::get(12);
+static const lv_font_t *FONT_SM = FontManager::get(12);
 
 static constexpr int16_t PAD_H = 8;
 

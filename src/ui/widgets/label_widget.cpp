@@ -1,6 +1,7 @@
 // label_widget.cpp — Text value label widget
 
 #include "label_widget.h"
+#include "ui/font_manager.h"
 #include <lvgl.h>
 #include <stdio.h>
 
@@ -22,19 +23,19 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
 
     // Font selection based on configured size
-    const lv_font_t *font = &lv_font_montserrat_16;
+    const lv_font_t *font = FontManager::get(16);
     if (cfg.style.fontSize >= 48)
-        font = &lv_font_montserrat_48;
+        font = FontManager::get(48);
     else if (cfg.style.fontSize >= 32)
-        font = &lv_font_montserrat_32;
+        font = FontManager::get(32);
     else if (cfg.style.fontSize >= 24)
-        font = &lv_font_montserrat_24;
+        font = FontManager::get(24);
     else if (cfg.style.fontSize >= 20)
-        font = &lv_font_montserrat_20;
+        font = FontManager::get(20);
     else if (cfg.style.fontSize >= 14)
-        font = &lv_font_montserrat_14;
+        font = FontManager::get(14);
     else
-        font = &lv_font_montserrat_12;
+        font = FontManager::get(12);
 
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, "---");

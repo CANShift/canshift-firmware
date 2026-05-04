@@ -1,6 +1,7 @@
 // gauge_widget.cpp — Arc-based gauge widget with colored zone sectors
 
 #include "gauge_widget.h"
+#include "ui/font_manager.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
 
@@ -187,11 +188,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
 
-    const lv_font_t *font = &lv_font_montserrat_20;
+    const lv_font_t *font = FontManager::get(20);
     if (cfg.layout.h >= 100)
-        font = &lv_font_montserrat_24;
+        font = FontManager::get(24);
     if (cfg.layout.h >= 130)
-        font = &lv_font_montserrat_32;
+        font = FontManager::get(32);
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, "---");
 
@@ -202,7 +203,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
         lv_obj_set_style_text_color(unitLabel, lv_color_hex(cfg.style.textColor.rgb & 0x888888),
                                     0);
-        lv_obj_set_style_text_font(unitLabel, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(unitLabel, FontManager::get(12), 0);
         lv_label_set_text(unitLabel, cfg.gauge.suffix);
     }
 
