@@ -75,7 +75,6 @@ void buildSsid() {
 }
 
 void apTaskFn(void *) {
-    buildSsid();
     WiFi.softAP(s_ssid, BLE_WIFI_AP_PASSWORD);
     LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid,
              WiFi.softAPIP().toString().c_str());
@@ -106,6 +105,7 @@ void apTaskFn(void *) {
 
 void WifiAp::start() {
     if (s_active) return;
+    buildSsid(); // build SSID before task starts so getSsid() is valid immediately
     s_active = true;
     xTaskCreatePinnedToCore(apTaskFn, "wifi_ap", TASK_STACK_WIFI, nullptr,
                             TASK_PRIO_WIFI, &s_taskHandle, TASK_CORE_WIFI);

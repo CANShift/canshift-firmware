@@ -54,7 +54,8 @@ void updateStatus() {
     JsonDocument doc;
     doc["ver"] = APP_VERSION_STR;
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
-    char buf[64];
+    if (WifiAp::isActive()) doc["ap_ssid"] = WifiAp::getSsid();
+    char buf[96];
     serializeJson(doc, buf, sizeof(buf));
     s_pStatus->setValue(buf);
 }
@@ -121,8 +122,14 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         const char *cmd = doc["cmd"] | "";
 
         if (strcmp(cmd, "start_wifi_ap") == 0) {
-            LOG_INFO("BLE", "CMD: starting WiFi AP for OTA");
+            LOG_INFO("BLE", "CMD: starting WiFi AP for OTA — SSID: %s", WifiAp::getSsid());
             WifiAp::start();
+            // Immediately push STATUS so mobile gets the real SSID without polling
+            updateStatus();
+            if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+        } else if (strcmp(cmd, "stop_wifi_ap") == 0) {
+            LOG_INFO("BLE", "CMD: stopping WiFi AP");
+            WifiAp::stop();
         } else if (strcmp(cmd, "reboot") == 0) {
             LOG_INFO("BLE", "CMD: reboot");
             delay(100);
@@ -152,8 +159,9 @@ void BleServer::init() {
     s_pTele = pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     s_pTele->setValue("{}");
 
-    // STATUS — read, firmware version + CAN health
-    s_pStatus = pSvc->createCharacteristic(STATUS_UUID, NIMBLE_PROPERTY::READ);
+    // STATUS — read + notify: firmware version, CAN health, WiFi AP SSID when active
+    s_pStatus = pSvc->createCharacteristic(
+        STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     updateStatus();
 
     // SETTINGS — write with response, screen settings
