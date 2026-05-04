@@ -83,13 +83,10 @@
 #define CAN_SPEED_KBPS 500
 
 // ---------------------------------------------------------------------------
-// SD Card — (if present on board)
-// Some CrowPanel variants include a microSD slot on a second SPI bus.
+// SD Card — microSD slot on second SPI bus (confirmed present on CrowPanel 2.8")
 // ---------------------------------------------------------------------------
 
-// TODO: Confirm whether CrowPanel 2.8" has an SD slot and its SPI pins.
-//       Set PIN_SD_PRESENT 0 to disable SD support entirely.
-#define PIN_SD_PRESENT 0 // 0 = no SD, 1 = SD present
+#define PIN_SD_PRESENT 1 // 0 = no SD, 1 = SD present
 
 #if PIN_SD_PRESENT
     #define PIN_SD_MOSI 23
