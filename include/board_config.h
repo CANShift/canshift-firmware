@@ -9,20 +9,14 @@
 // Board: Elecrow CrowPanel 2.8" ESP32 HMI
 // Display IC: ILI9341 (320x240, SPI)
 // Touch IC: XPT2046 (resistive, SPI — shared bus)
-// MCU: ESP32-WROOM-32 or ESP32-WROVER
+// MCU: ESP32-WROOM-32
 //
-// Verified pinout for Elecrow CrowPanel 2.8" ESP32 HMI (product SKU DIS05028H).
-// Cross-reference against:
-//   https://www.elecrow.com/wiki/Crowpanel_2.8-ESP32_HMI_Display.html
-//   Schematic downloadable from the product page → Resources tab.
+// Pinout verified against official Elecrow documentation (SKU DIS05028H):
+//   https://www.elecrow.com/wiki/esp32-display-282727-intelligent-touch-screen-wi-fi26ble-240320-hmi-display.html
+//   https://github.com/Elecrow-RD/CrowPanel-2.8-ESP32-HMI-320x240
 //
-// Pin-by-pin verification checklist before first flash:
-//   [ ] SPI MOSI/MISO/SCLK shared between TFT and touch (SPI bus GPIO 12-14)
-//   [ ] TFT CS=15, DC=2, RST=4, BL=27 — confirm on silk screen or schematic
-//   [ ] Touch CS=33 — XPT2046 chip select
-//   [ ] Touch IRQ=36 — confirmed input-only on ESP32 (no pull-up, add 10k if needed)
-//   [ ] TWAI TX=22, RX=21 — confirm no conflict with I2C or UART2 if used
-//   [ ] BL_PWM_CHANNEL=0 — confirm no conflict with ledc channels used by TFT_eSPI
+// TWAI (CAN) uses GPIO 21/22 which are also the board's I2C header pins.
+// No on-board I2C devices — safe to repurpose for external CAN transceiver.
 
 // ---------------------------------------------------------------------------
 // Display — ILI9341 (SPI)
@@ -34,20 +28,20 @@
 #define PIN_TFT_SCLK 14
 #define PIN_TFT_CS 15
 #define PIN_TFT_DC 2  // Data/Command (RS)
-#define PIN_TFT_RST 4 // Reset — may be tied to EN/RST net
-#define PIN_TFT_BL 27 // Backlight PWM — 0=off, 255=full
+#define PIN_TFT_RST -1 // Not connected on CrowPanel 2.8" (held high internally)
+#define PIN_TFT_BL 27  // Backlight PWM — 0=off, 255=full
 
-// SPI clock speeds
-#define TFT_SPI_FREQ_HZ 40000000UL  // 40 MHz — reduce if display artifacts
+// SPI clock speeds — verified from official CrowPanel 2.8" documentation
+#define TFT_SPI_FREQ_HZ 27000000UL  // 27 MHz — official spec for this board
 #define TOUCH_SPI_FREQ_HZ 2500000UL // 2.5 MHz — XPT2046 max
 
 // ---------------------------------------------------------------------------
 // Touch — XPT2046 (resistive, SPI)
 // ---------------------------------------------------------------------------
 
-// TODO: Verify — typical assignment
 #define PIN_TOUCH_CS 33
-#define PIN_TOUCH_IRQ 36 // GPIO 36 is input-only — no internal pull-up
+// Touch IRQ not exposed / not used — driver uses polling via getTouch()
+#define PIN_TOUCH_IRQ -1
 
 // Touch calibration (raw ADC values → screen coordinates)
 // These WILL need calibration on the real board.

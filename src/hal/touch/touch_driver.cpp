@@ -19,12 +19,11 @@ static lv_indev_drv_t s_indevDrv;
 
     #include "board_config.h"
     #include "hardware_profile.h"
-    #include <TFT_eSPI.h>
+    #include "hal/display/display_driver.h"
     #include <Preferences.h>
 
-// Re-use a TFT_eSPI instance for touch — shares the SPI bus with the display.
-// TODO: Replace with a shared global TFT_eSPI instance to avoid duplicate objects.
-static TFT_eSPI s_touch;
+// Touch uses the same TFT_eSPI instance as the display — shared SPI bus, single object.
+#define s_touch DisplayDriver::getTft()
 
 static constexpr char NVS_NS[]        = "touch";
 static constexpr char NVS_KEY_CAL[]   = "cal";

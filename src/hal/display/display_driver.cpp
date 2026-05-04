@@ -98,6 +98,10 @@ void DisplayDriver::setBacklight(uint8_t brightness) {
     ledcWrite(BL_PWM_CHANNEL, brightness);
 }
 
+TFT_eSPI &DisplayDriver::getTft() {
+    return s_tft;
+}
+
 // ---------------------------------------------------------------------------
 // SIMULATION MODE — no TFT_eSPI, minimal draw buffers, discards all output
 // ---------------------------------------------------------------------------

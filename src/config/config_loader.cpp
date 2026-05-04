@@ -79,11 +79,10 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     JsonObjectConst cfg = src["config"];
     switch (w->type) {
         case WidgetType::GAUGE: {
-            // dashboard.json encodes bar gauges as type "gauge" with
-            // displayStyle "bar". Detect this here and reclassify.
+            // dashboard.json uses type "gauge" with displayStyle "bar" or "numeric"
+            // to encode sub-types — reclassify here so downstream renderers are simple.
             const char *displayStyle = cfg["displayStyle"] | "arc";
             if (strcmp(displayStyle, "bar") == 0) {
-                // Reclassify: treat as BAR widget from this point on
                 w->type = WidgetType::BAR;
                 w->bar.minValue = cfg["minValue"] | 0.0f;
                 w->bar.maxValue = cfg["maxValue"] | 100.0f;
@@ -91,7 +90,15 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->bar.dangerLevel = cfg["dangerLevel"] | 95.0f;
                 const char *orient = cfg["barOrientation"] | "horizontal";
                 w->bar.isVertical = (strcmp(orient, "vertical") == 0);
+            } else if (strcmp(displayStyle, "numeric") == 0) {
+                // Large numeric readout — render as a label widget
+                w->type = WidgetType::LABEL;
+                w->label.decimalPlaces = cfg["decimalPlaces"] | 0;
+                strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
+                strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
+                w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
             } else {
+                // "arc" or unrecognised — arc gauge
                 w->gauge.minValue = cfg["minValue"] | 0.0f;
                 w->gauge.maxValue = cfg["maxValue"] | 100.0f;
                 w->gauge.warningLevel = cfg["warningLevel"] | 80.0f;

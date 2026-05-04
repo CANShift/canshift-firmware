@@ -2,14 +2,17 @@
 // display_driver.h — ILI9341 display HAL
 //
 // Wraps TFT_eSPI and provides the LVGL flush callback.
-// All display configuration is in board_config.h and lv_conf.h.
+// All display configuration is in board_config.h and User_Setup.h.
 //
-// TODO: Confirm TFT_eSPI User_Setup.h values match board_config.h pins.
-//       TFT_eSPI can be configured via its own User_Setup.h or via build flags.
-//       We use build flags (USER_SETUP_LOADED=1) to avoid modifying the library.
+// getTft() exposes the single shared TFT_eSPI instance so that touch_driver
+// can call XPT2046 methods on the same object without creating a second instance.
 
 #include <lvgl.h>
 #include <stdint.h>
+
+#if !defined(APP_SIMULATION_MODE) || !APP_SIMULATION_MODE
+    #include <TFT_eSPI.h>
+#endif
 
 namespace DisplayDriver {
 
@@ -37,5 +40,13 @@ void setBacklight(uint8_t brightness);
      * Called by LVGL when a screen region needs to be pushed to the display.
      */
 void flushCallback(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorMap);
+
+#if !defined(APP_SIMULATION_MODE) || !APP_SIMULATION_MODE
+/**
+     * Return the shared TFT_eSPI instance.
+     * Used by touch_driver to call XPT2046 methods on the same SPI object.
+     */
+TFT_eSPI &getTft();
+#endif
 
 } // namespace DisplayDriver

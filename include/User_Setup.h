@@ -3,8 +3,8 @@
 // TFT_eSPI reads this file when USER_SETUP_LOADED is NOT set, or when explicitly
 // included. Pin values must match board_config.h — update both together.
 //
-// !! CRITICAL !! — all values are ASSUMED. Verify against actual board schematic.
-// See include/board_config.h for source-of-truth pin documentation.
+// Pinout verified against official Elecrow CrowPanel 2.8" documentation.
+// See include/board_config.h for pin documentation and sources.
 
 // ---------------------------------------------------------------------------
 // Display IC
@@ -17,27 +17,24 @@
 #define TFT_HEIGHT 320
 
 // ---------------------------------------------------------------------------
-// SPI pin assignments — must match board_config.h
+// SPI pin assignments — verified against official CrowPanel 2.8" documentation
 // ---------------------------------------------------------------------------
-// TODO: Verify against CrowPanel 2.8" schematic before first flash
 #define TFT_MOSI 13 // PIN_TFT_MOSI
 #define TFT_MISO 12 // PIN_TFT_MISO
 #define TFT_SCLK 14 // PIN_TFT_SCLK
 #define TFT_CS 15   // PIN_TFT_CS
 #define TFT_DC 2    // PIN_TFT_DC
-#define TFT_RST 4   // PIN_TFT_RST
+#define TFT_RST -1  // Not connected on CrowPanel 2.8" — held high internally
 #define TFT_BL 27   // PIN_TFT_BL — backlight PWM, driven in display_driver.cpp
 
-// XPT2046 touch — requires TOUCH_CS for TFT_eSPI getTouch() to compile.
-// touch_driver.cpp uses TFT_eSPI's built-in XPT2046 support.
-// TODO: Verify pin against CrowPanel 2.8" schematic before first flash.
-#define TOUCH_CS 33 // PIN_TOUCH_CS (assumed)
+// XPT2046 touch — TOUCH_CS required for TFT_eSPI getTouch() to compile.
+#define TOUCH_CS 33 // PIN_TOUCH_CS
 
 // ---------------------------------------------------------------------------
-// SPI frequencies
+// SPI frequencies — verified from official CrowPanel 2.8" documentation
 // ---------------------------------------------------------------------------
-#define SPI_FREQUENCY 40000000      // 40 MHz — reduce if display artifacts appear
-#define SPI_READ_FREQUENCY 20000000 // 20 MHz — for readbacks (unused in normal operation)
+#define SPI_FREQUENCY 27000000      // 27 MHz — official spec for this board
+#define SPI_READ_FREQUENCY 16000000 // 16 MHz — for readbacks
 #define SPI_TOUCH_FREQUENCY 2500000 // 2.5 MHz — XPT2046 maximum
 
 // ---------------------------------------------------------------------------

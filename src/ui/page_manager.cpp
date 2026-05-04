@@ -211,6 +211,10 @@ void PageManager::init() {
     s_pageCount = 0;
     s_currentIdx = 0;
 
+    // Init error bar first so errors pushed during boot (config load, CAN init)
+    // are visible regardless of whether a valid dashboard config exists.
+    ErrorBar::init();
+
     if (!dash.loaded) {
         LOG_WARN("UI", "Dashboard config not loaded — showing error page");
 
@@ -258,9 +262,6 @@ void PageManager::init() {
     lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_CLICKABLE);
-
-    // Error bar — persistent bottom overlay for firmware diagnostics
-    ErrorBar::init();
 
     LOG_INFO("UI", "PageManager initialized: %d pages", s_pageCount);
 }
