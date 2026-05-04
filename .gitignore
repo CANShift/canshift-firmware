@@ -7,6 +7,9 @@
 *.hex
 *.map
 
+# Allow SPIFFS font assets
+!data/fonts/*.bin
+
 # IDE
 .vscode/
 .idea/
