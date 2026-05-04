@@ -4,6 +4,7 @@
 #include "maxxecu_parser.h"
 #include "board_config.h"
 #include "app_config.h"
+#include "config/config_loader.h"
 #include "diag/logger.h"
 #include "diag/error_store.h"
 #include "hal/usb/usb_comm.h"
@@ -30,18 +31,16 @@ static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
 namespace {
 
-twai_timing_config_t getTimingConfig() {
-    // 500 kbps — default MaxxECU CAN speed
-    // TODO: Make configurable via signals.json "canSpeed" field
-#if CAN_SPEED_KBPS == 500
-    return TWAI_TIMING_CONFIG_500KBITS();
-#elif CAN_SPEED_KBPS == 1000
-    return TWAI_TIMING_CONFIG_1MBITS();
-#elif CAN_SPEED_KBPS == 250
-    return TWAI_TIMING_CONFIG_250KBITS();
-#else
-    #error "Unsupported CAN_SPEED_KBPS value — add case to getTimingConfig()"
-#endif
+twai_timing_config_t getTimingConfig(uint16_t kbps) {
+    switch (kbps) {
+        case 1000: return TWAI_TIMING_CONFIG_1MBITS();
+        case 500:  return TWAI_TIMING_CONFIG_500KBITS();
+        case 250:  return TWAI_TIMING_CONFIG_250KBITS();
+        default:
+            LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
+                     CAN_SPEED_KBPS);
+            return TWAI_TIMING_CONFIG_500KBITS();
+    }
 }
 
 twai_filter_config_t getFilterConfig() {
@@ -67,8 +66,10 @@ twai_filter_config_t getFilterConfig() {
 // ---------------------------------------------------------------------------
 
 void CanManager::initHardware() {
+    const uint16_t speedKbps = ConfigLoader::getSignalConfig().canSpeedKbps;
+
     LOG_INFO("CAN", "Initializing TWAI driver...");
-    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", PIN_TWAI_TX, PIN_TWAI_RX, CAN_SPEED_KBPS);
+    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", PIN_TWAI_TX, PIN_TWAI_RX, speedKbps);
 
     twai_general_config_t g_config =
         TWAI_GENERAL_CONFIG_DEFAULT(static_cast<gpio_num_t>(PIN_TWAI_TX),
@@ -76,7 +77,7 @@ void CanManager::initHardware() {
     g_config.rx_queue_len = CAN_RX_QUEUE_DEPTH;
     g_config.tx_queue_len = 5;
 
-    twai_timing_config_t t_config = getTimingConfig();
+    twai_timing_config_t t_config = getTimingConfig(speedKbps);
     twai_filter_config_t f_config = getFilterConfig();
 
     esp_err_t err = twai_driver_install(&g_config, &t_config, &f_config);
