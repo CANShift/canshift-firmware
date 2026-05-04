@@ -6,7 +6,7 @@
 //
 //   Commands from desktop → device:
 //     CMD_PUT_CONFIG      0x02  — Push new dashboard.json content
-//     CMD_SCREEN_SETTINGS 0x05  — Push display settings (brightness, contrast, sleep, rotation)
+//     CMD_SCREEN_SETTINGS 0x05  — Push display settings (brightness, sleep, rotation)
 //     CMD_GET_STATUS      0x10  — Query firmware version and protocol number
 //     CMD_CAN_SCAN_START  0x20  — Start forwarding raw CAN frames over USB
 //     CMD_CAN_SCAN_STOP   0x21  — Stop forwarding raw CAN frames
@@ -50,8 +50,8 @@ static constexpr uint8_t CMD_GET_CONFIG = 0x01;
 static constexpr uint8_t CMD_PUT_CONFIG = 0x02;
 static constexpr uint8_t CMD_PUT_SIGNALS = 0x03;
 static constexpr uint8_t CMD_PUT_THEME = 0x04;
-// Push screen display settings (brightness, contrast, sleep, rotation)
-// Payload: {"brightness":80,"contrast":50,"sleep":0,"rotation":0}
+// Push screen display settings (brightness, sleep, rotation)
+// Payload: {"brightness":80,"sleep":0,"rotation":0}
 static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
