@@ -10,9 +10,11 @@
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
 #include "diag/logger.h"
+#include "app_config.h"
 
 #include <lvgl.h>
 #include <string.h>
+#include <stdio.h>
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -184,8 +186,6 @@ void onGesture(lv_dir_t dir) {
 }
 
 void checkGestures() {
-    // Iterate all registered indev instances and look for a pointer device.
-    // There is only one touch controller on this hardware.
     lv_indev_t *indev = lv_indev_get_next(nullptr);
     while (indev != nullptr) {
         if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
@@ -197,6 +197,84 @@ void checkGestures() {
         }
         indev = lv_indev_get_next(indev);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Setup screen — shown when no dashboard.json is present
+// ---------------------------------------------------------------------------
+
+static void animBreath(void *obj, int32_t v) {
+    lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0);
+}
+
+void showSetupScreen() {
+    lv_obj_t *scr = lv_obj_create(nullptr);
+    lv_obj_set_size(scr, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+
+    // ---------- Logo ----------
+    lv_obj_t *logo = lv_label_create(scr);
+    lv_label_set_text(logo, "CANShift");
+    lv_obj_set_style_text_font(logo, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(logo, lv_color_hex(0xFF4444), 0);
+    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 28);
+
+    // ---------- Version ----------
+    char verBuf[16];
+    snprintf(verBuf, sizeof(verBuf), "v" APP_VERSION_STR);
+    lv_obj_t *ver = lv_label_create(scr);
+    lv_label_set_text(ver, verBuf);
+    lv_obj_set_style_text_font(ver, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(ver, lv_color_hex(0x444444), 0);
+    lv_obj_align_to(ver, logo, LV_ALIGN_OUT_BOTTOM_MID, 0, 4);
+
+    // ---------- Separator ----------
+    lv_obj_t *sep = lv_obj_create(scr);
+    lv_obj_set_size(sep, 200, 1);
+    lv_obj_set_style_bg_color(sep, lv_color_hex(0x2A2A2A), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(sep, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(sep, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(sep, 0, LV_PART_MAIN);
+    lv_obj_align(sep, LV_ALIGN_CENTER, 0, -28);
+
+    // ---------- "Ready to configure" ----------
+    lv_obj_t *title = lv_label_create(scr);
+    lv_label_set_text(title, "Ready to configure");
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -8);
+
+    // ---------- Instruction ----------
+    lv_obj_t *instr = lv_label_create(scr);
+    lv_label_set_text(instr, "Open CANShift Studio and connect\nthis device via USB.");
+    lv_obj_set_style_text_font(instr, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(instr, lv_color_hex(0x666666), 0);
+    lv_obj_set_style_text_align(instr, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(instr, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(instr, LV_HOR_RES - 40);
+    lv_obj_align(instr, LV_ALIGN_CENTER, 0, 26);
+
+    // ---------- Pulsing dot — "waiting" ----------
+    lv_obj_t *dot = lv_label_create(scr);
+    lv_label_set_text(dot, "\xE2\x97\x8F"); // ● filled circle
+    lv_obj_set_style_text_font(dot, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(dot, lv_color_hex(0xFF4444), 0);
+    lv_obj_align(dot, LV_ALIGN_BOTTOM_MID, 0, -24);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_exec_cb(&a, animBreath);
+    lv_anim_set_var(&a, dot);
+    lv_anim_set_values(&a, LV_OPA_20, LV_OPA_COVER);
+    lv_anim_set_time(&a, 900);
+    lv_anim_set_playback_time(&a, 900);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&a);
+
+    lv_scr_load(scr);
+    LOG_INFO("UI", "Setup screen shown — waiting for Studio connection");
 }
 
 } // namespace
@@ -216,28 +294,8 @@ void PageManager::init() {
     ErrorBar::init();
 
     if (!dash.loaded) {
-        LOG_WARN("UI", "Dashboard config not loaded — showing error page");
-
-        // Minimal error screen — shown until a valid config is pushed over USB
-        lv_obj_t *errScreen = lv_obj_create(nullptr);
-        lv_obj_set_size(errScreen, LV_HOR_RES, LV_VER_RES);
-        lv_obj_set_style_bg_color(errScreen, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(errScreen, LV_OPA_COVER, LV_PART_MAIN);
-
-        lv_obj_t *errLabel = lv_label_create(errScreen);
-        lv_label_set_text(errLabel,
-                          "CONFIG ERROR\n"
-                          "dashboard.json not found.\n\n"
-                          "Connect via USB and push\n"
-                          "a config from CANShift Studio.");
-        lv_obj_set_style_text_color(errLabel, lv_color_hex(0xFF4444), 0);
-        lv_obj_set_style_text_font(errLabel, &lv_font_montserrat_14, 0);
-        lv_obj_set_style_text_align(errLabel, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_width(errLabel, LV_HOR_RES - 20);
-        lv_label_set_long_mode(errLabel, LV_LABEL_LONG_WRAP);
-        lv_obj_align(errLabel, LV_ALIGN_CENTER, 0, 0);
-
-        lv_scr_load(errScreen);
+        LOG_WARN("UI", "No dashboard config — showing setup screen");
+        showSetupScreen();
         return;
     }
 
