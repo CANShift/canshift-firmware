@@ -1,0 +1,19 @@
+# Partition table — 4MB flash with dual OTA + SPIFFS
+# OTA requires two app partitions (ota_0 + ota_1) so firmware can be
+# written to the inactive slot while running from the active slot.
+#
+# Layout:
+#   nvs       20 KB   — settings, NVS Preferences
+#   otadata    8 KB   — active OTA slot tracking
+#   app0    1312 KB   — firmware slot 0 (ota_0)
+#   app1    1312 KB   — firmware slot 1 (ota_1)
+#   spiffs  1216 KB   — config files, assets
+#   coredump 128 KB   — crash dumps
+#
+# Name,   Type, SubType,  Offset,   Size,    Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+otadata,  data, ota,      0xe000,   0x2000,
+app0,     app,  ota_0,    0x10000,  0x150000,
+app1,     app,  ota_1,    0x160000, 0x150000,
+spiffs,   data, spiffs,   0x2B0000, 0x130000,
+coredump, data, coredump, 0x3E0000, 0x20000,

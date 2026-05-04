@@ -17,6 +17,7 @@
 void taskUI(void *pvParameters);
 void taskCAN(void *pvParameters);
 void taskUSBComm(void *pvParameters);
+void taskBLE(void *pvParameters);
 
 #if APP_SIMULATION_MODE
 void taskSim(void *pvParameters);
@@ -89,6 +90,12 @@ void setup() {
     // ---------------------------------------------------------------------------
     xTaskCreatePinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB, nullptr,
                             TASK_CORE_USB);
+
+    // ---------------------------------------------------------------------------
+    // BLE task — Phase 3 mobile app (telemetry + settings + WiFi AP OTA trigger)
+    // ---------------------------------------------------------------------------
+    xTaskCreatePinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE, nullptr,
+                            TASK_CORE_BLE);
 
     LOG_INFO("BOOT", "All tasks started");
 }
@@ -165,6 +172,21 @@ void taskUSBComm(void *pvParameters) {
     while (true) {
         UsbComm::tick();
         vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BLE task — advertising + telemetry notifications
+// ---------------------------------------------------------------------------
+#include "hal/ble/ble_server.h"
+
+void taskBLE(void *pvParameters) {
+    BleServer::init();
+
+    TickType_t lastWake = xTaskGetTickCount();
+    while (true) {
+        BleServer::tick();
+        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(BLE_TELE_INTERVAL_MS));
     }
 }
 

@@ -156,6 +156,30 @@
 #define ALERT_OIL_PRESS_CRIT_BAR 1.0f
 
 // ---------------------------------------------------------------------------
+// BLE (Phase 3 — mobile app)
+// ---------------------------------------------------------------------------
+
+#ifndef TASK_STACK_BLE
+    #define TASK_STACK_BLE 5120 // NimBLE + ArduinoJson telemetry serialization
+#endif
+#define TASK_PRIO_BLE 6
+#define TASK_CORE_BLE 1
+
+// WiFi AP task (started on demand for OTA)
+#ifndef TASK_STACK_WIFI
+    #define TASK_STACK_WIFI 4096
+#endif
+#define TASK_PRIO_WIFI 5
+#define TASK_CORE_WIFI 1
+
+// BLE telemetry notify interval
+#define BLE_TELE_INTERVAL_MS 100 // 10Hz
+
+// WiFi AP configuration
+#define BLE_WIFI_AP_PASSWORD "canshift"
+#define BLE_WIFI_AP_TIMEOUT_MS (5UL * 60UL * 1000UL) // 5 minutes
+
+// ---------------------------------------------------------------------------
 // USB config sync (Phase 1)
 // ---------------------------------------------------------------------------
 
