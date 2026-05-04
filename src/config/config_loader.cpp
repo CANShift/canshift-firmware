@@ -15,6 +15,7 @@
 
 static CfgDashboard s_dashboard = {};
 static CfgSignalConfig s_signals = {};
+static CfgDeviceConfig s_device = {};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -283,6 +284,32 @@ bool loadSignals() {
     return true;
 }
 
+bool loadDevice() {
+    size_t jsonSize = 0;
+    char *json = StorageDriver::readFile(CONFIG_PATH_DEVICE, &jsonSize);
+    if (!json) {
+        LOG_INFO("CFG", "device.json not found — using board_config.h defaults");
+        return false;
+    }
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, json, jsonSize);
+    free(json);
+
+    if (err) {
+        LOG_WARN("CFG", "device.json parse error: %s — using defaults", err.c_str());
+        return false;
+    }
+
+    s_device.canSpeedKbps = doc["can_speed_kbps"] | 0;
+    s_device.twaiTxPin    = doc["twai_tx_pin"] | -1;
+    s_device.twaiRxPin    = doc["twai_rx_pin"] | -1;
+    s_device.loaded = true;
+    LOG_INFO("CFG", "device.json loaded: CAN=%ukbps TX=GPIO%d RX=GPIO%d",
+             s_device.canSpeedKbps, s_device.twaiTxPin, s_device.twaiRxPin);
+    return true;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -292,7 +319,8 @@ bool loadSignals() {
 ConfigLoader::LoadResult ConfigLoader::loadAll() {
     LoadResult r;
     r.dashboardOk = loadDashboard();
-    r.signalsOk = loadSignals();
+    r.signalsOk   = loadSignals();
+    r.deviceOk    = loadDevice();
     return r;
 }
 
@@ -301,6 +329,9 @@ const CfgDashboard &ConfigLoader::getDashboardConfig() {
 }
 const CfgSignalConfig &ConfigLoader::getSignalConfig() {
     return s_signals;
+}
+const CfgDeviceConfig &ConfigLoader::getDeviceConfig() {
+    return s_device;
 }
 bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();

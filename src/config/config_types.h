@@ -232,3 +232,14 @@ struct CfgSignalConfig {
     CfgSignalDef signals[CONFIG_MAX_SIGNALS];
     bool loaded;
 };
+
+// ---------------------------------------------------------------------------
+// Device hardware config (from device.json)
+// Overrides board_config.h compile-time defaults at runtime.
+// ---------------------------------------------------------------------------
+struct CfgDeviceConfig {
+    uint32_t canSpeedKbps; // CAN bus speed — overrides signals.json if loaded
+    int8_t twaiTxPin;      // ESP32 TWAI TX GPIO (-1 = use board_config.h default)
+    int8_t twaiRxPin;      // ESP32 TWAI RX GPIO (-1 = use board_config.h default)
+    bool loaded;
+};

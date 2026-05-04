@@ -1,0 +1,5 @@
+{
+  "can_speed_kbps": 500,
+  "twai_tx_pin": 22,
+  "twai_rx_pin": 21
+}

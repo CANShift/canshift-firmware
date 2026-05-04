@@ -12,6 +12,7 @@ namespace ConfigLoader {
 struct LoadResult {
     bool dashboardOk;
     bool signalsOk;
+    bool deviceOk;
 };
 
 /**
@@ -32,6 +33,13 @@ const CfgDashboard &getDashboardConfig();
      * Access the loaded signal config.
      */
 const CfgSignalConfig &getSignalConfig();
+
+/**
+     * Access the loaded device hardware config.
+     * If device.json was absent, returns a struct with .loaded = false
+     * and callers should fall back to board_config.h defaults.
+     */
+const CfgDeviceConfig &getDeviceConfig();
 
 /**
      * Reload all configs from storage and rebuild the UI.

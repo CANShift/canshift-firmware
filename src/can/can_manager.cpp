@@ -66,14 +66,21 @@ twai_filter_config_t getFilterConfig() {
 // ---------------------------------------------------------------------------
 
 void CanManager::initHardware() {
-    const uint16_t speedKbps = ConfigLoader::getSignalConfig().canSpeedKbps;
+    const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
+
+    // device.json overrides board_config.h for pins and speed
+    const int txPin     = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : PIN_TWAI_TX;
+    const int rxPin     = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : PIN_TWAI_RX;
+    const uint16_t speedKbps = (dev.loaded && dev.canSpeedKbps > 0)
+                              ? static_cast<uint16_t>(dev.canSpeedKbps)
+                              : static_cast<uint16_t>(ConfigLoader::getSignalConfig().canSpeedKbps);
 
     LOG_INFO("CAN", "Initializing TWAI driver...");
-    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", PIN_TWAI_TX, PIN_TWAI_RX, speedKbps);
+    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", txPin, rxPin, speedKbps);
 
     twai_general_config_t g_config =
-        TWAI_GENERAL_CONFIG_DEFAULT(static_cast<gpio_num_t>(PIN_TWAI_TX),
-                                    static_cast<gpio_num_t>(PIN_TWAI_RX), TWAI_MODE_NORMAL);
+        TWAI_GENERAL_CONFIG_DEFAULT(static_cast<gpio_num_t>(txPin),
+                                    static_cast<gpio_num_t>(rxPin), TWAI_MODE_NORMAL);
     g_config.rx_queue_len = CAN_RX_QUEUE_DEPTH;
     g_config.tx_queue_len = 5;
 
