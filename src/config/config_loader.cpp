@@ -4,6 +4,7 @@
 #include "board_config.h"
 #include "hal/storage/storage_driver.h"
 #include "diag/logger.h"
+#include "diag/error_store.h"
 
 #include <ArduinoJson.h>
 #include <string.h>
@@ -138,8 +139,10 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
 bool loadDashboard() {
     size_t jsonSize = 0;
     char *json = StorageDriver::readFile(CONFIG_PATH_DASHBOARD, &jsonSize);
-    if (!json)
+    if (!json) {
+        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json not found");
         return false;
+    }
 
     JsonDocument doc; // ArduinoJson v7 — dynamic, no capacity() needed
     DeserializationError err = deserializeJson(doc, json, jsonSize);
@@ -147,6 +150,9 @@ bool loadDashboard() {
 
     if (err) {
         LOG_ERROR("CFG", "dashboard.json parse error: %s", err.c_str());
+        char msg[52];
+        snprintf(msg, sizeof(msg), "Parse error: %s", err.c_str());
+        ErrorStore::push(ERROR_SRC_CONFIG, "PARSE_ERR", msg);
         return false;
     }
 
@@ -221,8 +227,10 @@ bool loadDashboard() {
 bool loadSignals() {
     size_t jsonSize = 0;
     char *json = StorageDriver::readFile(CONFIG_PATH_SIGNALS, &jsonSize);
-    if (!json)
+    if (!json) {
+        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json not found");
         return false;
+    }
 
     JsonDocument doc; // ArduinoJson v7 — dynamic
     DeserializationError err = deserializeJson(doc, json, jsonSize);
@@ -230,6 +238,9 @@ bool loadSignals() {
 
     if (err) {
         LOG_ERROR("CFG", "signals.json parse error: %s", err.c_str());
+        char msg[52];
+        snprintf(msg, sizeof(msg), "Parse error: %s", err.c_str());
+        ErrorStore::push(ERROR_SRC_CONFIG, "PARSE_ERR", msg);
         return false;
     }
 

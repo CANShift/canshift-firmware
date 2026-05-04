@@ -3,6 +3,7 @@
 #include "page_manager.h"
 #include "widget_factory.h"
 #include "top_bar.h"
+#include "error_bar.h"
 #include "settings_page.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
@@ -258,6 +259,9 @@ void PageManager::init() {
     lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_CLICKABLE);
 
+    // Error bar — persistent bottom overlay for firmware diagnostics
+    ErrorBar::init();
+
     LOG_INFO("UI", "PageManager initialized: %d pages", s_pageCount);
 }
 
@@ -331,6 +335,8 @@ void PageManager::updateWidgets() {
     // Apply alert overlays
     AlertEngine::tick();
     setRevLimiterOverlay(AlertEngine::isRevLimiterFlashOn());
+
+    ErrorBar::update();
 }
 
 void PageManager::setRevLimiterOverlay(bool visible) {

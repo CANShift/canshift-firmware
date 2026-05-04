@@ -5,6 +5,7 @@
 #include "board_config.h"
 #include "app_config.h"
 #include "diag/logger.h"
+#include "diag/error_store.h"
 #include "hal/usb/usb_comm.h"
 
 #include <driver/twai.h>
@@ -81,12 +82,18 @@ void CanManager::initHardware() {
     esp_err_t err = twai_driver_install(&g_config, &t_config, &f_config);
     if (err != ESP_OK) {
         LOG_ERROR("CAN", "TWAI driver install failed: %s", esp_err_to_name(err));
+        char msg[52];
+        snprintf(msg, sizeof(msg), "Init failed: %s", esp_err_to_name(err));
+        ErrorStore::push(ERROR_SRC_CAN, "INIT_FAIL", msg);
         return;
     }
 
     err = twai_start();
     if (err != ESP_OK) {
         LOG_ERROR("CAN", "TWAI start failed: %s", esp_err_to_name(err));
+        char msg[52];
+        snprintf(msg, sizeof(msg), "Start failed: %s", esp_err_to_name(err));
+        ErrorStore::push(ERROR_SRC_CAN, "START_FAIL", msg);
         return;
     }
 
@@ -132,7 +139,19 @@ void CanManager::tick() {
             if (status.state == TWAI_STATE_BUS_OFF) {
                 LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
                 twai_initiate_recovery();
+                ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
             }
+        }
+
+        // Rate-limit generic error pushes (TWAI errors can storm on noisy bus)
+        static uint32_t s_lastErrPushMs = 0;
+        const uint32_t nowPush = millis();
+        if (nowPush - s_lastErrPushMs >= 1000) {
+            char msg[52];
+            snprintf(msg, sizeof(msg), "%s (total: %lu)", esp_err_to_name(err),
+                     static_cast<unsigned long>(s_errorCount));
+            ErrorStore::push(ERROR_SRC_CAN, "TWAI_ERR", msg);
+            s_lastErrPushMs = nowPush;
         }
     }
 
