@@ -1,5 +1,8 @@
 // wifi_ap.cpp — WiFi AP mode + HTTP OTA server
 
+#include "app_config.h"
+#if APP_BLE_ENABLED
+
 #include "wifi_ap.h"
 #include "diag/logger.h"
 #include "app_config.h"
@@ -122,3 +125,5 @@ bool WifiAp::isActive() {
 const char *WifiAp::getSsid() {
     return s_ssid;
 }
+
+#endif // APP_BLE_ENABLED

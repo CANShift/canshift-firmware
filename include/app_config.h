@@ -159,6 +159,12 @@
 // BLE (Phase 3 — mobile app)
 // ---------------------------------------------------------------------------
 
+// Set to 0 to exclude NimBLE and WiFi from the build (saves ~30 KB DRAM).
+// Disabled in [env:sim] because the sim environment doesn't need wireless.
+#ifndef APP_BLE_ENABLED
+    #define APP_BLE_ENABLED 1
+#endif
+
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120 // NimBLE + ArduinoJson telemetry serialization
 #endif

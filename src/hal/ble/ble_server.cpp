@@ -1,5 +1,8 @@
 // ble_server.cpp — BLE GATT server (NimBLE stack)
 
+#include "app_config.h"
+#if APP_BLE_ENABLED
+
 #include "ble_server.h"
 #include "hal/wifi/wifi_ap.h"
 #include "runtime/signal_store.h"
@@ -227,3 +230,5 @@ void BleServer::tick() {
 bool BleServer::isConnected() {
     return s_connected;
 }
+
+#endif // APP_BLE_ENABLED

@@ -14,6 +14,10 @@
 //                   Response: {"status":"ok"} then device reboots
 //                             {"status":"error","message":"..."} on failure
 
+#include "app_config.h"
+
+#if APP_BLE_ENABLED
+
 namespace WifiAp {
 
 /** Start the WiFi AP and HTTP server in a background task. No-op if already active. */
@@ -29,3 +33,5 @@ bool isActive();
 const char *getSsid();
 
 } // namespace WifiAp
+
+#endif // APP_BLE_ENABLED

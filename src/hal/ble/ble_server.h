@@ -14,7 +14,10 @@
 //   lam=lambda, s=speed kph, g=gear, bat=battery V
 //   Only valid (non-timed-out) signals are included.
 
+#include "app_config.h"
 #include <stdbool.h>
+
+#if APP_BLE_ENABLED
 
 namespace BleServer {
 
@@ -32,3 +35,5 @@ void tick();
 bool isConnected();
 
 } // namespace BleServer
+
+#endif // APP_BLE_ENABLED
