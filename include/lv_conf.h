@@ -38,7 +38,9 @@
 #if APP_SIMULATION_MODE
 #define LV_MEM_SIZE (12U * 1024U)   /* 12 KB — sim mode (CI compile check only, no runtime) */
 #else
-#define LV_MEM_SIZE (48U * 1024U)   /* 48 KB — hardware target */
+/* 48 KB — fonts now live in flash (LV_FONT_MONTSERRAT_12..32 below), so
+   the pool is needed only for widget objects, styles and spec_attrs. */
+#define LV_MEM_SIZE (48U * 1024U)
 #endif
 
 /* Set an address for the memory pool instead of allocating it as a global array.
@@ -136,17 +138,17 @@
    Disabling 6 sizes saves ~60 KB of flash. */
 #define LV_FONT_MONTSERRAT_8  0
 #define LV_FONT_MONTSERRAT_10 0
-#define LV_FONT_MONTSERRAT_12 0
-#define LV_FONT_MONTSERRAT_14 1   /* Fallback — used if SPIFFS font load fails */
-#define LV_FONT_MONTSERRAT_16 0
+#define LV_FONT_MONTSERRAT_12 1   /* Compiled into flash — used by FontManager */
+#define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_MONTSERRAT_16 1
 #define LV_FONT_MONTSERRAT_18 0
-#define LV_FONT_MONTSERRAT_20 0
+#define LV_FONT_MONTSERRAT_20 1
 #define LV_FONT_MONTSERRAT_22 0
-#define LV_FONT_MONTSERRAT_24 0
+#define LV_FONT_MONTSERRAT_24 1
 #define LV_FONT_MONTSERRAT_26 0
 #define LV_FONT_MONTSERRAT_28 0
 #define LV_FONT_MONTSERRAT_30 0
-#define LV_FONT_MONTSERRAT_32 0
+#define LV_FONT_MONTSERRAT_32 1
 #define LV_FONT_MONTSERRAT_34 0
 #define LV_FONT_MONTSERRAT_36 0
 #define LV_FONT_MONTSERRAT_38 0

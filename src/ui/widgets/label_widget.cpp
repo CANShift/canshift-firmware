@@ -1,12 +1,19 @@
 // label_widget.cpp — Text value label widget
 
 #include "label_widget.h"
+#include "diag/logger.h"
 #include "ui/font_manager.h"
 #include <lvgl.h>
 #include <stdio.h>
 
 lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
+    if (!cont) {
+        // LVGL pool is exhausted (LV_USE_LOG=0 silences LVGL's own warning).
+        // Bail out instead of letting the next LVGL call deref NULL and panic.
+        LOG_ERROR("WF", "lv_obj_create failed for '%s' — LVGL pool OOM", cfg.id);
+        return nullptr;
+    }
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
     lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
@@ -19,6 +26,11 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     lv_obj_t *label = lv_label_create(cont);
+    if (!label) {
+        LOG_ERROR("WF", "lv_label_create failed for '%s' — LVGL pool OOM", cfg.id);
+        lv_obj_del(cont);
+        return nullptr;
+    }
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
 

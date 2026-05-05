@@ -22,7 +22,10 @@ static constexpr uint32_t COL_CODE   = 0xCC4444; // Source:code text
 static constexpr uint32_t COL_MSG    = 0xDDAAAA; // Message text
 static constexpr uint32_t COL_DIM    = 0x664444; // Dimmed / dismiss button
 
-static const lv_font_t *FONT = FontManager::get(12);
+// Lazy accessor — file-scope static initializers run before FontManager::init()
+// in boot_sequence, so caching the pointer at static-init time would freeze it
+// to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
+static inline const lv_font_t *FONT() { return FontManager::get(12); }
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -60,7 +63,7 @@ static const char *srcLabel(ErrorSource src) {
 
 static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
     lv_obj_t *lbl = lv_label_create(parent);
-    lv_obj_set_style_text_font(lbl, FONT, 0);
+    lv_obj_set_style_text_font(lbl, FONT(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
     return lbl;
 }
@@ -76,7 +79,7 @@ static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
 
     lv_obj_t *lbl = lv_label_create(btn);
     lv_label_set_text(lbl, LV_SYMBOL_CLOSE);
-    lv_obj_set_style_text_font(lbl, FONT, 0);
+    lv_obj_set_style_text_font(lbl, FONT(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(COL_DIM), 0);
     lv_obj_center(lbl);
     return btn;

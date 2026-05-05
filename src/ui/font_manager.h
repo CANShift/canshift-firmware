@@ -1,17 +1,14 @@
 #pragma once
-// font_manager.h — Runtime font loader from SPIFFS
-// Loads Montserrat .bin files at boot via lv_font_load(), caches them.
-// Falls back to the built-in lv_font_montserrat_14 if a file is missing.
+// font_manager.h — Resolves a numeric size to a compiled-in LVGL font.
+// Fonts live in flash (LV_FONT_MONTSERRAT_* in lv_conf.h), not the
+// LVGL heap, so they cost zero RAM. Sizes outside the supported set
+// snap to the nearest available one.
 
 #include <lvgl.h>
 
 class FontManager {
 public:
+    // Kept for boot_sequence compatibility. No-op (fonts are link-time).
     static void init();
     static const lv_font_t *get(uint8_t size);
-
-private:
-    static constexpr uint8_t SIZES[]  = {12, 14, 16, 20, 24, 32, 48};
-    static constexpr uint8_t N_FONTS  = 7;
-    static lv_font_t        *s_fonts[N_FONTS];
 };

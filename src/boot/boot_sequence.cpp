@@ -21,7 +21,18 @@
     #include "can/can_manager.h"
 #endif
 
+#include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <lvgl.h>
+
+// Diagnostic — log free heap and largest contiguous block at a named boot stage.
+// Helps pinpoint memory pressure without needing a debugger.
+static void logHeap(const char *stage) {
+    const uint32_t free = ESP.getFreeHeap();
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    LOG_INFO("HEAP", "%s: free=%u largest=%u", stage,
+             static_cast<unsigned>(free), static_cast<unsigned>(largest));
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -172,8 +183,10 @@ static void buildUI() {
 // ---------------------------------------------------------------------------
 
 void BootSequence::run() {
+    logHeap("entry");
     // 1. Display + LVGL must come early so we can show a splash
     initDisplayAndLVGL();
+    logHeap("after lv_init");
     showSplash(); // 0 %
 
     // 2. Touch controller
@@ -189,7 +202,9 @@ void BootSequence::run() {
     updateSplash("SD ready\xe2\x80\xa6", 35);
 
     // 4. Config
+    logHeap("before loadConfig");
     loadConfig();
+    logHeap("after loadConfig");
     updateSplash("Applying config\xe2\x80\xa6", 55);
 
     // 5. Runtime
@@ -213,7 +228,9 @@ void BootSequence::run() {
     updateSplash("USB ready", 88);
 
     // 8. Build the UI from config
+    logHeap("before buildUI");
     buildUI();
+    logHeap("after buildUI");
     updateSplash("Ready", 100);
 
     LOG_INFO("BOOT", "Boot sequence complete");

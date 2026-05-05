@@ -74,7 +74,11 @@ SignalId resolveSignalId(const char *name) {
         return SignalIds::FLAG_MIL;
     if (strcmp(name, "map_number") == 0)
         return SignalIds::MAP_NUMBER;
-    LOG_WARN("WF", "Unknown signal name: %s", name);
+    // Empty name is legal (button widgets carry no signal). Stay silent
+    // for those; only warn on a non-empty name we genuinely don't know.
+    if (name[0] != '\0') {
+        LOG_WARN("WF", "Unknown signal name: %s", name);
+    }
     return SignalIds::SIGNAL_COUNT; // Invalid
 }
 

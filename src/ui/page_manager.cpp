@@ -126,8 +126,14 @@ void rebuildAllPages() {
 }
 
 void showPage(uint8_t idx) {
-    if (idx >= s_pageCount)
+    if (idx >= s_pageCount) {
+        LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
         return;
+    }
+    if (!s_pages[idx].screen) {
+        LOG_ERROR("UI", "showPage: page '%s' has no screen object", s_pages[idx].id);
+        return;
+    }
 
     lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_FADE_IN,
                      150,  // Animation duration ms
@@ -136,7 +142,7 @@ void showPage(uint8_t idx) {
     );
 
     s_currentIdx = idx;
-    LOG_INFO("UI", "Navigated to page '%s'", s_pages[idx].id);
+    LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
 }
 
 // ---------------------------------------------------------------------------

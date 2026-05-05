@@ -211,8 +211,11 @@ static void onReset(lv_event_t * /*e*/) {
 // Layout helpers
 // -----------------------------------------------------------------------
 
-static const lv_font_t *FONT_LG = FontManager::get(12);
-static const lv_font_t *FONT_SM = FontManager::get(12);
+// Lazy accessors — file-scope static initializers run before FontManager::init()
+// in boot_sequence, so caching the pointer at static-init time would freeze it
+// to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
+static inline const lv_font_t *FONT_LG() { return FontManager::get(12); }
+static inline const lv_font_t *FONT_SM() { return FontManager::get(12); }
 
 static constexpr int16_t PAD_H = 8;
 
@@ -245,7 +248,7 @@ lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_eve
 
     lv_obj_t *lbl = lv_label_create(btn);
     lv_label_set_text(lbl, label);
-    lv_obj_set_style_text_font(lbl, FONT_SM, 0);
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(active ? CLR_ACCENT : CLR_MUTED), 0);
     lv_obj_center(lbl);
 
@@ -288,7 +291,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     {
         lv_obj_t *title = lv_label_create(s_panel);
         lv_label_set_text(title, "SCREEN SETTINGS");
-        lv_obj_set_style_text_font(title, FONT_LG, 0);
+        lv_obj_set_style_text_font(title, FONT_LG(), 0);
         lv_obj_set_style_text_color(title, lv_color_hex(CLR_TEXT), 0);
         lv_obj_set_pos(title, PAD_H, y);
         y += 18;
@@ -307,12 +310,12 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
 
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, "BRIGHTNESS");
-        lv_obj_set_style_text_font(lbl, FONT_SM, 0);
+        lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
 
         s_brValue = lv_label_create(row);
-        lv_obj_set_style_text_font(s_brValue, FONT_SM, 0);
+        lv_obj_set_style_text_font(s_brValue, FONT_SM(), 0);
         lv_obj_set_style_text_color(s_brValue, lv_color_hex(CLR_TEXT), 0);
         lv_obj_align(s_brValue, LV_ALIGN_RIGHT_MID, 0, 0);
         updateBrValue();
@@ -330,7 +333,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     {
         lv_obj_t *lbl = lv_label_create(s_panel);
         lv_label_set_text(lbl, "SLEEP");
-        lv_obj_set_style_text_font(lbl, FONT_SM, 0);
+        lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_set_pos(lbl, PAD_H, y);
         y += labelH + gapInner;
@@ -352,7 +355,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     {
         lv_obj_t *lbl = lv_label_create(s_panel);
         lv_label_set_text(lbl, "ROTATION");
-        lv_obj_set_style_text_font(lbl, FONT_SM, 0);
+        lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_set_pos(lbl, PAD_H, y);
         y += labelH + gapInner;
@@ -385,7 +388,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_pad_all(calBtn, 3, LV_PART_MAIN);
         lv_obj_t *calLbl = lv_label_create(calBtn);
         lv_label_set_text(calLbl, "CALIBRATE TOUCH");
-        lv_obj_set_style_text_font(calLbl, FONT_SM, 0);
+        lv_obj_set_style_text_font(calLbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(calLbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_center(calLbl);
         lv_obj_add_event_cb(calBtn, onCalibrateTouch, LV_EVENT_CLICKED, nullptr);
@@ -410,7 +413,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_pad_all(resetBtn, 3, LV_PART_MAIN);
         lv_obj_t *resetLbl = lv_label_create(resetBtn);
         lv_label_set_text(resetLbl, "RESET");
-        lv_obj_set_style_text_font(resetLbl, FONT_SM, 0);
+        lv_obj_set_style_text_font(resetLbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(resetLbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_center(resetLbl);
         lv_obj_add_event_cb(resetBtn, onReset, LV_EVENT_CLICKED, nullptr);
@@ -426,7 +429,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_pad_all(saveBtn, 3, LV_PART_MAIN);
         lv_obj_t *saveLbl = lv_label_create(saveBtn);
         lv_label_set_text(saveLbl, "SAVE");
-        lv_obj_set_style_text_font(saveLbl, FONT_SM, 0);
+        lv_obj_set_style_text_font(saveLbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(saveLbl, lv_color_hex(CLR_SAVE_TEXT), 0);
         lv_obj_center(saveLbl);
         lv_obj_add_event_cb(saveBtn, onSave, LV_EVENT_CLICKED, nullptr);
