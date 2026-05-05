@@ -41,7 +41,9 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
 
     s_tft.startWrite();
     s_tft.setAddrWindow(area->x1, area->y1, w, h);
-    s_tft.pushPixels(reinterpret_cast<uint16_t *>(colorMap), w * h);
+    // pushColors with byte-swap mirrors Elecrow's reference flush — required for
+    // the panel byte order on this board even though LV_COLOR_16_SWAP=1.
+    s_tft.pushColors(reinterpret_cast<uint16_t *>(colorMap), w * h, true);
     s_tft.endWrite();
 
     lv_disp_flush_ready(disp);
@@ -64,12 +66,42 @@ void DisplayDriver::init() {
 
     s_tft.init();
     s_tft.setRotation(HW_DISPLAY_ROTATION);
-    s_tft.fillScreen(TFT_BLACK);
+    LOG_INFO("DISP", "After setRotation(%d): tft.width=%d tft.height=%d",
+             HW_DISPLAY_ROTATION, s_tft.width(), s_tft.height());
 
-    // Configure backlight PWM
+    // Diagnostic readback (issue #40):
+    // 0xD3 (RDID4) on ILI9341 returns 0x00, 0x93, 0x41 at indices 1/2/3.
+    // 0x04 (RDDID) returns manufacturer / version / driver id.
+    // Garbage / 0x00 / 0xFF on all → SPI not reaching controller (pinout/cs/miso).
+    // Different signature → controller is not ILI9341 (e.g. ST7789).
+    const uint8_t id1 = s_tft.readcommand8(0xD3, 1);
+    const uint8_t id2 = s_tft.readcommand8(0xD3, 2);
+    const uint8_t id3 = s_tft.readcommand8(0xD3, 3);
+    const uint8_t rd_mfg = s_tft.readcommand8(0x04, 1);
+    const uint8_t rd_ver = s_tft.readcommand8(0x04, 2);
+    const uint8_t rd_drv = s_tft.readcommand8(0x04, 3);
+    LOG_INFO("DISP", "RDID4 (0xD3): %02X %02X %02X (expect 00 93 41 for ILI9341)", id1, id2, id3);
+    LOG_INFO("DISP", "RDDID (0x04): mfg=%02X ver=%02X drv=%02X", rd_mfg, rd_ver, rd_drv);
+
+    // Backlight ON before any pixel push so the panel is observable
+    // and not still in reset when fillScreen runs.
     ledcSetup(BL_PWM_CHANNEL, BL_PWM_FREQ_HZ, BL_PWM_BITS);
     ledcAttachPin(PIN_TFT_BL, BL_PWM_CHANNEL);
     setBacklight(BL_DEFAULT_DUTY);
+
+    // Diagnostic: RGB cycle to localize white-screen fault (issue #40).
+    // - Cycles R→G→B→black → TFT_eSPI init OK, fault is downstream (LVGL flush).
+    // - Stays white → SPI / panel init is broken (pinout, RST, clock).
+    LOG_INFO("DISP", "RGB diagnostic — RED");
+    s_tft.fillScreen(TFT_RED);
+    delay(400);
+    LOG_INFO("DISP", "RGB diagnostic — GREEN");
+    s_tft.fillScreen(TFT_GREEN);
+    delay(400);
+    LOG_INFO("DISP", "RGB diagnostic — BLUE");
+    s_tft.fillScreen(TFT_BLUE);
+    delay(400);
+    s_tft.fillScreen(TFT_BLACK);
 
     LOG_INFO("DISP", "Display initialized (%dx%d)", HW_DISPLAY_WIDTH, HW_DISPLAY_HEIGHT);
 }

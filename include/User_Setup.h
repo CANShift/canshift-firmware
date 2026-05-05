@@ -33,8 +33,8 @@
 // ---------------------------------------------------------------------------
 // SPI frequencies — verified from official CrowPanel 2.8" documentation
 // ---------------------------------------------------------------------------
-#define SPI_FREQUENCY 27000000      // 27 MHz — official spec for this board
-#define SPI_READ_FREQUENCY 16000000 // 16 MHz — for readbacks
+#define SPI_FREQUENCY 10000000      // 10 MHz — lowered from 27 MHz to rule out signal-integrity issue (#40)
+#define SPI_READ_FREQUENCY 6000000  // 6 MHz — readbacks need a slower clock
 #define SPI_TOUCH_FREQUENCY 2500000 // 2.5 MHz — XPT2046 maximum
 
 // ---------------------------------------------------------------------------
