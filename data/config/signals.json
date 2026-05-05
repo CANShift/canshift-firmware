@@ -172,6 +172,8 @@
       "unit": "bar",
       "min": 0,
       "max": 10,
+      "warningLevel": 1.5,
+      "dangerLevel": 1.0,
       "timeoutMs": 1000
     },
     {

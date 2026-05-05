@@ -145,20 +145,6 @@
 #define ALERT_REVLIMIT_FLASH_PCT 100 // Full flash: at/over rev limit
 #define ALERT_REVLIMIT_FLASH_HZ 8    // Flash frequency
 
-// Coolant temperature warning thresholds (°C)
-// TODO: Tune for actual VR6 operating range
-#define ALERT_COOLANT_WARN_C 100
-#define ALERT_COOLANT_CRIT_C 110
-
-// Oil temperature thresholds (°C)
-#define ALERT_OIL_TEMP_WARN_C 120
-#define ALERT_OIL_TEMP_CRIT_C 135
-
-// Oil pressure thresholds (bar)
-// TODO: Verify with VR6 oil pressure spec
-#define ALERT_OIL_PRESS_WARN_BAR 1.5f
-#define ALERT_OIL_PRESS_CRIT_BAR 1.0f
-
 // ---------------------------------------------------------------------------
 // BLE (Phase 3 — mobile app)
 // ---------------------------------------------------------------------------
