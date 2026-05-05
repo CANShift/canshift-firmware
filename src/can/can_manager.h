@@ -10,9 +10,10 @@
 //   - 500 kbps / 1 Mbps / other standard CAN speeds
 //
 // Frame acceptance filter strategy:
-//   - Accept all frames from MaxxECU known frame ID range (0x370-0x37F)
-//   - Reject all other frames — reduces CPU overhead
-//   - TODO: Make filter range configurable via signals.json
+//   - Accept all frames (TWAI_FILTER_CONFIG_ACCEPT_ALL)
+//   - Rationale: CAN scanner mode requires all frames; signal IDs are
+//     user-configurable and can span any range. At 500 kbps the ESP32
+//     handles full bus traffic without meaningful overhead.
 
 #include <stdint.h>
 

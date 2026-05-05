@@ -44,18 +44,8 @@ twai_timing_config_t getTimingConfig(uint16_t kbps) {
 }
 
 twai_filter_config_t getFilterConfig() {
-    // Accept all frames in the MaxxECU output range (0x370-0x37F)
-    // TWAI hardware filter: single filter mode
-    // Acceptance code/mask calculation for 11-bit IDs:
-    //   Code = (base_id << 21) | (0 << 20)  // RTR = 0
-    //   Mask = (range_mask << 21) | (0xFFFFF) // mask irrelevant bits
-    //
-    // To accept 0x370-0x37F: base 0x370, mask 0xF inverted → 0x7F0
-    // Accept code: 0x370 << 21 = 0x6E000000
-    // Accept mask: ~(0x7F0 << 21) = not trivial — use accept-all for now
-    //
-    // TODO: Calculate precise filter to accept only 0x370-0x37F
-    // For now: accept all frames (no filtering overhead at 500kbps)
+    // Accept all frames — CAN scanner mode requires full bus visibility and
+    // signal IDs are user-configurable, so a fixed ID range filter would break both.
     return TWAI_FILTER_CONFIG_ACCEPT_ALL();
 }
 
