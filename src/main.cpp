@@ -120,32 +120,52 @@ void loop() {
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "ui/page_manager.h"
+#include "ui/theme_manager.h"
 #include "runtime/alert_engine.h"
 #include <lvgl.h>
+#if APP_BLE_ENABLED
+#include "hal/ble/ble_server.h"
+#endif
 
 void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
 
     while (true) {
-        // Acquire LVGL mutex before any LVGL call
+#if APP_BLE_ENABLED
+        // Calibration runs WITHOUT the LVGL mutex — it blocks while the user taps
+        // crosshairs on screen and draws directly via TFT_eSPI (not through LVGL).
+        if (BleServer::takePendingCalibration()) {
+            TouchDriver::calibrate();
+            BleServer::pushStatusNotify();
+        }
+#endif
+
+        bool didDayNightToggle = false;
+
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
         } else {
-            // Advance LVGL tick
             lv_tick_inc(LVGL_HANDLER_PERIOD_MS);
-
-            // Process touch input
             TouchDriver::poll();
 
-            // Pull latest signal values into all widgets.
-            // Also checks signal timeouts and ticks the alert engine internally.
+#if APP_BLE_ENABLED
+            if (BleServer::takePendingDayNightToggle()) {
+                ThemeManager::toggleDayMode();
+                didDayNightToggle = true;
+            }
+#endif
+
             PageManager::updateWidgets();
-
-            // Run LVGL task handler (processes all pending events and redraws)
             lv_task_handler();
-
             xSemaphoreGive(g_lvglMutex);
         }
+
+#if APP_BLE_ENABLED
+        // Notify STATUS after releasing LVGL mutex so ThemeManager::isDayMode() is stable
+        if (didDayNightToggle) {
+            BleServer::pushStatusNotify();
+        }
+#endif
 
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS));
     }

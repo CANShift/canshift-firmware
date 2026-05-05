@@ -27,12 +27,31 @@ void init();
 /**
  * Called periodically from the BLE task (~10Hz).
  * Sends telemetry notification if a client is subscribed.
- * Also refreshes the STATUS characteristic value.
  */
 void tick();
 
 /** Returns true if a mobile client is currently connected. */
 bool isConnected();
+
+/**
+ * Re-compute and push a STATUS characteristic notification.
+ * Safe to call from any task — does not require the LVGL mutex.
+ */
+void pushStatusNotify();
+
+/**
+ * Atomically consume the pending day/night toggle request.
+ * Returns true (and clears the flag) if a toggle was requested.
+ * Call from the UI task, inside the LVGL mutex.
+ */
+bool takePendingDayNightToggle();
+
+/**
+ * Atomically consume the pending calibration request.
+ * Returns true (and clears the flag) if calibration was requested.
+ * Call from the UI task WITHOUT the LVGL mutex — calibrate() is blocking.
+ */
+bool takePendingCalibration();
 
 } // namespace BleServer
 

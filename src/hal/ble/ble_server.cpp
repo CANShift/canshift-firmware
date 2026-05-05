@@ -5,6 +5,7 @@
 
 #include "ble_server.h"
 #include "hal/wifi/wifi_ap.h"
+#include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "ui/settings_page.h"
@@ -15,6 +16,7 @@
 #include <ArduinoJson.h>
 #include <freertos/semphr.h>
 #include <Arduino.h>
+#include <atomic>
 #include <string.h>
 
 // ---------------------------------------------------------------------------
@@ -41,6 +43,10 @@ static NimBLECharacteristic *s_pTele     = nullptr;
 static NimBLECharacteristic *s_pStatus   = nullptr;
 static bool s_connected = false;
 
+// Deferred command flags — set by BLE callbacks, consumed by UI task
+static std::atomic<bool> s_pendingDayNightToggle{false};
+static std::atomic<bool> s_pendingCalibration{false};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -55,10 +61,11 @@ void addSignalIfValid(JsonDocument &doc, const char *key, SignalId id) {
 void updateStatus() {
     if (!s_pStatus) return;
     JsonDocument doc;
-    doc["ver"] = APP_VERSION_STR;
-    doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
+    doc["ver"]    = APP_VERSION_STR;
+    doc["can"]    = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
+    doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     if (WifiAp::isActive()) doc["ap_ssid"] = WifiAp::getSsid();
-    char buf[96];
+    char buf[128];
     serializeJson(doc, buf, sizeof(buf));
     s_pStatus->setValue(buf);
 }
@@ -125,7 +132,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         const char *cmd = doc["cmd"] | "";
 
         if (strcmp(cmd, "start_wifi_ap") == 0) {
-            WifiAp::start(); // builds SSID synchronously before returning
+            WifiAp::start();
             LOG_INFO("BLE", "CMD: starting WiFi AP — SSID: %s", WifiAp::getSsid());
             updateStatus();
             if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
@@ -134,6 +141,14 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             WifiAp::stop();
             updateStatus();
             if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+        } else if (strcmp(cmd, "toggle_day_night") == 0) {
+            // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
+            s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
+            LOG_INFO("BLE", "CMD: day/night toggle queued");
+        } else if (strcmp(cmd, "start_calibration") == 0) {
+            // Deferred to UI task — calibrate() is blocking (user taps crosshairs)
+            s_pendingCalibration.store(true, std::memory_order_relaxed);
+            LOG_INFO("BLE", "CMD: calibration queued");
         } else if (strcmp(cmd, "reboot") == 0) {
             LOG_INFO("BLE", "CMD: reboot");
             delay(100);
@@ -229,6 +244,19 @@ void BleServer::tick() {
 
 bool BleServer::isConnected() {
     return s_connected;
+}
+
+void BleServer::pushStatusNotify() {
+    updateStatus();
+    if (s_pStatus && s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+}
+
+bool BleServer::takePendingDayNightToggle() {
+    return s_pendingDayNightToggle.exchange(false, std::memory_order_relaxed);
+}
+
+bool BleServer::takePendingCalibration() {
+    return s_pendingCalibration.exchange(false, std::memory_order_relaxed);
 }
 
 #endif // APP_BLE_ENABLED
