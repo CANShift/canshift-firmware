@@ -243,7 +243,10 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     const int16_t rowW = panelW - PAD_H * 2;
     const int16_t sliderH = 12;
     const int16_t labelH = 12;
-    const int16_t btnH = 22;
+    // 32-px touch targets — Apple HIG / Material both recommend ≥40 px but the
+    // 240-px settings panel can't afford that. 32 is the sweet spot between
+    // \"hard to tap with a fingertip\" (22) and \"barely fits the panel\" (40).
+    const int16_t btnH = 32;
     const int16_t gapRow = 6;
     const int16_t gapInner = 4;
 
@@ -321,7 +324,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_bg_color(calBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
         lv_obj_set_style_border_color(calBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
         lv_obj_set_style_border_width(calBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(calBtn, 3, LV_PART_MAIN);
+        lv_obj_set_style_radius(calBtn, 0, LV_PART_MAIN);
         lv_obj_set_style_shadow_width(calBtn, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(calBtn, 3, LV_PART_MAIN);
         lv_obj_t *calLbl = lv_label_create(calBtn);
@@ -346,7 +349,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_bg_color(resetBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
         lv_obj_set_style_border_color(resetBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
         lv_obj_set_style_border_width(resetBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(resetBtn, 3, LV_PART_MAIN);
+        lv_obj_set_style_radius(resetBtn, 0, LV_PART_MAIN);
         lv_obj_set_style_shadow_width(resetBtn, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(resetBtn, 3, LV_PART_MAIN);
         lv_obj_t *resetLbl = lv_label_create(resetBtn);
@@ -362,7 +365,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_bg_color(saveBtn, lv_color_hex(CLR_SAVE_BG), LV_PART_MAIN);
         lv_obj_set_style_border_color(saveBtn, lv_color_hex(CLR_SAVE_BDR), LV_PART_MAIN);
         lv_obj_set_style_border_width(saveBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(saveBtn, 3, LV_PART_MAIN);
+        lv_obj_set_style_radius(saveBtn, 0, LV_PART_MAIN);
         lv_obj_set_style_shadow_width(saveBtn, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(saveBtn, 3, LV_PART_MAIN);
         lv_obj_t *saveLbl = lv_label_create(saveBtn);
