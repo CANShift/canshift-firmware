@@ -23,6 +23,7 @@
 
 #include <Arduino.h>
 #include <esp_heap_caps.h>
+#include <esp_log.h>
 #include <lvgl.h>
 
 // Diagnostic — log free heap and largest contiguous block at a named boot stage.
@@ -182,6 +183,14 @@ static void buildUI() {
 // ---------------------------------------------------------------------------
 
 void BootSequence::run() {
+    // Silence ESP-IDF NVS error logs on first boot. Preferences::begin(ns,
+    // /*readOnly=*/true) on a namespace that doesn't yet exist (touch cal,
+    // settings) emits "[E] nvs_open failed: NOT_FOUND" via ESP-IDF's NVS log
+    // tag. The read-fail is expected and the caller already handles it with a
+    // sensible default — the ERROR-level log is just noise. Demoting the tag
+    // to WARN keeps real NVS errors visible (#42).
+    esp_log_level_set("nvs", ESP_LOG_WARN);
+
     logHeap("entry");
     // 1. Display + LVGL must come early so we can show a splash
     initDisplayAndLVGL();
