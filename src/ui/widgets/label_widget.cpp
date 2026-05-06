@@ -76,10 +76,9 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
 
-    // Suffix is rendered inline with the value (e.g. "78°C") rather than on a
-    // separate line — that way it can never collide with a corner-anchored
-    // user label, regardless of where the user places the widget label from
-    // studio. Studio uses the same pattern for parity.
+    // Suffix is rendered inline with the value when shown ("78°C"), but is
+    // dropped entirely when a user label is set — the label already conveys
+    // the unit (e.g. "COOLANT" → °C is implicit). Frees screen real estate.
     const int16_t valueYOffset = static_cast<int16_t>(sigHeaderH / 2);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, valueYOffset);
 
@@ -87,8 +86,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         char valBuf[16];
         snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces), 0.0f);
         char buf[40];
-        snprintf(buf, sizeof(buf), "%s%s%s",
-                 cfg.label.prefix, valBuf, cfg.label.suffix);
+        const char *suffix = hasUserLabel ? "" : cfg.label.suffix;
+        snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, suffix);
         lv_label_set_text(label, buf);
     }
 
@@ -123,8 +122,11 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     snprintf(valBuf, sizeof(valBuf), "%.*f",
              static_cast<int>(cfg.label.decimalPlaces), displayValue);
 
+    // Mirror the create() rule: suffix is suppressed when the user has set a
+    // label — the label name already implies the unit.
+    const bool hasUserLabel = cfg.label.label[0] != '\0';
+    const char *suffix = hasUserLabel ? "" : cfg.label.suffix;
     char buf[40];
-    snprintf(buf, sizeof(buf), "%s%s%s",
-             cfg.label.prefix, valBuf, cfg.label.suffix);
+    snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, suffix);
     lv_label_set_text(label, buf);
 }

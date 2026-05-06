@@ -159,11 +159,13 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
                                 || cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER
                                 || cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
 
-        // Reserve a label band: 25 % of widget height, clamped 11..28 so the
-        // band stays usable on short widgets and proportional on tall ones.
-        int16_t labelBandH = static_cast<int16_t>((H * 25) / 100);
-        if (labelBandH < 11) labelBandH = 11;
-        if (labelBandH > 28) labelBandH = 28;
+        // Reserve a label band: 18 % of widget height, clamped 10..20. The
+        // tighter range gives the bar itself more vertical room — important
+        // for short widgets like the THROTTLE bar (h≈28..36) where every px
+        // of track height matters.
+        int16_t labelBandH = static_cast<int16_t>((H * 18) / 100);
+        if (labelBandH < 10) labelBandH = 10;
+        if (labelBandH > 20) labelBandH = 20;
         // Bar fills the rest minus a small gap.
         const int16_t gap = 2;
         const int16_t barH = H - labelBandH - gap;
