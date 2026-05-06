@@ -109,31 +109,6 @@ static void uppercaseCopy(char *dst, size_t dstLen, const char *src) {
     dst[i] = '\0';
 }
 
-// Resolve a signal name to its SignalId. Returns SignalIds::SIGNAL_COUNT for
-// unknown / sentinel values (the caller treats that as "no specific signal").
-// "any" is the documented sentinel for `statusDot` meaning "any signal alive".
-static SignalId resolveTopBarSignal(const char *name) {
-    if (!name || name[0] == '\0' || strcmp(name, "any") == 0)
-        return SignalIds::SIGNAL_COUNT;
-    if (strcmp(name, "rpm") == 0)            return SignalIds::RPM;
-    if (strcmp(name, "battery_volts") == 0)  return SignalIds::BATTERY_VOLTS;
-    if (strcmp(name, "coolant_temp_c") == 0) return SignalIds::COOLANT_TEMP_C;
-    if (strcmp(name, "throttle_pos") == 0)   return SignalIds::THROTTLE_POS;
-    if (strcmp(name, "speed_kph") == 0)      return SignalIds::SPEED_KPH;
-    if (strcmp(name, "boost_bar") == 0)      return SignalIds::BOOST_BAR;
-    if (strcmp(name, "iat_c") == 0)          return SignalIds::IAT_C;
-    if (strcmp(name, "oil_temp_c") == 0)     return SignalIds::OIL_TEMP_C;
-    if (strcmp(name, "oil_press_bar") == 0)  return SignalIds::OIL_PRESS_BAR;
-    if (strcmp(name, "fuel_press_bar") == 0) return SignalIds::FUEL_PRESS_BAR;
-    if (strcmp(name, "lambda_1") == 0)       return SignalIds::LAMBDA_1;
-    if (strcmp(name, "afr_1") == 0)          return SignalIds::AFR_1;
-    if (strcmp(name, "gear") == 0)           return SignalIds::GEAR;
-    if (strcmp(name, "flag_mil") == 0)       return SignalIds::FLAG_MIL;
-    if (strcmp(name, "map_number") == 0)     return SignalIds::MAP_NUMBER;
-    LOG_WARN("TopBar", "Unknown signal name: %s", name);
-    return SignalIds::SIGNAL_COUNT;
-}
-
 // True when at least one signal in the store is currently valid. Used by
 // `statusDot` items with signal="any" (the legacy "CAN" presence dot).
 static bool anySignalValid() {
@@ -404,7 +379,7 @@ static void updateDynStatusDot(uint8_t idx, const DynItem &d) {
     if (d.signalId[0] == '\0' || strcmp(d.signalId, "any") == 0) {
         valid = anySignalValid();
     } else {
-        SignalId sid = resolveTopBarSignal(d.signalId);
+        SignalId sid = signalIdFromName(d.signalId);
         valid = (sid < SignalIds::SIGNAL_COUNT) && SignalStore::isValid(sid);
     }
     if (valid) s_dynEverSeen[idx] = true;
@@ -414,7 +389,7 @@ static void updateDynStatusDot(uint8_t idx, const DynItem &d) {
 }
 
 static void updateDynSignalLabel(const DynItem &d) {
-    SignalId sid = resolveTopBarSignal(d.signalId);
+    SignalId sid = signalIdFromName(d.signalId);
     const char *fmt = d.format[0] ? d.format : "%.1f";
     if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
         float v = SignalStore::read(sid, 0.0f);
