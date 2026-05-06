@@ -199,7 +199,7 @@
           "id": "tps_bar",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 0, "y": 168, "w": 320, "h": 28, "zOrder": 0 },
+          "layout": { "x": 0, "y": 168, "w": 320, "h": 40, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -226,7 +226,7 @@
           "id": "mil_warn",
           "type": "warning",
           "signal": "flag_mil",
-          "layout": { "x": 160, "y": 196, "w": 80, "h": 28, "zOrder": 1 },
+          "layout": { "x": 160, "y": 208, "w": 80, "h": 28, "zOrder": 1 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#333333",
@@ -247,7 +247,7 @@
           "id": "nav_detail",
           "type": "button",
           "signal": "",
-          "layout": { "x": 240, "y": 196, "w": 80, "h": 28, "zOrder": 0 },
+          "layout": { "x": 240, "y": 208, "w": 80, "h": 28, "zOrder": 0 },
           "style": {
             "primaryColor": "#2A2A2A",
             "secondaryColor": "#1A1A1A",
@@ -434,7 +434,7 @@
           "id": "tps_hbar",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 28, "zOrder": 0 },
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 40, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
