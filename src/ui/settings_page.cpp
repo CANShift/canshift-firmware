@@ -19,7 +19,6 @@
 static constexpr char NVS_NS[] = "screen_cfg";
 static constexpr char KEY_BRIGHTNESS[] = "brightness"; // uint8  (10–100 %)
 static constexpr char KEY_SLEEP_S[] = "sleep_s";       // uint32 (0/30/60/300)
-static constexpr char KEY_ROTATION[] = "rotation";     // uint8  (0/90/180/270)
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -27,7 +26,6 @@ static constexpr char KEY_ROTATION[] = "rotation";     // uint8  (0/90/180/270)
 
 static constexpr uint8_t DEFAULT_BRIGHTNESS = 80;
 static constexpr uint32_t DEFAULT_SLEEP_S = 0;
-static constexpr uint8_t DEFAULT_ROTATION = 0;
 
 // ---------------------------------------------------------------------------
 // Sleep timeout options
@@ -36,15 +34,6 @@ static constexpr uint8_t DEFAULT_ROTATION = 0;
 static constexpr uint8_t SLEEP_OPTION_COUNT = 4;
 static constexpr uint32_t SLEEP_OPTIONS[SLEEP_OPTION_COUNT] = {0, 30, 60, 300};
 static const char *const SLEEP_LABELS[SLEEP_OPTION_COUNT] = {"Off", "30s", "1m", "5m"};
-
-// ---------------------------------------------------------------------------
-// Rotation options
-// ---------------------------------------------------------------------------
-
-// Only landscape orientations are useful on this 320x240 form factor.
-// 0° = normal landscape, 180° = upside-down landscape.
-static constexpr uint8_t ROT_OPTION_COUNT = 2;
-static constexpr uint16_t ROT_OPTIONS[ROT_OPTION_COUNT] = {0, 180};
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -69,14 +58,12 @@ namespace {
 
 static uint8_t s_brightness = DEFAULT_BRIGHTNESS;
 static uint32_t s_sleepTimeoutS = DEFAULT_SLEEP_S;
-static uint16_t s_rotation = DEFAULT_ROTATION;
 static bool s_sleeping = false;
 
 static lv_obj_t *s_panel = nullptr;
 static lv_obj_t *s_brSlider = nullptr;
 static lv_obj_t *s_brValue = nullptr;
 static lv_obj_t *s_sleepBtns[SLEEP_OPTION_COUNT] = {};
-static lv_obj_t *s_rotBtns[ROT_OPTION_COUNT] = {};
 
 static bool s_open = false;
 
@@ -89,7 +76,6 @@ void nvsLoad() {
     p.begin(NVS_NS, /*readOnly=*/true);
     s_brightness = p.getUChar(KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
     s_sleepTimeoutS = p.getUInt(KEY_SLEEP_S, DEFAULT_SLEEP_S);
-    s_rotation = p.getUChar(KEY_ROTATION, DEFAULT_ROTATION);
     p.end();
 
     if (s_brightness < 10 || s_brightness > 100)
@@ -101,10 +87,8 @@ void nvsSave() {
     p.begin(NVS_NS, /*readOnly=*/false);
     p.putUChar(KEY_BRIGHTNESS, s_brightness);
     p.putUInt(KEY_SLEEP_S, s_sleepTimeoutS);
-    p.putUChar(KEY_ROTATION, s_rotation);
     p.end();
-    LOG_INFO("Settings", "Saved — brightness=%d%% sleep=%ds rotation=%d",
-             s_brightness, s_sleepTimeoutS, s_rotation);
+    LOG_INFO("Settings", "Saved — brightness=%d%% sleep=%ds", s_brightness, s_sleepTimeoutS);
 }
 
 // -----------------------------------------------------------------------
@@ -142,21 +126,6 @@ void updateSleepButtons() {
     }
 }
 
-void updateRotButtons() {
-    for (uint8_t i = 0; i < ROT_OPTION_COUNT; ++i) {
-        if (!s_rotBtns[i])
-            continue;
-        bool active = (ROT_OPTIONS[i] == s_rotation);
-        lv_obj_set_style_bg_color(s_rotBtns[i], lv_color_hex(active ? CLR_BTN_ACT : CLR_BTN_BG),
-                                  LV_PART_MAIN);
-        lv_obj_set_style_border_color(s_rotBtns[i],
-                                      lv_color_hex(active ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_t *lbl = lv_obj_get_child(s_rotBtns[i], 0);
-        if (lbl)
-            lv_obj_set_style_text_color(lbl, lv_color_hex(active ? CLR_ACCENT : CLR_MUTED), 0);
-    }
-}
-
 // -----------------------------------------------------------------------
 // Event callbacks
 // -----------------------------------------------------------------------
@@ -177,15 +146,6 @@ static void onSleepBtn(lv_event_t *e) {
     updateSleepButtons();
 }
 
-static void onRotBtn(lv_event_t *e) {
-    uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-    if (idx >= ROT_OPTION_COUNT)
-        return;
-    s_rotation = ROT_OPTIONS[idx];
-    updateRotButtons();
-    // Rotation applied on next boot via NVS; lv_disp_set_rotation() requires reinit
-}
-
 static void onCalibrateTouch(lv_event_t * /*e*/) {
     // Close settings so calibration crosshairs are unobstructed
     SettingsPage::close();
@@ -201,13 +161,11 @@ static void onSave(lv_event_t * /*e*/) {
 static void onReset(lv_event_t * /*e*/) {
     s_brightness = DEFAULT_BRIGHTNESS;
     s_sleepTimeoutS = DEFAULT_SLEEP_S;
-    s_rotation = DEFAULT_ROTATION;
     s_sleeping = false;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
     updateSleepButtons();
-    updateRotButtons();
     applyBrightness();
 }
 
@@ -354,30 +312,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         y += btnH;
     }
 
-    // ---- Rotation ----
-    y += gapRow;
-    {
-        lv_obj_t *lbl = lv_label_create(s_panel);
-        lv_label_set_text(lbl, "ROTATION");
-        lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_set_pos(lbl, PAD_H, y);
-        y += labelH + gapInner;
-
-        const int16_t gap = 4;
-        const int16_t btnW = (rowW - gap * (ROT_OPTION_COUNT - 1)) / ROT_OPTION_COUNT;
-        char rotLabel[6];
-        for (uint8_t i = 0; i < ROT_OPTION_COUNT; ++i) {
-            snprintf(rotLabel, sizeof(rotLabel), "%d\xC2\xB0", ROT_OPTIONS[i]);
-            bool active = (ROT_OPTIONS[i] == s_rotation);
-            s_rotBtns[i] = makeSegButton(s_panel, rotLabel, active, onRotBtn,
-                                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-            lv_obj_set_pos(s_rotBtns[i], PAD_H + i * (btnW + gap), y);
-            lv_obj_set_size(s_rotBtns[i], btnW, btnH);
-        }
-        y += btnH;
-    }
-
     // ---- Touch calibration ----
     y += gapRow;
     {
@@ -499,13 +433,12 @@ void SettingsPage::tickSleep() {
     }
 }
 
-void SettingsPage::applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS, uint16_t rotation) {
+void SettingsPage::applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS) {
     if (brightness < 10 || brightness > 100)
         brightness = DEFAULT_BRIGHTNESS;
 
     s_brightness = brightness;
     s_sleepTimeoutS = sleepTimeoutS;
-    s_rotation = rotation;
     s_sleeping = false;
 
     applyBrightness();
@@ -514,10 +447,9 @@ void SettingsPage::applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS, uint
         lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
     updateSleepButtons();
-    updateRotButtons();
 
     nvsSave();
 
-    LOG_INFO("Settings", "Applied from USB — brightness=%d%% sleep=%ds rotation=%d",
-             s_brightness, s_sleepTimeoutS, s_rotation);
+    LOG_INFO("Settings", "Applied from USB — brightness=%d%% sleep=%ds", s_brightness,
+             s_sleepTimeoutS);
 }

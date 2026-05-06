@@ -303,10 +303,9 @@ void handlePutFile(const JsonObjectConst &obj) {
 void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
     uint32_t sleepS = obj["sleep"] | 0u;
-    uint16_t rotation = obj["rotation"] | 0u;
 
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        SettingsPage::applyFromUsb(brightness, sleepS, rotation);
+        SettingsPage::applyFromUsb(brightness, sleepS);
         xSemaphoreGive(g_lvglMutex);
         Serial.println("{\"status\":\"ok\"}");
     } else {

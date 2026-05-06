@@ -23,7 +23,7 @@ ESP32 firmware for the CANShift automotive dashboard.
 - Day/night theme toggle — rebuilds all LVGL pages with new color scheme
 - USB serial communication (JSON lines, 115200 baud):
   - `CMD_PUT_CONFIG` — receive new dashboard config, write to SPIFFS, reboot
-  - `CMD_SCREEN_SETTINGS` — update brightness, contrast, sleep timeout, rotation
+  - `CMD_SCREEN_SETTINGS` — update brightness, contrast, sleep timeout
   - `CMD_GET_STATUS` — return firmware version and protocol number
   - `CMD_CAN_SCAN_START` / `CMD_CAN_SCAN_STOP` — forward raw frames to desktop
   - `CMD_REBOOT` — soft reboot
@@ -137,7 +137,7 @@ JSON lines at 115200 baud. Each message is one JSON object followed by `\n`.
 | Cmd | Value | Payload | Behaviour |
 |-----|-------|---------|-----------|
 | `CMD_PUT_CONFIG` | 0x02 | `{"cmd":2,"payload":{...}}` | Write new `dashboard.json` to SPIFFS, send `{"status":"ok"}`, reboot |
-| `CMD_SCREEN_SETTINGS` | 0x05 | `{"cmd":5,"brightness":80,"contrast":50,"sleep":0,"rotation":0}` | Apply display settings |
+| `CMD_SCREEN_SETTINGS` | 0x05 | `{"cmd":5,"brightness":80,"contrast":50,"sleep":0}` | Apply display settings |
 | `CMD_GET_STATUS` | 0x10 | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":N}` |
 | `CMD_CAN_SCAN_START` | 0x20 | `{"cmd":32}` | Enable CAN scan mode |
 | `CMD_CAN_SCAN_STOP` | 0x21 | `{"cmd":33}` | Disable CAN scan mode |

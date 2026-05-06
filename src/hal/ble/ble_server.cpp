@@ -91,7 +91,7 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 
 // ---------------------------------------------------------------------------
 // SETTINGS write callback
-// Payload: {"brightness":80,"sleep":30,"rotation":0}
+// Payload: {"brightness":80,"sleep":30}
 // ---------------------------------------------------------------------------
 
 class SettingsCallbacks : public NimBLECharacteristicCallbacks {
@@ -105,10 +105,9 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
 
         uint8_t brightness  = doc["brightness"] | 80;
         uint32_t sleepS     = doc["sleep"] | 0u;
-        uint16_t rotation   = doc["rotation"] | 0u;
 
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            SettingsPage::applyFromUsb(brightness, sleepS, rotation);
+            SettingsPage::applyFromUsb(brightness, sleepS);
             xSemaphoreGive(g_lvglMutex);
         }
         LOG_DEBUG("BLE", "Settings applied via BLE");

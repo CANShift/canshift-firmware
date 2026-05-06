@@ -4,7 +4,6 @@
 // A full-canvas overlay (below the top bar) that exposes:
 //   - Brightness (slider, live preview via DisplayDriver::setBacklight)
 //   - Sleep timeout (segmented buttons: Off / 30s / 1m / 5m)
-//   - Screen rotation (segmented buttons: 0° / 90° / 180° / 270°)
 //   - Calibrate Touch (runs TFT_eSPI crosshair calibration, stores to NVS)
 //
 // Navigation:
@@ -57,6 +56,6 @@ void tickSleep();
  * Must be called while holding g_lvglMutex.
  * Applies backlight immediately and persists all values to NVS.
  */
-void applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS, uint16_t rotation);
+void applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS);
 
 } // namespace SettingsPage
