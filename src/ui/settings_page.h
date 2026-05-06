@@ -47,6 +47,33 @@ uint32_t getSleepTimeoutS();
 /** Returns the current brightness percentage (10–100). */
 uint8_t getBrightness();
 
+// ---------------------------------------------------------------------------
+// Drag-to-reveal API (#47) — finger-driven panel pull-down
+// ---------------------------------------------------------------------------
+// State machine (called from PageManager's drag tracker):
+//   beginDrag()      → panel becomes visible, anchored fully off-screen up
+//   updateDrag(off)  → panel y translated by clamped offset
+//   endDrag(true)    → animate to settled-open
+//   endDrag(false)   → animate hidden (and clears s_open)
+
+/** Total panel height in pixels (from init()). */
+int16_t getPanelHeight();
+
+/** Resting Y of the panel when open (the yOffset argument from init()). */
+int16_t getPanelTopY();
+
+/** Begin a drag-to-open gesture. No-op when already open or already dragging. */
+void beginDrag();
+
+/** Update panel position during drag. Clamped internally. */
+void updateDrag(int16_t dragOffsetPx);
+
+/** End drag with snap decision: open=true → settled-open; open=false → hidden. */
+void endDrag(bool open);
+
+/** True while a drag-to-reveal is in progress (used to suppress swipe gestures). */
+bool isDragging();
+
 /**
  * Called each UI tick from PageManager::updateWidgets().
  * Dims backlight after inactivity period; restores on touch.
