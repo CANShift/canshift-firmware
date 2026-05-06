@@ -237,18 +237,21 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     lv_obj_set_style_border_width(s_panel, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_panel, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_panel, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_bottom(s_panel, 8, LV_PART_MAIN);
+    lv_obj_add_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(s_panel, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(s_panel, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
 
     const int16_t rowW = panelW - PAD_H * 2;
-    const int16_t sliderH = 12;
-    const int16_t labelH = 12;
-    // 32-px touch targets — Apple HIG / Material both recommend ≥40 px but the
-    // 240-px settings panel can't afford that. 32 is the sweet spot between
-    // \"hard to tap with a fingertip\" (22) and \"barely fits the panel\" (40).
-    const int16_t btnH = 32;
-    const int16_t gapRow = 6;
-    const int16_t gapInner = 4;
+    const int16_t sliderH = 16;
+    const int16_t labelH = 14;
+    // 56-px touch targets — comfortably above Apple HIG / Material 44 px guidance.
+    // The page now scrolls vertically, so we are no longer constrained by the
+    // 240 px screen height.
+    const int16_t btnH = 56;
+    const int16_t gapRow = 10;
+    const int16_t gapInner = 6;
 
     int16_t y = 6;
 
@@ -336,9 +339,10 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         y += btnH;
     }
 
-    // ---- Actions — pinned to bottom ----
+    // ---- Actions — flow at end of content (panel scrolls vertically) ----
+    y += gapRow;
     {
-        const int16_t actionY = height - 8 - btnH;
+        const int16_t actionY = y;
         const int16_t gap = 6;
         const int16_t resetW = (rowW - gap) / 3;
         const int16_t saveW = rowW - resetW - gap;
