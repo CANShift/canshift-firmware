@@ -53,13 +53,15 @@ static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam,
     lv_arc_set_bg_angles(arc, startAngle, endAngle);
     lv_arc_set_angles(arc, 0, 0); // No indicator
 
-    // Background track: colored zone
+    // Background track: colored zone — square ends per dashboard styling.
     lv_obj_set_style_arc_color(arc, lv_color_hex(colorRgb), LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc, arcWidth, LV_PART_MAIN);
+    lv_obj_set_style_arc_rounded(arc, false, LV_PART_MAIN);
 
     // Indicator: invisible
     lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_set_style_arc_width(arc, arcWidth, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
 
     // No knob
     lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
@@ -82,10 +84,11 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
     // Background: transparent (sector arcs show through)
     lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_MAIN);
 
-    // Indicator: bright white needle
+    // Indicator: bright white needle — square ends.
     lv_obj_set_style_arc_color(arc, lv_color_hex(kColorValue), LV_PART_INDICATOR);
     lv_obj_set_style_arc_width(arc, indicatorWidth, LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
 
     // No knob
     lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
@@ -151,9 +154,10 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const uint16_t dangerAngle =
         hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
 
-    // Arc line widths
-    constexpr uint8_t kBgWidth  = 8; // Sector track width
-    constexpr uint8_t kIndWidth = 4; // Value indicator width (thinner, sits inside)
+    // Arc line widths — thick enough to read on the now-smaller (h=80)
+    // dashboard arcs without overwhelming the value text in the centre.
+    constexpr uint8_t kBgWidth  = 14; // Sector track width
+    constexpr uint8_t kIndWidth = 7;  // Value indicator (thinner, sits inside)
 
     // ---------------------------------------------------------------------------
     // Layer 1-3: Static sector arcs (background track, colored zones)

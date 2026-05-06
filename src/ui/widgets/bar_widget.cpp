@@ -458,7 +458,8 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     }
 
     if (t->valueLabel) {
-        lv_obj_set_style_text_color(t->valueLabel, lv_color_hex(fillRgb), 0);
+        // Keep the value WHITE on the bar — re-tinting it to fillRgb would
+        // make it invisible (same colour as the fill underneath).
         renderValueText(t, displayValue);
     }
 
