@@ -16,7 +16,6 @@
 #include <lvgl.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h> // abs()
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -219,13 +218,6 @@ void checkGestures() {
     // We consume it once per touch cycle and reset on physical release.
     static lv_dir_t lastDir = LV_DIR_NONE;
 
-    // While the user is mid-drag-to-reveal (#47), suppress regular swipes —
-    // otherwise the same downward motion would fire twice (drag + gesture).
-    if (SettingsPage::isDragging()) {
-        lastDir = LV_DIR_NONE;
-        return;
-    }
-
     lv_indev_t *indev = lv_indev_get_next(nullptr);
     while (indev != nullptr) {
         if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
@@ -243,75 +235,6 @@ void checkGestures() {
             break;
         }
         indev = lv_indev_get_next(indev);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Drag-to-reveal tracker (#47)
-// ---------------------------------------------------------------------------
-//
-// Fires when a finger touches the top edge while Settings is closed and lets
-// the SettingsPage panel follow the finger as it's dragged down. On release
-// the panel snaps open or closed depending on how far the user pulled.
-//
-// Why a separate function from checkGestures(): LVGL's gesture system only
-// reports a final direction once the gesture completes — we need continuous
-// position updates during the press, so we read indev state directly.
-
-constexpr int16_t DRAG_START_Y_MAX = 30;        // px from top — touch must start here
-constexpr int16_t DRAG_OPEN_THRESHOLD_DIV = 2;  // release > totalTravel/N → snap open
-
-void checkDragToReveal() {
-    static bool armed = false;
-    static int16_t startY = 0;
-    static int16_t startX = 0;
-
-    lv_indev_t *indev = lv_indev_get_next(nullptr);
-    while (indev != nullptr) {
-        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) break;
-        indev = lv_indev_get_next(indev);
-    }
-    if (indev == nullptr) return;
-
-    const lv_indev_state_t state = indev->proc.state;
-    const lv_point_t p = indev->proc.types.pointer.act_point;
-
-    if (state == LV_INDEV_STATE_PRESSED) {
-        if (!armed && !SettingsPage::isDragging() && !SettingsPage::isOpen()) {
-            // Only arm if the press began near the top edge — anywhere else
-            // and we don't want to hijack normal interactions.
-            if (p.y >= 0 && p.y <= DRAG_START_Y_MAX) {
-                armed = true;
-                startY = p.y;
-                startX = p.x;
-            }
-        } else if (armed) {
-            // Wait for a clearly downward motion before claiming the gesture
-            // — this avoids fighting horizontal swipes that happen to start
-            // near the top edge.
-            const int16_t dy = p.y - startY;
-            const int16_t dx = p.x - startX;
-            if (!SettingsPage::isDragging()) {
-                if (dy > 8 && dy > abs(dx)) {
-                    SettingsPage::beginDrag();
-                    SettingsPage::updateDrag(dy);
-                }
-            } else {
-                SettingsPage::updateDrag(dy);
-            }
-        }
-        // If isDragging() but !armed, a snap animation is running from a
-        // prior touch — leave it alone, do not start a new drag mid-flight.
-    } else { // RELEASED
-        if (armed && SettingsPage::isDragging()) {
-            const int16_t total =
-                SettingsPage::getPanelHeight() + SettingsPage::getPanelTopY();
-            const int16_t threshold =
-                static_cast<int16_t>(total / DRAG_OPEN_THRESHOLD_DIV);
-            const int16_t travelled = static_cast<int16_t>(p.y - startY);
-            SettingsPage::endDrag(travelled >= threshold);
-        }
-        armed = false;
     }
 }
 
@@ -495,9 +418,7 @@ void PageManager::updateWidgets() {
     }
 
     // Process swipe gestures before widget updates so navigation changes take
-    // effect on the same frame that LVGL renders. Drag-to-reveal (#47) runs
-    // first so it can claim the touch before the gesture system fires.
-    checkDragToReveal();
+    // effect on the same frame that LVGL renders.
     checkGestures();
 
     // Update widgets on the current page

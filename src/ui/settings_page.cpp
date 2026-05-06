@@ -67,12 +67,6 @@ static lv_obj_t *s_sleepBtns[SLEEP_OPTION_COUNT] = {};
 
 static bool s_open = false;
 
-// Cached layout — needed by the drag-to-reveal state machine to clamp
-// the panel between fully-hidden (y = -panelHeight) and fully-open (y = topY).
-static int16_t s_panelTopY = 0;
-static int16_t s_panelHeight = 0;
-static bool s_dragging = false;
-
 // -----------------------------------------------------------------------
 // NVS helpers
 // -----------------------------------------------------------------------
@@ -234,9 +228,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     nvsLoad();
 
     const int16_t panelW = LV_HOR_RES;
-
-    s_panelTopY = yOffset;
-    s_panelHeight = height;
 
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_pos(s_panel, 0, yOffset);
@@ -428,85 +419,6 @@ uint32_t SettingsPage::getSleepTimeoutS() {
 
 uint8_t SettingsPage::getBrightness() {
     return s_brightness;
-}
-
-// ---------------------------------------------------------------------------
-// Drag-to-reveal (#47)
-// ---------------------------------------------------------------------------
-
-int16_t SettingsPage::getPanelHeight() {
-    return s_panelHeight;
-}
-
-int16_t SettingsPage::getPanelTopY() {
-    return s_panelTopY;
-}
-
-bool SettingsPage::isDragging() {
-    return s_dragging;
-}
-
-void SettingsPage::beginDrag() {
-    if (!s_panel || s_open || s_dragging)
-        return;
-    // Stage the panel just above the visible area so the first updateDrag()
-    // call lands it at -panelHeight + offset, smoothly entering frame.
-    s_dragging = true;
-    lv_obj_set_y(s_panel, -s_panelHeight);
-    lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(s_panel);
-}
-
-void SettingsPage::updateDrag(int16_t dragOffsetPx) {
-    if (!s_panel || !s_dragging)
-        return;
-    // Travel range: closed (-panelHeight) → open (panelTopY).
-    const int16_t maxOffset = s_panelHeight + s_panelTopY;
-    int16_t off = dragOffsetPx;
-    if (off < 0) off = 0;
-    if (off > maxOffset) off = maxOffset;
-    lv_obj_set_y(s_panel, -s_panelHeight + off);
-}
-
-namespace {
-
-void dragSnapAnimCb(void *obj, int32_t v) {
-    lv_obj_set_y(static_cast<lv_obj_t *>(obj), v);
-}
-
-void dragSnapAnimReady(lv_anim_t *a) {
-    // a->user_data carries the target open/closed state (1 = open, 0 = closed).
-    bool open = a->user_data != nullptr;
-    s_dragging = false;
-    if (open) {
-        s_open = true;
-        s_lastOpenMs = millis();
-    } else {
-        s_open = false;
-        if (s_panel) lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
-} // namespace
-
-void SettingsPage::endDrag(bool open) {
-    if (!s_panel || !s_dragging)
-        return;
-    const int16_t startY = lv_obj_get_y(s_panel);
-    const int16_t endY = open ? s_panelTopY : static_cast<int16_t>(-s_panelHeight);
-
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, s_panel);
-    lv_anim_set_values(&a, startY, endY);
-    lv_anim_set_time(&a, 160);
-    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&a, dragSnapAnimCb);
-    lv_anim_set_ready_cb(&a, dragSnapAnimReady);
-    // Pass open/closed via user_data so the ready_cb knows which terminal
-    // state to commit. Non-null = open, null = closed.
-    a.user_data = open ? reinterpret_cast<void *>(1) : nullptr;
-    lv_anim_start(&a);
 }
 
 void SettingsPage::tickSleep() {
