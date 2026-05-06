@@ -377,6 +377,26 @@ void handleCommand(const char *jsonLine) {
             Serial.println(resp);
             break;
         }
+        case UsbComm::CMD_GET_CONFIG: {
+            // Stream the on-disk dashboard.json back to the host. Newlines in
+            // the file would break the line-delimited Serial protocol, so we
+            // strip them in place (JSON treats \n / \r as whitespace anyway).
+            size_t fileSize = 0;
+            char *json = StorageDriver::readFile(CONFIG_PATH_DASHBOARD, &fileSize);
+            if (!json) {
+                Serial.println("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+                break;
+            }
+            for (size_t i = 0; i < fileSize; ++i) {
+                if (json[i] == '\n' || json[i] == '\r') json[i] = ' ';
+            }
+            Serial.print("{\"status\":\"ok\",\"config\":");
+            Serial.write(reinterpret_cast<const uint8_t *>(json), fileSize);
+            Serial.println("}");
+            free(json);
+            LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(fileSize));
+            break;
+        }
         case UsbComm::CMD_SCREEN_SETTINGS:
             handleScreenSettings(doc.as<JsonObjectConst>());
             break;
