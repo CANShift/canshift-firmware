@@ -15,7 +15,6 @@
 
 #include <lvgl.h>
 #include <stdint.h>
-#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Widget registry
@@ -30,56 +29,12 @@ struct WidgetEntry {
     lv_obj_t *parent; // Owning page screen
     lv_obj_t *obj;    // LVGL object
     WidgetType type;
-    char signalId[CFG_MAX_SIGNAL_LEN];
-    CfgWidget cfg; // Copy of config for update logic
+    SignalId signalId; // Resolved once at create time — SIGNAL_COUNT means none
+    CfgWidget cfg;     // Copy of config for update logic
 };
 
 static WidgetEntry s_widgets[MAX_TRACKED_WIDGETS];
 static uint8_t s_widgetCount = 0;
-
-SignalId resolveSignalId(const char *name) {
-    // Map signal name string to SignalId constant
-    // This is a simple linear lookup. For large signal sets, use a hash map.
-    // Signal name strings must match signal_map.h constants.
-    if (strcmp(name, "rpm") == 0)
-        return SignalIds::RPM;
-    if (strcmp(name, "throttle_pos") == 0)
-        return SignalIds::THROTTLE_POS;
-    if (strcmp(name, "map_kpa") == 0)
-        return SignalIds::MAP_KPA;
-    if (strcmp(name, "boost_bar") == 0)
-        return SignalIds::BOOST_BAR;
-    if (strcmp(name, "iat_c") == 0)
-        return SignalIds::IAT_C;
-    if (strcmp(name, "coolant_temp_c") == 0)
-        return SignalIds::COOLANT_TEMP_C;
-    if (strcmp(name, "oil_temp_c") == 0)
-        return SignalIds::OIL_TEMP_C;
-    if (strcmp(name, "oil_press_bar") == 0)
-        return SignalIds::OIL_PRESS_BAR;
-    if (strcmp(name, "fuel_press_bar") == 0)
-        return SignalIds::FUEL_PRESS_BAR;
-    if (strcmp(name, "lambda_1") == 0)
-        return SignalIds::LAMBDA_1;
-    if (strcmp(name, "afr_1") == 0)
-        return SignalIds::AFR_1;
-    if (strcmp(name, "speed_kph") == 0)
-        return SignalIds::SPEED_KPH;
-    if (strcmp(name, "gear") == 0)
-        return SignalIds::GEAR;
-    if (strcmp(name, "battery_volts") == 0)
-        return SignalIds::BATTERY_VOLTS;
-    if (strcmp(name, "flag_mil") == 0)
-        return SignalIds::FLAG_MIL;
-    if (strcmp(name, "map_number") == 0)
-        return SignalIds::MAP_NUMBER;
-    // Empty name is legal (button widgets carry no signal). Stay silent
-    // for those; only warn on a non-empty name we genuinely don't know.
-    if (name[0] != '\0') {
-        LOG_WARN("WF", "Unknown signal name: %s", name);
-    }
-    return SignalIds::SIGNAL_COUNT; // Invalid
-}
 
 lv_obj_t *createGauge(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *obj = GaugeWidget::create(parent, cfg, yOffset);
@@ -119,13 +74,12 @@ lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
 }
 
 void updateWidget(WidgetEntry &entry) {
-    SignalId sid = resolveSignalId(entry.signalId);
-    if (sid >= SignalIds::SIGNAL_COUNT)
+    if (entry.signalId >= SignalIds::SIGNAL_COUNT)
         return;
 
-    bool valid = SignalStore::isValid(sid);
-    float value = SignalStore::read(sid, 0.0f);
-    float rawValue = SignalStore::readRaw(sid, 0.0f);
+    bool valid = SignalStore::isValid(entry.signalId);
+    float value = SignalStore::read(entry.signalId, 0.0f);
+    float rawValue = SignalStore::readRaw(entry.signalId, 0.0f);
 
     switch (entry.type) {
         case WidgetType::GAUGE:
@@ -206,13 +160,22 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         return nullptr;
     }
 
+    // Resolve the signal name once here so updateAll() (called per render
+    // tick) does no string work. Empty signalId is legal — button/image
+    // widgets carry none, and signalIdFromName returns SIGNAL_COUNT for them
+    // without warning. Warn only for genuinely unknown non-empty names.
+    SignalId resolved = signalIdFromName(cfg.signalId);
+    if (resolved >= SignalIds::SIGNAL_COUNT && cfg.signalId[0] != '\0') {
+        LOG_WARN("WF", "Unknown signal name: %s", cfg.signalId);
+    }
+
     // Register in tracking table
     WidgetEntry &entry = s_widgets[s_widgetCount++];
     entry.parent = parent;
     entry.obj = obj;
     entry.type = cfg.type;
     entry.cfg = cfg;
-    strlcpy(entry.signalId, cfg.signalId, CFG_MAX_SIGNAL_LEN);
+    entry.signalId = resolved;
 
     LOG_DEBUG("WF", "Created widget '%s' type=%d at (%d,%d)", cfg.id, cfg.type, cfg.layout.x,
               cfg.layout.y + yOffset);
