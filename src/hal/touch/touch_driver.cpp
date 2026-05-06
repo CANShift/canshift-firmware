@@ -1,7 +1,7 @@
-// touch_driver.cpp — XPT2046 resistive touch HAL
+// touch_driver.cpp — XPT2046 resistive touch HAL (LovyanGFX backend)
 // In sim mode: dummy input device that always reports "released".
-// In hardware mode: XPT2046 via TFT_eSPI built-in touch support.
-// Calibration data persisted in NVS (namespace "touch", key "cal", 10 bytes).
+// In hardware mode: XPT2046 via the shared LGFX panel.
+// Calibration data persisted in NVS (namespace "touch", key "cal", 16 bytes).
 
 #include "touch_driver.h"
 #include "app_config.h"
@@ -11,10 +11,6 @@
 
 static lv_indev_drv_t s_indevDrv;
 
-// ---------------------------------------------------------------------------
-// HARDWARE MODE
-// ---------------------------------------------------------------------------
-
 #if !APP_SIMULATION_MODE
 
     #include "board_config.h"
@@ -22,20 +18,35 @@ static lv_indev_drv_t s_indevDrv;
     #include "hal/display/display_driver.h"
     #include <Preferences.h>
 
-// Touch uses the same TFT_eSPI instance as the display — shared SPI bus, single object.
-#define s_touch DisplayDriver::getTft()
+    #define s_lcd DisplayDriver::getDisplay()
 
 static constexpr char NVS_NS[]        = "touch";
 static constexpr char NVS_KEY_CAL[]   = "cal";
-static constexpr size_t CAL_DATA_SIZE = 5 * sizeof(uint16_t); // 10 bytes
+// LovyanGFX calibration: 8 uint16_t (4 corner pairs). Old TFT_eSPI builds
+// stored 10 bytes (5 uint16_t) — those entries fail this size check and
+// fall back to defaults, prompting the user to recalibrate once.
+static constexpr size_t CAL_DATA_SIZE = 8 * sizeof(uint16_t); // 16 bytes
 
 void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
-    uint16_t rawX = 0, rawY = 0;
-    const bool pressed = s_touch.getTouch(&rawX, &rawY, 40 /* minimum Z pressure */);
+    int32_t x = 0, y = 0;
+    const bool pressed = s_lcd.getTouch(&x, &y);
+
+    static bool s_wasPressed = false;
+    if (pressed && !s_wasPressed) {
+        LOG_INFO("TOUCH", "Press at x=%ld y=%ld", x, y);
+    }
+    s_wasPressed = pressed;
 
     if (pressed) {
-        data->point.x = static_cast<lv_coord_t>(rawX);
-        data->point.y = static_cast<lv_coord_t>(rawY);
+        // Calibration can overshoot at the edges (e.g. x=353 / y=-8 when
+        // pressing top-right corner), causing edge widgets like the gear
+        // button to never receive events. Snap to the nearest pixel.
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x >= HW_DISPLAY_WIDTH)  x = HW_DISPLAY_WIDTH  - 1;
+        if (y >= HW_DISPLAY_HEIGHT) y = HW_DISPLAY_HEIGHT - 1;
+        data->point.x = static_cast<lv_coord_t>(x);
+        data->point.y = static_cast<lv_coord_t>(y);
         data->state = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
@@ -45,26 +56,24 @@ void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) 
 void TouchDriver::init() {
     LOG_INFO("TOUCH", "Initializing touch controller...");
 
-    // Try loading stored calibration; fall back to board_config.h defaults
-    uint16_t calData[5] = {
-        TOUCH_CAL_X_MIN, TOUCH_CAL_X_MAX,
-        TOUCH_CAL_Y_MIN, TOUCH_CAL_Y_MAX,
-        0
-    };
-
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/true);
-    if (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE) {
+    const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
+    if (hasCalibration) {
+        uint16_t calData[8] = {};
         p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
-        p.end();
-        s_touch.setTouch(calData);
+        s_lcd.setTouchCalibrate(calData);
         LOG_INFO("TOUCH", "Calibration loaded from NVS");
-    } else {
-        p.end();
-        s_touch.setTouch(calData);
-        LOG_WARN("TOUCH",
-                 "No NVS calibration — using board_config.h defaults. "
-                 "Run Settings → Calibrate Touch for accuracy.");
+    }
+    p.end();
+
+    // Without a valid calibration the panel returns raw ADC values that
+    // never match screen coords — the user cannot reach Settings to
+    // calibrate manually. Run the interactive routine on first boot so
+    // the device is usable out of the box.
+    if (!hasCalibration) {
+        LOG_WARN("TOUCH", "No NVS calibration — running first-boot calibration");
+        calibrate();
     }
 
     lv_indev_drv_init(&s_indevDrv);
@@ -91,16 +100,16 @@ bool TouchDriver::isCalibrated() {
 
 void TouchDriver::calibrate() {
     LOG_INFO("TOUCH", "Starting touch calibration...");
-    uint16_t calData[5] = {};
-    // TFT_eSPI shows a crosshair sequence and fills calData[5]
-    s_touch.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, 15);
+    uint16_t calData[8] = {};
+    // LovyanGFX shows 4 corner crosshairs and fills calData[8].
+    s_lcd.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, std::max(s_lcd.width(), s_lcd.height()) >> 3);
 
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/false);
     p.putBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
     p.end();
 
-    s_touch.setTouch(calData);
+    s_lcd.setTouchCalibrate(calData);
     LOG_INFO("TOUCH", "Calibration complete and saved to NVS");
 }
 
@@ -111,10 +120,6 @@ void TouchDriver::resetCalibration() {
     p.end();
     LOG_INFO("TOUCH", "Calibration data cleared from NVS");
 }
-
-// ---------------------------------------------------------------------------
-// SIMULATION MODE — no hardware, always reports "released"
-// ---------------------------------------------------------------------------
 
 #else // APP_SIMULATION_MODE
 

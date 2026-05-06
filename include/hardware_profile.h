@@ -12,7 +12,9 @@
 #define HW_DISPLAY_COLOR_DEPTH 16 // RGB565
 #define HW_DISPLAY_ROTATION                                                                        \
     3   // 0=portrait, 1=landscape, 2=portrait-inv, 3=landscape-inv
-        // Verified on DIS04028H: rotation 3 matches physical mount (#40)
+        // DIS04028H + LovyanGFX: rotation 3 = USB port on the right (#40).
+        // Note: TFT_eSPI used rotation 1 for the same orientation — LovyanGFX
+        // has the opposite landscape convention.
 
 // Display interface
 #define HW_DISPLAY_SPI 1 // ILI9341 via SPI

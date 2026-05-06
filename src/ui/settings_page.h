@@ -36,6 +36,12 @@ bool toggle();
 /** Current visibility state. */
 bool isOpen();
 
+/**
+ * Millis at which open() was last called. Used by the top bar to debounce
+ * a tap that immediately follows a gesture-driven open (#50).
+ */
+uint32_t lastOpenMs();
+
 /** Returns the configured sleep timeout in seconds (0 = disabled). */
 uint32_t getSleepTimeoutS();
 

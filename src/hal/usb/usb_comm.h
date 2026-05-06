@@ -89,4 +89,10 @@ bool pushCanFrame(const CanScanFrame &frame);
  */
 void updateCanStats(uint32_t fpsX10, uint32_t errors);
 
+/**
+ * Returns true if the desktop host has sent any command in the last few seconds.
+ * Used by the top bar to show a "host connected" icon.
+ */
+bool isHostActive();
+
 } // namespace UsbComm

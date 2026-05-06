@@ -50,8 +50,8 @@ static void initDisplayAndLVGL() {
 }
 
 // ---------------------------------------------------------------------------
-// Splash screen — title + progress bar + status label
-// Objects stored so updateSplash() can drive them step by step.
+// Splash screen — title + version + progress bar + status label.
+// No banner image (looked off on this small panel) — text-only is enough.
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -60,8 +60,6 @@ static lv_obj_t *s_splashStatus = nullptr;
 } // namespace
 
 // Build the dark splash background — used by both normal boot and error screen.
-// Uses LV_FONT_DEFAULT (montserrat_14, always in flash) because fonts from SD
-// are not yet loaded at this point in the boot sequence.
 static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
@@ -75,7 +73,7 @@ static lv_obj_t *buildSplashBase() {
 
     lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, "v" APP_VERSION_STR);
-    lv_obj_set_style_text_color(ver, lv_color_hex(0x444444), 0);
+    lv_obj_set_style_text_color(ver, lv_color_hex(0x666666), 0);
     lv_obj_align(ver, LV_ALIGN_CENTER, 0, -20);
 
     return scr;
@@ -100,8 +98,8 @@ static void showSplash() {
     lv_obj_set_style_radius(bar, 2, LV_PART_INDICATOR);
 
     lv_obj_t *status = lv_label_create(scr);
-    lv_label_set_text(status, "Starting\xe2\x80\xa6");
-    lv_obj_set_style_text_color(status, lv_color_hex(0x444444), 0);
+    lv_label_set_text(status, "Starting...");
+    lv_obj_set_style_text_color(status, lv_color_hex(0x666666), 0);
     lv_obj_align(status, LV_ALIGN_CENTER, 0, 52);
 
     s_splashBar = bar;
@@ -110,8 +108,7 @@ static void showSplash() {
     lv_task_handler();
 }
 
-// Shown when the SD card is absent or fails to mount.
-// Halts — the dashboard cannot run without the SD card.
+// Shown when the SD card is absent or fails to mount. Halts.
 static void showSDError() {
     buildSplashBase();
     lv_obj_t *scr = lv_scr_act();
@@ -138,13 +135,15 @@ static void showSDError() {
     }
 }
 
-// Call between each boot step to advance the bar and update the status text.
+// Advance the bar and update the status text between init steps.
+// lv_refr_now flushes synchronously so the bar visibly progresses even when
+// boot stages take only a few ms.
 static void updateSplash(const char *status, uint8_t pct) {
     if (s_splashBar)
         lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
     if (s_splashStatus)
         lv_label_set_text(s_splashStatus, status);
-    lv_task_handler();
+    lv_refr_now(NULL);
 }
 
 // Returns false if SD is absent — caller must halt.
@@ -192,25 +191,25 @@ void BootSequence::run() {
     // 2. Touch controller
     LOG_INFO("BOOT", "Initializing touch...");
     TouchDriver::init();
-    updateSplash("Initializing touch\xe2\x80\xa6", 15);
+    updateSplash("Initializing touch...", 15);
 
     // 3. Storage — fatal if SD missing
-    updateSplash("Checking SD card\xe2\x80\xa6", 20);
+    updateSplash("Checking SD card...", 20);
     if (!initStorage()) {
         showSDError(); // halts
     }
-    updateSplash("SD ready\xe2\x80\xa6", 35);
+    updateSplash("SD ready...", 35);
 
     // 4. Config
     logHeap("before loadConfig");
     loadConfig();
     logHeap("after loadConfig");
-    updateSplash("Applying config\xe2\x80\xa6", 55);
+    updateSplash("Applying config...", 55);
 
     // 5. Runtime
     SignalStore::init();
     AlertEngine::init();
-    updateSplash("Starting runtime\xe2\x80\xa6", 65);
+    updateSplash("Starting runtime...", 65);
 
     // 6. CAN hardware (skip in simulation mode)
 #if !APP_SIMULATION_MODE
@@ -232,6 +231,10 @@ void BootSequence::run() {
     buildUI();
     logHeap("after buildUI");
     updateSplash("Ready", 100);
+
+    // Brief hold so the user actually sees the final state before the
+    // dashboard takes over the screen.
+    delay(800);
 
     LOG_INFO("BOOT", "Boot sequence complete");
 }

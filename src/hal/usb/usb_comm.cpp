@@ -218,7 +218,13 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     }
 }
 
+// Last time the host sent a command. Used by UsbComm::isHostActive() for the
+// top bar "USB connected" icon. Updated on every received command (volatile is
+// fine — single writer, single reader, atomic on 32-bit ESP32).
+static volatile uint32_t s_lastHostCmdMs = 0;
+
 void handleCommand(const char *jsonLine) {
+    s_lastHostCmdMs = millis();
     LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
 
     // Peek at cmd using a filter — avoids loading the full PUT_CONFIG payload
@@ -330,6 +336,13 @@ void UsbComm::init() {
     LOG_INFO("USB", "USB comm initialized");
 }
 
+bool UsbComm::isHostActive() {
+    constexpr uint32_t HOST_TIMEOUT_MS = 5000;
+    if (s_lastHostCmdMs == 0)
+        return false;
+    return (millis() - s_lastHostCmdMs) < HOST_TIMEOUT_MS;
+}
+
 void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
     s_canStats.fpsX10 = fpsX10;
     s_canStats.errors = errors;
@@ -349,6 +362,10 @@ bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
 void UsbComm::tick() {
     while (Serial.available() > 0) {
         char c = static_cast<char>(Serial.read());
+        // Update host activity on any byte received, not just complete commands.
+        // This keeps the top-bar USB icon green while the studio's serial port
+        // is open even between command lines.
+        s_lastHostCmdMs = millis();
 
         if (c == '\n') {
             s_rxBuf[s_rxPos] = '\0';

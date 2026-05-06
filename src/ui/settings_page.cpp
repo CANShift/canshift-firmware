@@ -41,8 +41,10 @@ static const char *const SLEEP_LABELS[SLEEP_OPTION_COUNT] = {"Off", "30s", "1m",
 // Rotation options
 // ---------------------------------------------------------------------------
 
-static constexpr uint8_t ROT_OPTION_COUNT = 4;
-static constexpr uint16_t ROT_OPTIONS[ROT_OPTION_COUNT] = {0, 90, 180, 270};
+// Only landscape orientations are useful on this 320x240 form factor.
+// 0° = normal landscape, 180° = upside-down landscape.
+static constexpr uint8_t ROT_OPTION_COUNT = 2;
+static constexpr uint16_t ROT_OPTIONS[ROT_OPTION_COUNT] = {0, 180};
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -191,7 +193,9 @@ static void onCalibrateTouch(lv_event_t * /*e*/) {
 }
 
 static void onSave(lv_event_t * /*e*/) {
+    LOG_INFO("Settings", "SAVE button clicked");
     nvsSave();
+    SettingsPage::close(); // close after saving — matches user expectation
 }
 
 static void onReset(lv_event_t * /*e*/) {
@@ -439,13 +443,20 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     LOG_INFO("Settings", "Settings page initialized");
 }
 
+static uint32_t s_lastOpenMs = 0;
+
 void SettingsPage::open() {
     if (!s_panel || s_open)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_panel);
     s_open = true;
+    s_lastOpenMs = millis();
     LOG_DEBUG("Settings", "Settings page opened");
+}
+
+uint32_t SettingsPage::lastOpenMs() {
+    return s_lastOpenMs;
 }
 
 void SettingsPage::close() {

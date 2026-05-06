@@ -9,6 +9,8 @@
 
 # Allow SPIFFS font assets
 !data/fonts/*.bin
+# Allow LVGL image assets shipped on the SD card
+!sd_contents/assets/*.bin
 
 # IDE
 .vscode/

@@ -21,8 +21,11 @@
 /* Color depth: 1 (1 byte per pixel), 8, 16, 32 */
 #define LV_COLOR_DEPTH 16
 
-/* Swap the 2 bytes of RGB565 color — required for many SPI displays */
-#define LV_COLOR_16_SWAP 1
+/* Swap the 2 bytes of RGB565 color — required for many SPI displays.
+ * Set to 0 here because flushCallback already calls pushColors(.., true) which
+ * does the swap itself. Two swaps = no swap = wrong byte order on this panel
+ * (caused flicker/drift, see #40). Matches Elecrow's factory LVGL config. */
+#define LV_COLOR_16_SWAP 0
 
 /* Enable features to use with LV_COLOR_DEPTH = 32 */
 #define LV_COLOR_SCREEN_TRANSP 0
