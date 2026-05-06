@@ -40,4 +40,34 @@ bool fileExists(const char *path);
      */
 void getSpaceInfo(size_t *totalBytes, size_t *usedBytes);
 
+// ---------------------------------------------------------------------------
+// Chunked write — single transfer in-flight at a time
+//
+// Used by the USB CMD_PUT_FILE command to stream large assets (banner image,
+// fonts) without staging the full content in RAM. Caller orchestrates:
+//
+//   beginChunkedWrite("/assets/foo.bin")  // truncates / creates parent dirs
+//   appendChunk(data, len)  ... repeat ...
+//   endChunkedWrite()       // closes the file
+//
+// Calling beginChunkedWrite while another transfer is open closes the prior
+// one first (caller is expected to detect & handle interrupted transfers).
+// ---------------------------------------------------------------------------
+
+bool beginChunkedWrite(const char *path);
+bool appendChunk(const uint8_t *data, size_t length);
+void endChunkedWrite();
+
+/**
+ * Returns true if a chunked transfer is currently open.
+ */
+bool isChunkedWriteOpen();
+
+/**
+ * Recursively create parent directories for the given path.
+ * "/a/b/c.bin" → ensures "/a" and "/a/b" exist.
+ * Returns false if any intermediate mkdir fails.
+ */
+bool ensureParentDirs(const char *path);
+
 } // namespace StorageDriver

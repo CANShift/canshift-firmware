@@ -26,6 +26,7 @@
 #include <esp_system.h> // esp_restart()
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <mbedtls/base64.h>
 
 // Forward-declared FreeRTOS LVGL mutex from main.cpp
 extern SemaphoreHandle_t g_lvglMutex;
@@ -203,6 +204,102 @@ void handlePutConfig(const char *jsonLine) {
     esp_restart();
 }
 
+// ---------------------------------------------------------------------------
+// CMD_PUT_FILE — chunked, base64-encoded file write to SD
+// ---------------------------------------------------------------------------
+
+constexpr uint32_t CHUNK_TIMEOUT_MS = 10000;
+
+struct ChunkTransfer {
+    char path[CFG_MAX_PATH_LEN];
+    uint32_t expectedIdx;
+    uint32_t total;
+    uint32_t lastActivityMs;
+};
+static ChunkTransfer s_chunk = {{0}, 0, 0, 0};
+
+void abortChunkTransfer(const char *reason) {
+    if (StorageDriver::isChunkedWriteOpen()) {
+        LOG_WARN("USB", "Aborting chunked transfer: %s (path=%s)", reason, s_chunk.path);
+        StorageDriver::endChunkedWrite();
+    }
+    s_chunk.path[0] = '\0';
+    s_chunk.expectedIdx = 0;
+    s_chunk.total = 0;
+}
+
+bool isPathSafe(const char *path) {
+    if (!path || path[0] != '/')
+        return false;
+    const size_t len = strlen(path);
+    if (len == 1 || len >= CFG_MAX_PATH_LEN)
+        return false;
+    if (strstr(path, ".."))
+        return false;
+    return true;
+}
+
+void handlePutFile(const JsonObjectConst &obj) {
+    const char *path = obj["path"];
+    const uint32_t total = obj["total"] | 0u;
+    const uint32_t idx = obj["idx"] | 0u;
+    const char *b64 = obj["data"];
+
+    if (!isPathSafe(path) || !b64 || total == 0 || idx >= total) {
+        Serial.println("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        abortChunkTransfer("bad_args");
+        return;
+    }
+
+    if (idx == 0) {
+        abortChunkTransfer("new transfer");
+        if (!StorageDriver::beginChunkedWrite(path)) {
+            Serial.println("{\"status\":\"error\",\"message\":\"open_failed\"}");
+            return;
+        }
+        strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
+        s_chunk.total = total;
+        s_chunk.expectedIdx = 0;
+    } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
+               strcmp(s_chunk.path, path) != 0) {
+        Serial.println("{\"status\":\"error\",\"message\":\"out_of_sequence\"}");
+        abortChunkTransfer("out_of_sequence");
+        return;
+    }
+
+    // Decode base64 in-place into s_rxBuf — ArduinoJson 7 has already copied
+    // path/data into the JsonDocument's pool, so the source line is free.
+    size_t decoded = 0;
+    const int rc = mbedtls_base64_decode(reinterpret_cast<unsigned char *>(s_rxBuf),
+                                         sizeof(s_rxBuf), &decoded,
+                                         reinterpret_cast<const unsigned char *>(b64),
+                                         strlen(b64));
+    if (rc != 0) {
+        Serial.println("{\"status\":\"error\",\"message\":\"b64_decode\"}");
+        abortChunkTransfer("b64_decode");
+        return;
+    }
+
+    if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(s_rxBuf), decoded)) {
+        Serial.println("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        abortChunkTransfer("write_failed");
+        return;
+    }
+
+    s_chunk.expectedIdx = idx + 1;
+    s_chunk.lastActivityMs = millis();
+
+    if (idx == total - 1) {
+        StorageDriver::endChunkedWrite();
+        LOG_INFO("USB", "PUT_FILE done: %s (%u chunks)", s_chunk.path, total);
+        s_chunk.path[0] = '\0';
+        s_chunk.expectedIdx = 0;
+        s_chunk.total = 0;
+    }
+
+    Serial.println("{\"status\":\"ok\"}");
+}
+
 void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
     uint32_t sleepS = obj["sleep"] | 0u;
@@ -236,6 +333,22 @@ void handleCommand(const char *jsonLine) {
 
     if (cmd == UsbComm::CMD_PUT_CONFIG) {
         handlePutConfig(jsonLine);
+        return;
+    }
+
+    if (cmd == UsbComm::CMD_PUT_FILE) {
+        // Parse with a filter that drops everything except the fields we use —
+        // each chunk's "data" (base64) can be up to ~3 KB, so we want the doc
+        // sized to that range, not the full 6 KB s_rxBuf.
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, jsonLine);
+        if (err) {
+            LOG_WARN("USB", "PUT_FILE parse error: %s", err.c_str());
+            Serial.println("{\"status\":\"error\",\"message\":\"parse_error\"}");
+            abortChunkTransfer("parse_error");
+            return;
+        }
+        handlePutFile(doc.as<JsonObjectConst>());
         return;
     }
 
@@ -360,6 +473,13 @@ bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
 }
 
 void UsbComm::tick() {
+    // Abort any chunked transfer that has stalled (host crashed mid-stream
+    // or unplugged) — leaves the SD in a clean state.
+    if (StorageDriver::isChunkedWriteOpen() &&
+        (millis() - s_chunk.lastActivityMs) > CHUNK_TIMEOUT_MS) {
+        abortChunkTransfer("idle timeout");
+    }
+
     while (Serial.available() > 0) {
         char c = static_cast<char>(Serial.read());
         // Update host activity on any byte received, not just complete commands.

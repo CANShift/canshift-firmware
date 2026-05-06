@@ -7,6 +7,7 @@
 //   Commands from desktop → device:
 //     CMD_PUT_CONFIG      0x02  — Push new dashboard.json content
 //     CMD_SCREEN_SETTINGS 0x05  — Push display settings (brightness, sleep, rotation)
+//     CMD_PUT_FILE        0x06  — Stream a file to SD in base64-encoded chunks
 //     CMD_GET_STATUS      0x10  — Query firmware version and protocol number
 //     CMD_CAN_SCAN_START  0x20  — Start forwarding raw CAN frames over USB
 //     CMD_CAN_SCAN_STOP   0x21  — Stop forwarding raw CAN frames
@@ -53,6 +54,11 @@ static constexpr uint8_t CMD_PUT_THEME = 0x04;
 // Push screen display settings (brightness, sleep, rotation)
 // Payload: {"brightness":80,"sleep":0,"rotation":0}
 static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
+// Stream a file to SD in chunks. One JSON line per chunk:
+//   {"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}
+// idx=0 truncates / creates the target file. idx=total-1 closes it.
+// Each chunk is ack'd; out-of-sequence chunks abort the transfer.
+static constexpr uint8_t CMD_PUT_FILE = 0x06;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;

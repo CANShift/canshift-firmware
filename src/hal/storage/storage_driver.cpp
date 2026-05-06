@@ -103,3 +103,80 @@ void StorageDriver::getSpaceInfo(size_t *totalBytes, size_t *usedBytes) {
         *usedBytes = SD.usedBytes();
 #endif
 }
+
+// ---------------------------------------------------------------------------
+// Chunked write
+// ---------------------------------------------------------------------------
+
+namespace {
+File s_chunkFile;
+bool s_chunkOpen = false;
+} // namespace
+
+bool StorageDriver::ensureParentDirs(const char *path) {
+    if (!path || path[0] != '/')
+        return false;
+
+    // Walk slashes, mkdir each prefix. Skip the final segment (the file name).
+    char buf[128];
+    strlcpy(buf, path, sizeof(buf));
+
+    char *cursor = buf + 1; // skip leading '/'
+    while (true) {
+        char *slash = strchr(cursor, '/');
+        if (!slash)
+            break;
+        *slash = '\0';
+        if (!FS_INSTANCE.exists(buf)) {
+            if (!FS_INSTANCE.mkdir(buf)) {
+                LOG_WARN("STORAGE", "mkdir failed: %s", buf);
+                *slash = '/';
+                return false;
+            }
+        }
+        *slash = '/';
+        cursor = slash + 1;
+    }
+    return true;
+}
+
+bool StorageDriver::beginChunkedWrite(const char *path) {
+    if (s_chunkOpen) {
+        LOG_WARN("STORAGE", "Replacing in-flight chunked write");
+        endChunkedWrite();
+    }
+
+    if (!ensureParentDirs(path)) {
+        return false;
+    }
+
+    s_chunkFile = FS_INSTANCE.open(path, "w");
+    if (!s_chunkFile) {
+        LOG_ERROR("STORAGE", "Open for chunked write failed: %s", path);
+        return false;
+    }
+    s_chunkOpen = true;
+    return true;
+}
+
+bool StorageDriver::appendChunk(const uint8_t *data, size_t length) {
+    if (!s_chunkOpen)
+        return false;
+    size_t written = s_chunkFile.write(data, length);
+    if (written != length) {
+        LOG_ERROR("STORAGE", "Chunk write incomplete: %u/%u", written, length);
+        return false;
+    }
+    return true;
+}
+
+void StorageDriver::endChunkedWrite() {
+    if (s_chunkOpen) {
+        s_chunkFile.close();
+        s_chunkOpen = false;
+    }
+}
+
+bool StorageDriver::isChunkedWriteOpen() {
+    return s_chunkOpen;
+}
