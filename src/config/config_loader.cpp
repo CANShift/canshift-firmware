@@ -37,7 +37,6 @@ TopBarItemKind parseTopBarItemKind(const char *str) {
     if (strcmp(str, "statusDot") == 0)    return TopBarItemKind::STATUS_DOT;
     if (strcmp(str, "label") == 0)        return TopBarItemKind::LABEL;
     if (strcmp(str, "separator") == 0)    return TopBarItemKind::SEPARATOR;
-    if (strcmp(str, "pageName") == 0)     return TopBarItemKind::PAGE_NAME;
     if (strcmp(str, "signal") == 0)       return TopBarItemKind::SIGNAL;
     if (strcmp(str, "usbIcon") == 0)      return TopBarItemKind::USB_ICON;
     if (strcmp(str, "themeToggle") == 0)  return TopBarItemKind::THEME_TOGGLE;

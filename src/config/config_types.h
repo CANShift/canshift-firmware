@@ -197,7 +197,6 @@ enum class TopBarItemKind : uint8_t {
     STATUS_DOT,    // Coloured dot tied to a signal's freshness ("rpm" or "any")
     LABEL,         // Static text
     SEPARATOR,     // Vertical "|"
-    PAGE_NAME,     // Current page id, uppercased
     SIGNAL,        // Live signal value with printf-style format
     USB_ICON,      // Download arrow — green when host active
     THEME_TOGGLE,  // ☀/☾ tap target — only meaningful when hasDayTheme

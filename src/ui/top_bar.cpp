@@ -1,7 +1,7 @@
 // top_bar.cpp — Persistent top status bar
 //
 // Layout (left to right):
-//   [• ECU]  [• CAN]  ......  PAGE NAME  ......  12.4V  ↓  ☀
+//   [• ECU]  [• CAN]  ......  12.4V  ↓  ☀
 //
 // Settings is opened by swiping down from the top of the screen — there is no
 // dedicated gear button (#50, redundant given the gesture).
@@ -10,12 +10,10 @@
 //   ECU dot:  green when SignalIds::RPM is valid (recent ECU frame received)
 //   CAN dot:  green when at least one signal has been received recently
 //   Voltage:  SignalIds::BATTERY_VOLTS — formatted "12.4V" (— if unknown)
-//   Page:     PageManager::getCurrentPageId(), uppercased
 //   Download: green when UsbComm reports a recent host command (studio attached)
 
 #include "top_bar.h"
 #include "ui/font_manager.h"
-#include "ui/page_manager.h"
 #include "settings_page.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
@@ -25,7 +23,6 @@
 #include "diag/logger.h"
 
 #include <lvgl.h>
-#include <ctype.h>
 #include <stdio.h>
 
 // ---------------------------------------------------------------------------
@@ -42,7 +39,6 @@ static lv_obj_t *s_ecuLabel = nullptr;
 static lv_obj_t *s_canDot = nullptr;
 static lv_obj_t *s_canLabel = nullptr;
 
-static lv_obj_t *s_pageLabel = nullptr;
 static lv_obj_t *s_voltageLabel = nullptr;
 static lv_obj_t *s_usbIcon = nullptr;
 
@@ -98,15 +94,6 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
     lv_obj_set_style_text_font(lbl, FontManager::get(12), 0);
     return lbl;
-}
-
-static void uppercaseCopy(char *dst, size_t dstLen, const char *src) {
-    if (dstLen == 0) return;
-    size_t i = 0;
-    for (; src[i] && i + 1 < dstLen; i++) {
-        dst[i] = static_cast<char>(toupper(static_cast<unsigned char>(src[i])));
-    }
-    dst[i] = '\0';
 }
 
 // True when at least one signal in the store is currently valid. Used by
@@ -168,11 +155,6 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             anchor(obj, 6);
             break;
         }
-        case TopBarItemKind::PAGE_NAME: {
-            obj = makeBarLabel(s_bar, "", COLOR_LABEL);
-            anchor(obj, 0);
-            break;
-        }
         case TopBarItemKind::SIGNAL: {
             obj = makeBarLabel(s_bar, "--.-", COLOR_LABEL);
             anchor(obj, 8);
@@ -212,7 +194,6 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
 
     // Track dynamic items for update()
     bool needsUpdate = (item.kind == TopBarItemKind::STATUS_DOT ||
-                        item.kind == TopBarItemKind::PAGE_NAME ||
                         item.kind == TopBarItemKind::SIGNAL ||
                         item.kind == TopBarItemKind::USB_ICON);
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
@@ -251,10 +232,6 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
 
     s_canDot = makeStatusDot(s_bar);
     lv_obj_align_to(s_canDot, s_canLabel, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
-
-    // ---- Center: current page name ----
-    s_pageLabel = makeBarLabel(s_bar, "", COLOR_LABEL);
-    lv_obj_align(s_pageLabel, LV_ALIGN_CENTER, 0, 0);
 
     // ---- Right cluster (built right-to-left): theme icon, |, USB icon, voltage ----
     // Theme toggle — image asset (Montserrat compile-time fonts have no sun/moon
@@ -337,7 +314,7 @@ void TopBar::init() {
     // Reset all handle state — needed when init() runs a second time (it
     // currently doesn't, but cheap insurance).
     s_ecuDot = s_ecuLabel = s_canDot = s_canLabel = nullptr;
-    s_pageLabel = s_voltageLabel = s_usbIcon = s_themeIcon = nullptr;
+    s_voltageLabel = s_usbIcon = s_themeIcon = nullptr;
     s_dynCount = 0;
 
     if (cfg.hasLayout) {
@@ -403,14 +380,6 @@ static void updateDynSignalLabel(const DynItem &d) {
     }
 }
 
-static void updatePageNameLabel(lv_obj_t *obj) {
-    const char *pageId = PageManager::getCurrentPageId();
-    if (!pageId) return;
-    char buf[16];
-    uppercaseCopy(buf, sizeof(buf), pageId);
-    lv_label_set_text(obj, buf);
-}
-
 static void updateUsbIcon(lv_obj_t *obj) {
     const bool active = UsbComm::isHostActive();
     lv_obj_set_style_text_color(obj,
@@ -427,7 +396,6 @@ void TopBar::update() {
             switch (d.kind) {
                 case TopBarItemKind::STATUS_DOT: updateDynStatusDot(i, d); break;
                 case TopBarItemKind::SIGNAL:     updateDynSignalLabel(d); break;
-                case TopBarItemKind::PAGE_NAME:  updatePageNameLabel(d.obj); break;
                 case TopBarItemKind::USB_ICON:   updateUsbIcon(d.obj); break;
                 default: break;
             }
@@ -454,8 +422,6 @@ void TopBar::update() {
                                   lv_color_hex(statusDotColor(canValid, s_canEverSeen)),
                                   LV_PART_MAIN);
     }
-    if (s_pageLabel) updatePageNameLabel(s_pageLabel);
-
     if (s_voltageLabel) {
         if (SignalStore::isValid(SignalIds::BATTERY_VOLTS)) {
             float v = SignalStore::read(SignalIds::BATTERY_VOLTS, 0.0f);
