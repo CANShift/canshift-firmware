@@ -32,6 +32,25 @@ void parseColor(const char *hex, CfgColor *out) {
     out->rgb = static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
 }
 
+TopBarItemKind parseTopBarItemKind(const char *str) {
+    if (!str) return TopBarItemKind::UNKNOWN;
+    if (strcmp(str, "statusDot") == 0)    return TopBarItemKind::STATUS_DOT;
+    if (strcmp(str, "label") == 0)        return TopBarItemKind::LABEL;
+    if (strcmp(str, "separator") == 0)    return TopBarItemKind::SEPARATOR;
+    if (strcmp(str, "pageName") == 0)     return TopBarItemKind::PAGE_NAME;
+    if (strcmp(str, "signal") == 0)       return TopBarItemKind::SIGNAL;
+    if (strcmp(str, "usbIcon") == 0)      return TopBarItemKind::USB_ICON;
+    if (strcmp(str, "themeToggle") == 0)  return TopBarItemKind::THEME_TOGGLE;
+    return TopBarItemKind::UNKNOWN;
+}
+
+TopBarItemPos parseTopBarItemPos(const char *str) {
+    if (!str) return TopBarItemPos::LEFT;
+    if (strcmp(str, "center") == 0) return TopBarItemPos::CENTER;
+    if (strcmp(str, "right") == 0)  return TopBarItemPos::RIGHT;
+    return TopBarItemPos::LEFT;
+}
+
 WidgetType parseWidgetType(const char *str) {
     if (!str)
         return WidgetType::UNKNOWN;
@@ -177,6 +196,34 @@ bool loadDashboard() {
     s_dashboard.topBar.showMapProfile = topBar["showMapProfile"] | false;
     parseColor(topBar["bgColor"] | "#111111", &s_dashboard.topBar.bgColor);
     parseColor(topBar["textColor"] | "#AAAAAA", &s_dashboard.topBar.textColor);
+
+    JsonArrayConst topBarLayout = topBar["layout"];
+    s_dashboard.topBar.hasLayout = !topBarLayout.isNull();
+    s_dashboard.topBar.itemCount = 0;
+    if (s_dashboard.topBar.hasLayout) {
+        const size_t total = topBarLayout.size();
+        if (total > CFG_MAX_TOPBAR_ITEMS) {
+            LOG_WARN("CFG",
+                     "topBar.layout: %u items exceed CFG_MAX_TOPBAR_ITEMS=%u — extras ignored",
+                     static_cast<unsigned>(total), CFG_MAX_TOPBAR_ITEMS);
+        }
+        for (JsonObjectConst item : topBarLayout) {
+            if (s_dashboard.topBar.itemCount >= CFG_MAX_TOPBAR_ITEMS)
+                break;
+            CfgTopBarItem &out = s_dashboard.topBar.items[s_dashboard.topBar.itemCount];
+            out.kind = parseTopBarItemKind(item["type"] | "");
+            out.position = parseTopBarItemPos(item["position"] | "left");
+            strlcpy(out.signalId, item["signal"] | "", CFG_MAX_SIGNAL_LEN);
+            strlcpy(out.text, item["text"] | "", sizeof(out.text));
+            strlcpy(out.format, item["format"] | "", sizeof(out.format));
+            if (out.kind == TopBarItemKind::UNKNOWN) {
+                LOG_WARN("CFG", "topBar.layout[%u]: unknown type — item dropped",
+                         static_cast<unsigned>(s_dashboard.topBar.itemCount));
+                continue; // don't increment count — leave the slot reusable
+            }
+            ++s_dashboard.topBar.itemCount;
+        }
+    }
 
     // Optional day theme (hasDayTheme = false when key absent)
     JsonObjectConst dayThemeJson = doc["dayTheme"];

@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift dashboard configuration — VW VR6 2.9 / MaxxECU Street",
-  "version": "1.2.0",
+  "version": "1.5.0",
   "name": "VR6 Main Dash",
   "description": "Default dashboard configuration for VW VR6 2.9 with MaxxECU Street",
   "defaultPageId": "main",
@@ -10,7 +10,19 @@
     "showMapName": true,
     "showMapProfile": false,
     "bgColor": "#0D0D0D",
-    "textColor": "#AAAAAA"
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "rpm", "position": "left" },
+      { "type": "label", "text": "ECU", "position": "left" },
+      { "type": "separator", "position": "left" },
+      { "type": "label", "text": "CAN", "position": "left" },
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "pageName", "position": "center" },
+      { "type": "signal", "signal": "battery_volts", "format": "%.1fV", "position": "right" },
+      { "type": "usbIcon", "position": "right" },
+      { "type": "separator", "position": "right" },
+      { "type": "themeToggle", "position": "right" }
+    ]
   },
   "dayTheme": {
     "bgColor": "#E8E8E8",

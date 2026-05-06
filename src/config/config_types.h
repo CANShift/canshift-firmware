@@ -12,7 +12,11 @@
 #include "app_config.h"
 
 // Schema version — must match the "version" field in dashboard.json
-#define CONFIG_SCHEMA_VERSION "1.0.0"
+#define CONFIG_SCHEMA_VERSION "1.5.0"
+
+// Maximum number of top bar items rendered from `topBar.layout`. Items beyond
+// this cap are dropped at parse time with a LOG_WARN.
+#define CFG_MAX_TOPBAR_ITEMS 16
 
 // Maximum string lengths for config values
 #define CFG_MAX_ID_LEN 32
@@ -169,6 +173,34 @@ struct CfgPage {
 };
 
 // ---------------------------------------------------------------------------
+// Top bar item — one entry in the layout array
+// ---------------------------------------------------------------------------
+enum class TopBarItemKind : uint8_t {
+    UNKNOWN = 0,
+    STATUS_DOT,    // Coloured dot tied to a signal's freshness ("rpm" or "any")
+    LABEL,         // Static text
+    SEPARATOR,     // Vertical "|"
+    PAGE_NAME,     // Current page id, uppercased
+    SIGNAL,        // Live signal value with printf-style format
+    USB_ICON,      // Download arrow — green when host active
+    THEME_TOGGLE,  // ☀/☾ tap target — only meaningful when hasDayTheme
+};
+
+enum class TopBarItemPos : uint8_t {
+    LEFT = 0,
+    CENTER = 1,
+    RIGHT = 2,
+};
+
+struct CfgTopBarItem {
+    TopBarItemKind kind;
+    TopBarItemPos position;
+    char signalId[CFG_MAX_SIGNAL_LEN]; // statusDot, signal — empty otherwise
+    char text[16];                     // label.text — empty otherwise
+    char format[16];                   // signal.format (printf-style) — empty otherwise
+};
+
+// ---------------------------------------------------------------------------
 // Top bar config
 // ---------------------------------------------------------------------------
 struct CfgTopBar {
@@ -177,6 +209,9 @@ struct CfgTopBar {
     bool showMapProfile;
     CfgColor bgColor;
     CfgColor textColor;
+    bool hasLayout;     // True if `topBar.layout` was present in dashboard.json
+    uint8_t itemCount;
+    CfgTopBarItem items[CFG_MAX_TOPBAR_ITEMS];
 };
 
 // ---------------------------------------------------------------------------
