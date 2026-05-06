@@ -149,8 +149,13 @@ void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidg
     auto *tag = static_cast<WarningTag *>(lv_obj_get_user_data(obj));
     if (!tag) return;
 
-    bool active = false;
-    if (valid) {
+    // A missing/timed-out signal is treated as an active alert: the driver
+    // should know when a fault flag stops reporting (wiring break, ECU drop)
+    // rather than silently see a calm widget. Same blink as a tripped alert.
+    bool active;
+    if (!valid) {
+        active = true;
+    } else {
         active = cfg.warning.invertLogic ? (value < cfg.warning.threshold)
                                          : (value >= cfg.warning.threshold);
     }
