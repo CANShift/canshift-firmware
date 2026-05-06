@@ -1,0 +1,68 @@
+// icon_assets.cpp — Sensor icon name → asset path / fallback glyph.
+
+#include "icon_assets.h"
+
+#include <string.h>
+
+namespace IconAssets {
+
+namespace {
+
+struct IconEntry {
+    const char *name;
+    const char *path;     // SPIFFS path, "" if no shipped asset yet
+    const char *fallback; // LVGL symbol used when path missing or empty
+};
+
+// SensorIconName values (canshift-core/src/types/dashboard.ts).
+// .bin assets are expected at "S:/assets/sensor_<name>.bin" once shipped to
+// the SD card; until then the fallback glyph keeps the widget visible.
+constexpr IconEntry kIcons[] = {
+    {"rpm",          "S:/assets/sensor_rpm.bin",          LV_SYMBOL_LOOP},
+    {"speed",        "S:/assets/sensor_speed.bin",        LV_SYMBOL_RIGHT},
+    {"coolant",      "S:/assets/sensor_coolant.bin",      LV_SYMBOL_TINT},
+    {"oil_pressure", "S:/assets/sensor_oil_pressure.bin", LV_SYMBOL_DRIVE},
+    {"oil_temp",     "S:/assets/sensor_oil_temp.bin",     LV_SYMBOL_DRIVE},
+    {"battery",      "S:/assets/sensor_battery.bin",      LV_SYMBOL_BATTERY_FULL},
+    {"fuel",         "S:/assets/sensor_fuel.bin",         LV_SYMBOL_GPS},
+    {"afr",          "S:/assets/sensor_afr.bin",          LV_SYMBOL_CHARGE},
+    {"boost",        "S:/assets/sensor_boost.bin",        LV_SYMBOL_UP},
+    {"throttle",     "S:/assets/sensor_throttle.bin",     LV_SYMBOL_PLAY},
+    {"iat",          "S:/assets/sensor_iat.bin",          LV_SYMBOL_DOWNLOAD},
+    {"gear",         "S:/assets/sensor_gear.bin",         LV_SYMBOL_SETTINGS},
+    {"timer",        "S:/assets/sensor_timer.bin",        LV_SYMBOL_REFRESH},
+    {"warning",      "S:/assets/sensor_warning.bin",      LV_SYMBOL_WARNING},
+    {"flame",        "S:/assets/sensor_flame.bin",        LV_SYMBOL_CHARGE},
+    {"turbo",        "S:/assets/sensor_turbo.bin",        LV_SYMBOL_REFRESH},
+    {"engine",       "S:/assets/sensor_engine.bin",       LV_SYMBOL_SETTINGS},
+    {"brake",        "S:/assets/sensor_brake.bin",        LV_SYMBOL_STOP},
+    {"launch",       "S:/assets/sensor_launch.bin",       LV_SYMBOL_PLAY},
+    {"traction",     "S:/assets/sensor_traction.bin",     LV_SYMBOL_REFRESH},
+    {"map_icon",     "S:/assets/sensor_map_icon.bin",     LV_SYMBOL_LIST},
+    {"exhaust",      "S:/assets/sensor_exhaust.bin",      LV_SYMBOL_AUDIO},
+    {"cog",          "S:/assets/sensor_cog.bin",          LV_SYMBOL_SETTINGS},
+};
+
+const IconEntry *find(const char *iconName) {
+    if (!iconName || iconName[0] == '\0')
+        return nullptr;
+    for (const auto &e : kIcons) {
+        if (strcmp(e.name, iconName) == 0)
+            return &e;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+const char *path(const char *iconName) {
+    const IconEntry *e = find(iconName);
+    return e ? e->path : "";
+}
+
+const char *fallbackGlyph(const char *iconName) {
+    const IconEntry *e = find(iconName);
+    return e ? e->fallback : LV_SYMBOL_WARNING;
+}
+
+} // namespace IconAssets

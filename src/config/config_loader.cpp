@@ -51,6 +51,17 @@ TopBarItemPos parseTopBarItemPos(const char *str) {
     return TopBarItemPos::LEFT;
 }
 
+CfgLabelPos parseLabelPos(const char *str) {
+    if (!str) return CfgLabelPos::TOP_LEFT;
+    if (strcmp(str, "top-left") == 0)      return CfgLabelPos::TOP_LEFT;
+    if (strcmp(str, "top-center") == 0)    return CfgLabelPos::TOP_CENTER;
+    if (strcmp(str, "top-right") == 0)     return CfgLabelPos::TOP_RIGHT;
+    if (strcmp(str, "bottom-left") == 0)   return CfgLabelPos::BOTTOM_LEFT;
+    if (strcmp(str, "bottom-center") == 0) return CfgLabelPos::BOTTOM_CENTER;
+    if (strcmp(str, "bottom-right") == 0)  return CfgLabelPos::BOTTOM_RIGHT;
+    return CfgLabelPos::TOP_LEFT;
+}
+
 WidgetType parseWidgetType(const char *str) {
     if (!str)
         return WidgetType::UNKNOWN;
@@ -111,6 +122,12 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->bar.dangerLevel = cfg["dangerLevel"] | 95.0f;
                 const char *orient = cfg["barOrientation"] | "horizontal";
                 w->bar.isVertical = (strcmp(orient, "vertical") == 0);
+                w->bar.decimalPlaces = cfg["decimalPlaces"] | 0;
+                strlcpy(w->bar.prefix, cfg["prefix"] | "", sizeof(w->bar.prefix));
+                strlcpy(w->bar.suffix, cfg["suffix"] | "", sizeof(w->bar.suffix));
+                strlcpy(w->bar.label, cfg["label"] | "", sizeof(w->bar.label));
+                w->bar.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+                strlcpy(w->bar.iconName, cfg["iconName"] | "", sizeof(w->bar.iconName));
             } else if (strcmp(displayStyle, "numeric") == 0) {
                 // Large numeric readout — render as a label widget
                 w->type = WidgetType::LABEL;
@@ -139,6 +156,21 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
         case WidgetType::WARNING:
             w->warning.invertLogic = cfg["invertLogic"] | false;
             w->warning.threshold = cfg["threshold"] | 0.5f;
+            strlcpy(w->warning.iconName, cfg["iconName"] | "", sizeof(w->warning.iconName));
+            break;
+        case WidgetType::BAR:
+            // Direct "type": "bar" — BarWidgetConfig schema (always horizontal)
+            w->bar.minValue = cfg["minValue"] | 0.0f;
+            w->bar.maxValue = cfg["maxValue"] | 100.0f;
+            w->bar.warningLevel = cfg["warningLevel"] | NAN;
+            w->bar.dangerLevel = cfg["dangerLevel"] | NAN;
+            w->bar.isVertical = false;
+            w->bar.decimalPlaces = cfg["decimalPlaces"] | 0;
+            strlcpy(w->bar.prefix, cfg["prefix"] | "", sizeof(w->bar.prefix));
+            strlcpy(w->bar.suffix, cfg["suffix"] | "", sizeof(w->bar.suffix));
+            strlcpy(w->bar.label, cfg["label"] | "", sizeof(w->bar.label));
+            w->bar.labelPosition = parseLabelPos(cfg["labelPosition"] | "bottom-center");
+            strlcpy(w->bar.iconName, cfg["iconName"] | "", sizeof(w->bar.iconName));
             break;
         case WidgetType::BUTTON:
             strlcpy(w->button.targetPageId, cfg["targetPageId"] | "", CFG_MAX_ID_LEN);

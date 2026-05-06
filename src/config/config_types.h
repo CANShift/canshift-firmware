@@ -87,12 +87,28 @@ struct CfgGaugeParams {
     char suffix[16]; // Unit label shown below the value (e.g. "RPM", "°C")
 };
 
+// Position of the optional widget label drawn at a corner (gauge-bar / bar widgets).
+enum class CfgLabelPos : uint8_t {
+    TOP_LEFT = 0,
+    TOP_CENTER = 1,
+    TOP_RIGHT = 2,
+    BOTTOM_LEFT = 3,
+    BOTTOM_CENTER = 4,
+    BOTTOM_RIGHT = 5,
+};
+
 struct CfgBarParams {
     float minValue;
     float maxValue;
     float warningLevel; // Value at which indicator turns warning color
     float dangerLevel;  // Value at which indicator turns critical color
     bool isVertical;    // true = bottom-up fill, false = left-to-right
+    uint8_t decimalPlaces;
+    char prefix[8];
+    char suffix[8];
+    char label[CFG_MAX_NAME_LEN]; // Optional widget label (e.g. "Boost")
+    CfgLabelPos labelPosition;
+    char iconName[16]; // SensorIconName key, "" = none
 };
 
 struct CfgLabelParams {
@@ -105,6 +121,7 @@ struct CfgLabelParams {
 struct CfgWarningParams {
     bool invertLogic; // True = lit when signal == 0 (e.g. oil pressure OK light)
     float threshold;  // Signal value that activates warning
+    char iconName[16]; // SensorIconName key, "" = default warning glyph
 };
 
 struct CfgButtonParams {

@@ -1,166 +1,417 @@
-// bar_widget.cpp — Horizontal / vertical progress bar widget implementation
+// bar_widget.cpp — Horizontal / vertical bar widget that mirrors studio's
+// GaugeBarPreview: a proportional track with translucent warning/danger
+// zones, a threshold-coloured fill, signal label, value readout, and an
+// optional widget label at a chosen corner.
 
 #include "bar_widget.h"
 #include "ui/font_manager.h"
+#include "ui/icon_assets.h"
 #include "diag/logger.h"
 
+#include <ctype.h>
+#include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+#include <string.h>
 
 namespace {
 
-// lv_bar only accepts int32_t ranges. Multiplying by this factor gives
-// 2 decimal places of resolution for fractional signals (boost, lambda, etc.)
-// while keeping all scaled values well within int32_t bounds even for
-// large-range signals (RPM 0–8000 → 0–800 000).
-static constexpr int32_t BAR_SCALE = 100;
+// Layout constants (mirrored from studio's pixel ratios).
+constexpr float TRACK_H_RATIO = 0.35f; // horizontal: track height vs widget height
+constexpr float TRACK_W_RATIO = 0.60f; // vertical: track width vs widget width
+constexpr int16_t HORIZ_PAD_X = 6;
+constexpr int16_t MIN_TRACK_DIM = 4;
 
-// Scale a float signal value to the integer range used by lv_bar.
-inline int32_t scaleValue(float value, float minVal, float maxVal) {
-    float clamped = value < minVal ? minVal : (value > maxVal ? maxVal : value);
-    return static_cast<int32_t>(clamped * BAR_SCALE);
-}
-
-// Determine bar indicator color based on value thresholds.
-lv_color_t getBarColor(float value, const CfgWidget &cfg) {
-    if (value >= cfg.bar.dangerLevel)
-        return lv_color_hex(cfg.style.criticalColor.rgb);
-    if (value >= cfg.bar.warningLevel)
-        return lv_color_hex(cfg.style.warningColor.rgb);
-    return lv_color_hex(cfg.style.primaryColor.rgb);
-}
-
-// Tag structure stored in LVGL user data.
 struct BarTag {
-    lv_obj_t *bar;
-    lv_obj_t *valueLabel; // nullptr on very small widgets
+    lv_obj_t *track;
+    lv_obj_t *warnZone;   // nullable — only when warning..danger range exists
+    lv_obj_t *dangerZone; // nullable — only when dangerLevel < maxValue
+    lv_obj_t *dangerTick; // nullable
+    lv_obj_t *fill;
+    lv_obj_t *signalLabel;
+    lv_obj_t *valueLabel; // nullable on very small widgets
+    lv_obj_t *suffixLabel; // nullable — shown below value for vertical layout
+    lv_obj_t *widgetLabel; // nullable
+    lv_obj_t *iconImg;     // nullable
+    bool isVertical;
+    int16_t trackX, trackY, trackW, trackH;
+    float minValue, maxValue;
+    float warningLevel, dangerLevel;
+    uint32_t primaryRgb, warningRgb, criticalRgb;
+    uint8_t decimalPlaces;
+    char prefix[8];
+    char suffix[8];
     float lastValue;
     bool wasValid;
 };
 
-// Minimum widget dimension thresholds to show a value label.
-static constexpr int16_t LABEL_MIN_H_HORIZ = 36; // px — horizontal bar must be at least this tall
-static constexpr int16_t LABEL_MIN_W_VERT = 36;  // px — vertical bar must be at least this wide
+void formatSignalLabel(const char *src, char *out, size_t outLen) {
+    if (outLen == 0) return;
+    if (!src || src[0] == '\0') {
+        strlcpy(out, "-", outLen);
+        return;
+    }
+    size_t j = 0;
+    for (size_t i = 0; src[i] != '\0' && j + 1 < outLen; ++i) {
+        char c = src[i];
+        if (c == '_') c = ' ';
+        out[j++] = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+    }
+    out[j] = '\0';
+}
+
+uint32_t colorForValue(float pct, float warnPct, float dangerPct, const BarTag *t) {
+    if (pct >= dangerPct) return t->criticalRgb;
+    if (pct >= warnPct)   return t->warningRgb;
+    return t->primaryRgb;
+}
+
+float clampPct(float v, float minV, float maxV) {
+    if (maxV <= minV) return 0.0f;
+    float pct = (v - minV) / (maxV - minV);
+    if (pct < 0.0f) return 0.0f;
+    if (pct > 1.0f) return 1.0f;
+    return pct;
+}
+
+// Studio uses a faint grey for label text when dimmed. We use the same fixed
+// tone so the bar reads identically across themes.
+constexpr uint32_t SIGNAL_LABEL_RGB = 0x888888;
+constexpr uint32_t TRACK_BG_RGB = 0x1C1C1C;
+constexpr uint32_t TICK_LABEL_RGB = 0x383838;
+constexpr lv_opa_t ZONE_OPA = 0x35;
+
+void renderValueText(BarTag *t, float v) {
+    if (!t->valueLabel) return;
+    char buf[24];
+    const char *suffix = t->isVertical ? "" : t->suffix;
+    snprintf(buf, sizeof(buf), "%s%.*f%s", t->prefix, t->decimalPlaces, v, suffix);
+    lv_label_set_text(t->valueLabel, buf);
+}
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     const bool isVertical = cfg.bar.isVertical;
+    const int16_t W = cfg.layout.w;
+    const int16_t H = cfg.layout.h;
 
-    // Container
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
+    lv_obj_set_size(cont, W, H);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
     if (cfg.style.hasBorder) {
         lv_obj_set_style_border_width(cont, 1, LV_PART_MAIN);
         lv_obj_set_style_border_color(cont, lv_color_hex(cfg.style.borderColor.rgb), LV_PART_MAIN);
     } else {
         lv_obj_set_style_border_width(cont, 0, LV_PART_MAIN);
     }
-    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
 
-    // LVGL bar — fill the full container area
-    lv_obj_t *bar = lv_bar_create(cont);
-    lv_obj_set_size(bar, cfg.layout.w, cfg.layout.h);
-    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+    auto *t = new BarTag{};
+    t->isVertical = isVertical;
+    t->minValue = cfg.bar.minValue;
+    t->maxValue = cfg.bar.maxValue;
+    t->warningLevel = cfg.bar.warningLevel;
+    t->dangerLevel = cfg.bar.dangerLevel;
+    t->primaryRgb = cfg.style.primaryColor.rgb;
+    t->warningRgb = cfg.style.warningColor.rgb;
+    t->criticalRgb = cfg.style.criticalColor.rgb;
+    t->decimalPlaces = cfg.bar.decimalPlaces;
+    strlcpy(t->prefix, cfg.bar.prefix, sizeof(t->prefix));
+    strlcpy(t->suffix, cfg.bar.suffix, sizeof(t->suffix));
+    // Sentinel that no real value has been pushed yet — guarantees the
+    // first update() runs through the paint path even if minValue == 0.
+    t->lastValue = NAN;
+    t->wasValid = false;
 
-    // Set scaled integer range — BAR_SCALE gives 0.01 resolution on fractional signals
-    lv_bar_set_range(bar, static_cast<int32_t>(cfg.bar.minValue * BAR_SCALE),
-                     static_cast<int32_t>(cfg.bar.maxValue * BAR_SCALE));
-    lv_bar_set_value(bar, static_cast<int32_t>(cfg.bar.minValue * BAR_SCALE), LV_ANIM_OFF);
+    const bool hasWarn = !std::isnan(t->warningLevel) && t->warningLevel > t->minValue;
+    const bool hasDanger = !std::isnan(t->dangerLevel) && t->dangerLevel > t->minValue
+                           && t->dangerLevel <= t->maxValue;
+    const float warnPct = hasWarn ? clampPct(t->warningLevel, t->minValue, t->maxValue) : 1.0f;
+    const float dangerPct = hasDanger ? clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.0f;
 
-    // Background track style
-    lv_obj_set_style_bg_color(bar, lv_color_hex(cfg.style.secondaryColor.rgb), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(bar, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
+    char sigBuf[CFG_MAX_SIGNAL_LEN + 4];
+    formatSignalLabel(cfg.signalId, sigBuf, sizeof(sigBuf));
 
-    // Indicator (filled portion) style
-    lv_obj_set_style_bg_color(bar, lv_color_hex(cfg.style.primaryColor.rgb), LV_PART_INDICATOR);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_INDICATOR);
-    lv_obj_set_style_radius(bar, 2, LV_PART_INDICATOR);
+    // -----------------------------------------------------------------------
+    // Horizontal layout (default — matches GaugeBarPreview horizontal branch)
+    // -----------------------------------------------------------------------
+    if (!isVertical) {
+        const int16_t barH = static_cast<int16_t>(fmaxf(MIN_TRACK_DIM, H * TRACK_H_RATIO));
+        const int16_t trackY = (H - barH) / 2;
+        const int16_t trackW = W - HORIZ_PAD_X * 2;
+        t->trackX = HORIZ_PAD_X;
+        t->trackY = trackY;
+        t->trackW = trackW;
+        t->trackH = barH;
 
-    // Value label — only if widget has enough room
-    lv_obj_t *valueLabel = nullptr;
-    bool hasRoom =
-        isVertical ? (cfg.layout.w >= LABEL_MIN_W_VERT) : (cfg.layout.h >= LABEL_MIN_H_HORIZ);
+        // Track background
+        lv_obj_t *track = lv_obj_create(cont);
+        lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_pos(track, HORIZ_PAD_X, trackY);
+        lv_obj_set_size(track, trackW, barH);
+        lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(track, 2, LV_PART_MAIN);
+        lv_obj_set_style_border_width(track, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN);
+        t->track = track;
 
-    if (hasRoom) {
-        valueLabel = lv_label_create(cont);
-        lv_obj_set_style_text_color(valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
-        lv_obj_set_style_text_font(valueLabel, FontManager::get(14), 0);
-        lv_obj_align(valueLabel, LV_ALIGN_CENTER, 0, 0);
-        lv_label_set_text(valueLabel, "---");
+        // Warning zone (warning..danger band)
+        if (hasWarn && hasDanger && dangerPct > warnPct) {
+            int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * warnPct);
+            int16_t zW = static_cast<int16_t>(trackW * (dangerPct - warnPct));
+            lv_obj_t *zone = lv_obj_create(cont);
+            lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_pos(zone, zX, trackY);
+            lv_obj_set_size(zone, zW, barH);
+            lv_obj_set_style_bg_color(zone, lv_color_hex(t->warningRgb), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
+            lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
+            lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+            t->warnZone = zone;
+        }
+
+        // Danger zone (danger..max band)
+        if (hasDanger && dangerPct < 1.0f) {
+            int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * dangerPct);
+            int16_t zW = static_cast<int16_t>(trackW * (1.0f - dangerPct));
+            lv_obj_t *zone = lv_obj_create(cont);
+            lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_pos(zone, zX, trackY);
+            lv_obj_set_size(zone, zW, barH);
+            lv_obj_set_style_bg_color(zone, lv_color_hex(t->criticalRgb), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
+            lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
+            lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+            t->dangerZone = zone;
+        }
+
+        // Fill — width is updated dynamically. Starts at 0.
+        lv_obj_t *fill = lv_obj_create(cont);
+        lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_pos(fill, HORIZ_PAD_X, trackY);
+        lv_obj_set_size(fill, 0, barH);
+        lv_obj_set_style_bg_color(fill, lv_color_hex(t->primaryRgb), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(fill, 2, LV_PART_MAIN);
+        lv_obj_set_style_border_width(fill, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(fill, 0, LV_PART_MAIN);
+        t->fill = fill;
+
+        // Signal label — top-left or bottom-left based on labelPosition.
+        const bool labelIsTop = cfg.bar.labelPosition == CfgLabelPos::TOP_LEFT
+                                || cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER
+                                || cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
+        lv_obj_t *sig = lv_label_create(cont);
+        lv_label_set_text(sig, sigBuf);
+        lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+        lv_obj_set_style_text_font(sig, FontManager::get(12), 0);
+        lv_obj_align(sig, labelIsTop ? LV_ALIGN_BOTTOM_LEFT : LV_ALIGN_TOP_LEFT, 2,
+                     labelIsTop ? -2 : 2);
+        t->signalLabel = sig;
+
+        // Value label — centered above the track (or below if signal is on top).
+        if (H > 18) {
+            lv_obj_t *val = lv_label_create(cont);
+            lv_obj_set_style_text_color(val, lv_color_hex(t->primaryRgb), 0);
+            lv_obj_set_style_text_font(val, FontManager::get(H >= 36 ? 14 : 12), 0);
+            lv_obj_align(val, labelIsTop ? LV_ALIGN_BOTTOM_MID : LV_ALIGN_TOP_MID, 0,
+                         labelIsTop ? -1 : 1);
+            t->valueLabel = val;
+        }
+
+        // Optional widget label
+        if (cfg.bar.label[0] != '\0') {
+            lv_obj_t *wl = lv_label_create(cont);
+            lv_label_set_text(wl, cfg.bar.label);
+            uint32_t labelRgb = ((cfg.style.textColor.rgb >> 1) & 0x7F7F7F);
+            lv_obj_set_style_text_color(wl, lv_color_hex(labelRgb), 0);
+            lv_obj_set_style_text_font(wl, FontManager::get(12), 0);
+            switch (cfg.bar.labelPosition) {
+                case CfgLabelPos::TOP_LEFT:      lv_obj_align(wl, LV_ALIGN_TOP_LEFT, 2, 1); break;
+                case CfgLabelPos::TOP_CENTER:    lv_obj_align(wl, LV_ALIGN_TOP_MID, 0, 1); break;
+                case CfgLabelPos::TOP_RIGHT:     lv_obj_align(wl, LV_ALIGN_TOP_RIGHT, -2, 1); break;
+                case CfgLabelPos::BOTTOM_LEFT:   lv_obj_align(wl, LV_ALIGN_BOTTOM_LEFT, 2, -1); break;
+                case CfgLabelPos::BOTTOM_CENTER: lv_obj_align(wl, LV_ALIGN_BOTTOM_MID, 0, -1); break;
+                case CfgLabelPos::BOTTOM_RIGHT:  lv_obj_align(wl, LV_ALIGN_BOTTOM_RIGHT, -2, -1); break;
+            }
+            t->widgetLabel = wl;
+        }
+
+        // Optional icon (drawn at left edge)
+        if (cfg.bar.iconName[0] != '\0') {
+            const char *path = IconAssets::path(cfg.bar.iconName);
+            if (path[0] != '\0') {
+                lv_obj_t *img = lv_img_create(cont);
+                lv_img_set_src(img, path);
+                lv_obj_set_style_img_recolor(img, lv_color_hex(t->primaryRgb), 0);
+                lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
+                lv_obj_align(img, LV_ALIGN_LEFT_MID, 1, 0);
+                t->iconImg = img;
+            }
+        }
+    } else {
+        // -------------------------------------------------------------------
+        // Vertical layout (matches GaugeBarPreview vertical branch)
+        // -------------------------------------------------------------------
+        const int16_t barW = static_cast<int16_t>(fmaxf(10.0f, W * TRACK_W_RATIO));
+        const int16_t padX = (W - barW) / 2;
+        // Reserve top for the signal label and bottom for value + suffix.
+        const int16_t sigLabelH = H >= 80 ? 14 : 12;
+        const int16_t valLabelH = H >= 80 ? 16 : 14;
+        const int16_t suffixH = H >= 80 ? 12 : 10;
+        const int16_t padTop = sigLabelH + 3;
+        const int16_t padBot = valLabelH + suffixH + 6;
+        const int16_t trackH = static_cast<int16_t>(fmaxf(MIN_TRACK_DIM, H - padTop - padBot));
+        t->trackX = padX;
+        t->trackY = padTop;
+        t->trackW = barW;
+        t->trackH = trackH;
+
+        // Track
+        lv_obj_t *track = lv_obj_create(cont);
+        lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_pos(track, padX, padTop);
+        lv_obj_set_size(track, barW, trackH);
+        lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(track, 3, LV_PART_MAIN);
+        lv_obj_set_style_border_width(track, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN);
+        t->track = track;
+
+        // Warning zone — drawn from warningLevel up to dangerLevel (top down).
+        if (hasWarn && hasDanger && dangerPct > warnPct) {
+            int16_t zY = padTop + static_cast<int16_t>(trackH * (1.0f - dangerPct));
+            int16_t zH = static_cast<int16_t>(trackH * (dangerPct - warnPct));
+            lv_obj_t *zone = lv_obj_create(cont);
+            lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_pos(zone, padX, zY);
+            lv_obj_set_size(zone, barW, zH);
+            lv_obj_set_style_bg_color(zone, lv_color_hex(t->warningRgb), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
+            lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
+            lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+            t->warnZone = zone;
+        }
+
+        // Danger zone — band from the top of the track down to dangerLevel.
+        if (hasDanger && dangerPct < 1.0f) {
+            int16_t topZH = static_cast<int16_t>(trackH * (1.0f - dangerPct));
+            if (topZH > 0) {
+                lv_obj_t *zone = lv_obj_create(cont);
+                lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_set_pos(zone, padX, padTop);
+                lv_obj_set_size(zone, barW, topZH);
+                lv_obj_set_style_bg_color(zone, lv_color_hex(t->criticalRgb), LV_PART_MAIN);
+                lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
+                lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
+                lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
+                lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+                t->dangerZone = zone;
+            }
+        }
+
+        // Fill — sits at the bottom of the track, height grows upwards.
+        lv_obj_t *fill = lv_obj_create(cont);
+        lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_pos(fill, padX, padTop + trackH);
+        lv_obj_set_size(fill, barW, 0);
+        lv_obj_set_style_bg_color(fill, lv_color_hex(t->primaryRgb), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(fill, 3, LV_PART_MAIN);
+        lv_obj_set_style_border_width(fill, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(fill, 0, LV_PART_MAIN);
+        t->fill = fill;
+
+        // Signal label — top center
+        lv_obj_t *sig = lv_label_create(cont);
+        lv_label_set_text(sig, sigBuf);
+        lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+        lv_obj_set_style_text_font(sig, FontManager::get(sigLabelH), 0);
+        lv_obj_align(sig, LV_ALIGN_TOP_MID, 0, 1);
+        t->signalLabel = sig;
+
+        // Value — bottom center, large monospace
+        lv_obj_t *val = lv_label_create(cont);
+        lv_obj_set_style_text_color(val, lv_color_hex(t->primaryRgb), 0);
+        lv_obj_set_style_text_font(val, FontManager::get(valLabelH), 0);
+        lv_obj_align(val, LV_ALIGN_BOTTOM_MID, 0, -suffixH - 1);
+        t->valueLabel = val;
+
+        // Suffix — small line below value
+        if (t->suffix[0] != '\0') {
+            lv_obj_t *suffix = lv_label_create(cont);
+            lv_label_set_text(suffix, t->suffix);
+            lv_obj_set_style_text_color(suffix, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+            lv_obj_set_style_text_font(suffix, FontManager::get(suffixH), 0);
+            lv_obj_align(suffix, LV_ALIGN_BOTTOM_MID, 0, -1);
+            t->suffixLabel = suffix;
+        }
     }
 
-    // Attach tag
-    BarTag *tag = new BarTag{bar, valueLabel, cfg.bar.minValue, false};
-    lv_obj_set_user_data(cont, tag);
+    lv_obj_set_user_data(cont, t);
+    lv_obj_add_event_cb(cont,
+                        [](lv_event_t *e) {
+                            auto *p = static_cast<BarTag *>(lv_event_get_user_data(e));
+                            delete p;
+                        },
+                        LV_EVENT_DELETE, t);
 
-    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
-        auto* t = static_cast<BarTag*>(lv_event_get_user_data(e));
-        delete t;
-    }, LV_EVENT_DELETE, tag);
+    // Initial paint: invalid → 0 (per design).
+    BarWidget::update(cont, cfg.bar.minValue, false, cfg);
 
-    LOG_DEBUG("BAR", "Created %s bar at (%d,%d) size=%dx%d range=[%.0f,%.0f]",
-              isVertical ? "vertical" : "horizontal", cfg.layout.x, cfg.layout.y + yOffset,
-              cfg.layout.w, cfg.layout.h, cfg.bar.minValue, cfg.bar.maxValue);
-
+    LOG_DEBUG("BAR", "Created %s bar '%s' at (%d,%d) size=%dx%d range=[%.0f,%.0f]",
+              isVertical ? "vertical" : "horizontal", cfg.id, cfg.layout.x,
+              cfg.layout.y + yOffset, W, H, cfg.bar.minValue, cfg.bar.maxValue);
     return cont;
 }
 
 void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
-    if (!obj)
-        return;
+    if (!obj) return;
+    auto *t = static_cast<BarTag *>(lv_obj_get_user_data(obj));
+    if (!t || !t->fill || !t->valueLabel) return;
 
-    BarTag *tag = static_cast<BarTag *>(lv_obj_get_user_data(obj));
-    if (!tag)
-        return;
+    // When the signal is missing, studio shows the "—" placeholder. The user
+    // wants 0 instead so the dash always reads numerically.
+    const float displayValue = valid ? value : 0.0f;
 
-    if (!valid) {
-        if (tag->wasValid) {
-            // Signal just went invalid — reset to minimum and dim
-            lv_bar_set_value(tag->bar, static_cast<int32_t>(cfg.bar.minValue * BAR_SCALE),
-                             LV_ANIM_OFF);
-            lv_obj_set_style_bg_color(tag->bar, lv_color_hex(cfg.style.secondaryColor.rgb),
-                                      LV_PART_INDICATOR);
-            if (tag->valueLabel) {
-                lv_label_set_text(tag->valueLabel, "---");
-            }
-            tag->wasValid = false;
-        }
+    // Skip redundant updates (NaN sentinel forces the first paint through).
+    if (valid == t->wasValid && !std::isnan(t->lastValue) && displayValue == t->lastValue)
         return;
+    t->lastValue = displayValue;
+    t->wasValid = valid;
+
+    const float pct = clampPct(displayValue, t->minValue, t->maxValue);
+    const float warnPct = !std::isnan(t->warningLevel)
+                              ? clampPct(t->warningLevel, t->minValue, t->maxValue)
+                              : 1.1f;
+    const float dangerPct = !std::isnan(t->dangerLevel)
+                                ? clampPct(t->dangerLevel, t->minValue, t->maxValue)
+                                : 1.1f;
+
+    const uint32_t fillRgb = colorForValue(pct, warnPct, dangerPct, t);
+    lv_obj_set_style_bg_color(t->fill, lv_color_hex(fillRgb), LV_PART_MAIN);
+
+    if (!t->isVertical) {
+        int16_t fillW = static_cast<int16_t>(t->trackW * pct);
+        lv_obj_set_size(t->fill, fillW, t->trackH);
+    } else {
+        int16_t fillH = static_cast<int16_t>(t->trackH * pct);
+        lv_obj_set_pos(t->fill, t->trackX, t->trackY + t->trackH - fillH);
+        lv_obj_set_size(t->fill, t->trackW, fillH);
     }
 
-    // Skip redundant update
-    if (valid == tag->wasValid && value == tag->lastValue)
-        return;
-    tag->lastValue = value;
-    tag->wasValid = true;
-
-    // Update bar position — scaled to match the range set in create()
-    lv_bar_set_value(tag->bar, scaleValue(value, cfg.bar.minValue, cfg.bar.maxValue), LV_ANIM_OFF);
-
-    // Update indicator color based on threshold
-    lv_color_t color = getBarColor(value, cfg);
-    lv_obj_set_style_bg_color(tag->bar, color, LV_PART_INDICATOR);
-
-    // Update value label
-    if (tag->valueLabel) {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%.0f", value);
-        lv_label_set_text(tag->valueLabel, buf);
-        lv_obj_set_style_text_color(tag->valueLabel, color, 0);
+    if (t->valueLabel) {
+        lv_obj_set_style_text_color(t->valueLabel, lv_color_hex(fillRgb), 0);
+        renderValueText(t, displayValue);
     }
+
+    (void)cfg;
 }
