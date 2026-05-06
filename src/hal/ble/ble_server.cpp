@@ -9,6 +9,7 @@
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "ui/settings_page.h"
+#include "config/rotation_config.h"
 #include "diag/logger.h"
 #include "app_config.h"
 
@@ -114,6 +115,16 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
             xSemaphoreGive(g_lvglMutex);
         }
         LOG_DEBUG("BLE", "Settings applied via BLE");
+
+        JsonVariantConst rotationVar = doc["rotation"];
+        if (!rotationVar.isNull()) {
+            const uint16_t rotation = rotationVar.as<uint16_t>();
+            if ((rotation == 0 || rotation == 180) &&
+                rotation != RotationConfig::getOffsetDeg()) {
+                LOG_INFO("BLE", "Rotation change requested: %u° — rebooting", rotation);
+                RotationConfig::applyAndReboot(rotation); // never returns
+            }
+        }
     }
 
     void onRead(NimBLECharacteristic *pChar) override {

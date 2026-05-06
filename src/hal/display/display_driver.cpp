@@ -5,6 +5,7 @@
 #include "display_driver.h"
 #include "app_config.h"
 #include "hardware_profile.h"
+#include "config/rotation_config.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -49,11 +50,12 @@ void DisplayDriver::init() {
         return;
     }
 
+    const uint8_t rotation = RotationConfig::computeLgfxRotation();
     s_lcd.init();
-    s_lcd.setRotation(HW_DISPLAY_ROTATION);
+    s_lcd.setRotation(rotation);
     s_lcd.setBrightness(BL_DEFAULT_DUTY);
-    LOG_INFO("DISP", "After setRotation(%d): width=%d height=%d",
-             HW_DISPLAY_ROTATION, s_lcd.width(), s_lcd.height());
+    LOG_INFO("DISP", "After setRotation(%d, offset=%u°): width=%d height=%d",
+             rotation, RotationConfig::getOffsetDeg(), s_lcd.width(), s_lcd.height());
 
     s_lcd.fillScreen(TFT_BLACK);
 

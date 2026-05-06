@@ -17,6 +17,7 @@
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
+#include "config/rotation_config.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
@@ -309,11 +310,26 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
         SettingsPage::applyFromUsb(brightness, sleepS);
         xSemaphoreGive(g_lvglMutex);
-        Serial.println("{\"status\":\"ok\"}");
     } else {
         LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
         Serial.println("{\"status\":\"error\",\"message\":\"busy\"}");
+        return;
     }
+
+    // Mounting rotation override — only applied if the value actually changed,
+    // since applying it triggers a reboot.
+    JsonVariantConst rotationVar = obj["rotation"];
+    if (!rotationVar.isNull()) {
+        const uint16_t rotation = rotationVar.as<uint16_t>();
+        if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
+            LOG_INFO("USB", "Rotation change requested: %u° — rebooting", rotation);
+            Serial.println("{\"status\":\"ok\",\"rebooting\":true}");
+            Serial.flush();
+            RotationConfig::applyAndReboot(rotation); // never returns
+        }
+    }
+
+    Serial.println("{\"status\":\"ok\"}");
 }
 
 // Last time the host sent a command. Used by UsbComm::isHostActive() for the
