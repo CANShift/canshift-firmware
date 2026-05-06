@@ -55,16 +55,6 @@ void DisplayDriver::init() {
     LOG_INFO("DISP", "After setRotation(%d): width=%d height=%d",
              HW_DISPLAY_ROTATION, s_lcd.width(), s_lcd.height());
 
-    // RGB diagnostic — kept from #40 work to confirm panel init on each boot.
-    LOG_INFO("DISP", "RGB diagnostic — RED");
-    s_lcd.fillScreen(TFT_RED);
-    delay(400);
-    LOG_INFO("DISP", "RGB diagnostic — GREEN");
-    s_lcd.fillScreen(TFT_GREEN);
-    delay(400);
-    LOG_INFO("DISP", "RGB diagnostic — BLUE");
-    s_lcd.fillScreen(TFT_BLUE);
-    delay(400);
     s_lcd.fillScreen(TFT_BLACK);
 
     LOG_INFO("DISP", "Display initialized (%dx%d)", HW_DISPLAY_WIDTH, HW_DISPLAY_HEIGHT);
