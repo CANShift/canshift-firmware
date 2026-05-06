@@ -182,6 +182,11 @@ static void buildUI() {
 // Public API
 // ---------------------------------------------------------------------------
 
+// Minimum splash visibility — boot tends to finish in < 1 s, which feels
+// twitchy and gives the user no time to read the version. Hold at least this
+// long before handing the screen over to the dashboard.
+static constexpr uint32_t SPLASH_MIN_MS = 2000;
+
 void BootSequence::run() {
     // Silence ESP-IDF NVS error logs on first boot. Preferences::begin(ns,
     // /*readOnly=*/true) on a namespace that doesn't yet exist (touch cal,
@@ -190,6 +195,8 @@ void BootSequence::run() {
     // sensible default — the ERROR-level log is just noise. Demoting the tag
     // to WARN keeps real NVS errors visible (#42).
     esp_log_level_set("nvs", ESP_LOG_WARN);
+
+    const uint32_t bootStartMs = millis();
 
     logHeap("entry");
     // 1. Display + LVGL must come early so we can show a splash
@@ -241,9 +248,13 @@ void BootSequence::run() {
     logHeap("after buildUI");
     updateSplash("Ready", 100);
 
-    // Brief hold so the user actually sees the final state before the
-    // dashboard takes over the screen.
-    delay(800);
+    // Hold the splash for at least SPLASH_MIN_MS so the user can read the
+    // version + final progress state before the dashboard takes over.
+    const uint32_t bootElapsed = millis() - bootStartMs;
+    if (bootElapsed < SPLASH_MIN_MS) {
+        delay(SPLASH_MIN_MS - bootElapsed);
+    }
 
-    LOG_INFO("BOOT", "Boot sequence complete");
+    LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",
+             static_cast<unsigned long>(millis() - bootStartMs));
 }
