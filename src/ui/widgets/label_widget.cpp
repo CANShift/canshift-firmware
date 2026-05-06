@@ -1,15 +1,15 @@
 // label_widget.cpp — Numeric value widget (displayStyle=numeric).
 //
-// Layout mirrors studio's GaugeNumericPreview:
+// Layout:
 //   ┌────────────────────────────┐
 //   │ COOLANT TEMP C  ← header   │  (auto signal name when no user label)
 //   │                            │
-//   │          78                │  (large coloured value, prefix included)
-//   │          °C                │  (suffix on its own dim line)
+//   │         78°C               │  (value + suffix concatenated, coloured)
 //   │                            │
 //   │ COOLANT  ← user label      │  (rendered at cfg.labelPosition when set)
 //   └────────────────────────────┘
-// Header and user label are mutually exclusive — same as studio.
+// Header and user label are mutually exclusive. Suffix sits inline with the
+// value so a corner-anchored user label can never collide with the unit.
 
 #include "label_widget.h"
 #include "diag/logger.h"
@@ -20,24 +20,15 @@
 
 namespace {
 
-// Pick a value font size that fills `lineH` vertically and stays under 52% of
-// `widgetW` horizontally — matches studio's `Math.min(valueLineH * 0.72, w * 0.52)`.
-// Result is then snapped by FontManager to the nearest compiled-in Montserrat.
+// Scale the value font to the available band, capped to 52 % of widget width
+// so a wide number ("12345") never overflows. Snapped by FontManager to a
+// compiled-in Montserrat size.
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
-    const int byHeight = (lineH * 72) / 100;
+    const int byHeight = (lineH * 65) / 100;
     const int byWidth  = (widgetW * 52) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
     if (s < 12) s = 12;
     if (s > 48) s = 48;
-    return static_cast<uint8_t>(s);
-}
-
-uint8_t pickUnitFontSize(int16_t lineH, int16_t widgetW) {
-    const int byHeight = (lineH * 72) / 100;
-    const int byWidth  = (widgetW * 28) / 100;
-    int s = byHeight < byWidth ? byHeight : byWidth;
-    if (s < 12) s = 12;
-    if (s > 20) s = 20;
     return static_cast<uint8_t>(s);
 }
 
@@ -64,19 +55,13 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     const bool hasUserLabel = cfg.label.label[0] != '\0';
-    const bool hasSuffix = cfg.label.suffix[0] != '\0';
 
     // Auto signal header eats ~14 px from the top — only when no user label.
     const int16_t sigHeaderH = hasUserLabel ? 0 : 14;
-    const int16_t availH = cfg.layout.h - sigHeaderH;
-    // Suffix sits in its own line worth ~24 % of the remaining height (studio).
-    const int16_t unitLineH = hasSuffix ? (availH * 24) / 100 : 0;
-    const int16_t valueLineH = availH - unitLineH;
+    const int16_t valueLineH = cfg.layout.h - sigHeaderH;
 
     const lv_font_t *valueFont =
         FontManager::get(pickValueFontSize(valueLineH, cfg.layout.w));
-    const lv_font_t *unitFont =
-        FontManager::get(pickUnitFontSize(unitLineH, cfg.layout.w));
 
     if (!hasUserLabel) {
         WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
@@ -91,28 +76,20 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
 
-    // Centre the value inside the value-line band: shift down by half the
-    // signal-header reserve and up by half the suffix-line reserve.
-    const int16_t valueYOffset = static_cast<int16_t>((sigHeaderH - unitLineH) / 2);
+    // Suffix is rendered inline with the value (e.g. "78°C") rather than on a
+    // separate line — that way it can never collide with a corner-anchored
+    // user label, regardless of where the user places the widget label from
+    // studio. Studio uses the same pattern for parity.
+    const int16_t valueYOffset = static_cast<int16_t>(sigHeaderH / 2);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, valueYOffset);
 
     {
         char valBuf[16];
         snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces), 0.0f);
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
+        char buf[40];
+        snprintf(buf, sizeof(buf), "%s%s%s",
+                 cfg.label.prefix, valBuf, cfg.label.suffix);
         lv_label_set_text(label, buf);
-    }
-
-    if (hasSuffix) {
-        lv_obj_t *unitLbl = lv_label_create(cont);
-        if (unitLbl) {
-            lv_label_set_text(unitLbl, cfg.label.suffix);
-            lv_obj_set_style_text_color(unitLbl,
-                                         lv_color_hex(WidgetLabelOverlay::kLabelDimRgb), 0);
-            lv_obj_set_style_text_font(unitLbl, unitFont, 0);
-            lv_obj_align(unitLbl, LV_ALIGN_BOTTOM_MID, 0, -2);
-        }
     }
 
     if (hasUserLabel) {
@@ -146,7 +123,8 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     snprintf(valBuf, sizeof(valBuf), "%.*f",
              static_cast<int>(cfg.label.decimalPlaces), displayValue);
 
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
+    char buf[40];
+    snprintf(buf, sizeof(buf), "%s%s%s",
+             cfg.label.prefix, valBuf, cfg.label.suffix);
     lv_label_set_text(label, buf);
 }

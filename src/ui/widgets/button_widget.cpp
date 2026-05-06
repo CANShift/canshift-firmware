@@ -28,7 +28,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     lv_obj_set_size(btn, cfg.layout.w, cfg.layout.h);
 
     lv_obj_set_style_bg_color(btn, lv_color_hex(cfg.style.primaryColor.rgb), LV_PART_MAIN);
-    lv_obj_set_style_radius(btn, 6, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
 
     lv_obj_t *label = lv_label_create(btn);
     lv_label_set_text(label, cfg.button.label);
