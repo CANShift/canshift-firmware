@@ -175,6 +175,9 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             anchor(obj, 0);
             if (hasDayTheme) {
                 lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+                // Icon is ~12 px on a 16 px bar — too small to tap reliably.
+                // Extend the hit-test region by 10 px on every side (#93).
+                lv_obj_set_ext_click_area(obj, 10);
                 lv_obj_add_event_cb(
                     obj, [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
                     LV_EVENT_CLICKED, nullptr);
@@ -244,6 +247,8 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
     lv_obj_align(s_themeIcon, LV_ALIGN_RIGHT_MID, 0, 0);
     if (dash.hasDayTheme) {
         lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_CLICKABLE);
+        // See layout-driven path: extend hit-test by 10 px (#93).
+        lv_obj_set_ext_click_area(s_themeIcon, 10);
         lv_obj_add_event_cb(
             s_themeIcon,
             [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
