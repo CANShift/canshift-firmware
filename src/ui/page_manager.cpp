@@ -74,14 +74,25 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
     // Adjust content area for top bar
     int16_t contentY = cfg.showTopBar ? TopBar::getHeight() : 0;
 
-    // Create all widgets for this page
+    // Create all widgets for this page. Count successes so we surface a
+    // visible warning if any silently failed — this is the diagnostic hook
+    // for #57 ("some gauges not rendered").
+    uint8_t created = 0;
     for (uint8_t w = 0; w < cfg.widgetCount; ++w) {
         const CfgWidget &wCfg = cfg.widgets[w];
-        WidgetFactory::create(p.screen, wCfg, contentY);
+        if (WidgetFactory::create(p.screen, wCfg, contentY) != nullptr)
+            ++created;
     }
 
     p.built = true;
-    LOG_DEBUG("UI", "Built page '%s' with %d widgets", cfg.id, cfg.widgetCount);
+    if (created < cfg.widgetCount) {
+        LOG_WARN("UI", "Page '%s': only %u/%u widgets built — see prior WF errors",
+                 cfg.id, static_cast<unsigned>(created),
+                 static_cast<unsigned>(cfg.widgetCount));
+    } else {
+        LOG_INFO("UI", "Built page '%s' with %u widgets", cfg.id,
+                 static_cast<unsigned>(cfg.widgetCount));
+    }
 }
 
 void rebuildAllPages() {
