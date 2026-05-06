@@ -6,6 +6,7 @@
 #include "warning_widget.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/widget_label.h"
 #include "diag/logger.h"
 
 #include <ctype.h>
@@ -135,6 +136,10 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
                             }
                         },
                         LV_EVENT_DELETE, tag);
+
+    // Optional widget label drawn at the configured corner.
+    WidgetLabelOverlay::apply(root, cfg.warning.label, cfg.warning.labelPosition,
+                               cfg.style.textColor.rgb);
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
               iconImg ? "asset" : "glyph");

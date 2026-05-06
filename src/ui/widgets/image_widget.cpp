@@ -7,6 +7,7 @@
 // This is prefixed with "S:" to form the LVGL FS path "S:/images/bg.bmp".
 
 #include "image_widget.h"
+#include "ui/widget_label.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -63,6 +64,10 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         auto* t = static_cast<ImageTag*>(lv_event_get_user_data(e));
         delete t;
     }, LV_EVENT_DELETE, tag);
+
+    // Optional widget label drawn at the configured corner.
+    WidgetLabelOverlay::apply(cont, cfg.image.label, cfg.image.labelPosition,
+                               cfg.style.textColor.rgb);
 
     LOG_DEBUG("IMG", "Image widget created: %s", tag->lvglPath);
     return cont;

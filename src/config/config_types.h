@@ -120,12 +120,16 @@ struct CfgLabelParams {
     char prefix[16];
     char suffix[16];
     bool hideWhenInvalid;
+    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
+    CfgLabelPos labelPosition;
 };
 
 struct CfgWarningParams {
     bool invertLogic; // True = lit when signal == 0 (e.g. oil pressure OK light)
     float threshold;  // Signal value that activates warning
     char iconName[16]; // SensorIconName key, "" = default warning glyph
+    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
+    CfgLabelPos labelPosition;
 };
 
 struct CfgButtonParams {
@@ -137,10 +141,14 @@ struct CfgButtonParams {
 struct CfgTimerParams {
     bool autoStart;
     bool formatMsec; // true = "ss.mmm", false = "mm:ss"
+    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
+    CfgLabelPos labelPosition;
 };
 
 struct CfgImageParams {
     char imagePath[CFG_MAX_PATH_LEN]; // SPIFFS path e.g. "/images/bg.bmp"
+    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
+    CfgLabelPos labelPosition;
 };
 
 // ---------------------------------------------------------------------------

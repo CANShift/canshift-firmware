@@ -9,6 +9,7 @@
 
 #include "timer_widget.h"
 #include "ui/font_manager.h"
+#include "ui/widget_label.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -144,6 +145,10 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
+
+    // Optional widget label drawn at the configured corner.
+    WidgetLabelOverlay::apply(cont, cfg.timer.label, cfg.timer.labelPosition,
+                               cfg.style.textColor.rgb);
 
     return cont;
 }

@@ -6,6 +6,7 @@
 #include "bar_widget.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/widget_label.h"
 #include "diag/logger.h"
 
 #include <ctype.h>
@@ -225,23 +226,9 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             t->valueLabel = val;
         }
 
-        // Optional widget label
-        if (cfg.bar.label[0] != '\0') {
-            lv_obj_t *wl = lv_label_create(cont);
-            lv_label_set_text(wl, cfg.bar.label);
-            uint32_t labelRgb = ((cfg.style.textColor.rgb >> 1) & 0x7F7F7F);
-            lv_obj_set_style_text_color(wl, lv_color_hex(labelRgb), 0);
-            lv_obj_set_style_text_font(wl, FontManager::get(12), 0);
-            switch (cfg.bar.labelPosition) {
-                case CfgLabelPos::TOP_LEFT:      lv_obj_align(wl, LV_ALIGN_TOP_LEFT, 2, 1); break;
-                case CfgLabelPos::TOP_CENTER:    lv_obj_align(wl, LV_ALIGN_TOP_MID, 0, 1); break;
-                case CfgLabelPos::TOP_RIGHT:     lv_obj_align(wl, LV_ALIGN_TOP_RIGHT, -2, 1); break;
-                case CfgLabelPos::BOTTOM_LEFT:   lv_obj_align(wl, LV_ALIGN_BOTTOM_LEFT, 2, -1); break;
-                case CfgLabelPos::BOTTOM_CENTER: lv_obj_align(wl, LV_ALIGN_BOTTOM_MID, 0, -1); break;
-                case CfgLabelPos::BOTTOM_RIGHT:  lv_obj_align(wl, LV_ALIGN_BOTTOM_RIGHT, -2, -1); break;
-            }
-            t->widgetLabel = wl;
-        }
+        // Optional widget label.
+        WidgetLabelOverlay::apply(cont, cfg.bar.label, cfg.bar.labelPosition,
+                                   cfg.style.textColor.rgb);
 
         // Optional icon (drawn at left edge)
         if (cfg.bar.iconName[0] != '\0') {

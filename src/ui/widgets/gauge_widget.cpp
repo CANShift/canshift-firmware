@@ -2,6 +2,7 @@
 
 #include "gauge_widget.h"
 #include "ui/font_manager.h"
+#include "ui/widget_label.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
 
@@ -214,23 +215,9 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_label_set_text(unitLabel, cfg.gauge.suffix);
     }
 
-    // Optional widget label drawn at the configured corner — matches studio's
-    // svgLabelAttrs() positioning: small dim text, never blocks the arc / value.
-    if (cfg.gauge.label[0] != '\0') {
-        lv_obj_t *wl = lv_label_create(cont);
-        lv_label_set_text(wl, cfg.gauge.label);
-        const uint32_t dimRgb = (cfg.style.textColor.rgb >> 1) & 0x7F7F7F;
-        lv_obj_set_style_text_color(wl, lv_color_hex(dimRgb), 0);
-        lv_obj_set_style_text_font(wl, FontManager::get(12), 0);
-        switch (cfg.gauge.labelPosition) {
-            case CfgLabelPos::TOP_LEFT:      lv_obj_align(wl, LV_ALIGN_TOP_LEFT, 2, 1); break;
-            case CfgLabelPos::TOP_CENTER:    lv_obj_align(wl, LV_ALIGN_TOP_MID, 0, 1); break;
-            case CfgLabelPos::TOP_RIGHT:     lv_obj_align(wl, LV_ALIGN_TOP_RIGHT, -2, 1); break;
-            case CfgLabelPos::BOTTOM_LEFT:   lv_obj_align(wl, LV_ALIGN_BOTTOM_LEFT, 2, -1); break;
-            case CfgLabelPos::BOTTOM_CENTER: lv_obj_align(wl, LV_ALIGN_BOTTOM_MID, 0, -1); break;
-            case CfgLabelPos::BOTTOM_RIGHT:  lv_obj_align(wl, LV_ALIGN_BOTTOM_RIGHT, -2, -1); break;
-        }
-    }
+    // Optional widget label drawn at the configured corner.
+    WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition,
+                               cfg.style.textColor.rgb);
 
     // Allocate and attach tag
     GaugeTag *tag = new GaugeTag{arcValue, label, unitLabel,

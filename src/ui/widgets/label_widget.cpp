@@ -3,6 +3,7 @@
 #include "label_widget.h"
 #include "diag/logger.h"
 #include "ui/font_manager.h"
+#include "ui/widget_label.h"
 #include <lvgl.h>
 #include <stdio.h>
 
@@ -59,6 +60,10 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, cfg.label.suffix);
         lv_label_set_text(label, buf);
     }
+
+    // Optional widget label drawn at the configured corner.
+    WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition,
+                               cfg.style.textColor.rgb);
 
     // Store label pointer in user data
     lv_obj_set_user_data(cont, label);

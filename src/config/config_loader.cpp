@@ -134,6 +134,8 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
                 strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
                 w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
+                strlcpy(w->label.label, cfg["label"] | "", sizeof(w->label.label));
+                w->label.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             } else {
                 // "arc" or unrecognised — arc gauge
                 w->gauge.minValue = cfg["minValue"] | 0.0f;
@@ -155,11 +157,15 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
             strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
             w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
+            strlcpy(w->label.label, cfg["label"] | "", sizeof(w->label.label));
+            w->label.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             break;
         case WidgetType::WARNING:
             w->warning.invertLogic = cfg["invertLogic"] | false;
             w->warning.threshold = cfg["threshold"] | 0.5f;
             strlcpy(w->warning.iconName, cfg["iconName"] | "", sizeof(w->warning.iconName));
+            strlcpy(w->warning.label, cfg["label"] | "", sizeof(w->warning.label));
+            w->warning.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             break;
         case WidgetType::BAR:
             // Direct "type": "bar" — BarWidgetConfig schema (always horizontal)
@@ -183,9 +189,13 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
         case WidgetType::TIMER:
             w->timer.autoStart = cfg["autoStart"] | false;
             w->timer.formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
+            strlcpy(w->timer.label, cfg["label"] | "", sizeof(w->timer.label));
+            w->timer.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             break;
         case WidgetType::IMAGE:
             strlcpy(w->image.imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
+            strlcpy(w->image.label, cfg["label"] | "", sizeof(w->image.label));
+            w->image.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             break;
         case WidgetType::GEAR_IND:
             // Gear indicator reuses label params for prefix/suffix/hideWhenInvalid
@@ -193,6 +203,8 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
             strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
             w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
+            strlcpy(w->label.label, cfg["label"] | "", sizeof(w->label.label));
+            w->label.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             break;
         default:
             break;

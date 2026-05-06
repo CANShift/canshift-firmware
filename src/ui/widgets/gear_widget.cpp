@@ -10,6 +10,7 @@
 
 #include "gear_widget.h"
 #include "ui/font_manager.h"
+#include "ui/widget_label.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -60,6 +61,11 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_label_set_text(label, "N");
 
     lv_obj_set_user_data(cont, label);
+
+    // Optional widget label (gear shares CfgLabelParams in the union).
+    WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition,
+                               cfg.style.textColor.rgb);
+
     return cont;
 }
 
