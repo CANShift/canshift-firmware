@@ -246,18 +246,18 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             t->signalLabel = sig;
         }
 
-        // Value label — white, centred horizontally inside the label band.
-        if (labelBandH >= 10) {
+        // Value label — white, centred ON the bar track (not the label band).
+        // Sits over the fill so it reads as part of the bar.
+        if (barH >= 14) {
+            const lv_font_t *valFont = FontManager::get(barH >= 24 ? 14 : 12);
             lv_obj_t *val = lv_label_create(cont);
             lv_obj_set_style_text_color(val, lv_color_hex(VALUE_TEXT_RGB), 0);
-            // Font 14 needs ~17 px of line height — only swap up once the
-            // band is tall enough to hold it without clipping.
-            lv_obj_set_style_text_font(val, FontManager::get(labelBandH >= 18 ? 14 : 12), 0);
-            // Width-spanning width + centre alignment guarantees real centring
-            // even when the band also hosts a left-anchored user label.
+            lv_obj_set_style_text_font(val, valFont, 0);
             lv_obj_set_width(val, W);
             lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_set_pos(val, 0, bandY + 1);
+            const int16_t fontH = lv_font_get_line_height(valFont);
+            const int16_t valueY = trackY + (barH - fontH) / 2;
+            lv_obj_set_pos(val, 0, valueY);
             t->valueLabel = val;
         }
 

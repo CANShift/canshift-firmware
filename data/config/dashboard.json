@@ -48,7 +48,7 @@
           "id": "rpm_arc",
           "type": "gauge",
           "signal": "rpm",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 80, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -75,7 +75,7 @@
           "id": "speed_num",
           "type": "gauge",
           "signal": "speed_kph",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 80, "zOrder": 0 },
           "style": {
             "textColor": "#FFFFFF",
             "primaryColor": "#FFFFFF",
@@ -101,7 +101,7 @@
           "id": "coolant_num",
           "type": "gauge",
           "signal": "coolant_temp_c",
-          "layout": { "x": 0, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "layout": { "x": 0, "y": 80, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "textColor": "#44AAFF",
             "primaryColor": "#44AAFF",
@@ -127,7 +127,7 @@
           "id": "oil_temp_num",
           "type": "gauge",
           "signal": "oil_temp_c",
-          "layout": { "x": 80, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "layout": { "x": 80, "y": 80, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "textColor": "#FF8800",
             "primaryColor": "#FF8800",
@@ -153,7 +153,7 @@
           "id": "gear_ind",
           "type": "gear",
           "signal": "gear",
-          "layout": { "x": 160, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 80, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "textColor": "#FF4444",
             "primaryColor": "#FF4444",
@@ -173,7 +173,7 @@
           "id": "afr_num",
           "type": "gauge",
           "signal": "afr_1",
-          "layout": { "x": 240, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "layout": { "x": 240, "y": 80, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "textColor": "#44FF88",
             "primaryColor": "#44FF88",
@@ -199,7 +199,7 @@
           "id": "tps_bar",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 0, "y": 168, "w": 320, "h": 40, "zOrder": 0 },
+          "layout": { "x": 0, "y": 136, "w": 320, "h": 48, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -226,7 +226,7 @@
           "id": "mil_warn",
           "type": "warning",
           "signal": "flag_mil",
-          "layout": { "x": 160, "y": 208, "w": 80, "h": 28, "zOrder": 1 },
+          "layout": { "x": 160, "y": 184, "w": 80, "h": 56, "zOrder": 1 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#333333",
@@ -247,7 +247,7 @@
           "id": "nav_detail",
           "type": "button",
           "signal": "",
-          "layout": { "x": 240, "y": 208, "w": 80, "h": 28, "zOrder": 0 },
+          "layout": { "x": 240, "y": 184, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#2A2A2A",
             "secondaryColor": "#1A1A1A",
@@ -277,7 +277,7 @@
           "id": "boost_arc",
           "type": "gauge",
           "signal": "boost_bar",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 80, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -303,7 +303,7 @@
           "id": "iat_num",
           "type": "gauge",
           "signal": "iat_c",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 40, "zOrder": 0 },
           "style": {
             "textColor": "#AAAAAA",
             "primaryColor": "#AAAAAA",
@@ -329,7 +329,7 @@
           "id": "oil_press_num",
           "type": "gauge",
           "signal": "oil_press_bar",
-          "layout": { "x": 160, "y": 56, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 40, "w": 160, "h": 40, "zOrder": 0 },
           "style": {
             "textColor": "#FF8800",
             "primaryColor": "#FF8800",
@@ -355,7 +355,7 @@
           "id": "rpm_bar",
           "type": "gauge",
           "signal": "rpm",
-          "layout": { "x": 0, "y": 112, "w": 40, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 80, "w": 40, "h": 160, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -382,7 +382,7 @@
           "id": "lambda_num",
           "type": "gauge",
           "signal": "lambda_1",
-          "layout": { "x": 40, "y": 112, "w": 80, "h": 56, "zOrder": 0 },
+          "layout": { "x": 40, "y": 80, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "textColor": "#44FF88",
             "primaryColor": "#44FF88",
@@ -408,7 +408,7 @@
           "id": "batt_num",
           "type": "gauge",
           "signal": "battery_volts",
-          "layout": { "x": 40, "y": 168, "w": 80, "h": 56, "zOrder": 0 },
+          "layout": { "x": 40, "y": 136, "w": 80, "h": 48, "zOrder": 0 },
           "style": {
             "textColor": "#AAAAAA",
             "primaryColor": "#AAAAAA",
@@ -434,7 +434,7 @@
           "id": "tps_hbar",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 40, "zOrder": 0 },
+          "layout": { "x": 160, "y": 80, "w": 160, "h": 48, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -461,7 +461,7 @@
           "id": "nav_main",
           "type": "button",
           "signal": "",
-          "layout": { "x": 160, "y": 196, "w": 80, "h": 28, "zOrder": 0 },
+          "layout": { "x": 160, "y": 184, "w": 80, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#2A2A2A",
             "secondaryColor": "#1A1A1A",
@@ -482,7 +482,7 @@
           "id": "mil_warn2",
           "type": "warning",
           "signal": "flag_mil",
-          "layout": { "x": 240, "y": 196, "w": 80, "h": 28, "zOrder": 1 },
+          "layout": { "x": 240, "y": 184, "w": 80, "h": 56, "zOrder": 1 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#333333",
