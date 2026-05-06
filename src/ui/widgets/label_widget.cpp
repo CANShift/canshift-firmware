@@ -83,11 +83,14 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, valueYOffset);
 
     {
+        // Numeric widgets render the value bare ("78", "195"). The unit
+        // (°C, km/h, …) is conveyed by the label itself — repeating it on
+        // the value just clips wide numbers ("195km/h" → "195k") and adds
+        // visual noise. Arc and bar widgets keep their suffix.
         char valBuf[16];
         snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces), 0.0f);
         char buf[40];
-        const char *suffix = hasUserLabel ? "" : cfg.label.suffix;
-        snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, suffix);
+        snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
         lv_label_set_text(label, buf);
     }
 
@@ -122,11 +125,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     snprintf(valBuf, sizeof(valBuf), "%.*f",
              static_cast<int>(cfg.label.decimalPlaces), displayValue);
 
-    // Mirror the create() rule: suffix is suppressed when the user has set a
-    // label — the label name already implies the unit.
-    const bool hasUserLabel = cfg.label.label[0] != '\0';
-    const char *suffix = hasUserLabel ? "" : cfg.label.suffix;
+    // Suffix dropped unconditionally — the label conveys the unit. Wide
+    // numeric values ("195km/h" → "195k") were getting clipped on the right
+    // edge of 80-px-wide widgets. See create() for full rationale.
     char buf[40];
-    snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, suffix);
+    snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
     lv_label_set_text(label, buf);
 }
