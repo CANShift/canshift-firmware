@@ -50,7 +50,15 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         font = FontManager::get(12);
 
     lv_obj_set_style_text_font(label, font, 0);
-    lv_label_set_text(label, "---");
+    {
+        // No-signal default: 0 formatted to the configured decimalPlaces with
+        // any configured prefix/suffix wrapping it.
+        char valBuf[16];
+        snprintf(valBuf, sizeof(valBuf), "%.*f", (int)cfg.label.decimalPlaces, 0.0f);
+        char buf[48];
+        snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, cfg.label.suffix);
+        lv_label_set_text(label, buf);
+    }
 
     // Store label pointer in user data
     lv_obj_set_user_data(cont, label);
@@ -69,17 +77,13 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         lv_label_set_text(label, "");
         return;
     }
-    if (!valid) {
-        lv_label_set_text(label, "---");
-        return;
-    }
+
+    // Invalid signals fall through with value=0 — same formatting as live
+    // values so the dashboard always reads numerically.
+    const float displayValue = valid ? value : 0.0f;
 
     char valBuf[16];
-    if (cfg.label.decimalPlaces == 0) {
-        snprintf(valBuf, sizeof(valBuf), "%.0f", value);
-    } else {
-        snprintf(valBuf, sizeof(valBuf), "%.*f", (int)cfg.label.decimalPlaces, value);
-    }
+    snprintf(valBuf, sizeof(valBuf), "%.*f", (int)cfg.label.decimalPlaces, displayValue);
 
     char buf[48];
     snprintf(buf, sizeof(buf), "%s%s%s", cfg.label.prefix, valBuf, cfg.label.suffix);

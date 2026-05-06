@@ -142,7 +142,11 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->gauge.dangerLevel = cfg["dangerLevel"] | 95.0f;
                 w->gauge.showNeedle = cfg["showNeedle"] | false;
                 w->gauge.showArc = cfg["showArc"] | true;
+                w->gauge.decimalPlaces = cfg["decimalPlaces"] | 0;
+                strlcpy(w->gauge.prefix, cfg["prefix"] | "", sizeof(w->gauge.prefix));
                 strlcpy(w->gauge.suffix, cfg["suffix"] | "", sizeof(w->gauge.suffix));
+                strlcpy(w->gauge.label, cfg["label"] | "", sizeof(w->gauge.label));
+                w->gauge.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
             }
             break;
         }

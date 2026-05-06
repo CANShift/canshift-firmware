@@ -194,7 +194,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (cfg.layout.h >= 130)
         font = FontManager::get(32);
     lv_obj_set_style_text_font(label, font, 0);
-    lv_label_set_text(label, "---");
+    {
+        // Initial readout: 0, formatted to the configured decimalPlaces with
+        // optional prefix — matches the "no signal yet → show 0" rule.
+        char initBuf[24];
+        snprintf(initBuf, sizeof(initBuf), "%s%.*f", cfg.gauge.prefix,
+                 cfg.gauge.decimalPlaces, 0.0f);
+        lv_label_set_text(label, initBuf);
+    }
 
     // Unit label below value (optional)
     lv_obj_t *unitLabel = nullptr;
@@ -205,6 +212,24 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                                     0);
         lv_obj_set_style_text_font(unitLabel, FontManager::get(12), 0);
         lv_label_set_text(unitLabel, cfg.gauge.suffix);
+    }
+
+    // Optional widget label drawn at the configured corner — matches studio's
+    // svgLabelAttrs() positioning: small dim text, never blocks the arc / value.
+    if (cfg.gauge.label[0] != '\0') {
+        lv_obj_t *wl = lv_label_create(cont);
+        lv_label_set_text(wl, cfg.gauge.label);
+        const uint32_t dimRgb = (cfg.style.textColor.rgb >> 1) & 0x7F7F7F;
+        lv_obj_set_style_text_color(wl, lv_color_hex(dimRgb), 0);
+        lv_obj_set_style_text_font(wl, FontManager::get(12), 0);
+        switch (cfg.gauge.labelPosition) {
+            case CfgLabelPos::TOP_LEFT:      lv_obj_align(wl, LV_ALIGN_TOP_LEFT, 2, 1); break;
+            case CfgLabelPos::TOP_CENTER:    lv_obj_align(wl, LV_ALIGN_TOP_MID, 0, 1); break;
+            case CfgLabelPos::TOP_RIGHT:     lv_obj_align(wl, LV_ALIGN_TOP_RIGHT, -2, 1); break;
+            case CfgLabelPos::BOTTOM_LEFT:   lv_obj_align(wl, LV_ALIGN_BOTTOM_LEFT, 2, -1); break;
+            case CfgLabelPos::BOTTOM_CENTER: lv_obj_align(wl, LV_ALIGN_BOTTOM_MID, 0, -1); break;
+            case CfgLabelPos::BOTTOM_RIGHT:  lv_obj_align(wl, LV_ALIGN_BOTTOM_RIGHT, -2, -1); break;
+        }
     }
 
     // Allocate and attach tag
@@ -232,7 +257,11 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
 
     if (!valid) {
-        lv_label_set_text(tag->valueLabel, "---");
+        // No live signal → display 0 (formatted) instead of placeholder dashes.
+        char buf[24];
+        snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
+        lv_label_set_text(tag->valueLabel, buf);
+        lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
         lv_arc_set_angles(tag->arcValue, 0, 0);
         // Dim the indicator when invalid
         lv_obj_set_style_arc_opa(tag->arcValue, LV_OPA_40, LV_PART_INDICATOR);
@@ -269,12 +298,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         labelColor = kColorWarning;
     lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
 
-    // Update numeric label
-    char buf[16];
-    if (cfg.label.decimalPlaces == 0) {
-        snprintf(buf, sizeof(buf), "%.0f", value);
-    } else {
-        snprintf(buf, sizeof(buf), "%.*f", cfg.label.decimalPlaces, value);
-    }
+    // Update numeric label (prefix + value formatted to decimalPlaces).
+    char buf[24];
+    snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, value);
     lv_label_set_text(tag->valueLabel, buf);
 }
