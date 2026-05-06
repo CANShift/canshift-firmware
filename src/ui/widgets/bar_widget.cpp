@@ -159,13 +159,13 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
                                 || cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER
                                 || cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
 
-        // Reserve a label band: 18 % of widget height, clamped 10..20. The
-        // tighter range gives the bar itself more vertical room — important
-        // for short widgets like the THROTTLE bar (h≈28..36) where every px
-        // of track height matters.
-        int16_t labelBandH = static_cast<int16_t>((H * 18) / 100);
-        if (labelBandH < 10) labelBandH = 10;
-        if (labelBandH > 20) labelBandH = 20;
+        // Reserve a label band: 25 % of widget height, clamped 14..24. The
+        // 14-px floor matches Montserrat 12's line height — anything tighter
+        // visibly clips the value (\"65%\") and the signal name. The 24-px
+        // cap keeps the bar dominant on tall widgets.
+        int16_t labelBandH = static_cast<int16_t>((H * 25) / 100);
+        if (labelBandH < 14) labelBandH = 14;
+        if (labelBandH > 24) labelBandH = 24;
         // Bar fills the rest minus a small gap.
         const int16_t gap = 2;
         const int16_t barH = H - labelBandH - gap;
@@ -250,7 +250,9 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         if (labelBandH >= 10) {
             lv_obj_t *val = lv_label_create(cont);
             lv_obj_set_style_text_color(val, lv_color_hex(VALUE_TEXT_RGB), 0);
-            lv_obj_set_style_text_font(val, FontManager::get(labelBandH >= 16 ? 14 : 12), 0);
+            // Font 14 needs ~17 px of line height — only swap up once the
+            // band is tall enough to hold it without clipping.
+            lv_obj_set_style_text_font(val, FontManager::get(labelBandH >= 18 ? 14 : 12), 0);
             // Width-spanning width + centre alignment guarantees real centring
             // even when the band also hosts a left-anchored user label.
             lv_obj_set_width(val, W);
