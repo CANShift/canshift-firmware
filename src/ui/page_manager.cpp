@@ -125,7 +125,14 @@ void rebuildAllPages() {
     LOG_INFO("UI", "Pages rebuilt for theme toggle");
 }
 
-void showPage(uint8_t idx) {
+// Page transitions on the ESP32:
+//  - OVER_LEFT/RIGHT: new screen slides over old, old stays static. Cheap —
+//    only the moving screen is repainted each frame. Used for swipe gestures.
+//  - FADE_IN: alpha-blended cross-fade. Costly per pixel on a 320×240 panel
+//    without a GPU; we keep it short. Used for programmatic navigation where
+//    no direction is implied.
+void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
+              uint32_t durationMs = 120) {
     if (idx >= s_pageCount) {
         LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
         return;
@@ -135,11 +142,7 @@ void showPage(uint8_t idx) {
         return;
     }
 
-    lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_FADE_IN,
-                     150,  // Animation duration ms
-                     0,    // Delay ms
-                     false // Don't delete old screen
-    );
+    lv_scr_load_anim(s_pages[idx].screen, anim, durationMs, 0, false /* keep old screen */);
 
     s_currentIdx = idx;
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
@@ -177,13 +180,15 @@ void onGesture(lv_dir_t dir) {
             break;
         case LV_DIR_LEFT:
             if (s_pageCount > 1) {
-                showPage((s_currentIdx + 1) % s_pageCount);
+                // Next page enters from the right, slides left — matches finger motion.
+                showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, 180);
                 LOG_DEBUG("UI", "Gesture: swipe left → next page");
             }
             break;
         case LV_DIR_RIGHT:
             if (s_pageCount > 1) {
-                showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1);
+                showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
+                         LV_SCR_LOAD_ANIM_OVER_RIGHT, 180);
                 LOG_DEBUG("UI", "Gesture: swipe right → prev page");
             }
             break;
@@ -362,11 +367,14 @@ bool PageManager::navigateToIndex(uint8_t index) {
 }
 
 void PageManager::navigateNext() {
-    navigateToIndex((s_currentIdx + 1) % s_pageCount);
+    if (s_pageCount == 0) return;
+    showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, 180);
 }
 
 void PageManager::navigatePrev() {
-    navigateToIndex((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1);
+    if (s_pageCount == 0) return;
+    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1,
+             LV_SCR_LOAD_ANIM_OVER_RIGHT, 180);
 }
 
 const char *PageManager::getCurrentPageId() {
