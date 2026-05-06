@@ -18,9 +18,11 @@
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
 #include "ui/settings_page.h"
+#include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 
+#include <atomic>
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <esp_system.h> // esp_restart()
@@ -319,6 +321,11 @@ void handleScreenSettings(const JsonObjectConst &obj) {
 // fine — single writer, single reader, atomic on 32-bit ESP32).
 static volatile uint32_t s_lastHostCmdMs = 0;
 
+// Deferred-action flags — set by command handlers, consumed by the UI task in
+// main.cpp. Mirrors the pattern used by ble_server.cpp for the same actions.
+static std::atomic<bool> s_pendingDayNightToggle{false};
+static std::atomic<bool> s_pendingCalibration{false};
+
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
@@ -361,15 +368,27 @@ void handleCommand(const char *jsonLine) {
 
     switch (cmd) {
         case UsbComm::CMD_GET_STATUS: {
-            char resp[80];
-            snprintf(resp, sizeof(resp),
-                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u}", APP_VERSION_STR,
-                     static_cast<unsigned>(USB_PROTOCOL_VERSION));
+            char resp[112];
+            snprintf(
+                resp, sizeof(resp),
+                "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
+                APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
+                ThemeManager::isDayMode() ? 1 : 0);
             Serial.println(resp);
             break;
         }
         case UsbComm::CMD_SCREEN_SETTINGS:
             handleScreenSettings(doc.as<JsonObjectConst>());
+            break;
+        case UsbComm::CMD_TOGGLE_DAY_NIGHT:
+            s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
+            LOG_INFO("USB", "CMD: day/night toggle queued");
+            Serial.println("{\"status\":\"ok\"}");
+            break;
+        case UsbComm::CMD_CALIBRATE_TOUCH:
+            s_pendingCalibration.store(true, std::memory_order_relaxed);
+            LOG_INFO("USB", "CMD: calibration queued");
+            Serial.println("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_CAN_SCAN_START:
             s_scanDrops = 0;
@@ -446,6 +465,14 @@ void UsbComm::init() {
         LOG_ERROR("USB", "Failed to create CAN scan queue");
     }
     LOG_INFO("USB", "USB comm initialized");
+}
+
+bool UsbComm::takePendingDayNightToggle() {
+    return s_pendingDayNightToggle.exchange(false, std::memory_order_relaxed);
+}
+
+bool UsbComm::takePendingCalibration() {
+    return s_pendingCalibration.exchange(false, std::memory_order_relaxed);
 }
 
 bool UsbComm::isHostActive() {

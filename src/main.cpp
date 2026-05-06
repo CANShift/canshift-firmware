@@ -123,6 +123,7 @@ void loop() {
 #include "ui/theme_manager.h"
 #include "runtime/alert_engine.h"
 #include <lvgl.h>
+#include "hal/usb/usb_comm.h"
 #if APP_BLE_ENABLED
 #include "hal/ble/ble_server.h"
 #endif
@@ -131,14 +132,21 @@ void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
 
     while (true) {
-#if APP_BLE_ENABLED
         // Calibration runs WITHOUT the LVGL mutex — it blocks while the user taps
         // crosshairs on screen and draws directly via TFT_eSPI (not through LVGL).
+        bool calibratedThisTick = false;
+#if APP_BLE_ENABLED
         if (BleServer::takePendingCalibration()) {
             TouchDriver::calibrate();
             BleServer::pushStatusNotify();
+            calibratedThisTick = true;
         }
 #endif
+        if (UsbComm::takePendingCalibration()) {
+            TouchDriver::calibrate();
+            calibratedThisTick = true;
+        }
+        (void)calibratedThisTick;
 
         bool didDayNightToggle = false;
 
@@ -154,6 +162,10 @@ void taskUI(void *pvParameters) {
                 didDayNightToggle = true;
             }
 #endif
+            if (UsbComm::takePendingDayNightToggle()) {
+                ThemeManager::toggleDayMode();
+                didDayNightToggle = true;
+            }
 
             PageManager::updateWidgets();
             lv_task_handler();

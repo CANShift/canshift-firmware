@@ -5,13 +5,15 @@
 // Each message is one JSON object followed by \n.
 //
 //   Commands from desktop → device:
-//     CMD_PUT_CONFIG      0x02  — Push new dashboard.json content
-//     CMD_SCREEN_SETTINGS 0x05  — Push display settings (brightness, sleep)
-//     CMD_PUT_FILE        0x06  — Stream a file to SD in base64-encoded chunks
-//     CMD_GET_STATUS      0x10  — Query firmware version and protocol number
-//     CMD_CAN_SCAN_START  0x20  — Start forwarding raw CAN frames over USB
-//     CMD_CAN_SCAN_STOP   0x21  — Stop forwarding raw CAN frames
-//     CMD_REBOOT          0xF0  — Soft reboot the device
+//     CMD_PUT_CONFIG        0x02  — Push new dashboard.json content
+//     CMD_SCREEN_SETTINGS   0x05  — Push display settings (brightness, sleep)
+//     CMD_PUT_FILE          0x06  — Stream a file to SD in base64-encoded chunks
+//     CMD_TOGGLE_DAY_NIGHT  0x07  — Flip the day/night theme on the device
+//     CMD_CALIBRATE_TOUCH   0x08  — Run the on-device touch calibration crosshairs
+//     CMD_GET_STATUS        0x10  — Query firmware version, protocol, is_day flag
+//     CMD_CAN_SCAN_START    0x20  — Start forwarding raw CAN frames over USB
+//     CMD_CAN_SCAN_STOP     0x21  — Stop forwarding raw CAN frames
+//     CMD_REBOOT            0xF0  — Soft reboot the device
 //
 //   Responses from device → desktop:
 //     {"status":"ok"}
@@ -59,6 +61,15 @@ static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
 // idx=0 truncates / creates the target file. idx=total-1 closes it.
 // Each chunk is ack'd; out-of-sequence chunks abort the transfer.
 static constexpr uint8_t CMD_PUT_FILE = 0x06;
+// Flip the day/night theme on the device. Deferred to the UI task because
+// ThemeManager::toggleDayMode() rebuilds LVGL pages and must hold g_lvglMutex.
+// Payload: {"cmd":7}
+static constexpr uint8_t CMD_TOGGLE_DAY_NIGHT = 0x07;
+// Run the on-device touch calibration crosshairs. Deferred to the UI task —
+// calibrate() blocks while the user taps the four corners and draws via TFT_eSPI
+// directly (not LVGL), so it must NOT hold g_lvglMutex.
+// Payload: {"cmd":8}
+static constexpr uint8_t CMD_CALIBRATE_TOUCH = 0x08;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
@@ -100,5 +111,20 @@ void updateCanStats(uint32_t fpsX10, uint32_t errors);
  * Used by the top bar to show a "host connected" icon.
  */
 bool isHostActive();
+
+/**
+ * Take-and-clear the pending day/night-toggle flag set by CMD_TOGGLE_DAY_NIGHT.
+ * Returns true exactly once per command. Consumed by the UI task in main.cpp
+ * while holding g_lvglMutex.
+ */
+bool takePendingDayNightToggle();
+
+/**
+ * Take-and-clear the pending touch-calibration flag set by CMD_CALIBRATE_TOUCH.
+ * Returns true exactly once per command. Consumed by the UI task in main.cpp
+ * WITHOUT holding g_lvglMutex (calibrate() draws via TFT_eSPI directly and
+ * blocks on user input).
+ */
+bool takePendingCalibration();
 
 } // namespace UsbComm
