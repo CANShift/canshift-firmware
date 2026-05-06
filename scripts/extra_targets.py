@@ -30,22 +30,26 @@ env.AddCustomTarget(
 def read_studio_version():
     """Single source of truth: canshift-studio/package.json `version`. The
     release workflow keys off the same file, so studio + firmware can never
-    disagree as long as this script runs."""
+    disagree as long as this script runs.
+
+    Fails the build loudly on any read/parse error — a silent fallback
+    macro (e.g. "0.0.0-unset") would brick the splash version with no way
+    for the user to spot it on the device (issue #101)."""
     pkg = os.path.join(
         env["PROJECT_DIR"], "..", "canshift-studio", "package.json"
     )
     try:
         with open(pkg, "r") as fh:
             data = json.load(fh)
-        version = data.get("version")
-        if isinstance(version, str) and version:
-            return version
-        print(f"warn: no 'version' field in {pkg} — using fallback")
     except OSError as exc:
-        print(f"warn: cannot read {pkg}: {exc} — using fallback")
+        raise SystemExit(f"error: cannot read {pkg}: {exc}") from exc
     except json.JSONDecodeError as exc:
-        print(f"warn: bad JSON in {pkg}: {exc} — using fallback")
-    return "0.0.0-unknown"
+        raise SystemExit(f"error: bad JSON in {pkg}: {exc}") from exc
+
+    version = data.get("version")
+    if not isinstance(version, str) or not version:
+        raise SystemExit(f"error: no 'version' field in {pkg}")
+    return version
 
 
 # Inject the version. Quotes need to survive shell + compiler — use the
