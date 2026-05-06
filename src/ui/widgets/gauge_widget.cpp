@@ -99,7 +99,6 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
 
 // Tag structure stored in LVGL user data
 struct GaugeTag {
-    lv_obj_t *arcValue; // White indicator needle (always present)
     lv_obj_t *valueLabel;
     lv_obj_t *unitLabel;
     float minValue;
@@ -110,7 +109,6 @@ struct GaugeTag {
     uint16_t dangerAngle;
     bool hasWarning;
     bool hasDanger;
-    bool showNeedle;
 };
 
 } // namespace
@@ -178,11 +176,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         createSectorArc(cont, diam, dangerAngle, 280, kColorDanger, kBgWidth);
     }
 
-    // ---------------------------------------------------------------------------
-    // Layer 4: Value indicator (white, thinner, on top of sector colors)
-    // ---------------------------------------------------------------------------
-
-    lv_obj_t *arcValue = createValueArc(cont, diam, kIndWidth);
+    // The white indicator needle was dropped per user spec — the coloured
+    // sector arcs + the centred numeric value carry the read on their own.
 
     // ---------------------------------------------------------------------------
     // Value label (centered inside the arc)
@@ -224,11 +219,10 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                                cfg.style.textColor.rgb);
 
     // Allocate and attach tag
-    GaugeTag *tag = new GaugeTag{arcValue, label, unitLabel,
+    GaugeTag *tag = new GaugeTag{label, unitLabel,
                                   minV, maxV, 0.0f,
                                   warnAngle, dangerAngle,
-                                  hasWarning, hasDanger,
-                                  cfg.gauge.showNeedle};
+                                  hasWarning, hasDanger};
     lv_obj_set_user_data(cont, tag);
 
     lv_obj_add_event_cb(cont, [](lv_event_t* e) {
@@ -253,9 +247,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
         lv_label_set_text(tag->valueLabel, buf);
         lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
-        lv_arc_set_angles(tag->arcValue, 0, 0);
-        // Dim the indicator when invalid
-        lv_obj_set_style_arc_opa(tag->arcValue, LV_OPA_40, LV_PART_INDICATOR);
         return;
     }
 
@@ -263,23 +254,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (value == tag->lastValue)
         return;
     tag->lastValue = value;
-
-    // Restore full opacity (was dimmed when invalid)
-    lv_obj_set_style_arc_opa(tag->arcValue, LV_OPA_COVER, LV_PART_INDICATOR);
-
-    // Advance value indicator to current position
-    uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
-    if (tag->showNeedle) {
-        // Needle mode: thin 4-degree arc tip at the current angle
-        const uint16_t half = 2;
-        const uint16_t start = angle > half ? angle - half : 0;
-        const uint16_t end = angle + half < static_cast<uint16_t>(kArcSweep)
-                             ? angle + half
-                             : static_cast<uint16_t>(kArcSweep);
-        lv_arc_set_angles(tag->arcValue, start, end);
-    } else {
-        lv_arc_set_angles(tag->arcValue, 0, angle);
-    }
 
     // Tint the value label to match the active zone
     uint32_t labelColor = cfg.style.textColor.rgb;

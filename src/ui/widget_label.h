@@ -44,30 +44,34 @@ inline void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t te
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
     }
 
+    // Slight inset from the widget edge so the caps text never visually
+    // touches the corner — matches studio's `padding: 4px` on the SVG side.
+    constexpr int16_t kEdgeInsetX = 4;
+    constexpr int16_t kEdgeInsetY = 1;
     switch (pos) {
         case CfgLabelPos::TOP_LEFT:
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
-            lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 2, 1);
+            lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, kEdgeInsetX, kEdgeInsetY);
             break;
         case CfgLabelPos::TOP_CENTER:
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 1);
+            lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, kEdgeInsetY);
             break;
         case CfgLabelPos::TOP_RIGHT:
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
-            lv_obj_align(lbl, LV_ALIGN_TOP_RIGHT, -2, 1);
+            lv_obj_align(lbl, LV_ALIGN_TOP_RIGHT, -kEdgeInsetX, kEdgeInsetY);
             break;
         case CfgLabelPos::BOTTOM_LEFT:
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
-            lv_obj_align(lbl, LV_ALIGN_BOTTOM_LEFT, 2, -1);
+            lv_obj_align(lbl, LV_ALIGN_BOTTOM_LEFT, kEdgeInsetX, -kEdgeInsetY);
             break;
         case CfgLabelPos::BOTTOM_CENTER:
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -1);
+            lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -kEdgeInsetY);
             break;
         case CfgLabelPos::BOTTOM_RIGHT:
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
-            lv_obj_align(lbl, LV_ALIGN_BOTTOM_RIGHT, -2, -1);
+            lv_obj_align(lbl, LV_ALIGN_BOTTOM_RIGHT, -kEdgeInsetX, -kEdgeInsetY);
             break;
     }
 }
