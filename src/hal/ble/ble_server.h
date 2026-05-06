@@ -5,7 +5,7 @@
 //   Service:   4fa0b6a0-0000-0000-0000-000000000001
 //   TELE:      4fa0b6a0-0000-0000-0000-000000000002  notify — live signal JSON ~10Hz
 //   STATUS:    4fa0b6a0-0000-0000-0000-000000000003  read  — firmware version + CAN health
-//   SETTINGS:  4fa0b6a0-0000-0000-0000-000000000004  write — screen settings JSON
+//   SETTINGS:  4fa0b6a0-0000-0000-0000-000000000004  read+write — screen settings JSON
 //   CMD:       4fa0b6a0-0000-0000-0000-000000000005  write — commands (start_wifi_ap, reboot)
 //
 // Telemetry JSON keys (compact — mobile app maps these to signal names):

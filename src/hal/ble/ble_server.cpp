@@ -90,8 +90,11 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 };
 
 // ---------------------------------------------------------------------------
-// SETTINGS write callback
-// Payload: {"brightness":80,"sleep":30}
+// SETTINGS read/write callback
+// Payload (read & write): {"brightness":80,"sleep":30}
+//
+// onRead refreshes the characteristic value just-in-time so the mobile app
+// can populate its Settings UI on open without guessing defaults (#26 / #29).
 // ---------------------------------------------------------------------------
 
 class SettingsCallbacks : public NimBLECharacteristicCallbacks {
@@ -111,6 +114,15 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
             xSemaphoreGive(g_lvglMutex);
         }
         LOG_DEBUG("BLE", "Settings applied via BLE");
+    }
+
+    void onRead(NimBLECharacteristic *pChar) override {
+        JsonDocument doc;
+        doc["brightness"] = SettingsPage::getBrightness();
+        doc["sleep"]      = SettingsPage::getSleepTimeoutS();
+        char buf[64];
+        serializeJson(doc, buf, sizeof(buf));
+        pChar->setValue(buf);
     }
 };
 
@@ -182,9 +194,9 @@ void BleServer::init() {
         STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     updateStatus();
 
-    // SETTINGS — write with response, screen settings
+    // SETTINGS — read + write, screen settings
     NimBLECharacteristic *pSettings = pSvc->createCharacteristic(
-        SETTINGS_UUID, NIMBLE_PROPERTY::WRITE);
+        SETTINGS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
     pSettings->setCallbacks(new SettingsCallbacks());
 
     // CMD — write without response, device commands

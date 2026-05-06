@@ -44,6 +44,9 @@ uint32_t lastOpenMs();
 /** Returns the configured sleep timeout in seconds (0 = disabled). */
 uint32_t getSleepTimeoutS();
 
+/** Returns the current brightness percentage (10–100). */
+uint8_t getBrightness();
+
 /**
  * Called each UI tick from PageManager::updateWidgets().
  * Dims backlight after inactivity period; restores on touch.
