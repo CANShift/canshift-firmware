@@ -43,12 +43,11 @@ static lv_obj_t *s_pageLabel = nullptr;
 static lv_obj_t *s_voltageLabel = nullptr;
 static lv_obj_t *s_usbIcon = nullptr;
 
-static lv_obj_t *s_themeBtn = nullptr;
-static lv_obj_t *s_themeLabel = nullptr;
+static lv_obj_t *s_themeIcon = nullptr;
 
 static int16_t s_height = 30;
 
-// Day/night icons live on the SD as 20×20 RGB565 .bin (LVGL native format).
+// Day/night icons live on the SD as 12×12 RGB565 .bin (LVGL native format).
 // Source PNGs are in scripts/icon_sources/, regenerable via
 // scripts/png_to_lvgl_bin.py. We can't use the Unicode sun/moon glyphs
 // because the compile-time Montserrat fonts don't include them.
@@ -112,7 +111,9 @@ void TopBar::init() {
     lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_bar, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(s_bar, 4, LV_PART_MAIN);
+    // pad_all=2 leaves a 12 px content area in a 16 px bar — exactly the size
+    // of the day/night icons. Larger padding clipped them.
+    lv_obj_set_style_pad_all(s_bar, 2, LV_PART_MAIN);
     lv_obj_clear_flag(s_bar, LV_OBJ_FLAG_SCROLLABLE);
     // Bar itself is clickable — tapping a non-widget area while Settings is
     // open closes the panel (alongside the swipe-up gesture).
@@ -155,29 +156,28 @@ void TopBar::init() {
     s_pageLabel = makeBarLabel(s_bar, "", COLOR_LABEL);
     lv_obj_align(s_pageLabel, LV_ALIGN_CENTER, 0, 0);
 
-    // ---- Right cluster (built right-to-left): theme btn, |, USB icon, voltage ----
-    // Theme toggle — uses an image asset (Montserrat compile-time font has no
-    // sun/moon glyphs). icon_day.bin shown in day mode, icon_night.bin in night.
-    s_themeBtn = lv_imgbtn_create(s_bar);
-    lv_obj_set_size(s_themeBtn, s_height - 4, s_height - 4);
-    lv_obj_align(s_themeBtn, LV_ALIGN_RIGHT_MID, 0, 0);
-    s_themeLabel = lv_img_create(s_themeBtn);
-    lv_img_set_src(s_themeLabel,
+    // ---- Right cluster (built right-to-left): theme icon, |, USB icon, voltage ----
+    // Theme toggle — image asset (Montserrat compile-time fonts have no sun/moon
+    // glyphs). Use lv_img directly with a CLICKABLE flag — lv_imgbtn would need
+    // 3-state sources (released/pressed/checked) which we don't have.
+    s_themeIcon = lv_img_create(s_bar);
+    lv_img_set_src(s_themeIcon,
                    ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
                                              : "S:/assets/icon_night.bin");
-    lv_obj_center(s_themeLabel);
+    lv_obj_align(s_themeIcon, LV_ALIGN_RIGHT_MID, 0, 0);
     if (dash.hasDayTheme) {
+        lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(
-            s_themeBtn,
+            s_themeIcon,
             [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
             LV_EVENT_CLICKED, nullptr);
     } else {
-        lv_obj_add_flag(s_themeBtn, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_HIDDEN);
     }
 
-    // Separator between USB icon and theme button
+    // Separator between USB icon and theme icon — width of theme icon (~12) + gap.
     lv_obj_t *rightSep = makeBarLabel(s_bar, "|", COLOR_MUTED);
-    lv_obj_align(rightSep, LV_ALIGN_RIGHT_MID, -(s_height + 2), 0);
+    lv_obj_align(rightSep, LV_ALIGN_RIGHT_MID, -16, 0);
 
     // USB / download icon — left of the separator
     s_usbIcon = lv_label_create(s_bar);
@@ -199,8 +199,8 @@ void TopBar::reapplyTheme() {
     if (!s_bar) return;
     const CfgTopBar &cfg = ConfigLoader::getDashboardConfig().topBar;
     lv_obj_set_style_bg_color(s_bar, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
-    if (s_themeLabel) {
-        lv_img_set_src(s_themeLabel,
+    if (s_themeIcon) {
+        lv_img_set_src(s_themeIcon,
                        ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
                                                  : "S:/assets/icon_night.bin");
     }

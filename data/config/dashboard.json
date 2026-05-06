@@ -12,6 +12,19 @@
     "bgColor": "#0D0D0D",
     "textColor": "#AAAAAA"
   },
+  "dayTheme": {
+    "bgColor": "#E8E8E8",
+    "palette": {
+      "surface": "#F5F5F5",
+      "primary": "#CC0000",
+      "accent": "#E06000",
+      "text": "#000000",
+      "textDim": "#444444",
+      "warning": "#CC6600",
+      "danger": "#CC0000",
+      "success": "#006622"
+    }
+  },
   "pages": [
     {
       "id": "main",
