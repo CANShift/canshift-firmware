@@ -196,6 +196,11 @@ bool loadDashboard() {
 
     JsonArrayConst pages = doc["pages"];
     s_dashboard.pageCount = 0;
+    const size_t totalPages = pages.size();
+    if (totalPages > CONFIG_MAX_PAGES) {
+        LOG_WARN("CFG", "dashboard.json: %u pages exceed CONFIG_MAX_PAGES=%u — extras ignored",
+                 static_cast<unsigned>(totalPages), CONFIG_MAX_PAGES);
+    }
 
     for (JsonObjectConst page : pages) {
         if (s_dashboard.pageCount >= CONFIG_MAX_PAGES)
@@ -221,6 +226,12 @@ bool loadDashboard() {
         p.widgetCount = 0;
 
         JsonArrayConst widgets = page["widgets"];
+        const size_t totalWidgets = widgets.size();
+        if (totalWidgets > CONFIG_MAX_WIDGETS_PER_PAGE) {
+            LOG_WARN("CFG",
+                     "page '%s': %u widgets exceed CONFIG_MAX_WIDGETS_PER_PAGE=%u — extras ignored",
+                     p.id, static_cast<unsigned>(totalWidgets), CONFIG_MAX_WIDGETS_PER_PAGE);
+        }
         for (JsonObjectConst w : widgets) {
             if (p.widgetCount >= CONFIG_MAX_WIDGETS_PER_PAGE)
                 break;

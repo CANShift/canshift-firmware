@@ -97,9 +97,13 @@ void rebuildAllPages() {
     lv_obj_t *dummy = lv_obj_create(nullptr);
     lv_scr_load(dummy);
 
-    // Destroy all existing page screens
+    // Destroy all existing page screens. Drop their widget entries from the
+    // factory registry first — otherwise the registry leaks one full set of
+    // entries per theme toggle and eventually overflows MAX_TRACKED_WIDGETS
+    // (#57: "some gauges not rendered" after a few day/night switches).
     for (uint8_t i = 0; i < s_pageCount; ++i) {
         if (s_pages[i].screen) {
+            WidgetFactory::clearAll(s_pages[i].screen);
             lv_obj_del(s_pages[i].screen);
             s_pages[i].screen = nullptr;
             s_pages[i].built = false;

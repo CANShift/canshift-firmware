@@ -32,7 +32,6 @@ struct WidgetEntry {
     WidgetType type;
     char signalId[CFG_MAX_SIGNAL_LEN];
     CfgWidget cfg; // Copy of config for update logic
-    bool active;
 };
 
 static WidgetEntry s_widgets[MAX_TRACKED_WIDGETS];
@@ -213,7 +212,6 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     entry.obj = obj;
     entry.type = cfg.type;
     entry.cfg = cfg;
-    entry.active = true;
     strlcpy(entry.signalId, cfg.signalId, CFG_MAX_SIGNAL_LEN);
 
     LOG_DEBUG("WF", "Created widget '%s' type=%d at (%d,%d)", cfg.id, cfg.type, cfg.layout.x,
@@ -224,16 +222,24 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
 void WidgetFactory::updateAll(lv_obj_t *parent) {
     for (uint8_t i = 0; i < s_widgetCount; ++i) {
-        if (s_widgets[i].active && s_widgets[i].parent == parent) {
+        if (s_widgets[i].parent == parent) {
             updateWidget(s_widgets[i]);
         }
     }
 }
 
+// Drop every entry whose parent matches `parent` and compact the array in place.
+// Called from PageManager::rebuildAllPages() before each page screen is deleted —
+// without this, the registry grows unbounded across theme toggles and eventually
+// hits MAX_TRACKED_WIDGETS, silently refusing to create further widgets (#57).
 void WidgetFactory::clearAll(lv_obj_t *parent) {
-    for (uint8_t i = 0; i < s_widgetCount; ++i) {
-        if (s_widgets[i].parent == parent) {
-            s_widgets[i].active = false;
-        }
+    uint8_t out = 0;
+    for (uint8_t in = 0; in < s_widgetCount; ++in) {
+        if (s_widgets[in].parent == parent)
+            continue;
+        if (out != in)
+            s_widgets[out] = s_widgets[in];
+        ++out;
     }
+    s_widgetCount = out;
 }
