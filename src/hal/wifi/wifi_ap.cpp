@@ -1,11 +1,16 @@
 // wifi_ap.cpp — WiFi AP mode + HTTP OTA server
+//
+// Behind APP_WIFI_OTA_ENABLED so the Arduino WiFi / WebServer / Update libs
+// stay out of the link when not needed (~80 KB flash). When disabled, the
+// WifiAp:: API resolves to no-op stubs so BLE callers don't need to know.
 
 #include "app_config.h"
 #if APP_BLE_ENABLED
 
 #include "wifi_ap.h"
 #include "diag/logger.h"
-#include "app_config.h"
+
+#if APP_WIFI_OTA_ENABLED
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -125,5 +130,20 @@ bool WifiAp::isActive() {
 const char *WifiAp::getSsid() {
     return s_ssid;
 }
+
+#else // !APP_WIFI_OTA_ENABLED — stubs
+
+void WifiAp::start() {
+    LOG_WARN("WiFi", "WiFi OTA disabled at compile time (APP_WIFI_OTA_ENABLED=0)");
+}
+void WifiAp::stop() {}
+bool WifiAp::isActive() {
+    return false;
+}
+const char *WifiAp::getSsid() {
+    return "";
+}
+
+#endif // APP_WIFI_OTA_ENABLED
 
 #endif // APP_BLE_ENABLED

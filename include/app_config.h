@@ -155,6 +155,15 @@
     #define APP_BLE_ENABLED 1
 #endif
 
+// WiFi-AP-based OTA flow (started on demand from BLE). Phase 1 ships firmware
+// over USB (esptool) so we don't need the AP / HTTP / Update.h infrastructure.
+// When 0, wifi_ap.cpp ships only stubs and the WiFi / WebServer / Update Arduino
+// libs are not linked — saves ~80 KB flash. Re-enable when phase 3 (BLE-driven
+// OTA) needs it (issue #48).
+#ifndef APP_WIFI_OTA_ENABLED
+    #define APP_WIFI_OTA_ENABLED 0
+#endif
+
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120 // NimBLE + ArduinoJson telemetry serialization
 #endif
