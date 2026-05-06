@@ -10,10 +10,12 @@
 // ---------------------------------------------------------------------------
 // Version
 // ---------------------------------------------------------------------------
-#define APP_VERSION_MAJOR 0
-#define APP_VERSION_MINOR 6
-#define APP_VERSION_PATCH 0
-#define APP_VERSION_STR "0.6.0"
+// APP_VERSION_STR is injected at build time by scripts/extra_targets.py from
+// canshift-studio/package.json — single source of truth across the release.
+// The fallback below only triggers if the script fails (and prints a warning).
+#ifndef APP_VERSION_STR
+    #define APP_VERSION_STR "0.0.0-unset"
+#endif
 
 // ---------------------------------------------------------------------------
 // Build mode flags
