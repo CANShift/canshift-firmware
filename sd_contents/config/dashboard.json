@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift dashboard configuration — VW VR6 2.9 / MaxxECU Street",
-  "version": "1.2.0",
+  "version": "1.5.0",
   "name": "VR6 Main Dash",
   "description": "Default dashboard configuration for VW VR6 2.9 with MaxxECU Street",
   "defaultPageId": "main",
@@ -10,7 +10,18 @@
     "showMapName": true,
     "showMapProfile": false,
     "bgColor": "#0D0D0D",
-    "textColor": "#AAAAAA"
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "rpm", "position": "left" },
+      { "type": "label", "text": "ECU", "position": "left" },
+      { "type": "separator", "position": "left" },
+      { "type": "label", "text": "CAN", "position": "left" },
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "signal", "signal": "battery_volts", "format": "%.1fV", "position": "right" },
+      { "type": "usbIcon", "position": "right" },
+      { "type": "separator", "position": "right" },
+      { "type": "themeToggle", "position": "right" }
+    ]
   },
   "dayTheme": {
     "bgColor": "#E8E8E8",
@@ -55,7 +66,9 @@
             "dangerLevel": 7200,
             "decimalPlaces": 0,
             "suffix": "rpm",
-            "showNeedle": true
+            "showNeedle": true,
+            "label": "RPM",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -79,7 +92,9 @@
             "warningLevel": 240,
             "dangerLevel": 280,
             "decimalPlaces": 0,
-            "suffix": "km/h"
+            "suffix": "km/h",
+            "label": "SPEED",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -103,7 +118,9 @@
             "warningLevel": 95,
             "dangerLevel": 110,
             "decimalPlaces": 0,
-            "suffix": "°C"
+            "suffix": "°C",
+            "label": "COOLANT",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -127,7 +144,9 @@
             "warningLevel": 120,
             "dangerLevel": 140,
             "decimalPlaces": 0,
-            "suffix": "°C"
+            "suffix": "°C",
+            "label": "OIL",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -143,7 +162,12 @@
             "criticalColor": "#FF0000",
             "fontSize": 32
           },
-          "config": { "type": "gear", "decimalPlaces": 0 }
+          "config": {
+            "type": "gear",
+            "decimalPlaces": 0,
+            "label": "GEAR",
+            "labelPosition": "bottom-left"
+          }
         },
         {
           "id": "afr_num",
@@ -166,7 +190,9 @@
             "warningLevel": 16,
             "dangerLevel": 17,
             "decimalPlaces": 1,
-            "suffix": "AFR"
+            "suffix": "AFR",
+            "label": "AFR",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -191,7 +217,9 @@
             "warningLevel": 80,
             "dangerLevel": 95,
             "decimalPlaces": 0,
-            "suffix": "%"
+            "suffix": "%",
+            "label": "THROTTLE",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -207,7 +235,13 @@
             "textColor": "#FF4444",
             "fontSize": 12
           },
-          "config": { "type": "warning", "invertLogic": false, "threshold": 0.5 }
+          "config": {
+            "type": "warning",
+            "invertLogic": false,
+            "threshold": 0.5,
+            "label": "MIL",
+            "labelPosition": "bottom-left"
+          }
         },
         {
           "id": "nav_detail",
@@ -260,7 +294,9 @@
             "warningLevel": 1.5,
             "dangerLevel": 1.8,
             "decimalPlaces": 1,
-            "suffix": "bar"
+            "suffix": "bar",
+            "label": "BOOST",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -284,7 +320,9 @@
             "warningLevel": 45,
             "dangerLevel": 55,
             "decimalPlaces": 0,
-            "suffix": "°C"
+            "suffix": "°C",
+            "label": "IAT",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -308,7 +346,9 @@
             "warningLevel": 1,
             "dangerLevel": 0.5,
             "decimalPlaces": 1,
-            "suffix": "bar"
+            "suffix": "bar",
+            "label": "OIL",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -333,7 +373,9 @@
             "warningLevel": 6500,
             "dangerLevel": 7200,
             "decimalPlaces": 0,
-            "suffix": "rpm"
+            "suffix": "rpm",
+            "label": "RPM",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -357,7 +399,9 @@
             "warningLevel": 1.15,
             "dangerLevel": 1.2,
             "decimalPlaces": 2,
-            "suffix": "λ"
+            "suffix": "λ",
+            "label": "LAMBDA",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -381,7 +425,9 @@
             "warningLevel": 11,
             "dangerLevel": 10.5,
             "decimalPlaces": 1,
-            "suffix": "V"
+            "suffix": "V",
+            "label": "BATT",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -406,7 +452,9 @@
             "warningLevel": 80,
             "dangerLevel": 95,
             "decimalPlaces": 0,
-            "suffix": "%"
+            "suffix": "%",
+            "label": "THROTTLE",
+            "labelPosition": "bottom-left"
           }
         },
         {
@@ -443,7 +491,13 @@
             "textColor": "#FF4444",
             "fontSize": 12
           },
-          "config": { "type": "warning", "invertLogic": false, "threshold": 0.5 }
+          "config": {
+            "type": "warning",
+            "invertLogic": false,
+            "threshold": 0.5,
+            "label": "MIL",
+            "labelPosition": "bottom-left"
+          }
         }
       ]
     }

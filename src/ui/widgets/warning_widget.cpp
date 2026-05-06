@@ -105,18 +105,16 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_text_color(iconLabel, lv_color_hex(critRgb), 0);
     }
 
-    // Signal label
-    char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
-    formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
-    lv_obj_t *signalLabel = lv_label_create(root);
-    lv_label_set_text(signalLabel, labelBuf);
-    uint8_t sigFontSize = cfg.layout.h >= 56 ? 14 : 12;
-    if (cfg.layout.h < 28) {
-        // No room for a label below the icon — drop it.
-        lv_obj_del(signalLabel);
-        signalLabel = nullptr;
-    }
-    if (signalLabel) {
+    // Signal label below the icon — replaced by the user-configured corner
+    // label (handled by WidgetLabelOverlay below) when one is set, and dropped
+    // entirely on very small layouts where there is no room for it.
+    lv_obj_t *signalLabel = nullptr;
+    if (cfg.warning.label[0] == '\0' && cfg.layout.h >= 28) {
+        char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
+        formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
+        signalLabel = lv_label_create(root);
+        lv_label_set_text(signalLabel, labelBuf);
+        const uint8_t sigFontSize = cfg.layout.h >= 56 ? 14 : 12;
         lv_obj_set_style_text_font(signalLabel, FontManager::get(sigFontSize), 0);
         // Studio uses criticalColor + 99 alpha — at runtime LVGL doesn't blend
         // the text against the bg, so use a dimmer composite tone instead.

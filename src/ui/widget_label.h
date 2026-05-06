@@ -13,6 +13,10 @@ namespace WidgetLabelOverlay {
 
 // No-op when `text` is empty or null. The label is parented to `cont`,
 // positioned according to `pos`, and tinted with a dimmed `textColor`.
+//
+// The label is given an explicit width (parent width minus a small margin) +
+// LV_LABEL_LONG_DOT so that an oversized label is ellipsized rather than
+// silently clipped on one side — matches studio behaviour.
 inline void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor) {
     if (!cont || !text || text[0] == '\0')
         return;
@@ -25,13 +29,40 @@ inline void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t te
     const uint32_t dimRgb = (textColor >> 1) & 0x7F7F7F;
     lv_obj_set_style_text_color(lbl, lv_color_hex(dimRgb), 0);
 
+    // Clamp width to the available parent space so a long label can never
+    // overflow into a neighbouring widget. The 4-px margin matches the 2 px
+    // edge offset used for top/bottom-left/right alignments below.
+    const lv_coord_t parentW = lv_obj_get_width(cont);
+    if (parentW > 8) {
+        lv_obj_set_width(lbl, parentW - 4);
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+    }
+
     switch (pos) {
-        case CfgLabelPos::TOP_LEFT:      lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 2, 1); break;
-        case CfgLabelPos::TOP_CENTER:    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 1); break;
-        case CfgLabelPos::TOP_RIGHT:     lv_obj_align(lbl, LV_ALIGN_TOP_RIGHT, -2, 1); break;
-        case CfgLabelPos::BOTTOM_LEFT:   lv_obj_align(lbl, LV_ALIGN_BOTTOM_LEFT, 2, -1); break;
-        case CfgLabelPos::BOTTOM_CENTER: lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -1); break;
-        case CfgLabelPos::BOTTOM_RIGHT:  lv_obj_align(lbl, LV_ALIGN_BOTTOM_RIGHT, -2, -1); break;
+        case CfgLabelPos::TOP_LEFT:
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
+            lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 2, 1);
+            break;
+        case CfgLabelPos::TOP_CENTER:
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 1);
+            break;
+        case CfgLabelPos::TOP_RIGHT:
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+            lv_obj_align(lbl, LV_ALIGN_TOP_RIGHT, -2, 1);
+            break;
+        case CfgLabelPos::BOTTOM_LEFT:
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
+            lv_obj_align(lbl, LV_ALIGN_BOTTOM_LEFT, 2, -1);
+            break;
+        case CfgLabelPos::BOTTOM_CENTER:
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -1);
+            break;
+        case CfgLabelPos::BOTTOM_RIGHT:
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+            lv_obj_align(lbl, LV_ALIGN_BOTTOM_RIGHT, -2, -1);
+            break;
     }
 }
 

@@ -204,17 +204,20 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         lv_obj_set_style_pad_all(fill, 0, LV_PART_MAIN);
         t->fill = fill;
 
-        // Signal label — top-left or bottom-left based on labelPosition.
+        // Signal label — only when the user hasn't supplied a custom one.
+        // When cfg.bar.label is set the user's label takes the corner slot.
         const bool labelIsTop = cfg.bar.labelPosition == CfgLabelPos::TOP_LEFT
                                 || cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER
                                 || cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
-        lv_obj_t *sig = lv_label_create(cont);
-        lv_label_set_text(sig, sigBuf);
-        lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-        lv_obj_set_style_text_font(sig, FontManager::get(12), 0);
-        lv_obj_align(sig, labelIsTop ? LV_ALIGN_BOTTOM_LEFT : LV_ALIGN_TOP_LEFT, 2,
-                     labelIsTop ? -2 : 2);
-        t->signalLabel = sig;
+        if (cfg.bar.label[0] == '\0') {
+            lv_obj_t *sig = lv_label_create(cont);
+            lv_label_set_text(sig, sigBuf);
+            lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+            lv_obj_set_style_text_font(sig, FontManager::get(12), 0);
+            lv_obj_align(sig, labelIsTop ? LV_ALIGN_BOTTOM_LEFT : LV_ALIGN_TOP_LEFT, 2,
+                         labelIsTop ? -2 : 2);
+            t->signalLabel = sig;
+        }
 
         // Value label — centered above the track (or below if signal is on top).
         if (H > 18) {
@@ -317,13 +320,15 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         lv_obj_set_style_pad_all(fill, 0, LV_PART_MAIN);
         t->fill = fill;
 
-        // Signal label — top center
-        lv_obj_t *sig = lv_label_create(cont);
-        lv_label_set_text(sig, sigBuf);
-        lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-        lv_obj_set_style_text_font(sig, FontManager::get(sigLabelH), 0);
-        lv_obj_align(sig, LV_ALIGN_TOP_MID, 0, 1);
-        t->signalLabel = sig;
+        // Signal label — top centre, dropped when the user set a custom label.
+        if (cfg.bar.label[0] == '\0') {
+            lv_obj_t *sig = lv_label_create(cont);
+            lv_label_set_text(sig, sigBuf);
+            lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+            lv_obj_set_style_text_font(sig, FontManager::get(sigLabelH), 0);
+            lv_obj_align(sig, LV_ALIGN_TOP_MID, 0, 1);
+            t->signalLabel = sig;
+        }
 
         // Value — bottom center, large monospace
         lv_obj_t *val = lv_label_create(cont);
