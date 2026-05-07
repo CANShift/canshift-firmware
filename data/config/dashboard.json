@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift demo dashboard — coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160×56) and XL (160×112) per issue #131; horizontal bars use H-FULL (320×28).",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
   "defaultPageId": "overview",
@@ -591,6 +591,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": false,
+            "colors": { "normal": "#FF4444", "active": "#FF7777" },
             "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 1 }]
           }
         },
@@ -614,6 +615,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": false,
+            "colors": { "normal": "#FF4444", "active": "#FF7777" },
             "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 2 }]
           }
         },
@@ -637,6 +639,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": false,
+            "colors": { "normal": "#FF4444", "active": "#FF7777" },
             "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 3 }]
           }
         },
@@ -660,6 +663,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": false,
+            "colors": { "normal": "#FF4444", "active": "#FF7777" },
             "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 4 }]
           }
         },
@@ -683,6 +687,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": true,
+            "colors": { "normal": "#FF4444", "active": "#FF7777" },
             "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1312, "data": "01" }]
           }
         },
@@ -706,6 +711,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": true,
+            "colors": { "normal": "#FF4444", "active": "#FF7777" },
             "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1313, "data": "01" }]
           }
         },
@@ -728,6 +734,7 @@
             "showLabel": true,
             "showIcon": false,
             "isToggle": false,
+            "colors": { "normal": "#444444", "active": "#777777" },
             "actions": [{ "category": "dashboard", "type": "navigate", "pageId": "overview" }]
           }
         },
@@ -750,6 +757,7 @@
             "showLabel": true,
             "showIcon": false,
             "isToggle": false,
+            "colors": { "normal": "#444444", "active": "#777777" },
             "actions": [{ "category": "dashboard", "type": "navigate", "pageId": "engine" }]
           }
         }
