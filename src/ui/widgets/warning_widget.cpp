@@ -6,6 +6,7 @@
 #include "warning_widget.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "diag/logger.h"
 
@@ -19,9 +20,9 @@ namespace {
 constexpr uint32_t BLINK_PERIOD_MS = 1000;
 
 struct WarningTag {
-    lv_obj_t *root;       // colored background container
-    lv_obj_t *iconImg;    // nullptr if asset missing — falls back to glyph label
-    lv_obj_t *iconLabel;  // nullptr unless the glyph fallback is used
+    lv_obj_t *root;      // colored background container
+    lv_obj_t *iconImg;   // nullptr if asset missing — falls back to glyph label
+    lv_obj_t *iconLabel; // nullptr unless the glyph fallback is used
     lv_obj_t *signalLabel;
     lv_anim_t blinkAnim;
     bool wasActive;
@@ -30,7 +31,8 @@ struct WarningTag {
 
 // Convert "coolant_temp_c" → "COOLANT TEMP C" — matches studio's formatSignalLabel.
 void formatSignalLabel(const char *src, char *out, size_t outLen) {
-    if (outLen == 0) return;
+    if (outLen == 0)
+        return;
     if (!src || src[0] == '\0') {
         strlcpy(out, "-", outLen);
         return;
@@ -38,7 +40,8 @@ void formatSignalLabel(const char *src, char *out, size_t outLen) {
     size_t j = 0;
     for (size_t i = 0; src[i] != '\0' && j + 1 < outLen; ++i) {
         char c = src[i];
-        if (c == '_') c = ' ';
+        if (c == '_')
+            c = ' ';
         out[j++] = static_cast<char>(toupper(static_cast<unsigned char>(c)));
     }
     out[j] = '\0';
@@ -101,10 +104,11 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         iconLabel = lv_label_create(root);
         lv_label_set_text(iconLabel, IconAssets::fallbackGlyph(cfg.warning.iconName));
         // Sized so icon + signal label both fit in the widget height.
-        uint8_t iconSize = cfg.layout.h >= 80 ? 32
+        uint8_t iconSize = cfg.layout.h >= 80   ? 32
                            : cfg.layout.h >= 56 ? 24
                            : cfg.layout.h >= 40 ? 20
-                           : cfg.layout.h >= 32 ? 16 : 12;
+                           : cfg.layout.h >= 32 ? 16
+                                                : 12;
         lv_obj_set_style_text_font(iconLabel, FontManager::get(iconSize), 0);
         lv_obj_set_style_text_color(iconLabel, lv_color_hex(critRgb), 0);
     }
@@ -129,19 +133,20 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
     auto *tag = new WarningTag{root, iconImg, iconLabel, signalLabel, lv_anim_t{}, false, critRgb};
     lv_obj_set_user_data(root, tag);
-    lv_obj_add_event_cb(root,
-                        [](lv_event_t *e) {
-                            auto *t = static_cast<WarningTag *>(lv_event_get_user_data(e));
-                            if (t) {
-                                lv_anim_del(t->root, blinkAnimCb);
-                                delete t;
-                            }
-                        },
-                        LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(
+        root,
+        [](lv_event_t *e) {
+            auto *t = static_cast<WarningTag *>(lv_event_get_user_data(e));
+            if (t) {
+                lv_anim_del(t->root, blinkAnimCb);
+                delete t;
+            }
+        },
+        LV_EVENT_DELETE, tag);
 
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(root, cfg.warning.label, cfg.warning.labelPosition,
-                               cfg.style.textColor.rgb);
+                              ThemeManager::getEffectiveTextColor());
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
               iconImg ? "asset" : "glyph");
@@ -149,9 +154,11 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 }
 
 void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
-    if (!obj) return;
+    if (!obj)
+        return;
     auto *tag = static_cast<WarningTag *>(lv_obj_get_user_data(obj));
-    if (!tag) return;
+    if (!tag)
+        return;
 
     // A missing/timed-out signal is treated as an active alert: the driver
     // should know when a fault flag stops reporting (wiring break, ECU drop)
@@ -163,7 +170,8 @@ void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidg
         active = cfg.warning.invertLogic ? (value < cfg.warning.threshold)
                                          : (value >= cfg.warning.threshold);
     }
-    if (active == tag->wasActive) return;
+    if (active == tag->wasActive)
+        return;
     tag->wasActive = active;
 
     if (active) {

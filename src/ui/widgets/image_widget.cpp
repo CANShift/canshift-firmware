@@ -7,6 +7,7 @@
 // This is prefixed with "S:" to form the LVGL FS path "S:/images/bg.bmp".
 
 #include "image_widget.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "diag/logger.h"
 
@@ -60,14 +61,17 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
     lv_obj_set_user_data(cont, tag);
 
-    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
-        auto* t = static_cast<ImageTag*>(lv_event_get_user_data(e));
-        delete t;
-    }, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(
+        cont,
+        [](lv_event_t *e) {
+            auto *t = static_cast<ImageTag *>(lv_event_get_user_data(e));
+            delete t;
+        },
+        LV_EVENT_DELETE, tag);
 
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(cont, cfg.image.label, cfg.image.labelPosition,
-                               cfg.style.textColor.rgb);
+                              ThemeManager::getEffectiveTextColor());
 
     LOG_DEBUG("IMG", "Image widget created: %s", tag->lvglPath);
     return cont;

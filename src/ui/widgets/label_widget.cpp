@@ -15,6 +15,7 @@
 #include "diag/logger.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include <lvgl.h>
 #include <stdio.h>
@@ -81,7 +82,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
 
     // Suffix is rendered inline with the value when shown ("78°C"), but is
@@ -103,8 +105,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     if (hasUserLabel) {
-        WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition,
-                                  cfg.style.textColor.rgb);
+        WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
     }
 
     auto *tag = new LabelTag{};
@@ -112,7 +113,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->alertThreshold = cfg.label.alertThreshold;
 
     AlertFlash::attach(tag->alert, cont);
-    AlertFlash::watchLabel(tag->alert, label, cfg.style.textColor.rgb);
+    AlertFlash::watchLabel(tag->alert, label, textRgb);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(

@@ -9,6 +9,7 @@
 
 #include "timer_widget.h"
 #include "ui/font_manager.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "diag/logger.h"
 
@@ -25,10 +26,10 @@ namespace {
 struct TimerTag {
     lv_obj_t *timeLabel;
     bool running;
-    bool formatMsec; // true = "ss.mmm", false = "mm:ss"
-    uint32_t startMs;      // millis() at last start
+    bool formatMsec;        // true = "ss.mmm", false = "mm:ss"
+    uint32_t startMs;       // millis() at last start
     uint32_t accumulatedMs; // ms accumulated before last pause
-    uint32_t pressStartMs; // millis() when touch pressed
+    uint32_t pressStartMs;  // millis() when touch pressed
     bool longPressFired;
 };
 
@@ -111,9 +112,10 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
 
     // Time label
+    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
     const lv_font_t *font = FontManager::get(20);
     if (cfg.layout.h >= 80)
@@ -125,21 +127,19 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     // Allocate tag
     TimerTag *tag = new TimerTag{
-        label,
-        cfg.timer.autoStart,
-        cfg.timer.formatMsec,
-        cfg.timer.autoStart ? millis() : 0,
-        0,
-        0,
+        label, cfg.timer.autoStart, cfg.timer.formatMsec, cfg.timer.autoStart ? millis() : 0, 0, 0,
         false,
     };
 
     lv_obj_set_user_data(cont, tag);
 
-    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
-        auto* t = static_cast<TimerTag*>(lv_event_get_user_data(e));
-        delete t;
-    }, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(
+        cont,
+        [](lv_event_t *e) {
+            auto *t = static_cast<TimerTag *>(lv_event_get_user_data(e));
+            delete t;
+        },
+        LV_EVENT_DELETE, tag);
 
     // Register touch events for start/stop/reset
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
@@ -147,8 +147,7 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
 
     // Optional widget label drawn at the configured corner.
-    WidgetLabelOverlay::apply(cont, cfg.timer.label, cfg.timer.labelPosition,
-                               cfg.style.textColor.rgb);
+    WidgetLabelOverlay::apply(cont, cfg.timer.label, cfg.timer.labelPosition, textRgb);
 
     return cont;
 }

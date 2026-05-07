@@ -48,4 +48,16 @@ CfgColor getEffectiveBgColor(const CfgColor &nightBg);
  */
 CfgPagePalette getEffectivePalette(const CfgPagePalette &nightPalette);
 
+/**
+ * Return the effective widget text color for the current mode.
+ *  - Day mode → black (0x000000) — readable on the light day backgrounds.
+ *  - Night mode → white (0xFFFFFF) — readable on the dark night backgrounds.
+ *
+ * This deliberately overrides per-widget bespoke text colours (cyan COOLANT,
+ * orange OIL, …) so all dashboard typography stays legible against whichever
+ * background the active mode renders. The top bar reads its own colour
+ * constants so it is unaffected.
+ */
+uint32_t getEffectiveTextColor();
+
 } // namespace ThemeManager

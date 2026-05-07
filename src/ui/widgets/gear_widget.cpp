@@ -10,6 +10,7 @@
 
 #include "gear_widget.h"
 #include "ui/font_manager.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "diag/logger.h"
 
@@ -54,17 +55,17 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     }
     lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
 
+    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, selectFont(cfg.layout.h), 0);
     lv_label_set_text(label, "N");
 
     lv_obj_set_user_data(cont, label);
 
     // Optional widget label (gear shares CfgLabelParams in the union).
-    WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition,
-                               cfg.style.textColor.rgb);
+    WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
 
     return cont;
 }
@@ -76,9 +77,11 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     if (!label)
         return;
 
+    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+
     if (!valid || value == 0.0f) {
         lv_label_set_text(label, "N");
-        lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+        lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
         return;
     }
 
@@ -92,5 +95,5 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     char buf[4];
     snprintf(buf, sizeof(buf), "%d", gear);
     lv_label_set_text(label, buf);
-    lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 }

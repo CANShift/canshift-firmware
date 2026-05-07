@@ -7,6 +7,7 @@
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "diag/logger.h"
 
@@ -305,7 +306,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
                     innerPos = CfgLabelPos::TOP_RIGHT;
                     break;
             }
-            WidgetLabelOverlay::apply(band, cfg.bar.label, innerPos, cfg.style.textColor.rgb);
+            WidgetLabelOverlay::apply(band, cfg.bar.label, innerPos,
+                                      ThemeManager::getEffectiveTextColor());
         }
 
         // Optional icon (drawn at left edge of the band, before any label)

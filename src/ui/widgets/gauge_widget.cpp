@@ -3,6 +3,7 @@
 #include "gauge_widget.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
+#include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
@@ -182,9 +183,10 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // ---------------------------------------------------------------------------
 
     bool hasUnit = cfg.gauge.suffix[0] != '\0';
+    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
     const lv_font_t *font = FontManager::get(20);
     if (cfg.layout.h >= 100)
@@ -206,14 +208,13 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (hasUnit) {
         unitLabel = lv_label_create(cont);
         lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
-        lv_obj_set_style_text_color(unitLabel, lv_color_hex(cfg.style.textColor.rgb & 0x888888), 0);
+        lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
         lv_obj_set_style_text_font(unitLabel, FontManager::get(12), 0);
         lv_label_set_text(unitLabel, cfg.gauge.suffix);
     }
 
     // Optional widget label drawn at the configured corner.
-    WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition,
-                              cfg.style.textColor.rgb);
+    WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition, textRgb);
 
     // Allocate and attach tag
     GaugeTag *tag = new GaugeTag{};
@@ -230,9 +231,9 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     // Mount the alert overlay last so it sits on top of arcs and labels.
     AlertFlash::attach(tag->alert, cont);
-    AlertFlash::watchLabel(tag->alert, label, cfg.style.textColor.rgb);
+    AlertFlash::watchLabel(tag->alert, label, textRgb);
     if (unitLabel) {
-        AlertFlash::watchLabel(tag->alert, unitLabel, cfg.style.textColor.rgb & 0x888888);
+        AlertFlash::watchLabel(tag->alert, unitLabel, textRgb & 0x888888);
     }
 
     lv_obj_set_user_data(cont, tag);
@@ -264,7 +265,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
         lv_label_set_text(tag->valueLabel, buf);
         if (!tag->alert.active) {
-            lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
+            lv_obj_set_style_text_color(tag->valueLabel,
+                                        lv_color_hex(ThemeManager::getEffectiveTextColor()), 0);
         }
         AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
         return;
@@ -280,7 +282,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // Tint the value label to match the active zone — but skip when in alert
     // state, AlertFlash owns the colour while the flash is active.
     if (!tag->alert.active) {
-        uint32_t labelColor = cfg.style.textColor.rgb;
+        uint32_t labelColor = ThemeManager::getEffectiveTextColor();
         if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
             labelColor = kColorDanger;
         else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
