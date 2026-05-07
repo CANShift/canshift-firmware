@@ -71,7 +71,9 @@ static bool s_runtimeLoaded = false;
 float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
                   bool bigEndian, bool isSigned, uint8_t bitMask,
                   float scale, float offset) {
-    if (byteLen == 0 || startByte + byteLen > 8)
+    static constexpr uint16_t kCanFrameMaxBytes = 8;
+    if (byteLen == 0 ||
+        static_cast<uint16_t>(startByte) + static_cast<uint16_t>(byteLen) > kCanFrameMaxBytes)
         return 0.0f;
 
     uint32_t raw = 0;
@@ -89,9 +91,12 @@ float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
 
     float physical;
     if (isSigned) {
-        const uint8_t bits = byteLen * 8;
-        if (raw & (1u << (bits - 1)))
-            raw |= ~((1u << bits) - 1); // sign-extend to 32 bits
+        const uint8_t bits = static_cast<uint8_t>(byteLen * 8);
+        // 64-bit math avoids UB when bits == 32 (shift width >= operand width).
+        // For byteLen == 4 the mask is 0 — raw already holds the correct
+        // two's-complement bit pattern; the int32_t cast does the reinterpret.
+        if (byteLen < 4 && (raw & (1u << (bits - 1))))
+            raw |= static_cast<uint32_t>(~((1ULL << bits) - 1ULL));
         physical = static_cast<float>(static_cast<int32_t>(raw));
     } else {
         physical = static_cast<float>(raw);
@@ -174,7 +179,8 @@ void MaxxEcuParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t le
             if (s_runtime[i].canFrameId != frameId) continue;
             matched = true;
             const RuntimeSignal &sig = s_runtime[i];
-            if (sig.startByte + sig.byteLength > length) continue;
+            if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
+                continue;
             const float val = decodeBytes(data, sig.startByte, sig.byteLength,
                                           sig.bigEndian, sig.isSigned, sig.bitMask,
                                           sig.scale, sig.offset);

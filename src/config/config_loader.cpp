@@ -416,6 +416,23 @@ bool loadSignals() {
         s.timeoutMs = sig["timeoutMs"] | SIGNAL_DEFAULT_TIMEOUT_MS;
         const char *bitMaskStr = sig["bitMask"] | nullptr;
         s.bitMask = bitMaskStr ? static_cast<uint8_t>(strtoul(bitMaskStr, nullptr, 16)) : 0;
+
+        // ----- Validate decoder-critical fields (issues #197 / #198) -----
+        // CAN classic frames are 8 bytes; byteLength must be 1, 2, or 4 to
+        // produce a well-defined sign-extend and a bounded read.
+        static constexpr uint8_t kCanFrameMaxBytes = 8;
+        const bool byteLenValid = (s.byteLength == 1 || s.byteLength == 2 || s.byteLength == 4);
+        const bool startInRange = (s.startByte < kCanFrameMaxBytes);
+        const bool fitsInFrame =
+            (static_cast<uint16_t>(s.startByte) + static_cast<uint16_t>(s.byteLength)
+             <= kCanFrameMaxBytes);
+        if (!byteLenValid || !startInRange || !fitsInFrame) {
+            LOG_WARN("CFG",
+                     "signals.json: dropping '%s' (startByte=%u byteLength=%u) — out of range",
+                     s.name, s.startByte, s.byteLength);
+            --s_signals.signalCount;
+            continue;
+        }
     }
 
     s_signals.loaded = true;
