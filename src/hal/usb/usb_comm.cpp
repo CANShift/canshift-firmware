@@ -18,6 +18,7 @@
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
 #include "config/rotation_config.h"
+#include "ui/burn_overlay.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
@@ -191,11 +192,25 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
+    // Show the "Saving config…" overlay before the SD write so the user gets
+    // immediate feedback. Mirrors studio's BurnProgressModal. lv_refr_now
+    // inside show() flushes the screen before the write blocks the UI.
+    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        BurnOverlay::show();
+        xSemaphoreGive(g_lvglMutex);
+    }
+
     bool ok = StorageDriver::writeFile(CONFIG_PATH_DASHBOARD,
                                        reinterpret_cast<const uint8_t *>(s_rxBuf), written);
     if (!ok) {
         LOG_ERROR("USB", "PUT_CONFIG: SD write failed");
         Serial.println("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        // Tear down the overlay so the user isn't stuck staring at a misleading
+        // "Saving…" state — the dashboard is still alive on the underlying page.
+        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            BurnOverlay::hide();
+            xSemaphoreGive(g_lvglMutex);
+        }
         return;
     }
 
@@ -273,10 +288,9 @@ void handlePutFile(const JsonObjectConst &obj) {
     // Decode base64 in-place into s_rxBuf — ArduinoJson 7 has already copied
     // path/data into the JsonDocument's pool, so the source line is free.
     size_t decoded = 0;
-    const int rc = mbedtls_base64_decode(reinterpret_cast<unsigned char *>(s_rxBuf),
-                                         sizeof(s_rxBuf), &decoded,
-                                         reinterpret_cast<const unsigned char *>(b64),
-                                         strlen(b64));
+    const int rc =
+        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(s_rxBuf), sizeof(s_rxBuf), &decoded,
+                              reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     if (rc != 0) {
         Serial.println("{\"status\":\"error\",\"message\":\"b64_decode\"}");
         abortChunkTransfer("b64_decode");
@@ -385,11 +399,10 @@ void handleCommand(const char *jsonLine) {
     switch (cmd) {
         case UsbComm::CMD_GET_STATUS: {
             char resp[112];
-            snprintf(
-                resp, sizeof(resp),
-                "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
-                APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                ThemeManager::isDayMode() ? 1 : 0);
+            snprintf(resp, sizeof(resp),
+                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
+                     APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
+                     ThemeManager::isDayMode() ? 1 : 0);
             Serial.println(resp);
             break;
         }
@@ -404,7 +417,8 @@ void handleCommand(const char *jsonLine) {
                 break;
             }
             for (size_t i = 0; i < fileSize; ++i) {
-                if (json[i] == '\n' || json[i] == '\r') json[i] = ' ';
+                if (json[i] == '\n' || json[i] == '\r')
+                    json[i] = ' ';
             }
             Serial.print("{\"status\":\"ok\",\"config\":");
             Serial.write(reinterpret_cast<const uint8_t *>(json), fileSize);
@@ -429,13 +443,15 @@ void handleCommand(const char *jsonLine) {
         case UsbComm::CMD_CAN_SCAN_START:
             s_scanDrops = 0;
             s_canScanMode = true;
-            if (s_canScanQueue) xQueueReset(s_canScanQueue);
+            if (s_canScanQueue)
+                xQueueReset(s_canScanQueue);
             LOG_INFO("USB", "CAN scan started");
             Serial.println("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
-            if (s_canScanQueue) xQueueReset(s_canScanQueue);
+            if (s_canScanQueue)
+                xQueueReset(s_canScanQueue);
             LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
             char stopResp[64];
             snprintf(stopResp, sizeof(stopResp), "{\"status\":\"ok\",\"drops\":%lu}",
@@ -454,7 +470,8 @@ void handleCommand(const char *jsonLine) {
 // Each frame is serialized as: {"can":1,"id":<id>,"len":<n>,"d":[b0,...,bn]}\n
 // Called from tick() on the USB task — single writer, safe to call Serial.print().
 void drainCanScanQueue() {
-    if (!s_canScanQueue) return;
+    if (!s_canScanQueue)
+        return;
 
     UsbComm::CanScanFrame frame;
     // Drain at most 32 frames per tick to avoid blocking telemetry
@@ -467,18 +484,21 @@ void drainCanScanQueue() {
         const char *limit = buf + sizeof(buf) - 4; // reserve \n\0
 
         p += snprintf(p, static_cast<size_t>(limit - p), "{\"can\":1,\"id\":%lu,\"len\":%u,\"d\":[",
-                      static_cast<unsigned long>(frame.id),
-                      static_cast<unsigned>(frame.len));
+                      static_cast<unsigned long>(frame.id), static_cast<unsigned>(frame.len));
 
         for (uint8_t i = 0; i < frame.len && p < limit; i++) {
-            if (i > 0 && p < limit) *p++ = ',';
+            if (i > 0 && p < limit)
+                *p++ = ',';
             p += snprintf(p, static_cast<size_t>(limit - p), "%u",
                           static_cast<unsigned>(frame.data[i]));
         }
 
-        if (p < limit) *p++ = ']';
-        if (p < limit) *p++ = '}';
-        if (p < limit) *p++ = '\n';
+        if (p < limit)
+            *p++ = ']';
+        if (p < limit)
+            *p++ = '}';
+        if (p < limit)
+            *p++ = '\n';
         *p = '\0';
 
         Serial.print(buf);
@@ -525,7 +545,8 @@ void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
 }
 
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
-    if (!s_canScanMode || !s_canScanQueue) return false;
+    if (!s_canScanMode || !s_canScanQueue)
+        return false;
     // Non-blocking: drop frame and count it if queue is full
     if (xQueueSend(s_canScanQueue, &frame, 0) != pdTRUE) {
         s_scanDrops++;
