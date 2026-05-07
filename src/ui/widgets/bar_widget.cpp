@@ -4,6 +4,7 @@
 // optional widget label at a chosen corner.
 
 #include "bar_widget.h"
+#include "ui/alert_flash.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
 #include "ui/widget_label.h"
@@ -30,7 +31,7 @@ struct BarTag {
     lv_obj_t *dangerTick; // nullable
     lv_obj_t *fill;
     lv_obj_t *signalLabel;
-    lv_obj_t *valueLabel; // nullable on very small widgets
+    lv_obj_t *valueLabel;  // nullable on very small widgets
     lv_obj_t *suffixLabel; // nullable — shown below value for vertical layout
     lv_obj_t *widgetLabel; // nullable
     lv_obj_t *iconImg;     // nullable
@@ -38,16 +39,19 @@ struct BarTag {
     int16_t trackX, trackY, trackW, trackH;
     float minValue, maxValue;
     float warningLevel, dangerLevel;
+    float alertThreshold; // NaN = disabled (issue #133)
     uint32_t primaryRgb, warningRgb, criticalRgb;
     uint8_t decimalPlaces;
     char prefix[8];
     char suffix[8];
     float lastValue;
     bool wasValid;
+    AlertFlash::State alert;
 };
 
 void formatSignalLabel(const char *src, char *out, size_t outLen) {
-    if (outLen == 0) return;
+    if (outLen == 0)
+        return;
     if (!src || src[0] == '\0') {
         strlcpy(out, "-", outLen);
         return;
@@ -55,17 +59,21 @@ void formatSignalLabel(const char *src, char *out, size_t outLen) {
     size_t j = 0;
     for (size_t i = 0; src[i] != '\0' && j + 1 < outLen; ++i) {
         char c = src[i];
-        if (c == '_') c = ' ';
+        if (c == '_')
+            c = ' ';
         out[j++] = static_cast<char>(toupper(static_cast<unsigned char>(c)));
     }
     out[j] = '\0';
 }
 
 float clampPct(float v, float minV, float maxV) {
-    if (maxV <= minV) return 0.0f;
+    if (maxV <= minV)
+        return 0.0f;
     float pct = (v - minV) / (maxV - minV);
-    if (pct < 0.0f) return 0.0f;
-    if (pct > 1.0f) return 1.0f;
+    if (pct < 0.0f)
+        return 0.0f;
+    if (pct > 1.0f)
+        return 1.0f;
     return pct;
 }
 
@@ -74,24 +82,27 @@ float clampPct(float v, float minV, float maxV) {
 constexpr uint32_t SIGNAL_LABEL_RGB = 0x888888;
 constexpr uint32_t TRACK_BG_RGB = 0x1C1C1C;
 constexpr uint32_t TICK_LABEL_RGB = 0x383838;
-constexpr uint32_t VALUE_TEXT_RGB = 0xFFFFFF;  // value % always white per user spec
+constexpr uint32_t VALUE_TEXT_RGB = 0xFFFFFF; // value % always white per user spec
 constexpr lv_opa_t ZONE_OPA = 0x35;
 
 // Fixed automotive zone palette — fill colour reflects the value's zone rather
 // than `style.primaryColor`. Drivers expect green/orange/red semantics
 // regardless of how the widget's brand colour is set in studio.
-constexpr uint32_t ZONE_NORMAL_RGB  = 0x00CC44; // green
+constexpr uint32_t ZONE_NORMAL_RGB = 0x00CC44;  // green
 constexpr uint32_t ZONE_WARNING_RGB = 0xFF8800; // orange
-constexpr uint32_t ZONE_DANGER_RGB  = 0xFF4444; // red
+constexpr uint32_t ZONE_DANGER_RGB = 0xFF4444;  // red
 
 uint32_t zoneFillColor(float pct, float warnPct, float dangerPct) {
-    if (pct >= dangerPct) return ZONE_DANGER_RGB;
-    if (pct >= warnPct)   return ZONE_WARNING_RGB;
+    if (pct >= dangerPct)
+        return ZONE_DANGER_RGB;
+    if (pct >= warnPct)
+        return ZONE_WARNING_RGB;
     return ZONE_NORMAL_RGB;
 }
 
 void renderValueText(BarTag *t, float v) {
-    if (!t->valueLabel) return;
+    if (!t->valueLabel)
+        return;
     char buf[24];
     const char *suffix = t->isVertical ? "" : t->suffix;
     snprintf(buf, sizeof(buf), "%s%.*f%s", t->prefix, t->decimalPlaces, v, suffix);
@@ -124,6 +135,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     t->maxValue = cfg.bar.maxValue;
     t->warningLevel = cfg.bar.warningLevel;
     t->dangerLevel = cfg.bar.dangerLevel;
+    t->alertThreshold = cfg.bar.alertThreshold;
     t->primaryRgb = cfg.style.primaryColor.rgb;
     t->warningRgb = cfg.style.warningColor.rgb;
     t->criticalRgb = cfg.style.criticalColor.rgb;
@@ -136,8 +148,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     t->wasValid = false;
 
     const bool hasWarn = !std::isnan(t->warningLevel) && t->warningLevel > t->minValue;
-    const bool hasDanger = !std::isnan(t->dangerLevel) && t->dangerLevel > t->minValue
-                           && t->dangerLevel <= t->maxValue;
+    const bool hasDanger = !std::isnan(t->dangerLevel) && t->dangerLevel > t->minValue &&
+                           t->dangerLevel <= t->maxValue;
     const float warnPct = hasWarn ? clampPct(t->warningLevel, t->minValue, t->maxValue) : 1.0f;
     const float dangerPct = hasDanger ? clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.0f;
 
@@ -154,23 +166,24 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     // -----------------------------------------------------------------------
     if (!isVertical) {
         const bool noUserLabel = (cfg.bar.label[0] == '\0');
-        const bool labelIsTop = noUserLabel
-                                || cfg.bar.labelPosition == CfgLabelPos::TOP_LEFT
-                                || cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER
-                                || cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
+        const bool labelIsTop = noUserLabel || cfg.bar.labelPosition == CfgLabelPos::TOP_LEFT ||
+                                cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER ||
+                                cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
 
         // Reserve a label band: 25 % of widget height, clamped 14..24. The
         // 14-px floor matches Montserrat 12's line height — anything tighter
         // visibly clips the value (\"65%\") and the signal name. The 24-px
         // cap keeps the bar dominant on tall widgets.
         int16_t labelBandH = static_cast<int16_t>((H * 25) / 100);
-        if (labelBandH < 14) labelBandH = 14;
-        if (labelBandH > 24) labelBandH = 24;
+        if (labelBandH < 14)
+            labelBandH = 14;
+        if (labelBandH > 24)
+            labelBandH = 24;
         // Bar fills the rest minus a small gap.
         const int16_t gap = 2;
         const int16_t barH = H - labelBandH - gap;
         const int16_t trackY = labelIsTop ? labelBandH + gap : 0;
-        const int16_t bandY  = labelIsTop ? 0 : barH + gap;
+        const int16_t bandY = labelIsTop ? 0 : barH + gap;
         const int16_t trackW = W - HORIZ_PAD_X * 2;
         t->trackX = HORIZ_PAD_X;
         t->trackY = trackY;
@@ -280,14 +293,19 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             CfgLabelPos innerPos = CfgLabelPos::TOP_LEFT;
             switch (cfg.bar.labelPosition) {
                 case CfgLabelPos::TOP_LEFT:
-                case CfgLabelPos::BOTTOM_LEFT:    innerPos = CfgLabelPos::TOP_LEFT; break;
+                case CfgLabelPos::BOTTOM_LEFT:
+                    innerPos = CfgLabelPos::TOP_LEFT;
+                    break;
                 case CfgLabelPos::TOP_CENTER:
-                case CfgLabelPos::BOTTOM_CENTER:  innerPos = CfgLabelPos::TOP_CENTER; break;
+                case CfgLabelPos::BOTTOM_CENTER:
+                    innerPos = CfgLabelPos::TOP_CENTER;
+                    break;
                 case CfgLabelPos::TOP_RIGHT:
-                case CfgLabelPos::BOTTOM_RIGHT:   innerPos = CfgLabelPos::TOP_RIGHT; break;
+                case CfgLabelPos::BOTTOM_RIGHT:
+                    innerPos = CfgLabelPos::TOP_RIGHT;
+                    break;
             }
-            WidgetLabelOverlay::apply(band, cfg.bar.label, innerPos,
-                                       cfg.style.textColor.rgb);
+            WidgetLabelOverlay::apply(band, cfg.bar.label, innerPos, cfg.style.textColor.rgb);
         }
 
         // Optional icon (drawn at left edge of the band, before any label)
@@ -405,27 +423,37 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         }
     }
 
+    // Mount the alert overlay last so it sits on top of all bar elements. Track
+    // the value label so it flips to white during a flash (signalLabel and
+    // suffixLabel already use a fixed dim grey — leave them alone for contrast).
+    AlertFlash::attach(t->alert, cont);
+    if (t->valueLabel)
+        AlertFlash::watchLabel(t->alert, t->valueLabel, VALUE_TEXT_RGB);
+
     lv_obj_set_user_data(cont, t);
-    lv_obj_add_event_cb(cont,
-                        [](lv_event_t *e) {
-                            auto *p = static_cast<BarTag *>(lv_event_get_user_data(e));
-                            delete p;
-                        },
-                        LV_EVENT_DELETE, t);
+    lv_obj_add_event_cb(
+        cont,
+        [](lv_event_t *e) {
+            auto *p = static_cast<BarTag *>(lv_event_get_user_data(e));
+            delete p;
+        },
+        LV_EVENT_DELETE, t);
 
     // Initial paint: invalid → 0 (per design).
     BarWidget::update(cont, cfg.bar.minValue, false, cfg);
 
     LOG_DEBUG("BAR", "Created %s bar '%s' at (%d,%d) size=%dx%d range=[%.0f,%.0f]",
-              isVertical ? "vertical" : "horizontal", cfg.id, cfg.layout.x,
-              cfg.layout.y + yOffset, W, H, cfg.bar.minValue, cfg.bar.maxValue);
+              isVertical ? "vertical" : "horizontal", cfg.id, cfg.layout.x, cfg.layout.y + yOffset,
+              W, H, cfg.bar.minValue, cfg.bar.maxValue);
     return cont;
 }
 
 void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
-    if (!obj) return;
+    if (!obj)
+        return;
     auto *t = static_cast<BarTag *>(lv_obj_get_user_data(obj));
-    if (!t || !t->fill || !t->valueLabel) return;
+    if (!t || !t->fill || !t->valueLabel)
+        return;
 
     // When the signal is missing, studio shows the "—" placeholder. The user
     // wants 0 instead so the dash always reads numerically.
@@ -438,12 +466,10 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     t->wasValid = valid;
 
     const float pct = clampPct(displayValue, t->minValue, t->maxValue);
-    const float warnPct = !std::isnan(t->warningLevel)
-                              ? clampPct(t->warningLevel, t->minValue, t->maxValue)
-                              : 1.1f;
-    const float dangerPct = !std::isnan(t->dangerLevel)
-                                ? clampPct(t->dangerLevel, t->minValue, t->maxValue)
-                                : 1.1f;
+    const float warnPct =
+        !std::isnan(t->warningLevel) ? clampPct(t->warningLevel, t->minValue, t->maxValue) : 1.1f;
+    const float dangerPct =
+        !std::isnan(t->dangerLevel) ? clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.1f;
 
     const uint32_t fillRgb = zoneFillColor(pct, warnPct, dangerPct);
     lv_obj_set_style_bg_color(t->fill, lv_color_hex(fillRgb), LV_PART_MAIN);
@@ -462,6 +488,9 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
         // make it invisible (same colour as the fill underneath).
         renderValueText(t, displayValue);
     }
+
+    // Drive the threshold flash from the live value (NaN threshold = disabled).
+    AlertFlash::update(t->alert, displayValue, t->alertThreshold);
 
     (void)cfg;
 }

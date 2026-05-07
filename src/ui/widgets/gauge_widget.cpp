@@ -1,6 +1,7 @@
 // gauge_widget.cpp — Arc-based gauge widget with colored zone sectors
 
 #include "gauge_widget.h"
+#include "ui/alert_flash.h"
 #include "ui/font_manager.h"
 #include "ui/widget_label.h"
 #include "hardware_profile.h"
@@ -18,9 +19,9 @@ namespace {
 // Palette for the colored arc sectors
 static constexpr uint32_t kColorSuccess = 0x00CC44; // Green — normal range
 static constexpr uint32_t kColorWarning = 0xFF8800; // Orange — warning range
-static constexpr uint32_t kColorDanger  = 0xFF4444; // Red — danger range
-static constexpr uint32_t kColorBgDim   = 0x222222; // Dark grey — no-threshold bg track
-static constexpr uint32_t kColorValue   = 0xFFFFFF; // White — value indicator needle
+static constexpr uint32_t kColorDanger = 0xFF4444;  // Red — danger range
+static constexpr uint32_t kColorBgDim = 0x222222;   // Dark grey — no-threshold bg track
+static constexpr uint32_t kColorValue = 0xFFFFFF;   // White — value indicator needle
 
 // Arc sweep constants (matches rotation=140, bg_angles=0..280)
 static constexpr float kArcSweep = 280.0f;
@@ -39,9 +40,8 @@ static uint16_t valueToAngle(float value, float minVal, float maxVal) {
 
 // Create a background-only arc covering [startAngle..endAngle] in the given color.
 // The indicator portion is fully transparent — only the track ring is visible.
-static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam,
-                                  uint16_t startAngle, uint16_t endAngle,
-                                  uint32_t colorRgb, uint8_t arcWidth) {
+static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startAngle,
+                                 uint16_t endAngle, uint32_t colorRgb, uint8_t arcWidth) {
     if (startAngle >= endAngle)
         return nullptr;
 
@@ -104,11 +104,13 @@ struct GaugeTag {
     float minValue;
     float maxValue;
     float lastValue;
+    float alertThreshold; // NaN = disabled (issue #133)
     // Threshold angles (0 = not set)
     uint16_t warnAngle;
     uint16_t dangerAngle;
     bool hasWarning;
     bool hasDanger;
+    AlertFlash::State alert;
 };
 
 } // namespace
@@ -141,21 +143,17 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Convention: warningLevel > minValue means a real threshold is configured.
     const float minV = cfg.gauge.minValue;
     const float maxV = cfg.gauge.maxValue;
-    const bool hasWarning =
-        (cfg.gauge.warningLevel > minV && cfg.gauge.warningLevel < maxV);
-    const bool hasDanger =
-        hasWarning &&
-        (cfg.gauge.dangerLevel > cfg.gauge.warningLevel && cfg.gauge.dangerLevel <= maxV);
+    const bool hasWarning = (cfg.gauge.warningLevel > minV && cfg.gauge.warningLevel < maxV);
+    const bool hasDanger = hasWarning && (cfg.gauge.dangerLevel > cfg.gauge.warningLevel &&
+                                          cfg.gauge.dangerLevel <= maxV);
 
-    const uint16_t warnAngle =
-        hasWarning ? valueToAngle(cfg.gauge.warningLevel, minV, maxV) : 0;
-    const uint16_t dangerAngle =
-        hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
+    const uint16_t warnAngle = hasWarning ? valueToAngle(cfg.gauge.warningLevel, minV, maxV) : 0;
+    const uint16_t dangerAngle = hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
 
     // Arc line widths — thick enough to read on the now-smaller (h=80)
     // dashboard arcs without overwhelming the value text in the centre.
-    constexpr uint8_t kBgWidth  = 14; // Sector track width
-    constexpr uint8_t kIndWidth = 7;  // Value indicator (thinner, sits inside)
+    constexpr uint8_t kBgWidth = 14; // Sector track width
+    constexpr uint8_t kIndWidth = 7; // Value indicator (thinner, sits inside)
 
     // ---------------------------------------------------------------------------
     // Layer 1-3: Static sector arcs (background track, colored zones)
@@ -198,8 +196,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         // Initial readout: 0, formatted to the configured decimalPlaces with
         // optional prefix — matches the "no signal yet → show 0" rule.
         char initBuf[24];
-        snprintf(initBuf, sizeof(initBuf), "%s%.*f", cfg.gauge.prefix,
-                 cfg.gauge.decimalPlaces, 0.0f);
+        snprintf(initBuf, sizeof(initBuf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces,
+                 0.0f);
         lv_label_set_text(label, initBuf);
     }
 
@@ -208,27 +206,44 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (hasUnit) {
         unitLabel = lv_label_create(cont);
         lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
-        lv_obj_set_style_text_color(unitLabel, lv_color_hex(cfg.style.textColor.rgb & 0x888888),
-                                    0);
+        lv_obj_set_style_text_color(unitLabel, lv_color_hex(cfg.style.textColor.rgb & 0x888888), 0);
         lv_obj_set_style_text_font(unitLabel, FontManager::get(12), 0);
         lv_label_set_text(unitLabel, cfg.gauge.suffix);
     }
 
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition,
-                               cfg.style.textColor.rgb);
+                              cfg.style.textColor.rgb);
 
     // Allocate and attach tag
-    GaugeTag *tag = new GaugeTag{label, unitLabel,
-                                  minV, maxV, 0.0f,
-                                  warnAngle, dangerAngle,
-                                  hasWarning, hasDanger};
+    GaugeTag *tag = new GaugeTag{};
+    tag->valueLabel = label;
+    tag->unitLabel = unitLabel;
+    tag->minValue = minV;
+    tag->maxValue = maxV;
+    tag->lastValue = 0.0f;
+    tag->alertThreshold = cfg.gauge.alertThreshold;
+    tag->warnAngle = warnAngle;
+    tag->dangerAngle = dangerAngle;
+    tag->hasWarning = hasWarning;
+    tag->hasDanger = hasDanger;
+
+    // Mount the alert overlay last so it sits on top of arcs and labels.
+    AlertFlash::attach(tag->alert, cont);
+    AlertFlash::watchLabel(tag->alert, label, cfg.style.textColor.rgb);
+    if (unitLabel) {
+        AlertFlash::watchLabel(tag->alert, unitLabel, cfg.style.textColor.rgb & 0x888888);
+    }
+
     lv_obj_set_user_data(cont, tag);
 
-    lv_obj_add_event_cb(cont, [](lv_event_t* e) {
-        auto* t = static_cast<GaugeTag*>(lv_event_get_user_data(e));
-        delete t;
-    }, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(
+        cont,
+        [](lv_event_t *e) {
+            auto *t = static_cast<GaugeTag *>(lv_event_get_user_data(e));
+            delete t;
+        },
+        LV_EVENT_DELETE, tag);
 
     return cont;
 }
@@ -241,30 +256,43 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!tag)
         return;
 
+    const float displayValue = valid ? value : 0.0f;
+
     if (!valid) {
         // No live signal → display 0 (formatted) instead of placeholder dashes.
         char buf[24];
         snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
         lv_label_set_text(tag->valueLabel, buf);
-        lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
+        if (!tag->alert.active) {
+            lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
+        }
+        AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
         return;
     }
 
     // Only redraw if value changed to avoid LVGL refresh churn
-    if (value == tag->lastValue)
+    if (value == tag->lastValue) {
+        AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
         return;
+    }
     tag->lastValue = value;
 
-    // Tint the value label to match the active zone
-    uint32_t labelColor = cfg.style.textColor.rgb;
-    if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
-        labelColor = kColorDanger;
-    else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
-        labelColor = kColorWarning;
-    lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
+    // Tint the value label to match the active zone — but skip when in alert
+    // state, AlertFlash owns the colour while the flash is active.
+    if (!tag->alert.active) {
+        uint32_t labelColor = cfg.style.textColor.rgb;
+        if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
+            labelColor = kColorDanger;
+        else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
+            labelColor = kColorWarning;
+        lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
+    }
 
     // Update numeric label (prefix + value formatted to decimalPlaces).
     char buf[24];
     snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, value);
     lv_label_set_text(tag->valueLabel, buf);
+
+    // Drive the threshold flash from the live value (NaN threshold = disabled).
+    AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
 }

@@ -13,6 +13,7 @@
 
 #include "label_widget.h"
 #include "diag/logger.h"
+#include "ui/alert_flash.h"
 #include "ui/font_manager.h"
 #include "ui/widget_label.h"
 #include <lvgl.h>
@@ -25,12 +26,20 @@ namespace {
 // compiled-in Montserrat size.
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
-    const int byWidth  = (widgetW * 52) / 100;
+    const int byWidth = (widgetW * 52) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
-    if (s < 12) s = 12;
-    if (s > 48) s = 48;
+    if (s < 12)
+        s = 12;
+    if (s > 48)
+        s = 48;
     return static_cast<uint8_t>(s);
 }
+
+struct LabelTag {
+    lv_obj_t *valueLabel;
+    float alertThreshold; // NaN = disabled (issue #133)
+    AlertFlash::State alert;
+};
 
 } // namespace
 
@@ -60,8 +69,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const int16_t sigHeaderH = hasUserLabel ? 0 : 14;
     const int16_t valueLineH = cfg.layout.h - sigHeaderH;
 
-    const lv_font_t *valueFont =
-        FontManager::get(pickValueFontSize(valueLineH, cfg.layout.w));
+    const lv_font_t *valueFont = FontManager::get(pickValueFontSize(valueLineH, cfg.layout.w));
 
     if (!hasUserLabel) {
         WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
@@ -96,11 +104,24 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     if (hasUserLabel) {
         WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition,
-                                   cfg.style.textColor.rgb);
+                                  cfg.style.textColor.rgb);
     }
 
-    // Update path only ever rewrites the value label — store its handle.
-    lv_obj_set_user_data(cont, label);
+    auto *tag = new LabelTag{};
+    tag->valueLabel = label;
+    tag->alertThreshold = cfg.label.alertThreshold;
+
+    AlertFlash::attach(tag->alert, cont);
+    AlertFlash::watchLabel(tag->alert, label, cfg.style.textColor.rgb);
+
+    lv_obj_set_user_data(cont, tag);
+    lv_obj_add_event_cb(
+        cont,
+        [](lv_event_t *e) {
+            auto *t = static_cast<LabelTag *>(lv_event_get_user_data(e));
+            delete t;
+        },
+        LV_EVENT_DELETE, tag);
 
     return cont;
 }
@@ -108,12 +129,13 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
     if (!obj)
         return;
-    lv_obj_t *label = static_cast<lv_obj_t *>(lv_obj_get_user_data(obj));
-    if (!label)
+    auto *tag = static_cast<LabelTag *>(lv_obj_get_user_data(obj));
+    if (!tag || !tag->valueLabel)
         return;
 
     if (!valid && cfg.label.hideWhenInvalid) {
-        lv_label_set_text(label, "");
+        lv_label_set_text(tag->valueLabel, "");
+        AlertFlash::update(tag->alert, 0.0f, tag->alertThreshold);
         return;
     }
 
@@ -122,13 +144,16 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const float displayValue = valid ? value : 0.0f;
 
     char valBuf[16];
-    snprintf(valBuf, sizeof(valBuf), "%.*f",
-             static_cast<int>(cfg.label.decimalPlaces), displayValue);
+    snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces),
+             displayValue);
 
     // Suffix dropped unconditionally — the label conveys the unit. Wide
     // numeric values ("195km/h" → "195k") were getting clipped on the right
     // edge of 80-px-wide widgets. See create() for full rationale.
     char buf[40];
     snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
-    lv_label_set_text(label, buf);
+    lv_label_set_text(tag->valueLabel, buf);
+
+    // Drive the threshold flash from the live value (NaN threshold = disabled).
+    AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
 }

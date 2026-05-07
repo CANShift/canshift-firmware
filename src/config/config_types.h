@@ -91,12 +91,13 @@ struct CfgGaugeParams {
     float maxValue;
     float warningLevel;
     float dangerLevel;
+    float alertThreshold; // NaN = disabled (issue #133)
     uint8_t numTicks;
     bool showNeedle;
     bool showArc;
     uint8_t decimalPlaces;
     char prefix[8];
-    char suffix[16]; // Unit label shown below the value (e.g. "RPM", "°C")
+    char suffix[16];              // Unit label shown below the value (e.g. "RPM", "°C")
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
 };
@@ -104,9 +105,10 @@ struct CfgGaugeParams {
 struct CfgBarParams {
     float minValue;
     float maxValue;
-    float warningLevel; // Value at which indicator turns warning color
-    float dangerLevel;  // Value at which indicator turns critical color
-    bool isVertical;    // true = bottom-up fill, false = left-to-right
+    float warningLevel;   // Value at which indicator turns warning color
+    float dangerLevel;    // Value at which indicator turns critical color
+    float alertThreshold; // NaN = disabled (issue #133)
+    bool isVertical;      // true = bottom-up fill, false = left-to-right
     uint8_t decimalPlaces;
     char prefix[8];
     char suffix[8];
@@ -120,14 +122,15 @@ struct CfgLabelParams {
     char prefix[16];
     char suffix[16];
     bool hideWhenInvalid;
+    float alertThreshold;         // NaN = disabled (issue #133)
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
 };
 
 struct CfgWarningParams {
-    bool invertLogic; // True = lit when signal == 0 (e.g. oil pressure OK light)
-    float threshold;  // Signal value that activates warning
-    char iconName[16]; // SensorIconName key, "" = default warning glyph
+    bool invertLogic;             // True = lit when signal == 0 (e.g. oil pressure OK light)
+    float threshold;              // Signal value that activates warning
+    char iconName[16];            // SensorIconName key, "" = default warning glyph
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
 };
@@ -140,14 +143,14 @@ struct CfgButtonParams {
 
 struct CfgTimerParams {
     bool autoStart;
-    bool formatMsec; // true = "ss.mmm", false = "mm:ss"
+    bool formatMsec;              // true = "ss.mmm", false = "mm:ss"
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
 };
 
 struct CfgImageParams {
     char imagePath[CFG_MAX_PATH_LEN]; // SPIFFS path e.g. "/images/bg.bmp"
-    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
+    char label[CFG_MAX_NAME_LEN];     // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
 };
 
@@ -206,12 +209,12 @@ struct CfgPage {
 // ---------------------------------------------------------------------------
 enum class TopBarItemKind : uint8_t {
     UNKNOWN = 0,
-    STATUS_DOT,    // Coloured dot tied to a signal's freshness ("rpm" or "any")
-    LABEL,         // Static text
-    SEPARATOR,     // Vertical "|"
-    SIGNAL,        // Live signal value with printf-style format
-    USB_ICON,      // Download arrow — green when host active
-    THEME_TOGGLE,  // ☀/☾ tap target — only meaningful when hasDayTheme
+    STATUS_DOT,   // Coloured dot tied to a signal's freshness ("rpm" or "any")
+    LABEL,        // Static text
+    SEPARATOR,    // Vertical "|"
+    SIGNAL,       // Live signal value with printf-style format
+    USB_ICON,     // Download arrow — green when host active
+    THEME_TOGGLE, // ☀/☾ tap target — only meaningful when hasDayTheme
 };
 
 enum class TopBarItemPos : uint8_t {
@@ -237,7 +240,7 @@ struct CfgTopBar {
     bool showMapProfile;
     CfgColor bgColor;
     CfgColor textColor;
-    bool hasLayout;     // True if `topBar.layout` was present in dashboard.json
+    bool hasLayout; // True if `topBar.layout` was present in dashboard.json
     uint8_t itemCount;
     CfgTopBarItem items[CFG_MAX_TOPBAR_ITEMS];
 };
@@ -246,8 +249,8 @@ struct CfgTopBar {
 // Day theme preset — stored at dashboard root, mirrors TypeScript ThemePreset
 // ---------------------------------------------------------------------------
 struct CfgDayTheme {
-    CfgColor bgColor;        // Page background for day mode
-    CfgPagePalette palette;  // Widget palette for day mode
+    CfgColor bgColor;       // Page background for day mode
+    CfgPagePalette palette; // Widget palette for day mode
 };
 
 // ---------------------------------------------------------------------------
@@ -283,10 +286,11 @@ struct CfgSignalDef {
     char unit[16];
     float minValue;
     float maxValue;
-    float warningLevel; // NAN = not configured; for low-side alerts (oil pressure) the engine inverts
-    float dangerLevel;  // NAN = not configured
+    float
+        warningLevel; // NAN = not configured; for low-side alerts (oil pressure) the engine inverts
+    float dangerLevel; // NAN = not configured
     uint32_t timeoutMs;
-    uint8_t bitMask;  // Bitmask for flag signals (0 = full value; non-zero = extract bit)
+    uint8_t bitMask; // Bitmask for flag signals (0 = full value; non-zero = extract bit)
 };
 
 struct CfgSignalConfig {

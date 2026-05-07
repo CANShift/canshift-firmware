@@ -33,31 +33,48 @@ void parseColor(const char *hex, CfgColor *out) {
 }
 
 TopBarItemKind parseTopBarItemKind(const char *str) {
-    if (!str) return TopBarItemKind::UNKNOWN;
-    if (strcmp(str, "statusDot") == 0)    return TopBarItemKind::STATUS_DOT;
-    if (strcmp(str, "label") == 0)        return TopBarItemKind::LABEL;
-    if (strcmp(str, "separator") == 0)    return TopBarItemKind::SEPARATOR;
-    if (strcmp(str, "signal") == 0)       return TopBarItemKind::SIGNAL;
-    if (strcmp(str, "usbIcon") == 0)      return TopBarItemKind::USB_ICON;
-    if (strcmp(str, "themeToggle") == 0)  return TopBarItemKind::THEME_TOGGLE;
+    if (!str)
+        return TopBarItemKind::UNKNOWN;
+    if (strcmp(str, "statusDot") == 0)
+        return TopBarItemKind::STATUS_DOT;
+    if (strcmp(str, "label") == 0)
+        return TopBarItemKind::LABEL;
+    if (strcmp(str, "separator") == 0)
+        return TopBarItemKind::SEPARATOR;
+    if (strcmp(str, "signal") == 0)
+        return TopBarItemKind::SIGNAL;
+    if (strcmp(str, "usbIcon") == 0)
+        return TopBarItemKind::USB_ICON;
+    if (strcmp(str, "themeToggle") == 0)
+        return TopBarItemKind::THEME_TOGGLE;
     return TopBarItemKind::UNKNOWN;
 }
 
 TopBarItemPos parseTopBarItemPos(const char *str) {
-    if (!str) return TopBarItemPos::LEFT;
-    if (strcmp(str, "center") == 0) return TopBarItemPos::CENTER;
-    if (strcmp(str, "right") == 0)  return TopBarItemPos::RIGHT;
+    if (!str)
+        return TopBarItemPos::LEFT;
+    if (strcmp(str, "center") == 0)
+        return TopBarItemPos::CENTER;
+    if (strcmp(str, "right") == 0)
+        return TopBarItemPos::RIGHT;
     return TopBarItemPos::LEFT;
 }
 
 CfgLabelPos parseLabelPos(const char *str) {
-    if (!str) return CfgLabelPos::TOP_LEFT;
-    if (strcmp(str, "top-left") == 0)      return CfgLabelPos::TOP_LEFT;
-    if (strcmp(str, "top-center") == 0)    return CfgLabelPos::TOP_CENTER;
-    if (strcmp(str, "top-right") == 0)     return CfgLabelPos::TOP_RIGHT;
-    if (strcmp(str, "bottom-left") == 0)   return CfgLabelPos::BOTTOM_LEFT;
-    if (strcmp(str, "bottom-center") == 0) return CfgLabelPos::BOTTOM_CENTER;
-    if (strcmp(str, "bottom-right") == 0)  return CfgLabelPos::BOTTOM_RIGHT;
+    if (!str)
+        return CfgLabelPos::TOP_LEFT;
+    if (strcmp(str, "top-left") == 0)
+        return CfgLabelPos::TOP_LEFT;
+    if (strcmp(str, "top-center") == 0)
+        return CfgLabelPos::TOP_CENTER;
+    if (strcmp(str, "top-right") == 0)
+        return CfgLabelPos::TOP_RIGHT;
+    if (strcmp(str, "bottom-left") == 0)
+        return CfgLabelPos::BOTTOM_LEFT;
+    if (strcmp(str, "bottom-center") == 0)
+        return CfgLabelPos::BOTTOM_CENTER;
+    if (strcmp(str, "bottom-right") == 0)
+        return CfgLabelPos::BOTTOM_RIGHT;
     return CfgLabelPos::TOP_LEFT;
 }
 
@@ -113,12 +130,16 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             // dashboard.json uses type "gauge" with displayStyle "bar" or "numeric"
             // to encode sub-types — reclassify here so downstream renderers are simple.
             const char *displayStyle = cfg["displayStyle"] | "arc";
+            // alertThreshold: optional, NaN sentinel = disabled (issue #133)
+            const float alertThreshold =
+                cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
             if (strcmp(displayStyle, "bar") == 0) {
                 w->type = WidgetType::BAR;
                 w->bar.minValue = cfg["minValue"] | 0.0f;
                 w->bar.maxValue = cfg["maxValue"] | 100.0f;
                 w->bar.warningLevel = cfg["warningLevel"] | 80.0f;
                 w->bar.dangerLevel = cfg["dangerLevel"] | 95.0f;
+                w->bar.alertThreshold = alertThreshold;
                 const char *orient = cfg["barOrientation"] | "horizontal";
                 w->bar.isVertical = (strcmp(orient, "vertical") == 0);
                 w->bar.decimalPlaces = cfg["decimalPlaces"] | 0;
@@ -131,6 +152,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 // Large numeric readout — render as a label widget
                 w->type = WidgetType::LABEL;
                 w->label.decimalPlaces = cfg["decimalPlaces"] | 0;
+                w->label.alertThreshold = alertThreshold;
                 strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
                 strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
                 w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
@@ -142,6 +164,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->gauge.maxValue = cfg["maxValue"] | 100.0f;
                 w->gauge.warningLevel = cfg["warningLevel"] | 80.0f;
                 w->gauge.dangerLevel = cfg["dangerLevel"] | 95.0f;
+                w->gauge.alertThreshold = alertThreshold;
                 w->gauge.showNeedle = cfg["showNeedle"] | false;
                 w->gauge.showArc = cfg["showArc"] | true;
                 w->gauge.decimalPlaces = cfg["decimalPlaces"] | 0;
@@ -154,6 +177,8 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
         }
         case WidgetType::LABEL:
             w->label.decimalPlaces = cfg["decimalPlaces"] | 0;
+            w->label.alertThreshold =
+                cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
             strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
             strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
             w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
@@ -173,6 +198,8 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             w->bar.maxValue = cfg["maxValue"] | 100.0f;
             w->bar.warningLevel = cfg["warningLevel"] | NAN;
             w->bar.dangerLevel = cfg["dangerLevel"] | NAN;
+            w->bar.alertThreshold =
+                cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
             w->bar.isVertical = false;
             w->bar.decimalPlaces = cfg["decimalPlaces"] | 0;
             strlcpy(w->bar.prefix, cfg["prefix"] | "", sizeof(w->bar.prefix));
@@ -280,11 +307,11 @@ bool loadDashboard() {
         JsonObjectConst dp = dayThemeJson["palette"];
         parseColor(dp["surface"] | "#F0F0F0", &s_dashboard.dayTheme.palette.surface);
         parseColor(dp["primary"] | "#CC0000", &s_dashboard.dayTheme.palette.primary);
-        parseColor(dp["accent"]  | "#E06000", &s_dashboard.dayTheme.palette.accent);
-        parseColor(dp["text"]    | "#000000", &s_dashboard.dayTheme.palette.text);
+        parseColor(dp["accent"] | "#E06000", &s_dashboard.dayTheme.palette.accent);
+        parseColor(dp["text"] | "#000000", &s_dashboard.dayTheme.palette.text);
         parseColor(dp["textDim"] | "#444444", &s_dashboard.dayTheme.palette.textDim);
         parseColor(dp["warning"] | "#CC6600", &s_dashboard.dayTheme.palette.warning);
-        parseColor(dp["danger"]  | "#CC0000", &s_dashboard.dayTheme.palette.danger);
+        parseColor(dp["danger"] | "#CC0000", &s_dashboard.dayTheme.palette.danger);
         parseColor(dp["success"] | "#006622", &s_dashboard.dayTheme.palette.success);
     }
 
@@ -384,7 +411,7 @@ bool loadSignals() {
             JsonVariantConst wv = sig["warningLevel"];
             s.warningLevel = wv.isNull() ? NAN : wv.as<float>();
             JsonVariantConst dv = sig["dangerLevel"];
-            s.dangerLevel  = dv.isNull() ? NAN : dv.as<float>();
+            s.dangerLevel = dv.isNull() ? NAN : dv.as<float>();
         }
         s.timeoutMs = sig["timeoutMs"] | SIGNAL_DEFAULT_TIMEOUT_MS;
         const char *bitMaskStr = sig["bitMask"] | nullptr;
@@ -414,11 +441,11 @@ bool loadDevice() {
     }
 
     s_device.canSpeedKbps = doc["can_speed_kbps"] | 0;
-    s_device.twaiTxPin    = doc["twai_tx_pin"] | -1;
-    s_device.twaiRxPin    = doc["twai_rx_pin"] | -1;
+    s_device.twaiTxPin = doc["twai_tx_pin"] | -1;
+    s_device.twaiRxPin = doc["twai_rx_pin"] | -1;
     s_device.loaded = true;
-    LOG_INFO("CFG", "device.json loaded: CAN=%ukbps TX=GPIO%d RX=GPIO%d",
-             s_device.canSpeedKbps, s_device.twaiTxPin, s_device.twaiRxPin);
+    LOG_INFO("CFG", "device.json loaded: CAN=%ukbps TX=GPIO%d RX=GPIO%d", s_device.canSpeedKbps,
+             s_device.twaiTxPin, s_device.twaiRxPin);
     return true;
 }
 
@@ -431,8 +458,8 @@ bool loadDevice() {
 ConfigLoader::LoadResult ConfigLoader::loadAll() {
     LoadResult r;
     r.dashboardOk = loadDashboard();
-    r.signalsOk   = loadSignals();
-    r.deviceOk    = loadDevice();
+    r.signalsOk = loadSignals();
+    r.deviceOk = loadDevice();
     return r;
 }
 
