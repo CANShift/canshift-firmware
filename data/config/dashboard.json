@@ -313,7 +313,7 @@
           "id": "tps_bar",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 0, "y": 168, "w": 320, "h": 28, "zOrder": 0 },
+          "layout": { "x": 0, "y": 168, "w": 320, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -333,56 +333,6 @@
             "decimalPlaces": 0,
             "label": "TPS",
             "labelPosition": "bottom-center"
-          }
-        },
-        {
-          "id": "fuel_press_h",
-          "type": "gauge",
-          "signal": "fuel_press_bar",
-          "layout": { "x": 0, "y": 196, "w": 160, "h": 28, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF8800",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "minValue": 0,
-            "maxValue": 6,
-            "warningLevel": 5,
-            "dangerLevel": 5.5,
-            "decimalPlaces": 1,
-            "label": "Fuel",
-            "labelPosition": "bottom-left"
-          }
-        },
-        {
-          "id": "oil_temp_h",
-          "type": "gauge",
-          "signal": "oil_temp_c",
-          "layout": { "x": 160, "y": 196, "w": 160, "h": 28, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF8800",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "minValue": 0,
-            "maxValue": 150,
-            "warningLevel": 120,
-            "dangerLevel": 140,
-            "decimalPlaces": 0,
-            "label": "Oil C",
-            "labelPosition": "bottom-left"
           }
         }
       ]
