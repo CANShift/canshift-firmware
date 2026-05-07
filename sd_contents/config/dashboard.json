@@ -1,14 +1,12 @@
 {
   "_comment": "CANShift demo dashboard — coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160×56) and XL (160×112) per issue #131; horizontal bars use H-FULL (320×28).",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
   "defaultPageId": "overview",
   "revLimitRpm": 7200,
   "topBar": {
     "height": 16,
-    "showMapName": true,
-    "showMapProfile": false,
     "bgColor": "#0D0D0D",
     "textColor": "#AAAAAA",
     "layout": [
@@ -39,7 +37,6 @@
   "pages": [
     {
       "id": "overview",
-      "name": "Overview",
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
@@ -198,7 +195,6 @@
     },
     {
       "id": "engine",
-      "name": "Engine",
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
@@ -393,7 +389,6 @@
     },
     {
       "id": "fluids",
-      "name": "Fluids",
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
@@ -562,7 +557,6 @@
     },
     {
       "id": "controls",
-      "name": "Controls",
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
