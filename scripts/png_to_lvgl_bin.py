@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
-# png_to_lvgl_bin.py — Convert a PNG into LVGL 8.x .bin (LV_IMG_CF_TRUE_COLOR, RGB565 LE)
+# png_to_lvgl_bin.py — Convert a PNG into LVGL 8.x .bin
 #
-# Usage: python3 png_to_lvgl_bin.py INPUT.png OUTPUT.bin --width 280 --height 140
+# Two pixel formats:
+#   default        → LV_IMG_CF_TRUE_COLOR        (RGB565 LE, 2 bytes/px)
+#   --alpha        → LV_IMG_CF_TRUE_COLOR_ALPHA  (RGB565 LE + 1 alpha byte, 3 bytes/px)
 #
-# The output is a 4-byte LVGL header followed by raw RGB565 little-endian
-# pixel data, ready to be loaded with lv_img_set_src("S:/path/to/file.bin").
-# Pairs with LV_COLOR_16_SWAP=0 + flush byte-swap in display_driver.cpp.
+# Usage:
+#   python3 png_to_lvgl_bin.py INPUT.png OUTPUT.bin --width 280 --height 140
+#   python3 png_to_lvgl_bin.py INPUT.png OUTPUT.bin --width 32 --height 32 --alpha
+#
+# The output is a 4-byte LVGL header followed by raw pixel data, ready to be
+# loaded with lv_img_set_src("S:/path/to/file.bin"). Pairs with
+# LV_COLOR_16_SWAP=0 + flush byte-swap in display_driver.cpp.
+#
+# Use --alpha for icons that will be runtime-recoloured: only the opaque pixels
+# get tinted, transparent pixels stay transparent. Without alpha, the whole
+# rectangle becomes a flat tint and the icon shape is lost.
 
 import argparse
 import struct
@@ -15,6 +25,7 @@ from pathlib import Path
 from PIL import Image
 
 LV_IMG_CF_TRUE_COLOR = 4
+LV_IMG_CF_TRUE_COLOR_ALPHA = 5
 
 
 def lvgl_header(cf: int, width: int, height: int) -> bytes:
@@ -35,22 +46,35 @@ def main() -> int:
     p.add_argument("output", help="Output .bin path")
     p.add_argument("--width", type=int, required=True)
     p.add_argument("--height", type=int, required=True)
+    p.add_argument(
+        "--alpha",
+        action="store_true",
+        help="Emit LV_IMG_CF_TRUE_COLOR_ALPHA (preserves transparency for runtime recolor)",
+    )
     args = p.parse_args()
 
-    src = Image.open(args.input).convert("RGB")
+    mode = "RGBA" if args.alpha else "RGB"
+    src = Image.open(args.input).convert(mode)
     img = src.resize((args.width, args.height), Image.LANCZOS)
 
+    cf = LV_IMG_CF_TRUE_COLOR_ALPHA if args.alpha else LV_IMG_CF_TRUE_COLOR
     payload = bytearray()
-    payload += lvgl_header(LV_IMG_CF_TRUE_COLOR, args.width, args.height)
+    payload += lvgl_header(cf, args.width, args.height)
     for y in range(args.height):
         for x in range(args.width):
-            r, g, b = img.getpixel((x, y))
-            payload += rgb888_to_rgb565_le(r, g, b)
+            px = img.getpixel((x, y))
+            if args.alpha:
+                r, g, b, a = px
+                payload += rgb888_to_rgb565_le(r, g, b)
+                payload += struct.pack("<B", a)
+            else:
+                r, g, b = px
+                payload += rgb888_to_rgb565_le(r, g, b)
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(payload)
-    print(f"wrote {out} ({len(payload)} bytes, {args.width}x{args.height})")
+    print(f"wrote {out} ({len(payload)} bytes, {args.width}x{args.height}, cf={cf})")
     return 0
 
 
