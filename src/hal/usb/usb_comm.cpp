@@ -157,7 +157,7 @@ void sendTelemetry() {
         *p++ = '}';
         *p++ = '\n';
         *p = '\0';
-        Serial.print(buf);
+        UsbComm::sendLine(buf);
     }
 }
 
@@ -173,14 +173,14 @@ void handlePutConfig(const char *jsonLine) {
     DeserializationError err = deserializeJson(doc, jsonLine);
     if (err) {
         LOG_WARN("USB", "PUT_CONFIG parse error: %s", err.c_str());
-        Serial.println("{\"status\":\"error\",\"message\":\"parse_error\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
         return;
     }
 
     JsonObjectConst payload = doc["payload"].as<JsonObjectConst>();
     if (payload.isNull()) {
         LOG_WARN("USB", "PUT_CONFIG: missing payload field");
-        Serial.println("{\"status\":\"error\",\"message\":\"missing_payload\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_payload\"}");
         return;
     }
 
@@ -188,7 +188,7 @@ void handlePutConfig(const char *jsonLine) {
     size_t written = serializeJson(payload, s_rxBuf, sizeof(s_rxBuf));
     if (written == 0) {
         LOG_ERROR("USB", "PUT_CONFIG: serialization failed");
-        Serial.println("{\"status\":\"error\",\"message\":\"serialize_failed\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"serialize_failed\"}");
         return;
     }
 
@@ -204,7 +204,7 @@ void handlePutConfig(const char *jsonLine) {
                                        reinterpret_cast<const uint8_t *>(s_rxBuf), written);
     if (!ok) {
         LOG_ERROR("USB", "PUT_CONFIG: SD write failed");
-        Serial.println("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
         // Tear down the overlay so the user isn't stuck staring at a misleading
         // "Saving…" state — the dashboard is still alive on the underlying page.
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
@@ -216,7 +216,7 @@ void handlePutConfig(const char *jsonLine) {
 
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
     Serial.flush();
-    Serial.println("{\"status\":\"ok\"}");
+    UsbComm::sendLine("{\"status\":\"ok\"}");
     Serial.flush();
     delay(150);
     esp_restart();
@@ -264,7 +264,7 @@ void handlePutFile(const JsonObjectConst &obj) {
     const char *b64 = obj["data"];
 
     if (!isPathSafe(path) || !b64 || total == 0 || idx >= total) {
-        Serial.println("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
         abortChunkTransfer("bad_args");
         return;
     }
@@ -272,7 +272,7 @@ void handlePutFile(const JsonObjectConst &obj) {
     if (idx == 0) {
         abortChunkTransfer("new transfer");
         if (!StorageDriver::beginChunkedWrite(path)) {
-            Serial.println("{\"status\":\"error\",\"message\":\"open_failed\"}");
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"open_failed\"}");
             return;
         }
         strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
@@ -280,7 +280,7 @@ void handlePutFile(const JsonObjectConst &obj) {
         s_chunk.expectedIdx = 0;
     } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
                strcmp(s_chunk.path, path) != 0) {
-        Serial.println("{\"status\":\"error\",\"message\":\"out_of_sequence\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"out_of_sequence\"}");
         abortChunkTransfer("out_of_sequence");
         return;
     }
@@ -292,13 +292,13 @@ void handlePutFile(const JsonObjectConst &obj) {
         mbedtls_base64_decode(reinterpret_cast<unsigned char *>(s_rxBuf), sizeof(s_rxBuf), &decoded,
                               reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     if (rc != 0) {
-        Serial.println("{\"status\":\"error\",\"message\":\"b64_decode\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
         abortChunkTransfer("b64_decode");
         return;
     }
 
     if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(s_rxBuf), decoded)) {
-        Serial.println("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
         abortChunkTransfer("write_failed");
         return;
     }
@@ -314,7 +314,7 @@ void handlePutFile(const JsonObjectConst &obj) {
         s_chunk.total = 0;
     }
 
-    Serial.println("{\"status\":\"ok\"}");
+    UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
 void handleScreenSettings(const JsonObjectConst &obj) {
@@ -326,7 +326,7 @@ void handleScreenSettings(const JsonObjectConst &obj) {
         xSemaphoreGive(g_lvglMutex);
     } else {
         LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
-        Serial.println("{\"status\":\"error\",\"message\":\"busy\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
         return;
     }
 
@@ -337,13 +337,13 @@ void handleScreenSettings(const JsonObjectConst &obj) {
         const uint16_t rotation = rotationVar.as<uint16_t>();
         if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
             LOG_INFO("USB", "Rotation change requested: %u° — rebooting", rotation);
-            Serial.println("{\"status\":\"ok\",\"rebooting\":true}");
+            UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
             Serial.flush();
             RotationConfig::applyAndReboot(rotation); // never returns
         }
     }
 
-    Serial.println("{\"status\":\"ok\"}");
+    UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
 // Last time the host sent a command. Used by UsbComm::isHostActive() for the
@@ -392,7 +392,7 @@ void handleCommand(const char *jsonLine) {
     DeserializationError err = deserializeJson(doc, jsonLine);
     if (err) {
         LOG_WARN("USB", "JSON parse error: %s", err.c_str());
-        Serial.println("{\"status\":\"error\",\"message\":\"parse_error\"}");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
         return;
     }
 
@@ -403,7 +403,7 @@ void handleCommand(const char *jsonLine) {
                      "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
                      APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
                      ThemeManager::isDayMode() ? 1 : 0);
-            Serial.println(resp);
+            UsbComm::sendLine(resp);
             break;
         }
         case UsbComm::CMD_GET_CONFIG: {
@@ -413,16 +413,20 @@ void handleCommand(const char *jsonLine) {
             size_t fileSize = 0;
             char *json = StorageDriver::readFile(CONFIG_PATH_DASHBOARD, &fileSize);
             if (!json) {
-                Serial.println("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+                UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
                 break;
             }
             for (size_t i = 0; i < fileSize; ++i) {
                 if (json[i] == '\n' || json[i] == '\r')
                     json[i] = ' ';
             }
+            // Bracket the 3-call burst with the logger mutex so a logger emit
+            // from another task can't slip in between the prefix / body / tail.
+            const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
             Serial.print("{\"status\":\"ok\",\"config\":");
             Serial.write(reinterpret_cast<const uint8_t *>(json), fileSize);
             Serial.println("}");
+            if (locked) Logger::unlockUart();
             free(json);
             LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(fileSize));
             break;
@@ -433,12 +437,12 @@ void handleCommand(const char *jsonLine) {
         case UsbComm::CMD_TOGGLE_DAY_NIGHT:
             s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: day/night toggle queued");
-            Serial.println("{\"status\":\"ok\"}");
+            UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_CALIBRATE_TOUCH:
             s_pendingCalibration.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration queued");
-            Serial.println("{\"status\":\"ok\"}");
+            UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_CAN_SCAN_START:
             s_scanDrops = 0;
@@ -446,7 +450,7 @@ void handleCommand(const char *jsonLine) {
             if (s_canScanQueue)
                 xQueueReset(s_canScanQueue);
             LOG_INFO("USB", "CAN scan started");
-            Serial.println("{\"status\":\"ok\"}");
+            UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
@@ -456,12 +460,12 @@ void handleCommand(const char *jsonLine) {
             char stopResp[64];
             snprintf(stopResp, sizeof(stopResp), "{\"status\":\"ok\",\"drops\":%lu}",
                      (unsigned long)s_scanDrops);
-            Serial.println(stopResp);
+            UsbComm::sendLine(stopResp);
             break;
         }
         default:
             LOG_DEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
-            Serial.println("{\"status\":\"ok\"}");
+            UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
     }
 }
@@ -501,7 +505,7 @@ void drainCanScanQueue() {
             *p++ = '\n';
         *p = '\0';
 
-        Serial.print(buf);
+        UsbComm::sendLine(buf);
         drained++;
     }
 }
@@ -521,6 +525,21 @@ void UsbComm::init() {
         LOG_ERROR("USB", "Failed to create CAN scan queue");
     }
     LOG_INFO("USB", "USB comm initialized");
+}
+
+void UsbComm::sendLine(const char *line) {
+    if (!line) return;
+    const size_t len = strlen(line);
+    const bool needsNewline = len == 0 || line[len - 1] != '\n';
+
+    // The mutex serializes wire-protocol writers (this function) against
+    // logger emit() calls from any other task. Lock failure falls through
+    // unprotected — better to risk one fragmented line than to silently drop
+    // a command ack the studio is waiting on.
+    const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
+    Serial.write(reinterpret_cast<const uint8_t *>(line), len);
+    if (needsNewline) Serial.write('\n');
+    if (locked) Logger::unlockUart();
 }
 
 bool UsbComm::takePendingDayNightToggle() {
@@ -597,7 +616,7 @@ void UsbComm::tick() {
                  static_cast<unsigned long>(stats.fpsX10 / 10),
                  static_cast<unsigned long>(stats.fpsX10 % 10),
                  static_cast<unsigned long>(stats.errors));
-        Serial.print(statBuf);
+        UsbComm::sendLine(statBuf);
     }
 
     if (++s_tickCount >= TELE_PERIOD_TICKS) {

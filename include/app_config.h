@@ -196,7 +196,10 @@
 #define USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256)
 
 // Protocol version — increment when USB wire protocol changes
-#define USB_PROTOCOL_VERSION 1
+// v2: LOG_* macros now emit `{"log":1,...}` envelopes instead of `[I][TAG]`
+//     plain text; UART0 writes from logger and wire protocol are serialized
+//     under a shared mutex (issue #199).
+#define USB_PROTOCOL_VERSION 2
 
 // ---------------------------------------------------------------------------
 // Simulation mode config

@@ -127,4 +127,12 @@ bool takePendingDayNightToggle();
  */
 bool takePendingCalibration();
 
+/**
+ * Write a single wire-protocol line to UART0 under the logger mutex.
+ * `line` must be a complete JSON object terminated with '\n'.
+ * Used internally by every ack / telemetry / can / can_stat write so logger
+ * emits from other tasks can never fragment the line.
+ */
+void sendLine(const char *line);
+
 } // namespace UsbComm
