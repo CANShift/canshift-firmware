@@ -55,6 +55,51 @@ pio device monitor               # Serial monitor at 115200 baud
 pio run -e sim --target upload
 ```
 
+### Manual flash from a release (recommended fallback)
+
+The studio's built-in firmware updater is wired up but currently has a flash-timeout
+issue under investigation. Until that lands, the most reliable path is to flash the
+official release artifacts with `esptool` directly from the terminal.
+
+**One-time setup** (Python esptool, the reference implementation):
+```bash
+# Option A — Homebrew
+brew install esptool
+
+# Option B — pip (any platform)
+pip install esptool
+```
+
+**Flash procedure** — works on macOS, Linux, Windows (WSL):
+```bash
+# 1. Download the latest firmware + SPIFFS bundle from
+#    https://github.com/tburkhalterr/CANShift/releases
+#    Files needed:
+#      canshift-firmware-vX.Y.Z-crowpanel_28-merged.bin
+#      canshift-spiffs-vX.Y.Z-crowpanel_28.bin
+
+# 2. Identify the device's serial port. With the device plugged in:
+#    macOS:    ls /dev/tty.usbserial-*
+#    Linux:    ls /dev/ttyUSB*
+#    Windows:  Check Device Manager → Ports (COM & LPT)
+
+# 3. Flash both partitions in one command (replace PORT and TAG):
+PORT=/dev/tty.usbserial-10
+TAG=v0.7.0
+
+esptool.py --chip esp32 -p "$PORT" -b 460800 \
+  --before default_reset --after hard_reset write_flash \
+  --flash_mode keep --flash_size keep --flash_freq keep \
+  0x0      "canshift-firmware-${TAG}-crowpanel_28-merged.bin" \
+  0x310000 "canshift-spiffs-${TAG}-crowpanel_28.bin"
+```
+
+**Notes:**
+- The merged firmware binary already starts at offset `0x0` (it embeds the bootloader at its own internal `0x1000` offset). Writing it at `0x1000` would shift every component and brick the boot.
+- SPIFFS partition offset `0x310000` matches `partitions/ota_4mb.csv`.
+- Baudrate `460800` is reliable on most CH340 + USB cable combos. If the flash hangs partway, drop to `230400`. Avoid `921600` — it times out on weak cables.
+- After a successful flash, the device reboots and the studio auto-connects within a few seconds.
+
 ### First Flash Checklist
 1. Verify all pins in `include/board_config.h` against your CrowPanel 2.8" schematic
 2. Set `APP_SIMULATION_MODE 1` in `include/app_config.h` for initial UI test
