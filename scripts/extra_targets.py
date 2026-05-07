@@ -54,6 +54,21 @@ def read_studio_version():
 
 # Inject the version. Quotes need to survive shell + compiler — use the
 # escaped-quote form PlatformIO expects.
+#
+# CRITICAL: PlatformIO has two SCons envs. `env` flows to framework + lib_deps;
+# `projenv` flows to project src/. We must append to both, otherwise
+# src/boot/boot_sequence.cpp falls back to "0.0.0-unset" from app_config.h
+# even though framework/library code sees the right macro (issue #233).
 _studio_version = read_studio_version()
-env.Append(CPPDEFINES=[("APP_VERSION_STR", env.StringifyMacro(_studio_version))])
+_version_define = ("APP_VERSION_STR", env.StringifyMacro(_studio_version))
+env.Append(CPPDEFINES=[_version_define])
+
+try:
+    Import("projenv")
+    projenv.Append(CPPDEFINES=[_version_define])
+except Exception as exc:
+    raise SystemExit(
+        f"error: APP_VERSION_STR injection into projenv failed: {exc}"
+    ) from exc
+
 print(f"firmware version (from studio package.json): {_studio_version}")
