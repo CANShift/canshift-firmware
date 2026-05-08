@@ -17,6 +17,7 @@
 #include <lvgl.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -199,26 +200,32 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
 // the touch event and prevent LV_EVENT_GESTURE from reaching the screen object.
 //
 // Gesture map:
-//   Swipe DOWN  → open settings panel (if closed)
-//   Swipe UP    → close settings panel (if open)
-//   Swipe LEFT  → next page           (only while settings is closed)
-//   Swipe RIGHT → previous page       (only while settings is closed)
+//   Drag DOWN from top edge   → reveal settings panel (panel follows finger,
+//                                snap-open / snap-closed at 50% threshold)
+//   Drag UP   from top bar    → conceal settings panel (same model, reversed)
+//   Swipe LEFT                → next page           (only while settings closed)
+//   Swipe RIGHT               → previous page       (only while settings closed)
+//
+// The drag tracker takes priority over the LVGL swipe-gesture path: while a
+// drag is in progress the swipe handler is suppressed for that touch cycle so
+// we don't both translate the panel and fire a second open/close at release.
+
+// y-coordinate band that triggers the drag from the closed state. Picked to
+// be a hair larger than the top bar so a finger landing on the bar can still
+// initiate the gesture without needing pixel-perfect aim.
+static constexpr int16_t DRAG_HOTZONE_PX = 40;
+
+// Movement (in px) below which a press isn't a drag. Below the LVGL gesture
+// threshold so we settle ambiguity before the swipe path fires.
+static constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 
 void onGesture(lv_dir_t dir) {
-    if (SettingsPage::isOpen()) {
-        if (dir == LV_DIR_TOP) {
-            SettingsPage::close();
-            LOG_DEBUG("UI", "Gesture: swipe up → settings closed");
-        }
-        // All other swipes are ignored while settings is visible
+    // Settings drag is handled by the drag tracker — ignore swipe gestures
+    // when the panel is open or in motion so we don't double-fire close().
+    if (SettingsPage::isOpen() || SettingsPage::isDragging())
         return;
-    }
 
     switch (dir) {
-        case LV_DIR_BOTTOM:
-            SettingsPage::open();
-            LOG_DEBUG("UI", "Gesture: swipe down → settings opened");
-            break;
         case LV_DIR_LEFT:
             if (s_pageCount > 1) {
                 // Next page enters from the right, slides left — matches finger motion.
@@ -234,8 +241,131 @@ void onGesture(lv_dir_t dir) {
                 LOG_DEBUG("UI", "Gesture: swipe right → prev page");
             }
             break;
+        case LV_DIR_TOP:
+        case LV_DIR_BOTTOM:
         default:
+            // Vertical gestures are owned by the drag tracker — see updateDrag().
             break;
+    }
+}
+
+// Drag tracker state — reset on every touch release.
+struct DragState {
+    bool active = false;     // True between press and release.
+    bool tracking = false;   // True once we've decided this is our gesture.
+    int16_t startY = 0;      // Touch y where the press began.
+    int16_t startPanelY = 0; // s_panel y at gesture start (open or closed Y).
+};
+
+static DragState s_drag;
+
+void resetDrag() {
+    s_drag = DragState{};
+    SettingsPage::setDragging(false);
+}
+
+// Crossed-threshold flag — written by updateDrag() while the gesture is in
+// flight, read by onDragRelease() to decide which way to snap. File-scope
+// static so it shares the anonymous namespace with the rest of the tracker.
+static bool s_dragCrossedThreshold = false;
+
+void onDragRelease() {
+    if (!s_drag.tracking) {
+        resetDrag();
+        return;
+    }
+
+    // Snap based on the issue spec ("drag > 50% of panel height"):
+    //  - Started closed: cross midpoint downward → open, else fall back closed.
+    //  - Started open:   cross midpoint upward   → close, else fall back open.
+    const int16_t closedY = SettingsPage::getClosedY();
+    const bool startedClosed = (s_drag.startPanelY == closedY);
+
+    if (startedClosed) {
+        if (s_dragCrossedThreshold)
+            SettingsPage::snapOpen();
+        else
+            SettingsPage::snapClosed();
+    } else {
+        if (s_dragCrossedThreshold)
+            SettingsPage::snapClosed();
+        else
+            SettingsPage::snapOpen();
+    }
+
+    resetDrag();
+}
+
+void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
+    lv_point_t p;
+    lv_indev_get_point(indev, &p);
+
+    if (state == LV_INDEV_STATE_RELEASED) {
+        if (s_drag.active)
+            onDragRelease();
+        return;
+    }
+
+    // Pressed.
+    if (!s_drag.active) {
+        s_drag.active = true;
+        s_drag.tracking = false;
+        s_drag.startY = p.y;
+        s_dragCrossedThreshold = false;
+
+        const bool isOpen = SettingsPage::isOpen();
+        // The drag is only armed when the press starts in the top hot-zone.
+        // From closed, this is the band just under the top edge; from open,
+        // it's the top bar itself — both at p.y < DRAG_HOTZONE_PX. Anywhere
+        // else inside the open panel keeps its normal click/scroll behavior.
+        if (p.y > DRAG_HOTZONE_PX) {
+            s_drag.active = false;
+            return; // Not our gesture.
+        }
+
+        s_drag.startPanelY = isOpen ? SettingsPage::getOpenY() : SettingsPage::getClosedY();
+    }
+
+    if (!s_drag.active)
+        return;
+
+    const int16_t deltaY = p.y - s_drag.startY;
+
+    // Latch into "tracking" only once the finger has moved enough — below the
+    // threshold the press is treated as a tap so buttons / sliders inside the
+    // panel still work normally when Settings is open.
+    if (!s_drag.tracking) {
+        if (abs(deltaY) < DRAG_START_THRESHOLD_PX)
+            return;
+
+        const bool isOpen = SettingsPage::isOpen();
+        // From closed, only downward drags qualify; from open, only upward.
+        if (!isOpen && deltaY <= 0)
+            return;
+        if (isOpen && deltaY >= 0)
+            return;
+
+        s_drag.tracking = true;
+        SettingsPage::setDragging(true);
+        LOG_DEBUG("UI", "Drag: settings tracker armed (open=%d)", static_cast<int>(isOpen));
+    }
+
+    // Translate panel position 1:1 with the finger.
+    int16_t targetY = static_cast<int16_t>(s_drag.startPanelY + deltaY);
+    SettingsPage::setPanelY(targetY);
+
+    // Threshold = midpoint between closed and open. Once crossed in either
+    // direction we remember it for the release decision.
+    const int16_t closedY = SettingsPage::getClosedY();
+    const int16_t openY = SettingsPage::getOpenY();
+    const int16_t midpointY = closedY + (openY - closedY) / 2;
+    const bool startedClosed = (s_drag.startPanelY == closedY);
+    if (startedClosed) {
+        // Crossed = pulled past midpoint (user wants to open).
+        s_dragCrossedThreshold = (targetY >= midpointY);
+    } else {
+        // Crossed = pushed past midpoint upward (user wants to close).
+        s_dragCrossedThreshold = (targetY <= midpointY);
     }
 }
 
@@ -250,6 +380,11 @@ void checkGestures() {
         if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
             // LVGL 8.3 exposes the state via the proc struct, not a getter.
             const lv_indev_state_t state = indev->proc.state;
+
+            // Drag-to-reveal runs every tick — it owns the press/move/release
+            // cycle for the settings panel.
+            updateDrag(indev, state);
+
             if (state == LV_INDEV_STATE_RELEASED) {
                 lastDir = LV_DIR_NONE;
             } else {

@@ -10,6 +10,7 @@
 #include <Preferences.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // ---------------------------------------------------------------------------
@@ -66,6 +67,17 @@ static lv_obj_t *s_brValue = nullptr;
 static lv_obj_t *s_sleepBtns[SLEEP_OPTION_COUNT] = {};
 
 static bool s_open = false;
+static bool s_dragging = false;
+
+// Resolved during init() — the y the panel sits at when visible, and the y
+// it sits at when fully tucked off-screen (just above the top bar).
+static int16_t s_openY = 0;
+static int16_t s_closedY = 0;
+static int16_t s_panelHeight = 0;
+
+// Snap animation duration — short enough to feel responsive, long enough to
+// read as motion rather than a teleport.
+static constexpr uint32_t SNAP_ANIM_MS = 180;
 
 // -----------------------------------------------------------------------
 // NVS helpers
@@ -229,6 +241,13 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
 
     const int16_t panelW = LV_HOR_RES;
 
+    // Panel geometry: visible at yOffset (just below the top bar); hidden by
+    // translating up by its own height so it sits flush with the top bar's
+    // bottom edge but off-screen. Drag tracker interpolates between the two.
+    s_openY = yOffset;
+    s_panelHeight = height;
+    s_closedY = static_cast<int16_t>(yOffset - height);
+
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_pos(s_panel, 0, yOffset);
     lv_obj_set_size(s_panel, panelW, height);
@@ -389,6 +408,9 @@ static uint32_t s_lastOpenMs = 0;
 void SettingsPage::open() {
     if (!s_panel || s_open)
         return;
+    // Snap to the resting open position in case a previous drag/snap left the
+    // panel at an interpolated y.
+    lv_obj_set_y(s_panel, s_openY);
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_panel);
     s_open = true;
@@ -404,6 +426,8 @@ void SettingsPage::close() {
     if (!s_panel || !s_open)
         return;
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
+    // Reset position so the next open()/snapOpen() starts from a known state.
+    lv_obj_set_y(s_panel, s_openY);
     s_open = false;
     LOG_DEBUG("Settings", "Settings page closed");
 }
@@ -442,6 +466,128 @@ void SettingsPage::tickSleep() {
         s_sleeping = false;
         applyBrightness();
     }
+}
+
+// ---------------------------------------------------------------------------
+// Drag-to-reveal (issue #47)
+// ---------------------------------------------------------------------------
+
+int16_t SettingsPage::getOpenY() {
+    return s_openY;
+}
+
+int16_t SettingsPage::getClosedY() {
+    return s_closedY;
+}
+
+int16_t SettingsPage::getPanelHeight() {
+    return s_panelHeight;
+}
+
+bool SettingsPage::isDragging() {
+    return s_dragging;
+}
+
+void SettingsPage::setDragging(bool dragging) {
+    s_dragging = dragging;
+}
+
+void SettingsPage::setPanelY(int16_t y) {
+    if (!s_panel)
+        return;
+    if (y < s_closedY)
+        y = s_closedY;
+    if (y > s_openY)
+        y = s_openY;
+    // Position before reveal — otherwise the panel flashes for one frame at
+    // its previous resting y before our drag offset takes effect.
+    lv_obj_set_y(s_panel, y);
+    if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_panel);
+    }
+}
+
+namespace {
+
+// Animation hop — written for both open and close because the executor needs
+// a plain `void(void*, int32_t)` signature and we want to commit the final
+// state once the animation finishes.
+
+void animSetY(void *obj, int32_t v) {
+    lv_obj_set_y(static_cast<lv_obj_t *>(obj), static_cast<lv_coord_t>(v));
+}
+
+void onSnapOpenDone(lv_anim_t * /*a*/) {
+    if (!s_panel)
+        return;
+    lv_obj_set_y(s_panel, s_openY);
+    if (!s_open) {
+        s_open = true;
+        s_lastOpenMs = millis();
+        LOG_DEBUG("Settings", "Settings page opened (snap)");
+    }
+}
+
+void onSnapClosedDone(lv_anim_t * /*a*/) {
+    if (!s_panel)
+        return;
+    lv_obj_set_y(s_panel, s_closedY);
+    lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
+    if (s_open) {
+        s_open = false;
+        LOG_DEBUG("Settings", "Settings page closed (snap)");
+    }
+}
+
+void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb) {
+    if (!s_panel)
+        return;
+    int16_t fromY = lv_obj_get_y(s_panel);
+    // Cancel any in-flight snap on this object so a fast user motion doesn't
+    // stack two animations fighting for the same y.
+    lv_anim_del(s_panel, animSetY);
+
+    // Distance-proportional duration — short hops feel snappier without
+    // capping how much motion the user can see in one gesture.
+    uint32_t deltaPx = static_cast<uint32_t>(abs(targetY - fromY));
+    uint32_t panelH = static_cast<uint32_t>(s_panelHeight > 0 ? s_panelHeight : 1);
+    uint32_t durationMs = (SNAP_ANIM_MS * deltaPx) / panelH;
+    if (durationMs < 60)
+        durationMs = 60;
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, s_panel);
+    lv_anim_set_exec_cb(&a, animSetY);
+    lv_anim_set_values(&a, fromY, targetY);
+    lv_anim_set_time(&a, durationMs);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_ready_cb(&a, doneCb);
+    lv_anim_start(&a);
+}
+
+} // namespace
+
+void SettingsPage::snapOpen() {
+    if (!s_panel)
+        return;
+    if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
+        // Coming from a fully-closed state with no drag preview — start the
+        // animation from s_closedY rather than the resting open position.
+        lv_obj_set_y(s_panel, s_closedY);
+        lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_panel);
+    }
+    runSnap(s_openY, onSnapOpenDone);
+}
+
+void SettingsPage::snapClosed() {
+    if (!s_panel)
+        return;
+    if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN))
+        return; // Already hidden, nothing to animate.
+    runSnap(s_closedY, onSnapClosedDone);
 }
 
 void SettingsPage::applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS) {

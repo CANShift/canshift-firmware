@@ -41,6 +41,30 @@ bool isOpen();
  */
 uint32_t lastOpenMs();
 
+/**
+ * Drag-to-reveal helpers (issue #47).
+ *
+ * The panel sits at y=getOpenY() when fully visible and y=getClosedY()
+ * (which is just above the screen, equal to -getPanelHeight() + topBarHeight)
+ * when fully hidden. setPanelY() lets a gesture controller drag the panel
+ * between the two without flipping the open/closed flag.
+ *
+ * snapOpen()/snapClosed() animate from the current y to the target and update
+ * the open flag + visibility on completion.
+ *
+ * All must be called while holding g_lvglMutex.
+ */
+int16_t getOpenY();
+int16_t getClosedY();
+int16_t getPanelHeight();
+void setPanelY(int16_t y);
+void snapOpen();
+void snapClosed();
+
+/** True when a drag-to-reveal gesture is currently in progress. */
+bool isDragging();
+void setDragging(bool dragging);
+
 /** Returns the configured sleep timeout in seconds (0 = disabled). */
 uint32_t getSleepTimeoutS();
 
