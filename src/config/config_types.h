@@ -2,7 +2,7 @@
 // config_types.h — Dashboard configuration domain types
 //
 // These types mirror the JSON schema defined in shared-core/src/schemas/.
-// If the schema changes, update this file and bump CONFIG_SCHEMA_VERSION.
+// If the schema changes, update this file.
 //
 // Note: This is the firmware-side representation (C++ structs).
 // The canonical schema and TypeScript types live in shared-core/.
@@ -11,8 +11,12 @@
 #include <stdbool.h>
 #include "app_config.h"
 
-// Schema version — must match the "version" field in dashboard.json
-#define CONFIG_SCHEMA_VERSION "1.5.0"
+// Schema version is injected at build time by scripts/extra_targets.py from
+// canshift-core/src/index.ts (CURRENT_SCHEMA_VERSION). Failing the build is
+// preferable to drifting from the canonical TypeScript value (issue #203).
+#ifndef CONFIG_SCHEMA_VERSION
+#error "CONFIG_SCHEMA_VERSION not defined — extra_targets.py must inject it from canshift-core"
+#endif
 
 // Maximum number of top bar items rendered from `topBar.layout`. Items beyond
 // this cap are dropped at parse time with a LOG_WARN.

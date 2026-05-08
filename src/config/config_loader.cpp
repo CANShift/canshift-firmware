@@ -7,7 +7,10 @@
 #include "diag/error_store.h"
 
 #include <ArduinoJson.h>
+#include <climits>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <string.h>
 
 // ---------------------------------------------------------------------------
@@ -138,6 +141,42 @@ CfgLabelPos parseLabelPos(const char *str) {
     if (strcmp(str, "bottom-right") == 0)
         return CfgLabelPos::BOTTOM_RIGHT;
     return CfgLabelPos::TOP_LEFT;
+}
+
+// Extract the major component of a "major.minor.patch" version string.
+// Returns -1 when the string is empty, missing, or not a parsable integer.
+// Major-only comparison is intentional — minor/patch bumps are backward
+// compatible (issue #203).
+int parseMajorVersion(const char *version) {
+    if (!version || version[0] == '\0')
+        return -1;
+    char *end = nullptr;
+    const long major = strtol(version, &end, 10);
+    if (end == version || major < 0 || major > INT_MAX)
+        return -1;
+    return static_cast<int>(major);
+}
+
+// Compare a config file's "version" string against CONFIG_SCHEMA_VERSION
+// (firmware build, mirrored from canshift-core). Logs and pushes to
+// ErrorStore on mismatch but does not abort — parse continues so the
+// firmware can still surface whatever subset of the file it understands.
+void checkSchemaVersion(const char *fileLabel, const char *fileVersion) {
+    const int fileMajor = parseMajorVersion(fileVersion);
+    const int firmwareMajor = parseMajorVersion(CONFIG_SCHEMA_VERSION);
+    if (fileMajor < 0) {
+        LOG_WARN("CFG", "%s: missing or invalid version field — proceeding", fileLabel);
+        ErrorStore::push(ERROR_SRC_CONFIG, "VER_MISSING", fileLabel);
+        return;
+    }
+    if (fileMajor != firmwareMajor) {
+        LOG_ERROR("CFG", "%s schema version mismatch: file=%s firmware=%s", fileLabel,
+                  fileVersion, CONFIG_SCHEMA_VERSION);
+        char detail[52];
+        snprintf(detail, sizeof(detail), "%s file=%s fw=%s", fileLabel, fileVersion,
+                 CONFIG_SCHEMA_VERSION);
+        ErrorStore::push(ERROR_SRC_CONFIG, "VER_MISMATCH", detail);
+    }
 }
 
 WidgetType parseWidgetType(const char *str) {
@@ -309,6 +348,7 @@ bool loadDashboard() {
     }
 
     strlcpy(s_dashboard.version, doc["version"] | "", sizeof(s_dashboard.version));
+    checkSchemaVersion("dashboard.json", s_dashboard.version);
     strlcpy(s_dashboard.name, doc["name"] | "", sizeof(s_dashboard.name));
     strlcpy(s_dashboard.defaultPageId, doc["defaultPageId"] | "",
             sizeof(s_dashboard.defaultPageId));
@@ -424,6 +464,7 @@ bool loadSignals() {
     }
 
     strlcpy(s_signals.version, doc["version"] | "", sizeof(s_signals.version));
+    checkSchemaVersion("signals.json", s_signals.version);
     strlcpy(s_signals.protocol, doc["protocol"] | "", sizeof(s_signals.protocol));
     s_signals.canSpeedKbps = doc["canSpeedKbps"] | 500;
     s_signals.signalCount = 0;
