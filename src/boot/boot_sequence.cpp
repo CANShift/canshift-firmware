@@ -33,8 +33,8 @@
 static void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    LOG_INFO("HEAP", "%s: free=%u largest=%u", stage,
-             static_cast<unsigned>(free), static_cast<unsigned>(largest));
+    LOG_INFO("HEAP", "%s: free=%u largest=%u", stage, static_cast<unsigned>(free),
+             static_cast<unsigned>(largest));
 }
 
 // ---------------------------------------------------------------------------
@@ -154,8 +154,8 @@ static void showSdBadge(BootSequence::SdStatus status) {
     clearSdBadge();
 
     const char *text = status == BootSequence::SdStatus::NoCard ? "NO SD" : "SD ERR";
-    const uint32_t bg = status == BootSequence::SdStatus::NoCard ? SD_BADGE_NO_CARD_BG
-                                                                 : SD_BADGE_FAIL_BG;
+    const uint32_t bg =
+        status == BootSequence::SdStatus::NoCard ? SD_BADGE_NO_CARD_BG : SD_BADGE_FAIL_BG;
 
     lv_obj_t *badge = lv_label_create(lv_layer_top());
     lv_label_set_text(badge, text);
@@ -279,17 +279,16 @@ void BootSequence::run() {
             updateSplash("No SD — defaults", 35);
             break;
         case BootSequence::SdStatus::MountFailed:
-            LOG_ERROR("BOOT",
-                      "SD mount failed — running with defaults; check pinout/wiring");
+            LOG_ERROR("BOOT", "SD mount failed — running with defaults; check pinout/wiring");
             updateSplash("SD error — defaults", 35);
             break;
     }
 
-    // 3.5 Provision default configs on a fresh / empty SD before loadConfig
-    //     reads. Writes only when target is missing AND no .bak exists, or
-    //     when target is empty. Never overwrites user data. On read-only or
-    //     full SD the failure is logged and pushed to ErrorStore — boot
-    //     continues so the device stays USB-reachable for recovery.
+        // 3.5 Provision default configs on a fresh / empty SD before loadConfig
+        //     reads. Writes only when target is missing AND no .bak exists, or
+        //     when target is empty. Never overwrites user data. On read-only or
+        //     full SD the failure is logged and pushed to ErrorStore — boot
+        //     continues so the device stays USB-reachable for recovery.
 #if DEFAULT_CONFIG_PROVISION_ENABLED
     if (s_sdStatus == BootSequence::SdStatus::Ok) {
         const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
@@ -363,6 +362,23 @@ bool BootSequence::isDegradedNoSd() {
     return s_sdStatus != SdStatus::Ok;
 }
 
+void BootSequence::detectSdEject() {
+    // Only meaningful when we believe the SD is mounted — once we're in a
+    // degraded state, tryRecoverSd() owns the polling cadence.
+    if (s_sdStatus != SdStatus::Ok)
+        return;
+
+    if (StorageDriver::probeStillPresent())
+        return;
+
+    // The storage driver has already torn down its SD instance and
+    // flipped its own status. Mirror it at the boot layer so getSdStatus(),
+    // isDegradedNoSd(), and the SD badge all agree on the new reality.
+    LOG_WARN("BOOT", "SD eject observed — entering degraded mode");
+    s_sdStatus = SdStatus::NoCard;
+    showSdBadge(s_sdStatus);
+}
+
 bool BootSequence::tryRecoverSd() {
     if (s_sdStatus == SdStatus::Ok)
         return true;
@@ -401,8 +417,7 @@ bool BootSequence::tryRecoverSd() {
                  static_cast<unsigned>(pr.written));
     }
     if (pr.failed > 0) {
-        LOG_WARN("BOOT",
-                 "SD recovery: default-config provision failed for %u file(s)",
+        LOG_WARN("BOOT", "SD recovery: default-config provision failed for %u file(s)",
                  static_cast<unsigned>(pr.failed));
     }
 #endif

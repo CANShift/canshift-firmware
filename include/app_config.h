@@ -166,6 +166,12 @@
 // only fires while we know the SD is missing/unmounted.
 #define SD_HOTPLUG_POLL_INTERVAL_MS 2000
 
+// Polling cadence for SD eject detection while mounted (issue #315). Each
+// probe issues one SEND_CSD over the shared HSPI bus, so we sample slowly
+// to keep TFT flush jitter unmeasurable. 5 s is well below human eject-to-
+// re-insert latency yet ~200x cheaper than the boot-time mount probe.
+#define SD_EJECT_POLL_INTERVAL_MS 5000
+
 // ---------------------------------------------------------------------------
 // Alert engine
 // ---------------------------------------------------------------------------
@@ -181,9 +187,9 @@
 // previously hardcoded magic numbers (lead-acid 12 V system, ~14 V float).
 // Override per engine by setting warningLevel/dangerLevel/highWarningLevel
 // on the battery_volts signal definition in signals.json.
-#define BATTERY_DEFAULT_LOW_WARN_V 12.0f   // Below this = WARNING (battery weak)
-#define BATTERY_DEFAULT_LOW_CRIT_V 11.5f   // Below this = CRITICAL (will not crank)
-#define BATTERY_DEFAULT_HIGH_WARN_V 15.0f  // Above this = WARNING (charging fault)
+#define BATTERY_DEFAULT_LOW_WARN_V 12.0f  // Below this = WARNING (battery weak)
+#define BATTERY_DEFAULT_LOW_CRIT_V 11.5f  // Below this = CRITICAL (will not crank)
+#define BATTERY_DEFAULT_HIGH_WARN_V 15.0f // Above this = WARNING (charging fault)
 
 // ---------------------------------------------------------------------------
 // BLE (Phase 3 — mobile app)

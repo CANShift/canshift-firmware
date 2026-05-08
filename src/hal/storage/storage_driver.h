@@ -40,6 +40,27 @@ bool init();
 InitStatus getStatus();
 
 /**
+ * Probe whether the SD card is still present after a successful mount.
+ *
+ * SD-only. The Arduino SD library does not notify on physical eject, so
+ * eject detection relies on a periodic CSD re-read via SD.cardType().
+ * SPIFFS builds always return true (no removable media).
+ *
+ * On detected ejection: tears down the SD instance (SD.end()), aborts any
+ * in-flight chunked write so its file handle is released, and flips the
+ * internal status to NoCard so getStatus() reflects the new state.
+ *
+ * Returns true while the card is still present, false once eject has been
+ * observed. Cheap-but-non-zero on healthy mounts (one SPI command), so
+ * callers must throttle (see SD_EJECT_POLL_INTERVAL_MS).
+ *
+ * Must be called from a context that owns SPI bus access — the UI task
+ * holding g_lvglMutex is the canonical caller, since the bus is shared
+ * with the TFT.
+ */
+bool probeStillPresent();
+
+/**
      * Read an entire file into a heap-allocated buffer.
      * Caller is responsible for calling free() on the returned pointer.
      * Returns nullptr on failure. outSize is set to the file size in bytes.

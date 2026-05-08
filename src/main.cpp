@@ -196,7 +196,7 @@ void taskUI(void *pvParameters) {
         const BaseType_t mutexTaken = xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10));
 #if APP_PROFILE_UI
         ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
-            static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
+                                     static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
 #endif
         if (mutexTaken != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
@@ -237,18 +237,24 @@ void taskUI(void *pvParameters) {
                 lv_task_handler();
             }
 
-            // SD hot-plug recovery (issue #251): while we know the SD is
-            // missing/unmounted, retry on a slow cadence so a freshly
-            // inserted card heals the dashboard without a reboot. Skipped
-            // entirely on healthy boots — single branch + millis() compare.
-            // Runs inside the existing LVGL mutex window because the
-            // recovery rebuilds pages.
+            // SD hot-plug recovery (issue #251) and eject detection
+            // (issue #315): two complementary slow polls that share the
+            // LVGL mutex window because both touch widgets (SD badge) and
+            // the SPI bus shared with the TFT. Mutually exclusive — only
+            // one branch can fire per tick because the SD is either
+            // mounted or not.
+            const uint32_t nowMs = millis();
             if (BootSequence::isDegradedNoSd()) {
                 static uint32_t lastSdProbeMs = 0;
-                const uint32_t nowMs = millis();
                 if (nowMs - lastSdProbeMs >= SD_HOTPLUG_POLL_INTERVAL_MS) {
                     lastSdProbeMs = nowMs;
                     BootSequence::tryRecoverSd();
+                }
+            } else {
+                static uint32_t lastSdEjectMs = 0;
+                if (nowMs - lastSdEjectMs >= SD_EJECT_POLL_INTERVAL_MS) {
+                    lastSdEjectMs = nowMs;
+                    BootSequence::detectSdEject();
                 }
             }
 
@@ -269,7 +275,7 @@ void taskUI(void *pvParameters) {
         // measures useful work — not the deliberate sleep.
         const int64_t frameEndUs = esp_timer_get_time();
         ::PerfCounters::recordSample(::PerfCounters::FRAME_TOTAL,
-            static_cast<uint32_t>(frameEndUs - frameStartUs));
+                                     static_cast<uint32_t>(frameEndUs - frameStartUs));
         // Frame-miss heuristic: if the delta between consecutive `lastWake`
         // values exceeds the configured period by >2 ms, the previous frame
         // overran its deadline.

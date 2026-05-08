@@ -122,9 +122,8 @@ bool StorageDriver::init() {
     // are used even if the bus instance had been torn down.
     s_sdSpi.begin(PIN_SD_SCLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS);
 
-    LOG_INFO("STORAGE", "SD: mounting (MOSI=%d MISO=%d SCLK=%d CS=%d freq=%u Hz)",
-             PIN_SD_MOSI, PIN_SD_MISO, PIN_SD_SCLK, PIN_SD_CS,
-             static_cast<unsigned>(SD_SPI_FREQ_HZ));
+    LOG_INFO("STORAGE", "SD: mounting (MOSI=%d MISO=%d SCLK=%d CS=%d freq=%u Hz)", PIN_SD_MOSI,
+             PIN_SD_MISO, PIN_SD_SCLK, PIN_SD_CS, static_cast<unsigned>(SD_SPI_FREQ_HZ));
 
     if (!SD.begin(PIN_SD_CS, s_sdSpi, SD_SPI_FREQ_HZ)) {
         // The Arduino SD driver tears the device down on any failure, so we
@@ -162,9 +161,8 @@ bool StorageDriver::init() {
     getSpaceInfo(&totalBytes, &usedBytes);
     const size_t freeBytes = totalBytes > usedBytes ? totalBytes - usedBytes : 0;
 
-    LOG_INFO("STORAGE",
-             "SD: mounted (type=%s size=%llu MB total=%u MB free=%u MB)",
-             typeStr, static_cast<unsigned long long>(sizeMb),
+    LOG_INFO("STORAGE", "SD: mounted (type=%s size=%llu MB total=%u MB free=%u MB)", typeStr,
+             static_cast<unsigned long long>(sizeMb),
              static_cast<unsigned>(totalBytes / (1024U * 1024U)),
              static_cast<unsigned>(freeBytes / (1024U * 1024U)));
 #endif
@@ -181,6 +179,40 @@ bool StorageDriver::init() {
 
 StorageDriver::InitStatus StorageDriver::getStatus() {
     return s_initStatus;
+}
+
+bool StorageDriver::probeStillPresent() {
+#if STORAGE_USE_SD
+    // Only meaningful while we believe the card is mounted. Caller is
+    // expected to gate on isDegradedNoSd() externally, but guard here too
+    // so a stray probe in the wrong state can't tear the bus down.
+    if (s_initStatus != InitStatus::Ok)
+        return false;
+
+    // SD.cardType() re-issues SEND_CSD over SPI. On a yanked card the
+    // controller times out and returns CARD_NONE — which is the only
+    // signal the Arduino SD library exposes for physical removal.
+    const sdcard_type_t cardType = SD.cardType();
+    if (cardType != CARD_NONE)
+        return true;
+
+    LOG_WARN("STORAGE", "SD: eject detected — tearing down mount");
+
+    // Drop any chunked write so its dangling File handle releases before
+    // we end the SD instance. The .tmp staging file (if atomic) is
+    // unrecoverable now anyway, since the FAT we'd flush to is gone.
+    if (isChunkedWriteOpen()) {
+        LOG_WARN("STORAGE", "SD: aborting in-flight chunked write");
+        abortChunkedWrite();
+    }
+
+    SD.end();
+    s_initStatus = InitStatus::NoCard;
+    return false;
+#else
+    // SPIFFS has no removable media — the mount is as durable as the chip.
+    return s_initStatus == InitStatus::Ok;
+#endif
 }
 
 char *StorageDriver::readFile(const char *path, size_t *outSize) {

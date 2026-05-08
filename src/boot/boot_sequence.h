@@ -52,6 +52,24 @@ SdStatus getSdStatus();
 bool isDegradedNoSd();
 
 /**
+ * Probe whether the SD card is still present after a successful mount.
+ *
+ * Closes the loop on hot-plug recovery (issue #315): without this, the
+ * firmware only recovers from a missing-at-boot SD, never from one that
+ * is yanked while running. Called periodically from the UI task while
+ * the SD is currently mounted.
+ *
+ * On detected ejection: storage is torn down, s_sdStatus flips to NoCard,
+ * and the SD badge is rendered so the user sees the change immediately.
+ * The dashboard keeps rendering — config stays in RAM — but writes from
+ * USB / BLE will fail until tryRecoverSd() succeeds on re-insertion.
+ *
+ * MUST be called from the UI task while holding g_lvglMutex (SPI bus is
+ * shared with the TFT, and the badge update touches LVGL).
+ */
+void detectSdEject();
+
+/**
  * Attempt to mount the SD card and reload configuration after a degraded
  * boot (issue #251). Called periodically from the UI task while
  * isDegradedNoSd() is true.
