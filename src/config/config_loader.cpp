@@ -168,6 +168,12 @@ CfgButtonActionType parseButtonActionType(const char *category, const char *type
     return CfgButtonActionType::UNKNOWN;
 }
 
+// Standard 11-bit CAN identifier max — anything above this requires the
+// extended (29-bit) frame format (issue #319).
+constexpr uint32_t CAN_STANDARD_ID_MAX = 0x7FFu;
+// 29-bit extended CAN identifier max — covers all valid TWAI extended IDs.
+constexpr uint32_t CAN_EXTENDED_ID_MAX = 0x1FFFFFFFu;
+
 void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     const char *category = src["category"] | "";
     const char *type = src["type"] | "";
@@ -176,6 +182,7 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     out->mapIndex = 0;
     out->canFrameId = 0;
     out->canDataLen = 0;
+    out->canExtended = false;
     memset(out->canData, 0, sizeof(out->canData));
 
     switch (out->type) {
@@ -201,6 +208,21 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
             } else {
                 const char *fs = fv.as<const char *>();
                 out->canFrameId = fs ? static_cast<uint32_t>(strtoul(fs, nullptr, 0)) : 0;
+            }
+            // Extended (29-bit) ID flag — issue #319. Optional; default false.
+            // Auto-promote to extended when the configured ID exceeds the
+            // standard 11-bit range so legacy configs that omit the flag but
+            // use a >0x7FF ID still transmit a valid frame.
+            const bool extendedFlag = src["extended"] | false;
+            const bool needsExtended = out->canFrameId > CAN_STANDARD_ID_MAX;
+            out->canExtended = extendedFlag || needsExtended;
+            if (out->canFrameId > CAN_EXTENDED_ID_MAX) {
+                LOG_WARN("CFG", "can_raw: frameId=0x%lX exceeds 29-bit max — action dropped",
+                         static_cast<unsigned long>(out->canFrameId));
+                out->type = CfgButtonActionType::UNKNOWN;
+                out->canFrameId = 0;
+                out->canExtended = false;
+                break;
             }
             // Decode hex payload up to 8 bytes. Empty string is allowed and
             // yields canDataLen=0 (legal DLC=0 frame). Anything malformed or
@@ -469,6 +491,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                     a.mapIndex = 0;
                     a.canFrameId = 0;
                     a.canDataLen = 0;
+                    a.canExtended = false;
                     memset(a.canData, 0, sizeof(a.canData));
                     w->button.actionsCount = 1;
                 }
@@ -627,6 +650,36 @@ bool loadSignals() {
     strlcpy(s_signals.protocol, doc["protocol"] | "", sizeof(s_signals.protocol));
     s_signals.canSpeedKbps = doc["canSpeedKbps"] | 500;
     s_signals.signalCount = 0;
+
+    // Outbound frame overrides — issue #317. signals.json `out` block lets the
+    // user override baked frame IDs (currently just map_switch). Missing keys
+    // leave the field at zero so the dispatcher falls back to the compiled-in
+    // default. `extended` is auto-set when the ID exceeds the 11-bit range.
+    s_signals.out.mapSwitchFrameId = 0;
+    s_signals.out.mapSwitchExtended = false;
+    JsonObjectConst outObj = doc["out"];
+    if (!outObj.isNull()) {
+        JsonObjectConst mapSwitch = outObj["map_switch"];
+        if (!mapSwitch.isNull()) {
+            JsonVariantConst idv = mapSwitch["id"];
+            uint32_t id = 0;
+            if (idv.is<uint32_t>()) {
+                id = idv.as<uint32_t>();
+            } else {
+                const char *idStr = idv.as<const char *>();
+                if (idStr)
+                    id = static_cast<uint32_t>(strtoul(idStr, nullptr, 0));
+            }
+            if (id > CAN_EXTENDED_ID_MAX) {
+                LOG_WARN("CFG", "signals.json out.map_switch.id=0x%lX exceeds 29-bit max — ignored",
+                         static_cast<unsigned long>(id));
+                id = 0;
+            }
+            s_signals.out.mapSwitchFrameId = id;
+            const bool extendedFlag = mapSwitch["extended"] | false;
+            s_signals.out.mapSwitchExtended = extendedFlag || (id > CAN_STANDARD_ID_MAX);
+        }
+    }
 
     JsonArrayConst signals = doc["signals"];
     for (JsonObjectConst sig : signals) {

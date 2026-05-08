@@ -174,6 +174,10 @@ struct CfgButtonAction {
     uint32_t canFrameId;
     uint8_t canData[8];
     uint8_t canDataLen;
+    // True when the user requested a 29-bit extended ID (issue #319). Auto-set
+    // when canFrameId exceeds the 11-bit standard range (>0x7FF) so legacy
+    // configs without the flag still transmit valid frames.
+    bool canExtended;
 };
 
 struct CfgButtonParams {
@@ -342,12 +346,23 @@ struct CfgSignalDef {
     uint8_t bitMask; // Bitmask for flag signals (0 = full value; non-zero = extract bit)
 };
 
+// ---------------------------------------------------------------------------
+// Outbound CAN frame overrides (issue #317).
+// Mirrors signals.json `out` block. A zero `*FrameId` means "not configured" —
+// callers fall back to the baked default in include/can_signals_out.h.
+// ---------------------------------------------------------------------------
+struct CfgSignalsOut {
+    uint32_t mapSwitchFrameId; // 0 = use baked default
+    bool mapSwitchExtended;    // True when ID is 29-bit (auto-set when >0x7FF)
+};
+
 struct CfgSignalConfig {
     char version[16];
     char protocol[32]; // e.g. "maxxecu_v1.2"
     uint32_t canSpeedKbps;
     uint8_t signalCount;
     CfgSignalDef signals[CONFIG_MAX_SIGNALS];
+    CfgSignalsOut out;
     bool loaded;
 };
 

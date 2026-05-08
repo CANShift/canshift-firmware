@@ -3,6 +3,7 @@
 #include "button_widget.h"
 #include "can/can_manager.h"
 #include "can_signals_out.h"
+#include "config/config_loader.h"
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
 #include "diag/logger.h"
@@ -66,14 +67,19 @@ void dispatchAction(const CfgButtonAction &a) {
                 PageManager::navigateTo(a.pageId);
             break;
         case CfgButtonActionType::MAP_SWITCH: {
-            // Outbound frame ID is an UNVERIFIED placeholder (see
-            // can_signals_out.h). Warn once per session so the field tester
-            // sees it in logs without spamming on every press.
+            // Frame ID is sourced from signals.json `out.map_switch.id` (issue
+            // #317) and falls back to the baked default in can_signals_out.h
+            // when the user hasn't provided an override. Either way it remains
+            // ECU-specific and unverified — warn once so field testers see it.
+            const CfgSignalsOut &outCfg = ConfigLoader::getSignalConfig().out;
+            const uint32_t frameId =
+                outCfg.mapSwitchFrameId != 0 ? outCfg.mapSwitchFrameId : CAN_OUT_MAP_SWITCH_ID;
+            const bool extended = outCfg.mapSwitchExtended;
             static bool s_warnedMapSwitchUnverified = false;
             if (!s_warnedMapSwitchUnverified) {
                 LOG_WARN("BTN",
-                         "map_switch frame id=0x%lX is UNVERIFIED — confirm against ECU",
-                         static_cast<unsigned long>(CAN_OUT_MAP_SWITCH_ID));
+                         "map_switch frame id=0x%lX (ext=%d) is UNVERIFIED — confirm against ECU",
+                         static_cast<unsigned long>(frameId), extended ? 1 : 0);
                 s_warnedMapSwitchUnverified = true;
             }
             if (a.mapIndex < MAP_SWITCH_MIN_INDEX || a.mapIndex > MAP_SWITCH_MAX_INDEX) {
@@ -84,12 +90,14 @@ void dispatchAction(const CfgButtonAction &a) {
                 break;
             }
             const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = { a.mapIndex };
-            (void)CanManager::sendFrame(CAN_OUT_MAP_SWITCH_ID, payload,
-                                        CAN_OUT_MAP_SWITCH_DLC);
+            (void)CanManager::sendFrame(frameId, payload, CAN_OUT_MAP_SWITCH_DLC, extended);
             break;
         }
         case CfgButtonActionType::CAN_RAW:
-            (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen);
+            // Pass through the parsed extended flag (issue #319). Parser
+            // auto-promotes any ID >0x7FF to extended so legacy configs that
+            // omit the flag still transmit a valid frame.
+            (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended);
             break;
         case CfgButtonActionType::UNKNOWN:
         default:

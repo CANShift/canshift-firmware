@@ -9,8 +9,9 @@
 // transmitted frame will simply be ignored — or, in the worst case, collide
 // with another node that legitimately owns 0x600.
 //
-// Tracked in #262 follow-ups: make these IDs runtime-configurable from
-// signals.json so users can override without recompiling.
+// Issue #317: the runtime now reads `out.map_switch.id` (and optional
+// `out.map_switch.extended`) from signals.json. The constants below remain
+// as the boot-time fallback used when signals.json omits the override.
 
 #include <stdint.h>
 
