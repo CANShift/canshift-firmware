@@ -6,6 +6,7 @@
 #include "touch_driver.h"
 #include "app_config.h"
 #include "diag/logger.h"
+#include "diag/perf_counters.h"
 
 #include <lvgl.h>
 
@@ -34,6 +35,9 @@ void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) 
     static bool s_wasPressed = false;
     if (pressed && !s_wasPressed) {
         LOG_INFO("TOUCH", "Press at x=%ld y=%ld", x, y);
+        // Latch the press moment so the next LV_EVENT_CLICKED dispatch
+        // closes the press → click latency loop (issue #95 instrumentation).
+        PERF_RECORD_TOUCH_PRESS();
     }
     s_wasPressed = pressed;
 
@@ -83,6 +87,23 @@ void TouchDriver::init() {
     s_indevDrv.gesture_min_velocity = 3;
 
     lv_indev_drv_register(&s_indevDrv);
+
+#if APP_PROFILE_UI
+    // Global click listener: bubble-up LV_EVENT_CLICKED from any screen lands
+    // here so we can close the press → click latency loop. Attaching to
+    // lv_layer_top() works because that layer's event tree sees every
+    // dispatched click on the active display.
+    lv_obj_add_event_cb(
+        lv_layer_top(),
+        [](lv_event_t * /*e*/) {
+            uint32_t deltaUs = 0;
+            if (::PerfCounters::consumeTouchPressTs(&deltaUs)) {
+                ::PerfCounters::recordSample(::PerfCounters::TOUCH_LATENCY, deltaUs);
+            }
+        },
+        LV_EVENT_CLICKED, nullptr);
+#endif
+
     LOG_INFO("TOUCH", "Touch driver registered");
 }
 

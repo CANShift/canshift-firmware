@@ -73,13 +73,17 @@ lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     return ImageWidget::create(parent, cfg, yOffset);
 }
 
-void updateWidget(WidgetEntry &entry) {
+void updateWidget(WidgetEntry &entry,
+                  const SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS]) {
     if (entry.signalId >= SignalIds::SIGNAL_COUNT)
         return;
+    if (entry.signalId >= SIGNAL_STORE_MAX_SIGNALS)
+        return;
 
-    bool valid = SignalStore::isValid(entry.signalId);
-    float value = SignalStore::read(entry.signalId, 0.0f);
-    float rawValue = SignalStore::readRaw(entry.signalId, 0.0f);
+    const SignalStore::SignalValue &sv = snap[entry.signalId];
+    const bool valid = sv.valid;
+    const float value = valid ? sv.smoothed : 0.0f;
+    const float rawValue = valid ? sv.raw : 0.0f;
 
     switch (entry.type) {
         case WidgetType::GAUGE:
@@ -184,9 +188,15 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 }
 
 void WidgetFactory::updateAll(lv_obj_t *parent) {
+    // One mutex take per frame instead of one per (widget × {smoothed, raw,
+    // valid}) — was the dominant source of UI-core lock traffic and the
+    // primary lever for touch responsiveness (issue #95, fix F1).
+    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::snapshotAll(snap);
+
     for (uint8_t i = 0; i < s_widgetCount; ++i) {
         if (s_widgets[i].parent == parent) {
-            updateWidget(s_widgets[i]);
+            updateWidget(s_widgets[i], snap);
         }
     }
 }

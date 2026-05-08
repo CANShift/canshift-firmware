@@ -69,6 +69,14 @@ bool isValid(SignalId id);
 SignalValue get(SignalId id);
 
 /**
+     * Bulk-copy every signal slot under one mutex acquisition. Designed for the
+     * UI render path: WidgetFactory::updateAll() takes the lock once per frame
+     * via this API instead of once per widget × value (issue #95). The output
+     * buffer must hold SIGNAL_STORE_MAX_SIGNALS entries.
+     */
+void snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]);
+
+/**
      * Set per-signal timeout. Must be called before the CAN task starts.
      * Default: SIGNAL_DEFAULT_TIMEOUT_MS from app_config.h
      */

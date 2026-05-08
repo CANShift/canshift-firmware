@@ -31,8 +31,20 @@
 #define PIN_TFT_RST -1 // Not connected on CrowPanel 2.8" (held high internally)
 #define PIN_TFT_BL 27  // Backlight PWM — 0=off, 255=full
 
-// SPI clock speeds — verified from official CrowPanel 2.8" documentation
-#define TFT_SPI_FREQ_HZ 27000000UL  // 27 MHz — official spec for this board
+// SPI clock speeds — verified from official CrowPanel 2.8" documentation.
+// HW_TFT_FAST_SPI is an opt-in flag for boards that have been validated to
+// run the panel at 40 MHz reliably (issue #95, fix F6). Default OFF — leave
+// it that way until you have measured no flicker, no flush errors, and no
+// missed touch frames over a full driving session on the real CrowPanel.
+// When in doubt keep it at the official 27 MHz.
+#ifndef HW_TFT_FAST_SPI
+    #define HW_TFT_FAST_SPI 0
+#endif
+#if HW_TFT_FAST_SPI
+    #define TFT_SPI_FREQ_HZ 40000000UL // 40 MHz — opt-in, verify on real board
+#else
+    #define TFT_SPI_FREQ_HZ 27000000UL // 27 MHz — official spec for this board
+#endif
 #define TOUCH_SPI_FREQ_HZ 2500000UL // 2.5 MHz — XPT2046 max
 
 // ---------------------------------------------------------------------------

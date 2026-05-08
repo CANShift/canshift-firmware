@@ -77,9 +77,12 @@
 // Used by the esp_timer periodic callback installed in setup() (main.cpp).
 #define LVGL_TICK_MS 5 // 5ms = 200 Hz tick
 
-// LVGL task period — how often lv_task_handler() is called
-// Keep this ≥ LVGL_TICK_MS; 20ms = 50 FPS cap on UI refresh
-#define LVGL_HANDLER_PERIOD_MS 20
+// LVGL task period — how often lv_task_handler() is called.
+// Keep this ≥ LVGL_TICK_MS. 10 ms = ~100 Hz UI loop, which gives the touch
+// layer twice as many opportunities to dispatch click events per second
+// (issue #95, fix F2). With the F1 bulk SignalStore snapshot in place the
+// per-iteration cost is well below 10 ms in steady state.
+#define LVGL_HANDLER_PERIOD_MS 10
 
 // Display flush timeout watchdog (ms) — panic if flush takes longer
 #define LVGL_FLUSH_TIMEOUT_MS 200

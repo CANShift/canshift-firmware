@@ -53,6 +53,11 @@ struct DynItem {
     lv_obj_t *obj;             // primary lv object (label / dot)
     char signalId[CFG_MAX_SIGNAL_LEN];
     char format[16];
+    // Cached last-rendered values — updates are skipped when nothing changed,
+    // so unchanged frames cost only a few comparisons (issue #95, fix F3).
+    char lastText[16];
+    uint32_t lastColor;
+    bool lastSeenValid;
 };
 static DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
 static uint8_t s_dynCount = 0;
@@ -205,6 +210,9 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
         d.obj = obj;
         strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
         strlcpy(d.format, item.format, sizeof(d.format));
+        d.lastText[0] = '\0';
+        d.lastColor = 0; // 0 = unset sentinel (matches no real color emit below)
+        d.lastSeenValid = false;
     }
 }
 
@@ -356,7 +364,7 @@ static uint32_t statusDotColor(bool valid, bool everSeen) {
 // Per-DynItem "ever seen valid" history — index-aligned with s_dynItems.
 static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 
-static void updateDynStatusDot(uint8_t idx, const DynItem &d) {
+static void updateDynStatusDot(uint8_t idx, DynItem &d) {
     bool valid = false;
     if (d.signalId[0] == '\0' || strcmp(d.signalId, "any") == 0) {
         valid = anySignalValid();
@@ -365,30 +373,41 @@ static void updateDynStatusDot(uint8_t idx, const DynItem &d) {
         valid = (sid < SignalIds::SIGNAL_COUNT) && SignalStore::isValid(sid);
     }
     if (valid) s_dynEverSeen[idx] = true;
-    lv_obj_set_style_bg_color(d.obj,
-                              lv_color_hex(statusDotColor(valid, s_dynEverSeen[idx])),
-                              LV_PART_MAIN);
+    const uint32_t color = statusDotColor(valid, s_dynEverSeen[idx]);
+    if (color == d.lastColor) return; // skip lvgl style write — no change
+    lv_obj_set_style_bg_color(d.obj, lv_color_hex(color), LV_PART_MAIN);
+    d.lastColor = color;
 }
 
-static void updateDynSignalLabel(const DynItem &d) {
+static void updateDynSignalLabel(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
     const char *fmt = d.format[0] ? d.format : "%.1f";
+    char buf[16];
+    uint32_t targetColor;
     if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
-        float v = SignalStore::read(sid, 0.0f);
-        char buf[16];
+        const float v = SignalStore::read(sid, 0.0f);
         snprintf(buf, sizeof(buf), fmt, v);
-        lv_label_set_text(d.obj, buf);
-        lv_obj_set_style_text_color(d.obj, lv_color_hex(COLOR_LABEL), 0);
+        targetColor = COLOR_LABEL;
     } else {
-        lv_label_set_text(d.obj, "--.-");
-        lv_obj_set_style_text_color(d.obj, lv_color_hex(COLOR_MUTED), 0);
+        strlcpy(buf, "--.-", sizeof(buf));
+        targetColor = COLOR_MUTED;
+    }
+    if (strcmp(buf, d.lastText) != 0) {
+        lv_label_set_text(d.obj, buf);
+        strlcpy(d.lastText, buf, sizeof(d.lastText));
+    }
+    if (targetColor != d.lastColor) {
+        lv_obj_set_style_text_color(d.obj, lv_color_hex(targetColor), 0);
+        d.lastColor = targetColor;
     }
 }
 
-static void updateUsbIcon(lv_obj_t *obj) {
+static void updateUsbIcon(lv_obj_t *obj, DynItem *d) {
     const bool active = UsbComm::isHostActive();
-    lv_obj_set_style_text_color(obj,
-                                lv_color_hex(active ? COLOR_DOT_OK : COLOR_USB_OFF), 0);
+    const uint32_t color = active ? COLOR_DOT_OK : COLOR_USB_OFF;
+    if (d != nullptr && color == d->lastColor) return;
+    lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
+    if (d != nullptr) d->lastColor = color;
 }
 
 void TopBar::update() {
@@ -397,11 +416,11 @@ void TopBar::update() {
     // ---- Layout-driven path ----
     if (s_dynCount > 0) {
         for (uint8_t i = 0; i < s_dynCount; ++i) {
-            const DynItem &d = s_dynItems[i];
+            DynItem &d = s_dynItems[i];
             switch (d.kind) {
                 case TopBarItemKind::STATUS_DOT: updateDynStatusDot(i, d); break;
                 case TopBarItemKind::SIGNAL:     updateDynSignalLabel(d); break;
-                case TopBarItemKind::USB_ICON:   updateUsbIcon(d.obj); break;
+                case TopBarItemKind::USB_ICON:   updateUsbIcon(d.obj, &d); break;
                 default: break;
             }
         }
@@ -409,8 +428,15 @@ void TopBar::update() {
     }
 
     // ---- Legacy hardcoded path ----
+    // Cached last-rendered state — skip LVGL style/text writes when nothing
+    // changed (issue #95, fix F3). 0 sentinel = first run, forces an emit.
     static bool s_ecuEverSeen = false;
     static bool s_canEverSeen = false;
+    static uint32_t s_ecuDotColorLast = 0;
+    static uint32_t s_canDotColorLast = 0;
+    static char s_voltageTextLast[8] = {};
+    static uint32_t s_voltageColorLast = 0;
+    static uint32_t s_usbColorLast = 0;
 
     const bool ecuValid = SignalStore::isValid(SignalIds::RPM);
     const bool canValid = ecuValid || anySignalValid();
@@ -418,28 +444,47 @@ void TopBar::update() {
     if (canValid) s_canEverSeen = true;
 
     if (s_ecuDot) {
-        lv_obj_set_style_bg_color(s_ecuDot,
-                                  lv_color_hex(statusDotColor(ecuValid, s_ecuEverSeen)),
-                                  LV_PART_MAIN);
-    }
-    if (s_canDot) {
-        lv_obj_set_style_bg_color(s_canDot,
-                                  lv_color_hex(statusDotColor(canValid, s_canEverSeen)),
-                                  LV_PART_MAIN);
-    }
-    if (s_voltageLabel) {
-        if (SignalStore::isValid(SignalIds::BATTERY_VOLTS)) {
-            float v = SignalStore::read(SignalIds::BATTERY_VOLTS, 0.0f);
-            char buf[8];
-            snprintf(buf, sizeof(buf), "%.1fV", v);
-            lv_label_set_text(s_voltageLabel, buf);
-            lv_obj_set_style_text_color(s_voltageLabel, lv_color_hex(COLOR_LABEL), 0);
-        } else {
-            lv_label_set_text(s_voltageLabel, "--.-V");
-            lv_obj_set_style_text_color(s_voltageLabel, lv_color_hex(COLOR_MUTED), 0);
+        const uint32_t c = statusDotColor(ecuValid, s_ecuEverSeen);
+        if (c != s_ecuDotColorLast) {
+            lv_obj_set_style_bg_color(s_ecuDot, lv_color_hex(c), LV_PART_MAIN);
+            s_ecuDotColorLast = c;
         }
     }
-    if (s_usbIcon) updateUsbIcon(s_usbIcon);
+    if (s_canDot) {
+        const uint32_t c = statusDotColor(canValid, s_canEverSeen);
+        if (c != s_canDotColorLast) {
+            lv_obj_set_style_bg_color(s_canDot, lv_color_hex(c), LV_PART_MAIN);
+            s_canDotColorLast = c;
+        }
+    }
+    if (s_voltageLabel) {
+        char buf[8];
+        uint32_t targetColor;
+        if (SignalStore::isValid(SignalIds::BATTERY_VOLTS)) {
+            const float v = SignalStore::read(SignalIds::BATTERY_VOLTS, 0.0f);
+            snprintf(buf, sizeof(buf), "%.1fV", v);
+            targetColor = COLOR_LABEL;
+        } else {
+            strlcpy(buf, "--.-V", sizeof(buf));
+            targetColor = COLOR_MUTED;
+        }
+        if (strcmp(buf, s_voltageTextLast) != 0) {
+            lv_label_set_text(s_voltageLabel, buf);
+            strlcpy(s_voltageTextLast, buf, sizeof(s_voltageTextLast));
+        }
+        if (targetColor != s_voltageColorLast) {
+            lv_obj_set_style_text_color(s_voltageLabel, lv_color_hex(targetColor), 0);
+            s_voltageColorLast = targetColor;
+        }
+    }
+    if (s_usbIcon) {
+        const bool active = UsbComm::isHostActive();
+        const uint32_t color = active ? COLOR_DOT_OK : COLOR_USB_OFF;
+        if (color != s_usbColorLast) {
+            lv_obj_set_style_text_color(s_usbIcon, lv_color_hex(color), 0);
+            s_usbColorLast = color;
+        }
+    }
 }
 
 int16_t TopBar::getHeight() {

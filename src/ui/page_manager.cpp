@@ -11,6 +11,7 @@
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
 #include "diag/logger.h"
+#include "diag/perf_counters.h"
 #include "app_config.h"
 
 #include <lvgl.h>
@@ -146,11 +147,17 @@ void rebuildAllPages() {
 }
 
 // Page transitions on the ESP32:
-//  - OVER_LEFT/RIGHT: new screen slides over old, old stays static. Cheap —
-//    only the moving screen is repainted each frame. Used for swipe gestures.
+//  - MOVE_LEFT/RIGHT: both screens translate together — old slides out while
+//    new slides in. Visually similar to OVER_* for swipe nav but takes a
+//    shorter duration to feel responsive (issue #95, F4 — cross-links #64).
 //  - FADE_IN: alpha-blended cross-fade. Costly per pixel on a 320×240 panel
 //    without a GPU; we keep it short. Used for programmatic navigation where
 //    no direction is implied.
+//
+// Default swipe-transition duration (ms). Trimmed from 180 ms to 120 ms in
+// fix F4 because the previous value dominated the page-switch wall time.
+static constexpr uint32_t SWIPE_ANIM_MS = 120;
+
 void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
               uint32_t durationMs = 120) {
     if (idx >= s_pageCount) {
@@ -162,7 +169,21 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
         return;
     }
 
+    PERF_RECORD_PAGE_XSTART();
     lv_scr_load_anim(s_pages[idx].screen, anim, durationMs, 0, false /* keep old screen */);
+
+#if APP_PROFILE_UI
+    // Schedule a one-shot LVGL timer at the animation end so the PERF
+    // aggregator gets a wall-clock sample. lv_timer_create + repeat count 1
+    // is the canonical pattern for one-shots in LVGL 8.3.
+    lv_timer_t *t = lv_timer_create(
+        [](lv_timer_t *self) {
+            PERF_RECORD_PAGE_XEND();
+            lv_timer_del(self);
+        },
+        durationMs, nullptr);
+    if (t) lv_timer_set_repeat_count(t, 1);
+#endif
 
     s_currentIdx = idx;
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
@@ -201,14 +222,15 @@ void onGesture(lv_dir_t dir) {
         case LV_DIR_LEFT:
             if (s_pageCount > 1) {
                 // Next page enters from the right, slides left — matches finger motion.
-                showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, 180);
+                showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT,
+                         SWIPE_ANIM_MS);
                 LOG_DEBUG("UI", "Gesture: swipe left → next page");
             }
             break;
         case LV_DIR_RIGHT:
             if (s_pageCount > 1) {
                 showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
-                         LV_SCR_LOAD_ANIM_OVER_RIGHT, 180);
+                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
                 LOG_DEBUG("UI", "Gesture: swipe right → prev page");
             }
             break;
@@ -393,13 +415,13 @@ bool PageManager::navigateToIndex(uint8_t index) {
 
 void PageManager::navigateNext() {
     if (s_pageCount == 0) return;
-    showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, 180);
+    showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT, SWIPE_ANIM_MS);
 }
 
 void PageManager::navigatePrev() {
     if (s_pageCount == 0) return;
     showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1,
-             LV_SCR_LOAD_ANIM_OVER_RIGHT, 180);
+             LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
 }
 
 const char *PageManager::getCurrentPageId() {
@@ -433,13 +455,17 @@ void PageManager::updateWidgets() {
 
     // Update widgets on the current page
     lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
-    WidgetFactory::updateAll(currentScreen);
+    {
+        PERF_SCOPE(::PerfCounters::WIDGETS);
+        WidgetFactory::updateAll(currentScreen);
+    }
 
     // Refresh top bar status (ECU/CAN dots, voltage, page name, USB icon).
     // Throttled to ~5 Hz to keep frame budget reasonable.
     static uint32_t lastTopBarMs = 0;
     uint32_t nowMs = millis();
     if (nowMs - lastTopBarMs > 200) {
+        PERF_SCOPE(::PerfCounters::TOPBAR);
         TopBar::update();
         lastTopBarMs = nowMs;
     }

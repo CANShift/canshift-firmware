@@ -131,6 +131,22 @@ SignalStore::SignalValue SignalStore::get(SignalId id) {
     return copy;
 }
 
+void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
+    if (out == nullptr) return;
+
+    if (!acquireLock()) {
+        // Best-effort: zero out the buffer so callers see invalid signals
+        // rather than reading uninitialized memory.
+        for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
+            out[i] = SignalValue{};
+        }
+        return;
+    }
+
+    memcpy(out, s_signals, sizeof(SignalValue) * SIGNAL_STORE_MAX_SIGNALS);
+    releaseLock();
+}
+
 void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
     if (!idValid(id))
         return;

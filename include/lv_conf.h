@@ -64,8 +64,11 @@
 /* Default display refresh period. LVG will redraw changed areas with this period time */
 #define LV_DISP_DEF_REFR_PERIOD 20   /* ms — 50 fps */
 
-/* Input device read period in milliseconds */
-#define LV_INDEV_DEF_READ_PERIOD 30  /* ms */
+/* Input device read period in milliseconds — halved from 30 ms for
+   snappier press → click latency on the resistive panel (issue #95, F2).
+   The read callback is cheap (XPT2046 SPI transfer), so the higher poll
+   rate has no measurable impact on the 27 MHz shared SPI bus. */
+#define LV_INDEV_DEF_READ_PERIOD 15  /* ms */
 
 /* Use a custom tick source that tells the elapsed time in milliseconds.
    It removes the need to manually update the tick with `lv_tick_inc()` */
@@ -304,9 +307,12 @@
 /* Gesture detection */
 #define LV_USE_GESTURE_RECOGNITION 0
 
-/* 1: Show CPU usage and FPS count in the corner */
+/* 1: Show CPU usage and FPS count in the corner.
+   Independently flippable from APP_DEBUG_BUILD via APP_PROFILE_UI so the
+   `[env:debug-perf]` profile can render the on-screen overlay without the
+   full debug log spam (issue #95, F7). */
 #define LV_USE_PERF_MONITOR 0
-#if APP_DEBUG_BUILD
+#if APP_DEBUG_BUILD || (defined(APP_PROFILE_UI) && APP_PROFILE_UI)
 #undef  LV_USE_PERF_MONITOR
 #define LV_USE_PERF_MONITOR 1
 #define LV_USE_PERF_MONITOR_POS LV_ALIGN_BOTTOM_RIGHT

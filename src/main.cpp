@@ -15,6 +15,7 @@
 
 #include "boot/boot_sequence.h"
 #include "diag/logger.h"
+#include "diag/perf_counters.h"
 
 // Task function forward declarations
 void taskUI(void *pvParameters);
@@ -95,6 +96,9 @@ void setup() {
     // Start the LVGL tick timer only after lv_init() has run inside BootSequence.
     startLvglTickTimer();
 
+    // Initialize the perf-counter aggregator (no-op when APP_PROFILE_UI=0).
+    PERF_INIT();
+
     LOG_INFO("BOOT", "Boot complete — starting tasks");
 
     // ---------------------------------------------------------------------------
@@ -164,6 +168,10 @@ void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
 
     while (true) {
+#if APP_PROFILE_UI
+        const int64_t frameStartUs = esp_timer_get_time();
+#endif
+
         // Calibration runs WITHOUT the LVGL mutex — it blocks while the user taps
         // crosshairs on screen and draws directly via TFT_eSPI (not through LVGL).
         bool calibratedThisTick = false;
@@ -182,7 +190,15 @@ void taskUI(void *pvParameters) {
 
         bool didDayNightChange = false;
 
-        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+#if APP_PROFILE_UI
+        const int64_t lockStartUs = esp_timer_get_time();
+#endif
+        const BaseType_t mutexTaken = xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10));
+#if APP_PROFILE_UI
+        ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
+            static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
+#endif
+        if (mutexTaken != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
         } else {
             // lv_tick_inc() is driven by the esp_timer set up in setup() —
@@ -216,7 +232,10 @@ void taskUI(void *pvParameters) {
             didDayNightChange = (ThemeManager::isDayMode() != prevIsDay);
 
             PageManager::updateWidgets();
-            lv_task_handler();
+            {
+                PERF_SCOPE(::PerfCounters::LV_HANDLER);
+                lv_task_handler();
+            }
 
             // SD hot-plug recovery (issue #251): while we know the SD is
             // missing/unmounted, retry on a slow cadence so a freshly
@@ -243,6 +262,23 @@ void taskUI(void *pvParameters) {
         }
 #else
         (void)didDayNightChange;
+#endif
+
+#if APP_PROFILE_UI
+        // Frame-total wall time, captured before the delay so the metric
+        // measures useful work — not the deliberate sleep.
+        const int64_t frameEndUs = esp_timer_get_time();
+        ::PerfCounters::recordSample(::PerfCounters::FRAME_TOTAL,
+            static_cast<uint32_t>(frameEndUs - frameStartUs));
+        // Frame-miss heuristic: if the delta between consecutive `lastWake`
+        // values exceeds the configured period by >2 ms, the previous frame
+        // overran its deadline.
+        const TickType_t prevWake = lastWake;
+        const TickType_t nowTicks = xTaskGetTickCount();
+        if ((nowTicks - prevWake) > pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS + 2)) {
+            ::PerfCounters::recordFrameMiss();
+        }
+        ::PerfCounters::tick();
 #endif
 
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS));
