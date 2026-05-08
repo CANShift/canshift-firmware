@@ -230,7 +230,7 @@
 #define LV_USE_DROPDOWN   0   /* Not needed for dash UI */
 #define LV_USE_IMG        1   /* Background images and icons */
 #define LV_USE_LABEL      1   /* Text labels */
-#define LV_USE_LINE       1
+#define LV_USE_LINE       0   /* Unused — drop class to save flash */
 #define LV_USE_ROLLER     0
 #define LV_USE_SLIDER     1   /* Settings page brightness/contrast sliders */
 #define LV_USE_SWITCH     0
@@ -247,10 +247,10 @@
 #define LV_USE_COLORWHEEL 0
 #define LV_USE_IMGBTN     1   /* Image buttons for navigation */
 #define LV_USE_KEYBOARD   0
-#define LV_USE_LED        1   /* Warning indicator LEDs */
+#define LV_USE_LED        0   /* Unused — warning indicators use LV_USE_IMG */
 #define LV_USE_LIST       0
 #define LV_USE_MENU       0
-#define LV_USE_METER      1   /* Speedometer / tachometer style meters */
+#define LV_USE_METER      0   /* Unused — gauges use LV_USE_ARC + custom drawing */
 #define LV_USE_MSGBOX     0
 #define LV_USE_SPAN       0
 #define LV_USE_SPINBOX    0
