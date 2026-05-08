@@ -639,6 +639,10 @@ bool loadSignals() {
             s.warningLevel = wv.isNull() ? NAN : wv.as<float>();
             JsonVariantConst dv = sig["dangerLevel"];
             s.dangerLevel = dv.isNull() ? NAN : dv.as<float>();
+            JsonVariantConst hwv = sig["highWarningLevel"];
+            s.highWarningLevel = hwv.isNull() ? NAN : hwv.as<float>();
+            JsonVariantConst hdv = sig["highDangerLevel"];
+            s.highDangerLevel = hdv.isNull() ? NAN : hdv.as<float>();
         }
         s.timeoutMs = sig["timeoutMs"] | SIGNAL_DEFAULT_TIMEOUT_MS;
         const char *bitMaskStr = sig["bitMask"] | nullptr;

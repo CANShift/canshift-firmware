@@ -24,12 +24,15 @@ static bool s_flashPhase = false;
 static float s_revLimitRpm = 7200.0f;
 
 // Signal thresholds — loaded from signals.json at init(), with compile-time fallbacks
-static float s_coolantWarnC    = 100.0f;
-static float s_coolantCritC    = 110.0f;
-static float s_oilTempWarnC    = 120.0f;
-static float s_oilTempCritC    = 135.0f;
-static float s_oilPressWarnBar = 1.5f;
-static float s_oilPressCritBar = 1.0f;
+static float s_coolantWarnC      = 100.0f;
+static float s_coolantCritC      = 110.0f;
+static float s_oilTempWarnC      = 120.0f;
+static float s_oilTempCritC      = 135.0f;
+static float s_oilPressWarnBar   = 1.5f;
+static float s_oilPressCritBar   = 1.0f;
+static float s_batteryLowWarnV   = BATTERY_DEFAULT_LOW_WARN_V;
+static float s_batteryLowCritV   = BATTERY_DEFAULT_LOW_CRIT_V;
+static float s_batteryHighWarnV  = BATTERY_DEFAULT_HIGH_WARN_V;
 
 // Flash period in milliseconds
 static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2);
@@ -79,9 +82,9 @@ AlertEngine::AlertLevel evalOilPressure(float pressBar) {
 }
 
 AlertEngine::AlertLevel evalBattery(float volts) {
-    if (volts < 11.5f)
+    if (volts < s_batteryLowCritV)
         return AlertEngine::AlertLevel::CRITICAL;
-    if (volts < 12.0f || volts > 15.0f)
+    if (volts < s_batteryLowWarnV || volts > s_batteryHighWarnV)
         return AlertEngine::AlertLevel::WARNING;
     return AlertEngine::AlertLevel::NORMAL;
 }
@@ -119,13 +122,23 @@ void AlertEngine::init() {
             // Low-side alert: warningLevel = warn-below, dangerLevel = crit-below
             if (!isnan(def.warningLevel)) s_oilPressWarnBar = def.warningLevel;
             if (!isnan(def.dangerLevel))  s_oilPressCritBar = def.dangerLevel;
+        } else if (strcmp(def.name, "battery_volts") == 0) {
+            // Battery has both LOW and HIGH thresholds:
+            //   warningLevel     -> low-warn (below = battery weak)
+            //   dangerLevel      -> low-crit (below = will not crank)
+            //   highWarningLevel -> high-warn (above = charging fault / overvoltage)
+            if (!isnan(def.warningLevel))     s_batteryLowWarnV  = def.warningLevel;
+            if (!isnan(def.dangerLevel))      s_batteryLowCritV  = def.dangerLevel;
+            if (!isnan(def.highWarningLevel)) s_batteryHighWarnV = def.highWarningLevel;
         }
     }
 
     LOG_INFO("ALERT", "Alert engine initialized (revLimit=%.0f RPM, coolant warn=%.0f crit=%.0f, "
-             "oilT warn=%.0f crit=%.0f, oilP warn=%.2f crit=%.2f)",
+             "oilT warn=%.0f crit=%.0f, oilP warn=%.2f crit=%.2f, "
+             "batt lowWarn=%.2f lowCrit=%.2f highWarn=%.2f)",
              s_revLimitRpm, s_coolantWarnC, s_coolantCritC,
-             s_oilTempWarnC, s_oilTempCritC, s_oilPressWarnBar, s_oilPressCritBar);
+             s_oilTempWarnC, s_oilTempCritC, s_oilPressWarnBar, s_oilPressCritBar,
+             s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV);
 }
 
 void AlertEngine::tick() {

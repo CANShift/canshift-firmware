@@ -173,6 +173,15 @@
 #define ALERT_REVLIMIT_FLASH_PCT 100 // Full flash: at/over rev limit
 #define ALERT_REVLIMIT_FLASH_HZ 8    // Flash frequency
 
+// Battery voltage alert fallbacks — used only when signals.json does not
+// configure per-signal thresholds for `battery_volts`. Defaults match the
+// previously hardcoded magic numbers (lead-acid 12 V system, ~14 V float).
+// Override per engine by setting warningLevel/dangerLevel/highWarningLevel
+// on the battery_volts signal definition in signals.json.
+#define BATTERY_DEFAULT_LOW_WARN_V 12.0f   // Below this = WARNING (battery weak)
+#define BATTERY_DEFAULT_LOW_CRIT_V 11.5f   // Below this = CRITICAL (will not crank)
+#define BATTERY_DEFAULT_HIGH_WARN_V 15.0f  // Above this = WARNING (charging fault)
+
 // ---------------------------------------------------------------------------
 // BLE (Phase 3 — mobile app)
 // ---------------------------------------------------------------------------

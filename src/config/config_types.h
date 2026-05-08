@@ -326,7 +326,9 @@ struct CfgSignalDef {
     float maxValue;
     float
         warningLevel; // NAN = not configured; for low-side alerts (oil pressure) the engine inverts
-    float dangerLevel; // NAN = not configured
+    float dangerLevel;        // NAN = not configured
+    float highWarningLevel;   // NAN = not configured; high-side warn threshold (e.g. battery overcharge)
+    float highDangerLevel;    // NAN = not configured; high-side danger threshold
     uint32_t timeoutMs;
     uint8_t bitMask; // Bitmask for flag signals (0 = full value; non-zero = extract bit)
 };
