@@ -5,6 +5,7 @@
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "config/config_loader.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
 
@@ -107,7 +108,11 @@ struct GaugeTag {
     float minValue;
     float maxValue;
     float lastValue;
-    float alertThreshold; // NaN = disabled (issue #133)
+    float alertThreshold;    // NaN = disabled (issue #133)
+    float revFlashThreshold; // NaN = revFlash disabled or no revLimitRpm (issue #263).
+                             // Stored as `revLimitRpm - 1.0f` so AlertFlash's
+                             // strict `value > threshold` test triggers at the
+                             // first RPM sample that reaches the limit.
     // Threshold angles (0 = not set)
     uint16_t warnAngle;
     uint16_t dangerAngle;
@@ -118,6 +123,22 @@ struct GaugeTag {
                     // when state hasn't flipped (issue #236).
     AlertFlash::State alert;
 };
+
+// Combine the per-signal alertThreshold (issue #133) with the revFlash trigger
+// (issue #263) into a single value that AlertFlash::update() can consume. The
+// lower of the two thresholds wins so either condition pulses the overlay.
+inline float effectiveAlertThreshold(const GaugeTag &tag) {
+    const bool hasAlert = !std::isnan(tag.alertThreshold);
+    const bool hasRev = !std::isnan(tag.revFlashThreshold);
+    if (hasAlert && hasRev)
+        return tag.alertThreshold < tag.revFlashThreshold ? tag.alertThreshold
+                                                          : tag.revFlashThreshold;
+    if (hasAlert)
+        return tag.alertThreshold;
+    if (hasRev)
+        return tag.revFlashThreshold;
+    return NAN;
+}
 
 } // namespace
 
@@ -237,6 +258,19 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->hasDanger = hasDanger;
     tag->lastValid = true;
 
+    // revFlash (issue #263): when enabled, pulse the gauge red as soon as the
+    // signal reaches the dashboard's rev-limit RPM. We snapshot the threshold
+    // here so update() doesn't have to consult ConfigLoader on every tick. The
+    // `- 1.0f` offset turns AlertFlash's strict `>` test into a `>=` for the
+    // integer-stepped RPM signal.
+    tag->revFlashThreshold = NAN;
+    if (cfg.gauge.revFlash) {
+        const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+        if (dash.loaded && dash.revLimitRpm > 0.0f) {
+            tag->revFlashThreshold = dash.revLimitRpm - 1.0f;
+        }
+    }
+
     // Mount the alert overlay last so it sits on top of arcs and labels.
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
@@ -285,13 +319,13 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             lv_obj_set_style_text_color(tag->valueLabel,
                                         lv_color_hex(ThemeManager::getEffectiveTextColor()), 0);
         }
-        AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
+        AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
         return;
     }
 
     // Only redraw if value (or valid flag) changed to avoid LVGL refresh churn.
     if (tag->lastValid && value == tag->lastValue) {
-        AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
+        AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
         return;
     }
     tag->lastValue = value;
@@ -319,5 +353,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).
-    AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
+    // The effective threshold merges alertThreshold (#133) with revFlash (#263);
+    // either trigger pulses the same overlay.
+    AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
 }
