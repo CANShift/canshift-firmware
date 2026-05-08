@@ -153,9 +153,9 @@
 #define LV_FONT_MONTSERRAT_30 0
 #define LV_FONT_MONTSERRAT_32 1
 #define LV_FONT_MONTSERRAT_34 0
-#define LV_FONT_MONTSERRAT_36 1   /* Mid-large numeric values (80x56 cells) */
+#define LV_FONT_MONTSERRAT_36 0   /* Dropped — snaps to 32 (saves ~57 KB flash) */
 #define LV_FONT_MONTSERRAT_38 0
-#define LV_FONT_MONTSERRAT_40 1   /* Large numeric values */
+#define LV_FONT_MONTSERRAT_40 0   /* Dropped — snaps to 32 (saves ~70 KB flash) */
 #define LV_FONT_MONTSERRAT_42 0
 #define LV_FONT_MONTSERRAT_44 0
 #define LV_FONT_MONTSERRAT_46 0
