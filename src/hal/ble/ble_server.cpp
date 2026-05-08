@@ -48,6 +48,12 @@ static bool s_connected = false;
 static std::atomic<bool> s_pendingDayNightToggle{false};
 static std::atomic<bool> s_pendingCalibration{false};
 
+// Pending explicit day/night set: -1 = none, 0 = night, 1 = day.
+// Separate from the toggle flag so old clients (sending toggle_day_night)
+// keep working while new clients (sending set_day_night) get idempotent
+// behaviour. The UI task prefers the explicit set when both are pending.
+static std::atomic<int8_t> s_pendingDayNightSet{-1};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -167,6 +173,17 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
             s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: day/night toggle queued");
+        } else if (strcmp(cmd, "set_day_night") == 0) {
+            // Explicit, idempotent variant. Payload: {"cmd":"set_day_night","day":<bool>}.
+            // Deferred to UI task — ThemeManager requires LVGL mutex from UI context.
+            JsonVariantConst dayVar = doc["day"];
+            if (dayVar.isNull() || !dayVar.is<bool>()) {
+                LOG_WARN("BLE", "set_day_night missing 'day' bool — ignoring");
+            } else {
+                const bool day = dayVar.as<bool>();
+                s_pendingDayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
+                LOG_INFO("BLE", "CMD: day/night set queued — %s", day ? "day" : "night");
+            }
         } else if (strcmp(cmd, "start_calibration") == 0) {
             // Deferred to UI task — calibrate() is blocking (user taps crosshairs)
             s_pendingCalibration.store(true, std::memory_order_relaxed);
@@ -275,6 +292,10 @@ void BleServer::pushStatusNotify() {
 
 bool BleServer::takePendingDayNightToggle() {
     return s_pendingDayNightToggle.exchange(false, std::memory_order_relaxed);
+}
+
+int8_t BleServer::takePendingDayNightSet() {
+    return s_pendingDayNightSet.exchange(-1, std::memory_order_relaxed);
 }
 
 bool BleServer::takePendingCalibration() {

@@ -70,6 +70,11 @@ static constexpr uint8_t CMD_TOGGLE_DAY_NIGHT = 0x07;
 // directly (not LVGL), so it must NOT hold g_lvglMutex.
 // Payload: {"cmd":8}
 static constexpr uint8_t CMD_CALIBRATE_TOUCH = 0x08;
+// Set the day/night theme explicitly (idempotent). Deferred to the UI task.
+// Payload: {"cmd":9,"day":true|false}
+// Preferred over CMD_TOGGLE_DAY_NIGHT because tapping "Day" while already in
+// day mode no longer flips the theme (issue #225).
+static constexpr uint8_t CMD_SET_DAY_NIGHT = 0x09;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
@@ -118,6 +123,14 @@ bool isHostActive();
  * while holding g_lvglMutex.
  */
 bool takePendingDayNightToggle();
+
+/**
+ * Take-and-clear the pending explicit day/night set request set by CMD_SET_DAY_NIGHT.
+ * Returns 1 (day), 0 (night) or -1 (no pending request). Consumed by the UI task
+ * in main.cpp while holding g_lvglMutex. Prefer this over the toggle path when
+ * both are pending — explicit intent wins.
+ */
+int8_t takePendingDayNightSet();
 
 /**
  * Take-and-clear the pending touch-calibration flag set by CMD_CALIBRATE_TOUCH.

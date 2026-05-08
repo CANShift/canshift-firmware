@@ -74,6 +74,25 @@ void ThemeManager::toggleDayMode() {
     PageManager::requestRebuild();
 }
 
+void ThemeManager::setDayMode(bool day) {
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (!dash.hasDayTheme)
+        return;
+    if (s_isDayMode == day)
+        return; // Idempotent — already in requested mode.
+
+    s_isDayMode = day;
+
+    Preferences p;
+    p.begin(NVS_NS, /*readOnly=*/false);
+    p.putBool(KEY_DAY_MODE, s_isDayMode);
+    p.end();
+
+    LOG_INFO("THEME", "Day mode set: %s", s_isDayMode ? "ON" : "OFF");
+
+    PageManager::requestRebuild();
+}
+
 CfgColor ThemeManager::getEffectiveBgColor(const CfgColor &nightBg) {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (s_isDayMode && dash.hasDayTheme) {

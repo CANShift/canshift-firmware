@@ -37,6 +37,14 @@ bool isDayMode();
 void toggleDayMode();
 
 /**
+ * Set day mode explicitly (idempotent).
+ * No-op when the requested value already matches the active mode, or when
+ * the loaded config has no day theme. On change, persists to NVS and calls
+ * PageManager::requestRebuild().
+ */
+void setDayMode(bool day);
+
+/**
  * Return effective page background: dayTheme.bgColor when in day mode
  * and hasDayTheme, otherwise returns nightBg unchanged.
  */

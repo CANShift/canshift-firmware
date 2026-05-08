@@ -180,7 +180,7 @@ void taskUI(void *pvParameters) {
         }
         (void)calibratedThisTick;
 
-        bool didDayNightToggle = false;
+        bool didDayNightChange = false;
 
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
@@ -190,16 +190,30 @@ void taskUI(void *pvParameters) {
             // accurate even when the UI task overruns.
             TouchDriver::poll();
 
+            // Explicit set wins over toggle when both are pending in the same
+            // tick — the explicit command carries the user's literal intent.
+            const bool prevIsDay = ThemeManager::isDayMode();
+
 #if APP_BLE_ENABLED
-            if (BleServer::takePendingDayNightToggle()) {
+            const int8_t bleSet = BleServer::takePendingDayNightSet();
+            if (bleSet >= 0) {
+                ThemeManager::setDayMode(bleSet == 1);
+                // Drop any stale toggle from the same client to avoid undoing
+                // the explicit set immediately after.
+                (void)BleServer::takePendingDayNightToggle();
+            } else if (BleServer::takePendingDayNightToggle()) {
                 ThemeManager::toggleDayMode();
-                didDayNightToggle = true;
             }
 #endif
-            if (UsbComm::takePendingDayNightToggle()) {
+            const int8_t usbSet = UsbComm::takePendingDayNightSet();
+            if (usbSet >= 0) {
+                ThemeManager::setDayMode(usbSet == 1);
+                (void)UsbComm::takePendingDayNightToggle();
+            } else if (UsbComm::takePendingDayNightToggle()) {
                 ThemeManager::toggleDayMode();
-                didDayNightToggle = true;
             }
+
+            didDayNightChange = (ThemeManager::isDayMode() != prevIsDay);
 
             PageManager::updateWidgets();
             lv_task_handler();
@@ -208,9 +222,11 @@ void taskUI(void *pvParameters) {
 
 #if APP_BLE_ENABLED
         // Notify STATUS after releasing LVGL mutex so ThemeManager::isDayMode() is stable
-        if (didDayNightToggle) {
+        if (didDayNightChange) {
             BleServer::pushStatusNotify();
         }
+#else
+        (void)didDayNightChange;
 #endif
 
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS));

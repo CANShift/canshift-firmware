@@ -364,6 +364,12 @@ static volatile uint32_t s_lastHostCmdMs = 0;
 static std::atomic<bool> s_pendingDayNightToggle{false};
 static std::atomic<bool> s_pendingCalibration{false};
 
+// Pending explicit day/night set: -1 = none, 0 = night, 1 = day.
+// Separate from the toggle flag so old hosts (sending CMD_TOGGLE_DAY_NIGHT)
+// keep working while new hosts (sending CMD_SET_DAY_NIGHT) get idempotent
+// behaviour. The UI task prefers the explicit set when both are pending.
+static std::atomic<int8_t> s_pendingDayNightSet{-1};
+
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
@@ -456,6 +462,19 @@ void handleCommand(const char *jsonLine) {
             LOG_INFO("USB", "CMD: day/night toggle queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
+        case UsbComm::CMD_SET_DAY_NIGHT: {
+            JsonVariantConst dayVar = doc["day"];
+            if (dayVar.isNull() || !dayVar.is<bool>()) {
+                LOG_WARN("USB", "set_day_night missing 'day' bool");
+                UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_day\"}");
+                break;
+            }
+            const bool day = dayVar.as<bool>();
+            s_pendingDayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
+            LOG_INFO("USB", "CMD: day/night set queued — %s", day ? "day" : "night");
+            UsbComm::sendLine("{\"status\":\"ok\"}");
+            break;
+        }
         case UsbComm::CMD_CALIBRATE_TOUCH:
             s_pendingCalibration.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration queued");
@@ -561,6 +580,10 @@ void UsbComm::sendLine(const char *line) {
 
 bool UsbComm::takePendingDayNightToggle() {
     return s_pendingDayNightToggle.exchange(false, std::memory_order_relaxed);
+}
+
+int8_t UsbComm::takePendingDayNightSet() {
+    return s_pendingDayNightSet.exchange(-1, std::memory_order_relaxed);
 }
 
 bool UsbComm::takePendingCalibration() {
