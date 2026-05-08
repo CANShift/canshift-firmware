@@ -1,7 +1,19 @@
 #pragma once
 // boot_sequence.h — Synchronous power-on initialization sequence
 
+#include <cstdint>
+
 namespace BootSequence {
+
+/**
+ * SD subsystem state observed during boot. Surfaced via getSdStatus(),
+ * shown as a UI badge on the dashboard, and reported back over USB.
+ */
+enum class SdStatus : uint8_t {
+    Ok = 0,          // SD mounted; reads/writes succeed
+    NoCard = 1,      // No card detected in the slot
+    MountFailed = 2, // Card detected but mount failed (pinout / speed / FS)
+};
 
 /**
      * Run the full synchronous boot sequence:
@@ -20,7 +32,7 @@ namespace BootSequence {
      *
      * If the SD card is missing or fails to mount, the boot sequence does not
      * halt: it logs a warning, marks the device as degraded (see
-     * isDegradedNoSd()), and continues with built-in default config so the
+     * getSdStatus()), and continues with built-in default config so the
      * dashboard renders and USB stays reachable from the studio.
      *
      * Call once from setup() before starting FreeRTOS tasks.
@@ -28,10 +40,15 @@ namespace BootSequence {
 void run();
 
 /**
-     * True when the boot sequence proceeded without a working SD card.
-     * Built-in defaults are used and persistent settings cannot be saved.
-     * Surfaced over USB (CMD_GET_STATUS "sd" field) and via a small UI badge.
-     */
+ * State of the SD subsystem observed at the end of boot.
+ */
+SdStatus getSdStatus();
+
+/**
+ * True when the boot sequence proceeded without a working SD card.
+ * Equivalent to getSdStatus() != SdStatus::Ok. Kept for backward
+ * compatibility with callers that only care about the binary state.
+ */
 bool isDegradedNoSd();
 
 } // namespace BootSequence

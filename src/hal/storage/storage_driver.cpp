@@ -12,10 +12,24 @@
     #define FS_INSTANCE SPIFFS
 #elif STORAGE_USE_SD
     #include <SD.h>
+    #include <SPI.h>
     #define FS_INSTANCE SD
 #else
     #error "No storage backend selected in board_config.h"
 #endif
+
+namespace {
+// Tracks the most recent init() outcome so callers (boot UI, USB status)
+// can surface a meaningful state instead of a bare bool.
+StorageDriver::InitStatus s_initStatus = StorageDriver::InitStatus::NotInitialized;
+
+#if STORAGE_USE_SD
+// SD shares HSPI with the TFT on the CrowPanel 2.8" — using the dedicated
+// HSPI SPIClass keeps both peers on the same hardware bus instance and lets
+// LovyanGFX's bus_shared CS arbitration cooperate with the SD driver.
+SPIClass s_sdSpi(HSPI);
+#endif
+} // namespace
 
 // Suffix length: ".tmp" / ".bak" = 4 chars + null terminator.
 static constexpr size_t kAtomicSuffixLen = 4;
@@ -93,6 +107,7 @@ bool StorageDriver::init() {
 #if STORAGE_USE_SPIFFS
     if (!SPIFFS.begin(true /* formatOnFail */)) {
         LOG_ERROR("STORAGE", "SPIFFS mount failed");
+        s_initStatus = InitStatus::MountFailed;
         return false;
     }
     LOG_INFO("STORAGE", "SPIFFS mounted");
@@ -101,11 +116,57 @@ bool StorageDriver::init() {
     LOG_INFO("STORAGE", "SPIFFS: %u bytes total, %u used", total, used);
 
 #elif STORAGE_USE_SD
-    if (!SD.begin(PIN_SD_CS)) {
-        LOG_ERROR("STORAGE", "SD card mount failed");
+    // Bind SD to the existing HSPI bus shared with the TFT. Re-calling
+    // spi.begin() on an already-initialized bus is a no-op in the Arduino
+    // SPI driver, but passing the explicit pins ensures the right wires
+    // are used even if the bus instance had been torn down.
+    s_sdSpi.begin(PIN_SD_SCLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS);
+
+    LOG_INFO("STORAGE", "SD: mounting (MOSI=%d MISO=%d SCLK=%d CS=%d freq=%u Hz)",
+             PIN_SD_MOSI, PIN_SD_MISO, PIN_SD_SCLK, PIN_SD_CS,
+             static_cast<unsigned>(SD_SPI_FREQ_HZ));
+
+    if (!SD.begin(PIN_SD_CS, s_sdSpi, SD_SPI_FREQ_HZ)) {
+        // The Arduino SD driver tears the device down on any failure, so we
+        // cannot reliably tell "no card inserted" from "card present but
+        // mount failed" in software. Be honest in the log: dump every
+        // input the user can correct (pinout, SPI speed) so a hardware
+        // tech can match against the schematic.
+        LOG_WARN("STORAGE",
+                 "SD: mount failed — no card or wrong wiring "
+                 "(MOSI=%d MISO=%d SCLK=%d CS=%d freq=%u Hz). "
+                 "Verify the SD slot is wired to HSPI on this board.",
+                 PIN_SD_MOSI, PIN_SD_MISO, PIN_SD_SCLK, PIN_SD_CS,
+                 static_cast<unsigned>(SD_SPI_FREQ_HZ));
+        s_initStatus = InitStatus::MountFailed;
         return false;
     }
-    LOG_INFO("STORAGE", "SD card mounted");
+
+    const sdcard_type_t cardType = SD.cardType();
+    if (cardType == CARD_NONE) {
+        LOG_WARN("STORAGE", "SD: not detected — no card inserted");
+        SD.end();
+        s_initStatus = InitStatus::NoCard;
+        return false;
+    }
+
+    const uint64_t sizeBytes = SD.cardSize();
+    const uint64_t sizeMb = sizeBytes / (1024ULL * 1024ULL);
+    const char *typeStr = cardType == CARD_MMC    ? "MMC"
+                          : cardType == CARD_SD   ? "SDSC"
+                          : cardType == CARD_SDHC ? "SDHC"
+                                                  : "UNKNOWN";
+
+    size_t totalBytes = 0;
+    size_t usedBytes = 0;
+    getSpaceInfo(&totalBytes, &usedBytes);
+    const size_t freeBytes = totalBytes > usedBytes ? totalBytes - usedBytes : 0;
+
+    LOG_INFO("STORAGE",
+             "SD: mounted (type=%s size=%llu MB total=%u MB free=%u MB)",
+             typeStr, static_cast<unsigned long long>(sizeMb),
+             static_cast<unsigned>(totalBytes / (1024U * 1024U)),
+             static_cast<unsigned>(freeBytes / (1024U * 1024U)));
 #endif
 
     // Sweep orphan .tmp files left behind by a power-cut mid-write so the
@@ -113,7 +174,13 @@ bool StorageDriver::init() {
     sweepOrphanTmp(CONFIG_PATH_DASHBOARD);
     sweepOrphanTmp(CONFIG_PATH_SIGNALS);
     sweepOrphanTmp(CONFIG_PATH_DEVICE);
+
+    s_initStatus = InitStatus::Ok;
     return true;
+}
+
+StorageDriver::InitStatus StorageDriver::getStatus() {
+    return s_initStatus;
 }
 
 char *StorageDriver::readFile(const char *path, size_t *outSize) {

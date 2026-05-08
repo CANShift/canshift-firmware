@@ -10,12 +10,34 @@
 
 namespace StorageDriver {
 
+// ---------------------------------------------------------------------------
+// Initialization status
+//
+// Surfaced through getStatus() and reflected in the boot UI (no-card vs
+// mount-failed badges) and in the USB GET_STATUS response. SPIFFS-only
+// builds can only report Ok or MountFailed.
+// ---------------------------------------------------------------------------
+enum class InitStatus : uint8_t {
+    NotInitialized = 0, // init() has not been called yet
+    Ok = 1,             // mount succeeded; reads/writes are usable
+    NoCard = 2,         // SD-only: no card detected in the slot
+    MountFailed = 3,    // mount failed despite a card being present (likely
+                        // wrong pinout, wrong SPI mode/speed, or a damaged
+                        // card / filesystem)
+};
+
 /**
      * Initialize the filesystem.
      * Returns true on success.
      * On failure, logs an error. Caller may proceed with defaults.
+     * Sets the value returned by getStatus() in all cases.
      */
 bool init();
+
+/**
+     * Last init() outcome. NotInitialized until init() runs.
+     */
+InitStatus getStatus();
 
 /**
      * Read an entire file into a heap-allocated buffer.

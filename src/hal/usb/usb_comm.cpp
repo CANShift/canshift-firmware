@@ -409,12 +409,17 @@ void handleCommand(const char *jsonLine) {
             // sd=0 means the boot sequence flagged the device as degraded
             // (SD missing/failed). Older studio builds ignore the field
             // (additive). See BootSequence::isDegradedNoSd().
-            const int sdOk = BootSequence::isDegradedNoSd() ? 0 : 1;
-            char resp[160];
+            const BootSequence::SdStatus sdStatus = BootSequence::getSdStatus();
+            const int sdOk = sdStatus == BootSequence::SdStatus::Ok ? 1 : 0;
+            const char *sdState = sdStatus == BootSequence::SdStatus::Ok      ? "ok"
+                                  : sdStatus == BootSequence::SdStatus::NoCard ? "no_card"
+                                                                                : "mount_failed";
+            char resp[200];
             snprintf(resp, sizeof(resp),
-                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,\"sd\":%d}",
+                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
+                     "\"sd\":%d,\"sd_state\":\"%s\"}",
                      APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                     ThemeManager::isDayMode() ? 1 : 0, sdOk);
+                     ThemeManager::isDayMode() ? 1 : 0, sdOk, sdState);
             UsbComm::sendLine(resp);
             break;
         }

@@ -109,29 +109,42 @@ static void showSplash() {
     lv_task_handler();
 }
 
-// Set when SD failed to mount during boot. Read by isDegradedNoSd().
-static bool s_degradedNoSd = false;
+// Set when SD failed to mount during boot. Mirrors getSdStatus() so
+// boot helpers can read it before getSdStatus() resolves.
+static BootSequence::SdStatus s_sdStatus = BootSequence::SdStatus::Ok;
 
-// No-SD badge — small persistent label rendered on lv_layer_top() in the
-// top-right corner. Visible across page changes and stays out of the way of
-// the dashboard. Created lazily after buildUI() when s_degradedNoSd is true.
-static constexpr int16_t NO_SD_BADGE_X_OFFSET = -4;
-static constexpr int16_t NO_SD_BADGE_Y_OFFSET = 4;
-static constexpr uint32_t NO_SD_BADGE_BG = 0xCC3333;
-static constexpr uint32_t NO_SD_BADGE_FG = 0xFFFFFF;
-static constexpr int16_t NO_SD_BADGE_PAD_X = 4;
-static constexpr int16_t NO_SD_BADGE_PAD_Y = 1;
+// SD-status badge — small persistent label rendered on lv_layer_top() in
+// the top-right corner. Visible across page changes and stays out of the
+// way of the dashboard. Created lazily after buildUI() when the SD did
+// not mount cleanly. Distinct text + color for "no card" vs "mount fail"
+// gives the user a fighting chance at diagnosing without a serial console.
+static constexpr int16_t SD_BADGE_X_OFFSET = -4;
+static constexpr int16_t SD_BADGE_Y_OFFSET = 4;
+// Amber for "no card" — actionable, just insert one.
+static constexpr uint32_t SD_BADGE_NO_CARD_BG = 0xCC8800;
+// Red for "mount failed" — wiring/firmware issue, needs an investigation.
+static constexpr uint32_t SD_BADGE_FAIL_BG = 0xCC3333;
+static constexpr uint32_t SD_BADGE_FG = 0xFFFFFF;
+static constexpr int16_t SD_BADGE_PAD_X = 4;
+static constexpr int16_t SD_BADGE_PAD_Y = 1;
 
-static void showNoSdBadge() {
+static void showSdBadge(BootSequence::SdStatus status) {
+    if (status == BootSequence::SdStatus::Ok)
+        return;
+
+    const char *text = status == BootSequence::SdStatus::NoCard ? "NO SD" : "SD ERR";
+    const uint32_t bg = status == BootSequence::SdStatus::NoCard ? SD_BADGE_NO_CARD_BG
+                                                                 : SD_BADGE_FAIL_BG;
+
     lv_obj_t *badge = lv_label_create(lv_layer_top());
-    lv_label_set_text(badge, "NO SD");
-    lv_obj_set_style_text_color(badge, lv_color_hex(NO_SD_BADGE_FG), 0);
-    lv_obj_set_style_bg_color(badge, lv_color_hex(NO_SD_BADGE_BG), LV_PART_MAIN);
+    lv_label_set_text(badge, text);
+    lv_obj_set_style_text_color(badge, lv_color_hex(SD_BADGE_FG), 0);
+    lv_obj_set_style_bg_color(badge, lv_color_hex(bg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(badge, 2, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(badge, NO_SD_BADGE_PAD_X, LV_PART_MAIN);
-    lv_obj_set_style_pad_ver(badge, NO_SD_BADGE_PAD_Y, LV_PART_MAIN);
-    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, NO_SD_BADGE_X_OFFSET, NO_SD_BADGE_Y_OFFSET);
+    lv_obj_set_style_pad_hor(badge, SD_BADGE_PAD_X, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(badge, SD_BADGE_PAD_Y, LV_PART_MAIN);
+    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, SD_BADGE_X_OFFSET, SD_BADGE_Y_OFFSET);
     lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
 }
@@ -147,16 +160,35 @@ static void updateSplash(const char *status, uint8_t pct) {
     lv_refr_now(NULL);
 }
 
-// Returns false if SD is absent or the mount failed. Caller flags degraded
-// mode and continues — the device stays reachable over USB.
-static bool initStorage() {
+// Maps a StorageDriver::InitStatus to the boot-level SdStatus. The boot
+// view of the SD subsystem is intentionally narrower than the storage
+// driver's: we only care whether the card is usable and, if not, whether
+// the user should be told to insert one or to investigate wiring.
+static BootSequence::SdStatus mapStorageStatus(StorageDriver::InitStatus s) {
+    switch (s) {
+        case StorageDriver::InitStatus::Ok:
+            return BootSequence::SdStatus::Ok;
+        case StorageDriver::InitStatus::NoCard:
+            return BootSequence::SdStatus::NoCard;
+        case StorageDriver::InitStatus::MountFailed:
+        case StorageDriver::InitStatus::NotInitialized:
+        default:
+            return BootSequence::SdStatus::MountFailed;
+    }
+}
+
+// Returns Ok if the storage came up cleanly. On any other status the boot
+// continues with built-in defaults — the device stays reachable over USB.
+static BootSequence::SdStatus initStorage() {
     LOG_INFO("BOOT", "Initializing SD card...");
-    if (!StorageDriver::init()) {
-        return false;
+    const bool ok = StorageDriver::init();
+    const BootSequence::SdStatus status = mapStorageStatus(StorageDriver::getStatus());
+    if (!ok) {
+        return status;
     }
     LvglFsDriver::init();
     FontManager::init();
-    return true;
+    return status;
 }
 
 static void loadConfig() {
@@ -210,15 +242,24 @@ void BootSequence::run() {
     TouchDriver::init();
     updateSplash("Initializing touch...", 15);
 
-    // 3. Storage — degrade (don't halt) if SD missing so the studio can still
-    //    reach the device over USB and the user can see a default dashboard.
+    // 3. Storage — degrade (don't halt) if SD missing/broken so the studio
+    //    can still reach the device over USB and the user can see a default
+    //    dashboard.
     updateSplash("Checking SD card...", 20);
-    if (!initStorage()) {
-        s_degradedNoSd = true;
-        LOG_WARN("BOOT", "SD missing — running with defaults; USB still reachable");
-        updateSplash("No SD — defaults", 35);
-    } else {
-        updateSplash("SD ready...", 35);
+    s_sdStatus = initStorage();
+    switch (s_sdStatus) {
+        case BootSequence::SdStatus::Ok:
+            updateSplash("SD ready...", 35);
+            break;
+        case BootSequence::SdStatus::NoCard:
+            LOG_WARN("BOOT", "SD missing — running with defaults; USB still reachable");
+            updateSplash("No SD — defaults", 35);
+            break;
+        case BootSequence::SdStatus::MountFailed:
+            LOG_ERROR("BOOT",
+                      "SD mount failed — running with defaults; check pinout/wiring");
+            updateSplash("SD error — defaults", 35);
+            break;
     }
 
     // 4. Config
@@ -252,11 +293,9 @@ void BootSequence::run() {
     buildUI();
     logHeap("after buildUI");
 
-    // Surface the no-SD state with a small persistent badge once the dashboard
+    // Surface the SD state with a small persistent badge once the dashboard
     // has been built. Non-blocking — sits on lv_layer_top() above all pages.
-    if (s_degradedNoSd) {
-        showNoSdBadge();
-    }
+    showSdBadge(s_sdStatus);
 
     updateSplash("Ready", 100);
 
@@ -271,6 +310,10 @@ void BootSequence::run() {
              static_cast<unsigned long>(millis() - bootStartMs));
 }
 
+BootSequence::SdStatus BootSequence::getSdStatus() {
+    return s_sdStatus;
+}
+
 bool BootSequence::isDegradedNoSd() {
-    return s_degradedNoSd;
+    return s_sdStatus != SdStatus::Ok;
 }

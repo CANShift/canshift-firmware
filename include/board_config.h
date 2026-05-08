@@ -89,16 +89,46 @@
 #define CAN_SPEED_KBPS 500
 
 // ---------------------------------------------------------------------------
-// SD Card — microSD slot on second SPI bus (confirmed present on CrowPanel 2.8")
+// SD Card — microSD slot on the LCD board, shares the HSPI bus with the TFT
+//
+// VERIFIED ON BOARD: NO — pin assignments below are an ASSUMPTION based on
+// the published Elecrow CrowPanel 2.8" ESP32 HMI (DIS05028H) wiring, which
+// routes the on-board microSD slot through the SAME HSPI bus used by the
+// ILI9341 + XPT2046. Only the chip-select line is dedicated.
+//
+// Previous values (MOSI=23, MISO=19, SCLK=18, CS=5) targeted the ESP32
+// default VSPI pins, which are NOT brought out to the SD slot on this board
+// — that mismatch is the prime suspect for issue #135 (SD unreadable when
+// inserted in the LCD slot). The SD CS pin (GPIO 5) is preserved because
+// it matches the published Elecrow examples and is not used by the TFT.
+//
+// IMPORTANT: because the bus is shared with the display, the storage driver
+// MUST pass the existing HSPI SPIClass instance to SD.begin() so the Arduino
+// SD driver does not try to reconfigure pins behind LovyanGFX's back. CS
+// arbitration is handled by LovyanGFX (bus_shared = true on the panel/touch
+// configs in lgfx_panel.h) and by the SD driver toggling PIN_SD_CS per
+// transfer.
+//
+// VERIFY ON BOARD: confirm with a multimeter or the Elecrow schematic that
+// the SD slot is wired to GPIO 12/13/14 and that GPIO 5 is the SD CS line.
+// If a future hardware revision moves the SD slot to a separate bus, update
+// these values AND drop the bus_shared flag in lgfx_panel.h.
 // ---------------------------------------------------------------------------
 
 #define PIN_SD_PRESENT 1 // 0 = no SD, 1 = SD present
 
 #if PIN_SD_PRESENT
-    #define PIN_SD_MOSI 23
-    #define PIN_SD_MISO 19
-    #define PIN_SD_SCLK 18
-    #define PIN_SD_CS 5
+    // CrowPanel 2.8" routes SD on the shared HSPI bus (same wires as TFT).
+    #define PIN_SD_MOSI 13 // = PIN_TFT_MOSI
+    #define PIN_SD_MISO 12 // = PIN_TFT_MISO
+    #define PIN_SD_SCLK 14 // = PIN_TFT_SCLK
+    #define PIN_SD_CS 5    // dedicated SD chip-select
+
+    // Conservative SPI clock for first-flash reliability. Many breadboard /
+    // ribbon-cable wirings drop frames above ~10 MHz, and the on-board SD
+    // slot is not specced for the 25/40 MHz limits a dedicated bus tolerates.
+    // Bump this only after the SD has been validated on the real board.
+    #define SD_SPI_FREQ_HZ 4000000UL
 #endif
 
 // ---------------------------------------------------------------------------
