@@ -139,30 +139,33 @@
  *    FONT USAGE
  *==================*/
 
-/* Montserrat fonts — only 14 kept as built-in fallback.
-   All other sizes loaded at runtime from SPIFFS via FontManager (font_manager.h).
-   Disabling 6 sizes saves ~60 KB of flash. */
+/* Montserrat fonts — every upstream size is OFF. We ship our own
+   `lv_font_montserrat_<N>_nk` variants under src/ui/fonts/ that were
+   regenerated with `lv_font_conv --no-kerning`, dropping ~3 KB per size
+   of class-based kerning data we don't use on a numeric dashboard
+   (~21 KB total flash saved — issue #407, sub-issue of #305).
+   See LV_FONT_CUSTOM_DECLARE below for the externs. */
 #define LV_FONT_MONTSERRAT_8  0
 #define LV_FONT_MONTSERRAT_10 0
-#define LV_FONT_MONTSERRAT_12 1   /* Compiled into flash — used by FontManager */
-#define LV_FONT_MONTSERRAT_14 1
-#define LV_FONT_MONTSERRAT_16 1
+#define LV_FONT_MONTSERRAT_12 0
+#define LV_FONT_MONTSERRAT_14 0
+#define LV_FONT_MONTSERRAT_16 0
 #define LV_FONT_MONTSERRAT_18 0
-#define LV_FONT_MONTSERRAT_20 1
+#define LV_FONT_MONTSERRAT_20 0
 #define LV_FONT_MONTSERRAT_22 0
-#define LV_FONT_MONTSERRAT_24 1
+#define LV_FONT_MONTSERRAT_24 0
 #define LV_FONT_MONTSERRAT_26 0
 #define LV_FONT_MONTSERRAT_28 0
 #define LV_FONT_MONTSERRAT_30 0
-#define LV_FONT_MONTSERRAT_32 1
+#define LV_FONT_MONTSERRAT_32 0
 #define LV_FONT_MONTSERRAT_34 0
-#define LV_FONT_MONTSERRAT_36 0   /* Dropped — snaps to 32 (saves ~57 KB flash) */
+#define LV_FONT_MONTSERRAT_36 0
 #define LV_FONT_MONTSERRAT_38 0
-#define LV_FONT_MONTSERRAT_40 0   /* Dropped — snaps to 32 (saves ~70 KB flash) */
+#define LV_FONT_MONTSERRAT_40 0
 #define LV_FONT_MONTSERRAT_42 0
 #define LV_FONT_MONTSERRAT_44 0
 #define LV_FONT_MONTSERRAT_46 0
-#define LV_FONT_MONTSERRAT_48 1   /* Hero numeric values (SPEED full cell) */
+#define LV_FONT_MONTSERRAT_48 0
 
 /* Demonstrate a font here if you need something other than normal range */
 #define LV_FONT_MONTSERRAT_12_SUBPX      0
@@ -174,8 +177,20 @@
 #define LV_FONT_UNSCII_8  0
 #define LV_FONT_UNSCII_16 0
 
-/* Default font: must be one of the above (LV_FONT_MONTSERRAT_*) */
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+/* Declare our kerning-stripped Montserrat replacements (issue #407).
+   The bodies live in src/ui/fonts/lv_font_montserrat_<N>_nk.c and are
+   regenerated via scripts/regen_montserrat_no_kern.py. */
+#define LV_FONT_CUSTOM_DECLARE                                                 \
+    LV_FONT_DECLARE(lv_font_montserrat_12_nk)                                  \
+    LV_FONT_DECLARE(lv_font_montserrat_14_nk)                                  \
+    LV_FONT_DECLARE(lv_font_montserrat_16_nk)                                  \
+    LV_FONT_DECLARE(lv_font_montserrat_20_nk)                                  \
+    LV_FONT_DECLARE(lv_font_montserrat_24_nk)                                  \
+    LV_FONT_DECLARE(lv_font_montserrat_32_nk)                                  \
+    LV_FONT_DECLARE(lv_font_montserrat_48_nk)
+
+/* Default font: pick the no-kern Montserrat 14 we ship ourselves. */
+#define LV_FONT_DEFAULT &lv_font_montserrat_14_nk
 
 /* Enable handling large font and/or fonts with a lot of characters.
    The compiler error message will hep to determine the need for it. */
