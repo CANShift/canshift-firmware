@@ -60,7 +60,7 @@ static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
 } // namespace
 
-// Build the dark splash background — used by both normal boot and error screen.
+// Build the dark splash background.
 static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
@@ -109,31 +109,31 @@ static void showSplash() {
     lv_task_handler();
 }
 
-// Shown when the SD card is absent or fails to mount. Halts.
-static void showSDError() {
-    buildSplashBase();
-    lv_obj_t *scr = lv_scr_act();
+// Set when SD failed to mount during boot. Read by isDegradedNoSd().
+static bool s_degradedNoSd = false;
 
-    lv_obj_t *icon = lv_label_create(scr);
-    lv_label_set_text(icon, "!");
-    lv_obj_set_style_text_color(icon, lv_color_hex(0xFF4444), 0);
-    lv_obj_align(icon, LV_ALIGN_CENTER, 0, 10);
+// No-SD badge — small persistent label rendered on lv_layer_top() in the
+// top-right corner. Visible across page changes and stays out of the way of
+// the dashboard. Created lazily after buildUI() when s_degradedNoSd is true.
+static constexpr int16_t NO_SD_BADGE_X_OFFSET = -4;
+static constexpr int16_t NO_SD_BADGE_Y_OFFSET = 4;
+static constexpr uint32_t NO_SD_BADGE_BG = 0xCC3333;
+static constexpr uint32_t NO_SD_BADGE_FG = 0xFFFFFF;
+static constexpr int16_t NO_SD_BADGE_PAD_X = 4;
+static constexpr int16_t NO_SD_BADGE_PAD_Y = 1;
 
-    lv_obj_t *msg = lv_label_create(scr);
-    lv_label_set_text(msg, "SD card missing\nInsert SD and restart");
-    lv_obj_set_style_text_color(msg, lv_color_hex(0xCCCCCC), 0);
-    lv_label_set_long_mode(msg, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(msg, 280);
-    lv_obj_set_style_text_align(msg, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(msg, LV_ALIGN_CENTER, 0, 40);
-
-    lv_task_handler();
-    LOG_ERROR("BOOT", "SD card missing — dashboard halted");
-
-    while (true) {
-        lv_task_handler();
-        delay(100);
-    }
+static void showNoSdBadge() {
+    lv_obj_t *badge = lv_label_create(lv_layer_top());
+    lv_label_set_text(badge, "NO SD");
+    lv_obj_set_style_text_color(badge, lv_color_hex(NO_SD_BADGE_FG), 0);
+    lv_obj_set_style_bg_color(badge, lv_color_hex(NO_SD_BADGE_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(badge, 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(badge, NO_SD_BADGE_PAD_X, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(badge, NO_SD_BADGE_PAD_Y, LV_PART_MAIN);
+    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, NO_SD_BADGE_X_OFFSET, NO_SD_BADGE_Y_OFFSET);
+    lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 // Advance the bar and update the status text between init steps.
@@ -147,7 +147,8 @@ static void updateSplash(const char *status, uint8_t pct) {
     lv_refr_now(NULL);
 }
 
-// Returns false if SD is absent — caller must halt.
+// Returns false if SD is absent or the mount failed. Caller flags degraded
+// mode and continues — the device stays reachable over USB.
 static bool initStorage() {
     LOG_INFO("BOOT", "Initializing SD card...");
     if (!StorageDriver::init()) {
@@ -209,12 +210,16 @@ void BootSequence::run() {
     TouchDriver::init();
     updateSplash("Initializing touch...", 15);
 
-    // 3. Storage — fatal if SD missing
+    // 3. Storage — degrade (don't halt) if SD missing so the studio can still
+    //    reach the device over USB and the user can see a default dashboard.
     updateSplash("Checking SD card...", 20);
     if (!initStorage()) {
-        showSDError(); // halts
+        s_degradedNoSd = true;
+        LOG_WARN("BOOT", "SD missing — running with defaults; USB still reachable");
+        updateSplash("No SD — defaults", 35);
+    } else {
+        updateSplash("SD ready...", 35);
     }
-    updateSplash("SD ready...", 35);
 
     // 4. Config
     logHeap("before loadConfig");
@@ -246,6 +251,13 @@ void BootSequence::run() {
     logHeap("before buildUI");
     buildUI();
     logHeap("after buildUI");
+
+    // Surface the no-SD state with a small persistent badge once the dashboard
+    // has been built. Non-blocking — sits on lv_layer_top() above all pages.
+    if (s_degradedNoSd) {
+        showNoSdBadge();
+    }
+
     updateSplash("Ready", 100);
 
     // Hold the splash for at least SPLASH_MIN_MS so the user can read the
@@ -257,4 +269,8 @@ void BootSequence::run() {
 
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",
              static_cast<unsigned long>(millis() - bootStartMs));
+}
+
+bool BootSequence::isDegradedNoSd() {
+    return s_degradedNoSd;
 }

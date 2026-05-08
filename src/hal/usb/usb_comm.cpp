@@ -15,6 +15,7 @@
 #include "board_config.h"
 #include "app_config.h"
 #include "diag/logger.h"
+#include "boot/boot_sequence.h"
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
 #include "config/rotation_config.h"
@@ -398,11 +399,15 @@ void handleCommand(const char *jsonLine) {
 
     switch (cmd) {
         case UsbComm::CMD_GET_STATUS: {
-            char resp[112];
+            // sd=0 means the boot sequence flagged the device as degraded
+            // (SD missing/failed). Older studio builds ignore the field
+            // (additive). See BootSequence::isDegradedNoSd().
+            const int sdOk = BootSequence::isDegradedNoSd() ? 0 : 1;
+            char resp[160];
             snprintf(resp, sizeof(resp),
-                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
+                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,\"sd\":%d}",
                      APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                     ThemeManager::isDayMode() ? 1 : 0);
+                     ThemeManager::isDayMode() ? 1 : 0, sdOk);
             UsbComm::sendLine(resp);
             break;
         }
