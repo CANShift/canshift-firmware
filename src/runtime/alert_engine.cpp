@@ -194,13 +194,30 @@ void AlertEngine::init() {
         }
     }
 
+    // Format integer + 2-decimal-fixed-point manually so this log doesn't
+    // pull newlib's float printf into the link (#405). `xN` suffix = value
+    // scaled by 100 for `%d.%02d` rendering.
+    auto x100 = [](float v) { return static_cast<int>(lroundf(v * 100.0f)); };
+    const int revLimit = static_cast<int>(lroundf(s_revLimitRpm));
+    const int coolantWarn = static_cast<int>(lroundf(s_coolantWarnC));
+    const int coolantCrit = static_cast<int>(lroundf(s_coolantCritC));
+    const int oilTempWarn = static_cast<int>(lroundf(s_oilTempWarnC));
+    const int oilTempCrit = static_cast<int>(lroundf(s_oilTempCritC));
+    const int oilPressWarn100 = x100(s_oilPressWarnBar);
+    const int oilPressCrit100 = x100(s_oilPressCritBar);
+    const int battLow100 = x100(s_batteryLowWarnV);
+    const int battLowCrit100 = x100(s_batteryLowCritV);
+    const int battHigh100 = x100(s_batteryHighWarnV);
+    const int battHighCrit100 = x100(s_batteryHighCritV);
     LOG_INFO("ALERT",
-             "Alert engine initialized (revLimit=%.0f RPM, coolant warn=%.0f crit=%.0f, "
-             "oilT warn=%.0f crit=%.0f, oilP warn=%.2f crit=%.2f, "
-             "batt lowWarn=%.2f lowCrit=%.2f highWarn=%.2f highCrit=%.2f)",
-             s_revLimitRpm, s_coolantWarnC, s_coolantCritC, s_oilTempWarnC, s_oilTempCritC,
-             s_oilPressWarnBar, s_oilPressCritBar, s_batteryLowWarnV, s_batteryLowCritV,
-             s_batteryHighWarnV, s_batteryHighCritV);
+             "Alert engine initialized (revLimit=%d RPM, coolant warn=%d crit=%d, "
+             "oilT warn=%d crit=%d, oilP warn=%d.%02d crit=%d.%02d, "
+             "batt lowWarn=%d.%02d lowCrit=%d.%02d highWarn=%d.%02d highCrit=%d.%02d)",
+             revLimit, coolantWarn, coolantCrit, oilTempWarn, oilTempCrit,
+             oilPressWarn100 / 100, oilPressWarn100 % 100, oilPressCrit100 / 100,
+             oilPressCrit100 % 100, battLow100 / 100, battLow100 % 100, battLowCrit100 / 100,
+             battLowCrit100 % 100, battHigh100 / 100, battHigh100 % 100, battHighCrit100 / 100,
+             battHighCrit100 % 100);
 }
 
 void AlertEngine::tick() {

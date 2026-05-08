@@ -444,9 +444,10 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     // Initial paint: invalid → 0 (per design).
     BarWidget::update(cont, cfg.bar.minValue, false, cfg);
 
-    LOG_DEBUG("BAR", "Created %s bar '%s' at (%d,%d) size=%dx%d range=[%.0f,%.0f]",
+    LOG_DEBUG("BAR", "Created %s bar '%s' at (%d,%d) size=%dx%d range=[%d,%d]",
               isVertical ? "vertical" : "horizontal", cfg.id, cfg.layout.x, cfg.layout.y + yOffset,
-              W, H, cfg.bar.minValue, cfg.bar.maxValue);
+              W, H, static_cast<int>(lroundf(cfg.bar.minValue)),
+              static_cast<int>(lroundf(cfg.bar.maxValue)));
     return cont;
 }
 

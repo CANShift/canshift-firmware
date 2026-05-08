@@ -21,6 +21,7 @@
 #include "can/signal_map.h"
 #include "hal/usb/usb_comm.h"
 #include "diag/logger.h"
+#include "util/format_float.h"
 
 #include <lvgl.h>
 #include <math.h>
@@ -575,7 +576,7 @@ static void updateDynSignalLabel(DynItem &d) {
     uint32_t targetColor;
     if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
         const float v = SignalStore::read(sid, 0.0f);
-        snprintf(buf, sizeof(buf), fmt, v);
+        FloatFormat::formatFromSpec(buf, sizeof(buf), v, fmt);
         targetColor = COLOR_LABEL;
     } else {
         strlcpy(buf, "--.-", sizeof(buf));
@@ -663,7 +664,7 @@ void TopBar::update() {
         uint32_t targetColor;
         if (SignalStore::isValid(SignalIds::BATTERY_VOLTS)) {
             const float v = SignalStore::read(SignalIds::BATTERY_VOLTS, 0.0f);
-            snprintf(buf, sizeof(buf), "%.1fV", v);
+            FloatFormat::formatFromSpec(buf, sizeof(buf), v, "%.1fV");
             targetColor = COLOR_LABEL;
         } else {
             strlcpy(buf, "--.-V", sizeof(buf));

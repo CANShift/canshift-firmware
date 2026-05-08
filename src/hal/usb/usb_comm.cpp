@@ -25,6 +25,7 @@
 #include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
+#include "util/format_float.h"
 
 #include <atomic>
 #include <Arduino.h>
@@ -147,11 +148,19 @@ void sendTelemetry() {
         }
         first = false;
 
-        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":%.3g", TELE_SIGNALS[i].name,
-                         static_cast<double>(val));
+        // Compose `"<name>":<number>` without `%f`/`%g` so the firmware can
+        // drop newlib's float printf family. FloatFormat::formatGeneral mimics
+        // `%.3g` (significant digits, trailing zeros stripped).
+        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":", TELE_SIGNALS[i].name);
         if (n <= 0 || p + n >= end)
             break;
         p += n;
+        char numBuf[16];
+        size_t numLen = FloatFormat::formatGeneral(numBuf, sizeof(numBuf), val, 3);
+        if (numLen == 0 || p + numLen >= end)
+            break;
+        memcpy(p, numBuf, numLen);
+        p += numLen;
     }
 
     if (p + 3 <= end) {
