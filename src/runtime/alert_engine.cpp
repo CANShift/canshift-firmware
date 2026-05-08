@@ -23,16 +23,28 @@ static bool s_flashPhase = false;
 // Rev limiter RPM (loaded from dashboard.json at boot)
 static float s_revLimitRpm = 7200.0f;
 
-// Signal thresholds — loaded from signals.json at init(), with compile-time fallbacks
-static float s_coolantWarnC      = 100.0f;
-static float s_coolantCritC      = 110.0f;
-static float s_oilTempWarnC      = 120.0f;
-static float s_oilTempCritC      = 135.0f;
-static float s_oilPressWarnBar   = 1.5f;
-static float s_oilPressCritBar   = 1.0f;
-static float s_batteryLowWarnV   = BATTERY_DEFAULT_LOW_WARN_V;
-static float s_batteryLowCritV   = BATTERY_DEFAULT_LOW_CRIT_V;
-static float s_batteryHighWarnV  = BATTERY_DEFAULT_HIGH_WARN_V;
+// Signal thresholds — loaded from signals.json at init(), with compile-time fallbacks.
+// Per-signal semantics:
+//   warningLevel/dangerLevel: low-side for battery/oil-press (alert when value drops),
+//                              high-side for coolant/oil-temp (alert when value climbs).
+//   highWarningLevel/highDangerLevel: optional ADDITIONAL high-side thresholds — apply
+//                                     to every signal below; NaN = disabled.
+static float s_coolantWarnC = 100.0f;
+static float s_coolantCritC = 110.0f;
+static float s_coolantHighWarnC = NAN;
+static float s_coolantHighCritC = NAN;
+static float s_oilTempWarnC = 120.0f;
+static float s_oilTempCritC = 135.0f;
+static float s_oilTempHighWarnC = NAN;
+static float s_oilTempHighCritC = NAN;
+static float s_oilPressWarnBar = 1.5f;
+static float s_oilPressCritBar = 1.0f;
+static float s_oilPressHighWarnBar = NAN;
+static float s_oilPressHighCritBar = NAN;
+static float s_batteryLowWarnV = BATTERY_DEFAULT_LOW_WARN_V;
+static float s_batteryLowCritV = BATTERY_DEFAULT_LOW_CRIT_V;
+static float s_batteryHighWarnV = BATTERY_DEFAULT_HIGH_WARN_V;
+static float s_batteryHighCritV = BATTERY_DEFAULT_HIGH_CRIT_V;
 
 // Flash period in milliseconds
 static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2);
@@ -43,8 +55,23 @@ static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2)
 
 namespace {
 
+AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLevel b) {
+    return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
+}
+
+// Evaluate optional high-side thresholds. NaN = disabled. Returns NORMAL when
+// neither threshold is configured, so callers can safely max() with their
+// existing per-signal verdict.
+AlertEngine::AlertLevel evalHighSide(float value, float highWarn, float highCrit) {
+    if (!isnan(highCrit) && value > highCrit)
+        return AlertEngine::AlertLevel::CRITICAL;
+    if (!isnan(highWarn) && value > highWarn)
+        return AlertEngine::AlertLevel::WARNING;
+    return AlertEngine::AlertLevel::NORMAL;
+}
+
 AlertEngine::AlertLevel evalRevLimiter(float rpm) {
-    float warnRpm  = s_revLimitRpm * (ALERT_REVLIMIT_WARN_PCT  / 100.0f);
+    float warnRpm = s_revLimitRpm * (ALERT_REVLIMIT_WARN_PCT / 100.0f);
     float flashRpm = s_revLimitRpm * (ALERT_REVLIMIT_FLASH_PCT / 100.0f);
 
     if (rpm >= flashRpm)
@@ -55,42 +82,49 @@ AlertEngine::AlertLevel evalRevLimiter(float rpm) {
 }
 
 AlertEngine::AlertLevel evalCoolantTemp(float tempC) {
+    AlertEngine::AlertLevel base;
     if (tempC >= s_coolantCritC)
-        return AlertEngine::AlertLevel::CRITICAL;
-    if (tempC >= s_coolantWarnC)
-        return AlertEngine::AlertLevel::WARNING;
-    if (tempC >= s_coolantWarnC - 5.0f)
-        return AlertEngine::AlertLevel::CAUTION;
-    return AlertEngine::AlertLevel::NORMAL;
+        base = AlertEngine::AlertLevel::CRITICAL;
+    else if (tempC >= s_coolantWarnC)
+        base = AlertEngine::AlertLevel::WARNING;
+    else if (tempC >= s_coolantWarnC - 5.0f)
+        base = AlertEngine::AlertLevel::CAUTION;
+    else
+        base = AlertEngine::AlertLevel::NORMAL;
+    return maxLevel(base, evalHighSide(tempC, s_coolantHighWarnC, s_coolantHighCritC));
 }
 
 AlertEngine::AlertLevel evalOilTemp(float tempC) {
+    AlertEngine::AlertLevel base;
     if (tempC >= s_oilTempCritC)
-        return AlertEngine::AlertLevel::CRITICAL;
-    if (tempC >= s_oilTempWarnC)
-        return AlertEngine::AlertLevel::WARNING;
-    return AlertEngine::AlertLevel::NORMAL;
+        base = AlertEngine::AlertLevel::CRITICAL;
+    else if (tempC >= s_oilTempWarnC)
+        base = AlertEngine::AlertLevel::WARNING;
+    else
+        base = AlertEngine::AlertLevel::NORMAL;
+    return maxLevel(base, evalHighSide(tempC, s_oilTempHighWarnC, s_oilTempHighCritC));
 }
 
 AlertEngine::AlertLevel evalOilPressure(float pressBar) {
-    // Low oil pressure is dangerous — alert on LOW values
+    // Low oil pressure is dangerous — alert on LOW values via warningLevel/dangerLevel.
+    // Optional high-side via highWarningLevel/highDangerLevel (rare: over-pressure).
+    AlertEngine::AlertLevel base;
     if (pressBar <= s_oilPressCritBar)
-        return AlertEngine::AlertLevel::CRITICAL;
-    if (pressBar <= s_oilPressWarnBar)
-        return AlertEngine::AlertLevel::WARNING;
-    return AlertEngine::AlertLevel::NORMAL;
+        base = AlertEngine::AlertLevel::CRITICAL;
+    else if (pressBar <= s_oilPressWarnBar)
+        base = AlertEngine::AlertLevel::WARNING;
+    else
+        base = AlertEngine::AlertLevel::NORMAL;
+    return maxLevel(base, evalHighSide(pressBar, s_oilPressHighWarnBar, s_oilPressHighCritBar));
 }
 
 AlertEngine::AlertLevel evalBattery(float volts) {
+    // Low side first (cranking failure dominates).
     if (volts < s_batteryLowCritV)
         return AlertEngine::AlertLevel::CRITICAL;
-    if (volts < s_batteryLowWarnV || volts > s_batteryHighWarnV)
-        return AlertEngine::AlertLevel::WARNING;
-    return AlertEngine::AlertLevel::NORMAL;
-}
-
-AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLevel b) {
-    return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
+    AlertEngine::AlertLevel base = (volts < s_batteryLowWarnV) ? AlertEngine::AlertLevel::WARNING
+                                                               : AlertEngine::AlertLevel::NORMAL;
+    return maxLevel(base, evalHighSide(volts, s_batteryHighWarnV, s_batteryHighCritV));
 }
 
 } // namespace
@@ -108,52 +142,80 @@ void AlertEngine::init() {
     if (dash.loaded && dash.revLimitRpm > 0.0f)
         s_revLimitRpm = dash.revLimitRpm;
 
-    // Load alert thresholds from signals.json — overrides compile-time fallbacks
+    // Load alert thresholds from signals.json — overrides compile-time fallbacks.
+    // Every signal evaluated below also honors highWarningLevel / highDangerLevel
+    // when set (NaN = disabled), in addition to the legacy warningLevel/dangerLevel.
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
     for (uint8_t i = 0; i < sigCfg.signalCount; i++) {
         const CfgSignalDef &def = sigCfg.signals[i];
         if (strcmp(def.name, "coolant_temp_c") == 0) {
-            if (!isnan(def.warningLevel)) s_coolantWarnC    = def.warningLevel;
-            if (!isnan(def.dangerLevel))  s_coolantCritC    = def.dangerLevel;
+            if (!isnan(def.warningLevel))
+                s_coolantWarnC = def.warningLevel;
+            if (!isnan(def.dangerLevel))
+                s_coolantCritC = def.dangerLevel;
+            if (!isnan(def.highWarningLevel))
+                s_coolantHighWarnC = def.highWarningLevel;
+            if (!isnan(def.highDangerLevel))
+                s_coolantHighCritC = def.highDangerLevel;
         } else if (strcmp(def.name, "oil_temp_c") == 0) {
-            if (!isnan(def.warningLevel)) s_oilTempWarnC    = def.warningLevel;
-            if (!isnan(def.dangerLevel))  s_oilTempCritC    = def.dangerLevel;
+            if (!isnan(def.warningLevel))
+                s_oilTempWarnC = def.warningLevel;
+            if (!isnan(def.dangerLevel))
+                s_oilTempCritC = def.dangerLevel;
+            if (!isnan(def.highWarningLevel))
+                s_oilTempHighWarnC = def.highWarningLevel;
+            if (!isnan(def.highDangerLevel))
+                s_oilTempHighCritC = def.highDangerLevel;
         } else if (strcmp(def.name, "oil_press_bar") == 0) {
-            // Low-side alert: warningLevel = warn-below, dangerLevel = crit-below
-            if (!isnan(def.warningLevel)) s_oilPressWarnBar = def.warningLevel;
-            if (!isnan(def.dangerLevel))  s_oilPressCritBar = def.dangerLevel;
+            // Low-side alert: warningLevel = warn-below, dangerLevel = crit-below.
+            // Optional high-side (over-pressure) via highWarningLevel/highDangerLevel.
+            if (!isnan(def.warningLevel))
+                s_oilPressWarnBar = def.warningLevel;
+            if (!isnan(def.dangerLevel))
+                s_oilPressCritBar = def.dangerLevel;
+            if (!isnan(def.highWarningLevel))
+                s_oilPressHighWarnBar = def.highWarningLevel;
+            if (!isnan(def.highDangerLevel))
+                s_oilPressHighCritBar = def.highDangerLevel;
         } else if (strcmp(def.name, "battery_volts") == 0) {
-            // Battery has both LOW and HIGH thresholds:
+            // Battery has BOTH low- and high-side thresholds:
             //   warningLevel     -> low-warn (below = battery weak)
             //   dangerLevel      -> low-crit (below = will not crank)
             //   highWarningLevel -> high-warn (above = charging fault / overvoltage)
-            if (!isnan(def.warningLevel))     s_batteryLowWarnV  = def.warningLevel;
-            if (!isnan(def.dangerLevel))      s_batteryLowCritV  = def.dangerLevel;
-            if (!isnan(def.highWarningLevel)) s_batteryHighWarnV = def.highWarningLevel;
+            //   highDangerLevel  -> high-crit (above = regulator failure)
+            if (!isnan(def.warningLevel))
+                s_batteryLowWarnV = def.warningLevel;
+            if (!isnan(def.dangerLevel))
+                s_batteryLowCritV = def.dangerLevel;
+            if (!isnan(def.highWarningLevel))
+                s_batteryHighWarnV = def.highWarningLevel;
+            if (!isnan(def.highDangerLevel))
+                s_batteryHighCritV = def.highDangerLevel;
         }
     }
 
-    LOG_INFO("ALERT", "Alert engine initialized (revLimit=%.0f RPM, coolant warn=%.0f crit=%.0f, "
+    LOG_INFO("ALERT",
+             "Alert engine initialized (revLimit=%.0f RPM, coolant warn=%.0f crit=%.0f, "
              "oilT warn=%.0f crit=%.0f, oilP warn=%.2f crit=%.2f, "
-             "batt lowWarn=%.2f lowCrit=%.2f highWarn=%.2f)",
-             s_revLimitRpm, s_coolantWarnC, s_coolantCritC,
-             s_oilTempWarnC, s_oilTempCritC, s_oilPressWarnBar, s_oilPressCritBar,
-             s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV);
+             "batt lowWarn=%.2f lowCrit=%.2f highWarn=%.2f highCrit=%.2f)",
+             s_revLimitRpm, s_coolantWarnC, s_coolantCritC, s_oilTempWarnC, s_oilTempCritC,
+             s_oilPressWarnBar, s_oilPressCritBar, s_batteryLowWarnV, s_batteryLowCritV,
+             s_batteryHighWarnV, s_batteryHighCritV);
 }
 
 void AlertEngine::tick() {
-    float rpm     = SignalStore::read(SignalIds::RPM,           0.0f);
+    float rpm = SignalStore::read(SignalIds::RPM, 0.0f);
     float coolant = SignalStore::read(SignalIds::COOLANT_TEMP_C, 0.0f);
-    float oilTemp = SignalStore::read(SignalIds::OIL_TEMP_C,    0.0f);
+    float oilTemp = SignalStore::read(SignalIds::OIL_TEMP_C, 0.0f);
     float oilPres = SignalStore::read(SignalIds::OIL_PRESS_BAR, 5.0f);
-    float volts   = SignalStore::read(SignalIds::BATTERY_VOLTS, 13.0f);
-    float mil     = SignalStore::read(SignalIds::FLAG_MIL,       0.0f);
+    float volts = SignalStore::read(SignalIds::BATTERY_VOLTS, 13.0f);
+    float mil = SignalStore::read(SignalIds::FLAG_MIL, 0.0f);
 
-    s_state.revLimiter    = evalRevLimiter(rpm);
-    s_state.coolantTemp   = evalCoolantTemp(coolant);
-    s_state.oilTemp       = evalOilTemp(oilTemp);
-    s_state.oilPressure   = evalOilPressure(oilPres);
-    s_state.milActive     = (mil > 0.5f);
+    s_state.revLimiter = evalRevLimiter(rpm);
+    s_state.coolantTemp = evalCoolantTemp(coolant);
+    s_state.oilTemp = evalOilTemp(oilTemp);
+    s_state.oilPressure = evalOilPressure(oilPres);
+    s_state.milActive = (mil > 0.5f);
     s_state.batteryVoltage = evalBattery(volts);
 
     s_state.global = s_state.revLimiter;

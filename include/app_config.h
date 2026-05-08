@@ -190,6 +190,7 @@
 #define BATTERY_DEFAULT_LOW_WARN_V 12.0f  // Below this = WARNING (battery weak)
 #define BATTERY_DEFAULT_LOW_CRIT_V 11.5f  // Below this = CRITICAL (will not crank)
 #define BATTERY_DEFAULT_HIGH_WARN_V 15.0f // Above this = WARNING (charging fault)
+#define BATTERY_DEFAULT_HIGH_CRIT_V 16.0f // Above this = CRITICAL (regulator failure / overvoltage)
 
 // ---------------------------------------------------------------------------
 // BLE (Phase 3 — mobile app)

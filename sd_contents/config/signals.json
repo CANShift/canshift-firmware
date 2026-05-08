@@ -186,7 +186,7 @@
     },
     {
       "_comment": "=== FRAME 0x373 — Electrical ===",
-      "_batteryThresholds": "Battery uses BOTH low-side (warningLevel/dangerLevel) and high-side (highWarningLevel) thresholds. Tune per battery chemistry: lead-acid 12V system has ~12.4V resting / ~14V charging; LiFePO4 runs higher.",
+      "_batteryThresholds": "Battery uses BOTH low-side (warningLevel/dangerLevel) and high-side (highWarningLevel/highDangerLevel) thresholds. Tune per battery chemistry: lead-acid 12V system has ~12.4V resting / ~14V charging; LiFePO4 runs higher.",
       "name": "battery_volts",
       "canFrameId": "0x373",
       "startByte": 0,
@@ -201,6 +201,7 @@
       "warningLevel": 12.0,
       "dangerLevel": 11.5,
       "highWarningLevel": 15.0,
+      "highDangerLevel": 16.0,
       "timeoutMs": 2000
     },
     {
