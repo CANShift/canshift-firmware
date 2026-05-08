@@ -5,12 +5,14 @@
 #include "board_config.h"
 
 #include "diag/logger.h"
+#include "diag/error_store.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/storage/storage_driver.h"
 #include "hal/storage/lvgl_fs_driver.h"
 #include "hal/usb/usb_comm.h"
 #include "config/config_loader.h"
+#include "config/default_config.h"
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
 #include "ui/page_manager.h"
@@ -261,6 +263,28 @@ void BootSequence::run() {
             updateSplash("SD error — defaults", 35);
             break;
     }
+
+    // 3.5 Provision default configs on a fresh / empty SD before loadConfig
+    //     reads. Writes only when target is missing AND no .bak exists, or
+    //     when target is empty. Never overwrites user data. On read-only or
+    //     full SD the failure is logged and pushed to ErrorStore — boot
+    //     continues so the device stays USB-reachable for recovery.
+#if DEFAULT_CONFIG_PROVISION_ENABLED
+    if (s_sdStatus == BootSequence::SdStatus::Ok) {
+        const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
+        if (pr.written > 0) {
+            LOG_INFO("BOOT", "Provisioned %u default config file(s)",
+                     static_cast<unsigned>(pr.written));
+            updateSplash("Provisioning defaults...", 45);
+        }
+        if (pr.failed > 0) {
+            LOG_WARN("BOOT",
+                     "Default-config provision failed for %u file(s) — "
+                     "continuing with whatever is on SD",
+                     static_cast<unsigned>(pr.failed));
+        }
+    }
+#endif
 
     // 4. Config
     logHeap("before loadConfig");

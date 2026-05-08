@@ -146,6 +146,14 @@
 #define CONFIG_MAX_WIDGETS_PER_PAGE 12
 #define CONFIG_MAX_SIGNALS 32
 
+// First-boot provisioning of the embedded default configs to SD (issue #173).
+// When 1, BootSequence checks for missing canonical config files after SD
+// mounts and writes the firmware-baked defaults. Existing user data is never
+// overwritten. The defaults are linked in via `board_build.embed_files`.
+#ifndef DEFAULT_CONFIG_PROVISION_ENABLED
+    #define DEFAULT_CONFIG_PROVISION_ENABLED 1
+#endif
+
 // ---------------------------------------------------------------------------
 // Alert engine
 // ---------------------------------------------------------------------------
