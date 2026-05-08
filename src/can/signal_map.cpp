@@ -33,7 +33,13 @@ constexpr NameToId kNameToId[] = {
     {"gear", SignalIds::GEAR},
     {"battery_volts", SignalIds::BATTERY_VOLTS},
     {"flag_mil", SignalIds::FLAG_MIL},
+    {"flag_launch_ctrl", SignalIds::FLAG_LAUNCH_CTRL},
+    {"flag_flat_shift", SignalIds::FLAG_FLAT_SHIFT},
+    {"flag_anti_lag", SignalIds::FLAG_ANTI_LAG},
+    {"flag_traction_cut", SignalIds::FLAG_TRACTION_CUT},
     {"map_number", SignalIds::MAP_NUMBER},
+    {"map_name_idx", SignalIds::MAP_NAME_IDX},
+    {"lap_timer_ms", SignalIds::LAP_TIMER_MS},
 };
 
 } // namespace

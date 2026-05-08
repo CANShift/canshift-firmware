@@ -6,46 +6,11 @@
 #include "config/config_loader.h"
 #include "diag/logger.h"
 
-#include <string.h>
-
 // ---------------------------------------------------------------------------
 // Internal state — runtime signal dispatch table
 // ---------------------------------------------------------------------------
 
 namespace {
-
-// Mapping from signals.json "name" string to firmware SignalId.
-// Add entries here when new signals are added to signal_map.h.
-struct NameEntry {
-    const char *name;
-    SignalId id;
-};
-
-static constexpr NameEntry kNameMap[] = {
-    { "rpm",               SignalIds::RPM },
-    { "throttle_pos",      SignalIds::THROTTLE_POS },
-    { "map_kpa",           SignalIds::MAP_KPA },
-    { "boost_bar",         SignalIds::BOOST_BAR },
-    { "iat_c",             SignalIds::IAT_C },
-    { "coolant_temp_c",    SignalIds::COOLANT_TEMP_C },
-    { "oil_temp_c",        SignalIds::OIL_TEMP_C },
-    { "oil_press_bar",     SignalIds::OIL_PRESS_BAR },
-    { "fuel_press_bar",    SignalIds::FUEL_PRESS_BAR },
-    { "lambda_1",          SignalIds::LAMBDA_1 },
-    { "afr_1",             SignalIds::AFR_1 },
-    { "speed_kph",         SignalIds::SPEED_KPH },
-    { "gear",              SignalIds::GEAR },
-    { "battery_volts",     SignalIds::BATTERY_VOLTS },
-    { "flag_mil",          SignalIds::FLAG_MIL },
-    { "flag_launch_ctrl",  SignalIds::FLAG_LAUNCH_CTRL },
-    { "flag_flat_shift",   SignalIds::FLAG_FLAT_SHIFT },
-    { "flag_anti_lag",     SignalIds::FLAG_ANTI_LAG },
-    { "flag_traction_cut", SignalIds::FLAG_TRACTION_CUT },
-    { "map_number",        SignalIds::MAP_NUMBER },
-    { "map_name_idx",      SignalIds::MAP_NAME_IDX },
-    { "lap_timer_ms",      SignalIds::LAP_TIMER_MS },
-};
-static constexpr uint8_t kNameMapLen = sizeof(kNameMap) / sizeof(kNameMap[0]);
 
 // One entry per decoded signal — built from signals.json at runtime
 struct RuntimeSignal {
@@ -217,14 +182,9 @@ void MaxxEcuParser::loadSignalDefinitions() {
     for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < CONFIG_MAX_SIGNALS; ++i) {
         const CfgSignalDef &def = cfg.signals[i];
 
-        // Resolve signal name string → firmware SignalId
-        SignalId sid = SignalIds::SIGNAL_COUNT; // sentinel = unknown
-        for (uint8_t j = 0; j < kNameMapLen; ++j) {
-            if (strcmp(def.name, kNameMap[j].name) == 0) {
-                sid = kNameMap[j].id;
-                break;
-            }
-        }
+        // Resolve signal name string → firmware SignalId via the shared
+        // single-source-of-truth table in signal_map.cpp.
+        const SignalId sid = signalIdFromName(def.name);
         if (sid == SignalIds::SIGNAL_COUNT) {
             LOG_WARN("CAN", "Unknown signal name '%s' in signals.json — skipping", def.name);
             continue;
