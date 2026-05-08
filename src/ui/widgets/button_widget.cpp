@@ -26,12 +26,19 @@ struct ButtonTag {
 // Resolve the icon source. Returns a non-empty C-string LVGL path when an
 // asset exists for the widget, or "" when only a glyph fallback is available.
 // Prefers user-provided iconPath over the built-in iconName lookup.
+//
+// Both branches probe the underlying file before returning: LVGL silently
+// no-ops on lv_img_set_src for a missing file, so without the probe the
+// widget would render an empty box instead of the LV_SYMBOL_* fallback.
 const char *resolveIconAsset(const CfgButtonParams &p, char *out, size_t outLen) {
     out[0] = '\0';
     if (p.iconPath[0] != '\0') {
         // Studio supplies SPIFFS / SD paths with a leading slash already.
         const char *prefix = (p.iconPath[0] == '/') ? "" : "/";
         snprintf(out, outLen, "S:%s%s", prefix, p.iconPath);
+        if (IconAssets::exists(out))
+            return out;
+        out[0] = '\0';
         return out;
     }
     const char *assetPath = IconAssets::path(p.iconName);

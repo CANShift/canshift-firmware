@@ -1,6 +1,7 @@
 // icon_assets.cpp — Sensor icon name → asset path / fallback glyph.
 
 #include "icon_assets.h"
+#include "hal/storage/storage_driver.h"
 
 #include <string.h>
 
@@ -53,11 +54,40 @@ const IconEntry *find(const char *iconName) {
     return nullptr;
 }
 
+// Strip the "S:" drive prefix (or "/<letter>:" variants we never use) so the
+// raw path can be probed via StorageDriver::fileExists. Returns nullptr when
+// the input doesn't start with the expected drive letter — defensive against
+// malformed config.
+const char *stripDriveLetter(const char *lvglPath) {
+    if (!lvglPath || lvglPath[0] == '\0')
+        return nullptr;
+    // Drive letter + ':' prefix (e.g. "S:/foo") — strip both, leaving "/foo".
+    if (lvglPath[1] == ':')
+        return lvglPath + 2;
+    // No prefix — assume it's already a raw FS path.
+    return lvglPath;
+}
+
 } // namespace
 
 const char *path(const char *iconName) {
     const IconEntry *e = find(iconName);
-    return e ? e->path : "";
+    if (!e || e->path[0] == '\0')
+        return "";
+    // Probe the SD before returning the path: when the .bin isn't on the
+    // card the LVGL image draw silently no-ops, so the caller would render
+    // an empty box. Returning "" here lets the widget activate the glyph
+    // fallback path instead. Cost: one SD stat per icon at UI build time.
+    if (!exists(e->path))
+        return "";
+    return e->path;
+}
+
+bool exists(const char *lvglPath) {
+    const char *raw = stripDriveLetter(lvglPath);
+    if (!raw || raw[0] == '\0')
+        return false;
+    return StorageDriver::fileExists(raw);
 }
 
 const char *fallbackGlyph(const char *iconName) {
