@@ -8,8 +8,10 @@
 #include "hardware_profile.h"
 #include "diag/logger.h"
 
+#include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -111,6 +113,9 @@ struct GaugeTag {
     uint16_t dangerAngle;
     bool hasWarning;
     bool hasDanger;
+    bool lastValid; // Tracks the last (value, valid) pair so the invalid
+                    // branch can skip its lv_label_set_text reallocation
+                    // when state hasn't flipped (issue #236).
     AlertFlash::State alert;
 };
 
@@ -222,12 +227,15 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->unitLabel = unitLabel;
     tag->minValue = minV;
     tag->maxValue = maxV;
-    tag->lastValue = 0.0f;
+    // NaN sentinel — guarantees the first update() runs through the paint
+    // path even when the live value happens to be 0.0 (matches bar_widget).
+    tag->lastValue = NAN;
     tag->alertThreshold = cfg.gauge.alertThreshold;
     tag->warnAngle = warnAngle;
     tag->dangerAngle = dangerAngle;
     tag->hasWarning = hasWarning;
     tag->hasDanger = hasDanger;
+    tag->lastValid = true;
 
     // Mount the alert overlay last so it sits on top of arcs and labels.
     AlertFlash::attach(tag->alert, cont);
@@ -261,9 +269,18 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
 
     if (!valid) {
         // No live signal → display 0 (formatted) instead of placeholder dashes.
-        char buf[24];
-        snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
-        lv_label_set_text(tag->valueLabel, buf);
+        // Skip the realloc when we're already showing the invalid readout
+        // (issue #236) — the formatted "0" buffer is identical every tick.
+        if (tag->lastValid || !std::isnan(tag->lastValue) || tag->lastValue != 0.0f) {
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
+            const char *current = lv_label_get_text(tag->valueLabel);
+            if (current == nullptr || strcmp(current, buf) != 0) {
+                lv_label_set_text(tag->valueLabel, buf);
+            }
+            tag->lastValue = 0.0f;
+            tag->lastValid = false;
+        }
         if (!tag->alert.active) {
             lv_obj_set_style_text_color(tag->valueLabel,
                                         lv_color_hex(ThemeManager::getEffectiveTextColor()), 0);
@@ -272,12 +289,13 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
     }
 
-    // Only redraw if value changed to avoid LVGL refresh churn
-    if (value == tag->lastValue) {
+    // Only redraw if value (or valid flag) changed to avoid LVGL refresh churn.
+    if (tag->lastValid && value == tag->lastValue) {
         AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
         return;
     }
     tag->lastValue = value;
+    tag->lastValid = true;
 
     // Tint the value label to match the active zone — but skip when in alert
     // state, AlertFlash owns the colour while the flash is active.
@@ -290,10 +308,15 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
     }
 
-    // Update numeric label (prefix + value formatted to decimalPlaces).
+    // Update numeric label (prefix + value formatted to decimalPlaces). Even
+    // with a different float value, formatting may collapse to the same string
+    // (e.g. 78.001 vs 78.004 at 0 dp) — strcmp guard avoids the realloc.
     char buf[24];
     snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, value);
-    lv_label_set_text(tag->valueLabel, buf);
+    const char *current = lv_label_get_text(tag->valueLabel);
+    if (current == nullptr || strcmp(current, buf) != 0) {
+        lv_label_set_text(tag->valueLabel, buf);
+    }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).
     AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);

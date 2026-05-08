@@ -16,6 +16,7 @@
 #include <lvgl.h>
 #include <Arduino.h>
 #include <stdio.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Tag
@@ -31,6 +32,10 @@ struct TimerTag {
     uint32_t accumulatedMs; // ms accumulated before last pause
     uint32_t pressStartMs;  // millis() when touch pressed
     bool longPressFired;
+    // Cache the last formatted string so consecutive ticks that resolve to the
+    // same display ("00:42" repeated for ~1000 ms in mm:ss mode) skip the
+    // lv_label_set_text reallocation (issue #236).
+    char lastText[12];
 };
 
 static constexpr uint32_t LONG_PRESS_MS = 600;
@@ -126,10 +131,17 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
     // Allocate tag
-    TimerTag *tag = new TimerTag{
-        label, cfg.timer.autoStart, cfg.timer.formatMsec, cfg.timer.autoStart ? millis() : 0, 0, 0,
-        false,
-    };
+    TimerTag *tag = new TimerTag{};
+    tag->timeLabel = label;
+    tag->running = cfg.timer.autoStart;
+    tag->formatMsec = cfg.timer.formatMsec;
+    tag->startMs = cfg.timer.autoStart ? millis() : 0;
+    tag->accumulatedMs = 0;
+    tag->pressStartMs = 0;
+    tag->longPressFired = false;
+    // Seed the cache with the placeholder we just painted so the first tick
+    // skips the realloc when elapsed still formats to the same string.
+    strlcpy(tag->lastText, cfg.timer.formatMsec ? "00.000" : "00:00", sizeof(tag->lastText));
 
     lv_obj_set_user_data(cont, tag);
 
@@ -166,6 +178,12 @@ void TimerWidget::update(lv_obj_t *obj, float /*value*/, bool /*valid*/, const C
     char buf[12];
     uint32_t elapsed = getElapsed(tag);
     formatTime(buf, sizeof(buf), elapsed, tag->formatMsec);
-    lv_label_set_text(tag->timeLabel, buf);
+    // mm:ss only flips once per second — most ticks produce the same string.
+    // Skip the lv_label_set_text reallocation when nothing has changed
+    // (issue #236).
+    if (strcmp(tag->lastText, buf) != 0) {
+        lv_label_set_text(tag->timeLabel, buf);
+        strlcpy(tag->lastText, buf, sizeof(tag->lastText));
+    }
     (void)cfg;
 }

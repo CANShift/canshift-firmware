@@ -16,6 +16,7 @@
 
 #include <lvgl.h>
 #include <stdio.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,6 +34,16 @@ const lv_font_t *selectFont(int16_t height) {
     if (height >= 40)
         return FontManager::get(20);
     return FontManager::get(16);
+}
+
+// Skip the lv_label_set_text reallocation when the formatted gear is already
+// shown (issue #236). Gear values change at human cadence, so almost every
+// tick the label is unchanged.
+void setLabelIfChanged(lv_obj_t *label, const char *text) {
+    const char *current = lv_label_get_text(label);
+    if (current == nullptr || strcmp(current, text) != 0) {
+        lv_label_set_text(label, text);
+    }
 }
 
 } // namespace
@@ -80,20 +91,20 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
 
     if (!valid || value == 0.0f) {
-        lv_label_set_text(label, "N");
+        setLabelIfChanged(label, "N");
         lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
         return;
     }
 
     int32_t gear = static_cast<int32_t>(value);
     if (gear < 0) {
-        lv_label_set_text(label, "R");
+        setLabelIfChanged(label, "R");
         lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.warningColor.rgb), 0);
         return;
     }
 
     char buf[4];
     snprintf(buf, sizeof(buf), "%d", gear);
-    lv_label_set_text(label, buf);
+    setLabelIfChanged(label, buf);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 }

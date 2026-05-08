@@ -17,8 +17,10 @@
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
+#include <string.h>
 
 namespace {
 
@@ -40,6 +42,11 @@ struct LabelTag {
     lv_obj_t *valueLabel;
     float alertThreshold; // NaN = disabled (issue #133)
     AlertFlash::State alert;
+    // Cached numeric value & validity — short-circuits the per-tick snprintf
+    // and lv_label_set_text reallocation when nothing has changed (issue #236).
+    // Sentinel: lastValid=false + isnan(lastValue) forces the first paint.
+    float lastValue;
+    bool lastValid;
 };
 
 } // namespace
@@ -111,6 +118,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     auto *tag = new LabelTag{};
     tag->valueLabel = label;
     tag->alertThreshold = cfg.label.alertThreshold;
+    tag->lastValue = NAN;
+    tag->lastValid = false;
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
@@ -135,7 +144,13 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
 
     if (!valid && cfg.label.hideWhenInvalid) {
-        lv_label_set_text(tag->valueLabel, "");
+        // Only retext when state actually flips — lv_label_set_text always
+        // reallocates and invalidates the label area (issue #236).
+        if (tag->lastValid || !std::isnan(tag->lastValue)) {
+            lv_label_set_text(tag->valueLabel, "");
+            tag->lastValid = false;
+            tag->lastValue = NAN;
+        }
         AlertFlash::update(tag->alert, 0.0f, tag->alertThreshold);
         return;
     }
@@ -144,16 +159,28 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // values so the dashboard always reads numerically.
     const float displayValue = valid ? value : 0.0f;
 
-    char valBuf[16];
-    snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces),
-             displayValue);
+    // Skip snprintf + lv_label_set_text when nothing has changed. The text
+    // formatting is purely a function of (displayValue, valid) — same inputs
+    // mean an identical buffer, so the realloc is pure waste.
+    const bool unchanged =
+        tag->lastValid == valid && !std::isnan(tag->lastValue) && displayValue == tag->lastValue;
+    if (!unchanged) {
+        char valBuf[16];
+        snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces),
+                 displayValue);
 
-    // Suffix dropped unconditionally — the label conveys the unit. Wide
-    // numeric values ("195km/h" → "195k") were getting clipped on the right
-    // edge of 80-px-wide widgets. See create() for full rationale.
-    char buf[40];
-    snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
-    lv_label_set_text(tag->valueLabel, buf);
+        // Suffix dropped unconditionally — the label conveys the unit. Wide
+        // numeric values ("195km/h" → "195k") were getting clipped on the right
+        // edge of 80-px-wide widgets. See create() for full rationale.
+        char buf[40];
+        snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
+        const char *current = lv_label_get_text(tag->valueLabel);
+        if (current == nullptr || strcmp(current, buf) != 0) {
+            lv_label_set_text(tag->valueLabel, buf);
+        }
+        tag->lastValue = displayValue;
+        tag->lastValid = valid;
+    }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).
     AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
