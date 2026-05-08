@@ -172,3 +172,39 @@ uint32_t CanManager::getFrameCount() {
 uint32_t CanManager::getErrorCount() {
     return s_errorCount;
 }
+
+bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
+    // CAN classic frames carry at most 8 payload bytes — silently clamp to
+    // protect callers from transmitting garbage past the end of `data`.
+    static constexpr uint8_t kCanFrameMaxBytes = 8;
+    if (len > kCanFrameMaxBytes)
+        len = kCanFrameMaxBytes;
+
+#if APP_SIMULATION_MODE
+    // No TWAI driver in sim — log the would-be frame and report success so
+    // UI click handlers don't treat every press as a failed send.
+    LOG_INFO("CAN", "sim sendFrame id=0x%lX len=%u ext=%d",
+             static_cast<unsigned long>(id), static_cast<unsigned>(len),
+             extended ? 1 : 0);
+    (void)data;
+    return true;
+#else
+    twai_message_t msg = {};
+    msg.identifier = id;
+    msg.data_length_code = len;
+    msg.extd = extended ? 1 : 0;
+    if (len > 0 && data != nullptr) {
+        memcpy(msg.data, data, len);
+    }
+
+    // Non-blocking — pass timeout=0 so a backed-up TX queue surfaces an error
+    // rather than stalling the UI task that called us.
+    esp_err_t err = twai_transmit(&msg, 0);
+    if (err != ESP_OK) {
+        LOG_WARN("CAN", "sendFrame failed id=0x%lX: %s",
+                 static_cast<unsigned long>(id), esp_err_to_name(err));
+        return false;
+    }
+    return true;
+#endif
+}

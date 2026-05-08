@@ -32,8 +32,6 @@
 #define CFG_MAX_SIGNAL_LEN 32
 #define CFG_MAX_PATH_LEN 48
 #define CFG_MAX_COLOR_LEN 8 // "#RRGGBB\0"
-// Hex-encoded raw CAN payload, up to 8 bytes → 16 hex chars + null
-#define CFG_MAX_CAN_DATA_LEN 17
 
 // ---------------------------------------------------------------------------
 // Color (RGB hex string → uint32_t)
@@ -162,9 +160,11 @@ struct CfgButtonAction {
     char pageId[CFG_MAX_ID_LEN];
     // map_switch payload
     uint8_t mapIndex;
-    // can_raw payload
+    // can_raw payload — frame ID + decoded byte payload (canDataLen ≤ 8).
+    // Empty data (canDataLen==0) is a legal CAN frame and is preserved.
     uint32_t canFrameId;
-    char canData[CFG_MAX_CAN_DATA_LEN]; // hex-encoded payload (e.g. "01020304")
+    uint8_t canData[8];
+    uint8_t canDataLen;
 };
 
 struct CfgButtonParams {

@@ -1,9 +1,16 @@
 {
   "_comment": "CANShift CAN signal mapping — MaxxECU Street, VW VR6 2.9",
   "_warning": "Frame IDs and byte positions are ESTIMATES based on MaxxECU CAN documentation. MUST be verified in MaxxECU PC software under: CAN -> CAN Output -> check enabled frames and byte positions.",
+  "_outboundWarning": "Outbound frame IDs in `out` are UNVERIFIED placeholders. The firmware does not yet read this section at runtime (constants live in include/can_signals_out.h); this block documents the wire format for future configurability — see #262 follow-up.",
   "version": "1.0.0",
   "protocol": "maxxecu_v1.2",
   "canSpeedKbps": 500,
+  "out": {
+    "map_switch": {
+      "id": "0x600",
+      "encoding": "byte0 = mapIndex (1-based, 1..8)"
+    }
+  },
   "signals": [
     {
       "_comment": "=== FRAME 0x370 — Primary engine data ===",

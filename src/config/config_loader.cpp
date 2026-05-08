@@ -125,6 +125,36 @@ TopBarItemPos parseTopBarItemPos(const char *str) {
     return TopBarItemPos::LEFT;
 }
 
+// Decode an even-length, lowercase-or-uppercase hex string into a byte buffer.
+// Returns true and writes `*outLen` on success. Returns false (without
+// touching `out`) on any of:
+//   - hex == nullptr
+//   - odd length
+//   - decoded length > maxLen
+//   - any non-hex character in `hex`
+// Empty input is allowed and yields *outLen == 0.
+bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outLen) {
+    if (!hex || !out || !outLen)
+        return false;
+    const size_t hexLen = strlen(hex);
+    if (hexLen % 2 != 0)
+        return false;
+    const size_t byteLen = hexLen / 2;
+    if (byteLen > maxLen)
+        return false;
+
+    for (size_t i = 0; i < byteLen; ++i) {
+        char buf[3] = { hex[i * 2], hex[i * 2 + 1], '\0' };
+        char *end = nullptr;
+        const unsigned long v = strtoul(buf, &end, 16);
+        if (end != buf + 2 || v > 0xFFu)
+            return false;
+        out[i] = static_cast<uint8_t>(v);
+    }
+    *outLen = static_cast<uint8_t>(byteLen);
+    return true;
+}
+
 CfgButtonActionType parseButtonActionType(const char *category, const char *type) {
     if (!type)
         return CfgButtonActionType::UNKNOWN;
@@ -145,7 +175,8 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     out->pageId[0] = '\0';
     out->mapIndex = 0;
     out->canFrameId = 0;
-    out->canData[0] = '\0';
+    out->canDataLen = 0;
+    memset(out->canData, 0, sizeof(out->canData));
 
     switch (out->type) {
         case CfgButtonActionType::NAV_PAGE:
@@ -171,7 +202,17 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
                 const char *fs = fv.as<const char *>();
                 out->canFrameId = fs ? static_cast<uint32_t>(strtoul(fs, nullptr, 0)) : 0;
             }
-            strlcpy(out->canData, src["data"] | "", sizeof(out->canData));
+            // Decode hex payload up to 8 bytes. Empty string is allowed and
+            // yields canDataLen=0 (legal DLC=0 frame). Anything malformed or
+            // oversized is demoted to UNKNOWN so the caller skips this action.
+            const char *hex = src["data"] | "";
+            if (!decodeHexBytes(hex, out->canData, sizeof(out->canData), &out->canDataLen)) {
+                LOG_WARN("CFG", "can_raw: invalid data='%s' (must be ≤16 even-length hex chars)",
+                         hex);
+                out->type = CfgButtonActionType::UNKNOWN;
+                out->canDataLen = 0;
+                memset(out->canData, 0, sizeof(out->canData));
+            }
             break;
         }
         case CfgButtonActionType::UNKNOWN:
@@ -416,7 +457,8 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                     strlcpy(a.pageId, legacy, sizeof(a.pageId));
                     a.mapIndex = 0;
                     a.canFrameId = 0;
-                    a.canData[0] = '\0';
+                    a.canDataLen = 0;
+                    memset(a.canData, 0, sizeof(a.canData));
                     w->button.actionsCount = 1;
                 }
             }

@@ -1,6 +1,8 @@
 // button_widget.cpp — Tap-action button (page nav, ECU map switch, raw CAN, …)
 
 #include "button_widget.h"
+#include "can/can_manager.h"
+#include "can_signals_out.h"
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
 #include "diag/logger.h"
@@ -63,15 +65,31 @@ void dispatchAction(const CfgButtonAction &a) {
             if (a.pageId[0] != '\0')
                 PageManager::navigateTo(a.pageId);
             break;
-        case CfgButtonActionType::MAP_SWITCH:
-            // TODO(#XXX): wire ECU map_switch dispatch — tracked as follow-up.
-            LOG_INFO("BTN", "map_switch action (mapIndex=%u) not yet implemented",
-                     static_cast<unsigned>(a.mapIndex));
+        case CfgButtonActionType::MAP_SWITCH: {
+            // Outbound frame ID is an UNVERIFIED placeholder (see
+            // can_signals_out.h). Warn once per session so the field tester
+            // sees it in logs without spamming on every press.
+            static bool s_warnedMapSwitchUnverified = false;
+            if (!s_warnedMapSwitchUnverified) {
+                LOG_WARN("BTN",
+                         "map_switch frame id=0x%lX is UNVERIFIED — confirm against ECU",
+                         static_cast<unsigned long>(CAN_OUT_MAP_SWITCH_ID));
+                s_warnedMapSwitchUnverified = true;
+            }
+            if (a.mapIndex < MAP_SWITCH_MIN_INDEX || a.mapIndex > MAP_SWITCH_MAX_INDEX) {
+                LOG_WARN("BTN", "map_switch: mapIndex=%u out of range [%u,%u] — dropped",
+                         static_cast<unsigned>(a.mapIndex),
+                         static_cast<unsigned>(MAP_SWITCH_MIN_INDEX),
+                         static_cast<unsigned>(MAP_SWITCH_MAX_INDEX));
+                break;
+            }
+            const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = { a.mapIndex };
+            (void)CanManager::sendFrame(CAN_OUT_MAP_SWITCH_ID, payload,
+                                        CAN_OUT_MAP_SWITCH_DLC);
             break;
+        }
         case CfgButtonActionType::CAN_RAW:
-            // TODO(#XXX): wire raw CAN frame send — tracked as follow-up.
-            LOG_INFO("BTN", "can_raw action (frameId=0x%lX) not yet implemented",
-                     static_cast<unsigned long>(a.canFrameId));
+            (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen);
             break;
         case CfgButtonActionType::UNKNOWN:
         default:
