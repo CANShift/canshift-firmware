@@ -202,6 +202,12 @@
 //     under a shared mutex (issue #199).
 #define USB_PROTOCOL_VERSION 2
 
+// How long the burn-overlay error state stays visible before it tears
+// itself down and uncovers the dashboard underneath. Long enough for the
+// driver to read the message at a glance, short enough that nothing
+// important is hidden if they look away (issue #189).
+#define BURN_OVERLAY_ERROR_HOLD_MS 3000
+
 // ---------------------------------------------------------------------------
 // Simulation mode config
 // ---------------------------------------------------------------------------

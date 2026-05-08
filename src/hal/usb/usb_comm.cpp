@@ -206,10 +206,13 @@ void handlePutConfig(const char *jsonLine) {
     if (!ok) {
         LOG_ERROR("USB", "PUT_CONFIG: SD write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
-        // Tear down the overlay so the user isn't stuck staring at a misleading
-        // "Saving…" state — the dashboard is still alive on the underlying page.
+        // Flip the overlay to its error state so the LCD itself surfaces the
+        // failure instead of just snapping back to the dashboard. showError()
+        // schedules its own teardown via an lv_timer one-shot — no extra
+        // sleep here, so we don't block the USB task while the message
+        // holds (issue #189).
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            BurnOverlay::hide();
+            BurnOverlay::showError(BurnOverlay::ErrorReason::SdWriteFailed);
             xSemaphoreGive(g_lvglMutex);
         }
         return;

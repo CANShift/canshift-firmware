@@ -1,12 +1,14 @@
 // burn_overlay.cpp — see header for rationale.
 
 #include "burn_overlay.h"
+#include "app_config.h"
 #include "ui/font_manager.h"
 
 namespace {
 
 lv_obj_t *s_overlay = nullptr;
 lv_obj_t *s_arc = nullptr;
+lv_timer_t *s_errorTimer = nullptr;
 
 // Drive the indicator's start angle; the bg-angle window keeps the same span
 // (kArcSpan), so changing only the start makes the segment chase its tail
@@ -21,17 +23,26 @@ void arcAnimCb(void *var, int32_t value) {
     lv_arc_set_angles(arc, start, end);
 }
 
-} // namespace
-
-void BurnOverlay::show() {
-    // Re-show is allowed — tear down any previous instance first.
+// Tear down any existing overlay state — animations, timers, and the root
+// container. Caller must hold g_lvglMutex.
+void teardownOverlay() {
+    if (s_errorTimer) {
+        lv_timer_del(s_errorTimer);
+        s_errorTimer = nullptr;
+    }
+    if (s_arc) {
+        lv_anim_del(s_arc, arcAnimCb);
+        s_arc = nullptr;
+    }
     if (s_overlay) {
         lv_obj_del(s_overlay);
         s_overlay = nullptr;
-        s_arc = nullptr;
     }
+}
 
-    // Full-screen container on lv_layer_top so it floats above the active page.
+// Build the full-screen black backdrop on lv_layer_top. Returns the root.
+// Shared by show() (spinner state) and showError() (error state).
+lv_obj_t *createRoot() {
     lv_obj_t *root = lv_obj_create(lv_layer_top());
     lv_obj_set_size(root, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_pos(root, 0, 0);
@@ -45,6 +56,40 @@ void BurnOverlay::show() {
     lv_obj_set_style_radius(root, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(root, 0, LV_PART_MAIN);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_CLICKABLE);
+    return root;
+}
+
+const char *errorTitleFor(BurnOverlay::ErrorReason reason) {
+    switch (reason) {
+        case BurnOverlay::ErrorReason::SdWriteFailed:
+            return "SD write failed";
+    }
+    return "Save failed";
+}
+
+const char *errorHintFor(BurnOverlay::ErrorReason reason) {
+    switch (reason) {
+        case BurnOverlay::ErrorReason::SdWriteFailed:
+            return "Eject card and retry";
+    }
+    return "Retry from studio";
+}
+
+// lv_timer callback — runs inside lv_task_handler(), which the UI task
+// only invokes while already holding g_lvglMutex. Safe to touch LVGL state.
+void errorHoldExpiredCb(lv_timer_t *timer) {
+    s_errorTimer = nullptr; // timer auto-deletes after this returns (one-shot)
+    (void)timer;
+    BurnOverlay::hide();
+}
+
+} // namespace
+
+void BurnOverlay::show() {
+    // Re-show is allowed — tear down any previous instance first.
+    teardownOverlay();
+
+    lv_obj_t *root = createRoot();
 
     // Animated arc — LV_USE_SPINNER is off in this build, so we drive an
     // lv_arc directly with an lv_anim that sweeps the indicator angle.
@@ -98,13 +143,47 @@ void BurnOverlay::show() {
 }
 
 void BurnOverlay::hide() {
-    if (!s_overlay)
+    if (!s_overlay && !s_errorTimer)
         return;
-    if (s_arc) {
-        lv_anim_del(s_arc, arcAnimCb);
-        s_arc = nullptr;
+    teardownOverlay();
+    lv_refr_now(nullptr);
+}
+
+void BurnOverlay::showError(ErrorReason reason) {
+    // Drop the spinner state but keep the same backdrop colour so the swap
+    // doesn't flash through to the dashboard underneath.
+    teardownOverlay();
+
+    lv_obj_t *root = createRoot();
+
+    // Big warning glyph at the top — built-in LVGL symbol, no extra font.
+    lv_obj_t *icon = lv_label_create(root);
+    lv_label_set_text(icon, LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_color(icon, lv_color_hex(0xE04040), 0);
+    lv_obj_set_style_text_font(icon, FontManager::get(28), 0);
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, -32);
+
+    lv_obj_t *title = lv_label_create(root);
+    lv_label_set_text(title, errorTitleFor(reason));
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(title, FontManager::get(16), 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, 12);
+
+    lv_obj_t *hint = lv_label_create(root);
+    lv_label_set_text(hint, errorHintFor(reason));
+    lv_obj_set_style_text_color(hint, lv_color_hex(0x888888), 0);
+    lv_obj_set_style_text_font(hint, FontManager::get(12), 0);
+    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 40);
+
+    s_overlay = root;
+
+    // One-shot teardown — the timer fires from inside lv_task_handler(),
+    // which only runs while the UI task holds g_lvglMutex, so the callback
+    // is implicitly thread-safe with respect to LVGL state.
+    s_errorTimer = lv_timer_create(errorHoldExpiredCb, BURN_OVERLAY_ERROR_HOLD_MS, nullptr);
+    if (s_errorTimer) {
+        lv_timer_set_repeat_count(s_errorTimer, 1);
     }
-    lv_obj_del(s_overlay);
-    s_overlay = nullptr;
+
     lv_refr_now(nullptr);
 }
