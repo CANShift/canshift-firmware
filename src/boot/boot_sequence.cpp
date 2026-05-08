@@ -18,6 +18,7 @@
 #include "ui/page_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/font_manager.h"
+#include "ui/top_bar.h"
 
 #if !APP_SIMULATION_MODE
     #include "can/can_manager.h"
@@ -115,61 +116,20 @@ static void showSplash() {
 // boot helpers can read it before getSdStatus() resolves.
 static BootSequence::SdStatus s_sdStatus = BootSequence::SdStatus::Ok;
 
-// SD-status badge — small persistent label rendered on lv_layer_top() in
-// the top-right corner. Visible across page changes and stays out of the
-// way of the dashboard. Created lazily after buildUI() when the SD did
-// not mount cleanly. Distinct text + color for "no card" vs "mount fail"
-// gives the user a fighting chance at diagnosing without a serial console.
-static constexpr int16_t SD_BADGE_X_OFFSET = -4;
-static constexpr int16_t SD_BADGE_Y_OFFSET = 4;
-// Amber for "no card" — actionable, just insert one.
-static constexpr uint32_t SD_BADGE_NO_CARD_BG = 0xCC8800;
-// Red for "mount failed" — wiring/firmware issue, needs an investigation.
-static constexpr uint32_t SD_BADGE_FAIL_BG = 0xCC3333;
-static constexpr uint32_t SD_BADGE_FG = 0xFFFFFF;
-static constexpr int16_t SD_BADGE_PAD_X = 4;
-static constexpr int16_t SD_BADGE_PAD_Y = 1;
-
-// Tracked so SD hot-plug recovery (issue #251) can drop the badge once a
-// retry succeeds. Previously the badge was created and the pointer was
-// abandoned, leaving no handle to clear it on recovery.
-static lv_obj_t *s_sdBadge = nullptr;
-
-static void clearSdBadge() {
-    if (s_sdBadge != nullptr) {
-        lv_obj_del(s_sdBadge);
-        s_sdBadge = nullptr;
-    }
-}
+// SD-status badge — surfaced via the topbar warnings cluster (issue #253).
+// The cluster is a generic firmware-driven slot on lv_layer_top() that lives
+// inside the topbar; SD warnings are one of its first consumers. Distinct
+// text + color for "no card" vs "mount fail" gives the user a fighting
+// chance at diagnosing without a serial console.
+//
+// Note: showSdBadge() may be called before TopBar::init() has run during
+// the very first boot path; TopBar::setWarning() is a no-op in that case
+// and the dashboard buildUI() step calls showSdBadge() again afterwards.
 
 static void showSdBadge(BootSequence::SdStatus status) {
-    if (status == BootSequence::SdStatus::Ok) {
-        clearSdBadge();
-        return;
-    }
-
-    // Drop a stale badge so a NoCard → MountFailed transition (or vice
-    // versa) re-renders with the correct color and label rather than
-    // stacking a second label on top of the first.
-    clearSdBadge();
-
-    const char *text = status == BootSequence::SdStatus::NoCard ? "NO SD" : "SD ERR";
-    const uint32_t bg =
-        status == BootSequence::SdStatus::NoCard ? SD_BADGE_NO_CARD_BG : SD_BADGE_FAIL_BG;
-
-    lv_obj_t *badge = lv_label_create(lv_layer_top());
-    lv_label_set_text(badge, text);
-    lv_obj_set_style_text_color(badge, lv_color_hex(SD_BADGE_FG), 0);
-    lv_obj_set_style_bg_color(badge, lv_color_hex(bg), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(badge, 2, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(badge, SD_BADGE_PAD_X, LV_PART_MAIN);
-    lv_obj_set_style_pad_ver(badge, SD_BADGE_PAD_Y, LV_PART_MAIN);
-    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, SD_BADGE_X_OFFSET, SD_BADGE_Y_OFFSET);
-    lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-
-    s_sdBadge = badge;
+    using TopBar::WarningKind;
+    TopBar::setWarning(WarningKind::NoSd, status == BootSequence::SdStatus::NoCard);
+    TopBar::setWarning(WarningKind::SdError, status == BootSequence::SdStatus::MountFailed);
 }
 
 // Advance the bar and update the status text between init steps.
@@ -433,7 +393,7 @@ bool BootSequence::tryRecoverSd() {
     }
 
     s_sdStatus = SdStatus::Ok;
-    clearSdBadge();
+    showSdBadge(s_sdStatus); // clears any active SD warning
 
     // Rebuild the UI from the freshly loaded config. reinit() picks the
     // right path: empty-config boot (setup screen) → first-time build,

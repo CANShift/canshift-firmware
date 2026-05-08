@@ -31,6 +31,25 @@
 
 static lv_obj_t *s_bar = nullptr;
 
+// Warnings cluster — a small container anchored to the right edge of the bar
+// that holds firmware-driven warning badges (NO SD, future: CAN errors, low
+// fuel, etc.). Grows leftward as badges are added; stays right-aligned.
+//
+// The cluster is built once in init() but only made visible when at least
+// one warning is active. Each badge is a small label inside the cluster.
+//
+// Configured items are rendered before init builds the cluster, so the
+// cluster always paints on top in the right-most position. A small gap is
+// kept from any configured right-aligned item via TopBarItemPos::RIGHT
+// alignment offsets.
+static lv_obj_t *s_warningsCluster = nullptr;
+
+struct WarningBadge {
+    lv_obj_t *obj; // nullptr when inactive
+    bool active;
+};
+static WarningBadge s_warnings[TopBar::WarningKindCount] = {};
+
 // Hardcoded-layout handles. Used when `topBar.layout` is absent (legacy path).
 // When the layout is config-driven these stay null and update() walks the
 // dynamic-item table instead.
@@ -50,7 +69,7 @@ static int16_t s_height = 30;
 // Each entry stores the LVGL handle plus the metadata needed for update().
 struct DynItem {
     TopBarItemKind kind;
-    lv_obj_t *obj;             // primary lv object (label / dot)
+    lv_obj_t *obj; // primary lv object (label / dot)
     char signalId[CFG_MAX_SIGNAL_LEN];
     char format[16];
     // Cached last-rendered values — updates are skipped when nothing changed,
@@ -67,12 +86,31 @@ static uint8_t s_dynCount = 0;
 // scripts/png_to_lvgl_bin.py. We can't use the Unicode sun/moon glyphs
 // because the compile-time Montserrat fonts don't include them.
 
-static constexpr uint32_t COLOR_DOT_OK    = 0x33CC44; // green — connected, fresh data
+static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;    // green — connected, fresh data
 static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800; // orange — was connected but timing out
-static constexpr uint32_t COLOR_DOT_DOWN  = 0xCC3333; // red — never connected since boot
-static constexpr uint32_t COLOR_USB_OFF   = 0x444444; // gray — host not active
-static constexpr uint32_t COLOR_LABEL     = 0xCCCCCC;
-static constexpr uint32_t COLOR_MUTED     = 0x666666;
+static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;  // red — never connected since boot
+static constexpr uint32_t COLOR_USB_OFF = 0x444444;   // gray — host not active
+static constexpr uint32_t COLOR_LABEL = 0xCCCCCC;
+static constexpr uint32_t COLOR_MUTED = 0x666666;
+
+// Warning badge palette + text. Index-aligned with TopBar::WarningKind.
+struct WarningSpec {
+    const char *text;
+    uint32_t bgColor;
+    uint32_t fgColor;
+};
+static constexpr WarningSpec WARNING_SPECS[TopBar::WarningKindCount] = {
+    {"NO SD", 0xCC8800, 0xFFFFFF},  // amber — actionable, just insert one
+    {"SD ERR", 0xCC3333, 0xFFFFFF}, // red — wiring/firmware issue
+};
+
+// Gap between the bar's right edge and the rightmost warning badge.
+static constexpr int16_t WARNING_CLUSTER_RIGHT_PAD = 0;
+// Gap between adjacent warning badges inside the cluster.
+static constexpr int16_t WARNING_BADGE_GAP = 4;
+// Inner padding of each badge label.
+static constexpr int16_t WARNING_BADGE_PAD_X = 4;
+static constexpr int16_t WARNING_BADGE_PAD_Y = 1;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -101,12 +139,73 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     return lbl;
 }
 
+// Build (once) the empty warnings cluster anchored to the right edge of the
+// bar. Stays hidden until the first setWarning(kind, true) call. Re-uses the
+// bar's pad_all so badges align vertically with other items.
+static void buildWarningsCluster() {
+    if (s_bar == nullptr)
+        return;
+    s_warningsCluster = lv_obj_create(s_bar);
+    // Sized just-large-enough to hold the badges; lv_obj_set_content_width()
+    // would let LVGL size around children, but setting an explicit size and
+    // re-aligning children manually is simpler and avoids layout reflows.
+    lv_obj_set_size(s_warningsCluster, 0, s_height - 4);
+    lv_obj_set_style_bg_opa(s_warningsCluster, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_warningsCluster, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_warningsCluster, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(s_warningsCluster, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(s_warningsCluster, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_align(s_warningsCluster, LV_ALIGN_RIGHT_MID, -WARNING_CLUSTER_RIGHT_PAD, 0);
+    lv_obj_add_flag(s_warningsCluster, LV_OBJ_FLAG_HIDDEN);
+
+    for (uint8_t i = 0; i < TopBar::WarningKindCount; ++i) {
+        s_warnings[i].obj = nullptr;
+        s_warnings[i].active = false;
+    }
+}
+
+// Re-pack all active warning badges right-to-left inside the cluster and
+// resize the cluster to fit. Called after every setWarning() so the layout
+// stays compact when warnings come and go.
+static void relayoutWarnings() {
+    if (s_warningsCluster == nullptr)
+        return;
+
+    int16_t totalWidth = 0;
+    uint8_t activeCount = 0;
+    lv_obj_t *prev = nullptr;
+    for (uint8_t i = 0; i < TopBar::WarningKindCount; ++i) {
+        if (!s_warnings[i].active || s_warnings[i].obj == nullptr)
+            continue;
+        lv_obj_update_layout(s_warnings[i].obj);
+        const lv_coord_t w = lv_obj_get_width(s_warnings[i].obj);
+        if (prev == nullptr) {
+            lv_obj_align(s_warnings[i].obj, LV_ALIGN_RIGHT_MID, 0, 0);
+            totalWidth = w;
+        } else {
+            lv_obj_align_to(s_warnings[i].obj, prev, LV_ALIGN_OUT_LEFT_MID, -WARNING_BADGE_GAP, 0);
+            totalWidth += WARNING_BADGE_GAP + w;
+        }
+        prev = s_warnings[i].obj;
+        ++activeCount;
+    }
+
+    if (activeCount == 0) {
+        lv_obj_add_flag(s_warningsCluster, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_width(s_warningsCluster, 0);
+        return;
+    }
+    lv_obj_clear_flag(s_warningsCluster, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_width(s_warningsCluster, totalWidth);
+    lv_obj_align(s_warningsCluster, LV_ALIGN_RIGHT_MID, -WARNING_CLUSTER_RIGHT_PAD, 0);
+}
+
 // True when at least one signal in the store is currently valid. Used by
 // `statusDot` items with signal="any" (the legacy "CAN" presence dot).
 static bool anySignalValid() {
-    return SignalStore::isValid(SignalIds::RPM)
-        || SignalStore::isValid(SignalIds::COOLANT_TEMP_C)
-        || SignalStore::isValid(SignalIds::BATTERY_VOLTS);
+    return SignalStore::isValid(SignalIds::RPM) ||
+           SignalStore::isValid(SignalIds::COOLANT_TEMP_C) ||
+           SignalStore::isValid(SignalIds::BATTERY_VOLTS);
 }
 
 // ---------------------------------------------------------------------------
@@ -201,9 +300,9 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
     prevByPos[static_cast<uint8_t>(item.position)] = obj;
 
     // Track dynamic items for update()
-    bool needsUpdate = (item.kind == TopBarItemKind::STATUS_DOT ||
-                        item.kind == TopBarItemKind::SIGNAL ||
-                        item.kind == TopBarItemKind::USB_ICON);
+    bool needsUpdate =
+        (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
+         item.kind == TopBarItemKind::USB_ICON);
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         DynItem &d = s_dynItems[s_dynCount++];
         d.kind = item.kind;
@@ -249,17 +348,15 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
     // glyphs). Use lv_img directly with a CLICKABLE flag — lv_imgbtn would need
     // 3-state sources (released/pressed/checked) which we don't have.
     s_themeIcon = lv_img_create(s_bar);
-    lv_img_set_src(s_themeIcon,
-                   ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
-                                             : "S:/assets/icon_night.bin");
+    lv_img_set_src(s_themeIcon, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
+                                                          : "S:/assets/icon_night.bin");
     lv_obj_align(s_themeIcon, LV_ALIGN_RIGHT_MID, 0, 0);
     if (dash.hasDayTheme) {
         lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_CLICKABLE);
         // See layout-driven path: extend hit-test by 10 px (#93).
         lv_obj_set_ext_click_area(s_themeIcon, 10);
         lv_obj_add_event_cb(
-            s_themeIcon,
-            [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
+            s_themeIcon, [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
             LV_EVENT_CLICKED, nullptr);
     } else {
         lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_HIDDEN);
@@ -318,7 +415,8 @@ void TopBar::init() {
             // that would close it again — net effect is a flicker. Skip the
             // close if Settings was opened in the last ~300 ms (i.e. opened
             // by the same touch event).
-            if (millis() - SettingsPage::lastOpenMs() < 300) return;
+            if (millis() - SettingsPage::lastOpenMs() < 300)
+                return;
             LOG_INFO("UI", "Top bar tapped — closing Settings");
             SettingsPage::close();
         },
@@ -328,13 +426,22 @@ void TopBar::init() {
     // currently doesn't, but cheap insurance).
     s_ecuDot = s_ecuLabel = s_canDot = s_canLabel = nullptr;
     s_voltageLabel = s_usbIcon = s_themeIcon = nullptr;
+    s_warningsCluster = nullptr;
     s_dynCount = 0;
+    for (uint8_t i = 0; i < TopBar::WarningKindCount; ++i) {
+        s_warnings[i].obj = nullptr;
+        s_warnings[i].active = false;
+    }
 
     if (cfg.hasLayout) {
         buildFromLayout(cfg, dash.hasDayTheme);
     } else {
         buildLegacyHardcoded(dash);
     }
+
+    // Build the warnings cluster last so it draws on top of any configured
+    // right-aligned items. Empty + hidden by default; setWarning() reveals it.
+    buildWarningsCluster();
 
     SettingsPage::init(s_height, static_cast<int16_t>(LV_VER_RES - s_height));
 
@@ -343,13 +450,13 @@ void TopBar::init() {
 }
 
 void TopBar::reapplyTheme() {
-    if (!s_bar) return;
+    if (!s_bar)
+        return;
     const CfgTopBar &cfg = ConfigLoader::getDashboardConfig().topBar;
     lv_obj_set_style_bg_color(s_bar, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
     if (s_themeIcon) {
-        lv_img_set_src(s_themeIcon,
-                       ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
-                                                 : "S:/assets/icon_night.bin");
+        lv_img_set_src(s_themeIcon, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
+                                                              : "S:/assets/icon_night.bin");
     }
 }
 
@@ -357,7 +464,8 @@ void TopBar::reapplyTheme() {
 // "stale" (orange) once it's been seen at least once and "down" (red)
 // before any sample has arrived this boot.
 static uint32_t statusDotColor(bool valid, bool everSeen) {
-    if (valid) return COLOR_DOT_OK;
+    if (valid)
+        return COLOR_DOT_OK;
     return everSeen ? COLOR_DOT_STALE : COLOR_DOT_DOWN;
 }
 
@@ -372,9 +480,11 @@ static void updateDynStatusDot(uint8_t idx, DynItem &d) {
         SignalId sid = signalIdFromName(d.signalId);
         valid = (sid < SignalIds::SIGNAL_COUNT) && SignalStore::isValid(sid);
     }
-    if (valid) s_dynEverSeen[idx] = true;
+    if (valid)
+        s_dynEverSeen[idx] = true;
     const uint32_t color = statusDotColor(valid, s_dynEverSeen[idx]);
-    if (color == d.lastColor) return; // skip lvgl style write — no change
+    if (color == d.lastColor)
+        return; // skip lvgl style write — no change
     lv_obj_set_style_bg_color(d.obj, lv_color_hex(color), LV_PART_MAIN);
     d.lastColor = color;
 }
@@ -405,23 +515,33 @@ static void updateDynSignalLabel(DynItem &d) {
 static void updateUsbIcon(lv_obj_t *obj, DynItem *d) {
     const bool active = UsbComm::isHostActive();
     const uint32_t color = active ? COLOR_DOT_OK : COLOR_USB_OFF;
-    if (d != nullptr && color == d->lastColor) return;
+    if (d != nullptr && color == d->lastColor)
+        return;
     lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
-    if (d != nullptr) d->lastColor = color;
+    if (d != nullptr)
+        d->lastColor = color;
 }
 
 void TopBar::update() {
-    if (!s_bar) return;
+    if (!s_bar)
+        return;
 
     // ---- Layout-driven path ----
     if (s_dynCount > 0) {
         for (uint8_t i = 0; i < s_dynCount; ++i) {
             DynItem &d = s_dynItems[i];
             switch (d.kind) {
-                case TopBarItemKind::STATUS_DOT: updateDynStatusDot(i, d); break;
-                case TopBarItemKind::SIGNAL:     updateDynSignalLabel(d); break;
-                case TopBarItemKind::USB_ICON:   updateUsbIcon(d.obj, &d); break;
-                default: break;
+                case TopBarItemKind::STATUS_DOT:
+                    updateDynStatusDot(i, d);
+                    break;
+                case TopBarItemKind::SIGNAL:
+                    updateDynSignalLabel(d);
+                    break;
+                case TopBarItemKind::USB_ICON:
+                    updateUsbIcon(d.obj, &d);
+                    break;
+                default:
+                    break;
             }
         }
         return;
@@ -440,8 +560,10 @@ void TopBar::update() {
 
     const bool ecuValid = SignalStore::isValid(SignalIds::RPM);
     const bool canValid = ecuValid || anySignalValid();
-    if (ecuValid) s_ecuEverSeen = true;
-    if (canValid) s_canEverSeen = true;
+    if (ecuValid)
+        s_ecuEverSeen = true;
+    if (canValid)
+        s_canEverSeen = true;
 
     if (s_ecuDot) {
         const uint32_t c = statusDotColor(ecuValid, s_ecuEverSeen);
@@ -489,4 +611,39 @@ void TopBar::update() {
 
 int16_t TopBar::getHeight() {
     return s_height;
+}
+
+void TopBar::setWarning(WarningKind kind, bool active) {
+    const uint8_t idx = static_cast<uint8_t>(kind);
+    if (idx >= TopBar::WarningKindCount)
+        return;
+    if (s_warningsCluster == nullptr)
+        return; // init() not yet run
+    if (s_warnings[idx].active == active)
+        return; // idempotent
+
+    if (active) {
+        const WarningSpec &spec = WARNING_SPECS[idx];
+        lv_obj_t *badge = lv_label_create(s_warningsCluster);
+        lv_label_set_text(badge, spec.text);
+        lv_obj_set_style_text_color(badge, lv_color_hex(spec.fgColor), 0);
+        lv_obj_set_style_text_font(badge, FontManager::get(12), 0);
+        lv_obj_set_style_bg_color(badge, lv_color_hex(spec.bgColor), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(badge, 2, LV_PART_MAIN);
+        lv_obj_set_style_pad_hor(badge, WARNING_BADGE_PAD_X, LV_PART_MAIN);
+        lv_obj_set_style_pad_ver(badge, WARNING_BADGE_PAD_Y, LV_PART_MAIN);
+        lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
+        s_warnings[idx].obj = badge;
+        s_warnings[idx].active = true;
+    } else {
+        if (s_warnings[idx].obj != nullptr) {
+            lv_obj_del(s_warnings[idx].obj);
+            s_warnings[idx].obj = nullptr;
+        }
+        s_warnings[idx].active = false;
+    }
+
+    relayoutWarnings();
 }
