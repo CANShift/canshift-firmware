@@ -125,6 +125,61 @@ TopBarItemPos parseTopBarItemPos(const char *str) {
     return TopBarItemPos::LEFT;
 }
 
+CfgButtonActionType parseButtonActionType(const char *category, const char *type) {
+    if (!type)
+        return CfgButtonActionType::UNKNOWN;
+    if (strcmp(type, "navigate") == 0)
+        return CfgButtonActionType::NAV_PAGE;
+    if (strcmp(type, "map_switch") == 0)
+        return CfgButtonActionType::MAP_SWITCH;
+    if (strcmp(type, "can_raw") == 0)
+        return CfgButtonActionType::CAN_RAW;
+    (void)category;
+    return CfgButtonActionType::UNKNOWN;
+}
+
+void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
+    const char *category = src["category"] | "";
+    const char *type = src["type"] | "";
+    out->type = parseButtonActionType(category, type);
+    out->pageId[0] = '\0';
+    out->mapIndex = 0;
+    out->canFrameId = 0;
+    out->canData[0] = '\0';
+
+    switch (out->type) {
+        case CfgButtonActionType::NAV_PAGE:
+            strlcpy(out->pageId, src["pageId"] | "", sizeof(out->pageId));
+            break;
+        case CfgButtonActionType::MAP_SWITCH: {
+            int idx = src["mapIndex"] | 0;
+            if (idx < 0)
+                idx = 0;
+            if (idx > 255)
+                idx = 255;
+            out->mapIndex = static_cast<uint8_t>(idx);
+            break;
+        }
+        case CfgButtonActionType::CAN_RAW: {
+            // frameId may arrive as int or hex string in studio writes; ArduinoJson
+            // surfaces both as the JSON variant — read as uint32_t when numeric,
+            // otherwise parse the string.
+            JsonVariantConst fv = src["frameId"];
+            if (fv.is<uint32_t>()) {
+                out->canFrameId = fv.as<uint32_t>();
+            } else {
+                const char *fs = fv.as<const char *>();
+                out->canFrameId = fs ? static_cast<uint32_t>(strtoul(fs, nullptr, 0)) : 0;
+            }
+            strlcpy(out->canData, src["data"] | "", sizeof(out->canData));
+            break;
+        }
+        case CfgButtonActionType::UNKNOWN:
+        default:
+            break;
+    }
+}
+
 CfgLabelPos parseLabelPos(const char *str) {
     if (!str)
         return CfgLabelPos::TOP_LEFT;
@@ -268,6 +323,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->gauge.alertThreshold = alertThreshold;
                 w->gauge.showNeedle = cfg["showNeedle"] | false;
                 w->gauge.showArc = cfg["showArc"] | true;
+                w->gauge.revFlash = cfg["revFlash"] | false;
                 w->gauge.decimalPlaces = cfg["decimalPlaces"] | 0;
                 strlcpy(w->gauge.prefix, cfg["prefix"] | "", sizeof(w->gauge.prefix));
                 strlcpy(w->gauge.suffix, cfg["suffix"] | "", sizeof(w->gauge.suffix));
@@ -309,11 +365,63 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             w->bar.labelPosition = parseLabelPos(cfg["labelPosition"] | "bottom-center");
             strlcpy(w->bar.iconName, cfg["iconName"] | "", sizeof(w->bar.iconName));
             break;
-        case WidgetType::BUTTON:
-            strlcpy(w->button.targetPageId, cfg["targetPageId"] | "", CFG_MAX_ID_LEN);
+        case WidgetType::BUTTON: {
             strlcpy(w->button.label, cfg["label"] | "", CFG_MAX_NAME_LEN);
             strlcpy(w->button.iconPath, cfg["iconPath"] | "", CFG_MAX_PATH_LEN);
+            strlcpy(w->button.iconName, cfg["iconName"] | "", sizeof(w->button.iconName));
+            w->button.isToggle = cfg["isToggle"] | false;
+            w->button.showIcon = cfg["showIcon"] | true;
+            w->button.showLabel = cfg["showLabel"] | true;
+            JsonObjectConst colors = cfg["colors"];
+            w->button.hasColors = !colors.isNull();
+            if (w->button.hasColors) {
+                parseColor(colors["normal"] | "#FFFFFF", &w->button.colorNormal);
+                parseColor(colors["active"] | "#FFFFFF", &w->button.colorActive);
+            } else {
+                w->button.colorNormal.rgb = 0x000000;
+                w->button.colorActive.rgb = 0x000000;
+            }
+
+            // Parse actions[]; fall back to legacy targetPageId when absent/empty.
+            w->button.actionsCount = 0;
+            JsonArrayConst actionsArr = cfg["actions"];
+            if (!actionsArr.isNull()) {
+                const size_t total = actionsArr.size();
+                if (total > CFG_MAX_BUTTON_ACTIONS) {
+                    LOG_WARN(
+                        "BTN",
+                        "button '%s': %u actions exceed CFG_MAX_BUTTON_ACTIONS=%u — extras ignored",
+                        w->id, static_cast<unsigned>(total),
+                        static_cast<unsigned>(CFG_MAX_BUTTON_ACTIONS));
+                }
+                for (JsonObjectConst a : actionsArr) {
+                    if (w->button.actionsCount >= CFG_MAX_BUTTON_ACTIONS)
+                        break;
+                    CfgButtonAction parsed;
+                    parseButtonAction(a, &parsed);
+                    if (parsed.type == CfgButtonActionType::UNKNOWN) {
+                        const char *type = a["type"] | "";
+                        LOG_WARN("BTN", "button '%s': unknown action type '%s' — skipped", w->id,
+                                 type);
+                        continue;
+                    }
+                    w->button.actions[w->button.actionsCount++] = parsed;
+                }
+            }
+            if (w->button.actionsCount == 0) {
+                const char *legacy = cfg["targetPageId"] | "";
+                if (legacy[0] != '\0') {
+                    CfgButtonAction &a = w->button.actions[0];
+                    a.type = CfgButtonActionType::NAV_PAGE;
+                    strlcpy(a.pageId, legacy, sizeof(a.pageId));
+                    a.mapIndex = 0;
+                    a.canFrameId = 0;
+                    a.canData[0] = '\0';
+                    w->button.actionsCount = 1;
+                }
+            }
             break;
+        }
         case WidgetType::TIMER:
             w->timer.autoStart = cfg["autoStart"] | false;
             w->timer.formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
@@ -356,8 +464,6 @@ bool loadDashboard() {
 
     JsonObjectConst topBar = doc["topBar"];
     s_dashboard.topBar.height = topBar["height"] | 24;
-    s_dashboard.topBar.showMapName = topBar["showMapName"] | true;
-    s_dashboard.topBar.showMapProfile = topBar["showMapProfile"] | false;
     parseColor(topBar["bgColor"] | "#111111", &s_dashboard.topBar.bgColor);
     parseColor(topBar["textColor"] | "#AAAAAA", &s_dashboard.topBar.textColor);
 
@@ -419,7 +525,6 @@ bool loadDashboard() {
 
         CfgPage &p = s_dashboard.pages[s_dashboard.pageCount++];
         strlcpy(p.id, page["id"] | "", CFG_MAX_ID_LEN);
-        strlcpy(p.name, page["name"] | "", CFG_MAX_NAME_LEN);
         strlcpy(p.bgImagePath, page["backgroundImage"] | "", CFG_MAX_PATH_LEN);
         parseColor(page["backgroundColor"] | "#1A1A1A", &p.bgColor);
 
@@ -434,6 +539,7 @@ bool loadDashboard() {
         parseColor(palette["success"] | "#00CC44", &p.palette.success);
 
         p.showTopBar = page["showTopBar"] | true;
+        p.visible = page["visible"] | true;
         p.widgetCount = 0;
 
         JsonArrayConst widgets = page["widgets"];

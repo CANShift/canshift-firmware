@@ -22,12 +22,18 @@
 // this cap are dropped at parse time with a LOG_WARN.
 #define CFG_MAX_TOPBAR_ITEMS 16
 
+// Maximum number of actions a single button widget can fire on press.
+// Studio writes ButtonWidgetConfig.actions[]; firmware drops any beyond this cap.
+#define CFG_MAX_BUTTON_ACTIONS 4
+
 // Maximum string lengths for config values
 #define CFG_MAX_ID_LEN 32
 #define CFG_MAX_NAME_LEN 32
 #define CFG_MAX_SIGNAL_LEN 32
 #define CFG_MAX_PATH_LEN 48
 #define CFG_MAX_COLOR_LEN 8 // "#RRGGBB\0"
+// Hex-encoded raw CAN payload, up to 8 bytes → 16 hex chars + null
+#define CFG_MAX_CAN_DATA_LEN 17
 
 // ---------------------------------------------------------------------------
 // Color (RGB hex string → uint32_t)
@@ -99,6 +105,7 @@ struct CfgGaugeParams {
     uint8_t numTicks;
     bool showNeedle;
     bool showArc;
+    bool revFlash; // Pulse the widget red when value reaches revLimitRpm (issue #204)
     uint8_t decimalPlaces;
     char prefix[8];
     char suffix[16];              // Unit label shown below the value (e.g. "RPM", "°C")
@@ -139,10 +146,39 @@ struct CfgWarningParams {
     CfgLabelPos labelPosition;
 };
 
+// Button action types — mirror ButtonAction discriminated union in
+// canshift-core/src/types/dashboard.ts. Unknown / unsupported types are
+// dropped at parse time with a LOG_WARN.
+enum class CfgButtonActionType : uint8_t {
+    UNKNOWN = 0,
+    NAV_PAGE,   // Navigate to dashboard page
+    MAP_SWITCH, // Ask ECU to switch to a specific map slot
+    CAN_RAW,    // Send raw CAN frame
+};
+
+struct CfgButtonAction {
+    CfgButtonActionType type;
+    // nav_page payload
+    char pageId[CFG_MAX_ID_LEN];
+    // map_switch payload
+    uint8_t mapIndex;
+    // can_raw payload
+    uint32_t canFrameId;
+    char canData[CFG_MAX_CAN_DATA_LEN]; // hex-encoded payload (e.g. "01020304")
+};
+
 struct CfgButtonParams {
-    char targetPageId[CFG_MAX_ID_LEN];
     char label[CFG_MAX_NAME_LEN];
     char iconPath[CFG_MAX_PATH_LEN];
+    char iconName[16];     // SensorIconName key, "" = none
+    bool isToggle;         // true = stays active after press; false = momentary
+    bool showIcon;
+    bool showLabel;
+    bool hasColors;        // True when `colors` block was present in JSON
+    CfgColor colorNormal;  // Idle background tint
+    CfgColor colorActive;  // Pressed / hover / triggered tint
+    uint8_t actionsCount;
+    CfgButtonAction actions[CFG_MAX_BUTTON_ACTIONS];
 };
 
 struct CfgTimerParams {
@@ -199,11 +235,11 @@ struct CfgPagePalette {
 // ---------------------------------------------------------------------------
 struct CfgPage {
     char id[CFG_MAX_ID_LEN];
-    char name[CFG_MAX_NAME_LEN];
     char bgImagePath[CFG_MAX_PATH_LEN]; // Empty = no image
     CfgColor bgColor;
     CfgPagePalette palette;
     bool showTopBar;
+    bool visible; // false = page hidden on device (still editable in studio); default true
     uint8_t widgetCount;
     CfgWidget widgets[CONFIG_MAX_WIDGETS_PER_PAGE];
 };
@@ -240,8 +276,6 @@ struct CfgTopBarItem {
 // ---------------------------------------------------------------------------
 struct CfgTopBar {
     uint8_t height; // Pixels (default 24)
-    bool showMapName;
-    bool showMapProfile;
     CfgColor bgColor;
     CfgColor textColor;
     bool hasLayout; // True if `topBar.layout` was present in dashboard.json

@@ -121,9 +121,14 @@ void rebuildAllPages() {
         }
     }
 
-    // Rebuild with the active theme colors
-    for (uint8_t i = 0; i < s_pageCount && i < dash.pageCount; ++i) {
-        buildPage(i, dash.pages[i]);
+    // Rebuild with the active theme colors. Skip hidden pages so the
+    // visible-page index space stays in sync with init() (issue #204).
+    uint8_t outIdx = 0;
+    for (uint8_t i = 0; i < dash.pageCount && outIdx < s_pageCount; ++i) {
+        if (!dash.pages[i].visible)
+            continue;
+        buildPage(outIdx, dash.pages[i]);
+        ++outIdx;
     }
 
     // Return to the page that was active before the rebuild
@@ -344,9 +349,14 @@ void PageManager::init() {
     // Initialize the top bar (persistent overlay, not part of any page)
     TopBar::init();
 
-    // Build all pages
-    for (uint8_t i = 0; i < dash.pageCount && i < MAX_PAGES; ++i) {
-        buildPage(i, dash.pages[i]);
+    // Build only visible pages — hidden pages stay in the studio config but
+    // are excluded from device iteration / navigation (issue #204).
+    for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
+        if (!dash.pages[i].visible) {
+            LOG_INFO("UI", "Skipping hidden page '%s' (visible=false)", dash.pages[i].id);
+            continue;
+        }
+        buildPage(s_pageCount, dash.pages[i]);
         s_pageCount++;
     }
 
