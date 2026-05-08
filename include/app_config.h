@@ -74,6 +74,7 @@
 
 // LVGL tick rate in milliseconds — drives lv_tick_inc()
 // Higher = smoother animations but more CPU load
+// Used by the esp_timer periodic callback installed in setup() (main.cpp).
 #define LVGL_TICK_MS 5 // 5ms = 200 Hz tick
 
 // LVGL task period — how often lv_task_handler() is called

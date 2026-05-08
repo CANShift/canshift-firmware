@@ -2,9 +2,12 @@
 // Boot sequence, FreeRTOS task creation, and main loop.
 
 #include <Arduino.h>
+#include <esp_err.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <lvgl.h>
 
 #include "app_config.h"
 #include "board_config.h"
@@ -30,6 +33,32 @@ void taskSim(void *pvParameters);
 // LVGL is NOT thread-safe. All LVGL calls from any task must hold this mutex.
 // ---------------------------------------------------------------------------
 SemaphoreHandle_t g_lvglMutex = nullptr;
+
+// ---------------------------------------------------------------------------
+// LVGL tick — driven by a periodic esp_timer at LVGL_TICK_MS resolution so
+// animations and timeouts stay wall-clock accurate even when the UI task
+// overruns (page rebuild, theme toggle, slow flush). lv_tick_inc() is the
+// only LVGL API documented as safe to call without holding the LVGL mutex,
+// so the callback does not take g_lvglMutex.
+// ---------------------------------------------------------------------------
+static esp_timer_handle_t s_lvglTickTimer = nullptr;
+
+static void lvglTickCb(void * /*arg*/) {
+    lv_tick_inc(LVGL_TICK_MS);
+}
+
+static void startLvglTickTimer() {
+    const esp_timer_create_args_t args = {
+        .callback = &lvglTickCb,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "lvgl_tick",
+        .skip_unhandled_events = false,
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&args, &s_lvglTickTimer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(s_lvglTickTimer,
+                                             static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL));
+}
 
 // ---------------------------------------------------------------------------
 // setup() — runs once on core 1 after reset
@@ -62,6 +91,9 @@ void setup() {
     //   3. Load config from filesystem
     //   4. Build the initial UI from config
     BootSequence::run();
+
+    // Start the LVGL tick timer only after lv_init() has run inside BootSequence.
+    startLvglTickTimer();
 
     LOG_INFO("BOOT", "Boot complete — starting tasks");
 
@@ -153,7 +185,9 @@ void taskUI(void *pvParameters) {
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
         } else {
-            lv_tick_inc(LVGL_HANDLER_PERIOD_MS);
+            // lv_tick_inc() is driven by the esp_timer set up in setup() —
+            // keeping it out of this loop means animations stay wall-clock
+            // accurate even when the UI task overruns.
             TouchDriver::poll();
 
 #if APP_BLE_ENABLED
