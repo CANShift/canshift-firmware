@@ -23,7 +23,49 @@
 #include "diag/logger.h"
 
 #include <lvgl.h>
+#include <math.h>
 #include <stdio.h>
+
+// ---------------------------------------------------------------------------
+// TopBar proportion table — MIRROR OF canshift-core/src/topbar-metrics.ts
+//
+// Both the Studio preview and this renderer must agree pixel-for-pixel given
+// the same bar height. The TS file is the canonical source of truth — if you
+// edit a ratio here, edit it there too (and bump the canshift-core unit test).
+// ---------------------------------------------------------------------------
+
+namespace TopBarMetrics {
+constexpr float DOT_RATIO = 0.30f;       // status-dot diameter / bar height
+constexpr float FONT_SIZE_RATIO = 0.45f; // label font size / bar height
+constexpr float SEPARATOR_RATIO = 0.55f; // separator glyph height / bar height
+constexpr float GAP_RATIO = 0.25f;       // inter-item gap / bar height
+constexpr float PADDING_RATIO = 0.40f;   // outer pad inside the bar / bar height
+constexpr float ICON_SIZE_RATIO = 1.15f; // icon font size / label font size
+} // namespace TopBarMetrics
+
+// Match Studio's Math.round (round-half-away-from-zero). C++ lroundf is the
+// correct primitive — std::round() returns float, lroundf returns long.
+static inline int16_t metricRound(float v) {
+    return static_cast<int16_t>(lroundf(v));
+}
+static inline int16_t derivedDot(int16_t height) {
+    return metricRound(static_cast<float>(height) * TopBarMetrics::DOT_RATIO);
+}
+static inline int16_t derivedFontSize(int16_t height) {
+    return metricRound(static_cast<float>(height) * TopBarMetrics::FONT_SIZE_RATIO);
+}
+static inline int16_t derivedSeparator(int16_t height) {
+    return metricRound(static_cast<float>(height) * TopBarMetrics::SEPARATOR_RATIO);
+}
+static inline int16_t derivedGap(int16_t height) {
+    return metricRound(static_cast<float>(height) * TopBarMetrics::GAP_RATIO);
+}
+static inline int16_t derivedPadding(int16_t height) {
+    return metricRound(static_cast<float>(height) * TopBarMetrics::PADDING_RATIO);
+}
+static inline int16_t derivedIconSize(int16_t fontSize) {
+    return metricRound(static_cast<float>(fontSize) * TopBarMetrics::ICON_SIZE_RATIO);
+}
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -118,7 +160,8 @@ static constexpr int16_t WARNING_BADGE_PAD_Y = 1;
 
 static lv_obj_t *makeStatusDot(lv_obj_t *parent) {
     lv_obj_t *dot = lv_obj_create(parent);
-    lv_obj_set_size(dot, 8, 8);
+    const int16_t diameter = derivedDot(s_height);
+    lv_obj_set_size(dot, diameter, diameter);
     lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_border_width(dot, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(dot, 0, LV_PART_MAIN);
@@ -135,7 +178,22 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_obj_t *lbl = lv_label_create(parent);
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
-    lv_obj_set_style_text_font(lbl, FontManager::get(12), 0);
+    // Font size is derived from the bar height via the shared proportion table.
+    // FontManager::get() snaps to the nearest compiled-in Montserrat size.
+    const uint8_t fs = static_cast<uint8_t>(derivedFontSize(s_height));
+    lv_obj_set_style_text_font(lbl, FontManager::get(fs), 0);
+    return lbl;
+}
+
+// Vertical separator glyph "|" — the visible glyph height is roughly the cap
+// height of the surrounding font, so we pick the smallest font that yields a
+// glyph at least `target` tall. FontManager handles the size→pointer snap.
+static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
+    lv_obj_t *lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, "|");
+    lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
+    const uint8_t target = static_cast<uint8_t>(derivedSeparator(s_height));
+    lv_obj_set_style_text_font(lbl, FontManager::get(target), 0);
     return lbl;
 }
 
@@ -149,7 +207,10 @@ static void buildWarningsCluster() {
     // Sized just-large-enough to hold the badges; lv_obj_set_content_width()
     // would let LVGL size around children, but setting an explicit size and
     // re-aligning children manually is simpler and avoids layout reflows.
-    lv_obj_set_size(s_warningsCluster, 0, s_height - 4);
+    // Height tracks the bar's content area (height minus a small inset, which
+    // is small relative to the bar so we keep the legacy 4 px allowance).
+    const int16_t clusterH = static_cast<int16_t>(s_height > 4 ? s_height - 4 : s_height);
+    lv_obj_set_size(s_warningsCluster, 0, clusterH);
     lv_obj_set_style_bg_opa(s_warningsCluster, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_warningsCluster, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_warningsCluster, 0, LV_PART_MAIN);
@@ -243,33 +304,39 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
         }
     };
 
+    // Inter-item gap is height-derived (matches Studio's TopBarMetrics.gapRatio).
+    const int16_t gap = derivedGap(s_height);
+
     switch (item.kind) {
         case TopBarItemKind::STATUS_DOT: {
             obj = makeStatusDot(s_bar);
-            anchor(obj, 4);
+            anchor(obj, gap);
             break;
         }
         case TopBarItemKind::LABEL: {
             obj = makeBarLabel(s_bar, item.text, COLOR_LABEL);
-            anchor(obj, 4);
+            anchor(obj, gap);
             break;
         }
         case TopBarItemKind::SEPARATOR: {
-            obj = makeBarLabel(s_bar, "|", COLOR_MUTED);
-            anchor(obj, 6);
+            obj = makeBarSeparator(s_bar, COLOR_MUTED);
+            anchor(obj, gap);
             break;
         }
         case TopBarItemKind::SIGNAL: {
             obj = makeBarLabel(s_bar, "--.-", COLOR_LABEL);
-            anchor(obj, 8);
+            anchor(obj, gap);
             break;
         }
         case TopBarItemKind::USB_ICON: {
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, LV_SYMBOL_DOWNLOAD);
             lv_obj_set_style_text_color(obj, lv_color_hex(COLOR_USB_OFF), 0);
-            lv_obj_set_style_text_font(obj, FontManager::get(14), 0);
-            anchor(obj, 4);
+            // Icon size is iconSizeRatio × font size (see proportion table).
+            const uint8_t iconSize =
+                static_cast<uint8_t>(derivedIconSize(derivedFontSize(s_height)));
+            lv_obj_set_style_text_font(obj, FontManager::get(iconSize), 0);
+            anchor(obj, gap);
             break;
         }
         case TopBarItemKind::THEME_TOGGLE: {
@@ -327,21 +394,29 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
     const CfgTopBar &cfg = dash.topBar;
     (void)cfg; // colors already applied on s_bar
 
+    // All gaps and font sizes derive from the bar height via the shared
+    // proportion table (canshift-core/src/topbar-metrics.ts).
+    const int16_t gap = derivedGap(s_height);
+    const int16_t fontSize = derivedFontSize(s_height);
+    const int16_t iconSize = derivedIconSize(fontSize);
+    // Right-side theme-icon offset: roughly the icon glyph width + a gap.
+    const int16_t themeIconWidth = static_cast<int16_t>(iconSize + gap);
+
     // ---- Left: [• dot] ECU [|] CAN [• dot] — matches studio preview ----
     s_ecuDot = makeStatusDot(s_bar);
     lv_obj_align(s_ecuDot, LV_ALIGN_LEFT_MID, 0, 0);
 
     s_ecuLabel = makeBarLabel(s_bar, "ECU", COLOR_LABEL);
-    lv_obj_align_to(s_ecuLabel, s_ecuDot, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+    lv_obj_align_to(s_ecuLabel, s_ecuDot, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
 
-    lv_obj_t *leftSep = makeBarLabel(s_bar, "|", COLOR_MUTED);
-    lv_obj_align_to(leftSep, s_ecuLabel, LV_ALIGN_OUT_RIGHT_MID, 6, 0);
+    lv_obj_t *leftSep = makeBarSeparator(s_bar, COLOR_MUTED);
+    lv_obj_align_to(leftSep, s_ecuLabel, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
 
     s_canLabel = makeBarLabel(s_bar, "CAN", COLOR_LABEL);
-    lv_obj_align_to(s_canLabel, leftSep, LV_ALIGN_OUT_RIGHT_MID, 6, 0);
+    lv_obj_align_to(s_canLabel, leftSep, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
 
     s_canDot = makeStatusDot(s_bar);
-    lv_obj_align_to(s_canDot, s_canLabel, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+    lv_obj_align_to(s_canDot, s_canLabel, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
 
     // ---- Right cluster (built right-to-left): theme icon, |, USB icon, voltage ----
     // Theme toggle — image asset (Montserrat compile-time fonts have no sun/moon
@@ -362,20 +437,21 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
         lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_HIDDEN);
     }
 
-    // Separator between USB icon and theme icon — width of theme icon (~12) + gap.
-    lv_obj_t *rightSep = makeBarLabel(s_bar, "|", COLOR_MUTED);
-    lv_obj_align(rightSep, LV_ALIGN_RIGHT_MID, -16, 0);
+    // Separator between USB icon and theme icon — anchored to right edge with
+    // a gap accounting for the theme icon width.
+    lv_obj_t *rightSep = makeBarSeparator(s_bar, COLOR_MUTED);
+    lv_obj_align(rightSep, LV_ALIGN_RIGHT_MID, -themeIconWidth, 0);
 
     // USB / download icon — left of the separator
     s_usbIcon = lv_label_create(s_bar);
     lv_label_set_text(s_usbIcon, LV_SYMBOL_DOWNLOAD);
     lv_obj_set_style_text_color(s_usbIcon, lv_color_hex(COLOR_USB_OFF), 0);
-    lv_obj_set_style_text_font(s_usbIcon, FontManager::get(14), 0);
-    lv_obj_align_to(s_usbIcon, rightSep, LV_ALIGN_OUT_LEFT_MID, -4, 0);
+    lv_obj_set_style_text_font(s_usbIcon, FontManager::get(static_cast<uint8_t>(iconSize)), 0);
+    lv_obj_align_to(s_usbIcon, rightSep, LV_ALIGN_OUT_LEFT_MID, -gap, 0);
 
     // Voltage — left of the USB icon
     s_voltageLabel = makeBarLabel(s_bar, "--.-V", COLOR_LABEL);
-    lv_obj_align_to(s_voltageLabel, s_usbIcon, LV_ALIGN_OUT_LEFT_MID, -8, 0);
+    lv_obj_align_to(s_voltageLabel, s_usbIcon, LV_ALIGN_OUT_LEFT_MID, -gap, 0);
 }
 
 } // namespace
@@ -396,9 +472,12 @@ void TopBar::init() {
     lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_bar, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_bar, 0, LV_PART_MAIN);
-    // pad_all=2 leaves a 12 px content area in a 16 px bar — exactly the size
-    // of the day/night icons. Larger padding clipped them.
-    lv_obj_set_style_pad_all(s_bar, 2, LV_PART_MAIN);
+    // Horizontal padding follows the shared proportion table (paddingRatio in
+    // canshift-core/src/topbar-metrics.ts); vertical padding stays 0 so child
+    // alignments resolve cleanly inside the full bar height. Studio applies
+    // the same padding via `padding: 0 px` on its bar container.
+    lv_obj_set_style_pad_hor(s_bar, derivedPadding(s_height), LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(s_bar, 0, LV_PART_MAIN);
     lv_obj_clear_flag(s_bar, LV_OBJ_FLAG_SCROLLABLE);
     // Bar itself is clickable — tapping a non-widget area while Settings is
     // open closes the panel (alongside the swipe-up gesture).
@@ -627,7 +706,9 @@ void TopBar::setWarning(WarningKind kind, bool active) {
         lv_obj_t *badge = lv_label_create(s_warningsCluster);
         lv_label_set_text(badge, spec.text);
         lv_obj_set_style_text_color(badge, lv_color_hex(spec.fgColor), 0);
-        lv_obj_set_style_text_font(badge, FontManager::get(12), 0);
+        // Badge font follows the shared proportion table — same size as bar labels.
+        const uint8_t badgeFs = static_cast<uint8_t>(derivedFontSize(s_height));
+        lv_obj_set_style_text_font(badge, FontManager::get(badgeFs), 0);
         lv_obj_set_style_bg_color(badge, lv_color_hex(spec.bgColor), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(badge, 2, LV_PART_MAIN);
