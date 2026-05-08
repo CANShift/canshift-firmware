@@ -51,4 +51,21 @@ SdStatus getSdStatus();
  */
 bool isDegradedNoSd();
 
+/**
+ * Attempt to mount the SD card and reload configuration after a degraded
+ * boot (issue #251). Called periodically from the UI task while
+ * isDegradedNoSd() is true.
+ *
+ * On success the internal s_sdStatus flips to Ok, the persistent SD badge
+ * is cleared, default configs are provisioned if missing, ConfigLoader
+ * reloads, and the page manager rebuilds the dashboard from the new
+ * config. On failure the status is updated (NoCard or MountFailed) and
+ * the badge is refreshed accordingly so the user sees the latest state.
+ *
+ * Returns true when the SD ended this call mounted and ready.
+ *
+ * MUST be called from the UI task while holding g_lvglMutex.
+ */
+bool tryRecoverSd();
+
 } // namespace BootSequence

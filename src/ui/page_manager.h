@@ -82,4 +82,15 @@ uint8_t getPageCount();
  */
 void requestRebuild();
 
+/**
+ * Re-run page initialization after a late config load (SD hot-plug
+ * recovery, issue #251). Empty-config first boots routed to the setup
+ * screen via init(); calling reinit() once configs are available swaps
+ * that screen for a fully built dashboard. Non-empty cases route through
+ * the same rebuild path used by theme toggles.
+ *
+ * MUST be called from the UI task while holding g_lvglMutex.
+ */
+void reinit();
+
 } // namespace PageManager

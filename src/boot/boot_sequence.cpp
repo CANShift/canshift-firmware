@@ -130,9 +130,28 @@ static constexpr uint32_t SD_BADGE_FG = 0xFFFFFF;
 static constexpr int16_t SD_BADGE_PAD_X = 4;
 static constexpr int16_t SD_BADGE_PAD_Y = 1;
 
+// Tracked so SD hot-plug recovery (issue #251) can drop the badge once a
+// retry succeeds. Previously the badge was created and the pointer was
+// abandoned, leaving no handle to clear it on recovery.
+static lv_obj_t *s_sdBadge = nullptr;
+
+static void clearSdBadge() {
+    if (s_sdBadge != nullptr) {
+        lv_obj_del(s_sdBadge);
+        s_sdBadge = nullptr;
+    }
+}
+
 static void showSdBadge(BootSequence::SdStatus status) {
-    if (status == BootSequence::SdStatus::Ok)
+    if (status == BootSequence::SdStatus::Ok) {
+        clearSdBadge();
         return;
+    }
+
+    // Drop a stale badge so a NoCard → MountFailed transition (or vice
+    // versa) re-renders with the correct color and label rather than
+    // stacking a second label on top of the first.
+    clearSdBadge();
 
     const char *text = status == BootSequence::SdStatus::NoCard ? "NO SD" : "SD ERR";
     const uint32_t bg = status == BootSequence::SdStatus::NoCard ? SD_BADGE_NO_CARD_BG
@@ -149,6 +168,8 @@ static void showSdBadge(BootSequence::SdStatus status) {
     lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, SD_BADGE_X_OFFSET, SD_BADGE_Y_OFFSET);
     lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
+
+    s_sdBadge = badge;
 }
 
 // Advance the bar and update the status text between init steps.
@@ -188,7 +209,7 @@ static BootSequence::SdStatus initStorage() {
     if (!ok) {
         return status;
     }
-    LvglFsDriver::init();
+    LvglFsDriver::ensureRegistered();
     FontManager::init();
     return status;
 }
@@ -340,4 +361,70 @@ BootSequence::SdStatus BootSequence::getSdStatus() {
 
 bool BootSequence::isDegradedNoSd() {
     return s_sdStatus != SdStatus::Ok;
+}
+
+bool BootSequence::tryRecoverSd() {
+    if (s_sdStatus == SdStatus::Ok)
+        return true;
+
+    LOG_INFO("BOOT", "SD recovery: attempting late mount...");
+
+    // Mount the SD via the storage driver. Cheap on a healthy card
+    // (~10 ms), and StorageDriver::init() is the same call the boot
+    // sequence uses, so any side effects (logging, status reset) match.
+    const bool mountOk = StorageDriver::init();
+    const SdStatus newStatus = mapStorageStatus(StorageDriver::getStatus());
+
+    if (!mountOk) {
+        // Refresh the badge if the failure mode changed (e.g. user pulled a
+        // card mid-recovery and we flip from NoCard to MountFailed). No-op
+        // when the status is unchanged.
+        if (newStatus != s_sdStatus) {
+            s_sdStatus = newStatus;
+            showSdBadge(s_sdStatus);
+        }
+        return false;
+    }
+
+    // SD is mounted — register the LVGL FS driver (idempotent) and bring
+    // the font manager back online before any UI rebuild touches them.
+    LvglFsDriver::ensureRegistered();
+    FontManager::init();
+
+#if DEFAULT_CONFIG_PROVISION_ENABLED
+    // Provision baked-in defaults onto a freshly inserted blank card so
+    // the recovery rebuild lands on a usable dashboard rather than the
+    // setup screen. Existing user data is preserved.
+    const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
+    if (pr.written > 0) {
+        LOG_INFO("BOOT", "SD recovery: provisioned %u default config file(s)",
+                 static_cast<unsigned>(pr.written));
+    }
+    if (pr.failed > 0) {
+        LOG_WARN("BOOT",
+                 "SD recovery: default-config provision failed for %u file(s)",
+                 static_cast<unsigned>(pr.failed));
+    }
+#endif
+
+    if (!ConfigLoader::reloadAll()) {
+        // Mount worked but config is unreadable / unparseable — surface the
+        // failure as MountFailed so the studio sees "sd_state":"mount_failed"
+        // and the badge reflects that the card is present but broken.
+        LOG_ERROR("BOOT", "SD recovery: mount ok but config reload failed");
+        s_sdStatus = SdStatus::MountFailed;
+        showSdBadge(s_sdStatus);
+        return false;
+    }
+
+    s_sdStatus = SdStatus::Ok;
+    clearSdBadge();
+
+    // Rebuild the UI from the freshly loaded config. reinit() picks the
+    // right path: empty-config boot (setup screen) → first-time build,
+    // existing pages (e.g. defaults) → tear-down + rebuild.
+    PageManager::reinit();
+
+    LOG_INFO("BOOT", "SD recovery: mount + reload + rebuild complete");
+    return true;
 }

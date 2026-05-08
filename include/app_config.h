@@ -155,6 +155,15 @@
 #endif
 
 // ---------------------------------------------------------------------------
+// SD hot-plug recovery (issue #251)
+// ---------------------------------------------------------------------------
+
+// Polling cadence for the UI task to retry SD mount after a degraded boot.
+// Cheap on healthy boots — gated by BootSequence::isDegradedNoSd(), so it
+// only fires while we know the SD is missing/unmounted.
+#define SD_HOTPLUG_POLL_INTERVAL_MS 2000
+
+// ---------------------------------------------------------------------------
 // Alert engine
 // ---------------------------------------------------------------------------
 

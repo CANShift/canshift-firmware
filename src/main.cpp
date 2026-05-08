@@ -217,6 +217,22 @@ void taskUI(void *pvParameters) {
 
             PageManager::updateWidgets();
             lv_task_handler();
+
+            // SD hot-plug recovery (issue #251): while we know the SD is
+            // missing/unmounted, retry on a slow cadence so a freshly
+            // inserted card heals the dashboard without a reboot. Skipped
+            // entirely on healthy boots — single branch + millis() compare.
+            // Runs inside the existing LVGL mutex window because the
+            // recovery rebuilds pages.
+            if (BootSequence::isDegradedNoSd()) {
+                static uint32_t lastSdProbeMs = 0;
+                const uint32_t nowMs = millis();
+                if (nowMs - lastSdProbeMs >= SD_HOTPLUG_POLL_INTERVAL_MS) {
+                    lastSdProbeMs = nowMs;
+                    BootSequence::tryRecoverSd();
+                }
+            }
+
             xSemaphoreGive(g_lvglMutex);
         }
 

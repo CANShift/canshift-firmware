@@ -69,7 +69,17 @@ lv_fs_res_t fs_tell(lv_fs_drv_t * /*drv*/, void *file_p, uint32_t *pos_p) {
 // Public API
 // ---------------------------------------------------------------------------
 
-void LvglFsDriver::init() {
+namespace {
+// Tracks whether the LVGL FS driver has been registered. Lets SD hot-plug
+// recovery (issue #251) call ensureRegistered() repeatedly without piling
+// up duplicate driver entries inside LVGL.
+bool s_registered = false;
+} // namespace
+
+void LvglFsDriver::ensureRegistered() {
+    if (s_registered)
+        return;
+
     static lv_fs_drv_t drv;
     lv_fs_drv_init(&drv);
 
@@ -81,5 +91,10 @@ void LvglFsDriver::init() {
     drv.tell_cb = fs_tell;
 
     lv_fs_drv_register(&drv);
+    s_registered = true;
     LOG_INFO("FS", "LVGL SD FS driver registered (drive 'S:')");
+}
+
+void LvglFsDriver::init() {
+    ensureRegistered();
 }
