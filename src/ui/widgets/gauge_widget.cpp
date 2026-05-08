@@ -26,9 +26,53 @@ static constexpr uint32_t kColorWarning = 0xFF8800; // Orange — warning range
 static constexpr uint32_t kColorDanger = 0xFF4444;  // Red — danger range
 static constexpr uint32_t kColorBgDim = 0x222222;   // Dark grey — no-threshold bg track
 static constexpr uint32_t kColorValue = 0xFFFFFF;   // White — value indicator needle
+// Gradient base track (issue #175) — slightly lighter than the no-threshold
+// track so the value arc reads cleanly on top of it.
+static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 
 // Arc sweep constants (matches rotation=140, bg_angles=0..280)
 static constexpr float kArcSweep = 280.0f;
+
+// Linear interpolation between two RGB colours, channel-wise.
+// Returns a 0x00RRGGBB integer suitable for lv_color_hex.
+static uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
+    if (t < 0.0f)
+        t = 0.0f;
+    if (t > 1.0f)
+        t = 1.0f;
+    auto channel = [](uint32_t c, int shift) {
+        return static_cast<int>((c >> shift) & 0xFFu);
+    };
+    const int ar = channel(a, 16);
+    const int ag = channel(a, 8);
+    const int ab = channel(a, 0);
+    const int br = channel(b, 16);
+    const int bg = channel(b, 8);
+    const int bb = channel(b, 0);
+    auto mix = [t](int x, int y) {
+        const float v = static_cast<float>(x) + (static_cast<float>(y) - static_cast<float>(x)) * t;
+        return static_cast<uint32_t>(v < 0.0f ? 0.0f : (v > 255.0f ? 255.0f : v));
+    };
+    const uint32_t r = mix(ar, br);
+    const uint32_t g = mix(ag, bg);
+    const uint32_t bch = mix(ab, bb);
+    return (r << 16) | (g << 8) | bch;
+}
+
+// Map a [0,1] percentage to the green→orange→red gradient (issue #175).
+// 0..0.5 lerps green→orange, 0.5..1.0 lerps orange→red. The pivot at 0.5
+// keeps the orange "warning" colour visible at mid-range so drivers can read
+// the gauge intuitively without configuring thresholds.
+static uint32_t interpolateGreenOrangeRed(float pct) {
+    if (pct < 0.0f)
+        pct = 0.0f;
+    if (pct > 1.0f)
+        pct = 1.0f;
+    if (pct <= 0.5f) {
+        return lerpRgb(kColorSuccess, kColorWarning, pct * 2.0f);
+    }
+    return lerpRgb(kColorWarning, kColorDanger, (pct - 0.5f) * 2.0f);
+}
 
 // Map a signal value to arc angle [0..280]
 static uint16_t valueToAngle(float value, float minVal, float maxVal) {
@@ -105,6 +149,8 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
 struct GaugeTag {
     lv_obj_t *valueLabel;
     lv_obj_t *unitLabel;
+    lv_obj_t *fillArc;       // Gradient mode only — value arc whose colour is
+                             // recomputed each tick. nullptr in zones mode.
     float minValue;
     float maxValue;
     float lastValue;
@@ -118,6 +164,7 @@ struct GaugeTag {
     uint16_t dangerAngle;
     bool hasWarning;
     bool hasDanger;
+    bool gradientMode; // True when arcFillStyle == GRADIENT (issue #175)
     bool lastValid; // Tracks the last (value, valid) pair so the invalid
                     // branch can skip its lv_label_set_text reallocation
                     // when state hasn't flipped (issue #236).
@@ -185,9 +232,17 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // ---------------------------------------------------------------------------
     // Layer 1-3: Static sector arcs (background track, colored zones)
     // Render order: first created = bottom, last created = top.
+    // Gradient mode (issue #175) skips the zone tinting entirely — it draws a
+    // single mid-grey base track and a coloured value arc on top.
     // ---------------------------------------------------------------------------
 
-    if (!hasWarning) {
+    const bool gradientMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::GRADIENT);
+    lv_obj_t *fillArc = nullptr;
+
+    if (gradientMode) {
+        // Gray base track over the full sweep — the value arc tints over it.
+        createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
+    } else if (!hasWarning) {
         // No thresholds — single dimmed background track (old behavior)
         createSectorArc(cont, diam, 0, 280, kColorBgDim, kBgWidth);
     } else if (!hasDanger) {
@@ -199,6 +254,16 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         createSectorArc(cont, diam, 0, warnAngle, kColorSuccess, kBgWidth);
         createSectorArc(cont, diam, warnAngle, dangerAngle, kColorWarning, kBgWidth);
         createSectorArc(cont, diam, dangerAngle, 280, kColorDanger, kBgWidth);
+    }
+
+    // Gradient mode value arc (issue #175). Draws on top of the gray base.
+    // The indicator sweep + colour are recomputed each tick in update().
+    if (gradientMode) {
+        fillArc = createValueArc(cont, diam, kBgWidth);
+        lv_arc_set_angles(fillArc, 0, 0);
+        // Replace the default white indicator colour with the gradient's
+        // starting colour (green, 0 % of range).
+        lv_obj_set_style_arc_color(fillArc, lv_color_hex(kColorSuccess), LV_PART_INDICATOR);
     }
 
     // The white indicator needle was dropped per user spec — the coloured
@@ -246,6 +311,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     GaugeTag *tag = new GaugeTag{};
     tag->valueLabel = label;
     tag->unitLabel = unitLabel;
+    tag->fillArc = fillArc;
     tag->minValue = minV;
     tag->maxValue = maxV;
     // NaN sentinel — guarantees the first update() runs through the paint
@@ -256,6 +322,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->dangerAngle = dangerAngle;
     tag->hasWarning = hasWarning;
     tag->hasDanger = hasDanger;
+    tag->gradientMode = gradientMode;
     tag->lastValid = true;
 
     // revFlash (issue #263): when enabled, pulse the gauge red as soon as the
@@ -319,6 +386,12 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             lv_obj_set_style_text_color(tag->valueLabel,
                                         lv_color_hex(ThemeManager::getEffectiveTextColor()), 0);
         }
+        // Gradient mode (issue #175): collapse the value arc to zero on
+        // invalid signals so the gray base track is visible — matches the
+        // "show 0" rule above.
+        if (tag->gradientMode && tag->fillArc) {
+            lv_arc_set_angles(tag->fillArc, 0, 0);
+        }
         AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
         return;
     }
@@ -332,7 +405,9 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValid = true;
 
     // Tint the value label to match the active zone — but skip when in alert
-    // state, AlertFlash owns the colour while the flash is active.
+    // state, AlertFlash owns the colour while the flash is active. Threshold-
+    // driven label tinting stays unchanged in BOTH modes — separate concern
+    // from the arc fill style (issue #175).
     if (!tag->alert.active) {
         uint32_t labelColor = ThemeManager::getEffectiveTextColor();
         if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
@@ -340,6 +415,18 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
             labelColor = kColorWarning;
         lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
+    }
+
+    // Gradient mode: redraw the value arc with an interpolated colour and a
+    // sweep proportional to (value - min) / (max - min). The base gray track
+    // remains unchanged.
+    if (tag->gradientMode && tag->fillArc) {
+        const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
+        lv_arc_set_angles(tag->fillArc, 0, angle);
+        const float range = tag->maxValue - tag->minValue;
+        const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
+        const uint32_t fillColor = interpolateGreenOrangeRed(pct);
+        lv_obj_set_style_arc_color(tag->fillArc, lv_color_hex(fillColor), LV_PART_INDICATOR);
     }
 
     // Update numeric label (prefix + value formatted to decimalPlaces). Even

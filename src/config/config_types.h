@@ -94,6 +94,14 @@ enum class CfgLabelPos : uint8_t {
     BOTTOM_RIGHT = 5,
 };
 
+// Arc fill rendering mode (issue #175). Mirrors GaugeArcFillStyle in
+// canshift-core/src/types/dashboard.ts. Defaults to ZONES so existing arc
+// gauges keep the warn/danger sector tinting.
+enum class CfgArcFillStyle : uint8_t {
+    ZONES = 0,    // Legacy: warn/danger sector tinting on the background track
+    GRADIENT = 1, // Single value arc tinted green→orange→red across the range
+};
+
 struct CfgGaugeParams {
     float minValue;
     float maxValue;
@@ -109,6 +117,7 @@ struct CfgGaugeParams {
     char suffix[16];              // Unit label shown below the value (e.g. "RPM", "°C")
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
+    CfgArcFillStyle arcFillStyle; // Arc style only — ignored otherwise (issue #175)
 };
 
 struct CfgBarParams {

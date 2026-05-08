@@ -239,6 +239,16 @@ CfgLabelPos parseLabelPos(const char *str) {
     return CfgLabelPos::TOP_LEFT;
 }
 
+// Parse arcFillStyle (issue #175). Defaults to ZONES so legacy configs and
+// unknown values keep the previous warn/danger sector tinting behaviour.
+CfgArcFillStyle parseArcFillStyle(const char *str) {
+    if (!str)
+        return CfgArcFillStyle::ZONES;
+    if (strcmp(str, "gradient") == 0)
+        return CfgArcFillStyle::GRADIENT;
+    return CfgArcFillStyle::ZONES;
+}
+
 // Extract the major component of a "major.minor.patch" version string.
 // Returns -1 when the string is empty, missing, or not a parsable integer.
 // Major-only comparison is intentional — minor/patch bumps are backward
@@ -370,6 +380,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 strlcpy(w->gauge.suffix, cfg["suffix"] | "", sizeof(w->gauge.suffix));
                 strlcpy(w->gauge.label, cfg["label"] | "", sizeof(w->gauge.label));
                 w->gauge.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+                w->gauge.arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "zones");
             }
             break;
         }
