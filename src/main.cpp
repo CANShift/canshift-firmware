@@ -56,8 +56,8 @@ static void startLvglTickTimer() {
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&args, &s_lvglTickTimer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(s_lvglTickTimer,
-                                             static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL));
+    ESP_ERROR_CHECK(
+        esp_timer_start_periodic(s_lvglTickTimer, static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL));
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ void loop() {
 #include <lvgl.h>
 #include "hal/usb/usb_comm.h"
 #if APP_BLE_ENABLED
-#include "hal/ble/ble_server.h"
+    #include "hal/ble/ble_server.h"
 #endif
 
 void taskUI(void *pvParameters) {
@@ -241,9 +241,11 @@ void taskUI(void *pvParameters) {
 void taskCAN(void *pvParameters) {
     // CanManager::initHardware() is called from BootSequence::run() before tasks start.
     // This task only runs the receive/dispatch loop.
+    // vTaskDelay(CAN_TASK_YIELD_TICKS) keeps IDLE0 alive on a busy bus where
+    // twai_receive returns immediately every iteration (issue #200).
     while (true) {
         CanManager::tick();
-        // tick() blocks on TWAI receive with a short timeout — no delay needed
+        vTaskDelay(CAN_TASK_YIELD_TICKS);
     }
 }
 

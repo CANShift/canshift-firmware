@@ -91,7 +91,8 @@
 // For 320x240x2 bytes = 153,600 bytes per full buffer — too large for IRAM.
 // Use partial buffers: N lines × width × 2 bytes.
 // ---------------------------------------------------------------------------
-#define LVGL_BUF_LINE_COUNT 20 // Lines per draw buffer (20 lines = 12,800 bytes each, saves ~25 KB RAM)
+#define LVGL_BUF_LINE_COUNT                                                                        \
+    20 // Lines per draw buffer (20 lines = 12,800 bytes each, saves ~25 KB RAM)
 
 // ---------------------------------------------------------------------------
 // Signal store
@@ -118,6 +119,13 @@
 
 // Maximum CAN frames parsed per task iteration
 #define CAN_FRAMES_PER_TICK 16
+
+// Yield delay applied at the end of each taskCAN iteration (FreeRTOS ticks).
+// Required because twai_receive returns immediately on a busy bus, which
+// otherwise starves IDLE0 at TASK_PRIO_CAN=15 and trips the Task Watchdog
+// Timer. 1 tick (~1 ms at configTICK_RATE_HZ=1000) is enough for IDLE0
+// to run while staying well below the MaxxECU group cadence (issue #200).
+#define CAN_TASK_YIELD_TICKS 1
 
 // ---------------------------------------------------------------------------
 // Config loading
