@@ -22,7 +22,69 @@ static CfgDeviceConfig s_device = {};
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Suffix for the boot-time fallback copy written by atomic saves.
+static constexpr const char *kBakSuffix = ".bak";
+// CFG_MAX_PATH_LEN (48) + ".bak" + null terminator.
+static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
+
 namespace {
+
+bool buildBakPath(char *out, size_t outLen, const char *base) {
+    if (!out || !base || outLen == 0)
+        return false;
+    const size_t baseLen = strlen(base);
+    const size_t suffixLen = strlen(kBakSuffix);
+    if (baseLen + suffixLen + 1 > outLen)
+        return false;
+    memcpy(out, base, baseLen);
+    memcpy(out + baseLen, kBakSuffix, suffixLen);
+    out[baseLen + suffixLen] = '\0';
+    return true;
+}
+
+// Read + parse JSON from `path`, falling back to `<path>.bak` on missing or
+// corrupt primary. On successful .bak recovery the .bak is renamed back to
+// `path` so the next save re-establishes the .bak rotation cycle.
+// Returns true on success (doc populated), false otherwise.
+bool readAndParseWithBak(const char *path, JsonDocument &doc) {
+    size_t jsonSize = 0;
+    char *json = StorageDriver::readFile(path, &jsonSize);
+    if (json) {
+        DeserializationError err = deserializeJson(doc, json, jsonSize);
+        free(json);
+        if (!err)
+            return true;
+        LOG_WARN("CFG", "%s parse error: %s — falling back to .bak", path, err.c_str());
+    } else {
+        LOG_WARN("CFG", "%s missing — falling back to .bak", path);
+    }
+
+    char bakPath[kBakPathLen];
+    if (!buildBakPath(bakPath, sizeof(bakPath), path))
+        return false;
+    if (!StorageDriver::fileExists(bakPath))
+        return false;
+
+    size_t bakSize = 0;
+    char *bakJson = StorageDriver::readFile(bakPath, &bakSize);
+    if (!bakJson)
+        return false;
+
+    doc.clear();
+    DeserializationError bakErr = deserializeJson(doc, bakJson, bakSize);
+    free(bakJson);
+    if (bakErr) {
+        LOG_ERROR("CFG", "%s also failed to parse: %s", bakPath, bakErr.c_str());
+        return false;
+    }
+
+    LOG_WARN("CFG", "%s recovered from .bak", path);
+    // Promote the .bak back into place so the next save creates a fresh .bak.
+    if (!StorageDriver::renameFile(bakPath, path)) {
+        LOG_WARN("CFG", "Could not rename %s back to %s — non-fatal", bakPath, path);
+    }
+    return true;
+}
 
 void parseColor(const char *hex, CfgColor *out) {
     if (!hex || hex[0] != '#') {
@@ -239,22 +301,10 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
 }
 
 bool loadDashboard() {
-    size_t jsonSize = 0;
-    char *json = StorageDriver::readFile(CONFIG_PATH_DASHBOARD, &jsonSize);
-    if (!json) {
-        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json not found");
-        return false;
-    }
-
     JsonDocument doc; // ArduinoJson v7 — dynamic, no capacity() needed
-    DeserializationError err = deserializeJson(doc, json, jsonSize);
-    free(json);
-
-    if (err) {
-        LOG_ERROR("CFG", "dashboard.json parse error: %s", err.c_str());
-        char msg[52];
-        snprintf(msg, sizeof(msg), "Parse error: %s", err.c_str());
-        ErrorStore::push(ERROR_SRC_CONFIG, "PARSE_ERR", msg);
+    if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
+        LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
+        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json unreadable");
         return false;
     }
 
@@ -366,22 +416,10 @@ bool loadDashboard() {
 }
 
 bool loadSignals() {
-    size_t jsonSize = 0;
-    char *json = StorageDriver::readFile(CONFIG_PATH_SIGNALS, &jsonSize);
-    if (!json) {
-        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json not found");
-        return false;
-    }
-
     JsonDocument doc; // ArduinoJson v7 — dynamic
-    DeserializationError err = deserializeJson(doc, json, jsonSize);
-    free(json);
-
-    if (err) {
-        LOG_ERROR("CFG", "signals.json parse error: %s", err.c_str());
-        char msg[52];
-        snprintf(msg, sizeof(msg), "Parse error: %s", err.c_str());
-        ErrorStore::push(ERROR_SRC_CONFIG, "PARSE_ERR", msg);
+    if (!readAndParseWithBak(CONFIG_PATH_SIGNALS, doc)) {
+        LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
+        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
         return false;
     }
 

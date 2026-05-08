@@ -201,8 +201,8 @@ void handlePutConfig(const char *jsonLine) {
         xSemaphoreGive(g_lvglMutex);
     }
 
-    bool ok = StorageDriver::writeFile(CONFIG_PATH_DASHBOARD,
-                                       reinterpret_cast<const uint8_t *>(s_rxBuf), written);
+    bool ok = StorageDriver::writeFileAtomic(
+        CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(s_rxBuf), written);
     if (!ok) {
         LOG_ERROR("USB", "PUT_CONFIG: SD write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
@@ -240,7 +240,7 @@ static ChunkTransfer s_chunk = {{0}, 0, 0, 0};
 void abortChunkTransfer(const char *reason) {
     if (StorageDriver::isChunkedWriteOpen()) {
         LOG_WARN("USB", "Aborting chunked transfer: %s (path=%s)", reason, s_chunk.path);
-        StorageDriver::endChunkedWrite();
+        StorageDriver::abortChunkedWrite();
     }
     s_chunk.path[0] = '\0';
     s_chunk.expectedIdx = 0;
@@ -272,7 +272,7 @@ void handlePutFile(const JsonObjectConst &obj) {
 
     if (idx == 0) {
         abortChunkTransfer("new transfer");
-        if (!StorageDriver::beginChunkedWrite(path)) {
+        if (!StorageDriver::beginChunkedWriteAtomic(path)) {
             UsbComm::sendLine("{\"status\":\"error\",\"message\":\"open_failed\"}");
             return;
         }
@@ -308,7 +308,14 @@ void handlePutFile(const JsonObjectConst &obj) {
     s_chunk.lastActivityMs = millis();
 
     if (idx == total - 1) {
-        StorageDriver::endChunkedWrite();
+        const bool finalized = StorageDriver::endChunkedWrite();
+        if (!finalized) {
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
+            s_chunk.path[0] = '\0';
+            s_chunk.expectedIdx = 0;
+            s_chunk.total = 0;
+            return;
+        }
         LOG_INFO("USB", "PUT_FILE done: %s (%u chunks)", s_chunk.path, total);
         s_chunk.path[0] = '\0';
         s_chunk.expectedIdx = 0;
