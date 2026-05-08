@@ -70,12 +70,18 @@
 //
 // CAUTION: Avoid GPIO 6-11 (internal flash SPI) and GPIO 34-39 (input only).
 //          TWAI_TX must be a bi-directional GPIO.
+//
+// CrowPanel 2.8" expansion-header pinout:
+//   GPIO 25 + GPIO 32 → free expansion pins (used here for TWAI)
+//   GPIO 21 / 22      → I2C header (ID21-SCL / ID22-SDA) — kept free
+//   GPIO 16 / 17      → UART2 (IO16-RXD2 / IO17-TXD2)
+// GPIO 25 and 32 chosen because they are bi-directional, outside the flash-SPI
+// range (6-11), outside the input-only range (34-39), strapping-safe at boot,
+// and physically broken out on the user's CrowPanel expansion header.
 // ---------------------------------------------------------------------------
 
-// TODO: Choose GPIO pins that do not conflict with SPI or other peripherals
-//       These assignments assume SPI uses GPIO 12-15 and TWAI uses 21/22.
-#define PIN_TWAI_TX 22
-#define PIN_TWAI_RX 21
+#define PIN_TWAI_TX 25
+#define PIN_TWAI_RX 32
 
 // CAN bus speed — must match MaxxECU CAN output configuration
 // MaxxECU Street default is typically 500 kbps or 1 Mbps
