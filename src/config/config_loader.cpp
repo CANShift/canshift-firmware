@@ -3,6 +3,7 @@
 #include "config_loader.h"
 #include "board_config.h"
 #include "hal/storage/storage_driver.h"
+#include "config/json_reader.h"
 #include "diag/logger.h"
 #include "diag/error_store.h"
 
@@ -53,7 +54,7 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     size_t jsonSize = 0;
     char *json = StorageDriver::readFile(path, &jsonSize);
     if (json) {
-        DeserializationError err = deserializeJson(doc, json, jsonSize);
+        DeserializationError err = JsonReader::parse(doc, json, jsonSize);
         free(json);
         if (!err)
             return true;
@@ -74,7 +75,7 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
         return false;
 
     doc.clear();
-    DeserializationError bakErr = deserializeJson(doc, bakJson, bakSize);
+    DeserializationError bakErr = JsonReader::parse(doc, bakJson, bakSize);
     free(bakJson);
     if (bakErr) {
         LOG_ERROR("CFG", "%s also failed to parse: %s", bakPath, bakErr.c_str());
@@ -744,7 +745,7 @@ bool loadDevice() {
     }
 
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json, jsonSize);
+    DeserializationError err = JsonReader::parse(doc, json, jsonSize);
     free(json);
 
     if (err) {

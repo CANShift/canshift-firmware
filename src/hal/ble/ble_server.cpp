@@ -9,6 +9,7 @@
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "ui/settings_page.h"
+#include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "diag/logger.h"
 #include "app_config.h"
@@ -110,7 +111,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         if (val.empty()) return;
 
         JsonDocument doc;
-        if (deserializeJson(doc, val.c_str(), val.length()) != DeserializationError::Ok)
+        if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
         uint8_t brightness  = doc["brightness"] | 80;
@@ -154,7 +155,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         if (val.empty()) return;
 
         JsonDocument doc;
-        if (deserializeJson(doc, val.c_str(), val.length()) != DeserializationError::Ok)
+        if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
         const char *cmd = doc["cmd"] | "";

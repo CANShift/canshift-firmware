@@ -18,6 +18,7 @@
 #include "boot/boot_sequence.h"
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
+#include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "ui/burn_overlay.h"
 #include "ui/settings_page.h"
@@ -171,7 +172,7 @@ void sendTelemetry() {
 // so we reuse it as the serialization buffer for the payload.
 void handlePutConfig(const char *jsonLine) {
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, jsonLine);
+    DeserializationError err = JsonReader::parse(doc, jsonLine, strlen(jsonLine));
     if (err) {
         LOG_WARN("USB", "PUT_CONFIG parse error: %s", err.c_str());
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
@@ -377,11 +378,16 @@ void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
 
+    // Funnel every parse through JsonReader so the binary keeps a single
+    // BoundedReader<const char*> instantiation (#406). strlen runs once and
+    // the value is reused for the filter peek + the full parse below.
+    const size_t jsonLen = strlen(jsonLine);
+
     // Peek at cmd using a filter — avoids loading the full PUT_CONFIG payload
     JsonDocument cmdFilter;
     cmdFilter["cmd"] = true;
     JsonDocument peekDoc;
-    deserializeJson(peekDoc, jsonLine, DeserializationOption::Filter(cmdFilter));
+    JsonReader::parseFiltered(peekDoc, jsonLine, jsonLen, cmdFilter);
     uint8_t cmd = peekDoc["cmd"] | 0;
 
     if (cmd == UsbComm::CMD_PUT_CONFIG) {
@@ -394,7 +400,7 @@ void handleCommand(const char *jsonLine) {
         // each chunk's "data" (base64) can be up to ~3 KB, so we want the doc
         // sized to that range, not the full 6 KB s_rxBuf.
         JsonDocument doc;
-        DeserializationError err = deserializeJson(doc, jsonLine);
+        DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
         if (err) {
             LOG_WARN("USB", "PUT_FILE parse error: %s", err.c_str());
             Serial.println("{\"status\":\"error\",\"message\":\"parse_error\"}");
@@ -406,7 +412,7 @@ void handleCommand(const char *jsonLine) {
     }
 
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, jsonLine);
+    DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
     if (err) {
         LOG_WARN("USB", "JSON parse error: %s", err.c_str());
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
