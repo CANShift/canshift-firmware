@@ -112,26 +112,6 @@ static void showSplash() {
     lv_task_handler();
 }
 
-// Set when SD failed to mount during boot. Mirrors getSdStatus() so
-// boot helpers can read it before getSdStatus() resolves.
-static BootSequence::SdStatus s_sdStatus = BootSequence::SdStatus::Ok;
-
-// SD-status badge — surfaced via the topbar warnings cluster (issue #253).
-// The cluster is a generic firmware-driven slot on lv_layer_top() that lives
-// inside the topbar; SD warnings are one of its first consumers. Distinct
-// text + color for "no card" vs "mount fail" gives the user a fighting
-// chance at diagnosing without a serial console.
-//
-// Note: showSdBadge() may be called before TopBar::init() has run during
-// the very first boot path; TopBar::setWarning() is a no-op in that case
-// and the dashboard buildUI() step calls showSdBadge() again afterwards.
-
-static void showSdBadge(BootSequence::SdStatus status) {
-    using TopBar::WarningKind;
-    TopBar::setWarning(WarningKind::NoSd, status == BootSequence::SdStatus::NoCard);
-    TopBar::setWarning(WarningKind::SdError, status == BootSequence::SdStatus::MountFailed);
-}
-
 // Advance the bar and update the status text between init steps.
 // lv_refr_now flushes synchronously so the bar visibly progresses even when
 // boot stages take only a few ms.
@@ -143,35 +123,17 @@ static void updateSplash(const char *status, uint8_t pct) {
     lv_refr_now(NULL);
 }
 
-// Maps a StorageDriver::InitStatus to the boot-level SdStatus. The boot
-// view of the SD subsystem is intentionally narrower than the storage
-// driver's: we only care whether the card is usable and, if not, whether
-// the user should be told to insert one or to investigate wiring.
-static BootSequence::SdStatus mapStorageStatus(StorageDriver::InitStatus s) {
-    switch (s) {
-        case StorageDriver::InitStatus::Ok:
-            return BootSequence::SdStatus::Ok;
-        case StorageDriver::InitStatus::NoCard:
-            return BootSequence::SdStatus::NoCard;
-        case StorageDriver::InitStatus::MountFailed:
-        case StorageDriver::InitStatus::NotInitialized:
-        default:
-            return BootSequence::SdStatus::MountFailed;
-    }
-}
-
-// Returns Ok if the storage came up cleanly. On any other status the boot
-// continues with built-in defaults — the device stays reachable over USB.
-static BootSequence::SdStatus initStorage() {
-    LOG_INFO("BOOT", "Initializing SD card...");
+// Returns true if the storage came up cleanly. On failure the boot continues
+// with built-in defaults — the device stays reachable over USB.
+static bool initStorage() {
+    LOG_INFO("BOOT", "Initializing storage...");
     const bool ok = StorageDriver::init();
-    const BootSequence::SdStatus status = mapStorageStatus(StorageDriver::getStatus());
     if (!ok) {
-        return status;
+        return false;
     }
-    LvglFsDriver::ensureRegistered();
+    LvglFsDriver::init();
     FontManager::init();
-    return status;
+    return true;
 }
 
 static void loadConfig() {
@@ -225,32 +187,23 @@ void BootSequence::run() {
     TouchDriver::init();
     updateSplash("Initializing touch...", 15);
 
-    // 3. Storage — degrade (don't halt) if SD missing/broken so the studio
-    //    can still reach the device over USB and the user can see a default
+    // 3. Storage — degrade (don't halt) on mount failure so the studio can
+    //    still reach the device over USB and the user can see a default
     //    dashboard.
-    updateSplash("Checking SD card...", 20);
-    s_sdStatus = initStorage();
-    switch (s_sdStatus) {
-        case BootSequence::SdStatus::Ok:
-            updateSplash("SD ready...", 35);
-            break;
-        case BootSequence::SdStatus::NoCard:
-            LOG_WARN("BOOT", "SD missing — running with defaults; USB still reachable");
-            updateSplash("No SD — defaults", 35);
-            break;
-        case BootSequence::SdStatus::MountFailed:
-            LOG_ERROR("BOOT", "SD mount failed — running with defaults; check pinout/wiring");
-            updateSplash("SD error — defaults", 35);
-            break;
+    updateSplash("Initializing storage...", 20);
+    const bool storageOk = initStorage();
+    if (storageOk) {
+        updateSplash("Storage ready", 35);
+    } else {
+        LOG_ERROR("BOOT", "Storage mount failed — running with defaults");
+        updateSplash("Storage error — defaults", 35);
     }
 
-        // 3.5 Provision default configs on a fresh / empty SD before loadConfig
-        //     reads. Writes only when target is missing AND no .bak exists, or
-        //     when target is empty. Never overwrites user data. On read-only or
-        //     full SD the failure is logged and pushed to ErrorStore — boot
-        //     continues so the device stays USB-reachable for recovery.
+    // 3.5 Provision default configs on a fresh / empty SPIFFS before
+    //     loadConfig reads. Writes only when target is missing AND no .bak
+    //     exists, or when target is empty. Never overwrites user data.
 #if DEFAULT_CONFIG_PROVISION_ENABLED
-    if (s_sdStatus == BootSequence::SdStatus::Ok) {
+    if (storageOk) {
         const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
         if (pr.written > 0) {
             LOG_INFO("BOOT", "Provisioned %u default config file(s)",
@@ -260,7 +213,7 @@ void BootSequence::run() {
         if (pr.failed > 0) {
             LOG_WARN("BOOT",
                      "Default-config provision failed for %u file(s) — "
-                     "continuing with whatever is on SD",
+                     "continuing with whatever is on storage",
                      static_cast<unsigned>(pr.failed));
         }
     }
@@ -297,10 +250,6 @@ void BootSequence::run() {
     buildUI();
     logHeap("after buildUI");
 
-    // Surface the SD state with a small persistent badge once the dashboard
-    // has been built. Non-blocking — sits on lv_layer_top() above all pages.
-    showSdBadge(s_sdStatus);
-
     updateSplash("Ready", 100);
 
     // Hold the splash for at least SPLASH_MIN_MS so the user can read the
@@ -312,94 +261,4 @@ void BootSequence::run() {
 
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",
              static_cast<unsigned long>(millis() - bootStartMs));
-}
-
-BootSequence::SdStatus BootSequence::getSdStatus() {
-    return s_sdStatus;
-}
-
-bool BootSequence::isDegradedNoSd() {
-    return s_sdStatus != SdStatus::Ok;
-}
-
-void BootSequence::detectSdEject() {
-    // Only meaningful when we believe the SD is mounted — once we're in a
-    // degraded state, tryRecoverSd() owns the polling cadence.
-    if (s_sdStatus != SdStatus::Ok)
-        return;
-
-    if (StorageDriver::probeStillPresent())
-        return;
-
-    // The storage driver has already torn down its SD instance and
-    // flipped its own status. Mirror it at the boot layer so getSdStatus(),
-    // isDegradedNoSd(), and the SD badge all agree on the new reality.
-    LOG_WARN("BOOT", "SD eject observed — entering degraded mode");
-    s_sdStatus = SdStatus::NoCard;
-    showSdBadge(s_sdStatus);
-}
-
-bool BootSequence::tryRecoverSd() {
-    if (s_sdStatus == SdStatus::Ok)
-        return true;
-
-    LOG_INFO("BOOT", "SD recovery: attempting late mount...");
-
-    // Mount the SD via the storage driver. Cheap on a healthy card
-    // (~10 ms), and StorageDriver::init() is the same call the boot
-    // sequence uses, so any side effects (logging, status reset) match.
-    const bool mountOk = StorageDriver::init();
-    const SdStatus newStatus = mapStorageStatus(StorageDriver::getStatus());
-
-    if (!mountOk) {
-        // Refresh the badge if the failure mode changed (e.g. user pulled a
-        // card mid-recovery and we flip from NoCard to MountFailed). No-op
-        // when the status is unchanged.
-        if (newStatus != s_sdStatus) {
-            s_sdStatus = newStatus;
-            showSdBadge(s_sdStatus);
-        }
-        return false;
-    }
-
-    // SD is mounted — register the LVGL FS driver (idempotent) and bring
-    // the font manager back online before any UI rebuild touches them.
-    LvglFsDriver::ensureRegistered();
-    FontManager::init();
-
-#if DEFAULT_CONFIG_PROVISION_ENABLED
-    // Provision baked-in defaults onto a freshly inserted blank card so
-    // the recovery rebuild lands on a usable dashboard rather than the
-    // setup screen. Existing user data is preserved.
-    const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
-    if (pr.written > 0) {
-        LOG_INFO("BOOT", "SD recovery: provisioned %u default config file(s)",
-                 static_cast<unsigned>(pr.written));
-    }
-    if (pr.failed > 0) {
-        LOG_WARN("BOOT", "SD recovery: default-config provision failed for %u file(s)",
-                 static_cast<unsigned>(pr.failed));
-    }
-#endif
-
-    if (!ConfigLoader::reloadAll()) {
-        // Mount worked but config is unreadable / unparseable — surface the
-        // failure as MountFailed so the studio sees "sd_state":"mount_failed"
-        // and the badge reflects that the card is present but broken.
-        LOG_ERROR("BOOT", "SD recovery: mount ok but config reload failed");
-        s_sdStatus = SdStatus::MountFailed;
-        showSdBadge(s_sdStatus);
-        return false;
-    }
-
-    s_sdStatus = SdStatus::Ok;
-    showSdBadge(s_sdStatus); // clears any active SD warning
-
-    // Rebuild the UI from the freshly loaded config. reinit() picks the
-    // right path: empty-config boot (setup screen) → first-time build,
-    // existing pages (e.g. defaults) → tear-down + rebuild.
-    PageManager::reinit();
-
-    LOG_INFO("BOOT", "SD recovery: mount + reload + rebuild complete");
-    return true;
 }

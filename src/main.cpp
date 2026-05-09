@@ -237,27 +237,6 @@ void taskUI(void *pvParameters) {
                 lv_task_handler();
             }
 
-            // SD hot-plug recovery (issue #251) and eject detection
-            // (issue #315): two complementary slow polls that share the
-            // LVGL mutex window because both touch widgets (SD badge) and
-            // the SPI bus shared with the TFT. Mutually exclusive — only
-            // one branch can fire per tick because the SD is either
-            // mounted or not.
-            const uint32_t nowMs = millis();
-            if (BootSequence::isDegradedNoSd()) {
-                static uint32_t lastSdProbeMs = 0;
-                if (nowMs - lastSdProbeMs >= SD_HOTPLUG_POLL_INTERVAL_MS) {
-                    lastSdProbeMs = nowMs;
-                    BootSequence::tryRecoverSd();
-                }
-            } else {
-                static uint32_t lastSdEjectMs = 0;
-                if (nowMs - lastSdEjectMs >= SD_EJECT_POLL_INTERVAL_MS) {
-                    lastSdEjectMs = nowMs;
-                    BootSequence::detectSdEject();
-                }
-            }
-
             xSemaphoreGive(g_lvglMutex);
         }
 

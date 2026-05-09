@@ -5,7 +5,7 @@
 #   icon_sources/sensors/<name>.svg
 #     → render via rsvg-convert (white stroke, transparent bg, 32×32 PNG)
 #     → png_to_lvgl_bin.py --alpha (LV_IMG_CF_TRUE_COLOR_ALPHA, 32×32)
-#     → sd_contents/assets/sensor_<name>.bin
+#     → data/assets/sensor_<name>.bin
 #
 # The output paths must match canshift-firmware/src/ui/icon_assets.cpp.
 #
@@ -21,7 +21,7 @@ ICON_SIZE = 32  # px — matches the alert/bar widget icon footprint
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 SVG_DIR = SCRIPTS_DIR / "icon_sources" / "sensors"
-SD_ASSETS = SCRIPTS_DIR.parent / "sd_contents" / "assets"
+ASSETS_DIR = SCRIPTS_DIR.parent / "data" / "assets"
 PNG_TO_BIN = SCRIPTS_DIR / "png_to_lvgl_bin.py"
 
 
@@ -67,7 +67,7 @@ def main() -> int:
     if not SVG_DIR.is_dir():
         raise SystemExit(f"ERROR: source dir not found: {SVG_DIR}")
 
-    SD_ASSETS.mkdir(parents=True, exist_ok=True)
+    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     svgs = sorted(SVG_DIR.glob("*.svg"))
     if not svgs:
         raise SystemExit(f"ERROR: no SVGs found in {SVG_DIR}")
@@ -77,11 +77,11 @@ def main() -> int:
         for svg in svgs:
             name = svg.stem
             png = tmp_path / f"sensor_{name}.png"
-            bin_out = SD_ASSETS / f"sensor_{name}.bin"
+            bin_out = ASSETS_DIR / f"sensor_{name}.bin"
             render_svg_to_png(svg, png)
             convert_png_to_bin(png, bin_out)
 
-    print(f"\n{len(svgs)} icons written to {SD_ASSETS}/")
+    print(f"\n{len(svgs)} icons written to {ASSETS_DIR}/")
     return 0
 
 

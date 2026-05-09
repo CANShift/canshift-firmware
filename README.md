@@ -21,7 +21,6 @@ Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–1
 - **MCU** — ESP32-WROOM-32 mounted on the Elecrow CrowPanel 2.8" ESP32 HMI (SKU `DIS05028H`).
 - **Display** — ILI9341, 320×240, SPI bus, backlight on GPIO 27 (PWM channel 0, 5 kHz, 8-bit).
 - **Touch** — XPT2046 resistive controller, sharing the display's HSPI bus, polled (no IRQ).
-- **microSD** — on-board slot wired through the same HSPI bus as the panel; only chip-select is dedicated. CS arbitration is handled by LovyanGFX (`bus_shared = true`) and by the SD driver toggling `PIN_SD_CS` per transfer (`include/board_config.h:91-115`).
 - **CAN** — ESP32 TWAI controller fed through an Adafruit CAN Pal (TJA1051T/3) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → MaxxECU CAN H/L`, `VCC → 5 V`, `GND → GND`.
 
 All pin assignments live in [`include/board_config.h`](include/board_config.h) and are still flagged as assumptions until they're verified on the actual board.
@@ -41,10 +40,9 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 - USB JSON-line protocol over UART0 (115200 baud) — see [USB protocol](#usb-protocol).
 - BLE GATT server for the mobile app (`src/hal/ble/ble_server.cpp`) — TELE notify, STATUS read+notify, SETTINGS read+write, CMD channel.
 - WiFi softAP started on demand from BLE for future OTA flashing (`src/hal/wifi/wifi_ap.h`); compile-gated by `APP_WIFI_OTA_ENABLED` in `app_config.h`.
-- Default-config provisioning — embedded `dashboard.json` / `signals.json` / `theme.json` are written to a fresh SD on first boot. User data is never overwritten (`src/config/default_config.h`, `src/boot/boot_sequence.cpp`).
+- Default-config provisioning — embedded `dashboard.json` / `signals.json` / `theme.json` are written to fresh SPIFFS on first boot. User data is never overwritten (`src/config/default_config.h`, `src/boot/boot_sequence.cpp`).
 - Atomic config writes via `StorageDriver::writeFileAtomic` with a `.bak` fallback (`src/config/config_loader.cpp:48-99`).
-- SD-status badge on `lv_layer_top()` — amber `NO SD` and red `SD ERR`, persistent across pages.
-- Burn overlay — full-screen "Saving config…" feedback with auto error state on SD write failure (`src/ui/burn_overlay.h`).
+- Burn overlay — full-screen "Saving config…" feedback with auto error state on storage write failure (`src/ui/burn_overlay.h`).
 - Runtime device config (`device.json`) overrides TWAI pins and CAN bus speed without recompiling (`src/can/can_manager.cpp:58-69`).
 - CAN-task IDLE0 yield fix — `vTaskDelay(CAN_TASK_YIELD_TICKS)` keeps the Task Watchdog Timer happy on a busy bus (`src/main.cpp:248`, issue #200).
 - Splash screen with progress bar and a 2 s minimum hold (`src/boot/boot_sequence.cpp:85-112,222-330`).
@@ -70,19 +68,16 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 
 pio run                          # Build only
 pio run --target upload          # Build and flash firmware
-pio run --target uploadfs        # Upload SPIFFS filesystem
+pio run --target uploadfs        # Upload SPIFFS filesystem (data/)
 pio device monitor               # Serial monitor at 115200 baud
-
-# Manual SD copy (assets + canonical configs) — fallback only
-pio run -t flash_sd              # Copies sd_contents/ to a mounted SD card
-                                 # See scripts/extra_targets.py + scripts/flash_sd.py
 
 # Simulation mode (no hardware required)
 pio run -e sim --target upload
 ```
 
-`flash_sd` is a manual fallback. First boot now provisions the embedded default
-config files automatically, so the SD card no longer needs to be pre-populated.
+First boot provisions the embedded default config files automatically — no
+manual asset copy step is required. Fonts and icons under `data/assets/` and
+`data/fonts/` ship to the device via `pio run -t uploadfs`.
 
 ### Flashing a release
 
@@ -181,7 +176,7 @@ canshift-firmware/
 │   ├── hal/
 │   │   ├── display/                # LovyanGFX wrapper (ILI9341, DMA flush)
 │   │   ├── touch/                  # XPT2046 — calibrate() + setTouch()
-│   │   ├── storage/                # SD / SPIFFS read/write + LVGL FS driver
+│   │   ├── storage/                # SPIFFS read/write + LVGL FS driver
 │   │   ├── usb/usb_comm.{cpp,h}    # JSON line parser, command dispatch, scans
 │   │   ├── ble/ble_server.{cpp,h}  # NimBLE GATT — TELE / STATUS / SETTINGS / CMD
 │   │   └── wifi/wifi_ap.{cpp,h}    # On-demand softAP for OTA (compile-gated)
@@ -192,7 +187,7 @@ canshift-firmware/
 │   ├── config/
 │   │   ├── config_loader.{cpp,h}   # JSON → domain structs, atomic writes + .bak
 │   │   ├── config_types.h          # Mirrors canshift-core schema (C++ structs)
-│   │   ├── default_config.{cpp,h}  # First-boot SD provisioning (embedded JSON)
+│   │   ├── default_config.{cpp,h}  # First-boot SPIFFS provisioning (embedded JSON)
 │   │   └── rotation_config.{cpp,h} # 0°/180° mounting rotation persistence
 │   ├── runtime/
 │   │   ├── signal_store.{cpp,h}    # Thread-safe live signal store with timeout
@@ -205,7 +200,7 @@ canshift-firmware/
 │   │   ├── settings_page.{cpp,h}   # Brightness + sleep + rotation panel
 │   │   ├── burn_overlay.{cpp,h}    # "Saving config…" full-screen overlay
 │   │   ├── alert_flash.{cpp,h}     # Rev-limit screen flash effect
-│   │   ├── error_bar.{cpp,h}       # SD / config error badge on lv_layer_top
+│   │   ├── error_bar.{cpp,h}       # Config error badge on lv_layer_top
 │   │   ├── font_manager.{cpp,h}    # LVGL font registration
 │   │   ├── icon_assets.{cpp,h}     # LVGL icon binary loaders
 │   │   ├── widget_label.h          # Shared widget label primitive
@@ -215,18 +210,16 @@ canshift-firmware/
 │   └── diag/
 │       ├── logger.{cpp,h}          # LOG_INFO / LOG_WARN / LOG_ERROR macros
 │       └── error_store.{cpp,h}     # Persistent error state for the badge
-├── data/config/                    # SPIFFS / studio reference configs
-│   ├── dashboard.json              # Default dashboard layout
-│   ├── signals.json                # MaxxECU CAN signal mapping (UNVERIFIED)
-│   ├── theme.json                  # Default theme overrides
-│   └── device.json                 # Runtime hardware overrides
-├── sd_contents/                    # SD layout — assets + embedded defaults
+├── data/                           # SPIFFS image — uploaded via `pio run -t uploadfs`
+│   ├── config/
+│   │   ├── dashboard.json          # Default dashboard layout (also embedded)
+│   │   ├── signals.json            # MaxxECU CAN signal mapping (UNVERIFIED, also embedded)
+│   │   ├── theme.json              # Default theme overrides (also embedded)
+│   │   └── device.json             # Runtime hardware overrides
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
-│   └── config/                     # Same files as data/config/, baked into
-│                                   # the firmware via board_build.embed_files
+│   └── fonts/                      # LVGL .bin fonts (montserrat_*.bin)
 └── scripts/
-    ├── extra_targets.py            # Inject APP_VERSION_STR + register flash_sd
-    ├── flash_sd.py                 # Copy sd_contents/ to a mounted SD card
+    ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION
     ├── png_to_lvgl_bin.py          # PNG → LVGL .bin converter
     └── build_sensor_icons.py       # Bulk sensor-icon build
 ```
@@ -270,15 +263,15 @@ shared UART mutex with command acks.
 | Cmd | Name | Payload | Behaviour |
 |-----|------|---------|-----------|
 | `0x01` | `CMD_GET_CONFIG` | `{"cmd":1}` | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped). `src/hal/usb/usb_comm.cpp:435-459` |
-| `0x02` | `CMD_PUT_CONFIG` | `{"cmd":2,"payload":{...}}` | Show burn overlay → atomic SD write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state. `usb_comm.cpp:172-227` |
+| `0x02` | `CMD_PUT_CONFIG` | `{"cmd":2,"payload":{...}}` | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state. `usb_comm.cpp:172-227` |
 | `0x03` | `CMD_PUT_SIGNALS` | reserved | Falls through to the default handler (acks `ok`); no dedicated handler yet. |
 | `0x04` | `CMD_PUT_THEME` | reserved | Same as above. |
 | `0x05` | `CMD_SCREEN_SETTINGS` | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}` | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot. `usb_comm.cpp:331-358` |
-| `0x06` | `CMD_PUT_FILE` | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 SD write. `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. `usb_comm.cpp:264-329` |
+| `0x06` | `CMD_PUT_FILE` | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write. `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. `usb_comm.cpp:264-329` |
 | `0x07` | `CMD_TOGGLE_DAY_NIGHT` | `{"cmd":7}` | Flip the day/night theme on the next UI tick. `usb_comm.cpp:463-467` |
 | `0x08` | `CMD_CALIBRATE_TOUCH` | `{"cmd":8}` | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input). `usb_comm.cpp:481-485` |
 | `0x09` | `CMD_SET_DAY_NIGHT` | `{"cmd":9,"day":true\|false}` | Idempotent variant of `0x07` (issue #225). `usb_comm.cpp:468-480` |
-| `0x10` | `CMD_GET_STATUS` | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1,"sd":0\|1,"sd_state":"ok\|no_card\|mount_failed"}`. `usb_comm.cpp:417-433` |
+| `0x10` | `CMD_GET_STATUS` | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`. `usb_comm.cpp:417-433` |
 | `0x20` | `CMD_CAN_SCAN_START` | `{"cmd":32}` | Begin forwarding raw CAN frames; resets the drop counter. `usb_comm.cpp:486-493` |
 | `0x21` | `CMD_CAN_SCAN_STOP` | `{"cmd":33}` | Stop forwarding; ack includes `drops`. `usb_comm.cpp:494-504` |
 | `0xF0` | `CMD_REBOOT` | `{"cmd":240}` | `esp_restart()` after the default ack. |
@@ -434,34 +427,32 @@ in your build flags. In sim mode:
 
 | Signal | GPIO | Note |
 |--------|------|------|
-| TFT MOSI | 13 | Shared with SD MOSI |
-| TFT MISO | 12 | Shared with SD MISO; display is write-only |
-| TFT SCLK | 14 | Shared with SD SCLK |
+| TFT MOSI | 13 | |
+| TFT MISO | 12 | Display is write-only |
+| TFT SCLK | 14 | |
 | TFT CS | 15 | |
 | TFT DC/RS | 2 | |
 | TFT RST | -1 | Held high internally on CrowPanel 2.8" |
 | TFT Backlight | 27 | PWM channel 0, 5 kHz, 8-bit |
 | Touch CS | 33 | Shared SPI bus |
 | Touch IRQ | -1 | Polled via `getTouch()` |
-| SD CS | 5 | Shared HSPI bus |
 | TWAI TX | **25** | → CAN Pal CTX |
 | TWAI RX | **32** | ← CAN Pal CRX |
 
 CAN speed: 500 kbps default (`board_config.h:89`); runtime override via
 `device.json`. MaxxECU CAN frame IDs in `signals.json` are **unverified** —
-confirm them in the MaxxECU PC software. The SD-pin assignments are also
-assumptions pending multimeter verification (`board_config.h:96-115`).
+confirm them in the MaxxECU PC software.
 
 ---
 
-## Config files on SD
+## Config files on SPIFFS
 
-Each canonical config lives at `/config/` on the SD card (paths from
-`board_config.h:147-151`).
+Each canonical config lives at `/config/` on the SPIFFS partition (paths from
+`board_config.h`).
 
 | File | Purpose | Required? |
 |------|---------|-----------|
-| `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot (`platformio.ini:69`) |
+| `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot (`platformio.ini`) |
 | `signals.json` | MaxxECU CAN signal mapping | Same — provisioned on first boot |
 | `theme.json` | Default theme overrides | Optional; provisioned with the embed defaults |
 | `device.json` | Runtime hardware overrides (TWAI pins, CAN speed) | Optional — falls back to `board_config.h` |

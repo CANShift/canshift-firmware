@@ -307,7 +307,7 @@
  * FILESYSTEM
  *==================*/
 
-/* LVGL file system for loading images from SPIFFS/SD */
+/* LVGL file system for loading images from SPIFFS */
 #define LV_USE_FS_IF   0    /* Not used — images are loaded via custom decoder */
 #define LV_USE_PNG     0    /* PNG decoding — disabled to save memory; use BMP or raw arrays */
 #define LV_USE_BMP     1    /* BMP support for background images */

@@ -12,6 +12,7 @@
 //   Voltage:  SignalIds::BATTERY_VOLTS — formatted "12.4V" (— if unknown)
 //   Download: green when UsbComm reports a recent host command (studio attached)
 
+
 #include "top_bar.h"
 #include "ui/font_manager.h"
 #include "settings_page.h"
@@ -74,25 +75,6 @@ static inline int16_t derivedIconSize(int16_t fontSize) {
 
 static lv_obj_t *s_bar = nullptr;
 
-// Warnings cluster — a small container anchored to the right edge of the bar
-// that holds firmware-driven warning badges (NO SD, future: CAN errors, low
-// fuel, etc.). Grows leftward as badges are added; stays right-aligned.
-//
-// The cluster is built once in init() but only made visible when at least
-// one warning is active. Each badge is a small label inside the cluster.
-//
-// Configured items are rendered before init builds the cluster, so the
-// cluster always paints on top in the right-most position. A small gap is
-// kept from any configured right-aligned item via TopBarItemPos::RIGHT
-// alignment offsets.
-static lv_obj_t *s_warningsCluster = nullptr;
-
-struct WarningBadge {
-    lv_obj_t *obj; // nullptr when inactive
-    bool active;
-};
-static WarningBadge s_warnings[TopBar::WarningKindCount] = {};
-
 // Hardcoded-layout handles. Used when `topBar.layout` is absent (legacy path).
 // When the layout is config-driven these stay null and update() walks the
 // dynamic-item table instead.
@@ -124,7 +106,7 @@ struct DynItem {
 static DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
 static uint8_t s_dynCount = 0;
 
-// Day/night icons live on the SD as 12×12 RGB565 .bin (LVGL native format).
+// Day/night icons live on SPIFFS as 12×12 RGB565 .bin (LVGL native format).
 // Source PNGs are in scripts/icon_sources/, regenerable via
 // scripts/png_to_lvgl_bin.py. We can't use the Unicode sun/moon glyphs
 // because the compile-time Montserrat fonts don't include them.
@@ -135,25 +117,6 @@ static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;  // red — never connected
 static constexpr uint32_t COLOR_USB_OFF = 0x444444;   // gray — host not active
 static constexpr uint32_t COLOR_LABEL = 0xCCCCCC;
 static constexpr uint32_t COLOR_MUTED = 0x666666;
-
-// Warning badge palette + text. Index-aligned with TopBar::WarningKind.
-struct WarningSpec {
-    const char *text;
-    uint32_t bgColor;
-    uint32_t fgColor;
-};
-static constexpr WarningSpec WARNING_SPECS[TopBar::WarningKindCount] = {
-    {"NO SD", 0xCC8800, 0xFFFFFF},  // amber — actionable, just insert one
-    {"SD ERR", 0xCC3333, 0xFFFFFF}, // red — wiring/firmware issue
-};
-
-// Gap between the bar's right edge and the rightmost warning badge.
-static constexpr int16_t WARNING_CLUSTER_RIGHT_PAD = 0;
-// Gap between adjacent warning badges inside the cluster.
-static constexpr int16_t WARNING_BADGE_GAP = 4;
-// Inner padding of each badge label.
-static constexpr int16_t WARNING_BADGE_PAD_X = 4;
-static constexpr int16_t WARNING_BADGE_PAD_Y = 1;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -196,70 +159,6 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
     const uint8_t target = static_cast<uint8_t>(derivedSeparator(s_height));
     lv_obj_set_style_text_font(lbl, FontManager::get(target), 0);
     return lbl;
-}
-
-// Build (once) the empty warnings cluster anchored to the right edge of the
-// bar. Stays hidden until the first setWarning(kind, true) call. Re-uses the
-// bar's pad_all so badges align vertically with other items.
-static void buildWarningsCluster() {
-    if (s_bar == nullptr)
-        return;
-    s_warningsCluster = lv_obj_create(s_bar);
-    // Sized just-large-enough to hold the badges; lv_obj_set_content_width()
-    // would let LVGL size around children, but setting an explicit size and
-    // re-aligning children manually is simpler and avoids layout reflows.
-    // Height tracks the bar's content area (height minus a small inset, which
-    // is small relative to the bar so we keep the legacy 4 px allowance).
-    const int16_t clusterH = static_cast<int16_t>(s_height > 4 ? s_height - 4 : s_height);
-    lv_obj_set_size(s_warningsCluster, 0, clusterH);
-    lv_obj_set_style_bg_opa(s_warningsCluster, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_warningsCluster, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(s_warningsCluster, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(s_warningsCluster, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(s_warningsCluster, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(s_warningsCluster, LV_ALIGN_RIGHT_MID, -WARNING_CLUSTER_RIGHT_PAD, 0);
-    lv_obj_add_flag(s_warningsCluster, LV_OBJ_FLAG_HIDDEN);
-
-    for (uint8_t i = 0; i < TopBar::WarningKindCount; ++i) {
-        s_warnings[i].obj = nullptr;
-        s_warnings[i].active = false;
-    }
-}
-
-// Re-pack all active warning badges right-to-left inside the cluster and
-// resize the cluster to fit. Called after every setWarning() so the layout
-// stays compact when warnings come and go.
-static void relayoutWarnings() {
-    if (s_warningsCluster == nullptr)
-        return;
-
-    int16_t totalWidth = 0;
-    uint8_t activeCount = 0;
-    lv_obj_t *prev = nullptr;
-    for (uint8_t i = 0; i < TopBar::WarningKindCount; ++i) {
-        if (!s_warnings[i].active || s_warnings[i].obj == nullptr)
-            continue;
-        lv_obj_update_layout(s_warnings[i].obj);
-        const lv_coord_t w = lv_obj_get_width(s_warnings[i].obj);
-        if (prev == nullptr) {
-            lv_obj_align(s_warnings[i].obj, LV_ALIGN_RIGHT_MID, 0, 0);
-            totalWidth = w;
-        } else {
-            lv_obj_align_to(s_warnings[i].obj, prev, LV_ALIGN_OUT_LEFT_MID, -WARNING_BADGE_GAP, 0);
-            totalWidth += WARNING_BADGE_GAP + w;
-        }
-        prev = s_warnings[i].obj;
-        ++activeCount;
-    }
-
-    if (activeCount == 0) {
-        lv_obj_add_flag(s_warningsCluster, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_width(s_warningsCluster, 0);
-        return;
-    }
-    lv_obj_clear_flag(s_warningsCluster, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_width(s_warningsCluster, totalWidth);
-    lv_obj_align(s_warningsCluster, LV_ALIGN_RIGHT_MID, -WARNING_CLUSTER_RIGHT_PAD, 0);
 }
 
 // True when at least one signal in the store is currently valid. Used by
@@ -506,22 +405,13 @@ void TopBar::init() {
     // currently doesn't, but cheap insurance).
     s_ecuDot = s_ecuLabel = s_canDot = s_canLabel = nullptr;
     s_voltageLabel = s_usbIcon = s_themeIcon = nullptr;
-    s_warningsCluster = nullptr;
     s_dynCount = 0;
-    for (uint8_t i = 0; i < TopBar::WarningKindCount; ++i) {
-        s_warnings[i].obj = nullptr;
-        s_warnings[i].active = false;
-    }
 
     if (cfg.hasLayout) {
         buildFromLayout(cfg, dash.hasDayTheme);
     } else {
         buildLegacyHardcoded(dash);
     }
-
-    // Build the warnings cluster last so it draws on top of any configured
-    // right-aligned items. Empty + hidden by default; setWarning() reveals it.
-    buildWarningsCluster();
 
     SettingsPage::init(s_height, static_cast<int16_t>(LV_VER_RES - s_height));
 
@@ -691,41 +581,4 @@ void TopBar::update() {
 
 int16_t TopBar::getHeight() {
     return s_height;
-}
-
-void TopBar::setWarning(WarningKind kind, bool active) {
-    const uint8_t idx = static_cast<uint8_t>(kind);
-    if (idx >= TopBar::WarningKindCount)
-        return;
-    if (s_warningsCluster == nullptr)
-        return; // init() not yet run
-    if (s_warnings[idx].active == active)
-        return; // idempotent
-
-    if (active) {
-        const WarningSpec &spec = WARNING_SPECS[idx];
-        lv_obj_t *badge = lv_label_create(s_warningsCluster);
-        lv_label_set_text(badge, spec.text);
-        lv_obj_set_style_text_color(badge, lv_color_hex(spec.fgColor), 0);
-        // Badge font follows the shared proportion table — same size as bar labels.
-        const uint8_t badgeFs = static_cast<uint8_t>(derivedFontSize(s_height));
-        lv_obj_set_style_text_font(badge, FontManager::get(badgeFs), 0);
-        lv_obj_set_style_bg_color(badge, lv_color_hex(spec.bgColor), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_radius(badge, 2, LV_PART_MAIN);
-        lv_obj_set_style_pad_hor(badge, WARNING_BADGE_PAD_X, LV_PART_MAIN);
-        lv_obj_set_style_pad_ver(badge, WARNING_BADGE_PAD_Y, LV_PART_MAIN);
-        lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-        s_warnings[idx].obj = badge;
-        s_warnings[idx].active = true;
-    } else {
-        if (s_warnings[idx].obj != nullptr) {
-            lv_obj_del(s_warnings[idx].obj);
-            s_warnings[idx].obj = nullptr;
-        }
-        s_warnings[idx].active = false;
-    }
-
-    relayoutWarnings();
 }

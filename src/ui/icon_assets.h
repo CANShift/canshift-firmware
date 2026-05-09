@@ -3,17 +3,17 @@
 // asset paths and Unicode fallback glyphs.
 //
 // Studio renders sensor icons as SVG components; the firmware loads matching
-// .bin (RGB565) files from the SD card under "/assets/sensor_<name>.bin".
-// When the asset is absent (e.g. SD missing, or freshly flashed device that
-// never received the asset bundle) the widget falls back to a LV_SYMBOL_*
-// glyph so the widget always renders something.
+// .bin (RGB565) files from SPIFFS under "/assets/sensor_<name>.bin". When
+// the asset is absent (e.g. freshly flashed device that never received the
+// asset bundle) the widget falls back to a LV_SYMBOL_* glyph so the widget
+// always renders something.
 
 #include <lvgl.h>
 
 namespace IconAssets {
 
 // LVGL FS path for the icon, "" if no mapping or the underlying .bin file is
-// missing on the storage backend. Probes the SD synchronously so callers can
+// missing on the storage backend. Probes storage synchronously so callers can
 // rely on "non-empty result == file exists and lv_img_set_src will succeed".
 const char *path(const char *iconName);
 

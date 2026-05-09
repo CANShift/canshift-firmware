@@ -634,19 +634,3 @@ void PageManager::setRevLimiterOverlay(bool visible) {
 uint8_t PageManager::getPageCount() {
     return s_pageCount;
 }
-
-void PageManager::reinit() {
-    // Empty-config boots show the setup screen and never built any pages.
-    // Re-run init() so freshly loaded config materializes a real dashboard.
-    if (s_pageCount == 0) {
-        init();
-        if (s_pageCount > 0) {
-            navigateTo(getDefaultPageId());
-        }
-        return;
-    }
-
-    // Pages already exist (config was reloaded mid-flight) — fall through to
-    // the same teardown/rebuild path used by theme toggles.
-    rebuildAllPages();
-}

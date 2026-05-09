@@ -43,10 +43,6 @@
 #define HW_SPIFFS_PRESENT 1    // Always available on ESP32
 #define HW_SPIFFS_SIZE_KB 1024 // Depends on partition table
 
-// SD slot is present on the CrowPanel 2.8" — see board_config.h for the
-// (assumed) HSPI-shared pin assignment. VERIFY ON BOARD.
-#define HW_SD_PRESENT 1
-
 // ---------------------------------------------------------------------------
 // Connectivity
 // ---------------------------------------------------------------------------

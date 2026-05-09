@@ -153,28 +153,14 @@
 #define CONFIG_MAX_WIDGETS_PER_PAGE 12
 #define CONFIG_MAX_SIGNALS 32
 
-// First-boot provisioning of the embedded default configs to SD (issue #173).
-// When 1, BootSequence checks for missing canonical config files after SD
-// mounts and writes the firmware-baked defaults. Existing user data is never
-// overwritten. The defaults are linked in via `board_build.embed_files`.
+// First-boot provisioning of the embedded default configs to SPIFFS (issue
+// #173). When 1, BootSequence checks for missing canonical config files
+// after storage mounts and writes the firmware-baked defaults. Existing user
+// data is never overwritten. The defaults are linked in via
+// `board_build.embed_files`.
 #ifndef DEFAULT_CONFIG_PROVISION_ENABLED
     #define DEFAULT_CONFIG_PROVISION_ENABLED 1
 #endif
-
-// ---------------------------------------------------------------------------
-// SD hot-plug recovery (issue #251)
-// ---------------------------------------------------------------------------
-
-// Polling cadence for the UI task to retry SD mount after a degraded boot.
-// Cheap on healthy boots — gated by BootSequence::isDegradedNoSd(), so it
-// only fires while we know the SD is missing/unmounted.
-#define SD_HOTPLUG_POLL_INTERVAL_MS 2000
-
-// Polling cadence for SD eject detection while mounted (issue #315). Each
-// probe issues one SEND_CSD over the shared HSPI bus, so we sample slowly
-// to keep TFT flush jitter unmeasurable. 5 s is well below human eject-to-
-// re-insert latency yet ~200x cheaper than the boot-time mount probe.
-#define SD_EJECT_POLL_INTERVAL_MS 5000
 
 // ---------------------------------------------------------------------------
 // Alert engine

@@ -15,7 +15,6 @@
 #include "board_config.h"
 #include "app_config.h"
 #include "diag/logger.h"
-#include "boot/boot_sequence.h"
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
 #include "config/json_reader.h"
@@ -176,7 +175,7 @@ void sendTelemetry() {
 // Command handlers
 // ---------------------------------------------------------------------------
 
-// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to SD, then reboot.
+// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to storage, then reboot.
 // After ArduinoJson parses into doc, s_rxBuf is no longer needed for reading,
 // so we reuse it as the serialization buffer for the payload.
 void handlePutConfig(const char *jsonLine) {
@@ -203,8 +202,8 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    // Show the "Saving config…" overlay before the SD write so the user gets
-    // immediate feedback. Mirrors studio's BurnProgressModal. lv_refr_now
+    // Show the "Saving config…" overlay before the storage write so the user
+    // gets immediate feedback. Mirrors studio's BurnProgressModal. lv_refr_now
     // inside show() flushes the screen before the write blocks the UI.
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
         BurnOverlay::show();
@@ -214,7 +213,7 @@ void handlePutConfig(const char *jsonLine) {
     bool ok = StorageDriver::writeFileAtomic(
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(s_rxBuf), written);
     if (!ok) {
-        LOG_ERROR("USB", "PUT_CONFIG: SD write failed");
+        LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
         // Flip the overlay to its error state so the LCD itself surfaces the
         // failure instead of just snapping back to the dashboard. showError()
@@ -222,7 +221,7 @@ void handlePutConfig(const char *jsonLine) {
         // sleep here, so we don't block the USB task while the message
         // holds (issue #189).
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            BurnOverlay::showError(BurnOverlay::ErrorReason::SdWriteFailed);
+            BurnOverlay::showError(BurnOverlay::ErrorReason::WriteFailed);
             xSemaphoreGive(g_lvglMutex);
         }
         return;
@@ -237,7 +236,7 @@ void handlePutConfig(const char *jsonLine) {
 }
 
 // ---------------------------------------------------------------------------
-// CMD_PUT_FILE — chunked, base64-encoded file write to SD
+// CMD_PUT_FILE — chunked, base64-encoded file write to storage
 // ---------------------------------------------------------------------------
 
 constexpr uint32_t CHUNK_TIMEOUT_MS = 10000;
@@ -430,20 +429,11 @@ void handleCommand(const char *jsonLine) {
 
     switch (cmd) {
         case UsbComm::CMD_GET_STATUS: {
-            // sd=0 means the boot sequence flagged the device as degraded
-            // (SD missing/failed). Older studio builds ignore the field
-            // (additive). See BootSequence::isDegradedNoSd().
-            const BootSequence::SdStatus sdStatus = BootSequence::getSdStatus();
-            const int sdOk = sdStatus == BootSequence::SdStatus::Ok ? 1 : 0;
-            const char *sdState = sdStatus == BootSequence::SdStatus::Ok      ? "ok"
-                                  : sdStatus == BootSequence::SdStatus::NoCard ? "no_card"
-                                                                                : "mount_failed";
-            char resp[200];
+            char resp[160];
             snprintf(resp, sizeof(resp),
-                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
-                     "\"sd\":%d,\"sd_state\":\"%s\"}",
+                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
                      APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                     ThemeManager::isDayMode() ? 1 : 0, sdOk, sdState);
+                     ThemeManager::isDayMode() ? 1 : 0);
             UsbComm::sendLine(resp);
             break;
         }
@@ -634,7 +624,7 @@ bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
 
 void UsbComm::tick() {
     // Abort any chunked transfer that has stalled (host crashed mid-stream
-    // or unplugged) — leaves the SD in a clean state.
+    // or unplugged) — leaves storage in a clean state.
     if (StorageDriver::isChunkedWriteOpen() &&
         (millis() - s_chunk.lastActivityMs) > CHUNK_TIMEOUT_MS) {
         abortChunkTransfer("idle timeout");

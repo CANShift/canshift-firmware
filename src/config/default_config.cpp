@@ -1,5 +1,10 @@
 // default_config.cpp — Embed + write baked-in default configs on first boot.
 //
+// Symbol naming: PlatformIO's embed_files generates `_binary_<munged_path>`
+// where the munged path is the file path with non-identifier characters
+// replaced by underscores. Embed sources live under `data/config/` (see
+// platformio.ini), giving e.g. `_binary_data_config_dashboard_json_start`.
+//
 // JSON payloads are linked in via PlatformIO `board_build.embed_files`. Each
 // embedded blob exposes `_binary_<munged_path>_start` / `_end` symbols. We
 // reference them with `extern "C"` declarations and let the linker fill in
@@ -26,19 +31,19 @@ static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 extern "C" {
 extern const uint8_t kDefaultDashboardStart[] asm(
-    "_binary_sd_contents_config_dashboard_json_start");
+    "_binary_data_config_dashboard_json_start");
 extern const uint8_t kDefaultDashboardEnd[] asm(
-    "_binary_sd_contents_config_dashboard_json_end");
+    "_binary_data_config_dashboard_json_end");
 
 extern const uint8_t kDefaultSignalsStart[] asm(
-    "_binary_sd_contents_config_signals_json_start");
+    "_binary_data_config_signals_json_start");
 extern const uint8_t kDefaultSignalsEnd[] asm(
-    "_binary_sd_contents_config_signals_json_end");
+    "_binary_data_config_signals_json_end");
 
 extern const uint8_t kDefaultThemeStart[] asm(
-    "_binary_sd_contents_config_theme_json_start");
+    "_binary_data_config_theme_json_start");
 extern const uint8_t kDefaultThemeEnd[] asm(
-    "_binary_sd_contents_config_theme_json_end");
+    "_binary_data_config_theme_json_end");
 }
 
 namespace {

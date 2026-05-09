@@ -7,7 +7,7 @@
 //   Commands from desktop → device:
 //     CMD_PUT_CONFIG        0x02  — Push new dashboard.json content
 //     CMD_SCREEN_SETTINGS   0x05  — Push display settings (brightness, sleep)
-//     CMD_PUT_FILE          0x06  — Stream a file to SD in base64-encoded chunks
+//     CMD_PUT_FILE          0x06  — Stream a file to storage in base64-encoded chunks
 //     CMD_TOGGLE_DAY_NIGHT  0x07  — Flip the day/night theme on the device
 //     CMD_CALIBRATE_TOUCH   0x08  — Run the on-device touch calibration crosshairs
 //     CMD_GET_STATUS        0x10  — Query firmware version, protocol, is_day flag
@@ -56,7 +56,7 @@ static constexpr uint8_t CMD_PUT_THEME = 0x04;
 // Push screen display settings (brightness, sleep)
 // Payload: {"brightness":80,"sleep":0}
 static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
-// Stream a file to SD in chunks. One JSON line per chunk:
+// Stream a file to storage in chunks. One JSON line per chunk:
 //   {"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}
 // idx=0 truncates / creates the target file. idx=total-1 closes it.
 // Each chunk is ack'd; out-of-sequence chunks abort the transfer.

@@ -101,67 +101,12 @@
 #define CAN_SPEED_KBPS 500
 
 // ---------------------------------------------------------------------------
-// SD Card — microSD slot on the LCD board, shares the HSPI bus with the TFT
+// Storage — SPIFFS only
 //
-// VERIFIED ON BOARD: NO — pin assignments below are an ASSUMPTION based on
-// the published Elecrow CrowPanel 2.8" ESP32 HMI (DIS05028H) wiring, which
-// routes the on-board microSD slot through the SAME HSPI bus used by the
-// ILI9341 + XPT2046. Only the chip-select line is dedicated.
-//
-// Previous values (MOSI=23, MISO=19, SCLK=18, CS=5) targeted the ESP32
-// default VSPI pins, which are NOT brought out to the SD slot on this board
-// — that mismatch is the prime suspect for issue #135 (SD unreadable when
-// inserted in the LCD slot). The SD CS pin (GPIO 5) is preserved because
-// it matches the published Elecrow examples and is not used by the TFT.
-//
-// IMPORTANT: because the bus is shared with the display, the storage driver
-// MUST pass the existing HSPI SPIClass instance to SD.begin() so the Arduino
-// SD driver does not try to reconfigure pins behind LovyanGFX's back. CS
-// arbitration is handled by LovyanGFX (bus_shared = true on the panel/touch
-// configs in lgfx_panel.h) and by the SD driver toggling PIN_SD_CS per
-// transfer.
-//
-// VERIFY ON BOARD: confirm with a multimeter or the Elecrow schematic that
-// the SD slot is wired to GPIO 12/13/14 and that GPIO 5 is the SD CS line.
-// If a future hardware revision moves the SD slot to a separate bus, update
-// these values AND drop the bus_shared flag in lgfx_panel.h.
+// Configuration, fonts, and assets live on the on-chip SPIFFS partition
+// (board_build.filesystem = spiffs in platformio.ini). Image is uploaded via
+// `pio run -t uploadfs` from canshift-firmware/data/.
 // ---------------------------------------------------------------------------
-
-#define PIN_SD_PRESENT 1 // 0 = no SD, 1 = SD present
-
-#if PIN_SD_PRESENT
-    // CrowPanel 2.8" routes SD on the shared HSPI bus (same wires as TFT).
-    #define PIN_SD_MOSI 13 // = PIN_TFT_MOSI
-    #define PIN_SD_MISO 12 // = PIN_TFT_MISO
-    #define PIN_SD_SCLK 14 // = PIN_TFT_SCLK
-    #define PIN_SD_CS 5    // dedicated SD chip-select
-
-    // Conservative SPI clock for first-flash reliability. Many breadboard /
-    // ribbon-cable wirings drop frames above ~10 MHz, and the on-board SD
-    // slot is not specced for the 25/40 MHz limits a dedicated bus tolerates.
-    // Bump this only after the SD has been validated on the real board.
-    #define SD_SPI_FREQ_HZ 4000000UL
-#endif
-
-// ---------------------------------------------------------------------------
-// Storage selection — SPIFFS is the canonical on-device backend.
-//
-// Architectural decision (issue #420): the dash uses internal SPIFFS for all
-// configs, fonts, and image assets. Studio writes via USB serial (`burn`),
-// the mobile app via BLE. No external SD card is required for normal use.
-//
-// Why SPIFFS over SD:
-//   - 100% mount reliability (no per-card flakiness like #422 documented).
-//   - Simpler hardware: one less component to fail.
-//   - Smaller BOM and onboarding ("plug USB, open Studio, burn").
-//   - Plenty of headroom: 1.2 MB partition vs ~308 KB of bundled data.
-//
-// SD support remains compiled in (the `STORAGE_USE_SD` branches) so a future
-// build could opt-in, but it is OFF by default. Touch this only if SD has
-// been re-validated end-to-end.
-// ---------------------------------------------------------------------------
-#define STORAGE_USE_SD 0
-#define STORAGE_USE_SPIFFS 1
 
 // Config file paths on the filesystem
 #define CONFIG_PATH_DASHBOARD "/config/dashboard.json"

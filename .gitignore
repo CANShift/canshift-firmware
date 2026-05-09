@@ -7,12 +7,9 @@
 *.hex
 *.map
 
-# Allow SPIFFS font assets
+# Allow SPIFFS font + image assets
 !data/fonts/*.bin
-# Allow SPIFFS image assets (SPIFFS-first architecture)
 !data/assets/*.bin
-# Allow LVGL image assets shipped on the SD card (legacy / opt-in only)
-!sd_contents/assets/*.bin
 
 # IDE
 .vscode/

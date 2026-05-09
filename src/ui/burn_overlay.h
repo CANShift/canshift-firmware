@@ -22,7 +22,7 @@ namespace BurnOverlay {
 
 /** Reason codes for showError(). Strings live in burn_overlay.cpp. */
 enum class ErrorReason {
-    SdWriteFailed,
+    WriteFailed,
 };
 
 /** Build and show the overlay. Safe to call repeatedly — re-creates on each call. */

@@ -16,8 +16,8 @@ struct IconEntry {
 };
 
 // SensorIconName values (canshift-core/src/types/dashboard.ts).
-// .bin assets are expected at "S:/assets/sensor_<name>.bin" once shipped to
-// the SD card; until then the fallback glyph keeps the widget visible.
+// .bin assets are expected at "S:/assets/sensor_<name>.bin" on SPIFFS;
+// when missing, the fallback glyph keeps the widget visible.
 constexpr IconEntry kIcons[] = {
     {"rpm",          "S:/assets/sensor_rpm.bin",          LV_SYMBOL_LOOP},
     {"speed",        "S:/assets/sensor_speed.bin",        LV_SYMBOL_RIGHT},
@@ -74,10 +74,11 @@ const char *path(const char *iconName) {
     const IconEntry *e = find(iconName);
     if (!e || e->path[0] == '\0')
         return "";
-    // Probe the SD before returning the path: when the .bin isn't on the
-    // card the LVGL image draw silently no-ops, so the caller would render
-    // an empty box. Returning "" here lets the widget activate the glyph
-    // fallback path instead. Cost: one SD stat per icon at UI build time.
+    // Probe storage before returning the path: when the .bin isn't on
+    // SPIFFS the LVGL image draw silently no-ops, so the caller would
+    // render an empty box. Returning "" here lets the widget activate the
+    // glyph fallback path instead. Cost: one SPIFFS stat per icon at UI
+    // build time.
     if (!exists(e->path))
         return "";
     return e->path;

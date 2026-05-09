@@ -1,25 +1,19 @@
-// lvgl_fs_driver.cpp — LVGL FS driver backed by SD card
+// lvgl_fs_driver.cpp — LVGL FS driver backed by SPIFFS
 //
-// Registers drive letter 'S' so LVGL can load fonts and images from SD.
-// Requires SD to be mounted via StorageDriver::init() before calling init().
+// Registers drive letter 'S' so LVGL can load fonts and images from SPIFFS.
+// Requires SPIFFS to be mounted via StorageDriver::init() before calling init().
 //
 // Path mapping:
 //   LVGL src string:   "S:/fonts/montserrat_32.bin"
 //   LVGL strips "S:"   → callback receives "/fonts/montserrat_32.bin"
-//   Opened on SD       → SD.open("/fonts/montserrat_32.bin", "r")
+//   Opened on SPIFFS   → SPIFFS.open("/fonts/montserrat_32.bin", "r")
 
 #include "lvgl_fs_driver.h"
 #include "board_config.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
-#if STORAGE_USE_SPIFFS
-    #include <SPIFFS.h>
-    #define LVGL_FS_INSTANCE SPIFFS
-#else
-    #include <SD.h>
-    #define LVGL_FS_INSTANCE SD
-#endif
+#include <SPIFFS.h>
 
 // ---------------------------------------------------------------------------
 // FS callbacks (static — no state other than the open File object)
@@ -29,7 +23,7 @@ namespace {
 
 void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
     const char *modeStr = (mode == LV_FS_MODE_WR) ? "w" : "r";
-    File *f = new File(LVGL_FS_INSTANCE.open(path, modeStr));
+    File *f = new File(SPIFFS.open(path, modeStr));
     if (!*f) {
         delete f;
         LOG_WARN("FS", "Cannot open: %s", path);
@@ -76,17 +70,7 @@ lv_fs_res_t fs_tell(lv_fs_drv_t * /*drv*/, void *file_p, uint32_t *pos_p) {
 // Public API
 // ---------------------------------------------------------------------------
 
-namespace {
-// Tracks whether the LVGL FS driver has been registered. Lets SD hot-plug
-// recovery (issue #251) call ensureRegistered() repeatedly without piling
-// up duplicate driver entries inside LVGL.
-bool s_registered = false;
-} // namespace
-
-void LvglFsDriver::ensureRegistered() {
-    if (s_registered)
-        return;
-
+void LvglFsDriver::init() {
     static lv_fs_drv_t drv;
     lv_fs_drv_init(&drv);
 
@@ -98,10 +82,5 @@ void LvglFsDriver::ensureRegistered() {
     drv.tell_cb = fs_tell;
 
     lv_fs_drv_register(&drv);
-    s_registered = true;
-    LOG_INFO("FS", "LVGL SD FS driver registered (drive 'S:')");
-}
-
-void LvglFsDriver::init() {
-    ensureRegistered();
+    LOG_INFO("FS", "LVGL SPIFFS FS driver registered (drive 'S:')");
 }

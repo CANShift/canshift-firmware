@@ -1,7 +1,7 @@
 #pragma once
 // config_loader.h — Load and parse all config JSON files from storage
 //
-// Reads dashboard.json and signals.json from SPIFFS/SD.
+// Reads dashboard.json and signals.json from SPIFFS.
 // Parses JSON using ArduinoJson and populates the CfgDashboard and CfgSignalConfig
 // structs. Falls back to built-in defaults on parse failure.
 

@@ -13,7 +13,7 @@
 
 namespace {
 
-// Maximum LVGL FS path length including the "S:" prefix used for SD-card assets.
+// Maximum LVGL FS path length including the "S:" SPIFFS drive prefix.
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
 // Per-button runtime state — owns the latched toggle flag and a pointer back
@@ -36,7 +36,7 @@ struct ButtonTag {
 const char *resolveIconAsset(const CfgButtonParams &p, char *out, size_t outLen) {
     out[0] = '\0';
     if (p.iconPath[0] != '\0') {
-        // Studio supplies SPIFFS / SD paths with a leading slash already.
+        // Studio supplies SPIFFS paths with a leading slash already.
         const char *prefix = (p.iconPath[0] == '/') ? "" : "/";
         snprintf(out, outLen, "S:%s%s", prefix, p.iconPath);
         if (IconAssets::exists(out))

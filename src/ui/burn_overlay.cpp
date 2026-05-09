@@ -61,16 +61,16 @@ lv_obj_t *createRoot() {
 
 const char *errorTitleFor(BurnOverlay::ErrorReason reason) {
     switch (reason) {
-        case BurnOverlay::ErrorReason::SdWriteFailed:
-            return "SD write failed";
+        case BurnOverlay::ErrorReason::WriteFailed:
+            return "Storage write failed";
     }
     return "Save failed";
 }
 
 const char *errorHintFor(BurnOverlay::ErrorReason reason) {
     switch (reason) {
-        case BurnOverlay::ErrorReason::SdWriteFailed:
-            return "Eject card and retry";
+        case BurnOverlay::ErrorReason::WriteFailed:
+            return "Retry from studio";
     }
     return "Retry from studio";
 }
@@ -128,7 +128,7 @@ void BurnOverlay::show() {
     lv_obj_align(title, LV_ALIGN_CENTER, 0, 36);
 
     lv_obj_t *sub = lv_label_create(root);
-    lv_label_set_text(sub, "Writing to SD…");
+    lv_label_set_text(sub, "Writing to storage…");
     lv_obj_set_style_text_color(sub, lv_color_hex(0x888888), 0);
     lv_obj_set_style_text_font(sub, FontManager::get(12), 0);
     lv_obj_align(sub, LV_ALIGN_CENTER, 0, 60);
@@ -137,7 +137,7 @@ void BurnOverlay::show() {
     s_arc = arc;
 
     // Force a synchronous redraw so the overlay actually paints before the
-    // caller starts the long SD write that would otherwise block all
+    // caller starts the long storage write that would otherwise block all
     // rendering for the duration of the transfer.
     lv_refr_now(nullptr);
 }

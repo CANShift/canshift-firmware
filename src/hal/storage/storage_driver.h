@@ -1,8 +1,8 @@
 #pragma once
-// storage_driver.h — Filesystem abstraction (SPIFFS or SD card)
+// storage_driver.h — SPIFFS filesystem abstraction.
 //
-// Provides a unified file read/write interface regardless of the backing store.
-// Selection is controlled by STORAGE_USE_SPIFFS / STORAGE_USE_SD in board_config.h.
+// Provides a unified file read/write interface backed by the on-chip SPIFFS
+// partition. Selection is hardcoded — the firmware ships SPIFFS-only.
 
 #include <Arduino.h>
 #include <stddef.h>
@@ -13,91 +13,66 @@ namespace StorageDriver {
 // ---------------------------------------------------------------------------
 // Initialization status
 //
-// Surfaced through getStatus() and reflected in the boot UI (no-card vs
-// mount-failed badges) and in the USB GET_STATUS response. SPIFFS-only
-// builds can only report Ok or MountFailed.
+// Surfaced through getStatus() and reflected in the boot UI and the USB
+// GET_STATUS response.
 // ---------------------------------------------------------------------------
 enum class InitStatus : uint8_t {
     NotInitialized = 0, // init() has not been called yet
     Ok = 1,             // mount succeeded; reads/writes are usable
-    NoCard = 2,         // SD-only: no card detected in the slot
-    MountFailed = 3,    // mount failed despite a card being present (likely
-                        // wrong pinout, wrong SPI mode/speed, or a damaged
-                        // card / filesystem)
+    MountFailed = 2,    // mount failed (likely flash partition error)
 };
 
 /**
-     * Initialize the filesystem.
-     * Returns true on success.
-     * On failure, logs an error. Caller may proceed with defaults.
-     * Sets the value returned by getStatus() in all cases.
-     */
+ * Initialize the filesystem.
+ * Returns true on success.
+ * On failure, logs an error. Caller may proceed with defaults.
+ * Sets the value returned by getStatus() in all cases.
+ */
 bool init();
 
 /**
-     * Last init() outcome. NotInitialized until init() runs.
-     */
+ * Last init() outcome. NotInitialized until init() runs.
+ */
 InitStatus getStatus();
 
 /**
- * Probe whether the SD card is still present after a successful mount.
- *
- * SD-only. The Arduino SD library does not notify on physical eject, so
- * eject detection relies on a periodic CSD re-read via SD.cardType().
- * SPIFFS builds always return true (no removable media).
- *
- * On detected ejection: tears down the SD instance (SD.end()), aborts any
- * in-flight chunked write so its file handle is released, and flips the
- * internal status to NoCard so getStatus() reflects the new state.
- *
- * Returns true while the card is still present, false once eject has been
- * observed. Cheap-but-non-zero on healthy mounts (one SPI command), so
- * callers must throttle (see SD_EJECT_POLL_INTERVAL_MS).
- *
- * Must be called from a context that owns SPI bus access — the UI task
- * holding g_lvglMutex is the canonical caller, since the bus is shared
- * with the TFT.
+ * Read an entire file into a heap-allocated buffer.
+ * Caller is responsible for calling free() on the returned pointer.
+ * Returns nullptr on failure. outSize is set to the file size in bytes.
  */
-bool probeStillPresent();
-
-/**
-     * Read an entire file into a heap-allocated buffer.
-     * Caller is responsible for calling free() on the returned pointer.
-     * Returns nullptr on failure. outSize is set to the file size in bytes.
-     */
 char *readFile(const char *path, size_t *outSize);
 
 /**
-     * Write data to a file, replacing any existing content.
-     * Returns true on success.
-     */
+ * Write data to a file, replacing any existing content.
+ * Returns true on success.
+ */
 bool writeFile(const char *path, const uint8_t *data, size_t length);
 
 /**
-     * Atomic write: stage to "<path>.tmp", rotate previous "<path>" to
-     * "<path>.bak", then rename ".tmp" to "<path>". On any failure the
-     * original file is left untouched. Returns true on success.
-     */
+ * Atomic write: stage to "<path>.tmp", rotate previous "<path>" to
+ * "<path>.bak", then rename ".tmp" to "<path>". On any failure the
+ * original file is left untouched. Returns true on success.
+ */
 bool writeFileAtomic(const char *path, const uint8_t *data, size_t length);
 
 /**
-     * Check if a file exists.
-     */
+ * Check if a file exists.
+ */
 bool fileExists(const char *path);
 
 /**
-     * Rename src → dst. Returns true on success.
-     */
+ * Rename src → dst. Returns true on success.
+ */
 bool renameFile(const char *src, const char *dst);
 
 /**
-     * Remove a file. Returns true on success or if the file did not exist.
-     */
+ * Remove a file. Returns true on success or if the file did not exist.
+ */
 bool removeFile(const char *path);
 
 /**
-     * Return total and free space in bytes.
-     */
+ * Return total and free space in bytes.
+ */
 void getSpaceInfo(size_t *totalBytes, size_t *usedBytes);
 
 // ---------------------------------------------------------------------------
@@ -117,26 +92,26 @@ void getSpaceInfo(size_t *totalBytes, size_t *usedBytes);
 bool beginChunkedWrite(const char *path);
 
 /**
-     * Like beginChunkedWrite, but stages writes to "<path>.tmp" and rotates
-     * the previous "<path>" to "<path>.bak" on endChunkedWrite(). The live
-     * file is left untouched until the final rename succeeds.
-     */
+ * Like beginChunkedWrite, but stages writes to "<path>.tmp" and rotates
+ * the previous "<path>" to "<path>.bak" on endChunkedWrite(). The live
+ * file is left untouched until the final rename succeeds.
+ */
 bool beginChunkedWriteAtomic(const char *path);
 
 bool appendChunk(const uint8_t *data, size_t length);
 
 /**
-     * Close the chunked write. For atomic transfers, performs the rotate +
-     * rename on close. Returns true on success; false on finalize failure
-     * (the original file is restored from "<path>.bak" when possible).
-     */
+ * Close the chunked write. For atomic transfers, performs the rotate +
+ * rename on close. Returns true on success; false on finalize failure
+ * (the original file is restored from "<path>.bak" when possible).
+ */
 bool endChunkedWrite();
 
 /**
-     * Discard an in-progress chunked write without touching the live file.
-     * Closes the open ".tmp" handle and removes the ".tmp" file. Safe to
-     * call when no transfer is open.
-     */
+ * Discard an in-progress chunked write without touching the live file.
+ * Closes the open ".tmp" handle and removes the ".tmp" file. Safe to
+ * call when no transfer is open.
+ */
 void abortChunkedWrite();
 
 /**
