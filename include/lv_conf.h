@@ -42,13 +42,17 @@
             #define LV_MEM_SIZE                                                                    \
                 (12U * 1024U) /* 12 KB — sim mode (CI compile check only, no runtime) */
         #else
-            /* 96 KB — fonts are now lv_font_load()'d from SPIFFS at boot
-   (issue #410) and live inside the LVGL heap (~70 KB total for all 7
-   sizes). Bumped from 48 KB to absorb the resident font glyphs while
-   leaving ~66 KB of FreeRTOS heap free at runtime for BLE, JSON parsing
-   and SPIFFS buffers. Allocated via malloc (LV_MEM_POOL_ALLOC) so this
-   line consumes runtime heap, not bss. */
-            #define LV_MEM_SIZE (96U * 1024U)
+            /* 64 KB — hotfix for v0.8.0 boot loop (issue #483). The previous
+   96 KB ask succeeded against ~110 KB largest free block at boot, but
+   left only ~14 KB headroom for the contiguous allocations LVGL still
+   does inside lv_init() (display LL nodes, draw buffers, theme styles)
+   and tripped LV_ASSERT_MALLOC → infinite halt → watchdog reboot.
+   64 KB fits 3-4 of the 8 SPIFFS-loaded Orbitron sizes; FontManager
+   degrades gracefully to the in-flash 14 px Medium fallback per size
+   that fails to load, and the device stays usable. Allocated via
+   malloc (LV_MEM_POOL_ALLOC), so this line consumes runtime heap, not
+   bss. */
+            #define LV_MEM_SIZE (64U * 1024U)
         #endif
 
         /* Set an address for the memory pool instead of allocating it as a global array.

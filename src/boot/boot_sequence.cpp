@@ -46,10 +46,16 @@ static void logHeap(const char *stage) {
 static void initDisplayAndLVGL() {
     LOG_INFO("BOOT", "Initializing display...");
     DisplayDriver::init();
+    LOG_INFO("BOOT", "Display driver up");
 
-    LOG_INFO("BOOT", "Initializing LVGL...");
+    LOG_INFO("BOOT", "Calling lv_init()...");
     lv_init();
+    LOG_INFO("BOOT", "lv_init() returned");
+    logHeap("after lv_init");
+
+    LOG_INFO("BOOT", "Registering display with LVGL...");
     DisplayDriver::registerWithLVGL();
+    LOG_INFO("BOOT", "Display registered with LVGL");
 
     LOG_INFO("BOOT", "Display + LVGL ready");
 }
@@ -154,9 +160,11 @@ static void loadConfig() {
 }
 
 static void buildUI() {
-    LOG_INFO("BOOT", "Building UI...");
+    LOG_INFO("BOOT", "Applying theme...");
     ThemeManager::apply();
+    LOG_INFO("BOOT", "Initializing PageManager...");
     PageManager::init();
+    LOG_INFO("BOOT", "Navigating to default page...");
     PageManager::navigateTo(PageManager::getDefaultPageId());
     LOG_INFO("BOOT", "UI ready");
 }
@@ -184,12 +192,16 @@ void BootSequence::run() {
     logHeap("entry");
     // 1. Display + LVGL must come early so we can show a splash
     initDisplayAndLVGL();
-    logHeap("after lv_init");
+
+    LOG_INFO("BOOT", "Showing splash...");
     showSplash(); // 0 %
+    LOG_INFO("BOOT", "Splash visible");
+    logHeap("after splash");
 
     // 2. Touch controller
     LOG_INFO("BOOT", "Initializing touch...");
     TouchDriver::init();
+    LOG_INFO("BOOT", "Touch ready");
     updateSplash("Initializing touch...", 15);
 
     // 3. Storage — degrade (don't halt) on mount failure so the studio can
@@ -198,17 +210,20 @@ void BootSequence::run() {
     updateSplash("Initializing storage...", 20);
     const bool storageOk = initStorage();
     if (storageOk) {
+        LOG_INFO("BOOT", "Storage mounted");
         updateSplash("Storage ready", 35);
     } else {
         LOG_ERROR("BOOT", "Storage mount failed — running with defaults");
         updateSplash("Storage error — defaults", 35);
     }
+    logHeap("after storage");
 
     // 3.5 Provision default configs on a fresh / empty SPIFFS before
     //     loadConfig reads. Writes only when target is missing AND no .bak
     //     exists, or when target is empty. Never overwrites user data.
 #if DEFAULT_CONFIG_PROVISION_ENABLED
     if (storageOk) {
+        LOG_INFO("BOOT", "Provisioning default configs (if needed)...");
         const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
         if (pr.written > 0) {
             LOG_INFO("BOOT", "Provisioned %u default config file(s)",
@@ -228,6 +243,7 @@ void BootSequence::run() {
     //     BEFORE FontManager::init() so lv_font_load() finds them. Writes
     //     only when target is missing — never overwrites existing files.
     if (storageOk) {
+        LOG_INFO("BOOT", "Provisioning default fonts (if needed)...");
         const DefaultFonts::ProvisionResult fr = DefaultFonts::provisionMissingFiles();
         if (fr.written > 0) {
             LOG_INFO("BOOT", "Provisioned %u default font file(s)",
@@ -241,11 +257,15 @@ void BootSequence::run() {
                      static_cast<unsigned>(fr.failed));
         }
     }
+    logHeap("before FontManager");
 
     // 3.7 Now that .bin fonts are guaranteed present (when storage works),
     //     load them into LVGL. Failures here only degrade typography — the
     //     fallback glyph keeps text readable.
+    LOG_INFO("BOOT", "Initializing FontManager...");
     FontManager::init();
+    LOG_INFO("BOOT", "FontManager ready");
+    logHeap("after FontManager");
 
     // 4. Config
     logHeap("before loadConfig");
@@ -254,8 +274,11 @@ void BootSequence::run() {
     updateSplash("Applying config...", 55);
 
     // 5. Runtime
+    LOG_INFO("BOOT", "Initializing SignalStore...");
     SignalStore::init();
+    LOG_INFO("BOOT", "Initializing AlertEngine...");
     AlertEngine::init();
+    LOG_INFO("BOOT", "Runtime ready");
     updateSplash("Starting runtime...", 65);
 
     // 6. CAN hardware (skip in simulation mode)

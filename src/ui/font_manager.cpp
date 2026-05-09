@@ -10,6 +10,8 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 
+#include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <stdio.h>
 
 namespace {
@@ -44,6 +46,16 @@ size_t snapIndex(const uint8_t *sizes, size_t count, uint8_t size) {
     return idx;
 }
 
+// Diagnostic — log free heap + largest contiguous block before/after each
+// font load so the boot trace pinpoints OOM exactly when it happens (#483).
+void logFontHeap(const char *stage, const char *weight, uint8_t size) {
+    const uint32_t free    = ESP.getFreeHeap();
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    LOG_INFO("FONT", "%s orbitron_%s_%u: free=%u largest=%u", stage, weight,
+             static_cast<unsigned>(size), static_cast<unsigned>(free),
+             static_cast<unsigned>(largest));
+}
+
 // Loads a single .bin into `slot` and pushes a diagnostic error on failure.
 // `weight` is the file-system token used in the filename ("black", "bold",
 // "medium") and `intent` is the human-readable role logged on success.
@@ -51,7 +63,10 @@ void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font
     char path[48];
     snprintf(path, sizeof(path), "S:/fonts/orbitron_%s_%u.bin", weight, size);
 
+    logFontHeap("before", weight, size);
     const lv_font_t *font = lv_font_load(path);
+    logFontHeap("after ", weight, size);
+
     if (font == nullptr) {
         LOG_ERROR(
             "FONT",
