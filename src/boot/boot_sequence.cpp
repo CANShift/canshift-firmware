@@ -11,6 +11,7 @@
 #include "hal/storage/storage_driver.h"
 #include "hal/storage/lvgl_fs_driver.h"
 #include "hal/usb/usb_comm.h"
+#include "boot/default_fonts.h"
 #include "config/config_loader.h"
 #include "config/default_config.h"
 #include "runtime/signal_store.h"
@@ -125,6 +126,11 @@ static void updateSplash(const char *status, uint8_t pct) {
 
 // Returns true if the storage came up cleanly. On failure the boot continues
 // with built-in defaults — the device stays reachable over USB.
+//
+// FontManager::init() is intentionally NOT called here — it must run AFTER
+// DefaultFonts::provisionMissingFiles() so a freshly-flashed device finds
+// the .bin files on SPIFFS rather than seeing every lv_font_load() return
+// NULL (issue #467).
 static bool initStorage() {
     LOG_INFO("BOOT", "Initializing storage...");
     const bool ok = StorageDriver::init();
@@ -132,7 +138,6 @@ static bool initStorage() {
         return false;
     }
     LvglFsDriver::init();
-    FontManager::init();
     return true;
 }
 
@@ -218,6 +223,29 @@ void BootSequence::run() {
         }
     }
 #endif
+
+    // 3.6 Provision the 8 Orbitron .bin fonts on a fresh / empty SPIFFS
+    //     BEFORE FontManager::init() so lv_font_load() finds them. Writes
+    //     only when target is missing — never overwrites existing files.
+    if (storageOk) {
+        const DefaultFonts::ProvisionResult fr = DefaultFonts::provisionMissingFiles();
+        if (fr.written > 0) {
+            LOG_INFO("BOOT", "Provisioned %u default font file(s)",
+                     static_cast<unsigned>(fr.written));
+            updateSplash("Provisioning fonts...", 48);
+        }
+        if (fr.failed > 0) {
+            LOG_WARN("BOOT",
+                     "Default-font provision failed for %u file(s) — "
+                     "FontManager will fall back to built-in glyph",
+                     static_cast<unsigned>(fr.failed));
+        }
+    }
+
+    // 3.7 Now that .bin fonts are guaranteed present (when storage works),
+    //     load them into LVGL. Failures here only degrade typography — the
+    //     fallback glyph keeps text readable.
+    FontManager::init();
 
     // 4. Config
     logHeap("before loadConfig");
