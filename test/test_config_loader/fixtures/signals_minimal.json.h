@@ -27,4 +27,13 @@ constexpr const char *kSignalsMinimal = R"({
   ]
 })";
 
+// Truncated signals JSON — parse must fail. Used by issue #458 tests to assert
+// reloadAll() leaves s_signals byte-identical when the signals file is bad.
+constexpr const char *kSignalsCorrupt = R"({
+  "version": "1.0.0",
+  "protocol": "maxxecu_v1.2",
+  "signals": [
+    {"name": "rpm"
+)";
+
 } // namespace fixtures

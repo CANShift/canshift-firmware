@@ -102,11 +102,6 @@ void test_reload_picks_up_new_dashboard() {
 }
 
 void test_reload_returns_false_on_invalid_dashboard() {
-    // Stage corrupt JSON for the second call. Note: whether the prior
-    // in-memory dashboard struct is preserved on parse failure is an
-    // implementation detail of ConfigLoader and is not asserted here — see
-    // the PR body for the known follow-up. We only verify that reloadAll()
-    // surfaces the failure to the caller.
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardCorrupt,
                              strlen(fixtures::kDashboardCorrupt));
@@ -116,11 +111,104 @@ void test_reload_returns_false_on_invalid_dashboard() {
     TEST_ASSERT_FALSE(ConfigLoader::reloadAll());
 }
 
+// Issue #458: a failed reload (parse error on dashboard.json) must leave the
+// in-memory dashboard struct byte-identical to its pre-call value. Prior to
+// the snapshot/rollback fix the struct could end up with mixed old/new pages
+// or an inconsistent pageCount.
+void test_reloadAll_invalidJson_preservesPriorState() {
+    // Step 1: load fixture A and capture its observable identity.
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgDashboard &before = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_TRUE(before.loaded);
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", before.name);
+    TEST_ASSERT_EQUAL_STRING("main", before.defaultPageId);
+    TEST_ASSERT_EQUAL_UINT8(1, before.pageCount);
+    TEST_ASSERT_EQUAL_STRING("main", before.pages[0].id);
+    const float revLimitBefore = before.revLimitRpm;
+    const uint8_t pageCountBefore = before.pageCount;
+
+    // Step 2: stage corrupt JSON and reload — must fail.
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardCorrupt,
+                             strlen(fixtures::kDashboardCorrupt));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+    TEST_ASSERT_FALSE(ConfigLoader::reloadAll());
+
+    // Step 3: invariant — every observable field on s_dashboard still matches A.
+    const CfgDashboard &after = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_TRUE(after.loaded);
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", after.name);
+    TEST_ASSERT_EQUAL_STRING("main", after.defaultPageId);
+    TEST_ASSERT_EQUAL_UINT8(pageCountBefore, after.pageCount);
+    TEST_ASSERT_EQUAL_STRING("main", after.pages[0].id);
+    TEST_ASSERT_EQUAL_FLOAT(revLimitBefore, after.revLimitRpm);
+}
+
+// Issue #458 sanity check: the rollback path must not interfere with valid
+// reloads. Confirms the happy path still swaps state to fixture B.
+void test_reloadAll_validJson_replacesPriorState() {
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard",
+                             ConfigLoader::getDashboardConfig().name);
+
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimalReload,
+                             strlen(fixtures::kDashboardMinimalReload));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+    TEST_ASSERT_TRUE(ConfigLoader::reloadAll());
+
+    const CfgDashboard &after = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_EQUAL_STRING("Reloaded Dashboard", after.name);
+    TEST_ASSERT_EQUAL_UINT8(2, after.pageCount);
+    TEST_ASSERT_EQUAL_STRING("first", after.pages[0].id);
+    TEST_ASSERT_EQUAL_STRING("second", after.pages[1].id);
+}
+
+// Issue #458: signals load is also transactional. A failed signals.json read
+// must leave s_signals byte-identical so widget renderers don't dereference
+// half-overwritten signal definitions.
+void test_reloadAll_invalidSignals_preservesSignalState() {
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+
+    const CfgSignalConfig &before = ConfigLoader::getSignalConfig();
+    TEST_ASSERT_TRUE(before.loaded);
+    TEST_ASSERT_EQUAL_UINT8(1, before.signalCount);
+    TEST_ASSERT_EQUAL_STRING("rpm", before.signals[0].name);
+    TEST_ASSERT_EQUAL_UINT32(0x370u, before.signals[0].canFrameId);
+    const uint8_t signalCountBefore = before.signalCount;
+
+    // Stage a valid dashboard but corrupt signals — reloadAll() returns false
+    // because dashboardOk drives the return value, but the key invariant we
+    // assert here is that s_signals stayed identical to fixture A.
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+                             strlen(fixtures::kDashboardMinimal));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsCorrupt,
+                             strlen(fixtures::kSignalsCorrupt));
+    // Dashboard parses fine, signals fail — reloadAll only gates on dashboard.
+    TEST_ASSERT_TRUE(ConfigLoader::reloadAll());
+
+    const CfgSignalConfig &after = ConfigLoader::getSignalConfig();
+    TEST_ASSERT_TRUE(after.loaded);
+    TEST_ASSERT_EQUAL_UINT8(signalCountBefore, after.signalCount);
+    TEST_ASSERT_EQUAL_STRING("rpm", after.signals[0].name);
+    TEST_ASSERT_EQUAL_UINT32(0x370u, after.signals[0].canFrameId);
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_loadDashboard_minimalValidJson_populatesStruct);
     RUN_TEST(test_loadDashboard_invalidSchemaVersion_logsAndUsesFallback);
     RUN_TEST(test_reload_picks_up_new_dashboard);
     RUN_TEST(test_reload_returns_false_on_invalid_dashboard);
+    RUN_TEST(test_reloadAll_invalidJson_preservesPriorState);
+    RUN_TEST(test_reloadAll_validJson_replacesPriorState);
+    RUN_TEST(test_reloadAll_invalidSignals_preservesSignalState);
     return UNITY_END();
 }

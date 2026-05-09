@@ -22,6 +22,14 @@ static CfgDashboard s_dashboard = {};
 static CfgSignalConfig s_signals = {};
 static CfgDeviceConfig s_device = {};
 
+// Issue #458: transactional reload uses heap-allocated snapshots taken on
+// entry to each load* function and freed on exit. CfgDashboard is ~22 KB and
+// CfgSignalConfig is ~5 KB — too large to keep in DRAM permanently (would
+// overflow `dram0_0_seg`) and too large for the loop-task stack (8 KB
+// CONFIG_ARDUINO_LOOP_STACK_SIZE has no headroom). Heap is fine: load*()
+// runs synchronously, the allocation is short-lived (<500 ms), and freeing
+// happens before any UI rebuild.
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -568,10 +576,29 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
 }
 
 bool loadDashboard() {
+    // Snapshot the previous in-memory state on the heap before touching
+    // s_dashboard so we can roll back atomically on any parse failure
+    // (issue #458). All subsequent mutations write directly into s_dashboard;
+    // on failure the snapshot is copied back, leaving observable state
+    // byte-identical to the pre-call value. If the snapshot allocation
+    // itself fails (very low-memory boot), we fall through without a
+    // rollback safety net rather than refusing to load — the previous
+    // (pre-fix) behaviour. This keeps the cold-boot path resilient.
+    auto *prev = static_cast<CfgDashboard *>(malloc(sizeof(CfgDashboard)));
+    if (prev) {
+        memcpy(prev, &s_dashboard, sizeof(CfgDashboard));
+    } else {
+        LOG_WARN("CFG", "dashboard snapshot alloc failed — proceeding without rollback");
+    }
+
     JsonDocument doc; // ArduinoJson v7 — dynamic, no capacity() needed
     if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
         LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json unreadable");
+        if (prev) {
+            memcpy(&s_dashboard, prev, sizeof(CfgDashboard));
+            free(prev);
+        }
         return false;
     }
 
@@ -677,15 +704,31 @@ bool loadDashboard() {
     }
 
     s_dashboard.loaded = true;
+    if (prev) free(prev);
     LOG_INFO("CFG", "dashboard.json loaded: %d pages", s_dashboard.pageCount);
     return true;
 }
 
 bool loadSignals() {
+    // Snapshot prior state on the heap for rollback on parse failure
+    // (issue #458) — same pattern as loadDashboard(). CfgSignalConfig is
+    // ~5 KB which fits the stack but heap-allocating keeps the function
+    // signature uniform with the dashboard path.
+    auto *prev = static_cast<CfgSignalConfig *>(malloc(sizeof(CfgSignalConfig)));
+    if (prev) {
+        memcpy(prev, &s_signals, sizeof(CfgSignalConfig));
+    } else {
+        LOG_WARN("CFG", "signals snapshot alloc failed — proceeding without rollback");
+    }
+
     JsonDocument doc; // ArduinoJson v7 — dynamic
     if (!readAndParseWithBak(CONFIG_PATH_SIGNALS, doc)) {
         LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
+        if (prev) {
+            memcpy(&s_signals, prev, sizeof(CfgSignalConfig));
+            free(prev);
+        }
         return false;
     }
 
@@ -779,15 +822,24 @@ bool loadSignals() {
     }
 
     s_signals.loaded = true;
+    if (prev) free(prev);
     LOG_INFO("CFG", "signals.json loaded: %d signals", s_signals.signalCount);
     return true;
 }
 
 bool loadDevice() {
+    // device.json is small (CfgDeviceConfig is ~8 bytes); snapshot lives on
+    // the stack. The rollback is defensive — today the only mutations live
+    // at the tail of this function, but keeping the pattern uniform with
+    // loadDashboard / loadSignals (issue #458) protects against future
+    // refactors that move assignments earlier.
+    const CfgDeviceConfig prev = s_device;
+
     size_t jsonSize = 0;
     char *json = StorageDriver::readFile(CONFIG_PATH_DEVICE, &jsonSize);
     if (!json) {
         LOG_INFO("CFG", "device.json not found — using board_config.h defaults");
+        s_device = prev;
         return false;
     }
 
@@ -797,6 +849,7 @@ bool loadDevice() {
 
     if (err) {
         LOG_WARN("CFG", "device.json parse error: %s — using defaults", err.c_str());
+        s_device = prev;
         return false;
     }
 
