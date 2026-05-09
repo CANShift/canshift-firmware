@@ -15,8 +15,8 @@
 namespace WidgetLabelOverlay {
 
 // Studio uses #888888 with letter-spacing 0.06em + 5–7 px font. We mirror that
-// with Montserrat 12 (smallest compiled-in size that stays legible on the
-// 320×240 panel) and a 1-px letter spacing for the same caps look.
+// with Orbitron Medium 12 (smallest compiled-in size that stays legible on
+// the 320×240 panel) and a 1-px letter spacing for the same caps look.
 constexpr uint32_t kLabelDimRgb = 0x888888;
 
 // No-op when `text` is empty or null. The label is parented to `cont` and
@@ -35,7 +35,7 @@ inline void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t te
     lv_label_set_text(lbl, text);
 
     lv_obj_set_style_text_color(lbl, lv_color_hex(kLabelDimRgb), 0);
-    lv_obj_set_style_text_font(lbl, FontManager::get(12), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::label(12), 0);
     lv_obj_set_style_text_letter_space(lbl, 1, 0);
 
     const lv_coord_t parentW = lv_obj_get_width(cont);

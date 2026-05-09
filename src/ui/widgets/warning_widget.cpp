@@ -109,7 +109,13 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
                            : cfg.layout.h >= 40 ? 20
                            : cfg.layout.h >= 32 ? 16
                                                 : 12;
-        lv_obj_set_style_text_font(iconLabel, FontManager::get(iconSize), 0);
+        // Warning icon is the attention-getter — pick the heaviest weight that
+        // fits the requested size (primary at ≥32, secondary at 20–28, label
+        // for the tiny 12/16 px cells).
+        const lv_font_t *iconFont = (iconSize >= 32)   ? FontManager::primary(iconSize)
+                                    : (iconSize >= 20) ? FontManager::secondary(iconSize)
+                                                       : FontManager::label(iconSize);
+        lv_obj_set_style_text_font(iconLabel, iconFont, 0);
         lv_obj_set_style_text_color(iconLabel, lv_color_hex(critRgb), 0);
     }
 
@@ -123,7 +129,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         signalLabel = lv_label_create(root);
         lv_label_set_text(signalLabel, labelBuf);
         const uint8_t sigFontSize = cfg.layout.h >= 56 ? 14 : 12;
-        lv_obj_set_style_text_font(signalLabel, FontManager::get(sigFontSize), 0);
+        lv_obj_set_style_text_font(signalLabel, FontManager::label(sigFontSize), 0);
         // Studio uses criticalColor + 99 alpha — at runtime LVGL doesn't blend
         // the text against the bg, so use a dimmer composite tone instead.
         uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;

@@ -217,7 +217,7 @@ canshift-firmware/
 │   │   ├── theme.json              # Default theme overrides (also embedded)
 │   │   └── device.json             # Runtime hardware overrides
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
-│   └── fonts/                      # LVGL .bin fonts (montserrat_*.bin)
+│   └── fonts/                      # LVGL .bin fonts (orbitron_<weight>_<size>.bin)
 └── scripts/
     ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION
     ├── png_to_lvgl_bin.py          # PNG → LVGL .bin converter

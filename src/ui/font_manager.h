@@ -1,10 +1,19 @@
 #pragma once
-// font_manager.h — Resolves a numeric size to a Montserrat font.
+// font_manager.h — Intent-based font lookup for the Orbitron typography tier.
 //
-// Fonts are loaded at boot from SPIFFS (`S:/fonts/montserrat_<N>.bin`) via
-// `lv_font_load()` and cached in a static array. If a size fails to load,
-// `get()` falls back to the built-in `lv_font_montserrat_14_nk` shipped in
-// flash, so text always renders even without `pio run -t uploadfs`.
+// Three intents map to three weights (issue #431):
+//   primary   → Orbitron Black  (900) — RPM, speed, gear, lap time   (32, 48)
+//   secondary → Orbitron Bold   (700) — boost, oil temp, voltage     (20, 24, 28)
+//   label     → Orbitron Medium (500) — small labels, top bar, hints (12, 14, 16)
+//
+// Each call snaps the requested size DOWN to the nearest cached size within
+// the intent's tier. Picking the nearest cached size up front lets the widget
+// code stay unchanged when we add/drop a size — the ramp never overflows.
+//
+// Fonts are loaded at boot from SPIFFS (`S:/fonts/orbitron_<weight>_<N>.bin`)
+// via `lv_font_load()` and cached in a static array. If a size fails to load,
+// the accessor falls back to the built-in `lv_font_orbitron_medium_14_nk`
+// shipped in flash, so text always renders even without `pio run -t uploadfs`.
 //
 // SPIFFS must be mounted (StorageDriver::init) and the LVGL FS driver
 // registered (LvglFsDriver::init) before calling FontManager::init().
@@ -13,14 +22,19 @@
 
 class FontManager {
 public:
-    // Loads all Montserrat .bin fonts from SPIFFS and caches them.
+    // Loads all Orbitron .bin fonts from SPIFFS and caches them.
     // Safe to call multiple times — re-loading is a no-op.
     static void init();
 
     // Frees every loaded font and clears the cache. Optional teardown hook.
     static void shutdown();
 
-    // Snaps `size` down to the nearest cached size and returns the font.
-    // Falls back to the built-in 14px font if the cached entry is null.
-    static const lv_font_t *get(uint8_t size);
+    // Primary values — Orbitron Black 900. Snaps to 32 or 48 px.
+    static const lv_font_t *primary(uint8_t size);
+
+    // Secondary values — Orbitron Bold 700. Snaps to 20, 24, or 28 px.
+    static const lv_font_t *secondary(uint8_t size);
+
+    // Labels & body — Orbitron Medium 500. Snaps to 12, 14, or 16 px.
+    static const lv_font_t *label(uint8_t size);
 };

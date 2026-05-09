@@ -122,11 +122,11 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
-    const lv_font_t *font = FontManager::get(20);
+    const lv_font_t *font = FontManager::secondary(20);
     if (cfg.layout.h >= 80)
-        font = FontManager::get(24);
+        font = FontManager::secondary(24);
     if (cfg.layout.h >= 110)
-        font = FontManager::get(32);
+        font = FontManager::primary(32);
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 

@@ -25,7 +25,7 @@ static constexpr uint32_t COL_DIM    = 0x664444; // Dimmed / dismiss button
 // Lazy accessor — file-scope static initializers run before FontManager::init()
 // in boot_sequence, so caching the pointer at static-init time would freeze it
 // to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
-static inline const lv_font_t *FONT() { return FontManager::get(12); }
+static inline const lv_font_t *FONT() { return FontManager::label(12); }
 
 // ---------------------------------------------------------------------------
 // Internal state

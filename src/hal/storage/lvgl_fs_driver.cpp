@@ -4,9 +4,9 @@
 // Requires SPIFFS to be mounted via StorageDriver::init() before calling init().
 //
 // Path mapping:
-//   LVGL src string:   "S:/fonts/montserrat_32.bin"
-//   LVGL strips "S:"   → callback receives "/fonts/montserrat_32.bin"
-//   Opened on SPIFFS   → SPIFFS.open("/fonts/montserrat_32.bin", "r")
+//   LVGL src string:   "S:/fonts/orbitron_black_32.bin"
+//   LVGL strips "S:"   → callback receives "/fonts/orbitron_black_32.bin"
+//   Opened on SPIFFS   → SPIFFS.open("/fonts/orbitron_black_32.bin", "r")
 
 #include "lvgl_fs_driver.h"
 #include "board_config.h"

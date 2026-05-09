@@ -109,7 +109,7 @@ static uint8_t s_dynCount = 0;
 // Day/night icons live on SPIFFS as 12×12 RGB565 .bin (LVGL native format).
 // Source PNGs are in scripts/icon_sources/, regenerable via
 // scripts/png_to_lvgl_bin.py. We can't use the Unicode sun/moon glyphs
-// because the compile-time Montserrat fonts don't include them.
+// because the Latin-only Orbitron fonts don't include them.
 
 static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;    // green — connected, fresh data
 static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800; // orange — was connected but timing out
@@ -143,9 +143,9 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
     // Font size is derived from the bar height via the shared proportion table.
-    // FontManager::get() snaps to the nearest compiled-in Montserrat size.
+    // FontManager::label() snaps to the nearest cached Orbitron Medium size.
     const uint8_t fs = static_cast<uint8_t>(derivedFontSize(s_height));
-    lv_obj_set_style_text_font(lbl, FontManager::get(fs), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::label(fs), 0);
     return lbl;
 }
 
@@ -157,7 +157,7 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
     lv_label_set_text(lbl, "|");
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
     const uint8_t target = static_cast<uint8_t>(derivedSeparator(s_height));
-    lv_obj_set_style_text_font(lbl, FontManager::get(target), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::label(target), 0);
     return lbl;
 }
 
@@ -235,7 +235,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             // Icon size is iconSizeRatio × font size (see proportion table).
             const uint8_t iconSize =
                 static_cast<uint8_t>(derivedIconSize(derivedFontSize(s_height)));
-            lv_obj_set_style_text_font(obj, FontManager::get(iconSize), 0);
+            lv_obj_set_style_text_font(obj, FontManager::label(iconSize), 0);
             anchor(obj, gap);
             break;
         }
@@ -319,9 +319,9 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
     lv_obj_align_to(s_canDot, s_canLabel, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
 
     // ---- Right cluster (built right-to-left): theme icon, |, USB icon, voltage ----
-    // Theme toggle — image asset (Montserrat compile-time fonts have no sun/moon
-    // glyphs). Use lv_img directly with a CLICKABLE flag — lv_imgbtn would need
-    // 3-state sources (released/pressed/checked) which we don't have.
+    // Theme toggle — image asset (the Latin-only Orbitron fonts have no sun/
+    // moon glyphs). Use lv_img directly with a CLICKABLE flag — lv_imgbtn
+    // would need 3-state sources (released/pressed/checked) which we don't have.
     s_themeIcon = lv_img_create(s_bar);
     lv_img_set_src(s_themeIcon, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
                                                           : "S:/assets/icon_night.bin");
@@ -346,7 +346,7 @@ void buildLegacyHardcoded(const CfgDashboard &dash) {
     s_usbIcon = lv_label_create(s_bar);
     lv_label_set_text(s_usbIcon, LV_SYMBOL_DOWNLOAD);
     lv_obj_set_style_text_color(s_usbIcon, lv_color_hex(COLOR_USB_OFF), 0);
-    lv_obj_set_style_text_font(s_usbIcon, FontManager::get(static_cast<uint8_t>(iconSize)), 0);
+    lv_obj_set_style_text_font(s_usbIcon, FontManager::label(static_cast<uint8_t>(iconSize)), 0);
     lv_obj_align_to(s_usbIcon, rightSep, LV_ALIGN_OUT_LEFT_MID, -gap, 0);
 
     // Voltage — left of the USB icon

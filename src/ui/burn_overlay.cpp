@@ -128,13 +128,13 @@ void BurnOverlay::show() {
     lv_obj_t *title = lv_label_create(root);
     lv_label_set_text(title, "Saving config…");
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(title, FontManager::get(16), 0);
+    lv_obj_set_style_text_font(title, FontManager::label(16), 0);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, 36);
 
     lv_obj_t *sub = lv_label_create(root);
     lv_label_set_text(sub, "Writing to storage…");
     lv_obj_set_style_text_color(sub, lv_color_hex(0x888888), 0);
-    lv_obj_set_style_text_font(sub, FontManager::get(12), 0);
+    lv_obj_set_style_text_font(sub, FontManager::label(12), 0);
     lv_obj_align(sub, LV_ALIGN_CENTER, 0, 60);
 
     s_overlay = root;
@@ -164,19 +164,19 @@ void BurnOverlay::showError(ErrorReason reason) {
     lv_obj_t *icon = lv_label_create(root);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xE04040), 0);
-    lv_obj_set_style_text_font(icon, FontManager::get(28), 0);
+    lv_obj_set_style_text_font(icon, FontManager::secondary(28), 0);
     lv_obj_align(icon, LV_ALIGN_CENTER, 0, -32);
 
     lv_obj_t *title = lv_label_create(root);
     lv_label_set_text(title, errorTitleFor(reason));
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(title, FontManager::get(16), 0);
+    lv_obj_set_style_text_font(title, FontManager::label(16), 0);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, 12);
 
     lv_obj_t *hint = lv_label_create(root);
     lv_label_set_text(hint, errorHintFor(reason));
     lv_obj_set_style_text_color(hint, lv_color_hex(0x888888), 0);
-    lv_obj_set_style_text_font(hint, FontManager::get(12), 0);
+    lv_obj_set_style_text_font(hint, FontManager::label(12), 0);
     lv_obj_align(hint, LV_ALIGN_CENTER, 0, 40);
 
     s_overlay = root;

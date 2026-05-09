@@ -26,7 +26,7 @@ namespace {
 
 // Scale the value font to the available band, capped to 52 % of widget width
 // so a wide number ("12345") never overflows. Snapped by FontManager to a
-// compiled-in Montserrat size.
+// cached size in the appropriate Orbitron tier.
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
     const int byWidth = (widgetW * 52) / 100;
@@ -36,6 +36,17 @@ uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     if (s > 48)
         s = 48;
     return static_cast<uint8_t>(s);
+}
+
+// Route a numeric size to the right Orbitron weight. Primary (Black) for the
+// large value bands, secondary (Bold) mid-range, label (Medium) for the small
+// auto-fit cells where the band is too narrow for a heavy weight.
+const lv_font_t *valueFontFor(uint8_t size) {
+    if (size >= 32)
+        return FontManager::primary(size);
+    if (size >= 20)
+        return FontManager::secondary(size);
+    return FontManager::label(size);
 }
 
 struct LabelTag {
@@ -77,7 +88,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const int16_t sigHeaderH = hasUserLabel ? 0 : 14;
     const int16_t valueLineH = cfg.layout.h - sigHeaderH;
 
-    const lv_font_t *valueFont = FontManager::get(pickValueFontSize(valueLineH, cfg.layout.w));
+    const lv_font_t *valueFont = valueFontFor(pickValueFontSize(valueLineH, cfg.layout.w));
 
     if (!hasUserLabel) {
         WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);

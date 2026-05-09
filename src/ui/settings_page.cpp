@@ -188,8 +188,8 @@ static void onReset(lv_event_t * /*e*/) {
 // Lazy accessors — file-scope static initializers run before FontManager::init()
 // in boot_sequence, so caching the pointer at static-init time would freeze it
 // to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
-static inline const lv_font_t *FONT_LG() { return FontManager::get(12); }
-static inline const lv_font_t *FONT_SM() { return FontManager::get(12); }
+static inline const lv_font_t *FONT_LG() { return FontManager::label(12); }
+static inline const lv_font_t *FONT_SM() { return FontManager::label(12); }
 
 static constexpr int16_t PAD_H = 8;
 

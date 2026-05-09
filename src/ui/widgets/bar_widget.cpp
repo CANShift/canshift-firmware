@@ -172,7 +172,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
                                 cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
 
         // Reserve a label band: 25 % of widget height, clamped 14..24. The
-        // 14-px floor matches Montserrat 12's line height — anything tighter
+        // 14-px floor matches Orbitron Medium 12's line height — anything tighter
         // visibly clips the value (\"65%\") and the signal name. The 24-px
         // cap keeps the bar dominant on tall widgets.
         int16_t labelBandH = static_cast<int16_t>((H * 25) / 100);
@@ -254,7 +254,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             lv_obj_t *sig = lv_label_create(cont);
             lv_label_set_text(sig, sigBuf);
             lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-            lv_obj_set_style_text_font(sig, FontManager::get(12), 0);
+            lv_obj_set_style_text_font(sig, FontManager::label(12), 0);
             lv_obj_set_style_text_letter_space(sig, 1, 0);
             lv_obj_set_pos(sig, 2, bandY + 1);
             t->signalLabel = sig;
@@ -263,7 +263,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         // Value label — white, centred ON the bar track (not the label band).
         // Sits over the fill so it reads as part of the bar.
         if (barH >= 14) {
-            const lv_font_t *valFont = FontManager::get(barH >= 24 ? 14 : 12);
+            const lv_font_t *valFont = FontManager::label(barH >= 24 ? 14 : 12);
             lv_obj_t *val = lv_label_create(cont);
             lv_obj_set_style_text_color(val, lv_color_hex(VALUE_TEXT_RGB), 0);
             lv_obj_set_style_text_font(val, valFont, 0);
@@ -402,7 +402,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             lv_obj_t *sig = lv_label_create(cont);
             lv_label_set_text(sig, sigBuf);
             lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-            lv_obj_set_style_text_font(sig, FontManager::get(sigLabelH), 0);
+            lv_obj_set_style_text_font(sig, FontManager::label(sigLabelH), 0);
             lv_obj_align(sig, LV_ALIGN_TOP_MID, 0, 1);
             t->signalLabel = sig;
         }
@@ -410,7 +410,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         // Value — bottom center, large monospace
         lv_obj_t *val = lv_label_create(cont);
         lv_obj_set_style_text_color(val, lv_color_hex(t->primaryRgb), 0);
-        lv_obj_set_style_text_font(val, FontManager::get(valLabelH), 0);
+        lv_obj_set_style_text_font(val, FontManager::label(valLabelH), 0);
         lv_obj_align(val, LV_ALIGN_BOTTOM_MID, 0, -suffixH - 1);
         t->valueLabel = val;
 
@@ -419,7 +419,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             lv_obj_t *suffix = lv_label_create(cont);
             lv_label_set_text(suffix, t->suffix);
             lv_obj_set_style_text_color(suffix, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-            lv_obj_set_style_text_font(suffix, FontManager::get(suffixH), 0);
+            lv_obj_set_style_text_font(suffix, FontManager::label(suffixH), 0);
             lv_obj_align(suffix, LV_ALIGN_BOTTOM_MID, 0, -1);
             t->suffixLabel = suffix;
         }

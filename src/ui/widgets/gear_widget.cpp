@@ -26,14 +26,14 @@ namespace {
 
 const lv_font_t *selectFont(int16_t height) {
     if (height >= 120)
-        return FontManager::get(48);
+        return FontManager::primary(48);
     if (height >= 80)
-        return FontManager::get(32);
+        return FontManager::primary(32);
     if (height >= 56)
-        return FontManager::get(24);
+        return FontManager::secondary(24);
     if (height >= 40)
-        return FontManager::get(20);
-    return FontManager::get(16);
+        return FontManager::secondary(20);
+    return FontManager::label(16);
 }
 
 // Skip the lv_label_set_text reallocation when the formatted gear is already

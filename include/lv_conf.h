@@ -146,12 +146,10 @@
  *    FONT USAGE
  *==================*/
 
-        /* Montserrat fonts — every upstream size is OFF. We ship our own
-   `lv_font_montserrat_<N>_nk` variants under src/ui/fonts/ that were
-   regenerated with `lv_font_conv --no-kerning`, dropping ~3 KB per size
-   of class-based kerning data we don't use on a numeric dashboard
-   (~21 KB total flash saved — issue #407, sub-issue of #305).
-   See LV_FONT_CUSTOM_DECLARE below for the externs. */
+        /* Montserrat fonts — every upstream size is OFF. The dashboard now
+   uses Orbitron (issue #431), shipped as runtime-loaded SPIFFS .bin files
+   plus a single in-flash fallback. Montserrat is dead code, but the LVGL
+   build defaults all these macros to 1, so we explicitly disable them. */
         #define LV_FONT_MONTSERRAT_8 0
         #define LV_FONT_MONTSERRAT_10 0
         #define LV_FONT_MONTSERRAT_12 0
@@ -184,15 +182,16 @@
         #define LV_FONT_UNSCII_8 0
         #define LV_FONT_UNSCII_16 0
 
-        /* All Montserrat sizes are now lv_font_load()'d from SPIFFS at boot
-   (issue #410). The only built-in font we keep in flash is the 14 px
-   variant — used by FontManager::get() as a fallback when a runtime
-   load fails (e.g. fresh-flash device without `pio run -t uploadfs`).
-   Body lives in src/ui/fonts/lv_font_montserrat_14_nk.c. */
-        #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(lv_font_montserrat_14_nk)
+        /* All Orbitron sizes are lv_font_load()'d from SPIFFS at boot
+   (issue #410, refreshed in #431). The only built-in font we keep in
+   flash is the 14 px Medium variant — used by FontManager as a fallback
+   when a runtime load fails (e.g. fresh-flash device without
+   `pio run -t uploadfs`). Body lives in
+   src/ui/fonts/lv_font_orbitron_medium_14_nk.c. */
+        #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(lv_font_orbitron_medium_14_nk)
 
-        /* Default font: pick the no-kern Montserrat 14 we ship ourselves. */
-        #define LV_FONT_DEFAULT &lv_font_montserrat_14_nk
+        /* Default font: pick the in-flash Orbitron Medium 14 we ship ourselves. */
+        #define LV_FONT_DEFAULT &lv_font_orbitron_medium_14_nk
 
         /* Enable handling large font and/or fonts with a lot of characters.
    The compiler error message will hep to determine the need for it. */

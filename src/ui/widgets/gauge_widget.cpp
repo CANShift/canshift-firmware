@@ -279,11 +279,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
-    const lv_font_t *font = FontManager::get(20);
+    const lv_font_t *font = FontManager::secondary(20);
     if (cfg.layout.h >= 100)
-        font = FontManager::get(24);
+        font = FontManager::secondary(24);
     if (cfg.layout.h >= 130)
-        font = FontManager::get(32);
+        font = FontManager::primary(32);
     lv_obj_set_style_text_font(label, font, 0);
     {
         // Initial readout: 0, formatted to the configured decimalPlaces with
@@ -300,7 +300,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         unitLabel = lv_label_create(cont);
         lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
         lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
-        lv_obj_set_style_text_font(unitLabel, FontManager::get(12), 0);
+        lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
         lv_label_set_text(unitLabel, cfg.gauge.suffix);
     }
 
