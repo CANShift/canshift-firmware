@@ -11,7 +11,7 @@
 // the addresses (see https://docs.platformio.org/en/latest/platforms/espressif32.html).
 //
 // Mirror of src/config/default_config.cpp — same provisioning pattern, applied
-// to the 8 SPIFFS-resident font files shipped by FontManager (issue #467).
+// to the 6 SPIFFS-resident font files shipped by FontManager (issues #467 + #487).
 
 #include "default_fonts.h"
 
@@ -25,17 +25,11 @@ extern "C" {
 extern const uint8_t kFontBlack32Start[] asm("_binary_data_fonts_orbitron_black_32_bin_start");
 extern const uint8_t kFontBlack32End[] asm("_binary_data_fonts_orbitron_black_32_bin_end");
 
-extern const uint8_t kFontBlack48Start[] asm("_binary_data_fonts_orbitron_black_48_bin_start");
-extern const uint8_t kFontBlack48End[] asm("_binary_data_fonts_orbitron_black_48_bin_end");
-
 extern const uint8_t kFontBold20Start[] asm("_binary_data_fonts_orbitron_bold_20_bin_start");
 extern const uint8_t kFontBold20End[] asm("_binary_data_fonts_orbitron_bold_20_bin_end");
 
 extern const uint8_t kFontBold24Start[] asm("_binary_data_fonts_orbitron_bold_24_bin_start");
 extern const uint8_t kFontBold24End[] asm("_binary_data_fonts_orbitron_bold_24_bin_end");
-
-extern const uint8_t kFontBold28Start[] asm("_binary_data_fonts_orbitron_bold_28_bin_start");
-extern const uint8_t kFontBold28End[] asm("_binary_data_fonts_orbitron_bold_28_bin_end");
 
 extern const uint8_t kFontMedium12Start[] asm("_binary_data_fonts_orbitron_medium_12_bin_start");
 extern const uint8_t kFontMedium12End[] asm("_binary_data_fonts_orbitron_medium_12_bin_end");
@@ -58,10 +52,8 @@ struct EmbeddedFont {
 
 const EmbeddedFont kEmbeddedFonts[] = {
     {"/fonts/orbitron_black_32.bin",   kFontBlack32Start,  kFontBlack32End,  "orbitron_black_32"},
-    {"/fonts/orbitron_black_48.bin",   kFontBlack48Start,  kFontBlack48End,  "orbitron_black_48"},
     {"/fonts/orbitron_bold_20.bin",    kFontBold20Start,   kFontBold20End,   "orbitron_bold_20"},
     {"/fonts/orbitron_bold_24.bin",    kFontBold24Start,   kFontBold24End,   "orbitron_bold_24"},
-    {"/fonts/orbitron_bold_28.bin",    kFontBold28Start,   kFontBold28End,   "orbitron_bold_28"},
     {"/fonts/orbitron_medium_12.bin",  kFontMedium12Start, kFontMedium12End, "orbitron_medium_12"},
     {"/fonts/orbitron_medium_14.bin",  kFontMedium14Start, kFontMedium14End, "orbitron_medium_14"},
     {"/fonts/orbitron_medium_16.bin",  kFontMedium16Start, kFontMedium16End, "orbitron_medium_16"},

@@ -16,12 +16,15 @@
 
 namespace {
 
-// Sizes shipped per tier. Driven by actual call sites (see issue #431):
+// Sizes shipped per tier. Driven by actual call sites (see issues #431 + #487):
 //   primary   — gauge/timer/gear at full panel height, label_widget large
-//   secondary — gauge/timer mid-band, gear mid, burn_overlay icon (28)
+//   secondary — gauge/timer mid-band, gear mid, burn_overlay icon (snaps to 24)
 //   label     — top bar text, signal headers, settings, error bar, dot/icon
-constexpr uint8_t kPrimarySizes[]   = {32, 48};
-constexpr uint8_t kSecondarySizes[] = {20, 24, 28};
+//
+// 28 (secondary) and 48 (primary) were dropped to fit the LV_MEM_SIZE=64KB
+// budget — callers requesting them snap down (28 → 24, 48 → 32).
+constexpr uint8_t kPrimarySizes[]   = {32};
+constexpr uint8_t kSecondarySizes[] = {20, 24};
 constexpr uint8_t kLabelSizes[]     = {12, 14, 16};
 
 constexpr size_t kPrimaryCount   = sizeof(kPrimarySizes)   / sizeof(kPrimarySizes[0]);

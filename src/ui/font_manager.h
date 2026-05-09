@@ -1,9 +1,9 @@
 #pragma once
 // font_manager.h — Intent-based font lookup for the Orbitron typography tier.
 //
-// Three intents map to three weights (issue #431):
-//   primary   → Orbitron Black  (900) — RPM, speed, gear, lap time   (32, 48)
-//   secondary → Orbitron Bold   (700) — boost, oil temp, voltage     (20, 24, 28)
+// Three intents map to three weights (issues #431 + #487):
+//   primary   → Orbitron Black  (900) — RPM, speed, gear, lap time   (32)
+//   secondary → Orbitron Bold   (700) — boost, oil temp, voltage     (20, 24)
 //   label     → Orbitron Medium (500) — small labels, top bar, hints (12, 14, 16)
 //
 // Each call snaps the requested size DOWN to the nearest cached size within
@@ -29,10 +29,10 @@ public:
     // Frees every loaded font and clears the cache. Optional teardown hook.
     static void shutdown();
 
-    // Primary values — Orbitron Black 900. Snaps to 32 or 48 px.
+    // Primary values — Orbitron Black 900. Snaps to 32 px.
     static const lv_font_t *primary(uint8_t size);
 
-    // Secondary values — Orbitron Bold 700. Snaps to 20, 24, or 28 px.
+    // Secondary values — Orbitron Bold 700. Snaps to 20 or 24 px.
     static const lv_font_t *secondary(uint8_t size);
 
     // Labels & body — Orbitron Medium 500. Snaps to 12, 14, or 16 px.

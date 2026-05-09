@@ -164,7 +164,7 @@ void BurnOverlay::showError(ErrorReason reason) {
     lv_obj_t *icon = lv_label_create(root);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xE04040), 0);
-    lv_obj_set_style_text_font(icon, FontManager::secondary(28), 0);
+    lv_obj_set_style_text_font(icon, FontManager::secondary(24), 0);
     lv_obj_align(icon, LV_ALIGN_CENTER, 0, -32);
 
     lv_obj_t *title = lv_label_create(root);
