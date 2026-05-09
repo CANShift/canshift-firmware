@@ -16,6 +16,14 @@
 //   PAGE_XSITION— page transition animation wall time (start → finish_cb)
 //   TOUCH_LAT   — press → first LV_EVENT_CLICKED dispatch
 //   FRAME_MISS  — count of vTaskDelayUntil overshoots in the current window
+//   FPS         — count of completed display refreshes (last flush region) in
+//                 the current window; LVGL on-screen overlay also enabled via
+//                 LV_USE_PERF_MONITOR when APP_PROFILE_UI=1
+//
+// Long-wait warnings:
+//   recordSample(MUTEX_WAIT, …) emits LOG_WARN("PERF", …) at most once per
+//   1 Hz window when the wait exceeds PERF_MUTEX_WAIT_WARN_US — long lock
+//   contention is the smoking gun for UI lag.
 //
 // Usage:
 //   #include "diag/perf_counters.h"
@@ -66,6 +74,11 @@ bool consumeTouchPressTs(uint32_t *outUs);
 void recordPageTransitionStart();
 void recordPageTransitionEnd();
 
+// Bump the per-second FPS counter. Call from the LVGL flush callback only on
+// the final region of a refresh (lv_disp_flush_is_last(disp) == true), so the
+// counter measures completed frames rather than partial flush regions.
+void recordFlushFrame();
+
 // Emit the rolling 1 Hz summary line if it's time to do so. Must be called
 // from the UI task once per loop iteration. No-op until 1000 ms elapsed.
 void tick();
@@ -87,24 +100,25 @@ class ScopedTimer {
     // the surrounding block. Concatenation with __LINE__ avoids name clashes
     // when several scopes share a function.
     #define PERF_PASTE2(a, b) a##b
-    #define PERF_PASTE(a, b)  PERF_PASTE2(a, b)
-    #define PERF_SCOPE(metric)                                                                    \
-        ::PerfCounters::ScopedTimer PERF_PASTE(_perfScope_, __LINE__)(metric)
-    #define PERF_RECORD_FRAME_MISS()      ::PerfCounters::recordFrameMiss()
-    #define PERF_RECORD_TOUCH_PRESS()     ::PerfCounters::recordTouchPressNow()
-    #define PERF_RECORD_PAGE_XSTART()     ::PerfCounters::recordPageTransitionStart()
-    #define PERF_RECORD_PAGE_XEND()       ::PerfCounters::recordPageTransitionEnd()
-    #define PERF_TICK()                   ::PerfCounters::tick()
-    #define PERF_INIT()                   ::PerfCounters::init()
+    #define PERF_PASTE(a, b) PERF_PASTE2(a, b)
+    #define PERF_SCOPE(metric) ::PerfCounters::ScopedTimer PERF_PASTE(_perfScope_, __LINE__)(metric)
+    #define PERF_RECORD_FRAME_MISS() ::PerfCounters::recordFrameMiss()
+    #define PERF_RECORD_TOUCH_PRESS() ::PerfCounters::recordTouchPressNow()
+    #define PERF_RECORD_PAGE_XSTART() ::PerfCounters::recordPageTransitionStart()
+    #define PERF_RECORD_PAGE_XEND() ::PerfCounters::recordPageTransitionEnd()
+    #define PERF_RECORD_FLUSH_FRAME() ::PerfCounters::recordFlushFrame()
+    #define PERF_TICK() ::PerfCounters::tick()
+    #define PERF_INIT() ::PerfCounters::init()
 
 #else // APP_PROFILE_UI == 0
 
-    #define PERF_SCOPE(metric)            ((void)0)
-    #define PERF_RECORD_FRAME_MISS()      ((void)0)
-    #define PERF_RECORD_TOUCH_PRESS()     ((void)0)
-    #define PERF_RECORD_PAGE_XSTART()     ((void)0)
-    #define PERF_RECORD_PAGE_XEND()       ((void)0)
-    #define PERF_TICK()                   ((void)0)
-    #define PERF_INIT()                   ((void)0)
+    #define PERF_SCOPE(metric) ((void)0)
+    #define PERF_RECORD_FRAME_MISS() ((void)0)
+    #define PERF_RECORD_TOUCH_PRESS() ((void)0)
+    #define PERF_RECORD_PAGE_XSTART() ((void)0)
+    #define PERF_RECORD_PAGE_XEND() ((void)0)
+    #define PERF_RECORD_FLUSH_FRAME() ((void)0)
+    #define PERF_TICK() ((void)0)
+    #define PERF_INIT() ((void)0)
 
 #endif // APP_PROFILE_UI

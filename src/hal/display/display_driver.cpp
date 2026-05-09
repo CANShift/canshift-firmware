@@ -7,6 +7,7 @@
 #include "hardware_profile.h"
 #include "config/rotation_config.h"
 #include "diag/logger.h"
+#include "diag/perf_counters.h"
 
 #include <lvgl.h>
 
@@ -34,6 +35,14 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
     s_lcd.writePixels(reinterpret_cast<uint16_t *>(colorMap), w * h, true /* swap */);
     s_lcd.endWrite();
 
+    #if APP_PROFILE_UI
+    // Count completed frames (last region of the refresh) only — partial
+    // flush regions inflate the FPS metric otherwise.
+    if (lv_disp_flush_is_last(disp)) {
+        PERF_RECORD_FLUSH_FRAME();
+    }
+    #endif
+
     lv_disp_flush_ready(disp);
 }
 
@@ -54,8 +63,8 @@ void DisplayDriver::init() {
     s_lcd.init();
     s_lcd.setRotation(rotation);
     s_lcd.setBrightness(BL_DEFAULT_DUTY);
-    LOG_INFO("DISP", "After setRotation(%d, offset=%u°): width=%d height=%d",
-             rotation, RotationConfig::getOffsetDeg(), s_lcd.width(), s_lcd.height());
+    LOG_INFO("DISP", "After setRotation(%d, offset=%u°): width=%d height=%d", rotation,
+             RotationConfig::getOffsetDeg(), s_lcd.width(), s_lcd.height());
 
     s_lcd.fillScreen(TFT_BLACK);
 
@@ -98,6 +107,11 @@ static lv_color_t s_buf2[HW_DISPLAY_WIDTH * SIM_BUF_LINES];
 
 void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t * /*area*/,
                                   lv_color_t * /*colorMap*/) {
+    #if APP_PROFILE_UI
+    if (lv_disp_flush_is_last(disp)) {
+        PERF_RECORD_FLUSH_FRAME();
+    }
+    #endif
     lv_disp_flush_ready(disp);
 }
 
