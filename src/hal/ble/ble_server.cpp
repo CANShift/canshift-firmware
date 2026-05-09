@@ -72,7 +72,10 @@ void updateStatus() {
     doc["ver"]    = APP_VERSION_STR;
     doc["can"]    = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
-    if (WifiAp::isActive()) doc["ap_ssid"] = WifiAp::getSsid();
+    if (WifiAp::isActive()) {
+        doc["ap_ssid"]     = WifiAp::getSsid();
+        doc["ap_password"] = WifiAp::getPassword();
+    }
     char buf[128];
     serializeJson(doc, buf, sizeof(buf));
     s_pStatus->setValue(buf);

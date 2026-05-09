@@ -218,7 +218,8 @@
 #define BLE_TELE_INTERVAL_MS 100 // 10Hz
 
 // WiFi AP configuration
-#define BLE_WIFI_AP_PASSWORD "canshift"
+// Password is per-device, generated on first boot and persisted in NVS
+// (namespace "wifi_ap", key "pwd"). Surfaced via BLE STATUS field "ap_password".
 #define BLE_WIFI_AP_TIMEOUT_MS (5UL * 60UL * 1000UL) // 5 minutes
 
 // ---------------------------------------------------------------------------

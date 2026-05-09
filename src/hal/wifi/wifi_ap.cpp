@@ -16,6 +16,8 @@
 #include <WebServer.h>
 #include <Update.h>
 #include <Arduino.h>
+#include <Preferences.h>
+#include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <stdio.h>
@@ -29,6 +31,14 @@ static WebServer s_server(80);
 static TaskHandle_t s_taskHandle = nullptr;
 static volatile bool s_active = false;
 static char s_ssid[20] = {};
+
+// Per-device AP password — 16 hex chars + null terminator. Generated on first
+// boot via esp_random() (64 bits entropy) and persisted in NVS.
+static char s_password[17] = {};
+
+static constexpr char NVS_NS_WIFI_AP[] = "wifi_ap";
+static constexpr char NVS_KEY_PWD[] = "pwd";
+static constexpr size_t AP_PASSWORD_LEN = 16;
 
 // ---------------------------------------------------------------------------
 // HTTP handlers
@@ -82,8 +92,33 @@ void buildSsid() {
     snprintf(s_ssid, sizeof(s_ssid), "CANShift-%02X%02X", mac[4], mac[5]);
 }
 
+void ensurePassword() {
+    if (s_password[0] != '\0') return; // already loaded this boot
+
+    Preferences p;
+    if (p.begin(NVS_NS_WIFI_AP, /*readOnly=*/true)) {
+        const size_t len = p.getString(NVS_KEY_PWD, s_password, sizeof(s_password));
+        p.end();
+        if (len == AP_PASSWORD_LEN) return; // valid persisted value
+    }
+
+    // Missing, empty, or wrong length — generate a fresh 64-bit random password.
+    const uint32_t a = esp_random();
+    const uint32_t b = esp_random();
+    snprintf(s_password, sizeof(s_password), "%08x%08x", a, b);
+
+    Preferences pw;
+    if (pw.begin(NVS_NS_WIFI_AP, /*readOnly=*/false)) {
+        pw.putString(NVS_KEY_PWD, s_password);
+        pw.end();
+        LOG_INFO("WiFi", "Generated new AP password (persisted in NVS)");
+    } else {
+        LOG_WARN("WiFi", "NVS open failed — using volatile AP password");
+    }
+}
+
 void apTaskFn(void *) {
-    WiFi.softAP(s_ssid, BLE_WIFI_AP_PASSWORD);
+    WiFi.softAP(s_ssid, s_password);
     LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid,
              WiFi.softAPIP().toString().c_str());
 
@@ -113,7 +148,8 @@ void apTaskFn(void *) {
 
 void WifiAp::start() {
     if (s_active) return;
-    buildSsid(); // build SSID before task starts so getSsid() is valid immediately
+    buildSsid();      // build SSID before task starts so getSsid() is valid immediately
+    ensurePassword(); // ditto for getPassword(); persists to NVS on first boot
     s_active = true;
     xTaskCreatePinnedToCore(apTaskFn, "wifi_ap", TASK_STACK_WIFI, nullptr,
                             TASK_PRIO_WIFI, &s_taskHandle, TASK_CORE_WIFI);
@@ -131,6 +167,11 @@ const char *WifiAp::getSsid() {
     return s_ssid;
 }
 
+const char *WifiAp::getPassword() {
+    ensurePassword(); // safe lazy fallback if start() hasn't run yet
+    return s_password;
+}
+
 #else // !APP_WIFI_OTA_ENABLED — stubs
 
 void WifiAp::start() {
@@ -141,6 +182,9 @@ bool WifiAp::isActive() {
     return false;
 }
 const char *WifiAp::getSsid() {
+    return "";
+}
+const char *WifiAp::getPassword() {
     return "";
 }
 
