@@ -75,9 +75,52 @@ void test_loadDashboard_invalidSchemaVersion_logsAndUsesFallback() {
     TEST_ASSERT_EQUAL_UINT8(1, dashboard.pageCount);
 }
 
+void test_reload_picks_up_new_dashboard() {
+    // Fixture A — single page, name "Minimal Test Dashboard".
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    TEST_ASSERT_EQUAL_UINT8(1, ConfigLoader::getDashboardConfig().pageCount);
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard",
+                             ConfigLoader::getDashboardConfig().name);
+
+    // Fixture B — two pages, distinct name. Replace the on-disk file and call
+    // reloadAll(); observable struct change confirms reload picked up B.
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimalReload,
+                             strlen(fixtures::kDashboardMinimalReload));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+
+    TEST_ASSERT_TRUE(ConfigLoader::reloadAll());
+
+    const CfgDashboard &reloaded = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_TRUE(reloaded.loaded);
+    TEST_ASSERT_EQUAL_STRING("Reloaded Dashboard", reloaded.name);
+    TEST_ASSERT_EQUAL_UINT8(2, reloaded.pageCount);
+    TEST_ASSERT_EQUAL_STRING("first", reloaded.pages[0].id);
+    TEST_ASSERT_EQUAL_STRING("second", reloaded.pages[1].id);
+}
+
+void test_reload_returns_false_on_invalid_dashboard() {
+    // Stage corrupt JSON for the second call. Note: whether the prior
+    // in-memory dashboard struct is preserved on parse failure is an
+    // implementation detail of ConfigLoader and is not asserted here — see
+    // the PR body for the known follow-up. We only verify that reloadAll()
+    // surfaces the failure to the caller.
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardCorrupt,
+                             strlen(fixtures::kDashboardCorrupt));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+
+    TEST_ASSERT_FALSE(ConfigLoader::reloadAll());
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_loadDashboard_minimalValidJson_populatesStruct);
     RUN_TEST(test_loadDashboard_invalidSchemaVersion_logsAndUsesFallback);
+    RUN_TEST(test_reload_picks_up_new_dashboard);
+    RUN_TEST(test_reload_returns_false_on_invalid_dashboard);
     return UNITY_END();
 }

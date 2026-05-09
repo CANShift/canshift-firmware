@@ -63,6 +63,8 @@ const char *errorTitleFor(BurnOverlay::ErrorReason reason) {
     switch (reason) {
         case BurnOverlay::ErrorReason::WriteFailed:
             return "Storage write failed";
+        case BurnOverlay::ErrorReason::ReloadFailed:
+            return "Config reload failed";
     }
     return "Save failed";
 }
@@ -71,6 +73,8 @@ const char *errorHintFor(BurnOverlay::ErrorReason reason) {
     switch (reason) {
         case BurnOverlay::ErrorReason::WriteFailed:
             return "Retry from studio";
+        case BurnOverlay::ErrorReason::ReloadFailed:
+            return "Reboot to apply";
     }
     return "Retry from studio";
 }

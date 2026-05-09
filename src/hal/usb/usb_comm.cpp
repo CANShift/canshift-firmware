@@ -20,6 +20,7 @@
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "ui/burn_overlay.h"
+#include "ui/page_manager.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
@@ -29,7 +30,6 @@
 #include <atomic>
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <esp_system.h> // esp_restart()
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <mbedtls/base64.h>
@@ -175,7 +175,10 @@ void sendTelemetry() {
 // Command handlers
 // ---------------------------------------------------------------------------
 
-// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to storage, then reboot.
+// Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to storage, then
+// trigger an in-place reload via PageManager (no esp_restart). The studio
+// keeps its serial port open across the reload, so telemetry resumes against
+// the new SignalStore as soon as the UI task finishes the rebuild.
 // After ArduinoJson parses into doc, s_rxBuf is no longer needed for reading,
 // so we reuse it as the serialization buffer for the payload.
 void handlePutConfig(const char *jsonLine) {
@@ -227,12 +230,13 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
-    Serial.flush();
+    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading", written);
+    // Defer the actual reload to the UI task — it owns g_lvglMutex and the
+    // PageManager. The flag is consumed on the next updateWidgets() tick,
+    // which calls ConfigLoader::reloadAll() + rebuildAllPages(), then drops
+    // the BurnOverlay. The studio's serial port stays open the whole time.
+    PageManager::requestReload();
     UsbComm::sendLine("{\"status\":\"ok\"}");
-    Serial.flush();
-    delay(150);
-    esp_restart();
 }
 
 // ---------------------------------------------------------------------------

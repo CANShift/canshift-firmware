@@ -2,6 +2,7 @@
 
 #include "page_manager.h"
 #include "ui/font_manager.h"
+#include "ui/burn_overlay.h"
 #include "widget_factory.h"
 #include "top_bar.h"
 #include "error_bar.h"
@@ -38,6 +39,7 @@ static uint8_t s_pageCount = 0;
 static uint8_t s_currentIdx = 0;
 static lv_obj_t *s_revOverlay = nullptr; // Red flash overlay, global
 static bool s_rebuildRequested = false;  // Set by ThemeManager::toggleDayMode()
+static bool s_reloadRequested = false;   // Set by USB CMD_PUT_CONFIG handler
 
 void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg) {
     lv_obj_set_style_bg_color(screen, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
@@ -574,7 +576,27 @@ void PageManager::requestRebuild() {
     s_rebuildRequested = true;
 }
 
+void PageManager::requestReload() {
+    s_reloadRequested = true;
+}
+
 void PageManager::updateWidgets() {
+    // Reload supersedes a pending rebuild — the reload re-applies the theme
+    // and rebuilds every page. Check it BEFORE the rebuild flag and clear
+    // both so we don't double-rebuild on the next tick.
+    if (s_reloadRequested) {
+        s_reloadRequested = false;
+        s_rebuildRequested = false;
+        if (ConfigLoader::reloadAll()) {
+            rebuildAllPages();
+            BurnOverlay::hide();
+        } else {
+            LOG_ERROR("UI", "Config reload failed — keeping previous pages");
+            BurnOverlay::showError(BurnOverlay::ErrorReason::ReloadFailed);
+        }
+        return; // Skip widget updates this tick; next tick runs normally
+    }
+
     if (s_pageCount == 0)
         return;
 

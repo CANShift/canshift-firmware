@@ -42,4 +42,41 @@ constexpr const char *kDashboardWrongVersion = R"({
   ]
 })";
 
+// Same schema as kDashboardMinimal but with a distinct name + a second page,
+// so reloadAll() can be observed switching from one to the other.
+constexpr const char *kDashboardMinimalReload = R"({
+  "version": "1.0.0",
+  "name": "Reloaded Dashboard",
+  "defaultPageId": "second",
+  "revLimitRpm": 7500,
+  "topBar": {
+    "height": 24,
+    "bgColor": "#111111",
+    "textColor": "#FFFFFF"
+  },
+  "pages": [
+    {
+      "id": "first",
+      "backgroundColor": "#1A1A1A",
+      "showTopBar": true,
+      "widgets": []
+    },
+    {
+      "id": "second",
+      "backgroundColor": "#202020",
+      "showTopBar": true,
+      "widgets": []
+    }
+  ]
+})";
+
+// Truncated JSON — parse must fail. Used to assert reloadAll() returns false.
+constexpr const char *kDashboardCorrupt = R"({
+  "version": "1.0.0",
+  "name": "Corrupt",
+  "defaultPageId": "main",
+  "pages": [
+    {"id": "main"
+)";
+
 } // namespace fixtures

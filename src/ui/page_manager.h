@@ -82,4 +82,13 @@ uint8_t getPageCount();
  */
 void requestRebuild();
 
+/**
+ * Request a full config reload + page rebuild on the next updateWidgets()
+ * tick. Called by USB CMD_PUT_CONFIG after the dashboard.json write
+ * succeeds, replacing the previous esp_restart() path. Supersedes any
+ * pending requestRebuild() — the reload also re-applies the theme.
+ * Safe to call from non-UI tasks.
+ */
+void requestReload();
+
 } // namespace PageManager
