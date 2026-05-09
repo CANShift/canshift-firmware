@@ -19,6 +19,7 @@
 #include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "ui/widget_styles.h"
 #include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
@@ -64,6 +65,10 @@ struct LabelTag {
     // from the ramp on each update; otherwise the static text colour stays.
     const CfgColorRamp *ramp;
     uint32_t baseTextRgb; // Base/static text colour when no ramp applies.
+    // Cached tint pushed to LVGL — guards skip the redundant style write when
+    // the ramp resolves to the same colour two ticks in a row. Init to
+    // 0xFFFFFFFFu so the first update() always paints.
+    uint32_t lastTintRgb;
 };
 
 } // namespace
@@ -79,14 +84,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
     lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
-    if (cfg.style.hasBorder) {
-        lv_obj_set_style_border_width(cont, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(cont, lv_color_hex(cfg.style.borderColor.rgb), LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_border_width(cont, 0, LV_PART_MAIN);
-    }
+    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
 
     const bool hasUserLabel = cfg.label.label[0] != '\0';
 
@@ -138,6 +136,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->lastValue = NAN;
     tag->lastValid = false;
     tag->baseTextRgb = textRgb;
+    tag->lastTintRgb = 0xFFFFFFFFu;
     {
         const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
         const CfgColorRampDef empty{};
@@ -211,7 +210,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (tag->ramp && !tag->alert.active) {
         const uint32_t tint =
             valid ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
-        lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(tint), 0);
+        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tint);
     }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).

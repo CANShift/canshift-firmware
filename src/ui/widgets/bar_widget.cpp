@@ -10,6 +10,7 @@
 #include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "ui/widget_styles.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
 
@@ -51,6 +52,10 @@ struct BarTag {
     bool wasValid;
     const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → legacy zone tints.
     AlertFlash::State alert;
+    // Cached fill colour pushed to LVGL — guards skip the redundant style
+    // write when the zone-driven colour hasn't changed since last frame.
+    // Init to 0xFFFFFFFFu so the first update() always paints.
+    uint32_t lastFillRgb;
 };
 
 void formatSignalLabel(const char *src, char *out, size_t outLen) {
@@ -124,14 +129,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
     lv_obj_set_size(cont, W, H);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
-    if (cfg.style.hasBorder) {
-        lv_obj_set_style_border_width(cont, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(cont, lv_color_hex(cfg.style.borderColor.rgb), LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_border_width(cont, 0, LV_PART_MAIN);
-    }
+    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
 
     auto *t = new BarTag{};
     t->isVertical = isVertical;
@@ -150,6 +148,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     // first update() runs through the paint path even if minValue == 0.
     t->lastValue = NAN;
     t->wasValid = false;
+    t->lastFillRgb = 0xFFFFFFFFu;
 
     // Resolve the active color ramp once (issue #430). Per-signal ramp wins,
     // sensor-name heuristic next, nullptr → legacy zone-based tinting.
@@ -205,14 +204,10 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
 
         // Track background — square corners per user spec
         lv_obj_t *track = lv_obj_create(cont);
-        lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_pos(track, HORIZ_PAD_X, trackY);
         lv_obj_set_size(track, trackW, barH);
+        WidgetStyles::applyBarTrack(track);
         lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_radius(track, 0, LV_PART_MAIN);
-        lv_obj_set_style_border_width(track, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN);
         t->track = track;
 
         // Warning zone (warning..danger band)
@@ -223,11 +218,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
             lv_obj_set_pos(zone, zX, trackY);
             lv_obj_set_size(zone, zW, barH);
-            lv_obj_set_style_bg_color(zone, lv_color_hex(ZONE_WARNING_RGB), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
-            lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
-            lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
-            lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+            WidgetStyles::applyBarZone(zone, ZONE_WARNING_RGB, ZONE_OPA);
             t->warnZone = zone;
         }
 
@@ -239,11 +230,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
             lv_obj_set_pos(zone, zX, trackY);
             lv_obj_set_size(zone, zW, barH);
-            lv_obj_set_style_bg_color(zone, lv_color_hex(ZONE_DANGER_RGB), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
-            lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
-            lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
-            lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+            WidgetStyles::applyBarZone(zone, ZONE_DANGER_RGB, ZONE_OPA);
             t->dangerZone = zone;
         }
 
@@ -253,11 +240,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_pos(fill, HORIZ_PAD_X, trackY);
         lv_obj_set_size(fill, 0, barH);
-        lv_obj_set_style_bg_color(fill, lv_color_hex(ZONE_NORMAL_RGB), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_radius(fill, 0, LV_PART_MAIN);
-        lv_obj_set_style_border_width(fill, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(fill, 0, LV_PART_MAIN);
+        WidgetStyles::applyBarFill(fill, ZONE_NORMAL_RGB);
         t->fill = fill;
 
         // Signal label — only when the user hasn't supplied a custom one.
@@ -354,14 +337,10 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
 
         // Track
         lv_obj_t *track = lv_obj_create(cont);
-        lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_pos(track, padX, padTop);
         lv_obj_set_size(track, barW, trackH);
+        WidgetStyles::applyBarTrack(track);
         lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_radius(track, 0, LV_PART_MAIN);
-        lv_obj_set_style_border_width(track, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN);
         t->track = track;
 
         // Warning zone — drawn from warningLevel up to dangerLevel (top down).
@@ -372,11 +351,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
             lv_obj_set_pos(zone, padX, zY);
             lv_obj_set_size(zone, barW, zH);
-            lv_obj_set_style_bg_color(zone, lv_color_hex(ZONE_WARNING_RGB), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
-            lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
-            lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
-            lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+            WidgetStyles::applyBarZone(zone, ZONE_WARNING_RGB, ZONE_OPA);
             t->warnZone = zone;
         }
 
@@ -388,11 +363,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
                 lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
                 lv_obj_set_pos(zone, padX, padTop);
                 lv_obj_set_size(zone, barW, topZH);
-                lv_obj_set_style_bg_color(zone, lv_color_hex(ZONE_DANGER_RGB), LV_PART_MAIN);
-                lv_obj_set_style_bg_opa(zone, ZONE_OPA, LV_PART_MAIN);
-                lv_obj_set_style_radius(zone, 0, LV_PART_MAIN);
-                lv_obj_set_style_border_width(zone, 0, LV_PART_MAIN);
-                lv_obj_set_style_pad_all(zone, 0, LV_PART_MAIN);
+                WidgetStyles::applyBarZone(zone, ZONE_DANGER_RGB, ZONE_OPA);
                 t->dangerZone = zone;
             }
         }
@@ -402,11 +373,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_pos(fill, padX, padTop + trackH);
         lv_obj_set_size(fill, barW, 0);
-        lv_obj_set_style_bg_color(fill, lv_color_hex(t->primaryRgb), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_radius(fill, 0, LV_PART_MAIN);
-        lv_obj_set_style_border_width(fill, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(fill, 0, LV_PART_MAIN);
+        WidgetStyles::applyBarFill(fill, t->primaryRgb);
         t->fill = fill;
 
         // Signal label — top centre, dropped when the user set a custom label.
@@ -492,7 +459,7 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     // for configs that haven't opted in.
     const uint32_t fillRgb =
         t->ramp ? colorAtValue(*t->ramp, displayValue) : zoneFillColor(pct, warnPct, dangerPct);
-    lv_obj_set_style_bg_color(t->fill, lv_color_hex(fillRgb), LV_PART_MAIN);
+    WidgetStyles::setBgColorIfChanged(t->fill, t->lastFillRgb, fillRgb);
 
     if (!t->isVertical) {
         int16_t fillW = static_cast<int16_t>(t->trackW * pct);

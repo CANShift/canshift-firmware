@@ -9,6 +9,7 @@
 #include "image_widget.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "ui/widget_styles.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -39,9 +40,7 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
     lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(cont, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
+    WidgetStyles::applyContainerBaseNoBorder(cont);
 
     if (cfg.image.imagePath[0] == '\0') {
         LOG_WARN("IMG", "Image widget has no imagePath — skipping");

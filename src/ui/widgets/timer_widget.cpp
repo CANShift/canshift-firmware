@@ -11,6 +11,7 @@
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "ui/widget_styles.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -104,14 +105,7 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
     lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
-    if (cfg.style.hasBorder) {
-        lv_obj_set_style_border_width(cont, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(cont, lv_color_hex(cfg.style.borderColor.rgb), LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_border_width(cont, 0, LV_PART_MAIN);
-    }
-    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
+    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
 
     // Enable tap interaction
     lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);

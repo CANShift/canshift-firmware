@@ -6,6 +6,7 @@
 #include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "ui/widget_styles.h"
 #include "config/config_loader.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
@@ -112,9 +113,7 @@ static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startA
     lv_obj_set_style_arc_width(arc, arcWidth, LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
 
-    // No knob
-    lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
-    lv_obj_set_style_pad_all(arc, 0, LV_PART_KNOB);
+    WidgetStyles::disableArcKnob(arc);
 
     return arc;
 }
@@ -139,9 +138,7 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
     lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
 
-    // No knob
-    lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
-    lv_obj_set_style_pad_all(arc, 0, LV_PART_KNOB);
+    WidgetStyles::disableArcKnob(arc);
 
     return arc;
 }
@@ -171,6 +168,11 @@ struct GaugeTag {
                     // when state hasn't flipped (issue #236).
     const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → static path.
     AlertFlash::State alert;
+    // Last colours pushed to LVGL — used by the per-frame write guards. Init
+    // to 0xFFFFFFFFu so the first update() always paints (alpha bits never
+    // appear in a 0x00RRGGBB target so the sentinel is unique).
+    uint32_t lastLabelRgb;
+    uint32_t lastFillRgb;
 };
 
 // Combine the per-signal alertThreshold (issue #133) with the revFlash trigger
@@ -201,14 +203,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
     lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
-    if (cfg.style.hasBorder) {
-        lv_obj_set_style_border_width(cont, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(cont, lv_color_hex(cfg.style.borderColor.rgb), LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_border_width(cont, 0, LV_PART_MAIN);
-    }
-    lv_obj_set_style_pad_all(cont, 0, LV_PART_MAIN);
+    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
 
     // Arc diameter: smallest of w/h, minus padding
     int32_t diam = (cfg.layout.w < cfg.layout.h ? cfg.layout.w : cfg.layout.h) - 8;
@@ -326,6 +321,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->hasDanger = hasDanger;
     tag->gradientMode = gradientMode;
     tag->lastValid = true;
+    tag->lastLabelRgb = 0xFFFFFFFFu;
+    tag->lastFillRgb = 0xFFFFFFFFu;
 
     // Resolve the active color ramp once (issue #430). Prefer the per-signal
     // ramp from signals.json; fall back to the sensor-name heuristic; null
@@ -395,8 +392,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             tag->lastValid = false;
         }
         if (!tag->alert.active) {
-            lv_obj_set_style_text_color(tag->valueLabel,
-                                        lv_color_hex(ThemeManager::getEffectiveTextColor()), 0);
+            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb,
+                                                ThemeManager::getEffectiveTextColor());
         }
         // Gradient mode (issue #175): collapse the value arc to zero on
         // invalid signals so the gray base track is visible — matches the
@@ -428,7 +425,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         } else if (tag->hasWarning && value >= cfg.gauge.warningLevel) {
             labelColor = kColorWarning;
         }
-        lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
+        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
     }
 
     // Gradient mode: redraw the value arc with an interpolated colour and a
@@ -445,7 +442,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
             fillColor = interpolateGreenOrangeRed(pct);
         }
-        lv_obj_set_style_arc_color(tag->fillArc, lv_color_hex(fillColor), LV_PART_INDICATOR);
+        WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
+                                           LV_PART_INDICATOR);
     }
 
     // Update numeric label (prefix + value formatted to decimalPlaces). Even
