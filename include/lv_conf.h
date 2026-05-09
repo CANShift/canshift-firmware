@@ -42,9 +42,13 @@
             #define LV_MEM_SIZE                                                                    \
                 (12U * 1024U) /* 12 KB — sim mode (CI compile check only, no runtime) */
         #else
-            /* 48 KB — fonts now live in flash (LV_FONT_MONTSERRAT_12..32 below), so
-   the pool is needed only for widget objects, styles and spec_attrs. */
-            #define LV_MEM_SIZE (48U * 1024U)
+            /* 96 KB — fonts are now lv_font_load()'d from SPIFFS at boot
+   (issue #410) and live inside the LVGL heap (~70 KB total for all 7
+   sizes). Bumped from 48 KB to absorb the resident font glyphs while
+   leaving ~66 KB of FreeRTOS heap free at runtime for BLE, JSON parsing
+   and SPIFFS buffers. Allocated via malloc (LV_MEM_POOL_ALLOC) so this
+   line consumes runtime heap, not bss. */
+            #define LV_MEM_SIZE (96U * 1024U)
         #endif
 
         /* Set an address for the memory pool instead of allocating it as a global array.
@@ -180,17 +184,12 @@
         #define LV_FONT_UNSCII_8 0
         #define LV_FONT_UNSCII_16 0
 
-        /* Declare our kerning-stripped Montserrat replacements (issue #407).
-   The bodies live in src/ui/fonts/lv_font_montserrat_<N>_nk.c and are
-   regenerated via scripts/regen_montserrat_no_kern.py. */
-        #define LV_FONT_CUSTOM_DECLARE                                                             \
-            LV_FONT_DECLARE(lv_font_montserrat_12_nk)                                              \
-            LV_FONT_DECLARE(lv_font_montserrat_14_nk)                                              \
-            LV_FONT_DECLARE(lv_font_montserrat_16_nk)                                              \
-            LV_FONT_DECLARE(lv_font_montserrat_20_nk)                                              \
-            LV_FONT_DECLARE(lv_font_montserrat_24_nk)                                              \
-            LV_FONT_DECLARE(lv_font_montserrat_32_nk)                                              \
-            LV_FONT_DECLARE(lv_font_montserrat_48_nk)
+        /* All Montserrat sizes are now lv_font_load()'d from SPIFFS at boot
+   (issue #410). The only built-in font we keep in flash is the 14 px
+   variant — used by FontManager::get() as a fallback when a runtime
+   load fails (e.g. fresh-flash device without `pio run -t uploadfs`).
+   Body lives in src/ui/fonts/lv_font_montserrat_14_nk.c. */
+        #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(lv_font_montserrat_14_nk)
 
         /* Default font: pick the no-kern Montserrat 14 we ship ourselves. */
         #define LV_FONT_DEFAULT &lv_font_montserrat_14_nk
