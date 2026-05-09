@@ -12,9 +12,11 @@
 // value so a corner-anchored user label can never collide with the unit.
 
 #include "label_widget.h"
+#include "config/config_loader.h"
 #include "diag/logger.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
+#include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include <cmath>
@@ -58,6 +60,10 @@ struct LabelTag {
     // Sentinel: lastValid=false + isnan(lastValue) forces the first paint.
     float lastValue;
     bool lastValid;
+    // Active color ramp (issue #430). When non-null, the value text is tinted
+    // from the ramp on each update; otherwise the static text colour stays.
+    const CfgColorRamp *ramp;
+    uint32_t baseTextRgb; // Base/static text colour when no ramp applies.
 };
 
 } // namespace
@@ -131,6 +137,13 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->alertThreshold = cfg.label.alertThreshold;
     tag->lastValue = NAN;
     tag->lastValid = false;
+    tag->baseTextRgb = textRgb;
+    {
+        const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
+        const CfgColorRampDef empty{};
+        const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
+        tag->ramp = resolveRamp(perSignal, cfg.signalId);
+    }
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
@@ -191,6 +204,14 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         }
         tag->lastValue = displayValue;
         tag->lastValid = valid;
+    }
+
+    // Tint the value when a ramp is configured (issue #430). Skip during an
+    // alert flash — AlertFlash owns the colour for the duration of the pulse.
+    if (tag->ramp && !tag->alert.active) {
+        const uint32_t tint =
+            valid ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
+        lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(tint), 0);
     }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).

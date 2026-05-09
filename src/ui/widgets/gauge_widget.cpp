@@ -3,6 +3,7 @@
 #include "gauge_widget.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
+#include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "config/config_loader.h"
@@ -168,6 +169,7 @@ struct GaugeTag {
     bool lastValid; // Tracks the last (value, valid) pair so the invalid
                     // branch can skip its lv_label_set_text reallocation
                     // when state hasn't flipped (issue #236).
+    const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → static path.
     AlertFlash::State alert;
 };
 
@@ -325,6 +327,16 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->gradientMode = gradientMode;
     tag->lastValid = true;
 
+    // Resolve the active color ramp once (issue #430). Prefer the per-signal
+    // ramp from signals.json; fall back to the sensor-name heuristic; null
+    // means the legacy threshold-driven static colors are used unchanged.
+    {
+        const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
+        const CfgColorRampDef empty{};
+        const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
+        tag->ramp = resolveRamp(perSignal, cfg.signalId);
+    }
+
     // revFlash (issue #263): when enabled, pulse the gauge red as soon as the
     // signal reaches the dashboard's rev-limit RPM. We snapshot the threshold
     // here so update() doesn't have to consult ConfigLoader on every tick. The
@@ -404,28 +416,35 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValue = value;
     tag->lastValid = true;
 
-    // Tint the value label to match the active zone — but skip when in alert
-    // state, AlertFlash owns the colour while the flash is active. Threshold-
-    // driven label tinting stays unchanged in BOTH modes — separate concern
-    // from the arc fill style (issue #175).
+    // Tint the value label — skip when AlertFlash owns the colour. When a
+    // ramp is configured (issue #430), the ramp drives the colour at the
+    // live value. Otherwise fall back to the legacy warn/danger zone tints.
     if (!tag->alert.active) {
         uint32_t labelColor = ThemeManager::getEffectiveTextColor();
-        if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
+        if (tag->ramp) {
+            labelColor = colorAtValue(*tag->ramp, value);
+        } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
             labelColor = kColorDanger;
-        else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
+        } else if (tag->hasWarning && value >= cfg.gauge.warningLevel) {
             labelColor = kColorWarning;
+        }
         lv_obj_set_style_text_color(tag->valueLabel, lv_color_hex(labelColor), 0);
     }
 
     // Gradient mode: redraw the value arc with an interpolated colour and a
-    // sweep proportional to (value - min) / (max - min). The base gray track
-    // remains unchanged.
+    // sweep proportional to (value - min) / (max - min). The ramp wins when
+    // configured; otherwise fall back to the built-in green→orange→red lerp.
     if (tag->gradientMode && tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
         lv_arc_set_angles(tag->fillArc, 0, angle);
-        const float range = tag->maxValue - tag->minValue;
-        const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
-        const uint32_t fillColor = interpolateGreenOrangeRed(pct);
+        uint32_t fillColor;
+        if (tag->ramp) {
+            fillColor = colorAtValue(*tag->ramp, value);
+        } else {
+            const float range = tag->maxValue - tag->minValue;
+            const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
+            fillColor = interpolateGreenOrangeRed(pct);
+        }
         lv_obj_set_style_arc_color(tag->fillArc, lv_color_hex(fillColor), LV_PART_INDICATOR);
     }
 

@@ -272,6 +272,50 @@ CfgArcFillStyle parseArcFillStyle(const char *str) {
     return CfgArcFillStyle::ZONES;
 }
 
+// Parse a single hex color ("#RRGGBB"). Returns the unsigned 0x00RRGGBB
+// payload, or 0 on malformed input — callers tolerate fallback to black.
+uint32_t parseHexColorValue(const char *hex) {
+    if (!hex || hex[0] != '#') return 0u;
+    return static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
+}
+
+// Decode signals.json `colorRamp` into the firmware-side struct (issue #430).
+// Tolerates missing fields: out->count=0 leaves the signal on the default
+// sensor lookup. Drops stops beyond CFG_MAX_RAMP_STOPS with a warning.
+void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef *out) {
+    out->count = 0;
+    out->interpolate = CfgRampInterp::Linear;
+    if (src.isNull()) return;
+
+    const char *interp = src["interpolate"] | "linear";
+    out->interpolate =
+        (strcmp(interp, "step") == 0) ? CfgRampInterp::Step : CfgRampInterp::Linear;
+
+    JsonArrayConst stops = src["stops"];
+    if (stops.isNull()) return;
+
+    const size_t total = stops.size();
+    if (total > CFG_MAX_RAMP_STOPS) {
+        LOG_WARN("CFG", "signal '%s': colorRamp has %u stops > CFG_MAX_RAMP_STOPS=%u — extras dropped",
+                 signalName, static_cast<unsigned>(total),
+                 static_cast<unsigned>(CFG_MAX_RAMP_STOPS));
+    }
+    for (JsonObjectConst stop : stops) {
+        if (out->count >= CFG_MAX_RAMP_STOPS) break;
+        CfgRampStopDef &dst = out->stops[out->count];
+        dst.value = stop["value"] | 0.0f;
+        const char *color = stop["color"] | "#000000";
+        dst.color = parseHexColorValue(color);
+        ++out->count;
+    }
+    // A single-stop ramp is meaningless — drop it so the renderer falls back
+    // to the default lookup. The validator rejects this in studio, but we
+    // stay defensive against hand-edited JSON.
+    if (out->count < 2) {
+        out->count = 0;
+    }
+}
+
 // Extract the major component of a "major.minor.patch" version string.
 // Returns -1 when the string is empty, missing, or not a parsable integer.
 // Major-only comparison is intentional — minor/patch bumps are backward
@@ -712,6 +756,10 @@ bool loadSignals() {
         const char *bitMaskStr = sig["bitMask"] | nullptr;
         s.bitMask = bitMaskStr ? static_cast<uint8_t>(strtoul(bitMaskStr, nullptr, 16)) : 0;
 
+        // Per-signal color ramp (issue #430). Optional — when absent, the
+        // widget renderer falls back to a default lookup keyed on the name.
+        parseColorRamp(sig["colorRamp"], s.name, &s.colorRamp);
+
         // ----- Validate decoder-critical fields (issues #197 / #198) -----
         // CAN classic frames are 8 bytes; byteLength must be 1, 2, or 4 to
         // produce a well-defined sign-extend and a bounded read.
@@ -788,4 +836,14 @@ bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();
     LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d", r.dashboardOk, r.signalsOk);
     return r.dashboardOk; // Dashboard is mandatory
+}
+
+const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
+    if (!name || name[0] == '\0' || !s_signals.loaded) return nullptr;
+    for (uint8_t i = 0; i < s_signals.signalCount; ++i) {
+        if (strcmp(s_signals.signals[i].name, name) == 0) {
+            return &s_signals.signals[i];
+        }
+    }
+    return nullptr;
 }

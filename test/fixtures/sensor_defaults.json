@@ -1,0 +1,191 @@
+{
+  "afr": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 10.5,
+        "color": "#CC3333"
+      },
+      {
+        "value": 11.8,
+        "color": "#CC8800"
+      },
+      {
+        "value": 13,
+        "color": "#44CC66"
+      },
+      {
+        "value": 14.7,
+        "color": "#44CC66"
+      },
+      {
+        "value": 16,
+        "color": "#CC8800"
+      }
+    ]
+  },
+  "battery_volts": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 11.5,
+        "color": "#CC3333"
+      },
+      {
+        "value": 12.5,
+        "color": "#CC8800"
+      },
+      {
+        "value": 13.5,
+        "color": "#44CC66"
+      },
+      {
+        "value": 14.8,
+        "color": "#CC8800"
+      },
+      {
+        "value": 15.5,
+        "color": "#CC3333"
+      }
+    ]
+  },
+  "boost": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 0,
+        "color": "#44CC66"
+      },
+      {
+        "value": 1,
+        "color": "#44CC66"
+      },
+      {
+        "value": 1.4,
+        "color": "#CC8800"
+      },
+      {
+        "value": 1.7,
+        "color": "#CC3333"
+      }
+    ]
+  },
+  "coolant_temp": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 60,
+        "color": "#4A90E2"
+      },
+      {
+        "value": 90,
+        "color": "#44CC66"
+      },
+      {
+        "value": 100,
+        "color": "#CC8800"
+      },
+      {
+        "value": 110,
+        "color": "#CC3333"
+      }
+    ]
+  },
+  "egt": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 600,
+        "color": "#44CC66"
+      },
+      {
+        "value": 850,
+        "color": "#CC8800"
+      },
+      {
+        "value": 950,
+        "color": "#CC3333"
+      }
+    ]
+  },
+  "intake_temp": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 20,
+        "color": "#44CC66"
+      },
+      {
+        "value": 50,
+        "color": "#CC8800"
+      },
+      {
+        "value": 65,
+        "color": "#CC3333"
+      }
+    ]
+  },
+  "oil_press": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 1,
+        "color": "#CC3333"
+      },
+      {
+        "value": 1.8,
+        "color": "#CC8800"
+      },
+      {
+        "value": 2.5,
+        "color": "#44CC66"
+      },
+      {
+        "value": 6,
+        "color": "#44CC66"
+      }
+    ]
+  },
+  "oil_temp": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 70,
+        "color": "#4A90E2"
+      },
+      {
+        "value": 95,
+        "color": "#44CC66"
+      },
+      {
+        "value": 120,
+        "color": "#CC8800"
+      },
+      {
+        "value": 135,
+        "color": "#CC3333"
+      }
+    ]
+  },
+  "rpm": {
+    "interpolate": "linear",
+    "stops": [
+      {
+        "value": 1500,
+        "color": "#44CC66"
+      },
+      {
+        "value": 5500,
+        "color": "#44CC66"
+      },
+      {
+        "value": 6500,
+        "color": "#CC8800"
+      },
+      {
+        "value": 7000,
+        "color": "#CC3333"
+      }
+    ]
+  }
+}

@@ -48,4 +48,11 @@ const CfgDeviceConfig &getDeviceConfig();
      */
 bool reloadAll();
 
+/**
+     * Find a signal definition by name. Returns nullptr if no matching
+     * signal is loaded. Used by widget renderers to pull per-signal
+     * metadata (color ramp, etc.) at construction time.
+     */
+const CfgSignalDef *findSignal(const char *name);
+
 } // namespace ConfigLoader

@@ -7,8 +7,10 @@
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "config/config_loader.h"
 #include "diag/logger.h"
 
 #include <ctype.h>
@@ -47,6 +49,7 @@ struct BarTag {
     char suffix[8];
     float lastValue;
     bool wasValid;
+    const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → legacy zone tints.
     AlertFlash::State alert;
 };
 
@@ -147,6 +150,15 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     // first update() runs through the paint path even if minValue == 0.
     t->lastValue = NAN;
     t->wasValid = false;
+
+    // Resolve the active color ramp once (issue #430). Per-signal ramp wins,
+    // sensor-name heuristic next, nullptr → legacy zone-based tinting.
+    {
+        const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
+        const CfgColorRampDef empty{};
+        const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
+        t->ramp = resolveRamp(perSignal, cfg.signalId);
+    }
 
     const bool hasWarn = !std::isnan(t->warningLevel) && t->warningLevel > t->minValue;
     const bool hasDanger = !std::isnan(t->dangerLevel) && t->dangerLevel > t->minValue &&
@@ -474,7 +486,12 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     const float dangerPct =
         !std::isnan(t->dangerLevel) ? clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.1f;
 
-    const uint32_t fillRgb = zoneFillColor(pct, warnPct, dangerPct);
+    // Issue #430: when a ramp is configured the fill colour comes from the
+    // ramp at the live value. Without a ramp the legacy three-zone palette
+    // (green/orange/red) drives the fill — preserves backward compatibility
+    // for configs that haven't opted in.
+    const uint32_t fillRgb =
+        t->ramp ? colorAtValue(*t->ramp, displayValue) : zoneFillColor(pct, warnPct, dangerPct);
     lv_obj_set_style_bg_color(t->fill, lv_color_hex(fillRgb), LV_PART_MAIN);
 
     if (!t->isVertical) {

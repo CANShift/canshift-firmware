@@ -321,6 +321,27 @@ struct CfgDashboard {
 };
 
 // ---------------------------------------------------------------------------
+// Color ramp (issue #430) — value→color mapping driving widget renderers.
+// `count == 0` means "no explicit ramp configured" — callers fall back to the
+// sensor-name heuristic in src/ui/sensor_color_ramp.h.
+// ---------------------------------------------------------------------------
+enum class CfgRampInterp : uint8_t {
+    Linear = 0,
+    Step = 1,
+};
+
+struct CfgRampStopDef {
+    float value;
+    uint32_t color; // 0x00RRGGBB
+};
+
+struct CfgColorRampDef {
+    uint8_t count;
+    CfgRampInterp interpolate;
+    CfgRampStopDef stops[CFG_MAX_RAMP_STOPS];
+};
+
+// ---------------------------------------------------------------------------
 // Signal definition (from signals.json)
 // ---------------------------------------------------------------------------
 struct CfgSignalDef {
@@ -343,6 +364,9 @@ struct CfgSignalDef {
     float highDangerLevel; // NAN = not configured; high-side danger threshold
     uint32_t timeoutMs;
     uint8_t bitMask; // Bitmask for flag signals (0 = full value; non-zero = extract bit)
+    // Optional per-signal color ramp (issue #430). `colorRamp.count == 0` means
+    // "no ramp configured" → widgets fall back to default sensor-name lookup.
+    CfgColorRampDef colorRamp;
 };
 
 // ---------------------------------------------------------------------------

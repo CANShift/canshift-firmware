@@ -147,6 +147,12 @@
 #define CONFIG_MAX_WIDGETS_PER_PAGE 12
 #define CONFIG_MAX_SIGNALS 32
 
+// Maximum stops a per-signal `colorRamp` may carry. Mirrored from
+// canshift-core MAX_RAMP_STOPS (issue #430). 8 stops easily covers
+// blue→green→amber→red gradients with extra hues while keeping the per-signal
+// CfgColorRamp fixed-size and value-copyable into widget tags.
+#define CFG_MAX_RAMP_STOPS 8
+
 // First-boot provisioning of the embedded default configs to SPIFFS (issue
 // #173). When 1, BootSequence checks for missing canonical config files
 // after storage mounts and writes the firmware-baked defaults. Existing user
