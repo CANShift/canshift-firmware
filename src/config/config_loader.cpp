@@ -145,7 +145,7 @@ bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outL
         return false;
 
     for (size_t i = 0; i < byteLen; ++i) {
-        char buf[3] = { hex[i * 2], hex[i * 2 + 1], '\0' };
+        char buf[3] = {hex[i * 2], hex[i * 2 + 1], '\0'};
         char *end = nullptr;
         const unsigned long v = strtoul(buf, &end, 16);
         if (end != buf + 2 || v > 0xFFu)
@@ -299,8 +299,8 @@ void checkSchemaVersion(const char *fileLabel, const char *fileVersion) {
         return;
     }
     if (fileMajor != firmwareMajor) {
-        LOG_ERROR("CFG", "%s schema version mismatch: file=%s firmware=%s", fileLabel,
-                  fileVersion, CONFIG_SCHEMA_VERSION);
+        LOG_ERROR("CFG", "%s schema version mismatch: file=%s firmware=%s", fileLabel, fileVersion,
+                  CONFIG_SCHEMA_VERSION);
         char detail[52];
         snprintf(detail, sizeof(detail), "%s file=%s fw=%s", fileLabel, fileVersion,
                  CONFIG_SCHEMA_VERSION);
@@ -395,7 +395,6 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 w->gauge.warningLevel = cfg["warningLevel"] | 80.0f;
                 w->gauge.dangerLevel = cfg["dangerLevel"] | 95.0f;
                 w->gauge.alertThreshold = alertThreshold;
-                w->gauge.showNeedle = cfg["showNeedle"] | false;
                 w->gauge.showArc = cfg["showArc"] | true;
                 w->gauge.revFlash = cfg["revFlash"] | false;
                 w->gauge.decimalPlaces = cfg["decimalPlaces"] | 0;
@@ -720,8 +719,8 @@ bool loadSignals() {
         const bool byteLenValid = (s.byteLength == 1 || s.byteLength == 2 || s.byteLength == 4);
         const bool startInRange = (s.startByte < kCanFrameMaxBytes);
         const bool fitsInFrame =
-            (static_cast<uint16_t>(s.startByte) + static_cast<uint16_t>(s.byteLength)
-             <= kCanFrameMaxBytes);
+            (static_cast<uint16_t>(s.startByte) + static_cast<uint16_t>(s.byteLength) <=
+             kCanFrameMaxBytes);
         if (!byteLenValid || !startInRange || !fitsInFrame) {
             LOG_WARN("CFG",
                      "signals.json: dropping '%s' (startByte=%u byteLength=%u) — out of range",

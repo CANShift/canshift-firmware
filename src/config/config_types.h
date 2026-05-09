@@ -15,7 +15,7 @@
 // canshift-core/src/index.ts (CURRENT_SCHEMA_VERSION). Failing the build is
 // preferable to drifting from the canonical TypeScript value (issue #203).
 #ifndef CONFIG_SCHEMA_VERSION
-#error "CONFIG_SCHEMA_VERSION not defined — extra_targets.py must inject it from canshift-core"
+    #error "CONFIG_SCHEMA_VERSION not defined — extra_targets.py must inject it from canshift-core"
 #endif
 
 // Maximum number of top bar items rendered from `topBar.layout`. Items beyond
@@ -108,8 +108,6 @@ struct CfgGaugeParams {
     float warningLevel;
     float dangerLevel;
     float alertThreshold; // NaN = disabled (issue #133)
-    uint8_t numTicks;
-    bool showNeedle;
     bool showArc;
     bool revFlash; // Pulse the widget red when value reaches revLimitRpm (issue #204)
     uint8_t decimalPlaces;
@@ -183,13 +181,13 @@ struct CfgButtonAction {
 struct CfgButtonParams {
     char label[CFG_MAX_NAME_LEN];
     char iconPath[CFG_MAX_PATH_LEN];
-    char iconName[16];     // SensorIconName key, "" = none
-    bool isToggle;         // true = stays active after press; false = momentary
+    char iconName[16]; // SensorIconName key, "" = none
+    bool isToggle;     // true = stays active after press; false = momentary
     bool showIcon;
     bool showLabel;
-    bool hasColors;        // True when `colors` block was present in JSON
-    CfgColor colorNormal;  // Idle background tint
-    CfgColor colorActive;  // Pressed / hover / triggered tint
+    bool hasColors;       // True when `colors` block was present in JSON
+    CfgColor colorNormal; // Idle background tint
+    CfgColor colorActive; // Pressed / hover / triggered tint
     uint8_t actionsCount;
     CfgButtonAction actions[CFG_MAX_BUTTON_ACTIONS];
 };
@@ -339,9 +337,10 @@ struct CfgSignalDef {
     float maxValue;
     float
         warningLevel; // NAN = not configured; for low-side alerts (oil pressure) the engine inverts
-    float dangerLevel;        // NAN = not configured
-    float highWarningLevel;   // NAN = not configured; high-side warn threshold (e.g. battery overcharge)
-    float highDangerLevel;    // NAN = not configured; high-side danger threshold
+    float dangerLevel; // NAN = not configured
+    float
+        highWarningLevel; // NAN = not configured; high-side warn threshold (e.g. battery overcharge)
+    float highDangerLevel; // NAN = not configured; high-side danger threshold
     uint32_t timeoutMs;
     uint8_t bitMask; // Bitmask for flag signals (0 = full value; non-zero = extract bit)
 };

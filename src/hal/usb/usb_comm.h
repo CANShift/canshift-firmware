@@ -13,7 +13,6 @@
 //     CMD_GET_STATUS        0x10  — Query firmware version, protocol, is_day flag
 //     CMD_CAN_SCAN_START    0x20  — Start forwarding raw CAN frames over USB
 //     CMD_CAN_SCAN_STOP     0x21  — Stop forwarding raw CAN frames
-//     CMD_REBOOT            0xF0  — Soft reboot the device
 //
 //   Responses from device → desktop:
 //     {"status":"ok"}
@@ -51,8 +50,6 @@ void tick();
 // ---------------------------------------------------------------------------
 static constexpr uint8_t CMD_GET_CONFIG = 0x01;
 static constexpr uint8_t CMD_PUT_CONFIG = 0x02;
-static constexpr uint8_t CMD_PUT_SIGNALS = 0x03;
-static constexpr uint8_t CMD_PUT_THEME = 0x04;
 // Push screen display settings (brightness, sleep)
 // Payload: {"brightness":80,"sleep":0}
 static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
@@ -78,20 +75,15 @@ static constexpr uint8_t CMD_SET_DAY_NIGHT = 0x09;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
-static constexpr uint8_t CMD_REBOOT = 0xF0;
-
-static constexpr uint8_t RSP_OK = 0x80;
-static constexpr uint8_t RSP_ERROR = 0x81;
-static constexpr uint8_t RSP_DATA = 0x82;
 
 // ---------------------------------------------------------------------------
 // CAN scan frame — pushed from CAN task into the USB send queue
 // ---------------------------------------------------------------------------
 
 struct CanScanFrame {
-    uint32_t id;     ///< Raw CAN frame identifier (11-bit or 29-bit)
-    uint8_t  len;    ///< Data length code (0-8)
-    uint8_t  data[8];
+    uint32_t id; ///< Raw CAN frame identifier (11-bit or 29-bit)
+    uint8_t len; ///< Data length code (0-8)
+    uint8_t data[8];
 };
 
 /**

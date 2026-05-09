@@ -5,7 +5,6 @@
 //   - Value arc (colored based on value level)
 //   - Background arc track
 //   - Numeric value label in center
-//   - Optional needle (4° arc at current angle, enabled via showNeedle in config)
 //
 // Design note for 320x240 display:
 //   - Main gauge (RPM): 160x140 region — use 140px diameter arc

@@ -12,26 +12,11 @@
 
 static constexpr uint8_t RING_SIZE = 6;
 
-static FwError       s_ring[RING_SIZE];
-static uint8_t       s_head  = 0; // Index of the oldest error
-static uint8_t       s_count = 0;
-static uint32_t      s_version = 0;
-static portMUX_TYPE  s_mux = portMUX_INITIALIZER_UNLOCKED;
-
-// ---------------------------------------------------------------------------
-// Source label helpers (code table — avoids format string at call sites)
-// ---------------------------------------------------------------------------
-
-static const char *srcLabel(ErrorSource src) {
-    switch (src) {
-        case ERROR_SRC_CAN:    return "CAN";
-        case ERROR_SRC_CONFIG: return "CFG";
-        case ERROR_SRC_USB:    return "USB";
-        case ERROR_SRC_SYSTEM: return "SYS";
-        default:               return "???";
-    }
-    (void)srcLabel; // suppress unused warning if not used downstream
-}
+static FwError s_ring[RING_SIZE];
+static uint8_t s_head = 0; // Index of the oldest error
+static uint8_t s_count = 0;
+static uint32_t s_version = 0;
+static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -43,7 +28,8 @@ void ErrorStore::push(ErrorSource source, const char *code, const char *message)
     // If same source+code already in ring, update message in-place
     for (uint8_t i = 0; i < s_count; i++) {
         uint8_t idx = (s_head + i) % RING_SIZE;
-        if (s_ring[idx].source == source && strncmp(s_ring[idx].code, code, sizeof(s_ring[idx].code)) == 0) {
+        if (s_ring[idx].source == source &&
+            strncmp(s_ring[idx].code, code, sizeof(s_ring[idx].code)) == 0) {
             strncpy(s_ring[idx].message, message, sizeof(s_ring[idx].message) - 1);
             s_ring[idx].message[sizeof(s_ring[idx].message) - 1] = '\0';
             s_version++;
@@ -110,7 +96,7 @@ void ErrorStore::dismissLatest() {
 void ErrorStore::clear() {
     portENTER_CRITICAL(&s_mux);
     s_count = 0;
-    s_head  = 0;
+    s_head = 0;
     s_version++;
     portEXIT_CRITICAL(&s_mux);
 }

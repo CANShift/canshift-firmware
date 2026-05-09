@@ -84,9 +84,6 @@
 // per-iteration cost is well below 10 ms in steady state.
 #define LVGL_HANDLER_PERIOD_MS 10
 
-// Display flush timeout watchdog (ms) — panic if flush takes longer
-#define LVGL_FLUSH_TIMEOUT_MS 200
-
 // ---------------------------------------------------------------------------
 // LVGL display buffers
 // Two draw buffers allow double-buffered rendering.
@@ -119,9 +116,6 @@
 
 // CAN receive queue depth (frames)
 #define CAN_RX_QUEUE_DEPTH 32
-
-// Maximum CAN frames parsed per task iteration
-#define CAN_FRAMES_PER_TICK 16
 
 // Yield delay applied at the end of each taskCAN iteration (FreeRTOS ticks).
 // Required because twai_receive returns immediately on a busy bus, which

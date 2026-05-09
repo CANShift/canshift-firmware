@@ -27,7 +27,7 @@
 #define PIN_TFT_MISO 12 // Often not used (display is write-only)
 #define PIN_TFT_SCLK 14
 #define PIN_TFT_CS 15
-#define PIN_TFT_DC 2  // Data/Command (RS)
+#define PIN_TFT_DC 2   // Data/Command (RS)
 #define PIN_TFT_RST -1 // Not connected on CrowPanel 2.8" (held high internally)
 #define PIN_TFT_BL 27  // Backlight PWM — 0=off, 255=full
 
@@ -55,16 +55,8 @@
 // Touch IRQ not exposed / not used — driver uses polling via getTouch()
 #define PIN_TOUCH_IRQ -1
 
-// Touch calibration (raw ADC values → screen coordinates)
-// These WILL need calibration on the real board.
-// TODO: Run touch calibration routine and replace these values.
-#define TOUCH_CAL_X_MIN 300
-#define TOUCH_CAL_X_MAX 3800
-#define TOUCH_CAL_Y_MIN 300
-#define TOUCH_CAL_Y_MAX 3800
-#define TOUCH_SWAP_XY 0  // Set 1 if X/Y axes are swapped
-#define TOUCH_INVERT_X 0 // Set 1 if X axis is mirrored
-#define TOUCH_INVERT_Y 0 // Set 1 if Y axis is mirrored
+// Touch calibration is owned by LovyanGFX + NVS (see TouchDriver::calibrate()).
+// No board-level defaults are needed — first boot prompts an interactive run.
 
 // ---------------------------------------------------------------------------
 // CAN Bus — ESP32 TWAI controller + Adafruit CAN Pal (TJA1051T/3)
@@ -124,21 +116,10 @@
 // TODO: Consider using UART2 on different pins if UART0 conflict is an issue.
 // ---------------------------------------------------------------------------
 #define USB_SERIAL_BAUD 115200
-// Sentinel framing bytes for USB protocol packets
-#define USB_PKT_START_BYTE 0xAA
-#define USB_PKT_END_BYTE 0x55
 
 // ---------------------------------------------------------------------------
-// Backlight PWM
+// Backlight PWM (driven by LovyanGFX — see lgfx_panel.h)
 // ---------------------------------------------------------------------------
 #define BL_PWM_CHANNEL 0
 #define BL_PWM_FREQ_HZ 5000
-#define BL_PWM_BITS 8       // 8-bit: 0-255
 #define BL_DEFAULT_DUTY 200 // Default brightness (0-255)
-
-// ---------------------------------------------------------------------------
-// Status LED (if present)
-// TODO: Check if CrowPanel has a user-controllable LED
-// ---------------------------------------------------------------------------
-#define PIN_LED_BUILTIN 2 // Standard ESP32 dev board LED — may not apply
-#define PIN_LED_PRESENT 0 // Set 1 if board has a usable status LED
