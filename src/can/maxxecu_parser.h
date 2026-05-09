@@ -109,4 +109,19 @@ void parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length);
      */
 void loadSignalDefinitions();
 
+namespace detail {
+// Generic multi-byte decoder. Exposed for unit testing only — production
+// callers should go through `parseFrame`.
+//
+// Decodes `byteLen` bytes starting at `startByte` into a float, applying:
+//   - endianness (`bigEndian` selects byte order)
+//   - signedness (`isSigned` triggers two's-complement sign-extension)
+//   - bit mask (when `bitMask != 0`, returns 0.0 or 1.0 based on the mask)
+//   - linear scaling (`raw * scale + offset`)
+// Returns 0.0f for out-of-range start/length combinations.
+float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
+                  bool bigEndian, bool isSigned, uint8_t bitMask,
+                  float scale, float offset);
+} // namespace detail
+
 } // namespace MaxxEcuParser

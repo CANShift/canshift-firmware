@@ -30,46 +30,6 @@ static uint8_t s_runtimeCount = 0;
 static bool s_runtimeLoaded = false;
 
 // ---------------------------------------------------------------------------
-// Generic multi-byte decoder
-// ---------------------------------------------------------------------------
-
-float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
-                  bool bigEndian, bool isSigned, uint8_t bitMask,
-                  float scale, float offset) {
-    static constexpr uint16_t kCanFrameMaxBytes = 8;
-    if (byteLen == 0 ||
-        static_cast<uint16_t>(startByte) + static_cast<uint16_t>(byteLen) > kCanFrameMaxBytes)
-        return 0.0f;
-
-    uint32_t raw = 0;
-    if (bigEndian) {
-        for (uint8_t i = 0; i < byteLen; ++i)
-            raw = (raw << 8) | data[startByte + i];
-    } else {
-        for (uint8_t i = 0; i < byteLen; ++i)
-            raw |= static_cast<uint32_t>(data[startByte + i]) << (i * 8);
-    }
-
-    // Boolean flag: apply bitmask and return 0 or 1
-    if (bitMask != 0)
-        return (raw & bitMask) ? 1.0f : 0.0f;
-
-    float physical;
-    if (isSigned) {
-        const uint8_t bits = static_cast<uint8_t>(byteLen * 8);
-        // 64-bit math avoids UB when bits == 32 (shift width >= operand width).
-        // For byteLen == 4 the mask is 0 — raw already holds the correct
-        // two's-complement bit pattern; the int32_t cast does the reinterpret.
-        if (byteLen < 4 && (raw & (1u << (bits - 1))))
-            raw |= static_cast<uint32_t>(~((1ULL << bits) - 1ULL));
-        physical = static_cast<float>(static_cast<int32_t>(raw));
-    } else {
-        physical = static_cast<float>(raw);
-    }
-    return physical * scale + offset;
-}
-
-// ---------------------------------------------------------------------------
 // Hardcoded fallback helpers (used when runtime table is not loaded)
 // ---------------------------------------------------------------------------
 
@@ -133,6 +93,47 @@ void parseMapInfoFrame(const uint8_t *data, uint8_t len) {
 } // namespace
 
 // ---------------------------------------------------------------------------
+// Generic multi-byte decoder — lives in MaxxEcuParser::detail so unit tests
+// can link against it. Production callers reach it through `parseFrame`.
+// ---------------------------------------------------------------------------
+
+float MaxxEcuParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
+                                         bool bigEndian, bool isSigned, uint8_t bitMask,
+                                         float scale, float offset) {
+    static constexpr uint16_t kCanFrameMaxBytes = 8;
+    if (byteLen == 0 ||
+        static_cast<uint16_t>(startByte) + static_cast<uint16_t>(byteLen) > kCanFrameMaxBytes)
+        return 0.0f;
+
+    uint32_t raw = 0;
+    if (bigEndian) {
+        for (uint8_t i = 0; i < byteLen; ++i)
+            raw = (raw << 8) | data[startByte + i];
+    } else {
+        for (uint8_t i = 0; i < byteLen; ++i)
+            raw |= static_cast<uint32_t>(data[startByte + i]) << (i * 8);
+    }
+
+    // Boolean flag: apply bitmask and return 0 or 1
+    if (bitMask != 0)
+        return (raw & bitMask) ? 1.0f : 0.0f;
+
+    float physical;
+    if (isSigned) {
+        const uint8_t bits = static_cast<uint8_t>(byteLen * 8);
+        // 64-bit math avoids UB when bits == 32 (shift width >= operand width).
+        // For byteLen == 4 the mask is 0 — raw already holds the correct
+        // two's-complement bit pattern; the int32_t cast does the reinterpret.
+        if (byteLen < 4 && (raw & (1u << (bits - 1))))
+            raw |= static_cast<uint32_t>(~((1ULL << bits) - 1ULL));
+        physical = static_cast<float>(static_cast<int32_t>(raw));
+    } else {
+        physical = static_cast<float>(raw);
+    }
+    return physical * scale + offset;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -146,9 +147,9 @@ void MaxxEcuParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t le
             const RuntimeSignal &sig = s_runtime[i];
             if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
                 continue;
-            const float val = decodeBytes(data, sig.startByte, sig.byteLength,
-                                          sig.bigEndian, sig.isSigned, sig.bitMask,
-                                          sig.scale, sig.offset);
+            const float val = detail::decodeBytes(data, sig.startByte, sig.byteLength,
+                                                  sig.bigEndian, sig.isSigned, sig.bitMask,
+                                                  sig.scale, sig.offset);
             SignalStore::update(sig.signalId, val);
         }
         if (matched) return;
