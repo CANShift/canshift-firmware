@@ -141,10 +141,8 @@
         #define LV_USE_ASSERT_OBJ 0
 
         /* Add a custom handler when assert happens e.g. to restart the MCU */
-        #define LV_ASSERT_HANDLER_INCLUDE <stdint.h>
-        #define LV_ASSERT_HANDLER                                                                  \
-            while (1)                                                                              \
-                ; /* Halt by default — TODO: add watchdog reset */
+        #define LV_ASSERT_HANDLER_INCLUDE "diag/lvgl_assert.h"
+        #define LV_ASSERT_HANDLER canshift_lvgl_assert_handler();
 
         /*==================
  *    FONT USAGE
