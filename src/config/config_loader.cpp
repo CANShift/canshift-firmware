@@ -539,7 +539,7 @@ bool loadDashboard() {
     s_dashboard.revLimitRpm = doc["revLimitRpm"] | 7200.0f;
 
     JsonObjectConst topBar = doc["topBar"];
-    s_dashboard.topBar.height = topBar["height"] | 24;
+    s_dashboard.topBar.height = topBar["height"] | 30;
     parseColor(topBar["bgColor"] | "#111111", &s_dashboard.topBar.bgColor);
     parseColor(topBar["textColor"] | "#AAAAAA", &s_dashboard.topBar.textColor);
 
