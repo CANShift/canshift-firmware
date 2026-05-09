@@ -285,8 +285,22 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
 void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     s_dynCount = 0;
     lv_obj_t *prevByPos[3] = {nullptr, nullptr, nullptr};
+
+    // Pass 1: left + center items in array order.
     for (uint8_t i = 0; i < cfg.itemCount; ++i) {
-        buildItem(cfg.items[i], prevByPos, hasDayTheme);
+        const auto pos = cfg.items[i].position;
+        if (pos == TopBarItemPos::LEFT || pos == TopBarItemPos::CENTER) {
+            buildItem(cfg.items[i], prevByPos, hasDayTheme);
+        }
+    }
+
+    // Pass 2: right items in REVERSE — last right item anchors to
+    // RIGHT_MID; earlier ones grow leftward via OUT_LEFT_MID. Matches
+    // studio's flex-row order and the legacy hardcoded path. Fixes #480.
+    for (int i = cfg.itemCount - 1; i >= 0; --i) {
+        if (cfg.items[i].position == TopBarItemPos::RIGHT) {
+            buildItem(cfg.items[i], prevByPos, hasDayTheme);
+        }
     }
 }
 
