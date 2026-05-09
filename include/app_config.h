@@ -135,9 +135,13 @@
 // ---------------------------------------------------------------------------
 
 // Maximum JSON document size for each config file (bytes)
-// Increase if configs grow larger
-#define CONFIG_JSON_DOC_DASHBOARD 6144
-#define CONFIG_JSON_DOC_SIGNALS 2048
+// Sized for realistic configs (4 pages × 12 widgets, schema v1.11+) plus
+// growth headroom. The dashboard buffer also doubles as the USB receive
+// buffer for CMD_PUT_CONFIG (single-line burn from Studio); a real-world
+// burn at schema v1.11 is ~13 KB, so the previous 6 KB cap caused buffer
+// overflow → parse_error. Bumped to 16 KB.
+#define CONFIG_JSON_DOC_DASHBOARD 16384
+#define CONFIG_JSON_DOC_SIGNALS 4096
 #define CONFIG_JSON_DOC_THEME 2048
 
 // Maximum number of pages, widgets, and signals

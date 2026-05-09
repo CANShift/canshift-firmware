@@ -144,16 +144,24 @@
 #endif
 
 // ---------------------------------------------------------------------------
-// Storage selection
-// Use SPIFFS if no SD card is present.
+// Storage selection — SPIFFS is the canonical on-device backend.
+//
+// Architectural decision (issue #420): the dash uses internal SPIFFS for all
+// configs, fonts, and image assets. Studio writes via USB serial (`burn`),
+// the mobile app via BLE. No external SD card is required for normal use.
+//
+// Why SPIFFS over SD:
+//   - 100% mount reliability (no per-card flakiness like #422 documented).
+//   - Simpler hardware: one less component to fail.
+//   - Smaller BOM and onboarding ("plug USB, open Studio, burn").
+//   - Plenty of headroom: 1.2 MB partition vs ~308 KB of bundled data.
+//
+// SD support remains compiled in (the `STORAGE_USE_SD` branches) so a future
+// build could opt-in, but it is OFF by default. Touch this only if SD has
+// been re-validated end-to-end.
 // ---------------------------------------------------------------------------
-#if PIN_SD_PRESENT
-    #define STORAGE_USE_SD 1
-    #define STORAGE_USE_SPIFFS 0
-#else
-    #define STORAGE_USE_SD 0
-    #define STORAGE_USE_SPIFFS 1
-#endif
+#define STORAGE_USE_SD 0
+#define STORAGE_USE_SPIFFS 1
 
 // Config file paths on the filesystem
 #define CONFIG_PATH_DASHBOARD "/config/dashboard.json"

@@ -9,7 +9,9 @@
 
 # Allow SPIFFS font assets
 !data/fonts/*.bin
-# Allow LVGL image assets shipped on the SD card
+# Allow SPIFFS image assets (SPIFFS-first architecture)
+!data/assets/*.bin
+# Allow LVGL image assets shipped on the SD card (legacy / opt-in only)
 !sd_contents/assets/*.bin
 
 # IDE

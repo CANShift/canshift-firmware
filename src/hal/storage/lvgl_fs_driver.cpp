@@ -9,10 +9,17 @@
 //   Opened on SD       → SD.open("/fonts/montserrat_32.bin", "r")
 
 #include "lvgl_fs_driver.h"
+#include "board_config.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
-#include <SD.h>
+#if STORAGE_USE_SPIFFS
+    #include <SPIFFS.h>
+    #define LVGL_FS_INSTANCE SPIFFS
+#else
+    #include <SD.h>
+    #define LVGL_FS_INSTANCE SD
+#endif
 
 // ---------------------------------------------------------------------------
 // FS callbacks (static — no state other than the open File object)
@@ -22,7 +29,7 @@ namespace {
 
 void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
     const char *modeStr = (mode == LV_FS_MODE_WR) ? "w" : "r";
-    File *f = new File(SD.open(path, modeStr));
+    File *f = new File(LVGL_FS_INSTANCE.open(path, modeStr));
     if (!*f) {
         delete f;
         LOG_WARN("FS", "Cannot open: %s", path);

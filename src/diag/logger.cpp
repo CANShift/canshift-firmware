@@ -99,18 +99,22 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
         return;
     }
 
-    char msg[MSG_BUF_SIZE];
+    // Static buffers — burning ~800 bytes on every emit() call would overflow
+    // loopTask's 8K stack during the boot sequence (Arduino's
+    // CONFIG_ARDUINO_LOOP_STACK_SIZE is fixed by sdkconfig.h, not overridable
+    // via build flags). The s_uartMutex above already serializes access.
+    static char msg[MSG_BUF_SIZE];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(msg, sizeof(msg), fmt ? fmt : "", ap);
     va_end(ap);
     msg[sizeof(msg) - 1] = '\0';
 
-    char escaped[ESC_BUF_SIZE];
+    static char escaped[ESC_BUF_SIZE];
     escapeJson(msg, escaped, sizeof(escaped));
 
     // Sanitize tag — keep printable ASCII only and cap at LOG_TAG_MAX_LEN.
-    char tagBuf[LOG_TAG_MAX_LEN + 1];
+    static char tagBuf[LOG_TAG_MAX_LEN + 1];
     {
         size_t w = 0;
         if (tag) {
