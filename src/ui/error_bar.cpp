@@ -55,10 +55,9 @@ static const char *srcLabel(ErrorSource src) {
     switch (src) {
         case ERROR_SRC_CAN:    return "CAN";
         case ERROR_SRC_CONFIG: return "CFG";
-        case ERROR_SRC_USB:    return "USB";
         case ERROR_SRC_SYSTEM: return "SYS";
-        default:               return "?";
     }
+    return "?";
 }
 
 static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {

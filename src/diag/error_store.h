@@ -10,7 +10,6 @@
 enum ErrorSource : uint8_t {
     ERROR_SRC_CAN    = 0, // TWAI / CAN bus faults
     ERROR_SRC_CONFIG = 1, // Config read / parse failures
-    ERROR_SRC_USB    = 2, // USB command errors
     ERROR_SRC_SYSTEM = 3, // Boot / system faults
 };
 

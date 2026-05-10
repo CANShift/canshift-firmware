@@ -8,7 +8,6 @@
 enum ErrorSource : uint8_t {
     ERROR_SRC_CAN = 0,
     ERROR_SRC_CONFIG = 1,
-    ERROR_SRC_USB = 2,
     ERROR_SRC_SYSTEM = 3,
 };
 

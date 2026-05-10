@@ -3,6 +3,7 @@
 //
 // This file describes WHAT the board can do, not HOW (pin numbers are in board_config.h).
 // Use these macros to conditionally compile hardware-dependent code paths.
+// Capabilities are gated by APP_* flags in app_config.h — no parallel HW_* duplicates.
 
 // ---------------------------------------------------------------------------
 // Display capabilities
@@ -32,10 +33,6 @@
 // 320 × 20 × 2 × 2 = 25,600-byte allocation, so the existing board is byte-identical.
 #define HW_LVGL_DRAW_BUDGET_BYTES (25U * 1024U)
 
-// Display interface
-#define HW_DISPLAY_SPI 1 // ILI9341 via SPI
-#define HW_DISPLAY_PARALLEL 0
-
 // Display features
 #define HW_DISPLAY_HAS_BACKLIGHT 1
 #define HW_DISPLAY_HAS_DMA 1 // TFT_eSPI supports DMA on ESP32 — use it
@@ -44,8 +41,7 @@
 // Touch capabilities
 // ---------------------------------------------------------------------------
 #define HW_TOUCH_PRESENT 1
-#define HW_TOUCH_TYPE_RESISTIVE 1  // XPT2046
-#define HW_TOUCH_TYPE_CAPACITIVE 0 // FT6236 not present on 2.8" resistive variant
+#define HW_TOUCH_TYPE_RESISTIVE 1 // XPT2046
 
 // ---------------------------------------------------------------------------
 // CAN / TWAI
@@ -62,18 +58,5 @@
 // ---------------------------------------------------------------------------
 // Connectivity
 // ---------------------------------------------------------------------------
-#define HW_WIFI_PRESENT 1 // ESP32 has Wi-Fi (unused in Phase 1)
-#define HW_BLE_PRESENT 1  // ESP32 has BLE (unused in Phase 1)
-
-// Phase 1: all wireless disabled to save resources
-#define HW_WIFI_ENABLED 0
-#define HW_BLE_ENABLED 0
-
-// ---------------------------------------------------------------------------
-// Memory
-// ---------------------------------------------------------------------------
-
-// ESP32-WROVER includes 4MB PSRAM — ESP32-WROOM does NOT
-// If PSRAM is available, LVGL frame buffers can be placed there
-// TODO: Determine if CrowPanel 2.8" uses WROOM or WROVER module
-#define HW_PSRAM_PRESENT 0 // Conservative assumption — set 1 if confirmed
+#define HW_WIFI_PRESENT 1 // ESP32 has Wi-Fi (gated by APP_WIFI_OTA_ENABLED)
+#define HW_BLE_PRESENT 1  // ESP32 has BLE (gated by APP_BLE_ENABLED)
