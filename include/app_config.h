@@ -284,10 +284,7 @@
 
     // Simulated oil pressure (bar)
     #define SIM_OIL_PRESS_BAR 3.5f
-
-    // Simulated speed (km/h, derived from RPM in sim)
-    #define SIM_GEAR_RATIO 3.2f // Approximate first gear equivalent
-#endif                          // APP_SIMULATION_MODE
+#endif // APP_SIMULATION_MODE
 
 // ---------------------------------------------------------------------------
 // Diagnostics / logging
