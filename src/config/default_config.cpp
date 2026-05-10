@@ -92,14 +92,9 @@ bool needsProvision(const char *path) {
     }
 
     // Primary exists — only provision when it's a zero-byte placeholder.
-    // readFile reports the actual byte count read, so this is the cheapest
-    // way to ask "is this file empty?" without adding a `fileSize` API.
-    size_t fileSize = 0;
-    char *buf = StorageDriver::readFile(path, &fileSize);
-    if (buf) {
-        free(buf);
-    }
-    return fileSize == 0;
+    // Use the heap-free fileSize() probe so a 20 KB existing config doesn't
+    // trigger a contiguous malloc(20 KB) on a tight boot heap (issue #576).
+    return StorageDriver::fileSize(path) == 0;
 }
 
 // Write one embedded blob to its canonical path. Returns true on success.

@@ -14,6 +14,25 @@
 #include <cstdlib>
 #include <string.h>
 
+#ifdef ARDUINO
+#include <esp_heap_caps.h>
+#endif
+
+namespace {
+// One-line heap snapshot tag. Logged before each config parse so an OOM in
+// the field has a deterministic "last good free-block size" to look back at
+// (issue #576). Cheap: heap_caps_get_largest_free_block walks the free list
+// once. Compiled out on the host build.
+void logLargestFreeBlock(const char *where) {
+#ifdef ARDUINO
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    LOG_INFO("CFG", "heap.largest_free=%u before %s", static_cast<unsigned>(largest), where);
+#else
+    (void)where;
+#endif
+}
+} // namespace
+
 // ---------------------------------------------------------------------------
 // Internal storage for parsed configs
 // ---------------------------------------------------------------------------
@@ -58,15 +77,23 @@ bool buildBakPath(char *out, size_t outLen, const char *base) {
 // corrupt primary. On successful .bak recovery the .bak is renamed back to
 // `path` so the next save re-establishes the .bak rotation cycle.
 // Returns true on success (doc populated), false otherwise.
+//
+// The implementation streams the SPIFFS File straight into the JsonDocument
+// (no contiguous file-sized malloc). This eliminates the ~21 KB readFile()
+// allocation that caused boot OOM with the LV_MEM_SIZE bump in #555
+// (issue #576).
 bool readAndParseWithBak(const char *path, JsonDocument &doc) {
-    size_t jsonSize = 0;
-    char *json = StorageDriver::readFile(path, &jsonSize);
-    if (json) {
-        DeserializationError err = JsonReader::parse(doc, json, jsonSize);
-        free(json);
+    logLargestFreeBlock(path);
+
+    if (StorageDriver::fileExists(path)) {
+        DeserializationError err = StorageDriver::parseJsonFile(path, doc);
         if (!err)
             return true;
-        LOG_WARN("CFG", "%s parse error: %s — falling back to .bak", path, err.c_str());
+        if (err == DeserializationError::EmptyInput) {
+            LOG_WARN("CFG", "%s could not be opened — falling back to .bak", path);
+        } else {
+            LOG_WARN("CFG", "%s parse error: %s — falling back to .bak", path, err.c_str());
+        }
     } else {
         LOG_WARN("CFG", "%s missing — falling back to .bak", path);
     }
@@ -77,14 +104,8 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     if (!StorageDriver::fileExists(bakPath))
         return false;
 
-    size_t bakSize = 0;
-    char *bakJson = StorageDriver::readFile(bakPath, &bakSize);
-    if (!bakJson)
-        return false;
-
     doc.clear();
-    DeserializationError bakErr = JsonReader::parse(doc, bakJson, bakSize);
-    free(bakJson);
+    DeserializationError bakErr = StorageDriver::parseJsonFile(bakPath, doc);
     if (bakErr) {
         LOG_ERROR("CFG", "%s also failed to parse: %s", bakPath, bakErr.c_str());
         return false;
@@ -816,17 +837,16 @@ bool loadDevice() {
     // refactors that move assignments earlier.
     const CfgDeviceConfig prev = s_device;
 
-    size_t jsonSize = 0;
-    char *json = StorageDriver::readFile(CONFIG_PATH_DEVICE, &jsonSize);
-    if (!json) {
+    if (!StorageDriver::fileExists(CONFIG_PATH_DEVICE)) {
         LOG_INFO("CFG", "device.json not found — using board_config.h defaults");
         s_device = prev;
         return false;
     }
 
+    logLargestFreeBlock(CONFIG_PATH_DEVICE);
+
     JsonDocument doc;
-    DeserializationError err = JsonReader::parse(doc, json, jsonSize);
-    free(json);
+    DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_DEVICE, doc);
 
     if (err) {
         LOG_WARN("CFG", "device.json parse error: %s — using defaults", err.c_str());

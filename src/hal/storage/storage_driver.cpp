@@ -6,6 +6,7 @@
 #include "diag/logger.h"
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <SPIFFS.h>
 #include <esp_partition.h>
 
@@ -157,6 +158,67 @@ char *StorageDriver::readFile(const char *path, size_t *outSize) {
         *outSize = read;
     LOG_DEBUG("STORAGE", "Read %u bytes from %s", read, path);
     return buf;
+}
+
+DeserializationError StorageDriver::parseJsonFile(const char *path, JsonDocument &doc,
+                                                  size_t *outSize) {
+    if (outSize)
+        *outSize = 0;
+    File file = SPIFFS.open(path, "r");
+    if (!file || file.isDirectory()) {
+        LOG_WARN("STORAGE", "Cannot open JSON file: %s", path);
+        return DeserializationError::EmptyInput;
+    }
+    const size_t size = file.size();
+    DeserializationError err = deserializeJson(doc, file);
+    file.close();
+    if (outSize)
+        *outSize = size;
+    if (err) {
+        LOG_WARN("STORAGE", "Stream-parse %s failed: %s (size=%u)", path, err.c_str(),
+                 static_cast<unsigned>(size));
+    } else {
+        LOG_DEBUG("STORAGE", "Stream-parsed %s (%u bytes)", path, static_cast<unsigned>(size));
+    }
+    return err;
+}
+
+size_t StorageDriver::fileSize(const char *path) {
+    File file = SPIFFS.open(path, "r");
+    if (!file || file.isDirectory())
+        return 0;
+    const size_t size = file.size();
+    file.close();
+    return size;
+}
+
+size_t StorageDriver::streamFileTo(const char *path, Print &out, bool replaceNewlinesWithSpaces) {
+    File file = SPIFFS.open(path, "r");
+    if (!file || file.isDirectory()) {
+        LOG_WARN("STORAGE", "Cannot open file for streaming: %s", path);
+        return 0;
+    }
+    // 256 B buffer trades RAM for syscall count: a 20 KB file finishes in 80
+    // chunks. The buffer lives on the stack (USB task has 4 KB) so it adds no
+    // pressure to the heap that the OOM bug is about.
+    constexpr size_t kStreamChunk = 256;
+    uint8_t buf[kStreamChunk];
+    size_t total = 0;
+    while (file.available() > 0) {
+        const int n = file.read(buf, sizeof(buf));
+        if (n <= 0)
+            break;
+        if (replaceNewlinesWithSpaces) {
+            for (int i = 0; i < n; ++i) {
+                if (buf[i] == '\n' || buf[i] == '\r')
+                    buf[i] = ' ';
+            }
+        }
+        out.write(buf, static_cast<size_t>(n));
+        total += static_cast<size_t>(n);
+    }
+    file.close();
+    return total;
 }
 
 bool StorageDriver::writeFile(const char *path, const uint8_t *data, size_t length) {

@@ -7,6 +7,7 @@
 
 #include "hal/storage/storage_driver.h"
 
+#include <ArduinoJson.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -81,6 +82,30 @@ char *readFile(const char *path, size_t *outSize) {
     if (outSize)
         *outSize = f->size;
     return buf;
+}
+
+DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *outSize) {
+    FakeFile *f = findFile(path);
+    if (!f) {
+        if (outSize)
+            *outSize = 0;
+        return DeserializationError::EmptyInput;
+    }
+    if (outSize)
+        *outSize = f->size;
+    return deserializeJson(doc, f->data, f->size);
+}
+
+size_t fileSize(const char *path) {
+    FakeFile *f = findFile(path);
+    return f ? f->size : 0;
+}
+
+size_t streamFileTo(const char *path, Print & /*out*/, bool /*replaceNewlinesWithSpaces*/) {
+    // Host tests don't exercise the streaming-to-Serial path. Return size so
+    // callers' contracts still see "non-zero on success".
+    FakeFile *f = findFile(path);
+    return f ? f->size : 0;
 }
 
 bool writeFile(const char *path, const uint8_t *data, size_t length) {

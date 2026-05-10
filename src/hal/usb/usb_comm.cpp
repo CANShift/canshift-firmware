@@ -30,6 +30,7 @@
 #include <atomic>
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <mbedtls/base64.h>
@@ -175,33 +176,107 @@ void sendTelemetry() {
 // Command handlers
 // ---------------------------------------------------------------------------
 
+// Locate the value substring of the "payload" key inside a top-level JSON
+// object. Returns a pointer to the first byte of the value (an opening '{')
+// and writes the value length (including the closing '}') into outLen.
+// Returns nullptr when the envelope is malformed or the key is missing.
+//
+// Why this lives here instead of using ArduinoJson: parsing a 12 KB envelope
+// into a JsonDocument grew the pool to ~21 KB, which couldn't be satisfied
+// after the LV_MEM_SIZE bump in #555 (issue #576). Skipping the full parse
+// keeps the PUT_CONFIG path heap-allocation-free.
+const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLen) {
+    if (!jsonLine || !outLen)
+        return nullptr;
+    *outLen = 0;
+
+    // Plain-text needle is acceptable here: the studio always emits the
+    // envelope with the literal key `"payload"` and never inside a nested
+    // string by accident — the surrounding `{"cmd":2,...}` frame is fixed.
+    // `strstr` is OK because `jsonLine` is the null-terminated `s_rxBuf` and
+    // `kNeedle` contains no NUL bytes.
+    static constexpr char kNeedle[] = "\"payload\"";
+    const char *needle = strstr(jsonLine, kNeedle);
+    if (!needle || needle >= jsonLine + lineLen)
+        return nullptr;
+    static constexpr size_t kNeedleLen = sizeof(kNeedle) - 1;
+
+    // Skip past `"payload"` then optional whitespace then the `:` separator.
+    const char *cursor = needle + kNeedleLen;
+    const char *end = jsonLine + lineLen;
+    while (cursor < end && (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' ||
+                            *cursor == '\r'))
+        ++cursor;
+    if (cursor >= end || *cursor != ':')
+        return nullptr;
+    ++cursor;
+    while (cursor < end && (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' ||
+                            *cursor == '\r'))
+        ++cursor;
+    if (cursor >= end || *cursor != '{')
+        return nullptr;
+
+    // Brace-balance walk. Strings are honoured so we don't count `{` / `}`
+    // inside JSON string values. Escapes inside strings are skipped.
+    const char *valueStart = cursor;
+    int depth = 0;
+    bool inString = false;
+    while (cursor < end) {
+        const char c = *cursor;
+        if (inString) {
+            if (c == '\\') {
+                ++cursor; // skip the escaped byte verbatim
+                if (cursor < end)
+                    ++cursor;
+                continue;
+            }
+            if (c == '"')
+                inString = false;
+            ++cursor;
+            continue;
+        }
+        if (c == '"') {
+            inString = true;
+        } else if (c == '{') {
+            ++depth;
+        } else if (c == '}') {
+            --depth;
+            if (depth == 0) {
+                ++cursor;
+                *outLen = static_cast<size_t>(cursor - valueStart);
+                return valueStart;
+            }
+        }
+        ++cursor;
+    }
+    return nullptr;
+}
+
 // Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to storage, then
 // trigger an in-place reload via PageManager (no esp_restart). The studio
 // keeps its serial port open across the reload, so telemetry resumes against
 // the new SignalStore as soon as the UI task finishes the rebuild.
-// After ArduinoJson parses into doc, s_rxBuf is no longer needed for reading,
-// so we reuse it as the serialization buffer for the payload.
+//
+// Implementation note: we do NOT parse the envelope into a JsonDocument.
+// At schema v1.13 the dashboard JSON is ~13 KB compact; ArduinoJson v7 grows
+// its pool to ~21 KB to materialise it, and a contiguous 21 KB malloc fails
+// once LVGL has consumed its 80 KB pool (issue #576 — boot loop hotfix
+// fallout from #555). Instead, locate the `"payload"` value as a substring
+// of s_rxBuf and stream it straight to flash.
 void handlePutConfig(const char *jsonLine) {
-    JsonDocument doc;
-    DeserializationError err = JsonReader::parse(doc, jsonLine, strlen(jsonLine));
-    if (err) {
-        LOG_WARN("USB", "PUT_CONFIG parse error: %s", err.c_str());
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
-        return;
-    }
+#ifdef ARDUINO
+    // INFO level so field logs capture the value when a user reports a failed
+    // burn — a single line per PUT, the host has already opened the modal.
+    LOG_INFO("USB", "heap.largest_free=%u before PUT_CONFIG",
+             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+#endif
 
-    JsonObjectConst payload = doc["payload"].as<JsonObjectConst>();
-    if (payload.isNull()) {
-        LOG_WARN("USB", "PUT_CONFIG: missing payload field");
+    const size_t lineLen = strlen(jsonLine);
+    size_t written = 0;
+    const char *payloadStart = findPayloadSlice(jsonLine, lineLen, &written);
+    if (!payloadStart || written == 0) {
+        LOG_WARN("USB", "PUT_CONFIG: missing or malformed payload field");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_payload\"}");
-        return;
-    }
-
-    // Reuse s_rxBuf as the serialization buffer — doc is independent of jsonLine.
-    size_t written = serializeJson(payload, s_rxBuf, sizeof(s_rxBuf));
-    if (written == 0) {
-        LOG_ERROR("USB", "PUT_CONFIG: serialization failed");
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"serialize_failed\"}");
         return;
     }
 
@@ -214,7 +289,7 @@ void handlePutConfig(const char *jsonLine) {
     }
 
     bool ok = StorageDriver::writeFileAtomic(
-        CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(s_rxBuf), written);
+        CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
@@ -442,28 +517,32 @@ void handleCommand(const char *jsonLine) {
             break;
         }
         case UsbComm::CMD_GET_CONFIG: {
-            // Stream the on-disk dashboard.json back to the host. Newlines in
-            // the file would break the line-delimited Serial protocol, so we
-            // strip them in place (JSON treats \n / \r as whitespace anyway).
-            size_t fileSize = 0;
-            char *json = StorageDriver::readFile(CONFIG_PATH_DASHBOARD, &fileSize);
-            if (!json) {
+            // Stream the on-disk dashboard.json straight to the host in fixed
+            // 256-byte chunks. Avoids the ~20 KB contiguous malloc the previous
+            // readFile() variant needed (issue #576). Newlines in the file
+            // would break the line-delimited Serial protocol, so they're
+            // mapped to spaces inside streamFileTo (JSON treats \n / \r as
+            // whitespace anyway).
+            if (!StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)) {
                 UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
                 break;
-            }
-            for (size_t i = 0; i < fileSize; ++i) {
-                if (json[i] == '\n' || json[i] == '\r')
-                    json[i] = ' ';
             }
             // Bracket the 3-call burst with the logger mutex so a logger emit
             // from another task can't slip in between the prefix / body / tail.
             const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
             Serial.print("{\"status\":\"ok\",\"config\":");
-            Serial.write(reinterpret_cast<const uint8_t *>(json), fileSize);
+            const size_t streamed =
+                StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, Serial,
+                                            true /* replaceNewlinesWithSpaces */);
             Serial.println("}");
             if (locked) Logger::unlockUart();
-            free(json);
-            LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(fileSize));
+            if (streamed == 0) {
+                LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s",
+                         CONFIG_PATH_DASHBOARD);
+            } else {
+                LOG_INFO("USB", "GET_CONFIG: sent %u bytes",
+                         static_cast<unsigned>(streamed));
+            }
             break;
         }
         case UsbComm::CMD_SCREEN_SETTINGS:

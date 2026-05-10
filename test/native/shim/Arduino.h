@@ -40,6 +40,23 @@ inline void mockAdvanceMillis(uint32_t delta) {
 // Bounded string copy — production uses `strlcpy` from <bsd/string.h> on the
 // ESP32 toolchain. Provide a portable equivalent for the host build.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Minimal Print stub — the production `Print` class is the base of Arduino's
+// `Stream` / `HardwareSerial`. The storage driver header references it for
+// streamFileTo(); host tests never exercise that path but the type must
+// resolve so the header compiles.
+// ---------------------------------------------------------------------------
+class Print {
+public:
+    virtual ~Print() = default;
+    virtual size_t write(uint8_t) {
+        return 0;
+    }
+    virtual size_t write(const uint8_t *, size_t size) {
+        return size;
+    }
+};
+
 #ifndef strlcpy
 inline size_t strlcpy(char *dst, const char *src, size_t dstSize) {
     if (dstSize == 0)
