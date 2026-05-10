@@ -88,12 +88,22 @@ bool finalizeAtomicSwap(const char *path) {
 } // namespace
 
 bool StorageDriver::init() {
+    // Resolve the SPIFFS partition up front so the attempt log carries the
+    // partition geometry and the failure path can classify "missing" vs
+    // "present but unmountable" without a second lookup.
+    const esp_partition_t *part = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+    if (part != nullptr) {
+        LOG_INFO("STORAGE",
+                 "Backend=SPIFFS partition=spiffs offset=0x%x size=0x%x attempting mount...",
+                 static_cast<unsigned>(part->address),
+                 static_cast<unsigned>(part->size));
+    } else {
+        LOG_INFO("STORAGE",
+                 "Backend=SPIFFS partition=spiffs offset=? size=? attempting mount...");
+    }
+
     if (!SPIFFS.begin(true /* formatOnFail */)) {
-        // Classify the failure so the field log tells us whether the partition
-        // table is missing the SPIFFS entry entirely or whether the partition
-        // is present but unmountable (corrupt / format-on-fail also failed).
-        const esp_partition_t *part = esp_partition_find_first(
-            ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
         const char *reason = (part == nullptr) ? "partition_missing"
                                                : "partition_corrupt_or_format_fail";
         LOG_ERROR("STORAGE", "Backend=SPIFFS mount=failed reason=%s", reason);

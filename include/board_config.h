@@ -15,8 +15,9 @@
 //   https://www.elecrow.com/wiki/esp32-display-282727-intelligent-touch-screen-wi-fi26ble-240320-hmi-display.html
 //   https://github.com/Elecrow-RD/CrowPanel-2.8-ESP32-HMI-320x240
 //
-// TWAI (CAN) uses GPIO 21/22 which are also the board's I2C header pins.
-// No on-board I2C devices — safe to repurpose for external CAN transceiver.
+// TWAI (CAN) is wired to the expansion-header pins GPIO 25/32 (issue #237).
+// GPIO 21/22 (I2C header) and GPIO 16/17 (UART2) are intentionally left free
+// for future expansion.
 
 // ---------------------------------------------------------------------------
 // Display — ILI9341 (SPI)
@@ -98,6 +99,9 @@
 // Configuration, fonts, and assets live on the on-chip SPIFFS partition
 // (board_build.filesystem = spiffs in platformio.ini). Image is uploaded via
 // `pio run -t uploadfs` from canshift-firmware/data/.
+//
+// SPI bus: none — SPIFFS is on on-chip flash, not SD. LCD + touch own HSPI
+// exclusively (see lgfx_panel.h `bus_shared = true`).
 // ---------------------------------------------------------------------------
 
 // Config file paths on the filesystem

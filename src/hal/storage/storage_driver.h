@@ -1,8 +1,12 @@
 #pragma once
 // storage_driver.h — SPIFFS filesystem abstraction.
 //
-// Provides a unified file read/write interface backed by the on-chip SPIFFS
-// partition. Selection is hardcoded — the firmware ships SPIFFS-only.
+// SPIFFS lives on the on-chip flash partition; there is no SD card on this
+// board, so the storage layer never contends with the LCD/touch HSPI bus
+// (see lgfx_panel.h `bus_shared = true`). If a future board adds an SD card
+// on HSPI, audit that bus_shared assumption before wiring SD reads/writes.
+//
+// Selection is hardcoded — the firmware ships SPIFFS-only.
 
 #include <Arduino.h>
 #include <stddef.h>

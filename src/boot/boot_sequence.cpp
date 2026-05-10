@@ -141,7 +141,8 @@ static void updateSplash(const char *status, uint8_t pct) {
 // the .bin files on SPIFFS rather than seeing every lv_font_load() return
 // NULL (issue #467).
 static bool initStorage() {
-    LOG_INFO("BOOT", "Initializing storage...");
+    // Storage attempt is logged by StorageDriver::init() under the STORAGE tag
+    // with partition geometry — duplicating it under BOOT adds noise.
     const bool ok = StorageDriver::init();
     if (!ok) {
         return false;
@@ -217,6 +218,11 @@ void BootSequence::run() {
         updateSplash("Storage ready", 35);
     } else {
         LOG_ERROR("BOOT", "Storage mount failed — running with defaults");
+        // Persist the failure on the dashboard error bar — the splash message
+        // is dismissed after ~2 s and the user otherwise has no on-device
+        // indication that their config was not loaded from flash.
+        ErrorStore::push(ERROR_SRC_SYSTEM, "MOUNT_FAIL",
+                         "Storage offline — config not persisted");
         updateSplash("Storage error — defaults", 35);
     }
     logHeap("after storage");
