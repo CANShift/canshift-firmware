@@ -30,13 +30,16 @@
 #include <esp_log.h>
 #include <lvgl.h>
 
-// Diagnostic — log free heap and largest contiguous block at a named boot stage.
-// Helps pinpoint memory pressure without needing a debugger.
+// Diagnostic — log free heap, largest contiguous LVGL-relevant block, and
+// the lifetime low-watermark at a named boot stage. Helps pinpoint memory
+// pressure without needing a debugger. MALLOC_CAP_INTERNAL is the pool LVGL
+// allocates from, so it is the metric that actually tracks UI headroom.
 static void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
-    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    LOG_INFO("HEAP", "%s: free=%u largest=%u", stage, static_cast<unsigned>(free),
-             static_cast<unsigned>(largest));
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    const uint32_t minFree = ESP.getMinFreeHeap();
+    LOG_INFO("HEAP", "%s: free=%u largest=%u min=%u", stage, static_cast<unsigned>(free),
+             static_cast<unsigned>(largest), static_cast<unsigned>(minFree));
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +302,7 @@ void BootSequence::run() {
     // 8. Build the UI from config
     logHeap("before buildUI");
     buildUI();
-    logHeap("after buildUI");
+    logHeap("dashboard ready");
 
     updateSplash("Ready", 100);
 
@@ -310,6 +313,7 @@ void BootSequence::run() {
         delay(SPLASH_MIN_MS - bootElapsed);
     }
 
+    logHeap("boot complete");
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",
              static_cast<unsigned long>(millis() - bootStartMs));
 

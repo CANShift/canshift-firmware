@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include <SPIFFS.h>
+#include <esp_partition.h>
 
 namespace {
 // Tracks the most recent init() outcome so callers (boot UI, USB status)
@@ -88,14 +89,22 @@ bool finalizeAtomicSwap(const char *path) {
 
 bool StorageDriver::init() {
     if (!SPIFFS.begin(true /* formatOnFail */)) {
-        LOG_ERROR("STORAGE", "SPIFFS mount failed");
+        // Classify the failure so the field log tells us whether the partition
+        // table is missing the SPIFFS entry entirely or whether the partition
+        // is present but unmountable (corrupt / format-on-fail also failed).
+        const esp_partition_t *part = esp_partition_find_first(
+            ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+        const char *reason = (part == nullptr) ? "partition_missing"
+                                               : "partition_corrupt_or_format_fail";
+        LOG_ERROR("STORAGE", "Backend=SPIFFS mount=failed reason=%s", reason);
         s_initStatus = InitStatus::MountFailed;
         return false;
     }
-    LOG_INFO("STORAGE", "SPIFFS mounted");
     size_t total, used;
     getSpaceInfo(&total, &used);
-    LOG_INFO("STORAGE", "SPIFFS: %u bytes total, %u used", total, used);
+    LOG_INFO("STORAGE", "Backend=SPIFFS mount=ok total=%u used=%u free=%u",
+             static_cast<unsigned>(total), static_cast<unsigned>(used),
+             static_cast<unsigned>(total - used));
 
     // Sweep orphan .tmp files left behind by a power-cut mid-write so the
     // next atomic rotation starts from a clean slate.
