@@ -42,17 +42,18 @@
             #define LV_MEM_SIZE                                                                    \
                 (12U * 1024U) /* 12 KB — sim mode (CI compile check only, no runtime) */
         #else
-            /* 64 KB — hotfix for v0.8.0 boot loop (issue #483). The previous
-   96 KB ask succeeded against ~110 KB largest free block at boot, but
-   left only ~14 KB headroom for the contiguous allocations LVGL still
-   does inside lv_init() (display LL nodes, draw buffers, theme styles)
-   and tripped LV_ASSERT_MALLOC → infinite halt → watchdog reboot.
-   64 KB fits 3-4 of the 8 SPIFFS-loaded Orbitron sizes; FontManager
-   degrades gracefully to the in-flash 14 px Medium fallback per size
-   that fails to load, and the device stays usable. Allocated via
+            /* 80 KB — bumped from 64 KB after v0.8.1 boot loop on real
+   hardware (LVGL OOM during PageManager::init when the 6 SPIFFS-loaded
+   Orbitron sizes consumed ~53 KB of the 64 KB pool, leaving only
+   ~11 KB for widget creation). 80 KB sits between the previously-tried
+   96 KB (which tripped LV_ASSERT_MALLOC inside lv_init for ~14 KB
+   contig headroom) and the over-tight 64 KB. Largest free block at
+   boot is ~110 KB, so a 80 KB pool leaves ~30 KB headroom for lv_init
+   contig allocations and ~27 KB free in the pool itself for widget
+   instantiation after the 6 fonts (~53 KB) are loaded. Allocated via
    malloc (LV_MEM_POOL_ALLOC), so this line consumes runtime heap, not
    bss. */
-            #define LV_MEM_SIZE (64U * 1024U)
+            #define LV_MEM_SIZE (80U * 1024U)
         #endif
 
         /* Set an address for the memory pool instead of allocating it as a global array.
