@@ -22,17 +22,7 @@
     ]
   },
   "dayTheme": {
-    "bgColor": "#E8E8E8",
-    "palette": {
-      "surface": "#F5F5F5",
-      "primary": "#CC0000",
-      "accent": "#E06000",
-      "text": "#000000",
-      "textDim": "#444444",
-      "warning": "#CC6600",
-      "danger": "#CC0000",
-      "success": "#006622"
-    }
+    "bgColor": "#E8E8E8"
   },
   "pages": [
     {
@@ -40,16 +30,6 @@
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
-      "palette": {
-        "surface": "#1E1E1E",
-        "primary": "#FF4444",
-        "accent": "#FF8800",
-        "text": "#FFFFFF",
-        "textDim": "#888888",
-        "warning": "#FF8800",
-        "danger": "#FF4444",
-        "success": "#00CC44"
-      },
       "widgets": [
         {
           "id": "speed_arc",
@@ -198,16 +178,6 @@
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
-      "palette": {
-        "surface": "#1E1E1E",
-        "primary": "#FF4444",
-        "accent": "#FF8800",
-        "text": "#FFFFFF",
-        "textDim": "#888888",
-        "warning": "#FF8800",
-        "danger": "#FF4444",
-        "success": "#00CC44"
-      },
       "widgets": [
         {
           "id": "boost_arc",
@@ -342,16 +312,6 @@
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
-      "palette": {
-        "surface": "#1E1E1E",
-        "primary": "#FF4444",
-        "accent": "#FF8800",
-        "text": "#FFFFFF",
-        "textDim": "#888888",
-        "warning": "#FF8800",
-        "danger": "#FF4444",
-        "success": "#00CC44"
-      },
       "widgets": [
         {
           "id": "fluids_coolant_arc",
@@ -510,16 +470,6 @@
       "backgroundImage": null,
       "backgroundColor": "#000000",
       "showTopBar": true,
-      "palette": {
-        "surface": "#1E1E1E",
-        "primary": "#FF4444",
-        "accent": "#FF8800",
-        "text": "#FFFFFF",
-        "textDim": "#888888",
-        "warning": "#FF8800",
-        "danger": "#FF4444",
-        "success": "#00CC44"
-      },
       "widgets": [
         {
           "id": "btn_map1",

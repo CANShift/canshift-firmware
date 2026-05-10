@@ -647,15 +647,6 @@ bool loadDashboard() {
     s_dashboard.hasDayTheme = !dayThemeJson.isNull();
     if (s_dashboard.hasDayTheme) {
         parseColor(dayThemeJson["bgColor"] | "#DDDDDD", &s_dashboard.dayTheme.bgColor);
-        JsonObjectConst dp = dayThemeJson["palette"];
-        parseColor(dp["surface"] | "#F0F0F0", &s_dashboard.dayTheme.palette.surface);
-        parseColor(dp["primary"] | "#CC0000", &s_dashboard.dayTheme.palette.primary);
-        parseColor(dp["accent"] | "#E06000", &s_dashboard.dayTheme.palette.accent);
-        parseColor(dp["text"] | "#000000", &s_dashboard.dayTheme.palette.text);
-        parseColor(dp["textDim"] | "#444444", &s_dashboard.dayTheme.palette.textDim);
-        parseColor(dp["warning"] | "#CC6600", &s_dashboard.dayTheme.palette.warning);
-        parseColor(dp["danger"] | "#CC0000", &s_dashboard.dayTheme.palette.danger);
-        parseColor(dp["success"] | "#006622", &s_dashboard.dayTheme.palette.success);
     }
 
     JsonArrayConst pages = doc["pages"];
@@ -674,16 +665,6 @@ bool loadDashboard() {
         strlcpy(p.id, page["id"] | "", CFG_MAX_ID_LEN);
         strlcpy(p.bgImagePath, page["backgroundImage"] | "", CFG_MAX_PATH_LEN);
         parseColor(page["backgroundColor"] | "#1A1A1A", &p.bgColor);
-
-        JsonObjectConst palette = page["palette"];
-        parseColor(palette["surface"] | "#1E1E1E", &p.palette.surface);
-        parseColor(palette["primary"] | "#FF4444", &p.palette.primary);
-        parseColor(palette["accent"] | "#FF8800", &p.palette.accent);
-        parseColor(palette["text"] | "#FFFFFF", &p.palette.text);
-        parseColor(palette["textDim"] | "#888888", &p.palette.textDim);
-        parseColor(palette["warning"] | "#FF8800", &p.palette.warning);
-        parseColor(palette["danger"] | "#FF4444", &p.palette.danger);
-        parseColor(palette["success"] | "#00CC44", &p.palette.success);
 
         p.showTopBar = page["showTopBar"] | true;
         p.visible = page["visible"] | true;

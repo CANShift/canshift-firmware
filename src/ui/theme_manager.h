@@ -5,8 +5,8 @@
 // The active mode is persisted in NVS and survives power cycles.
 //
 // Day mode is only available when config.hasDayTheme == true.
-// When active, pages use dayTheme.bgColor + dayTheme.palette instead of
-// their per-page night colors.
+// When active, pages use dayTheme.bgColor instead of their per-page
+// night background color.
 //
 // All public functions must be called from the UI task (holds g_lvglMutex).
 
@@ -49,12 +49,6 @@ void setDayMode(bool day);
  * and hasDayTheme, otherwise returns nightBg unchanged.
  */
 CfgColor getEffectiveBgColor(const CfgColor &nightBg);
-
-/**
- * Return effective palette: dayTheme.palette when in day mode
- * and hasDayTheme, otherwise returns nightPalette unchanged.
- */
-CfgPagePalette getEffectivePalette(const CfgPagePalette &nightPalette);
 
 /**
  * Return the effective widget text color for the current mode.

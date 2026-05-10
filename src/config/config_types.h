@@ -228,27 +228,12 @@ struct CfgWidget {
 };
 
 // ---------------------------------------------------------------------------
-// Per-page color palette — widgets inherit these unless overridden individually
-// ---------------------------------------------------------------------------
-struct CfgPagePalette {
-    CfgColor surface; // Widget card/surface background
-    CfgColor primary; // Gauge arcs, bar fills, highlights
-    CfgColor accent;  // Secondary highlight
-    CfgColor text;    // Default widget text
-    CfgColor textDim; // Muted / secondary text
-    CfgColor warning; // Warning threshold indicator
-    CfgColor danger;  // Danger threshold indicator
-    CfgColor success; // Normal / ok state
-};
-
-// ---------------------------------------------------------------------------
 // Page definition
 // ---------------------------------------------------------------------------
 struct CfgPage {
     char id[CFG_MAX_ID_LEN];
     char bgImagePath[CFG_MAX_PATH_LEN]; // Empty = no image
     CfgColor bgColor;
-    CfgPagePalette palette;
     bool showTopBar;
     bool visible; // false = page hidden on device (still editable in studio); default true
     uint8_t widgetCount;
@@ -298,8 +283,7 @@ struct CfgTopBar {
 // Day theme preset — stored at dashboard root, mirrors TypeScript ThemePreset
 // ---------------------------------------------------------------------------
 struct CfgDayTheme {
-    CfgColor bgColor;       // Page background for day mode
-    CfgPagePalette palette; // Widget palette for day mode
+    CfgColor bgColor; // Page background for day mode
 };
 
 // ---------------------------------------------------------------------------

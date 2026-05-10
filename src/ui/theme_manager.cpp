@@ -69,7 +69,7 @@ void ThemeManager::toggleDayMode() {
 
     LOG_INFO("THEME", "Day mode toggled: %s", s_isDayMode ? "ON" : "OFF");
 
-    // Rebuild all pages to apply the new palette and background colors.
+    // Rebuild all pages to apply the new background color.
     // This also updates the top bar via TopBar::reapplyTheme() called inside.
     PageManager::requestRebuild();
 }
@@ -99,14 +99,6 @@ CfgColor ThemeManager::getEffectiveBgColor(const CfgColor &nightBg) {
         return dash.dayTheme.bgColor;
     }
     return nightBg;
-}
-
-CfgPagePalette ThemeManager::getEffectivePalette(const CfgPagePalette &nightPalette) {
-    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (s_isDayMode && dash.hasDayTheme) {
-        return dash.dayTheme.palette;
-    }
-    return nightPalette;
 }
 
 uint32_t ThemeManager::getEffectiveTextColor() {
