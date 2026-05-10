@@ -28,6 +28,7 @@ static constexpr char NVS_KEY_CAL[]   = "cal";
 // fall back to defaults, prompting the user to recalibrate once.
 static constexpr size_t CAL_DATA_SIZE = 8 * sizeof(uint16_t); // 16 bytes
 
+// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
 void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
     int32_t x = 0, y = 0;
     const bool pressed = s_lcd.getTouch(&x, &y);
@@ -144,6 +145,7 @@ void TouchDriver::resetCalibration() {
 
 #else // APP_SIMULATION_MODE
 
+// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
 void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
     data->state = LV_INDEV_STATE_RELEASED;
 }

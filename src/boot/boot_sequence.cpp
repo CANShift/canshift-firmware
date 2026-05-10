@@ -183,6 +183,9 @@ static void buildUI() {
 static constexpr uint32_t SPLASH_MIN_MS = 2000;
 
 void BootSequence::run() {
+    // Boot is single-threaded — taskUI is created in main.cpp after this
+    // returns, so LVGL calls below do not need g_lvglMutex.
+
     // Silence ESP-IDF NVS error logs on first boot. Preferences::begin(ns,
     // /*readOnly=*/true) on a namespace that doesn't yet exist (touch cal,
     // settings) emits "[E] nvs_open failed: NOT_FOUND" via ESP-IDF's NVS log

@@ -305,6 +305,12 @@
 // Log tag max length
 #define LOG_TAG_MAX_LEN 16
 
+// APP_PROFILE_UI — enables per-frame UI instrumentation: mutex wait, widget
+// updates, LVGL handler dt, frame-total, FPS, frame-misses. Aggregated and
+// emitted as a single 1 Hz LOG_INFO("PERF", …) line by PerfCounters::tick().
+// Set via [env:debug-perf] in platformio.ini. See also APP_LV_TASK_LOG below
+// for a lighter-weight subset.
+
 // Optional lv_task_handler() duration logging — emits a 1 Hz "lv_task: avg/max/n"
 // line from the UI task. Orthogonal to APP_PROFILE_UI; both can be enabled
 // simultaneously. Off by default — zero overhead when disabled.

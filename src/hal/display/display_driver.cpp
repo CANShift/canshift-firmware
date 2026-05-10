@@ -25,6 +25,7 @@ static LGFX s_lcd;
 static lv_color_t *s_buf1 = nullptr;
 static lv_color_t *s_buf2 = nullptr;
 
+// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
 void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
                                   lv_color_t *colorMap) {
     const uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
@@ -105,6 +106,7 @@ static constexpr uint16_t SIM_BUF_LINES = 4;
 static lv_color_t s_buf1[HW_DISPLAY_WIDTH * SIM_BUF_LINES];
 static lv_color_t s_buf2[HW_DISPLAY_WIDTH * SIM_BUF_LINES];
 
+// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
 void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t * /*area*/,
                                   lv_color_t * /*colorMap*/) {
     #if APP_PROFILE_UI
