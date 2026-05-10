@@ -39,12 +39,12 @@ namespace {
 struct TimerTag {
     lv_obj_t *cont;
     lv_obj_t *timeLabel;
-    bool formatMsec;            // true = "ss.mmm", false = "mm:ss"
-    uint32_t pressStartMs;      // millis() when touch pressed
-    bool longPressFired;        // True once the long-press fired this cycle
+    bool formatMsec;               // true = "ss.mmm", false = "mm:ss"
+    uint32_t pressStartMs;         // millis() when touch pressed
+    bool longPressFired;           // True once the long-press fired this cycle
     TimerService::State lastState; // Last state we styled for — drives transition redraws
-    uint32_t textRgb;           // Cached effective text color for current theme
-    char lastText[12];          // #236 cache — skips lv_label_set_text re-allocs
+    uint32_t textRgb;              // Cached effective text color for current theme
+    char lastText[12];             // #236 cache — skips lv_label_set_text re-allocs
 };
 
 constexpr uint32_t LONG_PRESS_MS = 600;
@@ -52,8 +52,8 @@ constexpr uint32_t BLINK_PERIOD_MS = 1000; // Half-on, half-off → 500 ms each 
 
 // Border accents — reuse the dashboard's automotive palette so the
 // running/paused cues are consistent with bar/gauge zone colors.
-constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kZoneNormalRgb;  // green
-constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kZoneWarningRgb;  // orange
+constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kZoneNormalRgb; // green
+constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kZoneWarningRgb; // orange
 constexpr uint8_t kStateBorderWidth = 2;
 // Reset-state text dimming — kept simple; theme manager picks the base color
 // (white for night, black for day) and we tint it down at constant alpha.
@@ -77,7 +77,8 @@ void formatTime(char *buf, size_t len, uint32_t elapsedMs, bool msec, bool blink
 
 // Apply state-dependent style. Caller holds g_lvglMutex via the LVGL task.
 void applyStateStyle(TimerTag *t, TimerService::State state) {
-    if (!t || !t->cont || !t->timeLabel) return;
+    if (!t || !t->cont || !t->timeLabel)
+        return;
 
     switch (state) {
         case TimerService::State::Reset:
@@ -105,7 +106,8 @@ void applyStateStyle(TimerTag *t, TimerService::State state) {
 void onTimerTouch(lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     auto *t = static_cast<TimerTag *>(lv_event_get_user_data(e));
-    if (!t) return;
+    if (!t)
+        return;
 
     if (code == LV_EVENT_PRESSED) {
         t->pressStartMs = millis();
@@ -122,7 +124,8 @@ void onTimerTouch(lv_event_t *e) {
     }
 
     if (code == LV_EVENT_RELEASED) {
-        if (t->longPressFired) return;
+        if (t->longPressFired)
+            return;
         switch (TimerService::getState()) {
             case TimerService::State::Reset:
                 (void)TimerService::start();
@@ -158,8 +161,10 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
     const lv_font_t *font = FontManager::secondary(20);
-    if (cfg.layout.h >= 80) font = FontManager::secondary(24);
-    if (cfg.layout.h >= 110) font = FontManager::primary(32);
+    if (cfg.layout.h >= 80)
+        font = FontManager::secondary(24);
+    if (cfg.layout.h >= 110)
+        font = FontManager::primary(32);
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
@@ -200,9 +205,11 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 }
 
 void TimerWidget::update(lv_obj_t *obj, float /*value*/, bool /*valid*/, const CfgWidget &cfg) {
-    if (!obj) return;
+    if (!obj)
+        return;
     auto *tag = static_cast<TimerTag *>(lv_obj_get_user_data(obj));
-    if (!tag) return;
+    if (!tag)
+        return;
 
     const TimerService::Snapshot snap = TimerService::snapshot();
 

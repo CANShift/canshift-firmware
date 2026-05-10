@@ -90,9 +90,8 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
     p.built = true;
     if (created < cfg.widgetCount) {
-        LOG_WARN("UI", "Page '%s': only %u/%u widgets built — see prior WF errors",
-                 cfg.id, static_cast<unsigned>(created),
-                 static_cast<unsigned>(cfg.widgetCount));
+        LOG_WARN("UI", "Page '%s': only %u/%u widgets built — see prior WF errors", cfg.id,
+                 static_cast<unsigned>(created), static_cast<unsigned>(cfg.widgetCount));
     } else {
         LOG_INFO("UI", "Built page '%s' with %u widgets", cfg.id,
                  static_cast<unsigned>(cfg.widgetCount));
@@ -185,7 +184,8 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
             lv_timer_del(self);
         },
         durationMs, nullptr);
-    if (t) lv_timer_set_repeat_count(t, 1);
+    if (t)
+        lv_timer_set_repeat_count(t, 1);
 #endif
 
     s_currentIdx = idx;
@@ -607,14 +607,16 @@ bool PageManager::navigateToIndex(uint8_t index) {
 }
 
 void PageManager::navigateNext() {
-    if (s_pageCount == 0) return;
+    if (s_pageCount == 0)
+        return;
     showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT, SWIPE_ANIM_MS);
 }
 
 void PageManager::navigatePrev() {
-    if (s_pageCount == 0) return;
-    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1,
-             LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
+    if (s_pageCount == 0)
+        return;
+    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1, LV_SCR_LOAD_ANIM_MOVE_RIGHT,
+             SWIPE_ANIM_MS);
 }
 
 const char *PageManager::getCurrentPageId() {

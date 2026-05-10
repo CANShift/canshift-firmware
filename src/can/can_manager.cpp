@@ -41,9 +41,12 @@ namespace {
 
 twai_timing_config_t getTimingConfig(uint16_t kbps) {
     switch (kbps) {
-        case 1000: return TWAI_TIMING_CONFIG_1MBITS();
-        case 500:  return TWAI_TIMING_CONFIG_500KBITS();
-        case 250:  return TWAI_TIMING_CONFIG_250KBITS();
+        case 1000:
+            return TWAI_TIMING_CONFIG_1MBITS();
+        case 500:
+            return TWAI_TIMING_CONFIG_500KBITS();
+        case 250:
+            return TWAI_TIMING_CONFIG_250KBITS();
         default:
             LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
                      CAN_SPEED_KBPS);
@@ -61,18 +64,18 @@ esp_err_t installAndStartOnThisCore() {
     const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
 
     // device.json overrides board_config.h for pins and speed
-    const int txPin     = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : PIN_TWAI_TX;
-    const int rxPin     = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : PIN_TWAI_RX;
-    const uint16_t speedKbps = (dev.loaded && dev.canSpeedKbps > 0)
-                              ? static_cast<uint16_t>(dev.canSpeedKbps)
-                              : static_cast<uint16_t>(ConfigLoader::getSignalConfig().canSpeedKbps);
+    const int txPin = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : PIN_TWAI_TX;
+    const int rxPin = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : PIN_TWAI_RX;
+    const uint16_t speedKbps =
+        (dev.loaded && dev.canSpeedKbps > 0)
+            ? static_cast<uint16_t>(dev.canSpeedKbps)
+            : static_cast<uint16_t>(ConfigLoader::getSignalConfig().canSpeedKbps);
 
     LOG_INFO("CAN", "Initializing TWAI driver...");
     LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", txPin, rxPin, speedKbps);
 
-    twai_general_config_t g_config =
-        TWAI_GENERAL_CONFIG_DEFAULT(static_cast<gpio_num_t>(txPin),
-                                    static_cast<gpio_num_t>(rxPin), TWAI_MODE_NORMAL);
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
+        static_cast<gpio_num_t>(txPin), static_cast<gpio_num_t>(rxPin), TWAI_MODE_NORMAL);
     g_config.rx_queue_len = CAN_RX_QUEUE_DEPTH;
     g_config.tx_queue_len = 5;
 
@@ -112,8 +115,8 @@ struct InitContext {
 void twaiInitTaskFn(void *arg) {
     auto *ctx = static_cast<InitContext *>(arg);
     ctx->result = installAndStartOnThisCore();
-    LOG_INFO("CAN", "TWAI init task done on core %d (err=%s)",
-             xPortGetCoreID(), esp_err_to_name(ctx->result));
+    LOG_INFO("CAN", "TWAI init task done on core %d (err=%s)", xPortGetCoreID(),
+             esp_err_to_name(ctx->result));
     xSemaphoreGive(ctx->done);
     vTaskDelete(NULL);
 }
@@ -130,9 +133,8 @@ esp_err_t CanManager::initHardware() {
         LOG_ERROR("CAN", "Failed to create init semaphore");
         return ESP_ERR_NO_MEM;
     }
-    BaseType_t ok = xTaskCreatePinnedToCore(
-        twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
-        &ctx, TWAI_INIT_TASK_PRIO, nullptr, 0 /* core 0 */);
+    BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK, &ctx,
+                                            TWAI_INIT_TASK_PRIO, nullptr, 0 /* core 0 */);
     if (ok != pdPASS) {
         vSemaphoreDelete(ctx.done);
         LOG_ERROR("CAN", "Failed to spawn twai_init task");
@@ -229,9 +231,8 @@ bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool e
 #if APP_SIMULATION_MODE
     // No TWAI driver in sim — log the would-be frame and report success so
     // UI click handlers don't treat every press as a failed send.
-    LOG_DEBUG("CAN", "sim sendFrame id=0x%lX len=%u ext=%d",
-              static_cast<unsigned long>(id), static_cast<unsigned>(len),
-              extended ? 1 : 0);
+    LOG_DEBUG("CAN", "sim sendFrame id=0x%lX len=%u ext=%d", static_cast<unsigned long>(id),
+              static_cast<unsigned>(len), extended ? 1 : 0);
     (void)data;
     return true;
 #else
@@ -247,8 +248,8 @@ bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool e
     // rather than stalling the UI task that called us.
     esp_err_t err = twai_transmit(&msg, 0);
     if (err != ESP_OK) {
-        LOG_WARN("CAN", "sendFrame failed id=0x%lX: %s",
-                 static_cast<unsigned long>(id), esp_err_to_name(err));
+        LOG_WARN("CAN", "sendFrame failed id=0x%lX: %s", static_cast<unsigned long>(id),
+                 esp_err_to_name(err));
         return false;
     }
     return true;

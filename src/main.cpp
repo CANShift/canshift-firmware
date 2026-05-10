@@ -265,7 +265,8 @@ void taskUI(void *pvParameters) {
 #if APP_LV_TASK_LOG
                 const uint32_t _dt = static_cast<uint32_t>(esp_timer_get_time() - _t0);
                 s_lvSumUs += _dt;
-                if (_dt > s_lvMaxUs) s_lvMaxUs = _dt;
+                if (_dt > s_lvMaxUs)
+                    s_lvMaxUs = _dt;
                 ++s_lvCount;
 #endif
             }
@@ -302,12 +303,12 @@ void taskUI(void *pvParameters) {
 #if APP_LV_TASK_LOG
         {
             const int64_t _now = esp_timer_get_time();
-            if (s_lvLastFlushUs == 0) s_lvLastFlushUs = _now;
+            if (s_lvLastFlushUs == 0)
+                s_lvLastFlushUs = _now;
             if (_now - s_lvLastFlushUs >= 1000000) {
                 const uint32_t avg = s_lvCount ? (s_lvSumUs / s_lvCount) : 0;
                 LOG_INFO("PERF", "lv_task: avg=%uus max=%uus n=%u", avg,
-                         static_cast<unsigned>(s_lvMaxUs),
-                         static_cast<unsigned>(s_lvCount));
+                         static_cast<unsigned>(s_lvMaxUs), static_cast<unsigned>(s_lvCount));
                 s_lvSumUs = 0;
                 s_lvMaxUs = 0;
                 s_lvCount = 0;

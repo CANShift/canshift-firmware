@@ -24,18 +24,18 @@ namespace {
 //
 // 28 (secondary) and 48 (primary) were dropped to fit the LV_MEM_SIZE=64KB
 // budget — callers requesting them snap down (28 → 24, 48 → 32).
-constexpr uint8_t kPrimarySizes[]   = {32};
+constexpr uint8_t kPrimarySizes[] = {32};
 constexpr uint8_t kSecondarySizes[] = {20, 24};
-constexpr uint8_t kLabelSizes[]     = {12, 14, 16};
+constexpr uint8_t kLabelSizes[] = {12, 14, 16};
 
-constexpr size_t kPrimaryCount   = sizeof(kPrimarySizes)   / sizeof(kPrimarySizes[0]);
+constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
 constexpr size_t kSecondaryCount = sizeof(kSecondarySizes) / sizeof(kSecondarySizes[0]);
-constexpr size_t kLabelCount     = sizeof(kLabelSizes)     / sizeof(kLabelSizes[0]);
+constexpr size_t kLabelCount = sizeof(kLabelSizes) / sizeof(kLabelSizes[0]);
 
-const lv_font_t *s_primary[kPrimaryCount]     = {nullptr};
+const lv_font_t *s_primary[kPrimaryCount] = {nullptr};
 const lv_font_t *s_secondary[kSecondaryCount] = {nullptr};
-const lv_font_t *s_label[kLabelCount]         = {nullptr};
-bool             s_initialized                = false;
+const lv_font_t *s_label[kLabelCount] = {nullptr};
+bool s_initialized = false;
 
 // Returns the index of the largest sizes[i] <= size, or 0 if none.
 size_t snapIndex(const uint8_t *sizes, size_t count, uint8_t size) {
@@ -53,7 +53,7 @@ size_t snapIndex(const uint8_t *sizes, size_t count, uint8_t size) {
 // Diagnostic — log free heap + largest contiguous block before/after each
 // font load so the boot trace pinpoints OOM exactly when it happens (#483).
 void logFontHeap(const char *stage, const char *weight, uint8_t size) {
-    const uint32_t free    = ESP.getFreeHeap();
+    const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     LOG_INFO("FONT", "%s orbitron_%s_%u: free=%u largest=%u", stage, weight,
              static_cast<unsigned>(size), static_cast<unsigned>(free),
@@ -90,10 +90,8 @@ bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
                   "LVGL pool too small for orbitron_%s_%u.bin: need ~%u B, "
                   "have %u B free (pool=%u B). Skipping to avoid NULL-deref "
                   "inside lv_font_load.",
-                  weight, static_cast<unsigned>(size),
-                  static_cast<unsigned>(needed),
-                  static_cast<unsigned>(mon.free_size),
-                  static_cast<unsigned>(mon.total_size));
+                  weight, static_cast<unsigned>(size), static_cast<unsigned>(needed),
+                  static_cast<unsigned>(mon.free_size), static_cast<unsigned>(mon.total_size));
         char detail[60];
         snprintf(detail, sizeof(detail), "pool too small for %s_%u", weight, size);
         ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_POOL_OOM", detail);
@@ -123,10 +121,9 @@ void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font
     logFontHeap("after ", weight, size);
 
     if (font == nullptr) {
-        LOG_ERROR(
-            "FONT",
-            "Failed to load orbitron_%s_%u.bin from SPIFFS — falling back to built-in 14",
-            weight, size);
+        LOG_ERROR("FONT",
+                  "Failed to load orbitron_%s_%u.bin from SPIFFS — falling back to built-in 14",
+                  weight, size);
 
         char detail[60];
         snprintf(detail, sizeof(detail), "orbitron_%s_%u.bin missing", weight, size);
@@ -141,7 +138,7 @@ void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font
 // fallback (`lv_font_orbitron_medium_14_nk`) when the slot is null.
 const lv_font_t *resolve(const uint8_t *sizes, size_t count, const lv_font_t *const *cache,
                          uint8_t size) {
-    const size_t           idx    = snapIndex(sizes, count, size);
+    const size_t idx = snapIndex(sizes, count, size);
     const lv_font_t *const cached = cache[idx];
     return (cached != nullptr) ? cached : &lv_font_orbitron_medium_14_nk;
 }

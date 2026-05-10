@@ -21,8 +21,8 @@ static lv_indev_drv_t s_indevDrv;
 
     #define s_lcd DisplayDriver::getDisplay()
 
-static constexpr char NVS_NS[]        = "touch";
-static constexpr char NVS_KEY_CAL[]   = "cal";
+static constexpr char NVS_NS[] = "touch";
+static constexpr char NVS_KEY_CAL[] = "cal";
 // LovyanGFX calibration: 8 uint16_t (4 corner pairs). Old TFT_eSPI builds
 // stored 10 bytes (5 uint16_t) — those entries fail this size check and
 // fall back to defaults, prompting the user to recalibrate once.
@@ -46,10 +46,14 @@ void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) 
         // Calibration can overshoot at the edges (e.g. x=353 / y=-8 when
         // pressing top-right corner), causing edge widgets like the gear
         // button to never receive events. Snap to the nearest pixel.
-        if (x < 0) x = 0;
-        if (y < 0) y = 0;
-        if (x >= HW_DISPLAY_WIDTH)  x = HW_DISPLAY_WIDTH  - 1;
-        if (y >= HW_DISPLAY_HEIGHT) y = HW_DISPLAY_HEIGHT - 1;
+        if (x < 0)
+            x = 0;
+        if (y < 0)
+            y = 0;
+        if (x >= HW_DISPLAY_WIDTH)
+            x = HW_DISPLAY_WIDTH - 1;
+        if (y >= HW_DISPLAY_HEIGHT)
+            y = HW_DISPLAY_HEIGHT - 1;
         data->point.x = static_cast<lv_coord_t>(x);
         data->point.y = static_cast<lv_coord_t>(y);
         data->state = LV_INDEV_STATE_PRESSED;
@@ -89,7 +93,7 @@ void TouchDriver::init() {
 
     lv_indev_drv_register(&s_indevDrv);
 
-#if APP_PROFILE_UI
+    #if APP_PROFILE_UI
     // Global click listener: bubble-up LV_EVENT_CLICKED from any screen lands
     // here so we can close the press → click latency loop. Attaching to
     // lv_layer_top() works because that layer's event tree sees every
@@ -103,7 +107,7 @@ void TouchDriver::init() {
             }
         },
         LV_EVENT_CLICKED, nullptr);
-#endif
+    #endif
 
     LOG_INFO("TOUCH", "Touch driver registered");
 }
@@ -124,7 +128,8 @@ void TouchDriver::calibrate() {
     LOG_INFO("TOUCH", "Starting touch calibration...");
     uint16_t calData[8] = {};
     // LovyanGFX shows 4 corner crosshairs and fills calData[8].
-    s_lcd.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, std::max(s_lcd.width(), s_lcd.height()) >> 3);
+    s_lcd.calibrateTouch(calData, TFT_WHITE, TFT_BLACK,
+                         std::max(s_lcd.width(), s_lcd.height()) >> 3);
 
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/false);
@@ -160,7 +165,9 @@ void TouchDriver::init() {
 
 void TouchDriver::poll() {}
 
-bool TouchDriver::isCalibrated() { return false; }
+bool TouchDriver::isCalibrated() {
+    return false;
+}
 void TouchDriver::calibrate() {}
 void TouchDriver::resetCalibration() {}
 

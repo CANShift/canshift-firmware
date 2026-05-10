@@ -213,11 +213,10 @@ void AlertEngine::init() {
              "Alert engine initialized (revLimit=%d RPM, coolant warn=%d crit=%d, "
              "oilT warn=%d crit=%d, oilP warn=%d.%02d crit=%d.%02d, "
              "batt lowWarn=%d.%02d lowCrit=%d.%02d highWarn=%d.%02d highCrit=%d.%02d)",
-             revLimit, coolantWarn, coolantCrit, oilTempWarn, oilTempCrit,
-             oilPressWarn100 / 100, oilPressWarn100 % 100, oilPressCrit100 / 100,
-             oilPressCrit100 % 100, battLow100 / 100, battLow100 % 100, battLowCrit100 / 100,
-             battLowCrit100 % 100, battHigh100 / 100, battHigh100 % 100, battHighCrit100 / 100,
-             battHighCrit100 % 100);
+             revLimit, coolantWarn, coolantCrit, oilTempWarn, oilTempCrit, oilPressWarn100 / 100,
+             oilPressWarn100 % 100, oilPressCrit100 / 100, oilPressCrit100 % 100, battLow100 / 100,
+             battLow100 % 100, battLowCrit100 / 100, battLowCrit100 % 100, battHigh100 / 100,
+             battHigh100 % 100, battHighCrit100 / 100, battHighCrit100 % 100);
 }
 
 void AlertEngine::tick() {

@@ -35,8 +35,7 @@ float clampPct(float value, float minValue, float maxValue);
 
 // Resolve warning/danger band positions in pct domain. The bar widget feeds
 // these straight into the track; the gauge maps pct → arc angle locally.
-ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValue,
-                            float maxValue);
+ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValue, float maxValue);
 
 // Map a [0,1] pct + warn/danger pcts to the green/orange/red zone fill colour.
 uint32_t zoneFillColor(float pct, float warnPct, float dangerPct);
@@ -47,8 +46,8 @@ void formatSignalLabel(const char *src, char *out, size_t outLen);
 // snprintf wrapper for `<prefix><value formatted with `decimals` dp><suffix>`.
 // Suffix may be nullptr (treated as empty). Returns bytes written (snprintf
 // semantics).
-int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals,
-                float value, const char *suffix);
+int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, float value,
+                const char *suffix);
 
 // Set `text` on `label` only when it differs from the current contents.
 // Returns true when the underlying lv_label_set_text call was issued.

@@ -68,8 +68,7 @@ bool setBgColorIfChanged(lv_obj_t *obj, uint32_t &cachedRgb, uint32_t targetRgb)
     return true;
 }
 
-bool setArcColorIfChanged(lv_obj_t *arc, uint32_t &cachedRgb, uint32_t targetRgb,
-                          lv_part_t part) {
+bool setArcColorIfChanged(lv_obj_t *arc, uint32_t &cachedRgb, uint32_t targetRgb, lv_part_t part) {
     if (cachedRgb == targetRgb)
         return false;
     lv_obj_set_style_arc_color(arc, lv_color_hex(targetRgb), part);

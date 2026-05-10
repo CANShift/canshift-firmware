@@ -119,9 +119,8 @@ namespace detail {
 //   - bit mask (when `bitMask != 0`, returns 0.0 or 1.0 based on the mask)
 //   - linear scaling (`raw * scale + offset`)
 // Returns 0.0f for out-of-range start/length combinations.
-float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
-                  bool bigEndian, bool isSigned, uint8_t bitMask,
-                  float scale, float offset);
+float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen, bool bigEndian,
+                  bool isSigned, uint8_t bitMask, float scale, float offset);
 } // namespace detail
 
 } // namespace MaxxEcuParser

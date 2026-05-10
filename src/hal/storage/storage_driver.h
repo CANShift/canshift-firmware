@@ -59,8 +59,7 @@ char *readFile(const char *path, size_t *outSize);
  *
  * On success, `outSize` (when non-null) is set to the file size in bytes.
  */
-DeserializationError parseJsonFile(const char *path, JsonDocument &doc,
-                                   size_t *outSize = nullptr);
+DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *outSize = nullptr);
 
 /**
  * Return the on-disk size of a file in bytes, or 0 when the file does not

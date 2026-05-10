@@ -13,15 +13,15 @@
 #define HW_DISPLAY_WIDTH 320
 #define HW_DISPLAY_HEIGHT 240
 #define HW_DISPLAY_COLOR_DEPTH 16 // RGB565
-#define HW_DISPLAY_ROTATION                                                                        \
-    3   // 0=portrait, 1=landscape, 2=portrait-inv, 3=landscape-inv
-        // DIS04028H + LovyanGFX: rotation 3 = USB port on the right (#40).
-        // Note: TFT_eSPI used rotation 1 for the same orientation — LovyanGFX
-        // has the opposite landscape convention.
+// HW_DISPLAY_ROTATION values: 0=portrait, 1=landscape, 2=portrait-inv, 3=landscape-inv.
+// DIS04028H + LovyanGFX: rotation 3 = USB port on the right (#40).
+// Note: TFT_eSPI used rotation 1 for the same orientation — LovyanGFX has the
+// opposite landscape convention.
+#define HW_DISPLAY_ROTATION 3
 
 // Native (unrotated) panel pixel dimensions — what the controller reports.
 // Logical (post-rotation) dims live in HW_DISPLAY_WIDTH/HEIGHT.
-#define HW_PANEL_NATIVE_WIDTH 240  // ILI9341 portrait native
+#define HW_PANEL_NATIVE_WIDTH 240 // ILI9341 portrait native
 #define HW_PANEL_NATIVE_HEIGHT 320
 
 // Touch raw extents — derive from native dims minus 1.

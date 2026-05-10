@@ -17,8 +17,7 @@ constexpr int kMaxSigDigits = 9;
 
 // 10^n for n in [0, 9]. int64_t to keep room for the largest scaled value.
 constexpr int64_t POW10[] = {
-    1LL,         10LL,         100LL,         1000LL,        10000LL,
-    100000LL,    1000000LL,    10000000LL,    100000000LL,   1000000000LL,
+    1LL, 10LL, 100LL, 1000LL, 10000LL, 100000LL, 1000000LL, 10000000LL, 100000000LL, 1000000000LL,
 };
 static_assert(sizeof(POW10) / sizeof(POW10[0]) == kMaxDecimals + 1, "POW10 table size");
 

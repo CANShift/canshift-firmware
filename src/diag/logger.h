@@ -25,8 +25,7 @@ void init();
 
 // Emit a single log line as a JSON envelope on UART0. Drops the line silently
 // if the UART mutex cannot be taken within 50 ms (avoids deadlocks).
-void emit(char level, const char *tag, const char *fmt, ...)
-    __attribute__((format(printf, 3, 4)));
+void emit(char level, const char *tag, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
 
 // Acquire / release the UART0 serialization mutex. Wire-protocol producers
 // (e.g. UsbComm) must bracket multi-call frames with these so a logger emit()

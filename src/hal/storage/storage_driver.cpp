@@ -97,16 +97,14 @@ bool StorageDriver::init() {
     if (part != nullptr) {
         LOG_INFO("STORAGE",
                  "Backend=SPIFFS partition=spiffs offset=0x%x size=0x%x attempting mount...",
-                 static_cast<unsigned>(part->address),
-                 static_cast<unsigned>(part->size));
+                 static_cast<unsigned>(part->address), static_cast<unsigned>(part->size));
     } else {
-        LOG_INFO("STORAGE",
-                 "Backend=SPIFFS partition=spiffs offset=? size=? attempting mount...");
+        LOG_INFO("STORAGE", "Backend=SPIFFS partition=spiffs offset=? size=? attempting mount...");
     }
 
     if (!SPIFFS.begin(true /* formatOnFail */)) {
-        const char *reason = (part == nullptr) ? "partition_missing"
-                                               : "partition_corrupt_or_format_fail";
+        const char *reason =
+            (part == nullptr) ? "partition_missing" : "partition_corrupt_or_format_fail";
         LOG_ERROR("STORAGE", "Backend=SPIFFS mount=failed reason=%s", reason);
         s_initStatus = InitStatus::MountFailed;
         return false;

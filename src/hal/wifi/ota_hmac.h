@@ -49,8 +49,8 @@ class OtaHmacVerifier {
   public:
     // backend, secret and sink must outlive the verifier.
     // sinkUser is passed back to the sink unchanged.
-    OtaHmacVerifier(const HmacBackend &backend, const uint8_t *secret,
-                    size_t secretLen, OtaSinkFn sink, void *sinkUser);
+    OtaHmacVerifier(const HmacBackend &backend, const uint8_t *secret, size_t secretLen,
+                    OtaSinkFn sink, void *sinkUser);
 
     ~OtaHmacVerifier();
 

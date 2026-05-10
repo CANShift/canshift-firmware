@@ -5,6 +5,6 @@
 
 extern "C" void canshift_lvgl_assert_handler(void) {
     LOG_ERROR("LVGL", "assert tripped (likely OOM in lv_mem_alloc) — restarting");
-    delay(50);  // give UART a chance to drain before reboot
+    delay(50); // give UART a chance to drain before reboot
     esp_restart();
 }

@@ -38,9 +38,9 @@ struct Snapshot {
 };
 
 struct Lap {
-    uint16_t index;             ///< 0-based lap index in the current run.
-    uint32_t elapsedMs;         ///< Delta since previous lap (or since start for index 0).
-    uint32_t totalMsAtLap;      ///< Total elapsed at the moment the lap was captured.
+    uint16_t index;               ///< 0-based lap index in the current run.
+    uint32_t elapsedMs;           ///< Delta since previous lap (or since start for index 0).
+    uint32_t totalMsAtLap;        ///< Total elapsed at the moment the lap was captured.
     uint64_t capturedUsSinceBoot; ///< Wall-clock-ish anchor for sequencing flushes.
 };
 

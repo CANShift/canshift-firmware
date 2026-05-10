@@ -13,7 +13,8 @@
 #if defined(BOARD_CROWPANEL_28)
     #include "boards/crowpanel_28.h"
 #else
-    #error "No board profile selected. Define BOARD_CROWPANEL_28 (or another supported BOARD_*) via platformio.ini build_flags."
+    #error                                                                                         \
+        "No board profile selected. Define BOARD_CROWPANEL_28 (or another supported BOARD_*) via platformio.ini build_flags."
 #endif
 
-inline constexpr const canshift::boards::BoardProfile& kBoard = canshift::boards::kActiveBoard;
+inline constexpr const canshift::boards::BoardProfile &kBoard = canshift::boards::kActiveBoard;

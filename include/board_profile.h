@@ -77,8 +77,8 @@ struct ConnectivityProfile {
 };
 
 struct BoardProfile {
-    const char* board_id;
-    const char* board_name;
+    const char *board_id;
+    const char *board_name;
     LcdProfile lcd;
     BacklightProfile backlight;
     TouchProfile touch;

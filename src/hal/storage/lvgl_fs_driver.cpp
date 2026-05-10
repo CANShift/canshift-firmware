@@ -39,15 +39,13 @@ lv_fs_res_t fs_close(lv_fs_drv_t * /*drv*/, void *file_p) {
     return LV_FS_RES_OK;
 }
 
-lv_fs_res_t fs_read(lv_fs_drv_t * /*drv*/, void *file_p, void *buf, uint32_t btr,
-                    uint32_t *br) {
+lv_fs_res_t fs_read(lv_fs_drv_t * /*drv*/, void *file_p, void *buf, uint32_t btr, uint32_t *br) {
     File *f = static_cast<File *>(file_p);
     *br = f->read(static_cast<uint8_t *>(buf), btr);
     return LV_FS_RES_OK;
 }
 
-lv_fs_res_t fs_seek(lv_fs_drv_t * /*drv*/, void *file_p, uint32_t pos,
-                    lv_fs_whence_t whence) {
+lv_fs_res_t fs_seek(lv_fs_drv_t * /*drv*/, void *file_p, uint32_t pos, lv_fs_whence_t whence) {
     File *f = static_cast<File *>(file_p);
     SeekMode sm = SeekSet;
     if (whence == LV_FS_SEEK_CUR)

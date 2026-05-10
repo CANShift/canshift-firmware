@@ -32,8 +32,7 @@ void initPsram() {
 
     if (s_available) {
         const size_t freeBytes = ESP.getFreePsram();
-        LOG_INFO("MEM", "PSRAM detected: %u bytes (free=%u)",
-                 static_cast<unsigned>(s_totalBytes),
+        LOG_INFO("MEM", "PSRAM detected: %u bytes (free=%u)", static_cast<unsigned>(s_totalBytes),
                  static_cast<unsigned>(freeBytes));
     } else {
         LOG_INFO("MEM", "no PSRAM — using DRAM only");

@@ -142,8 +142,8 @@ bool OtaHmacVerifier::finish() {
 // ---------------------------------------------------------------------------
 #ifndef UNIT_TEST
 
-#include <mbedtls/md.h>
-#include <stdlib.h>
+    #include <mbedtls/md.h>
+    #include <stdlib.h>
 
 namespace {
 

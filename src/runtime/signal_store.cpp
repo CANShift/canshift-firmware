@@ -132,7 +132,8 @@ SignalStore::SignalValue SignalStore::get(SignalId id) {
 }
 
 void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
-    if (out == nullptr) return;
+    if (out == nullptr)
+        return;
 
     if (!acquireLock()) {
         // Best-effort: zero out the buffer so callers see invalid signals

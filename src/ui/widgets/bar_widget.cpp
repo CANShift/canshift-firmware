@@ -108,8 +108,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     // sensor-name heuristic next, nullptr → legacy zone-based tinting.
     t->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
-    const WidgetHelpers::ThresholdZones zones = WidgetHelpers::resolveZones(
-        t->warningLevel, t->dangerLevel, t->minValue, t->maxValue);
+    const WidgetHelpers::ThresholdZones zones =
+        WidgetHelpers::resolveZones(t->warningLevel, t->dangerLevel, t->minValue, t->maxValue);
     const bool hasWarn = zones.hasWarn;
     const bool hasDanger = zones.hasDanger;
     const float warnPct = zones.warnPct;
@@ -402,9 +402,8 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     // ramp at the live value. Without a ramp the legacy three-zone palette
     // (green/orange/red) drives the fill — preserves backward compatibility
     // for configs that haven't opted in.
-    const uint32_t fillRgb = t->ramp
-                                 ? colorAtValue(*t->ramp, displayValue)
-                                 : WidgetHelpers::zoneFillColor(pct, warnPct, dangerPct);
+    const uint32_t fillRgb = t->ramp ? colorAtValue(*t->ramp, displayValue)
+                                     : WidgetHelpers::zoneFillColor(pct, warnPct, dangerPct);
     WidgetStyles::setBgColorIfChanged(t->fill, t->lastFillRgb, fillRgb);
 
     if (!t->isVertical) {

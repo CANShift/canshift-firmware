@@ -6,6 +6,6 @@
 #pragma once
 
 class LvglFsDriver {
-public:
+  public:
     static void init();
 };

@@ -27,8 +27,7 @@ float clampPct(float value, float minValue, float maxValue) {
     return pct;
 }
 
-ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValue,
-                            float maxValue) {
+ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValue, float maxValue) {
     ThresholdZones z{};
     z.hasWarn = !std::isnan(warningLevel) && warningLevel > minValue;
     z.hasDanger = !std::isnan(dangerLevel) && dangerLevel > minValue && dangerLevel <= maxValue;
@@ -82,15 +81,13 @@ int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, 
     out[pos] = '\0';
 
     if (pos + 1 < outLen) {
-        FloatFormat::formatFixed(out + pos, outLen - pos, value,
-                                 static_cast<int>(decimals));
+        FloatFormat::formatFixed(out + pos, outLen - pos, value, static_cast<int>(decimals));
         pos += strlen(out + pos);
     }
 
     if (pos + 1 < outLen) {
         const size_t suffixLen = strlen(s);
-        const size_t copySuffix =
-            (suffixLen < outLen - 1 - pos) ? suffixLen : outLen - 1 - pos;
+        const size_t copySuffix = (suffixLen < outLen - 1 - pos) ? suffixLen : outLen - 1 - pos;
         memcpy(out + pos, s, copySuffix);
         pos += copySuffix;
         out[pos] = '\0';

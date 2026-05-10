@@ -15,7 +15,7 @@
 #include <string.h>
 
 #ifdef ARDUINO
-#include <esp_heap_caps.h>
+    #include <esp_heap_caps.h>
 #endif
 
 namespace {
@@ -304,7 +304,8 @@ CfgArcFillStyle parseArcFillStyle(const char *str) {
 // Parse a single hex color ("#RRGGBB"). Returns the unsigned 0x00RRGGBB
 // payload, or 0 on malformed input — callers tolerate fallback to black.
 uint32_t parseHexColorValue(const char *hex) {
-    if (!hex || hex[0] != '#') return 0u;
+    if (!hex || hex[0] != '#')
+        return 0u;
     return static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
 }
 
@@ -314,23 +315,25 @@ uint32_t parseHexColorValue(const char *hex) {
 void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef *out) {
     out->count = 0;
     out->interpolate = CfgRampInterp::Linear;
-    if (src.isNull()) return;
+    if (src.isNull())
+        return;
 
     const char *interp = src["interpolate"] | "linear";
-    out->interpolate =
-        (strcmp(interp, "step") == 0) ? CfgRampInterp::Step : CfgRampInterp::Linear;
+    out->interpolate = (strcmp(interp, "step") == 0) ? CfgRampInterp::Step : CfgRampInterp::Linear;
 
     JsonArrayConst stops = src["stops"];
-    if (stops.isNull()) return;
+    if (stops.isNull())
+        return;
 
     const size_t total = stops.size();
     if (total > CFG_MAX_RAMP_STOPS) {
-        LOG_WARN("CFG", "signal '%s': colorRamp has %u stops > CFG_MAX_RAMP_STOPS=%u — extras dropped",
-                 signalName, static_cast<unsigned>(total),
-                 static_cast<unsigned>(CFG_MAX_RAMP_STOPS));
+        LOG_WARN(
+            "CFG", "signal '%s': colorRamp has %u stops > CFG_MAX_RAMP_STOPS=%u — extras dropped",
+            signalName, static_cast<unsigned>(total), static_cast<unsigned>(CFG_MAX_RAMP_STOPS));
     }
     for (JsonObjectConst stop : stops) {
-        if (out->count >= CFG_MAX_RAMP_STOPS) break;
+        if (out->count >= CFG_MAX_RAMP_STOPS)
+            break;
         CfgRampStopDef &dst = out->stops[out->count];
         dst.value = stop["value"] | 0.0f;
         const char *color = stop["color"] | "#000000";
@@ -707,7 +710,8 @@ bool loadDashboard() {
     }
 
     s_dashboard.loaded = true;
-    if (prev) free(prev);
+    if (prev)
+        free(prev);
     LOG_INFO("CFG", "dashboard.json loaded: %d pages", s_dashboard.pageCount);
     return true;
 }
@@ -825,7 +829,8 @@ bool loadSignals() {
     }
 
     s_signals.loaded = true;
-    if (prev) free(prev);
+    if (prev)
+        free(prev);
     LOG_INFO("CFG", "signals.json loaded: %d signals", s_signals.signalCount);
     return true;
 }
@@ -894,7 +899,8 @@ bool ConfigLoader::reloadAll() {
 }
 
 const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
-    if (!name || name[0] == '\0' || !s_signals.loaded) return nullptr;
+    if (!name || name[0] == '\0' || !s_signals.loaded)
+        return nullptr;
     for (uint8_t i = 0; i < s_signals.signalCount; ++i) {
         if (strcmp(s_signals.signals[i].name, name) == 0) {
             return &s_signals.signals[i];

@@ -12,39 +12,41 @@
 // Layout constants
 // ---------------------------------------------------------------------------
 
-static constexpr int16_t BAR_H       = 20; // Collapsed height (px)
-static constexpr int16_t ROW_H       = 20; // Height of each expanded row
-static constexpr uint8_t MAX_ROWS    = 3;  // Max errors shown when expanded
+static constexpr int16_t BAR_H = 20;   // Collapsed height (px)
+static constexpr int16_t ROW_H = 20;   // Height of each expanded row
+static constexpr uint8_t MAX_ROWS = 3; // Max errors shown when expanded
 
-static constexpr uint32_t COL_BG     = 0x160808; // Very dark red background
+static constexpr uint32_t COL_BG = 0x160808;     // Very dark red background
 static constexpr uint32_t COL_BORDER = 0xCC3333; // Left accent
-static constexpr uint32_t COL_CODE   = 0xCC4444; // Source:code text
-static constexpr uint32_t COL_MSG    = 0xDDAAAA; // Message text
-static constexpr uint32_t COL_DIM    = 0x664444; // Dimmed / dismiss button
+static constexpr uint32_t COL_CODE = 0xCC4444;   // Source:code text
+static constexpr uint32_t COL_MSG = 0xDDAAAA;    // Message text
+static constexpr uint32_t COL_DIM = 0x664444;    // Dimmed / dismiss button
 
 // Lazy accessor — file-scope static initializers run before FontManager::init()
 // in boot_sequence, so caching the pointer at static-init time would freeze it
 // to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
-static inline const lv_font_t *FONT() { return FontManager::label(12); }
+static inline const lv_font_t *FONT() {
+    return FontManager::label(12);
+}
 
 // ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------
 
-static lv_obj_t *s_container  = nullptr; // Outer container (the bar itself)
-static lv_obj_t *s_headerRow  = nullptr; // Always-visible first row
-static lv_obj_t *s_codeLabel  = nullptr; // "⚠ SRC:CODE"
-static lv_obj_t *s_msgLabel   = nullptr; // Truncated message
+static lv_obj_t *s_container = nullptr;  // Outer container (the bar itself)
+static lv_obj_t *s_headerRow = nullptr;  // Always-visible first row
+static lv_obj_t *s_codeLabel = nullptr;  // "⚠ SRC:CODE"
+static lv_obj_t *s_msgLabel = nullptr;   // Truncated message
 static lv_obj_t *s_countLabel = nullptr; // "+N more" badge
 static lv_obj_t *s_dismissBtn = nullptr; // × button on header row
 
-static lv_obj_t *s_detailPanel          = nullptr;            // Expanded panel
-static lv_obj_t *s_detailRows[MAX_ROWS] = {nullptr};          // Row containers
-static lv_obj_t *s_detailCode[MAX_ROWS] = {nullptr};          // SRC:CODE per row
-static lv_obj_t *s_detailMsg[MAX_ROWS]  = {nullptr};          // Message per row
-static lv_obj_t *s_detailDism[MAX_ROWS] = {nullptr};          // × per row
+static lv_obj_t *s_detailPanel = nullptr;            // Expanded panel
+static lv_obj_t *s_detailRows[MAX_ROWS] = {nullptr}; // Row containers
+static lv_obj_t *s_detailCode[MAX_ROWS] = {nullptr}; // SRC:CODE per row
+static lv_obj_t *s_detailMsg[MAX_ROWS] = {nullptr};  // Message per row
+static lv_obj_t *s_detailDism[MAX_ROWS] = {nullptr}; // × per row
 
-static bool     s_expanded    = false;
+static bool s_expanded = false;
 static uint32_t s_lastVersion = UINT32_MAX; // Force first render
 
 // ---------------------------------------------------------------------------
@@ -53,9 +55,12 @@ static uint32_t s_lastVersion = UINT32_MAX; // Force first render
 
 static const char *srcLabel(ErrorSource src) {
     switch (src) {
-        case ERROR_SRC_CAN:    return "CAN";
-        case ERROR_SRC_CONFIG: return "CFG";
-        case ERROR_SRC_SYSTEM: return "SYS";
+        case ERROR_SRC_CAN:
+            return "CAN";
+        case ERROR_SRC_CONFIG:
+            return "CFG";
+        case ERROR_SRC_SYSTEM:
+            return "SYS";
     }
     return "?";
 }
@@ -100,7 +105,8 @@ static void applyRowStyle(lv_obj_t *row) {
 
 static void setExpanded(bool expand) {
     s_expanded = expand;
-    if (!s_detailPanel) return;
+    if (!s_detailPanel)
+        return;
     if (expand) {
         lv_obj_clear_flag(s_detailPanel, LV_OBJ_FLAG_HIDDEN);
     } else {
@@ -128,14 +134,14 @@ void ErrorBar::init() {
     lv_obj_set_style_radius(s_container, 0, LV_PART_MAIN);
     lv_obj_clear_flag(s_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(s_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(s_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(s_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_START);
     lv_obj_add_flag(s_container, LV_OBJ_FLAG_HIDDEN); // Hidden until first error
 
     // Click on container = toggle expanded
     lv_obj_add_event_cb(
-        s_container,
-        [](lv_event_t * /*e*/) { setExpanded(!s_expanded); },
-        LV_EVENT_CLICKED, nullptr);
+        s_container, [](lv_event_t * /*e*/) { setExpanded(!s_expanded); }, LV_EVENT_CLICKED,
+        nullptr);
 
     // ---------------------------------------------------------------------------
     // Header row — always visible when bar is shown
@@ -229,18 +235,20 @@ void ErrorBar::init() {
                 // TODO: add dismiss-by-index to ErrorStore for per-row dismiss.
                 (void)row;
                 ErrorStore::dismissLatest();
-                if (ErrorStore::getCount() == 0) setExpanded(false);
+                if (ErrorStore::getCount() == 0)
+                    setExpanded(false);
             },
-            LV_EVENT_CLICKED,
-            reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+            LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
     }
 }
 
 void ErrorBar::update() {
-    if (!s_container) return;
+    if (!s_container)
+        return;
 
     const uint32_t version = ErrorStore::getVersion();
-    if (version == s_lastVersion) return; // Nothing changed
+    if (version == s_lastVersion)
+        return; // Nothing changed
     s_lastVersion = version;
 
     const uint8_t count = ErrorStore::getCount();
@@ -264,8 +272,8 @@ void ErrorBar::update() {
     // ---------------------------------------------------------------------------
     {
         char codeBuf[20];
-        snprintf(codeBuf, sizeof(codeBuf), "\xE2\x9A\xA0 %s:%s",
-                 srcLabel(errors[0].source), errors[0].code);
+        snprintf(codeBuf, sizeof(codeBuf), "\xE2\x9A\xA0 %s:%s", srcLabel(errors[0].source),
+                 errors[0].code);
         lv_label_set_text(s_codeLabel, codeBuf);
         lv_label_set_text(s_msgLabel, errors[0].message);
 
@@ -283,11 +291,11 @@ void ErrorBar::update() {
     // Update detail rows
     // ---------------------------------------------------------------------------
     for (uint8_t i = 0; i < MAX_ROWS; i++) {
-        if (!s_detailRows[i]) continue;
+        if (!s_detailRows[i])
+            continue;
         if (i < fetched) {
             char codeBuf[20];
-            snprintf(codeBuf, sizeof(codeBuf), "%s:%s",
-                     srcLabel(errors[i].source), errors[i].code);
+            snprintf(codeBuf, sizeof(codeBuf), "%s:%s", srcLabel(errors[i].source), errors[i].code);
             lv_label_set_text(s_detailCode[i], codeBuf);
             lv_label_set_text(s_detailMsg[i], errors[i].message);
             lv_obj_clear_flag(s_detailRows[i], LV_OBJ_FLAG_HIDDEN);
@@ -297,9 +305,7 @@ void ErrorBar::update() {
     }
 
     // Resize container to fit header + (expanded ? detail rows : 0)
-    const int16_t detailH = s_expanded
-                                ? static_cast<int16_t>(fetched) * ROW_H
-                                : 0;
+    const int16_t detailH = s_expanded ? static_cast<int16_t>(fetched) * ROW_H : 0;
     lv_obj_set_height(s_container, BAR_H + detailH);
     // Re-align to bottom after height change
     lv_obj_align(s_container, LV_ALIGN_BOTTOM_MID, 0, 0);

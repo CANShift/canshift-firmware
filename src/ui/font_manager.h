@@ -21,7 +21,7 @@
 #include <lvgl.h>
 
 class FontManager {
-public:
+  public:
     // Loads all Orbitron .bin fonts from SPIFFS and caches them.
     // Safe to call multiple times — re-loading is a no-op.
     static void init();

@@ -30,20 +30,14 @@ static constexpr const char *kBakSuffix = ".bak";
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 extern "C" {
-extern const uint8_t kDefaultDashboardStart[] asm(
-    "_binary_data_config_dashboard_json_start");
-extern const uint8_t kDefaultDashboardEnd[] asm(
-    "_binary_data_config_dashboard_json_end");
+extern const uint8_t kDefaultDashboardStart[] asm("_binary_data_config_dashboard_json_start");
+extern const uint8_t kDefaultDashboardEnd[] asm("_binary_data_config_dashboard_json_end");
 
-extern const uint8_t kDefaultSignalsStart[] asm(
-    "_binary_data_config_signals_json_start");
-extern const uint8_t kDefaultSignalsEnd[] asm(
-    "_binary_data_config_signals_json_end");
+extern const uint8_t kDefaultSignalsStart[] asm("_binary_data_config_signals_json_start");
+extern const uint8_t kDefaultSignalsEnd[] asm("_binary_data_config_signals_json_end");
 
-extern const uint8_t kDefaultThemeStart[] asm(
-    "_binary_data_config_theme_json_start");
-extern const uint8_t kDefaultThemeEnd[] asm(
-    "_binary_data_config_theme_json_end");
+extern const uint8_t kDefaultThemeStart[] asm("_binary_data_config_theme_json_start");
+extern const uint8_t kDefaultThemeEnd[] asm("_binary_data_config_theme_json_end");
 }
 
 namespace {
@@ -111,8 +105,7 @@ bool writeOne(const EmbeddedBlob &blob) {
         ErrorStore::push(ERROR_SRC_CONFIG, "PROVISION_FAIL", blob.label);
         return false;
     }
-    LOG_INFO("CFG", "Provisioned default %s (%u bytes)", blob.label,
-             static_cast<unsigned>(length));
+    LOG_INFO("CFG", "Provisioned default %s (%u bytes)", blob.label, static_cast<unsigned>(length));
     return true;
 }
 

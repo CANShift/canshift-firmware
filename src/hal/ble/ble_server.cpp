@@ -3,23 +3,23 @@
 #include "app_config.h"
 #if APP_BLE_ENABLED
 
-#include "ble_server.h"
-#include "hal/wifi/wifi_ap.h"
-#include "ui/theme_manager.h"
-#include "runtime/signal_store.h"
-#include "can/signal_map.h"
-#include "ui/settings_page.h"
-#include "config/json_reader.h"
-#include "config/rotation_config.h"
-#include "diag/logger.h"
-#include "app_config.h"
+    #include "ble_server.h"
+    #include "hal/wifi/wifi_ap.h"
+    #include "ui/theme_manager.h"
+    #include "runtime/signal_store.h"
+    #include "can/signal_map.h"
+    #include "ui/settings_page.h"
+    #include "config/json_reader.h"
+    #include "config/rotation_config.h"
+    #include "diag/logger.h"
+    #include "app_config.h"
 
-#include <NimBLEDevice.h>
-#include <ArduinoJson.h>
-#include <freertos/semphr.h>
-#include <Arduino.h>
-#include <atomic>
-#include <string.h>
+    #include <NimBLEDevice.h>
+    #include <ArduinoJson.h>
+    #include <freertos/semphr.h>
+    #include <Arduino.h>
+    #include <atomic>
+    #include <string.h>
 
 // ---------------------------------------------------------------------------
 // LVGL mutex (defined in main.cpp)
@@ -31,18 +31,18 @@ extern SemaphoreHandle_t g_lvglMutex;
 // UUIDs
 // ---------------------------------------------------------------------------
 
-static constexpr char SVC_UUID[]      = "4fa0b6a0-0000-0000-0000-000000000001";
-static constexpr char TELE_UUID[]     = "4fa0b6a0-0000-0000-0000-000000000002";
-static constexpr char STATUS_UUID[]   = "4fa0b6a0-0000-0000-0000-000000000003";
+static constexpr char SVC_UUID[] = "4fa0b6a0-0000-0000-0000-000000000001";
+static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
+static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
 static constexpr char SETTINGS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000004";
-static constexpr char CMD_UUID[]      = "4fa0b6a0-0000-0000-0000-000000000005";
+static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-static NimBLECharacteristic *s_pTele     = nullptr;
-static NimBLECharacteristic *s_pStatus   = nullptr;
+static NimBLECharacteristic *s_pTele = nullptr;
+static NimBLECharacteristic *s_pStatus = nullptr;
 static bool s_connected = false;
 
 // Deferred command flags — set by BLE callbacks, consumed by UI task
@@ -68,13 +68,14 @@ void addSignalIfValid(JsonDocument &doc, const char *key, SignalId id) {
 }
 
 void updateStatus() {
-    if (!s_pStatus) return;
+    if (!s_pStatus)
+        return;
     JsonDocument doc;
-    doc["ver"]    = APP_VERSION_STR;
-    doc["can"]    = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
+    doc["ver"] = APP_VERSION_STR;
+    doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     if (WifiAp::isActive()) {
-        doc["ap_ssid"]     = WifiAp::getSsid();
+        doc["ap_ssid"] = WifiAp::getSsid();
         doc["ap_password"] = WifiAp::getPassword();
     }
     char buf[128];
@@ -112,14 +113,15 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 class SettingsCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic *pChar) override {
         std::string val = pChar->getValue();
-        if (val.empty()) return;
+        if (val.empty())
+            return;
 
         JsonDocument doc;
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
-        uint8_t brightness  = doc["brightness"] | 80;
-        uint32_t sleepS     = doc["sleep"] | 0u;
+        uint8_t brightness = doc["brightness"] | 80;
+        uint32_t sleepS = doc["sleep"] | 0u;
 
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             SettingsPage::applyFromUsb(brightness, sleepS);
@@ -130,8 +132,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonVariantConst rotationVar = doc["rotation"];
         if (!rotationVar.isNull()) {
             const uint16_t rotation = rotationVar.as<uint16_t>();
-            if ((rotation == 0 || rotation == 180) &&
-                rotation != RotationConfig::getOffsetDeg()) {
+            if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
                 LOG_INFO("BLE", "Rotation change requested: %u° — rebooting", rotation);
                 RotationConfig::applyAndReboot(rotation); // never returns
             }
@@ -141,7 +142,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
     void onRead(NimBLECharacteristic *pChar) override {
         JsonDocument doc;
         doc["brightness"] = SettingsPage::getBrightness();
-        doc["sleep"]      = SettingsPage::getSleepTimeoutS();
+        doc["sleep"] = SettingsPage::getSleepTimeoutS();
         char buf[64];
         serializeJson(doc, buf, sizeof(buf));
         pChar->setValue(buf);
@@ -156,7 +157,8 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
 class CmdCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic *pChar) override {
         std::string val = pChar->getValue();
-        if (val.empty()) return;
+        if (val.empty())
+            return;
 
         JsonDocument doc;
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
@@ -168,12 +170,14 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             WifiAp::start();
             LOG_INFO("BLE", "CMD: starting WiFi AP — SSID: %s", WifiAp::getSsid());
             updateStatus();
-            if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+            if (s_pStatus->getSubscribedCount() > 0)
+                s_pStatus->notify();
         } else if (strcmp(cmd, "stop_wifi_ap") == 0) {
             LOG_INFO("BLE", "CMD: stopping WiFi AP");
             WifiAp::stop();
             updateStatus();
-            if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+            if (s_pStatus->getSubscribedCount() > 0)
+                s_pStatus->notify();
         } else if (strcmp(cmd, "toggle_day_night") == 0) {
             // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
             s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
@@ -225,22 +229,23 @@ void BleServer::init() {
     NimBLEService *pSvc = pServer->createService(SVC_UUID);
 
     // TELE — notify, live signal stream
-    s_pTele = pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+    s_pTele =
+        pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     s_pTele->setValue("{}");
 
     // STATUS — read + notify: firmware version, CAN health, WiFi AP SSID when active
-    s_pStatus = pSvc->createCharacteristic(
-        STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+    s_pStatus =
+        pSvc->createCharacteristic(STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     updateStatus();
 
     // SETTINGS — read + write, screen settings
-    NimBLECharacteristic *pSettings = pSvc->createCharacteristic(
-        SETTINGS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+    NimBLECharacteristic *pSettings =
+        pSvc->createCharacteristic(SETTINGS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
     pSettings->setCallbacks(new SettingsCallbacks());
 
     // CMD — write without response, device commands
-    NimBLECharacteristic *pCmd = pSvc->createCharacteristic(
-        CMD_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    NimBLECharacteristic *pCmd =
+        pSvc->createCharacteristic(CMD_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pCmd->setCallbacks(new CmdCallbacks());
 
     pSvc->start();
@@ -251,26 +256,29 @@ void BleServer::init() {
     pAdv->setScanResponse(false);
     pAdv->start();
 
-    LOG_INFO("BLE", "Advertising as 'CANShift' — %s", NimBLEDevice::getAddress().toString().c_str());
+    LOG_INFO("BLE", "Advertising as 'CANShift' — %s",
+             NimBLEDevice::getAddress().toString().c_str());
 }
 
 void BleServer::tick() {
-    if (!s_connected || !s_pTele) return;
-    if (!s_pTele->getSubscribedCount()) return;
+    if (!s_connected || !s_pTele)
+        return;
+    if (!s_pTele->getSubscribedCount())
+        return;
 
     JsonDocument doc;
-    addSignalIfValid(doc, "r",   SignalIds::RPM);
+    addSignalIfValid(doc, "r", SignalIds::RPM);
     addSignalIfValid(doc, "tps", SignalIds::THROTTLE_POS);
     addSignalIfValid(doc, "map", SignalIds::MAP_KPA);
     addSignalIfValid(doc, "bst", SignalIds::BOOST_BAR);
     addSignalIfValid(doc, "iat", SignalIds::IAT_C);
-    addSignalIfValid(doc, "ct",  SignalIds::COOLANT_TEMP_C);
-    addSignalIfValid(doc, "ot",  SignalIds::OIL_TEMP_C);
-    addSignalIfValid(doc, "op",  SignalIds::OIL_PRESS_BAR);
-    addSignalIfValid(doc, "fp",  SignalIds::FUEL_PRESS_BAR);
+    addSignalIfValid(doc, "ct", SignalIds::COOLANT_TEMP_C);
+    addSignalIfValid(doc, "ot", SignalIds::OIL_TEMP_C);
+    addSignalIfValid(doc, "op", SignalIds::OIL_PRESS_BAR);
+    addSignalIfValid(doc, "fp", SignalIds::FUEL_PRESS_BAR);
     addSignalIfValid(doc, "lam", SignalIds::LAMBDA_1);
-    addSignalIfValid(doc, "s",   SignalIds::SPEED_KPH);
-    addSignalIfValid(doc, "g",   SignalIds::GEAR);
+    addSignalIfValid(doc, "s", SignalIds::SPEED_KPH);
+    addSignalIfValid(doc, "g", SignalIds::GEAR);
     addSignalIfValid(doc, "bat", SignalIds::BATTERY_VOLTS);
 
     char buf[512];
@@ -287,7 +295,8 @@ void BleServer::tick() {
         bool apNow = WifiAp::isActive();
         if (apNow != s_prevApActive) {
             s_prevApActive = apNow;
-            if (s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+            if (s_pStatus->getSubscribedCount() > 0)
+                s_pStatus->notify();
         }
     }
 }
@@ -298,7 +307,8 @@ bool BleServer::isConnected() {
 
 void BleServer::pushStatusNotify() {
     updateStatus();
-    if (s_pStatus && s_pStatus->getSubscribedCount() > 0) s_pStatus->notify();
+    if (s_pStatus && s_pStatus->getSubscribedCount() > 0)
+        s_pStatus->notify();
 }
 
 bool BleServer::takePendingDayNightToggle() {

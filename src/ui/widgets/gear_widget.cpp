@@ -92,8 +92,7 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     int32_t gear = static_cast<int32_t>(value);
     if (gear < 0) {
         WidgetHelpers::setLabelTextIfChanged(label, "R");
-        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb,
-                                            cfg.style.warningColor.rgb);
+        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, cfg.style.warningColor.rgb);
         return;
     }
 

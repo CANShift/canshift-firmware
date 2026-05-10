@@ -20,9 +20,9 @@ constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 // to the const config (kept alive by the dashboard singleton).
 struct ButtonTag {
     const CfgButtonParams *params;
-    lv_obj_t *iconImg;   // nullptr if no asset rendered
-    lv_obj_t *iconLabel; // glyph fallback (nullptr if asset rendered or showIcon=false)
-    bool toggleActive;   // only meaningful when params->isToggle == true
+    lv_obj_t *iconImg;            // nullptr if no asset rendered
+    lv_obj_t *iconLabel;          // glyph fallback (nullptr if asset rendered or showIcon=false)
+    bool toggleActive;            // only meaningful when params->isToggle == true
     char lvglPath[LVGL_PATH_LEN]; // resolved LVGL FS path for the icon, "" if none
 };
 
@@ -89,7 +89,7 @@ void dispatchAction(const CfgButtonAction &a) {
                          static_cast<unsigned>(MAP_SWITCH_MAX_INDEX));
                 break;
             }
-            const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = { a.mapIndex };
+            const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = {a.mapIndex};
             (void)CanManager::sendFrame(frameId, payload, CAN_OUT_MAP_SWITCH_DLC, extended);
             break;
         }
@@ -181,8 +181,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             // button still shows an icon glyph.
             tag->iconLabel = lv_label_create(btn);
             lv_label_set_text(tag->iconLabel, IconAssets::fallbackGlyph(p.iconName));
-            lv_obj_set_style_text_color(tag->iconLabel,
-                                        lv_color_hex(cfg.style.textColor.rgb), 0);
+            lv_obj_set_style_text_color(tag->iconLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
         }
     }
 

@@ -7,23 +7,23 @@
 #include "app_config.h"
 #if APP_BLE_ENABLED
 
-#include "wifi_ap.h"
-#include "diag/logger.h"
+    #include "wifi_ap.h"
+    #include "diag/logger.h"
 
-#if APP_WIFI_OTA_ENABLED
+    #if APP_WIFI_OTA_ENABLED
 
-#include "hal/wifi/ota_hmac.h"
+        #include "hal/wifi/ota_hmac.h"
 
-#include <WiFi.h>
-#include <WebServer.h>
-#include <Update.h>
-#include <Arduino.h>
-#include <Preferences.h>
-#include <esp_system.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <stdio.h>
-#include <string.h>
+        #include <WiFi.h>
+        #include <WebServer.h>
+        #include <Update.h>
+        #include <Arduino.h>
+        #include <Preferences.h>
+        #include <esp_system.h>
+        #include <freertos/FreeRTOS.h>
+        #include <freertos/task.h>
+        #include <stdio.h>
+        #include <string.h>
 
 // ---------------------------------------------------------------------------
 // State
@@ -111,8 +111,8 @@ void handleOtaComplete() {
 void handleOtaUpload() {
     HTTPUpload &upload = s_server.upload();
     if (upload.status == UPLOAD_FILE_START) {
-        LOG_INFO("WiFi", "OTA upload start: %s (%u bytes expected)",
-                 upload.filename.c_str(), upload.totalSize);
+        LOG_INFO("WiFi", "OTA upload start: %s (%u bytes expected)", upload.filename.c_str(),
+                 upload.totalSize);
         s_otaHmacOk = false;
         cleanupVerifier();
 
@@ -121,24 +121,22 @@ void handleOtaUpload() {
             return;
         }
 
-#if APP_OTA_REQUIRE_HMAC
+        #if APP_OTA_REQUIRE_HMAC
         static const char kSecret[] = OTA_HMAC_SECRET;
-        s_otaVerifier = new OtaHmac::OtaHmacVerifier(
-            OtaHmac::mbedtlsHmacBackend(),
-            reinterpret_cast<const uint8_t *>(kSecret),
-            sizeof(kSecret) - 1, // exclude trailing NUL
-            otaUpdateSink, nullptr);
+        s_otaVerifier = new OtaHmac::OtaHmacVerifier(OtaHmac::mbedtlsHmacBackend(),
+                                                     reinterpret_cast<const uint8_t *>(kSecret),
+                                                     sizeof(kSecret) - 1, // exclude trailing NUL
+                                                     otaUpdateSink, nullptr);
         if (s_otaVerifier == nullptr || !s_otaVerifier->begin()) {
             LOG_ERROR("WiFi", "OTA HMAC verifier init failed");
             cleanupVerifier();
             Update.abort();
         }
-#else
-        LOG_WARN("WiFi",
-                 "OTA HMAC verification disabled (APP_OTA_REQUIRE_HMAC=0) — insecure");
-#endif
+        #else
+        LOG_WARN("WiFi", "OTA HMAC verification disabled (APP_OTA_REQUIRE_HMAC=0) — insecure");
+        #endif
     } else if (upload.status == UPLOAD_FILE_WRITE) {
-#if APP_OTA_REQUIRE_HMAC
+        #if APP_OTA_REQUIRE_HMAC
         if (s_otaVerifier == nullptr) {
             return; // begin failed earlier
         }
@@ -147,13 +145,13 @@ void handleOtaUpload() {
             cleanupVerifier();
             Update.abort();
         }
-#else
+        #else
         if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
             LOG_ERROR("WiFi", "Update.write mismatch");
         }
-#endif
+        #endif
     } else if (upload.status == UPLOAD_FILE_END) {
-#if APP_OTA_REQUIRE_HMAC
+        #if APP_OTA_REQUIRE_HMAC
         if (s_otaVerifier == nullptr) {
             return;
         }
@@ -164,9 +162,9 @@ void handleOtaUpload() {
             Update.abort();
             return;
         }
-#else
+        #else
         s_otaHmacOk = true; // unchecked, but the gate below ignores it
-#endif
+        #endif
         if (Update.end(true)) {
             LOG_INFO("WiFi", "OTA upload done: %u bytes written", upload.totalSize);
         } else {
@@ -186,13 +184,15 @@ void buildSsid() {
 }
 
 void ensurePassword() {
-    if (s_password[0] != '\0') return; // already loaded this boot
+    if (s_password[0] != '\0')
+        return; // already loaded this boot
 
     Preferences p;
     if (p.begin(NVS_NS_WIFI_AP, /*readOnly=*/true)) {
         const size_t len = p.getString(NVS_KEY_PWD, s_password, sizeof(s_password));
         p.end();
-        if (len == AP_PASSWORD_LEN) return; // valid persisted value
+        if (len == AP_PASSWORD_LEN)
+            return; // valid persisted value
     }
 
     // Missing, empty, or wrong length — generate a fresh 64-bit random password.
@@ -212,8 +212,7 @@ void ensurePassword() {
 
 void apTaskFn(void *) {
     WiFi.softAP(s_ssid, s_password);
-    LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid,
-             WiFi.softAPIP().toString().c_str());
+    LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid, WiFi.softAPIP().toString().c_str());
 
     s_server.on("/status", HTTP_GET, handleStatus);
     s_server.on("/ota", HTTP_POST, handleOtaComplete, handleOtaUpload);
@@ -240,15 +239,16 @@ void apTaskFn(void *) {
 // ---------------------------------------------------------------------------
 
 void WifiAp::start() {
-    if (s_active) return;
+    if (s_active)
+        return;
     buildSsid();      // build SSID before task starts so getSsid() is valid immediately
     ensurePassword(); // ditto for getPassword(); persists to NVS on first boot
     s_active = true;
     // Core 1, priority 5, stack 4096 B (see TASK_CORE_WIFI/PRIO_WIFI/STACK_WIFI in app_config.h).
     // On-demand task started only for OTA — runs co-resident with UI on core 1
     // because WiFi softAP needs the same Arduino-WiFi stack as the AP HTTP server.
-    xTaskCreatePinnedToCore(apTaskFn, "wifi_ap", TASK_STACK_WIFI, nullptr,
-                            TASK_PRIO_WIFI, &s_taskHandle, TASK_CORE_WIFI);
+    xTaskCreatePinnedToCore(apTaskFn, "wifi_ap", TASK_STACK_WIFI, nullptr, TASK_PRIO_WIFI,
+                            &s_taskHandle, TASK_CORE_WIFI);
 }
 
 void WifiAp::stop() {
@@ -268,7 +268,7 @@ const char *WifiAp::getPassword() {
     return s_password;
 }
 
-#else // !APP_WIFI_OTA_ENABLED — stubs
+    #else // !APP_WIFI_OTA_ENABLED — stubs
 
 void WifiAp::start() {
     LOG_WARN("WiFi", "WiFi OTA disabled at compile time (APP_WIFI_OTA_ENABLED=0)");
@@ -284,6 +284,6 @@ const char *WifiAp::getPassword() {
     return "";
 }
 
-#endif // APP_WIFI_OTA_ENABLED
+    #endif // APP_WIFI_OTA_ENABLED
 
 #endif // APP_BLE_ENABLED

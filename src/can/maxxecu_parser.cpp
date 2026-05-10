@@ -21,7 +21,7 @@ struct RuntimeSignal {
     bool isSigned;
     float scale;
     float offset;
-    uint8_t bitMask;   // 0 = full value; non-zero = boolean flag extracted from mask
+    uint8_t bitMask; // 0 = full value; non-zero = boolean flag extracted from mask
     SignalId signalId;
 };
 
@@ -42,7 +42,8 @@ inline int16_t readI16BE(const uint8_t *data, uint8_t offset) {
 }
 
 void parseEngineFrame1(const uint8_t *data, uint8_t len) {
-    if (len < 7) return;
+    if (len < 7)
+        return;
     SignalStore::update(SignalIds::RPM, static_cast<float>(readU16BE(data, 0)));
     SignalStore::update(SignalIds::THROTTLE_POS, data[2] * 0.5f);
     const float mapKpa = readU16BE(data, 3) * 0.1f;
@@ -54,7 +55,8 @@ void parseEngineFrame1(const uint8_t *data, uint8_t len) {
 }
 
 void parseEngineFrame2(const uint8_t *data, uint8_t len) {
-    if (len < 3) return;
+    if (len < 3)
+        return;
     const float lambda = readU16BE(data, 0) * 0.001f;
     SignalStore::update(SignalIds::LAMBDA_1, lambda);
     SignalStore::update(SignalIds::AFR_1, lambda * 14.7f);
@@ -64,29 +66,33 @@ void parseEngineFrame2(const uint8_t *data, uint8_t len) {
 }
 
 void parseTempsFrame(const uint8_t *data, uint8_t len) {
-    if (len < 6) return;
+    if (len < 6)
+        return;
     SignalStore::update(SignalIds::COOLANT_TEMP_C, readI16BE(data, 0) * 0.1f - 40.0f);
     SignalStore::update(SignalIds::OIL_TEMP_C, readI16BE(data, 2) * 0.1f - 40.0f);
     SignalStore::update(SignalIds::OIL_PRESS_BAR, readU16BE(data, 4) * 0.01f);
 }
 
 void parseElecFrame(const uint8_t *data, uint8_t len) {
-    if (len < 2) return;
+    if (len < 2)
+        return;
     SignalStore::update(SignalIds::BATTERY_VOLTS, readU16BE(data, 0) * 0.01f);
 }
 
 void parseFlagsFrame(const uint8_t *data, uint8_t len) {
-    if (len < 1) return;
+    if (len < 1)
+        return;
     const uint8_t flags = data[0];
-    SignalStore::update(SignalIds::FLAG_MIL,          (flags >> 0) & 0x01);
-    SignalStore::update(SignalIds::FLAG_LAUNCH_CTRL,  (flags >> 1) & 0x01);
-    SignalStore::update(SignalIds::FLAG_FLAT_SHIFT,   (flags >> 2) & 0x01);
-    SignalStore::update(SignalIds::FLAG_ANTI_LAG,     (flags >> 3) & 0x01);
+    SignalStore::update(SignalIds::FLAG_MIL, (flags >> 0) & 0x01);
+    SignalStore::update(SignalIds::FLAG_LAUNCH_CTRL, (flags >> 1) & 0x01);
+    SignalStore::update(SignalIds::FLAG_FLAT_SHIFT, (flags >> 2) & 0x01);
+    SignalStore::update(SignalIds::FLAG_ANTI_LAG, (flags >> 3) & 0x01);
     SignalStore::update(SignalIds::FLAG_TRACTION_CUT, (flags >> 4) & 0x01);
 }
 
 void parseMapInfoFrame(const uint8_t *data, uint8_t len) {
-    if (len < 1) return;
+    if (len < 1)
+        return;
     SignalStore::update(SignalIds::MAP_NUMBER, static_cast<float>(data[0]));
 }
 
@@ -142,28 +148,43 @@ void MaxxEcuParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t le
         // Data-driven dispatch — processes all signals defined for this frame ID
         bool matched = false;
         for (uint8_t i = 0; i < s_runtimeCount; ++i) {
-            if (s_runtime[i].canFrameId != frameId) continue;
+            if (s_runtime[i].canFrameId != frameId)
+                continue;
             matched = true;
             const RuntimeSignal &sig = s_runtime[i];
-            if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
+            if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) >
+                length)
                 continue;
-            const float val = detail::decodeBytes(data, sig.startByte, sig.byteLength,
-                                                  sig.bigEndian, sig.isSigned, sig.bitMask,
-                                                  sig.scale, sig.offset);
+            const float val =
+                detail::decodeBytes(data, sig.startByte, sig.byteLength, sig.bigEndian,
+                                    sig.isSigned, sig.bitMask, sig.scale, sig.offset);
             SignalStore::update(sig.signalId, val);
         }
-        if (matched) return;
+        if (matched)
+            return;
     }
 
     // Fallback: hardcoded handlers for the default MaxxECU frame layout.
     // Active when signals.json has not been loaded or does not cover this frame ID.
     switch (frameId) {
-        case FRAME_ID_ENGINE_1: parseEngineFrame1(data, length); break;
-        case FRAME_ID_ENGINE_2: parseEngineFrame2(data, length); break;
-        case FRAME_ID_TEMPS:    parseTempsFrame(data, length);   break;
-        case FRAME_ID_ELEC:     parseElecFrame(data, length);    break;
-        case FRAME_ID_FLAGS:    parseFlagsFrame(data, length);   break;
-        case FRAME_ID_MAP_INFO: parseMapInfoFrame(data, length); break;
+        case FRAME_ID_ENGINE_1:
+            parseEngineFrame1(data, length);
+            break;
+        case FRAME_ID_ENGINE_2:
+            parseEngineFrame2(data, length);
+            break;
+        case FRAME_ID_TEMPS:
+            parseTempsFrame(data, length);
+            break;
+        case FRAME_ID_ELEC:
+            parseElecFrame(data, length);
+            break;
+        case FRAME_ID_FLAGS:
+            parseFlagsFrame(data, length);
+            break;
+        case FRAME_ID_MAP_INFO:
+            parseMapInfoFrame(data, length);
+            break;
         default:
             // Unknown frame — MaxxECU broadcasts many frames we don't use
             break;
@@ -193,20 +214,19 @@ void MaxxEcuParser::loadSignalDefinitions() {
 
         RuntimeSignal &r = s_runtime[s_runtimeCount++];
         r.canFrameId = def.canFrameId;
-        r.startByte  = def.startByte;
+        r.startByte = def.startByte;
         r.byteLength = def.byteLength;
-        r.bigEndian  = def.bigEndian;
-        r.isSigned   = def.isSigned;
-        r.scale      = def.scale;
-        r.offset     = def.offset;
-        r.bitMask    = def.bitMask;
-        r.signalId   = sid;
+        r.bigEndian = def.bigEndian;
+        r.isSigned = def.isSigned;
+        r.scale = def.scale;
+        r.offset = def.offset;
+        r.bitMask = def.bitMask;
+        r.signalId = sid;
 
         // Apply per-signal timeout from the config
         SignalStore::setTimeout(sid, def.timeoutMs);
     }
 
     s_runtimeLoaded = true;
-    LOG_INFO("CAN", "Dynamic signal table loaded: %d signals from signals.json",
-             s_runtimeCount);
+    LOG_INFO("CAN", "Dynamic signal table loaded: %d signals from signals.json", s_runtimeCount);
 }

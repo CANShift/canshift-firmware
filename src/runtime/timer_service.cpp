@@ -31,14 +31,14 @@ struct ServiceState {
     SemaphoreHandle_t mutex = nullptr;
 
     TimerService::State state = TimerService::State::Reset;
-    int64_t lastStartUs = 0;     ///< esp_timer_get_time() at last start/resume.
-    int64_t accumulatedUs = 0;   ///< Frozen elapsed at last pause.
+    int64_t lastStartUs = 0;   ///< esp_timer_get_time() at last start/resume.
+    int64_t accumulatedUs = 0; ///< Frozen elapsed at last pause.
     uint16_t lapCount = 0;
     uint32_t version = 0;
 
     TimerService::Lap lapBuffer[TIMER_LAP_BUFFER_CAPACITY] = {};
-    size_t bufHead = 0;  ///< Pop position (oldest).
-    size_t bufTail = 0;  ///< Push position (next slot).
+    size_t bufHead = 0; ///< Pop position (oldest).
+    size_t bufTail = 0; ///< Push position (next slot).
     size_t bufCount = 0;
 
     TimerService::StateChangeCb onStateChange = nullptr;
@@ -54,18 +54,21 @@ ServiceState g_state;
 // ---------------------------------------------------------------------------
 
 class LockGuard {
-public:
+  public:
     explicit LockGuard(SemaphoreHandle_t m) : mutex_(m) {
         held_ = mutex_ && (xSemaphoreTake(mutex_, TIMER_LOCK_TIMEOUT) == pdTRUE);
     }
     ~LockGuard() {
-        if (held_) xSemaphoreGive(mutex_);
+        if (held_)
+            xSemaphoreGive(mutex_);
     }
     LockGuard(const LockGuard &) = delete;
     LockGuard &operator=(const LockGuard &) = delete;
-    [[nodiscard]] bool held() const { return held_; }
+    [[nodiscard]] bool held() const {
+        return held_;
+    }
 
-private:
+  private:
     SemaphoreHandle_t mutex_;
     bool held_ = false;
 };
@@ -83,7 +86,8 @@ int64_t elapsedUsLocked() {
 
 uint32_t elapsedMsLocked() {
     int64_t us = elapsedUsLocked();
-    if (us < 0) us = 0;
+    if (us < 0)
+        us = 0;
     return static_cast<uint32_t>(us / 1000);
 }
 
@@ -93,7 +97,8 @@ void bumpVersionLocked() {
 
 void fireStateChangeLocked() {
     bumpVersionLocked();
-    if (g_state.onStateChange) g_state.onStateChange();
+    if (g_state.onStateChange)
+        g_state.onStateChange();
 }
 
 void pushLapLocked(const TimerService::Lap &lap) {
@@ -117,7 +122,8 @@ void pushLapLocked(const TimerService::Lap &lap) {
 // ---------------------------------------------------------------------------
 
 void TimerService::init() {
-    if (g_state.initialized) return;
+    if (g_state.initialized)
+        return;
 
     g_state.mutex = xSemaphoreCreateMutex();
     if (!g_state.mutex) {
@@ -143,9 +149,11 @@ void TimerService::init() {
 
 bool TimerService::start() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return false;
+    if (!lk.held())
+        return false;
 
-    if (g_state.state == State::Running) return false;
+    if (g_state.state == State::Running)
+        return false;
 
     // From Reset OR Paused: begin counting from now.
     // From Reset, accumulatedUs is already 0; from Paused we resume below
@@ -153,7 +161,8 @@ bool TimerService::start() {
     // when called from Paused (mirrors how the old widget behaved on tap).
     // To keep semantics tight, only allow Reset -> Running here. From Paused
     // callers must use `resume()`.
-    if (g_state.state != State::Reset) return false;
+    if (g_state.state != State::Reset)
+        return false;
 
     g_state.lastStartUs = esp_timer_get_time();
     g_state.accumulatedUs = 0;
@@ -165,9 +174,11 @@ bool TimerService::start() {
 
 bool TimerService::pause() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return false;
+    if (!lk.held())
+        return false;
 
-    if (g_state.state != State::Running) return false;
+    if (g_state.state != State::Running)
+        return false;
 
     g_state.accumulatedUs += (esp_timer_get_time() - g_state.lastStartUs);
     g_state.state = State::Paused;
@@ -178,9 +189,11 @@ bool TimerService::pause() {
 
 bool TimerService::resume() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return false;
+    if (!lk.held())
+        return false;
 
-    if (g_state.state != State::Paused) return false;
+    if (g_state.state != State::Paused)
+        return false;
 
     g_state.lastStartUs = esp_timer_get_time();
     g_state.state = State::Running;
@@ -191,7 +204,8 @@ bool TimerService::resume() {
 
 bool TimerService::reset() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return false;
+    if (!lk.held())
+        return false;
 
     const bool wasNonReset = (g_state.state != State::Reset);
 
@@ -213,9 +227,11 @@ bool TimerService::reset() {
 
 uint16_t TimerService::lap() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return kLapRejected;
+    if (!lk.held())
+        return kLapRejected;
 
-    if (g_state.state != State::Running) return kLapRejected;
+    if (g_state.state != State::Running)
+        return kLapRejected;
 
     const uint32_t totalMs = elapsedMsLocked();
     // Per-lap delta is "totalMs since previous lap" — for index 0 that's
@@ -224,8 +240,8 @@ uint16_t TimerService::lap() {
     if (g_state.lapCount > 0 && g_state.bufCount > 0) {
         // Find the previous lap by walking back from tail. We always have
         // the *most recent* lap in the buffer until something drains it.
-        const size_t prevIdx = (g_state.bufTail + TIMER_LAP_BUFFER_CAPACITY - 1)
-                               % TIMER_LAP_BUFFER_CAPACITY;
+        const size_t prevIdx =
+            (g_state.bufTail + TIMER_LAP_BUFFER_CAPACITY - 1) % TIMER_LAP_BUFFER_CAPACITY;
         const uint32_t prevTotal = g_state.lapBuffer[prevIdx].totalMsAtLap;
         deltaMs = (totalMs >= prevTotal) ? (totalMs - prevTotal) : 0;
     }
@@ -240,9 +256,9 @@ uint16_t TimerService::lap() {
     g_state.lapCount++;
     bumpVersionLocked();
 
-    if (g_state.onLap) g_state.onLap(captured);
-    LOG_DEBUG("TIMER", "lap %u total=%ums delta=%ums",
-              static_cast<unsigned>(captured.index),
+    if (g_state.onLap)
+        g_state.onLap(captured);
+    LOG_DEBUG("TIMER", "lap %u total=%ums delta=%ums", static_cast<unsigned>(captured.index),
               static_cast<unsigned>(captured.totalMsAtLap),
               static_cast<unsigned>(captured.elapsedMs));
     return captured.index;
@@ -251,7 +267,8 @@ uint16_t TimerService::lap() {
 TimerService::Snapshot TimerService::snapshot() {
     Snapshot snap{};
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return snap;
+    if (!lk.held())
+        return snap;
 
     snap.state = g_state.state;
     snap.elapsedMs = elapsedMsLocked();
@@ -262,26 +279,31 @@ TimerService::Snapshot TimerService::snapshot() {
 
 TimerService::State TimerService::getState() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return State::Reset;
+    if (!lk.held())
+        return State::Reset;
     return g_state.state;
 }
 
 uint32_t TimerService::getElapsedMs() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return 0;
+    if (!lk.held())
+        return 0;
     return elapsedMsLocked();
 }
 
 size_t TimerService::drainBufferedLaps(const LapVisitor &visit) {
-    if (!visit) return 0;
+    if (!visit)
+        return 0;
 
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return 0;
+    if (!lk.held())
+        return 0;
 
     size_t drained = 0;
     while (g_state.bufCount > 0) {
         const Lap &front = g_state.lapBuffer[g_state.bufHead];
-        if (!visit(front)) break;
+        if (!visit(front))
+            break;
         g_state.bufHead = (g_state.bufHead + 1) % TIMER_LAP_BUFFER_CAPACITY;
         g_state.bufCount--;
         drained++;
@@ -291,18 +313,21 @@ size_t TimerService::drainBufferedLaps(const LapVisitor &visit) {
 
 size_t TimerService::bufferedLapCount() {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return 0;
+    if (!lk.held())
+        return 0;
     return g_state.bufCount;
 }
 
 void TimerService::setOnStateChange(StateChangeCb cb) {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return;
+    if (!lk.held())
+        return;
     g_state.onStateChange = cb;
 }
 
 void TimerService::setOnLap(LapCb cb) {
     LockGuard lk(g_state.mutex);
-    if (!lk.held()) return;
+    if (!lk.held())
+        return;
     g_state.onLap = cb;
 }

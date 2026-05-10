@@ -41,9 +41,7 @@ static uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
         t = 0.0f;
     if (t > 1.0f)
         t = 1.0f;
-    auto channel = [](uint32_t c, int shift) {
-        return static_cast<int>((c >> shift) & 0xFFu);
-    };
+    auto channel = [](uint32_t c, int shift) { return static_cast<int>((c >> shift) & 0xFFu); };
     const int ar = channel(a, 16);
     const int ag = channel(a, 8);
     const int ab = channel(a, 0);
@@ -140,8 +138,8 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
 struct GaugeTag {
     lv_obj_t *valueLabel;
     lv_obj_t *unitLabel;
-    lv_obj_t *fillArc;       // Gradient mode only — value arc whose colour is
-                             // recomputed each tick. nullptr in zones mode.
+    lv_obj_t *fillArc; // Gradient mode only — value arc whose colour is
+                       // recomputed each tick. nullptr in zones mode.
     float minValue;
     float maxValue;
     float lastValue;
@@ -155,10 +153,10 @@ struct GaugeTag {
     uint16_t dangerAngle;
     bool hasWarning;
     bool hasDanger;
-    bool gradientMode; // True when arcFillStyle == GRADIENT (issue #175)
-    bool lastValid; // Tracks the last (value, valid) pair so the invalid
-                    // branch can skip its lv_label_set_text reallocation
-                    // when state hasn't flipped (issue #236).
+    bool gradientMode;        // True when arcFillStyle == GRADIENT (issue #175)
+    bool lastValid;           // Tracks the last (value, valid) pair so the invalid
+                              // branch can skip its lv_label_set_text reallocation
+                              // when state hasn't flipped (issue #236).
     const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → static path.
     AlertFlash::State alert;
     // Last colours pushed to LVGL — used by the per-frame write guards. Init
@@ -211,8 +209,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // The gauge applies an extra "warning < max" guard the shared helper does
     // not — preserve that here so behaviour is byte-identical.
     const bool hasWarning = zones.hasWarn && cfg.gauge.warningLevel < maxV;
-    const bool hasDanger = hasWarning && zones.hasDanger &&
-                           cfg.gauge.dangerLevel > cfg.gauge.warningLevel;
+    const bool hasDanger =
+        hasWarning && zones.hasDanger && cfg.gauge.dangerLevel > cfg.gauge.warningLevel;
 
     const uint16_t warnAngle = hasWarning ? valueToAngle(cfg.gauge.warningLevel, minV, maxV) : 0;
     const uint16_t dangerAngle = hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
@@ -368,8 +366,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         // (issue #236) — the formatted "0" buffer is identical every tick.
         if (tag->lastValid || !std::isnan(tag->lastValue) || tag->lastValue != 0.0f) {
             char buf[24];
-            WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix,
-                                       cfg.gauge.decimalPlaces, 0.0f, nullptr);
+            WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
+                                       0.0f, nullptr);
             WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
             tag->lastValue = 0.0f;
             tag->lastValid = false;

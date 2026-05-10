@@ -44,19 +44,19 @@ extern const uint8_t kFontMedium16End[] asm("_binary_data_fonts_orbitron_medium_
 namespace {
 
 struct EmbeddedFont {
-    const char *path;  // Canonical SPIFFS path (StorageDriver expects no "S:" prefix)
+    const char *path; // Canonical SPIFFS path (StorageDriver expects no "S:" prefix)
     const uint8_t *start;
     const uint8_t *end;
     const char *label; // Short human-readable name for logs
 };
 
 const EmbeddedFont kEmbeddedFonts[] = {
-    {"/fonts/orbitron_black_32.bin",   kFontBlack32Start,  kFontBlack32End,  "orbitron_black_32"},
-    {"/fonts/orbitron_bold_20.bin",    kFontBold20Start,   kFontBold20End,   "orbitron_bold_20"},
-    {"/fonts/orbitron_bold_24.bin",    kFontBold24Start,   kFontBold24End,   "orbitron_bold_24"},
-    {"/fonts/orbitron_medium_12.bin",  kFontMedium12Start, kFontMedium12End, "orbitron_medium_12"},
-    {"/fonts/orbitron_medium_14.bin",  kFontMedium14Start, kFontMedium14End, "orbitron_medium_14"},
-    {"/fonts/orbitron_medium_16.bin",  kFontMedium16Start, kFontMedium16End, "orbitron_medium_16"},
+    {"/fonts/orbitron_black_32.bin", kFontBlack32Start, kFontBlack32End, "orbitron_black_32"},
+    {"/fonts/orbitron_bold_20.bin", kFontBold20Start, kFontBold20End, "orbitron_bold_20"},
+    {"/fonts/orbitron_bold_24.bin", kFontBold24Start, kFontBold24End, "orbitron_bold_24"},
+    {"/fonts/orbitron_medium_12.bin", kFontMedium12Start, kFontMedium12End, "orbitron_medium_12"},
+    {"/fonts/orbitron_medium_14.bin", kFontMedium14Start, kFontMedium14End, "orbitron_medium_14"},
+    {"/fonts/orbitron_medium_16.bin", kFontMedium16Start, kFontMedium16End, "orbitron_medium_16"},
 };
 
 // Write one embedded blob to its canonical path. Returns true on success.
@@ -94,8 +94,7 @@ DefaultFonts::ProvisionResult DefaultFonts::provisionMissingFiles() {
         }
     }
     LOG_INFO("FONT", "Fonts provisioning: %u new, %u existing, %u failed",
-             static_cast<unsigned>(result.written),
-             static_cast<unsigned>(result.skipped),
+             static_cast<unsigned>(result.written), static_cast<unsigned>(result.skipped),
              static_cast<unsigned>(result.failed));
     return result;
 }

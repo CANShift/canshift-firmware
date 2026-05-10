@@ -12,7 +12,6 @@
 //   Voltage:  SignalIds::BATTERY_VOLTS — formatted "12.4V" (— if unknown)
 //   Download: green when UsbComm reports a recent host command (studio attached)
 
-
 #include "top_bar.h"
 #include "ui/font_manager.h"
 #include "settings_page.h"

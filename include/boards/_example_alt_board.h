@@ -33,10 +33,10 @@
 
 #if 0 // -- commented-out reference template (do not compile) ---------------
 
-#define LGFX_USE_V1
-#include <LovyanGFX.hpp>
+    #define LGFX_USE_V1
+    #include <LovyanGFX.hpp>
 
-#include "board_profile.h"
+    #include "board_profile.h"
 
 namespace canshift::boards {
 

@@ -204,14 +204,14 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
     // Skip past `"payload"` then optional whitespace then the `:` separator.
     const char *cursor = needle + kNeedleLen;
     const char *end = jsonLine + lineLen;
-    while (cursor < end && (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' ||
-                            *cursor == '\r'))
+    while (cursor < end &&
+           (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r'))
         ++cursor;
     if (cursor >= end || *cursor != ':')
         return nullptr;
     ++cursor;
-    while (cursor < end && (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' ||
-                            *cursor == '\r'))
+    while (cursor < end &&
+           (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r'))
         ++cursor;
     if (cursor >= end || *cursor != '{')
         return nullptr;
@@ -532,17 +532,16 @@ void handleCommand(const char *jsonLine) {
             // from another task can't slip in between the prefix / body / tail.
             const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
             Serial.print("{\"status\":\"ok\",\"config\":");
-            const size_t streamed =
-                StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, Serial,
-                                            true /* replaceNewlinesWithSpaces */);
+            const size_t streamed = StorageDriver::streamFileTo(
+                CONFIG_PATH_DASHBOARD, Serial, true /* replaceNewlinesWithSpaces */);
             Serial.println("}");
-            if (locked) Logger::unlockUart();
+            if (locked)
+                Logger::unlockUart();
             if (streamed == 0) {
                 LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s",
                          CONFIG_PATH_DASHBOARD);
             } else {
-                LOG_INFO("USB", "GET_CONFIG: sent %u bytes",
-                         static_cast<unsigned>(streamed));
+                LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
             }
             break;
         }
@@ -661,7 +660,8 @@ void UsbComm::init() {
 }
 
 void UsbComm::sendLine(const char *line) {
-    if (!line) return;
+    if (!line)
+        return;
     const size_t len = strlen(line);
     const bool needsNewline = len == 0 || line[len - 1] != '\n';
 
@@ -671,8 +671,10 @@ void UsbComm::sendLine(const char *line) {
     // a command ack the studio is waiting on.
     const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
     Serial.write(reinterpret_cast<const uint8_t *>(line), len);
-    if (needsNewline) Serial.write('\n');
-    if (locked) Logger::unlockUart();
+    if (needsNewline)
+        Serial.write('\n');
+    if (locked)
+        Logger::unlockUart();
 }
 
 bool UsbComm::takePendingDayNightToggle() {

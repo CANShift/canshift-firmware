@@ -73,23 +73,40 @@ void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor
 const char *displayLabelForSignal(const char *signalId) {
     if (!signalId || signalId[0] == '\0')
         return nullptr;
-    if (strcmp(signalId, "rpm") == 0) return "RPM";
-    if (strcmp(signalId, "speed_kph") == 0) return "SPEED";
-    if (strcmp(signalId, "coolant_temp_c") == 0) return "COOLANT";
-    if (strcmp(signalId, "oil_temp_c") == 0) return "OIL TEMP";
-    if (strcmp(signalId, "oil_press_bar") == 0) return "OIL PRESS";
-    if (strcmp(signalId, "boost_bar") == 0) return "BOOST";
-    if (strcmp(signalId, "throttle_pos") == 0) return "THROTTLE";
-    if (strcmp(signalId, "gear") == 0) return "GEAR";
-    if (strcmp(signalId, "afr_1") == 0) return "AFR";
-    if (strcmp(signalId, "lambda_1") == 0) return "LAMBDA";
-    if (strcmp(signalId, "iat_c") == 0) return "IAT";
-    if (strcmp(signalId, "battery_volts") == 0) return "BATT";
-    if (strcmp(signalId, "flag_mil") == 0) return "MIL";
-    if (strcmp(signalId, "flag_anti_lag") == 0) return "ALS";
-    if (strcmp(signalId, "flag_launch_ctrl") == 0) return "LAUNCH";
-    if (strcmp(signalId, "flag_traction_cut") == 0) return "TC";
-    if (strcmp(signalId, "flag_flat_shift") == 0) return "FLAT SHIFT";
+    if (strcmp(signalId, "rpm") == 0)
+        return "RPM";
+    if (strcmp(signalId, "speed_kph") == 0)
+        return "SPEED";
+    if (strcmp(signalId, "coolant_temp_c") == 0)
+        return "COOLANT";
+    if (strcmp(signalId, "oil_temp_c") == 0)
+        return "OIL TEMP";
+    if (strcmp(signalId, "oil_press_bar") == 0)
+        return "OIL PRESS";
+    if (strcmp(signalId, "boost_bar") == 0)
+        return "BOOST";
+    if (strcmp(signalId, "throttle_pos") == 0)
+        return "THROTTLE";
+    if (strcmp(signalId, "gear") == 0)
+        return "GEAR";
+    if (strcmp(signalId, "afr_1") == 0)
+        return "AFR";
+    if (strcmp(signalId, "lambda_1") == 0)
+        return "LAMBDA";
+    if (strcmp(signalId, "iat_c") == 0)
+        return "IAT";
+    if (strcmp(signalId, "battery_volts") == 0)
+        return "BATT";
+    if (strcmp(signalId, "flag_mil") == 0)
+        return "MIL";
+    if (strcmp(signalId, "flag_anti_lag") == 0)
+        return "ALS";
+    if (strcmp(signalId, "flag_launch_ctrl") == 0)
+        return "LAUNCH";
+    if (strcmp(signalId, "flag_traction_cut") == 0)
+        return "TC";
+    if (strcmp(signalId, "flag_flat_shift") == 0)
+        return "FLAT SHIFT";
     return nullptr;
 }
 

@@ -33,7 +33,8 @@ constexpr size_t LINE_BUF_SIZE = 640;
 // Always NUL-terminates `dst` and never writes past it. Truncates the input
 // rather than failing if the destination is too small.
 void escapeJson(const char *src, char *dst, size_t dstCap) {
-    if (dstCap == 0) return;
+    if (dstCap == 0)
+        return;
     size_t w = 0;
     const size_t safeEnd = dstCap - 1; // reserve for '\0'
     for (size_t r = 0; src[r] != '\0'; ++r) {
@@ -41,19 +42,37 @@ void escapeJson(const char *src, char *dst, size_t dstCap) {
         const char *escape = nullptr;
         char twoChar[3] = {'\\', 0, 0};
         switch (c) {
-            case '"':  twoChar[1] = '"';  escape = twoChar; break;
-            case '\\': twoChar[1] = '\\'; escape = twoChar; break;
-            case '\n': twoChar[1] = 'n';  escape = twoChar; break;
-            case '\r': twoChar[1] = 'r';  escape = twoChar; break;
-            case '\t': twoChar[1] = 't';  escape = twoChar; break;
-            default: break;
+            case '"':
+                twoChar[1] = '"';
+                escape = twoChar;
+                break;
+            case '\\':
+                twoChar[1] = '\\';
+                escape = twoChar;
+                break;
+            case '\n':
+                twoChar[1] = 'n';
+                escape = twoChar;
+                break;
+            case '\r':
+                twoChar[1] = 'r';
+                escape = twoChar;
+                break;
+            case '\t':
+                twoChar[1] = 't';
+                escape = twoChar;
+                break;
+            default:
+                break;
         }
         if (escape) {
-            if (w + 2 > safeEnd) break;
+            if (w + 2 > safeEnd)
+                break;
             dst[w++] = escape[0];
             dst[w++] = escape[1];
         } else if (c < 0x20) {
-            if (w + 6 > safeEnd) break;
+            if (w + 6 > safeEnd)
+                break;
             // \u00XX
             static const char hex[] = "0123456789abcdef";
             dst[w++] = '\\';
@@ -63,7 +82,8 @@ void escapeJson(const char *src, char *dst, size_t dstCap) {
             dst[w++] = hex[(c >> 4) & 0x0F];
             dst[w++] = hex[c & 0x0F];
         } else {
-            if (w + 1 > safeEnd) break;
+            if (w + 1 > safeEnd)
+                break;
             dst[w++] = static_cast<char>(c);
         }
     }
@@ -80,12 +100,14 @@ void Logger::init() {
 }
 
 bool Logger::lockUart(TickType_t timeout) {
-    if (!s_uartMutex) return false;
+    if (!s_uartMutex)
+        return false;
     return xSemaphoreTake(s_uartMutex, timeout) == pdTRUE;
 }
 
 void Logger::unlockUart() {
-    if (!s_uartMutex) return;
+    if (!s_uartMutex)
+        return;
     xSemaphoreGive(s_uartMutex);
 }
 
@@ -135,14 +157,18 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
         case 'W':
         case 'I':
         case 'D':
-        case 'V': lvl = level; break;
-        default:  lvl = 'I'; break;
+        case 'V':
+            lvl = level;
+            break;
+        default:
+            lvl = 'I';
+            break;
     }
 
     char line[LINE_BUF_SIZE];
-    const int n = snprintf(line, sizeof(line),
-                           "{\"log\":1,\"lvl\":\"%c\",\"tag\":\"%s\",\"msg\":\"%s\"}\n",
-                           lvl, tagBuf, escaped);
+    const int n =
+        snprintf(line, sizeof(line), "{\"log\":1,\"lvl\":\"%c\",\"tag\":\"%s\",\"msg\":\"%s\"}\n",
+                 lvl, tagBuf, escaped);
     if (n > 0) {
         const size_t toWrite =
             (static_cast<size_t>(n) >= sizeof(line)) ? sizeof(line) - 1 : static_cast<size_t>(n);

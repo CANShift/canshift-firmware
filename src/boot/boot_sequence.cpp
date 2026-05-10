@@ -44,8 +44,7 @@ static void logHeap(const char *stage) {
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
     const uint32_t minFree = ESP.getMinFreeHeap();
     if (canshift::hal::memory::isPsramAvailable()) {
-        const uint32_t freePsram =
-            static_cast<uint32_t>(canshift::hal::memory::getFreePsram());
+        const uint32_t freePsram = static_cast<uint32_t>(canshift::hal::memory::getFreePsram());
         LOG_INFO("HEAP", "%s: free=%u largest=%u min=%u psram_free=%u", stage,
                  static_cast<unsigned>(free), static_cast<unsigned>(largest),
                  static_cast<unsigned>(minFree), static_cast<unsigned>(freePsram));
@@ -269,8 +268,7 @@ void BootSequence::run() {
         // Persist the failure on the dashboard error bar — the splash message
         // is dismissed after ~2 s and the user otherwise has no on-device
         // indication that their config was not loaded from flash.
-        ErrorStore::push(ERROR_SRC_SYSTEM, "MOUNT_FAIL",
-                         "Storage offline — config not persisted");
+        ErrorStore::push(ERROR_SRC_SYSTEM, "MOUNT_FAIL", "Storage offline — config not persisted");
         updateSplash("Storage error — defaults", 35);
     }
     logHeap("after storage");

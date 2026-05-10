@@ -187,8 +187,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // Tint the value when a ramp is configured (issue #430). Skip during an
     // alert flash — AlertFlash owns the colour for the duration of the pulse.
     if (tag->ramp && !tag->alert.active) {
-        const uint32_t tint =
-            valid ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
+        const uint32_t tint = valid ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tint);
     }
 

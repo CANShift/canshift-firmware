@@ -96,7 +96,7 @@ class LGFX : public lgfx::LGFX_Device {
     lgfx::Touch_XPT2046 _touch;
     lgfx::Light_PWM _light;
 
-public:
+  public:
     LGFX() {
         {
             auto cfg = _bus.config();
