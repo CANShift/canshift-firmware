@@ -636,9 +636,8 @@ bool loadDashboard() {
     parseColor(topBar["textColor"] | "#AAAAAA", &s_dashboard.topBar.textColor);
 
     JsonArrayConst topBarLayout = topBar["layout"];
-    s_dashboard.topBar.hasLayout = !topBarLayout.isNull();
     s_dashboard.topBar.itemCount = 0;
-    if (s_dashboard.topBar.hasLayout) {
+    if (!topBarLayout.isNull()) {
         const size_t total = topBarLayout.size();
         if (total > CFG_MAX_TOPBAR_ITEMS) {
             LOG_WARN("CFG",
@@ -661,6 +660,8 @@ bool loadDashboard() {
             }
             ++s_dashboard.topBar.itemCount;
         }
+    } else {
+        LOG_WARN("CFG", "topBar.layout missing — top bar will render empty");
     }
 
     // Optional day theme (hasDayTheme = false when key absent)

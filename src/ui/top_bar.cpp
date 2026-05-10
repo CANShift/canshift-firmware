@@ -75,17 +75,8 @@ static inline int16_t derivedIconSize(int16_t fontSize) {
 
 static lv_obj_t *s_bar = nullptr;
 
-// Hardcoded-layout handles. Used when `topBar.layout` is absent (legacy path).
-// When the layout is config-driven these stay null and update() walks the
-// dynamic-item table instead.
-static lv_obj_t *s_ecuDot = nullptr;
-static lv_obj_t *s_ecuLabel = nullptr;
-static lv_obj_t *s_canDot = nullptr;
-static lv_obj_t *s_canLabel = nullptr;
-
-static lv_obj_t *s_voltageLabel = nullptr;
-static lv_obj_t *s_usbIcon = nullptr;
-
+// Theme toggle handle — captured during layout build so reapplyTheme() can
+// swap the icon source without rebuilding the bar.
 static lv_obj_t *s_themeIcon = nullptr;
 
 static int16_t s_height = 30;
@@ -255,7 +246,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             } else {
                 lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             }
-            // s_themeIcon is the only legacy handle reused — needed by reapplyTheme()
+            // Captured so reapplyTheme() can swap the icon when the mode flips.
             s_themeIcon = obj;
             break;
         }
@@ -302,70 +293,6 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
             buildItem(cfg.items[i], prevByPos, hasDayTheme);
         }
     }
-}
-
-void buildLegacyHardcoded(const CfgDashboard &dash) {
-    const CfgTopBar &cfg = dash.topBar;
-    (void)cfg; // colors already applied on s_bar
-
-    // All gaps and font sizes derive from the bar height via the shared
-    // proportion table (canshift-core/src/topbar-metrics.ts).
-    const int16_t gap = derivedGap(s_height);
-    const int16_t fontSize = derivedFontSize(s_height);
-    const int16_t iconSize = derivedIconSize(fontSize);
-    // Right-side theme-icon offset: roughly the icon glyph width + a gap.
-    const int16_t themeIconWidth = static_cast<int16_t>(iconSize + gap);
-
-    // ---- Left: [• dot] ECU [|] CAN [• dot] — matches studio preview ----
-    s_ecuDot = makeStatusDot(s_bar);
-    lv_obj_align(s_ecuDot, LV_ALIGN_LEFT_MID, 0, 0);
-
-    s_ecuLabel = makeBarLabel(s_bar, "ECU", COLOR_LABEL);
-    lv_obj_align_to(s_ecuLabel, s_ecuDot, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
-
-    lv_obj_t *leftSep = makeBarSeparator(s_bar, COLOR_MUTED);
-    lv_obj_align_to(leftSep, s_ecuLabel, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
-
-    s_canLabel = makeBarLabel(s_bar, "CAN", COLOR_LABEL);
-    lv_obj_align_to(s_canLabel, leftSep, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
-
-    s_canDot = makeStatusDot(s_bar);
-    lv_obj_align_to(s_canDot, s_canLabel, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
-
-    // ---- Right cluster (built right-to-left): theme icon, |, USB icon, voltage ----
-    // Theme toggle — image asset (the Latin-only Orbitron fonts have no sun/
-    // moon glyphs). Use lv_img directly with a CLICKABLE flag — lv_imgbtn
-    // would need 3-state sources (released/pressed/checked) which we don't have.
-    s_themeIcon = lv_img_create(s_bar);
-    lv_img_set_src(s_themeIcon, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
-                                                          : "S:/assets/icon_night.bin");
-    lv_obj_align(s_themeIcon, LV_ALIGN_RIGHT_MID, 0, 0);
-    if (dash.hasDayTheme) {
-        lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_CLICKABLE);
-        // See layout-driven path: extend hit-test by 10 px (#93).
-        lv_obj_set_ext_click_area(s_themeIcon, 10);
-        lv_obj_add_event_cb(
-            s_themeIcon, [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
-            LV_EVENT_CLICKED, nullptr);
-    } else {
-        lv_obj_add_flag(s_themeIcon, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    // Separator between USB icon and theme icon — anchored to right edge with
-    // a gap accounting for the theme icon width.
-    lv_obj_t *rightSep = makeBarSeparator(s_bar, COLOR_MUTED);
-    lv_obj_align(rightSep, LV_ALIGN_RIGHT_MID, -themeIconWidth, 0);
-
-    // USB / download icon — left of the separator
-    s_usbIcon = lv_label_create(s_bar);
-    lv_label_set_text(s_usbIcon, LV_SYMBOL_DOWNLOAD);
-    lv_obj_set_style_text_color(s_usbIcon, lv_color_hex(COLOR_USB_OFF), 0);
-    lv_obj_set_style_text_font(s_usbIcon, FontManager::label(static_cast<uint8_t>(iconSize)), 0);
-    lv_obj_align_to(s_usbIcon, rightSep, LV_ALIGN_OUT_LEFT_MID, -gap, 0);
-
-    // Voltage — left of the USB icon
-    s_voltageLabel = makeBarLabel(s_bar, "--.-V", COLOR_LABEL);
-    lv_obj_align_to(s_voltageLabel, s_usbIcon, LV_ALIGN_OUT_LEFT_MID, -gap, 0);
 }
 
 } // namespace
@@ -415,22 +342,16 @@ void TopBar::init() {
         },
         LV_EVENT_CLICKED, nullptr);
 
-    // Reset all handle state — needed when init() runs a second time (it
-    // currently doesn't, but cheap insurance).
-    s_ecuDot = s_ecuLabel = s_canDot = s_canLabel = nullptr;
-    s_voltageLabel = s_usbIcon = s_themeIcon = nullptr;
+    // Reset captured handles — cheap insurance against re-init.
+    s_themeIcon = nullptr;
     s_dynCount = 0;
 
-    if (cfg.hasLayout) {
-        buildFromLayout(cfg, dash.hasDayTheme);
-    } else {
-        buildLegacyHardcoded(dash);
-    }
+    buildFromLayout(cfg, dash.hasDayTheme);
 
     SettingsPage::init(s_height, static_cast<int16_t>(LV_VER_RES - s_height));
 
-    LOG_INFO("UI", "Top bar initialized (height=%dpx, layout=%s, dyn=%u)", s_height,
-             cfg.hasLayout ? "config" : "legacy", static_cast<unsigned>(s_dynCount));
+    LOG_INFO("UI", "Top bar initialized (height=%dpx, dyn=%u)", s_height,
+             static_cast<unsigned>(s_dynCount));
 }
 
 void TopBar::reapplyTheme() {
@@ -510,85 +431,20 @@ void TopBar::update() {
     if (!s_bar)
         return;
 
-    // ---- Layout-driven path ----
-    if (s_dynCount > 0) {
-        for (uint8_t i = 0; i < s_dynCount; ++i) {
-            DynItem &d = s_dynItems[i];
-            switch (d.kind) {
-                case TopBarItemKind::STATUS_DOT:
-                    updateDynStatusDot(i, d);
-                    break;
-                case TopBarItemKind::SIGNAL:
-                    updateDynSignalLabel(d);
-                    break;
-                case TopBarItemKind::USB_ICON:
-                    updateUsbIcon(d.obj, &d);
-                    break;
-                default:
-                    break;
-            }
-        }
-        return;
-    }
-
-    // ---- Legacy hardcoded path ----
-    // Cached last-rendered state — skip LVGL style/text writes when nothing
-    // changed (issue #95, fix F3). 0 sentinel = first run, forces an emit.
-    static bool s_ecuEverSeen = false;
-    static bool s_canEverSeen = false;
-    static uint32_t s_ecuDotColorLast = 0;
-    static uint32_t s_canDotColorLast = 0;
-    static char s_voltageTextLast[8] = {};
-    static uint32_t s_voltageColorLast = 0;
-    static uint32_t s_usbColorLast = 0;
-
-    const bool ecuValid = SignalStore::isValid(SignalIds::RPM);
-    const bool canValid = ecuValid || anySignalValid();
-    if (ecuValid)
-        s_ecuEverSeen = true;
-    if (canValid)
-        s_canEverSeen = true;
-
-    if (s_ecuDot) {
-        const uint32_t c = statusDotColor(ecuValid, s_ecuEverSeen);
-        if (c != s_ecuDotColorLast) {
-            lv_obj_set_style_bg_color(s_ecuDot, lv_color_hex(c), LV_PART_MAIN);
-            s_ecuDotColorLast = c;
-        }
-    }
-    if (s_canDot) {
-        const uint32_t c = statusDotColor(canValid, s_canEverSeen);
-        if (c != s_canDotColorLast) {
-            lv_obj_set_style_bg_color(s_canDot, lv_color_hex(c), LV_PART_MAIN);
-            s_canDotColorLast = c;
-        }
-    }
-    if (s_voltageLabel) {
-        char buf[8];
-        uint32_t targetColor;
-        if (SignalStore::isValid(SignalIds::BATTERY_VOLTS)) {
-            const float v = SignalStore::read(SignalIds::BATTERY_VOLTS, 0.0f);
-            FloatFormat::formatFromSpec(buf, sizeof(buf), v, "%.1fV");
-            targetColor = COLOR_LABEL;
-        } else {
-            strlcpy(buf, "--.-V", sizeof(buf));
-            targetColor = COLOR_MUTED;
-        }
-        if (strcmp(buf, s_voltageTextLast) != 0) {
-            lv_label_set_text(s_voltageLabel, buf);
-            strlcpy(s_voltageTextLast, buf, sizeof(s_voltageTextLast));
-        }
-        if (targetColor != s_voltageColorLast) {
-            lv_obj_set_style_text_color(s_voltageLabel, lv_color_hex(targetColor), 0);
-            s_voltageColorLast = targetColor;
-        }
-    }
-    if (s_usbIcon) {
-        const bool active = UsbComm::isHostActive();
-        const uint32_t color = active ? COLOR_DOT_OK : COLOR_USB_OFF;
-        if (color != s_usbColorLast) {
-            lv_obj_set_style_text_color(s_usbIcon, lv_color_hex(color), 0);
-            s_usbColorLast = color;
+    for (uint8_t i = 0; i < s_dynCount; ++i) {
+        DynItem &d = s_dynItems[i];
+        switch (d.kind) {
+            case TopBarItemKind::STATUS_DOT:
+                updateDynStatusDot(i, d);
+                break;
+            case TopBarItemKind::SIGNAL:
+                updateDynSignalLabel(d);
+                break;
+            case TopBarItemKind::USB_ICON:
+                updateUsbIcon(d.obj, &d);
+                break;
+            default:
+                break;
         }
     }
 }

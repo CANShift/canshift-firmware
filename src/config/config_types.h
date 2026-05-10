@@ -274,7 +274,6 @@ struct CfgTopBar {
     uint8_t height; // Pixels (default 30)
     CfgColor bgColor;
     CfgColor textColor;
-    bool hasLayout; // True if `topBar.layout` was present in dashboard.json
     uint8_t itemCount;
     CfgTopBarItem items[CFG_MAX_TOPBAR_ITEMS];
 };
