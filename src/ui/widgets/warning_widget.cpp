@@ -8,9 +8,9 @@
 #include "ui/icon_assets.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
+#include "ui/widgets/widget_helpers.h"
 #include "diag/logger.h"
 
-#include <ctype.h>
 #include <lvgl.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,24 +28,6 @@ struct WarningTag {
     bool wasActive;
     uint32_t bgColor; // criticalColor (RGB)
 };
-
-// Convert "coolant_temp_c" → "COOLANT TEMP C" — matches studio's formatSignalLabel.
-void formatSignalLabel(const char *src, char *out, size_t outLen) {
-    if (outLen == 0)
-        return;
-    if (!src || src[0] == '\0') {
-        strlcpy(out, "-", outLen);
-        return;
-    }
-    size_t j = 0;
-    for (size_t i = 0; src[i] != '\0' && j + 1 < outLen; ++i) {
-        char c = src[i];
-        if (c == '_')
-            c = ' ';
-        out[j++] = static_cast<char>(toupper(static_cast<unsigned char>(c)));
-    }
-    out[j] = '\0';
-}
 
 void blinkAnimCb(void *target, int32_t v) {
     auto *root = static_cast<lv_obj_t *>(target);
@@ -125,7 +107,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     lv_obj_t *signalLabel = nullptr;
     if (cfg.warning.label[0] == '\0' && cfg.layout.h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
-        formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
+        WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
         signalLabel = lv_label_create(root);
         lv_label_set_text(signalLabel, labelBuf);
         const uint8_t sigFontSize = cfg.layout.h >= 56 ? 14 : 12;

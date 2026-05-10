@@ -12,7 +12,6 @@
 // value so a corner-anchored user label can never collide with the unit.
 
 #include "label_widget.h"
-#include "config/config_loader.h"
 #include "diag/logger.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
@@ -20,6 +19,7 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
+#include "ui/widgets/widget_helpers.h"
 #include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
@@ -81,10 +81,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         LOG_ERROR("WF", "lv_obj_create failed for '%s' — LVGL pool OOM", cfg.id);
         return nullptr;
     }
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
 
     const bool hasUserLabel = cfg.label.label[0] != '\0';
 
@@ -119,10 +117,9 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         // (°C, km/h, …) is conveyed by the label itself — repeating it on
         // the value just clips wide numbers ("195km/h" → "195k") and adds
         // visual noise. Arc and bar widgets keep their suffix.
-        char valBuf[16];
-        snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces), 0.0f);
         char buf[40];
-        snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
+        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
+                                   0.0f, nullptr);
         lv_label_set_text(label, buf);
     }
 
@@ -137,24 +134,12 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->lastValid = false;
     tag->baseTextRgb = textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
-    {
-        const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
-        const CfgColorRampDef empty{};
-        const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
-        tag->ramp = resolveRamp(perSignal, cfg.signalId);
-    }
+    tag->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
 
-    lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(
-        cont,
-        [](lv_event_t *e) {
-            auto *t = static_cast<LabelTag *>(lv_event_get_user_data(e));
-            delete t;
-        },
-        LV_EVENT_DELETE, tag);
+    WidgetHelpers::attachTagDeleter(cont, tag);
 
     return cont;
 }
@@ -188,19 +173,13 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const bool unchanged =
         tag->lastValid == valid && !std::isnan(tag->lastValue) && displayValue == tag->lastValue;
     if (!unchanged) {
-        char valBuf[16];
-        snprintf(valBuf, sizeof(valBuf), "%.*f", static_cast<int>(cfg.label.decimalPlaces),
-                 displayValue);
-
         // Suffix dropped unconditionally — the label conveys the unit. Wide
         // numeric values ("195km/h" → "195k") were getting clipped on the right
         // edge of 80-px-wide widgets. See create() for full rationale.
         char buf[40];
-        snprintf(buf, sizeof(buf), "%s%s", cfg.label.prefix, valBuf);
-        const char *current = lv_label_get_text(tag->valueLabel);
-        if (current == nullptr || strcmp(current, buf) != 0) {
-            lv_label_set_text(tag->valueLabel, buf);
-        }
+        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
+                                   displayValue, nullptr);
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastValue = displayValue;
         tag->lastValid = valid;
     }

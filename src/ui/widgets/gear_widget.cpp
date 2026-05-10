@@ -13,11 +13,11 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
+#include "ui/widgets/widget_helpers.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
 #include <stdio.h>
-#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,16 +44,6 @@ const lv_font_t *selectFont(int16_t height) {
     return FontManager::label(16);
 }
 
-// Skip the lv_label_set_text reallocation when the formatted gear is already
-// shown (issue #236). Gear values change at human cadence, so almost every
-// tick the label is unchanged.
-void setLabelIfChanged(lv_obj_t *label, const char *text) {
-    const char *current = lv_label_get_text(label);
-    if (current == nullptr || strcmp(current, text) != 0) {
-        lv_label_set_text(label, text);
-    }
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -62,10 +52,8 @@ void setLabelIfChanged(lv_obj_t *label, const char *text) {
 
 lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
 
     const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
     lv_obj_t *label = lv_label_create(cont);
@@ -77,14 +65,7 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     auto *tag = new GearTag{};
     tag->label = label;
     tag->lastColorRgb = textRgb; // First paint above already pushed textRgb.
-    lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(
-        cont,
-        [](lv_event_t *e) {
-            auto *t = static_cast<GearTag *>(lv_event_get_user_data(e));
-            delete t;
-        },
-        LV_EVENT_DELETE, tag);
+    WidgetHelpers::attachTagDeleter(cont, tag);
 
     // Optional widget label (gear shares CfgLabelParams in the union).
     WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
@@ -103,14 +84,14 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
 
     if (!valid || value == 0.0f) {
-        setLabelIfChanged(label, "N");
+        WidgetHelpers::setLabelTextIfChanged(label, "N");
         WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
         return;
     }
 
     int32_t gear = static_cast<int32_t>(value);
     if (gear < 0) {
-        setLabelIfChanged(label, "R");
+        WidgetHelpers::setLabelTextIfChanged(label, "R");
         WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb,
                                             cfg.style.warningColor.rgb);
         return;
@@ -118,6 +99,6 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
 
     char buf[4];
     snprintf(buf, sizeof(buf), "%d", gear);
-    setLabelIfChanged(label, buf);
+    WidgetHelpers::setLabelTextIfChanged(label, buf);
     WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
 }

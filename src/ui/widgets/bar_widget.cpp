@@ -11,10 +11,9 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
-#include "config/config_loader.h"
+#include "ui/widgets/widget_helpers.h"
 #include "diag/logger.h"
 
-#include <ctype.h>
 #include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
@@ -58,34 +57,6 @@ struct BarTag {
     uint32_t lastFillRgb;
 };
 
-void formatSignalLabel(const char *src, char *out, size_t outLen) {
-    if (outLen == 0)
-        return;
-    if (!src || src[0] == '\0') {
-        strlcpy(out, "-", outLen);
-        return;
-    }
-    size_t j = 0;
-    for (size_t i = 0; src[i] != '\0' && j + 1 < outLen; ++i) {
-        char c = src[i];
-        if (c == '_')
-            c = ' ';
-        out[j++] = static_cast<char>(toupper(static_cast<unsigned char>(c)));
-    }
-    out[j] = '\0';
-}
-
-float clampPct(float v, float minV, float maxV) {
-    if (maxV <= minV)
-        return 0.0f;
-    float pct = (v - minV) / (maxV - minV);
-    if (pct < 0.0f)
-        return 0.0f;
-    if (pct > 1.0f)
-        return 1.0f;
-    return pct;
-}
-
 // Studio uses a faint grey for label text when dimmed. We use the same fixed
 // tone so the bar reads identically across themes.
 constexpr uint32_t SIGNAL_LABEL_RGB = 0x888888;
@@ -94,27 +65,12 @@ constexpr uint32_t TICK_LABEL_RGB = 0x383838;
 constexpr uint32_t VALUE_TEXT_RGB = 0xFFFFFF; // value % always white per user spec
 constexpr lv_opa_t ZONE_OPA = 0x35;
 
-// Fixed automotive zone palette — fill colour reflects the value's zone rather
-// than `style.primaryColor`. Drivers expect green/orange/red semantics
-// regardless of how the widget's brand colour is set in studio.
-constexpr uint32_t ZONE_NORMAL_RGB = 0x00CC44;  // green
-constexpr uint32_t ZONE_WARNING_RGB = 0xFF8800; // orange
-constexpr uint32_t ZONE_DANGER_RGB = 0xFF4444;  // red
-
-uint32_t zoneFillColor(float pct, float warnPct, float dangerPct) {
-    if (pct >= dangerPct)
-        return ZONE_DANGER_RGB;
-    if (pct >= warnPct)
-        return ZONE_WARNING_RGB;
-    return ZONE_NORMAL_RGB;
-}
-
 void renderValueText(BarTag *t, float v) {
     if (!t->valueLabel)
         return;
     char buf[24];
     const char *suffix = t->isVertical ? "" : t->suffix;
-    snprintf(buf, sizeof(buf), "%s%.*f%s", t->prefix, t->decimalPlaces, v, suffix);
+    WidgetHelpers::formatValue(buf, sizeof(buf), t->prefix, t->decimalPlaces, v, suffix);
     lv_label_set_text(t->valueLabel, buf);
 }
 
@@ -126,10 +82,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     const int16_t H = cfg.layout.h;
 
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, W, H);
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
 
     auto *t = new BarTag{};
     t->isVertical = isVertical;
@@ -152,21 +106,17 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
 
     // Resolve the active color ramp once (issue #430). Per-signal ramp wins,
     // sensor-name heuristic next, nullptr → legacy zone-based tinting.
-    {
-        const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
-        const CfgColorRampDef empty{};
-        const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
-        t->ramp = resolveRamp(perSignal, cfg.signalId);
-    }
+    t->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
-    const bool hasWarn = !std::isnan(t->warningLevel) && t->warningLevel > t->minValue;
-    const bool hasDanger = !std::isnan(t->dangerLevel) && t->dangerLevel > t->minValue &&
-                           t->dangerLevel <= t->maxValue;
-    const float warnPct = hasWarn ? clampPct(t->warningLevel, t->minValue, t->maxValue) : 1.0f;
-    const float dangerPct = hasDanger ? clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.0f;
+    const WidgetHelpers::ThresholdZones zones = WidgetHelpers::resolveZones(
+        t->warningLevel, t->dangerLevel, t->minValue, t->maxValue);
+    const bool hasWarn = zones.hasWarn;
+    const bool hasDanger = zones.hasDanger;
+    const float warnPct = zones.warnPct;
+    const float dangerPct = zones.dangerPct;
 
     char sigBuf[CFG_MAX_SIGNAL_LEN + 4];
-    formatSignalLabel(cfg.signalId, sigBuf, sizeof(sigBuf));
+    WidgetHelpers::formatSignalLabel(cfg.signalId, sigBuf, sizeof(sigBuf));
 
     // -----------------------------------------------------------------------
     // Horizontal layout — label band on one side of the widget, track on the
@@ -215,10 +165,10 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * warnPct);
             int16_t zW = static_cast<int16_t>(trackW * (dangerPct - warnPct));
             lv_obj_t *zone = lv_obj_create(cont);
-            lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            WidgetHelpers::disableInteract(zone);
             lv_obj_set_pos(zone, zX, trackY);
             lv_obj_set_size(zone, zW, barH);
-            WidgetStyles::applyBarZone(zone, ZONE_WARNING_RGB, ZONE_OPA);
+            WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneWarningRgb, ZONE_OPA);
             t->warnZone = zone;
         }
 
@@ -227,20 +177,20 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * dangerPct);
             int16_t zW = static_cast<int16_t>(trackW * (1.0f - dangerPct));
             lv_obj_t *zone = lv_obj_create(cont);
-            lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            WidgetHelpers::disableInteract(zone);
             lv_obj_set_pos(zone, zX, trackY);
             lv_obj_set_size(zone, zW, barH);
-            WidgetStyles::applyBarZone(zone, ZONE_DANGER_RGB, ZONE_OPA);
+            WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneDangerRgb, ZONE_OPA);
             t->dangerZone = zone;
         }
 
         // Fill — width is updated dynamically. Starts at 0. Colour set in
         // update() based on the active zone (green/orange/red).
         lv_obj_t *fill = lv_obj_create(cont);
-        lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        WidgetHelpers::disableInteract(fill);
         lv_obj_set_pos(fill, HORIZ_PAD_X, trackY);
         lv_obj_set_size(fill, 0, barH);
-        WidgetStyles::applyBarFill(fill, ZONE_NORMAL_RGB);
+        WidgetStyles::applyBarFill(fill, WidgetHelpers::kZoneNormalRgb);
         t->fill = fill;
 
         // Signal label — only when the user hasn't supplied a custom one.
@@ -277,7 +227,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             // Build a lightweight inner stripe so WidgetLabelOverlay anchors
             // its label inside the band (rather than the whole widget).
             lv_obj_t *band = lv_obj_create(cont);
-            lv_obj_clear_flag(band, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            WidgetHelpers::disableInteract(band);
             lv_obj_set_pos(band, 0, bandY);
             lv_obj_set_size(band, W, labelBandH);
             lv_obj_set_style_bg_opa(band, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -348,10 +298,10 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             int16_t zY = padTop + static_cast<int16_t>(trackH * (1.0f - dangerPct));
             int16_t zH = static_cast<int16_t>(trackH * (dangerPct - warnPct));
             lv_obj_t *zone = lv_obj_create(cont);
-            lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            WidgetHelpers::disableInteract(zone);
             lv_obj_set_pos(zone, padX, zY);
             lv_obj_set_size(zone, barW, zH);
-            WidgetStyles::applyBarZone(zone, ZONE_WARNING_RGB, ZONE_OPA);
+            WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneWarningRgb, ZONE_OPA);
             t->warnZone = zone;
         }
 
@@ -360,17 +310,17 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
             int16_t topZH = static_cast<int16_t>(trackH * (1.0f - dangerPct));
             if (topZH > 0) {
                 lv_obj_t *zone = lv_obj_create(cont);
-                lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+                WidgetHelpers::disableInteract(zone);
                 lv_obj_set_pos(zone, padX, padTop);
                 lv_obj_set_size(zone, barW, topZH);
-                WidgetStyles::applyBarZone(zone, ZONE_DANGER_RGB, ZONE_OPA);
+                WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneDangerRgb, ZONE_OPA);
                 t->dangerZone = zone;
             }
         }
 
         // Fill — sits at the bottom of the track, height grows upwards.
         lv_obj_t *fill = lv_obj_create(cont);
-        lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        WidgetHelpers::disableInteract(fill);
         lv_obj_set_pos(fill, padX, padTop + trackH);
         lv_obj_set_size(fill, barW, 0);
         WidgetStyles::applyBarFill(fill, t->primaryRgb);
@@ -411,14 +361,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     if (t->valueLabel)
         AlertFlash::watchLabel(t->alert, t->valueLabel, VALUE_TEXT_RGB);
 
-    lv_obj_set_user_data(cont, t);
-    lv_obj_add_event_cb(
-        cont,
-        [](lv_event_t *e) {
-            auto *p = static_cast<BarTag *>(lv_event_get_user_data(e));
-            delete p;
-        },
-        LV_EVENT_DELETE, t);
+    WidgetHelpers::attachTagDeleter(cont, t);
 
     // Initial paint: invalid → 0 (per design).
     BarWidget::update(cont, cfg.bar.minValue, false, cfg);
@@ -447,18 +390,21 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     t->lastValue = displayValue;
     t->wasValid = valid;
 
-    const float pct = clampPct(displayValue, t->minValue, t->maxValue);
-    const float warnPct =
-        !std::isnan(t->warningLevel) ? clampPct(t->warningLevel, t->minValue, t->maxValue) : 1.1f;
-    const float dangerPct =
-        !std::isnan(t->dangerLevel) ? clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.1f;
+    const float pct = WidgetHelpers::clampPct(displayValue, t->minValue, t->maxValue);
+    const float warnPct = !std::isnan(t->warningLevel)
+                              ? WidgetHelpers::clampPct(t->warningLevel, t->minValue, t->maxValue)
+                              : 1.1f;
+    const float dangerPct = !std::isnan(t->dangerLevel)
+                                ? WidgetHelpers::clampPct(t->dangerLevel, t->minValue, t->maxValue)
+                                : 1.1f;
 
     // Issue #430: when a ramp is configured the fill colour comes from the
     // ramp at the live value. Without a ramp the legacy three-zone palette
     // (green/orange/red) drives the fill — preserves backward compatibility
     // for configs that haven't opted in.
-    const uint32_t fillRgb =
-        t->ramp ? colorAtValue(*t->ramp, displayValue) : zoneFillColor(pct, warnPct, dangerPct);
+    const uint32_t fillRgb = t->ramp
+                                 ? colorAtValue(*t->ramp, displayValue)
+                                 : WidgetHelpers::zoneFillColor(pct, warnPct, dangerPct);
     WidgetStyles::setBgColorIfChanged(t->fill, t->lastFillRgb, fillRgb);
 
     if (!t->isVertical) {

@@ -10,6 +10,7 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
+#include "ui/widgets/widget_helpers.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -58,15 +59,7 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     // Scale image to fit widget dimensions (LVGL 8.3 integer scale factor)
     // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
-    lv_obj_set_user_data(cont, tag);
-
-    lv_obj_add_event_cb(
-        cont,
-        [](lv_event_t *e) {
-            auto *t = static_cast<ImageTag *>(lv_event_get_user_data(e));
-            delete t;
-        },
-        LV_EVENT_DELETE, tag);
+    WidgetHelpers::attachTagDeleter(cont, tag);
 
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(cont, cfg.image.label, cfg.image.labelPosition,

@@ -7,6 +7,7 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
+#include "ui/widgets/widget_helpers.h"
 #include "config/config_loader.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
@@ -22,12 +23,10 @@
 
 namespace {
 
-// Palette for the colored arc sectors
-static constexpr uint32_t kColorSuccess = 0x00CC44; // Green — normal range
-static constexpr uint32_t kColorWarning = 0xFF8800; // Orange — warning range
-static constexpr uint32_t kColorDanger = 0xFF4444;  // Red — danger range
-static constexpr uint32_t kColorBgDim = 0x222222;   // Dark grey — no-threshold bg track
-static constexpr uint32_t kColorValue = 0xFFFFFF;   // White — value indicator needle
+// Palette for the colored arc sectors. Zone tints come from the shared
+// helper palette so bar + gauge stay in lockstep.
+static constexpr uint32_t kColorBgDim = 0x222222; // Dark grey — no-threshold bg track
+static constexpr uint32_t kColorValue = 0xFFFFFF; // White — value indicator needle
 // Gradient base track (issue #175) — slightly lighter than the no-threshold
 // track so the value arc reads cleanly on top of it.
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
@@ -71,21 +70,15 @@ static uint32_t interpolateGreenOrangeRed(float pct) {
     if (pct > 1.0f)
         pct = 1.0f;
     if (pct <= 0.5f) {
-        return lerpRgb(kColorSuccess, kColorWarning, pct * 2.0f);
+        return lerpRgb(WidgetHelpers::kZoneNormalRgb, WidgetHelpers::kZoneWarningRgb, pct * 2.0f);
     }
-    return lerpRgb(kColorWarning, kColorDanger, (pct - 0.5f) * 2.0f);
+    return lerpRgb(WidgetHelpers::kZoneWarningRgb, WidgetHelpers::kZoneDangerRgb,
+                   (pct - 0.5f) * 2.0f);
 }
 
 // Map a signal value to arc angle [0..280]
 static uint16_t valueToAngle(float value, float minVal, float maxVal) {
-    if (maxVal <= minVal)
-        return 0;
-    float pct = (value - minVal) / (maxVal - minVal);
-    if (pct < 0.0f)
-        pct = 0.0f;
-    if (pct > 1.0f)
-        pct = 1.0f;
-    return static_cast<uint16_t>(pct * kArcSweep);
+    return static_cast<uint16_t>(WidgetHelpers::clampPct(value, minVal, maxVal) * kArcSweep);
 }
 
 // Create a background-only arc covering [startAngle..endAngle] in the given color.
@@ -200,23 +193,26 @@ inline float effectiveAlertThreshold(const GaugeTag &tag) {
 lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     // Container
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
 
     // Arc diameter: smallest of w/h, minus padding
     int32_t diam = (cfg.layout.w < cfg.layout.h ? cfg.layout.w : cfg.layout.h) - 8;
     if (diam < 40)
         diam = 40;
 
-    // Determine which threshold zones apply.
+    // Determine which threshold zones apply. The shared helper resolves the
+    // band positions in pct-domain; the gauge maps them to arc angles below.
     // Convention: warningLevel > minValue means a real threshold is configured.
     const float minV = cfg.gauge.minValue;
     const float maxV = cfg.gauge.maxValue;
-    const bool hasWarning = (cfg.gauge.warningLevel > minV && cfg.gauge.warningLevel < maxV);
-    const bool hasDanger = hasWarning && (cfg.gauge.dangerLevel > cfg.gauge.warningLevel &&
-                                          cfg.gauge.dangerLevel <= maxV);
+    const WidgetHelpers::ThresholdZones zones =
+        WidgetHelpers::resolveZones(cfg.gauge.warningLevel, cfg.gauge.dangerLevel, minV, maxV);
+    // The gauge applies an extra "warning < max" guard the shared helper does
+    // not — preserve that here so behaviour is byte-identical.
+    const bool hasWarning = zones.hasWarn && cfg.gauge.warningLevel < maxV;
+    const bool hasDanger = hasWarning && zones.hasDanger &&
+                           cfg.gauge.dangerLevel > cfg.gauge.warningLevel;
 
     const uint16_t warnAngle = hasWarning ? valueToAngle(cfg.gauge.warningLevel, minV, maxV) : 0;
     const uint16_t dangerAngle = hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
@@ -244,13 +240,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         createSectorArc(cont, diam, 0, 280, kColorBgDim, kBgWidth);
     } else if (!hasDanger) {
         // Two zones: green (0→warn) + orange (warn→280)
-        createSectorArc(cont, diam, 0, warnAngle, kColorSuccess, kBgWidth);
-        createSectorArc(cont, diam, warnAngle, 280, kColorWarning, kBgWidth);
+        createSectorArc(cont, diam, 0, warnAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
+        createSectorArc(cont, diam, warnAngle, 280, WidgetHelpers::kZoneWarningRgb, kBgWidth);
     } else {
         // Three zones: green (0→warn), orange (warn→danger), red (danger→280)
-        createSectorArc(cont, diam, 0, warnAngle, kColorSuccess, kBgWidth);
-        createSectorArc(cont, diam, warnAngle, dangerAngle, kColorWarning, kBgWidth);
-        createSectorArc(cont, diam, dangerAngle, 280, kColorDanger, kBgWidth);
+        createSectorArc(cont, diam, 0, warnAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
+        createSectorArc(cont, diam, warnAngle, dangerAngle, WidgetHelpers::kZoneWarningRgb,
+                        kBgWidth);
+        createSectorArc(cont, diam, dangerAngle, 280, WidgetHelpers::kZoneDangerRgb, kBgWidth);
     }
 
     // Gradient mode value arc (issue #175). Draws on top of the gray base.
@@ -260,7 +257,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_arc_set_angles(fillArc, 0, 0);
         // Replace the default white indicator colour with the gradient's
         // starting colour (green, 0 % of range).
-        lv_obj_set_style_arc_color(fillArc, lv_color_hex(kColorSuccess), LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(fillArc, lv_color_hex(WidgetHelpers::kZoneNormalRgb),
+                                   LV_PART_INDICATOR);
     }
 
     // The white indicator needle was dropped per user spec — the coloured
@@ -286,8 +284,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         // Initial readout: 0, formatted to the configured decimalPlaces with
         // optional prefix — matches the "no signal yet → show 0" rule.
         char initBuf[24];
-        snprintf(initBuf, sizeof(initBuf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces,
-                 0.0f);
+        WidgetHelpers::formatValue(initBuf, sizeof(initBuf), cfg.gauge.prefix,
+                                   cfg.gauge.decimalPlaces, 0.0f, nullptr);
         lv_label_set_text(label, initBuf);
     }
 
@@ -327,12 +325,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Resolve the active color ramp once (issue #430). Prefer the per-signal
     // ramp from signals.json; fall back to the sensor-name heuristic; null
     // means the legacy threshold-driven static colors are used unchanged.
-    {
-        const CfgSignalDef *def = ConfigLoader::findSignal(cfg.signalId);
-        const CfgColorRampDef empty{};
-        const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
-        tag->ramp = resolveRamp(perSignal, cfg.signalId);
-    }
+    tag->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
     // revFlash (issue #263): when enabled, pulse the gauge red as soon as the
     // signal reaches the dashboard's rev-limit RPM. We snapshot the threshold
@@ -354,15 +347,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         AlertFlash::watchLabel(tag->alert, unitLabel, textRgb & 0x888888);
     }
 
-    lv_obj_set_user_data(cont, tag);
-
-    lv_obj_add_event_cb(
-        cont,
-        [](lv_event_t *e) {
-            auto *t = static_cast<GaugeTag *>(lv_event_get_user_data(e));
-            delete t;
-        },
-        LV_EVENT_DELETE, tag);
+    WidgetHelpers::attachTagDeleter(cont, tag);
 
     return cont;
 }
@@ -383,11 +368,9 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         // (issue #236) — the formatted "0" buffer is identical every tick.
         if (tag->lastValid || !std::isnan(tag->lastValue) || tag->lastValue != 0.0f) {
             char buf[24];
-            snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, 0.0f);
-            const char *current = lv_label_get_text(tag->valueLabel);
-            if (current == nullptr || strcmp(current, buf) != 0) {
-                lv_label_set_text(tag->valueLabel, buf);
-            }
+            WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix,
+                                       cfg.gauge.decimalPlaces, 0.0f, nullptr);
+            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
             tag->lastValue = 0.0f;
             tag->lastValid = false;
         }
@@ -421,9 +404,9 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         if (tag->ramp) {
             labelColor = colorAtValue(*tag->ramp, value);
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
-            labelColor = kColorDanger;
+            labelColor = WidgetHelpers::kZoneDangerRgb;
         } else if (tag->hasWarning && value >= cfg.gauge.warningLevel) {
-            labelColor = kColorWarning;
+            labelColor = WidgetHelpers::kZoneWarningRgb;
         }
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
     }
@@ -450,11 +433,9 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // with a different float value, formatting may collapse to the same string
     // (e.g. 78.001 vs 78.004 at 0 dp) — strcmp guard avoids the realloc.
     char buf[24];
-    snprintf(buf, sizeof(buf), "%s%.*f", cfg.gauge.prefix, cfg.gauge.decimalPlaces, value);
-    const char *current = lv_label_get_text(tag->valueLabel);
-    if (current == nullptr || strcmp(current, buf) != 0) {
-        lv_label_set_text(tag->valueLabel, buf);
-    }
+    WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces, value,
+                               nullptr);
+    WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).
     // The effective threshold merges alertThreshold (#133) with revFlash (#263);

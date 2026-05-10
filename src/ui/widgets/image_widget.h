@@ -4,8 +4,9 @@
 #include "config/config_types.h"
 #include <lvgl.h>
 
-class ImageWidget {
-public:
-    static lv_obj_t *create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset);
-    // Image widgets are static — no update needed
-};
+namespace ImageWidget {
+
+// Image widgets are static — no update needed.
+lv_obj_t *create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset);
+
+} // namespace ImageWidget

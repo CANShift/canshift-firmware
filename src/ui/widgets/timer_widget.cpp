@@ -12,6 +12,7 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
+#include "ui/widgets/widget_helpers.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -102,10 +103,8 @@ void onTimerTouch(lv_event_t *e) {
 
 lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    WidgetStyles::applyContainerBase(cont, cfg.style.hasBorder, cfg.style.borderColor.rgb);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
 
     // Enable tap interaction
     lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
@@ -137,15 +136,7 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // skips the realloc when elapsed still formats to the same string.
     strlcpy(tag->lastText, cfg.timer.formatMsec ? "00.000" : "00:00", sizeof(tag->lastText));
 
-    lv_obj_set_user_data(cont, tag);
-
-    lv_obj_add_event_cb(
-        cont,
-        [](lv_event_t *e) {
-            auto *t = static_cast<TimerTag *>(lv_event_get_user_data(e));
-            delete t;
-        },
-        LV_EVENT_DELETE, tag);
+    WidgetHelpers::attachTagDeleter(cont, tag);
 
     // Register touch events for start/stop/reset
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
