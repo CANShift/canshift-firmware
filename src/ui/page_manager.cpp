@@ -233,14 +233,14 @@ void onGesture(lv_dir_t dir) {
                 // Next page enters from the right, slides left — matches finger motion.
                 showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT,
                          SWIPE_ANIM_MS);
-                LOG_DEBUG("UI", "Gesture: swipe left → next page");
+                LOG_VDEBUG("UI", "Gesture: swipe left → next page");
             }
             break;
         case LV_DIR_RIGHT:
             if (s_pageCount > 1) {
                 showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
                          LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
-                LOG_DEBUG("UI", "Gesture: swipe right → prev page");
+                LOG_VDEBUG("UI", "Gesture: swipe right → prev page");
             }
             break;
         case LV_DIR_TOP:
@@ -349,7 +349,7 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
 
         s_drag.tracking = true;
         SettingsPage::setDragging(true);
-        LOG_DEBUG("UI", "Drag: settings tracker armed (open=%d)", static_cast<int>(isOpen));
+        LOG_VDEBUG("UI", "Drag: settings tracker armed (open=%d)", static_cast<int>(isOpen));
     }
 
     // Translate panel position 1:1 with the finger.

@@ -183,9 +183,9 @@ bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool e
 #if APP_SIMULATION_MODE
     // No TWAI driver in sim — log the would-be frame and report success so
     // UI click handlers don't treat every press as a failed send.
-    LOG_INFO("CAN", "sim sendFrame id=0x%lX len=%u ext=%d",
-             static_cast<unsigned long>(id), static_cast<unsigned>(len),
-             extended ? 1 : 0);
+    LOG_DEBUG("CAN", "sim sendFrame id=0x%lX len=%u ext=%d",
+              static_cast<unsigned long>(id), static_cast<unsigned>(len),
+              extended ? 1 : 0);
     (void)data;
     return true;
 #else

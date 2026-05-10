@@ -168,7 +168,7 @@ void SignalStore::checkTimeouts() {
             uint32_t age = now - s_signals[i].lastUpdateMs;
             if (age > s_signals[i].timeoutMs) {
                 s_signals[i].valid = false;
-                LOG_DEBUG("STORE", "Signal %d timed out (age=%ums)", i, age);
+                LOG_VDEBUG("STORE", "Signal %d timed out (age=%ums)", i, age);
             }
         }
     }

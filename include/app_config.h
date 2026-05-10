@@ -311,3 +311,16 @@
 #ifndef APP_LV_TASK_LOG
     #define APP_LV_TASK_LOG 0
 #endif
+
+// Verbose per-event debug logs. Kept off in release so per-touch / per-gesture /
+// per-signal-timeout chatter doesn't flood UART0. Enabled in [env:debug] and
+// [env:sim] so developers see the full stream while iterating. Independent of
+// APP_LOG_LEVEL — when off, individual LOG_VDEBUG() call-sites collapse to
+// no-ops at preprocess time even if APP_LOG_LEVEL >= 4.
+#ifndef APP_VERBOSE_DEBUG_LOGS
+    #if APP_DEBUG_BUILD || APP_SIMULATION_MODE
+        #define APP_VERBOSE_DEBUG_LOGS 1
+    #else
+        #define APP_VERBOSE_DEBUG_LOGS 0
+    #endif
+#endif

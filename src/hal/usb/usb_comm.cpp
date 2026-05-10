@@ -388,7 +388,7 @@ static std::atomic<int8_t> s_pendingDayNightSet{-1};
 
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
-    LOG_DEBUG("USB", "Received command: %.40s...", jsonLine);
+    LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
 
     // Funnel every parse through JsonReader so the binary keeps a single
     // BoundedReader<const char*> instantiation (#406). strlen runs once and
@@ -512,7 +512,7 @@ void handleCommand(const char *jsonLine) {
             break;
         }
         default:
-            LOG_DEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
+            LOG_VDEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
     }

@@ -71,6 +71,12 @@ void unlockUart();
     #define LOG_DEBUG(tag, fmt, ...) ((void)0)
 #endif
 
+#if APP_LOG_LEVEL >= LOG_LEVEL_DEBUG && APP_VERBOSE_DEBUG_LOGS
+    #define LOG_VDEBUG(tag, fmt, ...) ::Logger::emit('D', tag, fmt, ##__VA_ARGS__)
+#else
+    #define LOG_VDEBUG(tag, fmt, ...) ((void)0)
+#endif
+
 #if APP_LOG_LEVEL >= LOG_LEVEL_VERBOSE
     #define LOG_VERBOSE(tag, fmt, ...) ::Logger::emit('V', tag, fmt, ##__VA_ARGS__)
 #else

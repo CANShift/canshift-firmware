@@ -14,6 +14,7 @@
 #define LOG_WARN(tag, fmt, ...) ((void)0)
 #define LOG_INFO(tag, fmt, ...) ((void)0)
 #define LOG_DEBUG(tag, fmt, ...) ((void)0)
+#define LOG_VDEBUG(tag, fmt, ...) ((void)0)
 #define LOG_VERBOSE(tag, fmt, ...) ((void)0)
 
 namespace Logger {
