@@ -17,13 +17,14 @@
 
 #include <stdint.h>
 
+#include <esp_err.h>
+
 namespace CanManager {
 
 /**
-     * Initialize TWAI hardware driver.
-     * Called from BootSequence::run() (not from the CAN task).
+     * Initialize TWAI hardware driver. Pinned to core 0 via a dedicated task.
      */
-void initHardware();
+esp_err_t initHardware();
 
 /**
      * Main CAN receive and dispatch loop.

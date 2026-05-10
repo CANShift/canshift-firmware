@@ -10,6 +10,10 @@
 #include "hal/usb/usb_comm.h"
 
 #include <driver/twai.h>
+#include <esp_err.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
 #include <Arduino.h>
 #include <string.h> // memcpy
 
@@ -28,6 +32,10 @@ static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 // ---------------------------------------------------------------------------
 // TWAI configuration helpers
 // ---------------------------------------------------------------------------
+
+static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
+static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
+static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
 
 namespace {
 
@@ -49,13 +57,7 @@ twai_filter_config_t getFilterConfig() {
     return TWAI_FILTER_CONFIG_ACCEPT_ALL();
 }
 
-} // namespace
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-void CanManager::initHardware() {
+esp_err_t installAndStartOnThisCore() {
     const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
 
     // device.json overrides board_config.h for pins and speed
@@ -83,7 +85,7 @@ void CanManager::initHardware() {
         char msg[52];
         snprintf(msg, sizeof(msg), "Init failed: %s", esp_err_to_name(err));
         ErrorStore::push(ERROR_SRC_CAN, "INIT_FAIL", msg);
-        return;
+        return err;
     }
 
     err = twai_start();
@@ -92,13 +94,57 @@ void CanManager::initHardware() {
         char msg[52];
         snprintf(msg, sizeof(msg), "Start failed: %s", esp_err_to_name(err));
         ErrorStore::push(ERROR_SRC_CAN, "START_FAIL", msg);
-        return;
+        return err;
     }
 
     // Load dynamic signal definitions from config
     MaxxEcuParser::loadSignalDefinitions();
 
     LOG_INFO("CAN", "TWAI driver started successfully");
+    return ESP_OK;
+}
+
+struct InitContext {
+    SemaphoreHandle_t done;
+    esp_err_t result;
+};
+
+void twaiInitTaskFn(void *arg) {
+    auto *ctx = static_cast<InitContext *>(arg);
+    ctx->result = installAndStartOnThisCore();
+    LOG_INFO("CAN", "TWAI init task done on core %d (err=%s)",
+             xPortGetCoreID(), esp_err_to_name(ctx->result));
+    xSemaphoreGive(ctx->done);
+    vTaskDelete(NULL);
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+esp_err_t CanManager::initHardware() {
+    InitContext ctx{xSemaphoreCreateBinary(), ESP_FAIL};
+    if (!ctx.done) {
+        LOG_ERROR("CAN", "Failed to create init semaphore");
+        return ESP_ERR_NO_MEM;
+    }
+    BaseType_t ok = xTaskCreatePinnedToCore(
+        twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
+        &ctx, TWAI_INIT_TASK_PRIO, nullptr, 0 /* core 0 */);
+    if (ok != pdPASS) {
+        vSemaphoreDelete(ctx.done);
+        LOG_ERROR("CAN", "Failed to spawn twai_init task");
+        return ESP_ERR_NO_MEM;
+    }
+    if (xSemaphoreTake(ctx.done, pdMS_TO_TICKS(TWAI_INIT_TIMEOUT_MS)) != pdTRUE) {
+        LOG_ERROR("CAN", "twai_init task timed out");
+        vSemaphoreDelete(ctx.done);
+        return ESP_ERR_TIMEOUT;
+    }
+    vSemaphoreDelete(ctx.done);
+    return ctx.result;
 }
 
 void CanManager::tick() {
