@@ -17,6 +17,7 @@
 #include "config/default_config.h"
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
+#include "runtime/timer_service.h"
 #include "ui/page_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/font_manager.h"
@@ -305,6 +306,8 @@ void BootSequence::run() {
     updateSplash("Applying config...", 55);
 
     // 5. Runtime
+    LOG_INFO("BOOT", "Initializing TimerService...");
+    TimerService::init();
     LOG_INFO("BOOT", "Initializing SignalStore...");
     SignalStore::init();
     LOG_INFO("BOOT", "Initializing AlertEngine...");
