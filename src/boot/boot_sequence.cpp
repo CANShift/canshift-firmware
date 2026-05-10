@@ -8,6 +8,7 @@
 #include "diag/logger.h"
 #include "diag/error_store.h"
 #include "hal/display/display_driver.h"
+#include "hal/memory/psram.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/storage/storage_driver.h"
 #include "hal/storage/lvgl_fs_driver.h"
@@ -36,12 +37,22 @@
 // the lifetime low-watermark at a named boot stage. Helps pinpoint memory
 // pressure without needing a debugger. MALLOC_CAP_INTERNAL is the pool LVGL
 // allocates from, so it is the metric that actually tracks UI headroom.
+// When PSRAM is present the free-PSRAM byte count is appended so field
+// reports show the WROVER headroom win at a glance (issue #563).
 static void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
     const uint32_t minFree = ESP.getMinFreeHeap();
-    LOG_INFO("HEAP", "%s: free=%u largest=%u min=%u", stage, static_cast<unsigned>(free),
-             static_cast<unsigned>(largest), static_cast<unsigned>(minFree));
+    if (canshift::hal::memory::isPsramAvailable()) {
+        const uint32_t freePsram =
+            static_cast<uint32_t>(canshift::hal::memory::getFreePsram());
+        LOG_INFO("HEAP", "%s: free=%u largest=%u min=%u psram_free=%u", stage,
+                 static_cast<unsigned>(free), static_cast<unsigned>(largest),
+                 static_cast<unsigned>(minFree), static_cast<unsigned>(freePsram));
+    } else {
+        LOG_INFO("HEAP", "%s: free=%u largest=%u min=%u", stage, static_cast<unsigned>(free),
+                 static_cast<unsigned>(largest), static_cast<unsigned>(minFree));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +214,10 @@ void BootSequence::run() {
     esp_log_level_set("nvs", ESP_LOG_WARN);
 
     const uint32_t bootStartMs = millis();
+
+    // Detect PSRAM before any allocation so the display driver can offload
+    // its LVGL draw buffers to SPIRAM when the chip is a WROVER (issue #563).
+    canshift::hal::memory::initPsram();
 
     logHeap("entry");
     // 1. Display + LVGL must come early so we can show a splash

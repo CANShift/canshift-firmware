@@ -8,6 +8,7 @@
 #include "config/rotation_config.h"
 #include "diag/logger.h"
 #include "diag/perf_counters.h"
+#include "hal/memory/psram.h"
 
 #include <lvgl.h>
 
@@ -72,13 +73,45 @@ void DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing LovyanGFX...");
 
     const size_t bufBytes = HW_DISPLAY_WIDTH * kLvglBufLines * sizeof(lv_color_t);
-    s_buf1 =
-        static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
-    s_buf2 =
-        static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+
+    // Offload LVGL draw buffers to PSRAM when the chip is a WROVER variant
+    // (issue #563). LovyanGFX handles PSRAM-resident pixel data via its DMA
+    // bus path. On a WROOM (no PSRAM), fall back to DMA-capable internal RAM
+    // — byte-identical to the pre-#563 behaviour.
+    const bool offloadToPsram = canshift::hal::memory::isPsramAvailable();
+    if (offloadToPsram) {
+        s_buf1 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
+        s_buf2 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
+        if (s_buf1 && s_buf2) {
+            LOG_INFO("DISP", "LVGL draw buffers allocated in PSRAM (%u bytes each)",
+                     static_cast<unsigned>(bufBytes));
+        } else {
+            // Free whatever did succeed and fall through to the DRAM path so
+            // the device still boots if PSRAM ran out unexpectedly.
+            if (s_buf1) {
+                heap_caps_free(s_buf1);
+                s_buf1 = nullptr;
+            }
+            if (s_buf2) {
+                heap_caps_free(s_buf2);
+                s_buf2 = nullptr;
+            }
+            LOG_WARN("DISP", "PSRAM alloc failed — retrying in DRAM");
+        }
+    }
+
     if (!s_buf1 || !s_buf2) {
-        LOG_ERROR("DISP", "Failed to allocate LVGL draw buffers (%u bytes each)", bufBytes);
-        return;
+        s_buf1 = static_cast<lv_color_t *>(
+            heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+        s_buf2 = static_cast<lv_color_t *>(
+            heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+        if (!s_buf1 || !s_buf2) {
+            LOG_ERROR("DISP", "Failed to allocate LVGL draw buffers (%u bytes each)",
+                      static_cast<unsigned>(bufBytes));
+            return;
+        }
+        LOG_INFO("DISP", "LVGL draw buffers allocated in DRAM (%u bytes each)",
+                 static_cast<unsigned>(bufBytes));
     }
 
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
