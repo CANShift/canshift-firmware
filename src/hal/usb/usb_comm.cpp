@@ -454,6 +454,7 @@ static volatile uint32_t s_lastHostCmdMs = 0;
 // main.cpp. Mirrors the pattern used by ble_server.cpp for the same actions.
 static std::atomic<bool> s_pendingDayNightToggle{false};
 static std::atomic<bool> s_pendingCalibration{false};
+static std::atomic<bool> s_pendingCalibrationReset{false};
 
 // Pending explicit day/night set: -1 = none, 0 = night, 1 = day.
 // Separate from the toggle flag so old hosts (sending CMD_TOGGLE_DAY_NIGHT)
@@ -571,6 +572,11 @@ void handleCommand(const char *jsonLine) {
             LOG_INFO("USB", "CMD: calibration queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
+        case UsbComm::CMD_RESET_TOUCH_CAL:
+            s_pendingCalibrationReset.store(true, std::memory_order_relaxed);
+            LOG_INFO("USB", "CMD: calibration reset queued");
+            UsbComm::sendLine("{\"status\":\"ok\"}");
+            break;
         case UsbComm::CMD_CAN_SCAN_START:
             s_scanDrops = 0;
             s_canScanMode = true;
@@ -679,6 +685,10 @@ int8_t UsbComm::takePendingDayNightSet() {
 
 bool UsbComm::takePendingCalibration() {
     return s_pendingCalibration.exchange(false, std::memory_order_relaxed);
+}
+
+bool UsbComm::takePendingCalibrationReset() {
+    return s_pendingCalibrationReset.exchange(false, std::memory_order_relaxed);
 }
 
 bool UsbComm::isHostActive() {

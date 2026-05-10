@@ -5,9 +5,13 @@
 // registers an LVGL input device.
 //
 // Calibration:
-//   On first boot (no NVS data): uses board_config.h TOUCH_CAL_* defaults.
-//   After running calibrate(): 5×uint16_t stored in NVS namespace "touch".
+//   On first boot (no NVS data): runs the interactive 4-corner routine.
+//   After running calibrate(): 8×uint16_t (16 bytes) stored in NVS namespace
+//   "touch" under key "cal". Survives reboots and OTA app updates because the
+//   NVS partition is preserved.
 //   Run calibrate() from the settings page whenever touch accuracy is poor.
+//   Run resetCalibration() to wipe the saved offsets — next boot falls back to
+//   the first-boot interactive routine.
 
 #include <lvgl.h>
 

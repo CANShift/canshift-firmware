@@ -10,6 +10,7 @@
 //     CMD_PUT_FILE          0x06  — Stream a file to storage in base64-encoded chunks
 //     CMD_TOGGLE_DAY_NIGHT  0x07  — Flip the day/night theme on the device
 //     CMD_CALIBRATE_TOUCH   0x08  — Run the on-device touch calibration crosshairs
+//     CMD_RESET_TOUCH_CAL   0x0A  — Clear saved touch calibration (revert to defaults on next boot)
 //     CMD_GET_STATUS        0x10  — Query firmware version, protocol, is_day flag
 //     CMD_CAN_SCAN_START    0x20  — Start forwarding raw CAN frames over USB
 //     CMD_CAN_SCAN_STOP     0x21  — Stop forwarding raw CAN frames
@@ -72,6 +73,13 @@ static constexpr uint8_t CMD_CALIBRATE_TOUCH = 0x08;
 // Preferred over CMD_TOGGLE_DAY_NIGHT because tapping "Day" while already in
 // day mode no longer flips the theme (issue #225).
 static constexpr uint8_t CMD_SET_DAY_NIGHT = 0x09;
+// Clear the persisted touch calibration data from NVS. On next boot the
+// firmware falls back to the board_config.h defaults and re-runs the
+// interactive calibration routine (because no NVS entry is present).
+// Deferred to the UI task: TouchDriver::resetCalibration() only touches NVS,
+// but pairing it with the same flag handler keeps the action sequenced after
+// any pending calibrate request. Payload: {"cmd":10}.
+static constexpr uint8_t CMD_RESET_TOUCH_CAL = 0x0A;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
@@ -131,6 +139,13 @@ int8_t takePendingDayNightSet();
  * blocks on user input).
  */
 bool takePendingCalibration();
+
+/**
+ * Take-and-clear the pending calibration-reset flag set by CMD_RESET_TOUCH_CAL.
+ * Returns true exactly once per command. Consumed by the UI task in main.cpp.
+ * The reset itself is a synchronous NVS write so no mutex is required.
+ */
+bool takePendingCalibrationReset();
 
 /**
  * Write a single wire-protocol line to UART0 under the logger mutex.

@@ -62,6 +62,13 @@ int8_t takePendingDayNightSet();
  */
 bool takePendingCalibration();
 
+/**
+ * Atomically consume the pending calibration-reset request.
+ * Returns true (and clears the flag) if a reset was requested.
+ * Call from the UI task. The reset only touches NVS so no mutex is required.
+ */
+bool takePendingCalibrationReset();
+
 } // namespace BleServer
 
 #endif // APP_BLE_ENABLED

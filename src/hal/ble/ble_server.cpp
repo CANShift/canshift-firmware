@@ -48,6 +48,7 @@ static bool s_connected = false;
 // Deferred command flags — set by BLE callbacks, consumed by UI task
 static std::atomic<bool> s_pendingDayNightToggle{false};
 static std::atomic<bool> s_pendingCalibration{false};
+static std::atomic<bool> s_pendingCalibrationReset{false};
 
 // Pending explicit day/night set: -1 = none, 0 = night, 1 = day.
 // Separate from the toggle flag so old clients (sending toggle_day_night)
@@ -192,6 +193,12 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             // Deferred to UI task — calibrate() is blocking (user taps crosshairs)
             s_pendingCalibration.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration queued");
+        } else if (strcmp(cmd, "reset_calibration") == 0) {
+            // Deferred to UI task — keeps NVS access on a single task thread,
+            // matching the calibrate path. Reset wipes the persisted offsets;
+            // next boot falls back to board defaults + first-boot calibration.
+            s_pendingCalibrationReset.store(true, std::memory_order_relaxed);
+            LOG_INFO("BLE", "CMD: calibration reset queued");
         } else if (strcmp(cmd, "reboot") == 0) {
             LOG_INFO("BLE", "CMD: reboot");
             delay(100);
@@ -304,6 +311,10 @@ int8_t BleServer::takePendingDayNightSet() {
 
 bool BleServer::takePendingCalibration() {
     return s_pendingCalibration.exchange(false, std::memory_order_relaxed);
+}
+
+bool BleServer::takePendingCalibrationReset() {
+    return s_pendingCalibrationReset.exchange(false, std::memory_order_relaxed);
 }
 
 #endif // APP_BLE_ENABLED

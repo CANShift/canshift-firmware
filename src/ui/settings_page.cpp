@@ -164,6 +164,14 @@ static void onCalibrateTouch(lv_event_t * /*e*/) {
     TouchDriver::calibrate();
 }
 
+static void onResetTouchCal(lv_event_t * /*e*/) {
+    // Wipes the saved offsets — next boot falls back to board defaults and
+    // re-runs first-boot calibration. The current session keeps the cached
+    // offsets so the user can still navigate the UI to reboot.
+    TouchDriver::resetCalibration();
+    LOG_INFO("Settings", "Touch calibration reset — reboot to apply defaults");
+}
+
 static void onSave(lv_event_t * /*e*/) {
     LOG_INFO("Settings", "SAVE button clicked");
     nvsSave();
@@ -355,6 +363,27 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         lv_obj_set_style_text_color(calLbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_center(calLbl);
         lv_obj_add_event_cb(calBtn, onCalibrateTouch, LV_EVENT_CLICKED, nullptr);
+        y += btnH;
+    }
+
+    // ---- Reset touch calibration (defaults restored on next boot) ----
+    y += gapInner;
+    {
+        lv_obj_t *resetCalBtn = lv_btn_create(s_panel);
+        lv_obj_set_pos(resetCalBtn, PAD_H, y);
+        lv_obj_set_size(resetCalBtn, rowW, btnH);
+        lv_obj_set_style_bg_color(resetCalBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
+        lv_obj_set_style_border_color(resetCalBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
+        lv_obj_set_style_border_width(resetCalBtn, 1, LV_PART_MAIN);
+        lv_obj_set_style_radius(resetCalBtn, 0, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(resetCalBtn, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(resetCalBtn, 3, LV_PART_MAIN);
+        lv_obj_t *resetCalLbl = lv_label_create(resetCalBtn);
+        lv_label_set_text(resetCalLbl, "RESET TOUCH CAL");
+        lv_obj_set_style_text_font(resetCalLbl, FONT_SM(), 0);
+        lv_obj_set_style_text_color(resetCalLbl, lv_color_hex(CLR_MUTED), 0);
+        lv_obj_center(resetCalLbl);
+        lv_obj_add_event_cb(resetCalBtn, onResetTouchCal, LV_EVENT_CLICKED, nullptr);
         y += btnH;
     }
 

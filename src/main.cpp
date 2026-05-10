@@ -197,10 +197,18 @@ void taskUI(void *pvParameters) {
             BleServer::pushStatusNotify();
             calibratedThisTick = true;
         }
+        // Reset-calibration only touches NVS — no LVGL mutex needed, but
+        // running it on the UI task keeps all NVS writes on a single thread.
+        if (BleServer::takePendingCalibrationReset()) {
+            TouchDriver::resetCalibration();
+        }
 #endif
         if (UsbComm::takePendingCalibration()) {
             TouchDriver::calibrate();
             calibratedThisTick = true;
+        }
+        if (UsbComm::takePendingCalibrationReset()) {
+            TouchDriver::resetCalibration();
         }
         (void)calibratedThisTick;
 
