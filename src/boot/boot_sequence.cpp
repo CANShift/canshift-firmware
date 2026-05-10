@@ -3,6 +3,7 @@
 #include "boot_sequence.h"
 #include "app_config.h"
 #include "board_config.h"
+#include "hardware_profile.h"
 
 #include "diag/logger.h"
 #include "diag/error_store.h"
@@ -96,7 +97,9 @@ static lv_obj_t *buildSplashBase() {
 static void showSplash() {
     lv_obj_t *scr = buildSplashBase();
 
-    static constexpr int16_t BAR_W = 280;
+    static constexpr int16_t BAR_MARGIN_PX = 20;
+    static constexpr int16_t BAR_W = HW_DISPLAY_WIDTH - 2 * BAR_MARGIN_PX;
+    static_assert(BAR_W == 280, "splash bar width regression for CrowPanel 2.8\"");
     static constexpr int16_t BAR_H = 4;
     lv_obj_t *bar = lv_bar_create(scr);
     lv_obj_set_size(bar, BAR_W, BAR_H);

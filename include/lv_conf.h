@@ -88,6 +88,11 @@
    Range: 80..1200 */
         #define LV_DPI_DEF 100
 
+        /* Hard upper bounds on what LVGL needs to allocate for any single
+   display — pinned to the active board's logical (post-rotation) dims. */
+        #define LV_HOR_RES_MAX HW_DISPLAY_WIDTH
+        #define LV_VER_RES_MAX HW_DISPLAY_HEIGHT
+
         /*=======================
    DRAW CONFIGURATION
  *=======================*/

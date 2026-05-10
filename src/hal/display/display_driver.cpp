@@ -11,6 +11,27 @@
 
 #include <lvgl.h>
 
+static_assert(HW_DISPLAY_WIDTH == 320 && HW_DISPLAY_HEIGHT == 240,
+              "expected CrowPanel 2.8\" 320×240 — override BoardProfile if changing");
+
+// Derive the LVGL draw-buffer line count from the per-board RAM budget so a
+// new BoardProfile only has to set HW_LVGL_DRAW_BUDGET_BYTES. Floor at 8
+// lines so absurdly tight budgets still yield a usable buffer.
+namespace {
+constexpr size_t kLvglBytesPerPixel = HW_DISPLAY_COLOR_DEPTH / 8U;
+constexpr size_t kLvglNumBuffers = 2U;
+constexpr size_t kLvglFloorLines = 8U;
+
+constexpr size_t computeLvglBufLines(uint16_t screenW, size_t budgetBytes) {
+    return (budgetBytes / kLvglNumBuffers / kLvglBytesPerPixel / screenW) > kLvglFloorLines
+               ? (budgetBytes / kLvglNumBuffers / kLvglBytesPerPixel / screenW)
+               : kLvglFloorLines;
+}
+
+constexpr size_t kLvglBufLines = computeLvglBufLines(HW_DISPLAY_WIDTH, HW_LVGL_DRAW_BUDGET_BYTES);
+static_assert(kLvglBufLines == 20, "draw-buffer line count regression for CrowPanel 2.8\"");
+} // namespace
+
 static lv_disp_draw_buf_t s_drawBuf;
 static lv_disp_drv_t s_dispDrv;
 
@@ -50,7 +71,7 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
 void DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing LovyanGFX...");
 
-    const size_t bufBytes = HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT * sizeof(lv_color_t);
+    const size_t bufBytes = HW_DISPLAY_WIDTH * kLvglBufLines * sizeof(lv_color_t);
     s_buf1 =
         static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     s_buf2 =
@@ -80,7 +101,7 @@ void DisplayDriver::registerWithLVGL() {
         return;
     }
 
-    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * LVGL_BUF_LINE_COUNT);
+    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * kLvglBufLines);
 
     lv_disp_drv_init(&s_dispDrv);
     s_dispDrv.hor_res = HW_DISPLAY_WIDTH;

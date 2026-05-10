@@ -11,6 +11,7 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include "board_config.h"
+#include "hardware_profile.h"
 
 class LGFX : public lgfx::LGFX_Device {
     lgfx::Panel_ILI9341 _panel;
@@ -41,10 +42,10 @@ public:
             cfg.pin_cs = PIN_TFT_CS;
             cfg.pin_rst = PIN_TFT_RST;
             cfg.pin_busy = -1;
-            cfg.memory_width = 240;
-            cfg.memory_height = 320;
-            cfg.panel_width = 240;
-            cfg.panel_height = 320;
+            cfg.memory_width = HW_PANEL_NATIVE_WIDTH;
+            cfg.memory_height = HW_PANEL_NATIVE_HEIGHT;
+            cfg.panel_width = HW_PANEL_NATIVE_WIDTH;
+            cfg.panel_height = HW_PANEL_NATIVE_HEIGHT;
             cfg.offset_x = 0;
             cfg.offset_y = 0;
             cfg.offset_rotation = 0;
@@ -69,9 +70,9 @@ public:
         {
             auto cfg = _touch.config();
             cfg.x_min = 0;
-            cfg.x_max = 239;
+            cfg.x_max = HW_TOUCH_RAW_X_MAX;
             cfg.y_min = 0;
-            cfg.y_max = 319;
+            cfg.y_max = HW_TOUCH_RAW_Y_MAX;
             cfg.pin_int = PIN_TOUCH_IRQ;
             cfg.bus_shared = true;
             cfg.offset_rotation = 0;

@@ -6,6 +6,8 @@
 
 // ---------------------------------------------------------------------------
 // Display capabilities
+// All values here are compile-time today; runtime BoardProfile (issue #17)
+// will select them at boot.
 // ---------------------------------------------------------------------------
 #define HW_DISPLAY_WIDTH 320
 #define HW_DISPLAY_HEIGHT 240
@@ -15,6 +17,20 @@
         // DIS04028H + LovyanGFX: rotation 3 = USB port on the right (#40).
         // Note: TFT_eSPI used rotation 1 for the same orientation — LovyanGFX
         // has the opposite landscape convention.
+
+// Native (unrotated) panel pixel dimensions — what the controller reports.
+// Logical (post-rotation) dims live in HW_DISPLAY_WIDTH/HEIGHT.
+#define HW_PANEL_NATIVE_WIDTH 240  // ILI9341 portrait native
+#define HW_PANEL_NATIVE_HEIGHT 320
+
+// Touch raw extents — derive from native dims minus 1.
+#define HW_TOUCH_RAW_X_MAX (HW_PANEL_NATIVE_WIDTH - 1)
+#define HW_TOUCH_RAW_Y_MAX (HW_PANEL_NATIVE_HEIGHT - 1)
+
+// Per-board RAM budget (bytes) for both LVGL draw buffers combined.
+// Drives LVGL_BUF_LINE_COUNT computation. 25 KB matches existing
+// 320 × 20 × 2 × 2 = 25,600-byte allocation, so the existing board is byte-identical.
+#define HW_LVGL_DRAW_BUDGET_BYTES (25U * 1024U)
 
 // Display interface
 #define HW_DISPLAY_SPI 1 // ILI9341 via SPI
