@@ -37,24 +37,27 @@
    MEMORY SETTINGS
  *=========================*/
 
-        /* Size of the memory available for `lv_mem_alloc()` in bytes */
-        #if APP_SIMULATION_MODE
-            #define LV_MEM_SIZE                                                                    \
-                (12U * 1024U) /* 12 KB — sim mode (CI compile check only, no runtime) */
-        #else
-            /* 80 KB — bumped from 64 KB after v0.8.1 boot loop on real
-   hardware (LVGL OOM during PageManager::init when the 6 SPIFFS-loaded
-   Orbitron sizes consumed ~53 KB of the 64 KB pool, leaving only
-   ~11 KB for widget creation). 80 KB sits between the previously-tried
-   96 KB (which tripped LV_ASSERT_MALLOC inside lv_init for ~14 KB
-   contig headroom) and the over-tight 64 KB. Largest free block at
-   boot is ~110 KB, so a 80 KB pool leaves ~30 KB headroom for lv_init
-   contig allocations and ~27 KB free in the pool itself for widget
+        /* Size of the memory available for `lv_mem_alloc()` in bytes.
+   80 KB — bumped from 64 KB after v0.8.1 boot loop on real hardware
+   (LVGL OOM during PageManager::init when the 6 SPIFFS-loaded Orbitron
+   sizes consumed ~53 KB of the 64 KB pool, leaving only ~11 KB for
+   widget creation). 80 KB sits between the previously-tried 96 KB
+   (which tripped LV_ASSERT_MALLOC inside lv_init for ~14 KB contig
+   headroom) and the over-tight 64 KB. Largest free block at boot is
+   ~110 KB, so a 80 KB pool leaves ~30 KB headroom for lv_init contig
+   allocations and ~27 KB free in the pool itself for widget
    instantiation after the 6 fonts (~53 KB) are loaded. Allocated via
    malloc (LV_MEM_POOL_ALLOC), so this line consumes runtime heap, not
-   bss. */
-            #define LV_MEM_SIZE (80U * 1024U)
-        #endif
+   bss.
+
+   Sim/QEMU shares the same pool size as production — the QEMU boot
+   smoke test (.github/workflows/firmware-boot-smoke.yml) runs the sim
+   build through the full font-load and PageManager bring-up, so the
+   pool must hold all 6 Orbitron .bin payloads. A previous sim-only
+   12 KB override panicked StoreProhibited at EXCVADDR=0 because the
+   first 20 KB font's bitmap allocation returned NULL inside LVGL's
+   lvgl_load_font (which then memset'd the NULL pointer); issue #557. */
+        #define LV_MEM_SIZE (80U * 1024U)
 
         /* Set an address for the memory pool instead of allocating it as a global array.
    Can be in external SRAM too. */
