@@ -410,6 +410,65 @@ static void animBreath(void *obj, int32_t v) {
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0);
 }
 
+// Builds a simple USB-A plug icon from primitives. We can't use LV_SYMBOL_USB
+// because the Orbitron font shipped with the firmware doesn't include the
+// FontAwesome glyph range (issue #577). Drawing rectangles keeps the icon
+// asset-free and renders correctly on every theme.
+static lv_obj_t *createUsbIcon(lv_obj_t *parent, uint32_t color) {
+    constexpr int16_t SLEEVE_W = 18;
+    constexpr int16_t SLEEVE_H = 24;
+    constexpr int16_t CABLE_W = 4;
+    constexpr int16_t CABLE_H = 6;
+    constexpr int16_t CONTACT_W = 10;
+    constexpr int16_t CONTACT_H = 4;
+    constexpr int16_t CONTACT_TOP_PAD = 4;
+    constexpr int16_t ICON_W = SLEEVE_W;
+    constexpr int16_t ICON_H = SLEEVE_H + CABLE_H;
+
+    lv_obj_t *icon = lv_obj_create(parent);
+    lv_obj_set_size(icon, ICON_W, ICON_H);
+    lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(icon, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(icon, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(icon, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(icon, LV_OBJ_FLAG_CLICKABLE);
+
+    // Connector sleeve — the metal body of a USB-A plug.
+    lv_obj_t *sleeve = lv_obj_create(icon);
+    lv_obj_set_size(sleeve, SLEEVE_W, SLEEVE_H);
+    lv_obj_set_style_radius(sleeve, 2, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sleeve, lv_color_hex(color), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(sleeve, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(sleeve, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(sleeve, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(sleeve, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(sleeve, LV_ALIGN_TOP_MID, 0, 0);
+
+    // Inner contact plate — sits just inside the top of the sleeve.
+    lv_obj_t *contact = lv_obj_create(sleeve);
+    lv_obj_set_size(contact, CONTACT_W, CONTACT_H);
+    lv_obj_set_style_radius(contact, 1, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(contact, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(contact, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(contact, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(contact, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(contact, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(contact, LV_ALIGN_TOP_MID, 0, CONTACT_TOP_PAD);
+
+    // Cable stub — short tail extending out the back of the connector.
+    lv_obj_t *cable = lv_obj_create(icon);
+    lv_obj_set_size(cable, CABLE_W, CABLE_H);
+    lv_obj_set_style_radius(cable, 1, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(cable, lv_color_hex(color), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(cable, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(cable, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(cable, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(cable, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(cable, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    return icon;
+}
+
 void showSetupScreen() {
     lv_obj_t *scr = lv_obj_create(nullptr);
     lv_obj_set_size(scr, LV_HOR_RES, LV_VER_RES);
@@ -459,17 +518,14 @@ void showSetupScreen() {
     lv_obj_set_width(instr, LV_HOR_RES - 40);
     lv_obj_align(instr, LV_ALIGN_CENTER, 0, 26);
 
-    // ---------- Pulsing dot — "waiting" ----------
-    lv_obj_t *dot = lv_label_create(scr);
-    lv_label_set_text(dot, "\xE2\x97\x8F"); // ● filled circle
-    lv_obj_set_style_text_font(dot, FontManager::label(16), 0);
-    lv_obj_set_style_text_color(dot, lv_color_hex(0xFF4444), 0);
-    lv_obj_align(dot, LV_ALIGN_BOTTOM_MID, 0, -24);
+    // ---------- Pulsing USB icon — "plug in via USB and connect" ----------
+    lv_obj_t *usbIcon = createUsbIcon(scr, 0xFF3030);
+    lv_obj_align(usbIcon, LV_ALIGN_BOTTOM_MID, 0, -16);
 
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_exec_cb(&a, animBreath);
-    lv_anim_set_var(&a, dot);
+    lv_anim_set_var(&a, usbIcon);
     lv_anim_set_values(&a, LV_OPA_20, LV_OPA_COVER);
     lv_anim_set_time(&a, 900);
     lv_anim_set_playback_time(&a, 900);
