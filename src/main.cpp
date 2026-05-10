@@ -104,34 +104,43 @@ void setup() {
     // ---------------------------------------------------------------------------
     // UI task — runs LVGL tick and handler on core 1
     // All UI rendering and touch input processing happens here.
+    // Core 1, priority 10, stack 8192 B (see TASK_CORE_UI/PRIO_UI/STACK_UI in app_config.h).
     // ---------------------------------------------------------------------------
     xTaskCreatePinnedToCore(taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, nullptr,
                             TASK_CORE_UI);
 
 #if !APP_SIMULATION_MODE
     // ---------------------------------------------------------------------------
-    // CAN task — reads TWAI frames, parses them, writes to SignalStore
-    // Runs on core 0 to avoid contention with LVGL on core 1
+    // CAN task — reads TWAI frames, parses them, writes to SignalStore.
+    // Pinned to core 0 to keep TWAI ISR + parse off core 1, where LVGL renders.
+    // Core 0, priority 15, stack 4096 B (see TASK_CORE_CAN/PRIO_CAN/STACK_CAN in app_config.h).
     // ---------------------------------------------------------------------------
     xTaskCreatePinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN, nullptr,
                             TASK_CORE_CAN);
 #else
     // ---------------------------------------------------------------------------
-    // Simulation task — writes fake signal values to SignalStore
+    // Simulation task — writes fake signal values to SignalStore.
+    // Core 1, priority 5, stack 2048 B (see TASK_CORE_SIM/PRIO_SIM/STACK_SIM in app_config.h).
+    // Lowest priority because it is best-effort and yields generously.
     // ---------------------------------------------------------------------------
     xTaskCreatePinnedToCore(taskSim, "sim", TASK_STACK_SIM, nullptr, TASK_PRIO_SIM, nullptr,
                             TASK_CORE_SIM);
 #endif
 
     // ---------------------------------------------------------------------------
-    // USB comm task — Phase 1 config sync from desktop app
+    // USB comm task — Phase 1 config sync from desktop app.
+    // Core 1, priority 8, stack 4096 B (see TASK_CORE_USB/PRIO_USB/STACK_USB in app_config.h).
+    // Co-resident with UI on core 1 but lower priority — yields to UI on every tick.
     // ---------------------------------------------------------------------------
     xTaskCreatePinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB, nullptr,
                             TASK_CORE_USB);
 
 #if APP_BLE_ENABLED
     // ---------------------------------------------------------------------------
-    // BLE task — Phase 3 mobile app (telemetry + settings + WiFi AP OTA trigger)
+    // BLE task — Phase 3 mobile app (telemetry + settings + WiFi AP OTA trigger).
+    // Core 1, priority 6, stack 5120 B (see TASK_CORE_BLE/PRIO_BLE/STACK_BLE in app_config.h).
+    // NimBLE host runs on its own core-0 task internally; this task only serializes
+    // JSON telemetry and dispatches command callbacks.
     // ---------------------------------------------------------------------------
     xTaskCreatePinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE, nullptr,
                             TASK_CORE_BLE);

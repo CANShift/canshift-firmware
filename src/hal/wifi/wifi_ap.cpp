@@ -244,6 +244,9 @@ void WifiAp::start() {
     buildSsid();      // build SSID before task starts so getSsid() is valid immediately
     ensurePassword(); // ditto for getPassword(); persists to NVS on first boot
     s_active = true;
+    // Core 1, priority 5, stack 4096 B (see TASK_CORE_WIFI/PRIO_WIFI/STACK_WIFI in app_config.h).
+    // On-demand task started only for OTA — runs co-resident with UI on core 1
+    // because WiFi softAP needs the same Arduino-WiFi stack as the AP HTTP server.
     xTaskCreatePinnedToCore(apTaskFn, "wifi_ap", TASK_STACK_WIFI, nullptr,
                             TASK_PRIO_WIFI, &s_taskHandle, TASK_CORE_WIFI);
 }
