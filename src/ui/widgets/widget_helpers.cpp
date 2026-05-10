@@ -7,6 +7,7 @@
 #include "widget_helpers.h"
 
 #include "config/config_loader.h"
+#include "util/format_float.h"
 
 #include <cmath>
 #include <ctype.h>
@@ -63,9 +64,38 @@ void formatSignalLabel(const char *src, char *out, size_t outLen) {
 
 int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, float value,
                 const char *suffix) {
+    if (!out || outLen == 0)
+        return 0;
+    out[0] = '\0';
+    // Firmware overrides newlib's float printf with the integer-only variant
+    // (see util/no_float_printf.c) — any `%f` in a runtime format string is
+    // mis-parsed and corrupts va_args, which previously NULL-deref'd in
+    // strlen on the next `%s`. Compose the string manually via FloatFormat.
     const char *p = prefix ? prefix : "";
     const char *s = suffix ? suffix : "";
-    return snprintf(out, outLen, "%s%.*f%s", p, static_cast<int>(decimals), value, s);
+
+    size_t pos = 0;
+    const size_t prefixLen = strlen(p);
+    const size_t copyPrefix = (prefixLen < outLen - 1) ? prefixLen : outLen - 1;
+    memcpy(out + pos, p, copyPrefix);
+    pos += copyPrefix;
+    out[pos] = '\0';
+
+    if (pos + 1 < outLen) {
+        FloatFormat::formatFixed(out + pos, outLen - pos, value,
+                                 static_cast<int>(decimals));
+        pos += strlen(out + pos);
+    }
+
+    if (pos + 1 < outLen) {
+        const size_t suffixLen = strlen(s);
+        const size_t copySuffix =
+            (suffixLen < outLen - 1 - pos) ? suffixLen : outLen - 1 - pos;
+        memcpy(out + pos, s, copySuffix);
+        pos += copySuffix;
+        out[pos] = '\0';
+    }
+    return static_cast<int>(pos);
 }
 
 bool setLabelTextIfChanged(lv_obj_t *label, const char *text) {
