@@ -25,5 +25,10 @@
 # Build-time secrets (OTA HMAC key) — populated locally, never committed
 secrets.ini
 
+# Secure-boot artifacts — NEVER commit.
+secrets/
+keys/
+*.pem
+
 # Claude (local only)
 .claude/

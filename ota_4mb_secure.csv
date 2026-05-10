@@ -1,0 +1,27 @@
+# Partition table — 4MB flash with dual OTA + SPIFFS (SECURE variant)
+# Sibling to ota_4mb.csv. Used only by [env:secure] (secure boot v2 +
+# flash encryption). See docs/secure-boot-setup.md.
+#
+# Differences vs ota_4mb.csv:
+#   - 4 KB nvs_keys partition added (encrypted-NVS key storage)
+#   - encrypted flag set on nvs, otadata, app0, app1, spiffs
+#   - bootloader + partition table remain plaintext (signed, not encrypted)
+#
+# Layout (sizes unchanged from ota_4mb.csv except for the 4 KB nvs_keys
+# carved out of nvs):
+#   nvs        16 KB   — encrypted Preferences storage
+#   nvs_keys    4 KB   — encrypted-NVS key (encrypted under flash key)
+#   otadata     8 KB   — encrypted OTA slot tracking
+#   app0     1536 KB   — encrypted firmware slot 0 (ota_0)
+#   app1     1536 KB   — encrypted firmware slot 1 (ota_1)
+#   spiffs    832 KB   — encrypted config files, assets
+#   coredump  128 KB   — plaintext crash dumps (analysis on host)
+#
+# Name,    Type, SubType,  Offset,   Size,     Flags
+nvs,       data, nvs,      0x9000,   0x4000,   encrypted
+nvs_keys,  data, nvs_keys, 0xd000,   0x1000,   encrypted
+otadata,   data, ota,      0xe000,   0x2000,   encrypted
+app0,      app,  ota_0,    0x10000,  0x180000, encrypted
+app1,      app,  ota_1,    0x190000, 0x180000, encrypted
+spiffs,    data, spiffs,   0x310000, 0xD0000,  encrypted
+coredump,  data, coredump, 0x3E0000, 0x20000,

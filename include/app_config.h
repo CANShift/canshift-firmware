@@ -34,6 +34,16 @@
     #define APP_DEBUG_BUILD 0
 #endif
 
+// Secure-boot v2 + flash-encryption build — set by [env:secure] in
+// platformio.ini. Off in every other env. The macro is exposed for
+// downstream gating (e.g., a future boot-log line confirming the running
+// image is the signed/encrypted variant). No runtime behaviour change yet —
+// the actual fuse-burn happens host-side via scripts/secure_boot_first_flash.sh.
+// See docs/secure-boot-setup.md.
+#ifndef APP_SECURE_BOOT_BUILD
+    #define APP_SECURE_BOOT_BUILD 0
+#endif
+
 // ---------------------------------------------------------------------------
 // FreeRTOS task configuration
 // Adjust stack sizes if you see stack overflow panics (guru meditation error).

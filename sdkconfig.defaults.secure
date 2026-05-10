@@ -1,0 +1,32 @@
+# sdkconfig.defaults.secure — opt-in secure boot v2 + flash encryption
+# Applied only when building [env:secure] in platformio.ini.
+# See docs/secure-boot-setup.md for the full procedure and threat model.
+#
+# DO NOT enable in [env:crowpanel_28] or [env:sim] — these flags are
+# meaningful only when paired with the per-chip first-flash procedure.
+
+# --- Secure boot v2 (RSA-3072) ---
+CONFIG_SECURE_BOOT_V2_ENABLED=y
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=
+CONFIG_SECURE_BOOT_SIGNING_KEY="secrets/secure_boot_signing_key.pem"
+
+# --- Flash encryption (AES-XTS-256) ---
+CONFIG_SECURE_FLASH_ENC_ENABLED=y
+CONFIG_FLASH_ENCRYPTION_ENABLED=y
+CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y
+CONFIG_SECURE_FLASH_REQUIRE_ALREADY_ENABLED=
+
+# --- Anti-rollback (wired but SEC_VER ratchet is follow-up work) ---
+# Per-release: bump CONFIG_BOOTLOADER_APP_SEC_VER below before signing a
+# build that fixes a remotely exploitable bug. The ESP32 bootloader stores
+# the highest SEC_VER ever booted in eFuse and refuses to boot any image
+# with a lower version. See docs/secure-boot-setup.md section 7.
+CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=y
+CONFIG_BOOTLOADER_APP_SEC_VER=0
+
+# --- UART download backdoors closed in release mode ---
+CONFIG_SECURE_BOOT_INSECURE=
+CONFIG_SECURE_FLASH_UART_BOOTLOADER_ALLOW_ENC=
+CONFIG_SECURE_FLASH_UART_BOOTLOADER_ALLOW_DEC=
+CONFIG_SECURE_FLASH_UART_BOOTLOADER_ALLOW_CACHE=
