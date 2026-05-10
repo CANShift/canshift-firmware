@@ -12,6 +12,8 @@
 
 #if APP_WIFI_OTA_ENABLED
 
+#include "hal/wifi/ota_hmac.h"
+
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Update.h>
@@ -40,6 +42,12 @@ static constexpr char NVS_NS_WIFI_AP[] = "wifi_ap";
 static constexpr char NVS_KEY_PWD[] = "pwd";
 static constexpr size_t AP_PASSWORD_LEN = 16;
 
+// OTA HMAC trailer verifier — heap-allocated for the duration of one upload
+// so chunked WRITEs don't have to thread the verifier through closures. The
+// HTTP server task is single-threaded, so a single static is safe.
+static OtaHmac::OtaHmacVerifier *s_otaVerifier = nullptr;
+static bool s_otaHmacOk = false;
+
 // ---------------------------------------------------------------------------
 // HTTP handlers
 // ---------------------------------------------------------------------------
@@ -52,14 +60,49 @@ void handleStatus() {
     s_server.send(200, "application/json", buf);
 }
 
+void cleanupVerifier() {
+    if (s_otaVerifier != nullptr) {
+        delete s_otaVerifier;
+        s_otaVerifier = nullptr;
+    }
+}
+
+// Sink invoked by the HMAC verifier with body bytes (everything but the
+// trailing 32-byte HMAC). Returning false aborts the upload.
+bool otaUpdateSink(const uint8_t *data, size_t len, void * /*user*/) {
+    if (Update.write(const_cast<uint8_t *>(data), len) != len) {
+        LOG_ERROR("WiFi", "Update.write mismatch");
+        return false;
+    }
+    return true;
+}
+
 void handleOtaComplete() {
-    bool ok = !Update.hasError();
-    const char *body = ok ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}";
+    // Reject if either the Update layer reported an error OR the HMAC check
+    // failed (or never happened when it was required).
+    const bool updateOk = !Update.hasError();
+    const bool hmacRequired = (APP_OTA_REQUIRE_HMAC != 0);
+    const bool hmacOk = hmacRequired ? s_otaHmacOk : true;
+    const bool ok = updateOk && hmacOk;
+
+    const char *body = nullptr;
+    if (ok) {
+        body = "{\"status\":\"ok\"}";
+    } else if (!hmacOk) {
+        body = "{\"status\":\"error\",\"reason\":\"hmac\"}";
+    } else {
+        body = "{\"status\":\"error\"}";
+    }
     s_server.send(ok ? 200 : 500, "application/json", body);
+
+    cleanupVerifier();
+
     if (ok) {
         LOG_INFO("WiFi", "OTA complete — rebooting");
         delay(200);
         esp_restart();
+    } else if (!hmacOk) {
+        LOG_ERROR("WiFi", "OTA rejected: HMAC verification failed");
     } else {
         LOG_ERROR("WiFi", "OTA failed: %s", Update.errorString());
     }
@@ -70,19 +113,69 @@ void handleOtaUpload() {
     if (upload.status == UPLOAD_FILE_START) {
         LOG_INFO("WiFi", "OTA upload start: %s (%u bytes expected)",
                  upload.filename.c_str(), upload.totalSize);
+        s_otaHmacOk = false;
+        cleanupVerifier();
+
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
             LOG_ERROR("WiFi", "Update.begin failed: %s", Update.errorString());
+            return;
         }
+
+#if APP_OTA_REQUIRE_HMAC
+        static const char kSecret[] = OTA_HMAC_SECRET;
+        s_otaVerifier = new OtaHmac::OtaHmacVerifier(
+            OtaHmac::mbedtlsHmacBackend(),
+            reinterpret_cast<const uint8_t *>(kSecret),
+            sizeof(kSecret) - 1, // exclude trailing NUL
+            otaUpdateSink, nullptr);
+        if (s_otaVerifier == nullptr || !s_otaVerifier->begin()) {
+            LOG_ERROR("WiFi", "OTA HMAC verifier init failed");
+            cleanupVerifier();
+            Update.abort();
+        }
+#else
+        LOG_WARN("WiFi",
+                 "OTA HMAC verification disabled (APP_OTA_REQUIRE_HMAC=0) — insecure");
+#endif
     } else if (upload.status == UPLOAD_FILE_WRITE) {
+#if APP_OTA_REQUIRE_HMAC
+        if (s_otaVerifier == nullptr) {
+            return; // begin failed earlier
+        }
+        if (!s_otaVerifier->feed(upload.buf, upload.currentSize)) {
+            LOG_ERROR("WiFi", "OTA upload feed failed");
+            cleanupVerifier();
+            Update.abort();
+        }
+#else
         if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
             LOG_ERROR("WiFi", "Update.write mismatch");
         }
+#endif
     } else if (upload.status == UPLOAD_FILE_END) {
+#if APP_OTA_REQUIRE_HMAC
+        if (s_otaVerifier == nullptr) {
+            return;
+        }
+        const bool hmacMatch = s_otaVerifier->finish();
+        s_otaHmacOk = hmacMatch;
+        if (!hmacMatch) {
+            LOG_ERROR("WiFi", "OTA HMAC mismatch — aborting");
+            Update.abort();
+            return;
+        }
+#else
+        s_otaHmacOk = true; // unchecked, but the gate below ignores it
+#endif
         if (Update.end(true)) {
             LOG_INFO("WiFi", "OTA upload done: %u bytes written", upload.totalSize);
         } else {
             LOG_ERROR("WiFi", "Update.end failed: %s", Update.errorString());
         }
+    } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        LOG_WARN("WiFi", "OTA upload aborted by client");
+        cleanupVerifier();
+        Update.abort();
     }
 }
 

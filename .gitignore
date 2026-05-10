@@ -22,5 +22,8 @@
 .env
 .env.*
 
+# Build-time secrets (OTA HMAC key) — populated locally, never committed
+secrets.ini
+
 # Claude (local only)
 .claude/

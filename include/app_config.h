@@ -223,6 +223,29 @@
 #define BLE_WIFI_AP_TIMEOUT_MS (5UL * 60UL * 1000UL) // 5 minutes
 
 // ---------------------------------------------------------------------------
+// OTA upload integrity (issue #205 part 2)
+// ---------------------------------------------------------------------------
+
+// Require an HMAC-SHA256 trailer on every OTA upload. The trailer is the
+// last 32 bytes of the upload and must equal HMAC_SHA256(firmware, secret).
+// When 0 (default while studio + mobile catch up), the firmware logs a WARN
+// at upload start and accepts the upload as before — same behaviour as
+// before this feature shipped. Flip to 1 once both publishers append the
+// trailer; that gate change is a separate, intentional PR.
+#ifndef APP_OTA_REQUIRE_HMAC
+    #define APP_OTA_REQUIRE_HMAC 0
+#endif
+
+// Build-time shared secret used to verify OTA HMAC trailers. The real value
+// is injected via secrets.ini (gitignored) by scripts/extra_targets.py; the
+// fallback below is the dev placeholder and MUST NOT be used in production
+// builds — replace it before any release that flips APP_OTA_REQUIRE_HMAC=1.
+// extra_targets.py warns loudly when the fallback is hit.
+#ifndef OTA_HMAC_SECRET
+    #define OTA_HMAC_SECRET "DEV_INSECURE_REPLACE_BEFORE_PROD"
+#endif
+
+// ---------------------------------------------------------------------------
 // USB config sync (Phase 1)
 // ---------------------------------------------------------------------------
 
