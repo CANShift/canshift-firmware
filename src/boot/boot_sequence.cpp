@@ -312,4 +312,9 @@ void BootSequence::run() {
 
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",
              static_cast<unsigned long>(millis() - bootStartMs));
+
+    // CI smoke-test marker — QEMU boot smoke-test gate asserts this exact line
+    // appears once within 30 s. Do not remove. See
+    // .github/workflows/firmware-boot-smoke.yml (issue #486).
+    LOG_INFO("BOOT", "[BOOT] Ready");
 }

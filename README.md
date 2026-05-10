@@ -482,6 +482,16 @@ the primary file is missing or corrupt (`src/config/config_loader.cpp:48-99`).
 
 ---
 
+## CI — boot smoke-test gate
+
+Every PR touching `canshift-firmware/` runs a QEMU boot smoke test that
+asserts the production binary reaches `[BOOT] Ready` within 30 s exactly
+once, with no panic strings (`Guru Meditation`, `abort()`, `assert failed`,
+`Backtrace:`, multiple `rst:0x`). Do not remove the `[BOOT] Ready` log
+line at the end of `BootSequence::run()` in `src/boot/boot_sequence.cpp`
+— CI depends on it. Workflow: `.github/workflows/firmware-boot-smoke.yml`
+(issue #486).
+
 ## Contributing & issues
 
 Bug reports, feature requests, and hardware-verification PRs are welcome at
