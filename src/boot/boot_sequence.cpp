@@ -72,6 +72,7 @@ static void initDisplayAndLVGL() {
 namespace {
 static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
+static lv_obj_t *s_splashTitle = nullptr;
 } // namespace
 
 // Build the dark splash background.
@@ -81,15 +82,18 @@ static lv_obj_t *buildSplashBase() {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
+    // Title uses the static built-in Orbitron 14 at first paint; FontManager::init()
+    // upgrades it to Orbitron Black 32 (#544) once SPIFFS-backed fonts are loaded.
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "CANShift");
     lv_obj_set_style_text_color(title, lv_color_hex(0xFF4444), 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -40);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -50);
+    s_splashTitle = title;
 
     lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, "v" APP_VERSION_STR);
     lv_obj_set_style_text_color(ver, lv_color_hex(0x666666), 0);
-    lv_obj_align(ver, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, -10);
 
     return scr;
 }
@@ -281,6 +285,18 @@ void BootSequence::run() {
     FontManager::init();
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
+
+    // Upgrade splash title to Orbitron Black 32 now that SPIFFS-backed fonts
+    // are registered with LVGL (#544). Until this point the title rendered
+    // in the static built-in Orbitron 14 fallback.
+    if (s_splashTitle != nullptr) {
+        const lv_font_t *bigTitleFont = FontManager::primary(32);
+        if (bigTitleFont != nullptr) {
+            lv_obj_set_style_text_font(s_splashTitle, bigTitleFont, 0);
+            lv_obj_align(s_splashTitle, LV_ALIGN_CENTER, 0, -50);
+            lv_task_handler();
+        }
+    }
 
     // 4. Config
     logHeap("before loadConfig");
