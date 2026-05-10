@@ -84,7 +84,9 @@ static void initDisplayAndLVGL() {
 namespace {
 static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
-static lv_obj_t *s_splashTitle = nullptr;
+static lv_obj_t *s_splashTitleRow = nullptr;
+static lv_obj_t *s_splashTitleCan = nullptr;
+static lv_obj_t *s_splashTitleShift = nullptr;
 } // namespace
 
 // Build the dark splash background.
@@ -94,13 +96,33 @@ static lv_obj_t *buildSplashBase() {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Title uses the static built-in Orbitron 14 at first paint; FontManager::init()
-    // upgrades it to Orbitron Black 32 (#544) once SPIFFS-backed fonts are loaded.
-    lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "CANShift");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xFF4444), 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -50);
-    s_splashTitle = title;
+    // Two-tone CANShift logo: "CAN" in neutral gray, "Shift" in brand red — matches
+    // the canshift-studio wordmark. Held in a transparent flex row so the two
+    // labels stay glued and centred together. Title uses the static built-in
+    // Orbitron 14 at first paint; FontManager::init() upgrades it to Orbitron
+    // Black 32 (#544) once SPIFFS-backed fonts are loaded.
+    lv_obj_t *row = lv_obj_create(scr);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
+    lv_obj_set_style_pad_all(row, 0, 0);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_layout(row, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_align(row, LV_ALIGN_CENTER, 0, -50);
+
+    lv_obj_t *titleCan = lv_label_create(row);
+    lv_label_set_text(titleCan, "CAN");
+    lv_obj_set_style_text_color(titleCan, lv_color_hex(0x9A9A9A), 0);
+
+    lv_obj_t *titleShift = lv_label_create(row);
+    lv_label_set_text(titleShift, "Shift");
+    lv_obj_set_style_text_color(titleShift, lv_color_hex(0xFF4444), 0);
+
+    s_splashTitleRow = row;
+    s_splashTitleCan = titleCan;
+    s_splashTitleShift = titleShift;
 
     lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, "v" APP_VERSION_STR);
@@ -304,12 +326,19 @@ void BootSequence::run() {
 
     // Upgrade splash title to Orbitron Black 32 now that SPIFFS-backed fonts
     // are registered with LVGL (#544). Until this point the title rendered
-    // in the static built-in Orbitron 14 fallback.
-    if (s_splashTitle != nullptr) {
+    // in the static built-in Orbitron 14 fallback. Both halves of the
+    // two-tone "CANShift" wordmark get the upgrade; the parent flex row
+    // re-centres them automatically.
+    if (s_splashTitleRow != nullptr) {
         const lv_font_t *bigTitleFont = FontManager::primary(32);
         if (bigTitleFont != nullptr) {
-            lv_obj_set_style_text_font(s_splashTitle, bigTitleFont, 0);
-            lv_obj_align(s_splashTitle, LV_ALIGN_CENTER, 0, -50);
+            if (s_splashTitleCan != nullptr) {
+                lv_obj_set_style_text_font(s_splashTitleCan, bigTitleFont, 0);
+            }
+            if (s_splashTitleShift != nullptr) {
+                lv_obj_set_style_text_font(s_splashTitleShift, bigTitleFont, 0);
+            }
+            lv_obj_align(s_splashTitleRow, LV_ALIGN_CENTER, 0, -50);
             lv_task_handler();
         }
     }
