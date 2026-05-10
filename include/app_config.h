@@ -281,3 +281,10 @@
 
 // Log tag max length
 #define LOG_TAG_MAX_LEN 16
+
+// Optional lv_task_handler() duration logging — emits a 1 Hz "lv_task: avg/max/n"
+// line from the UI task. Orthogonal to APP_PROFILE_UI; both can be enabled
+// simultaneously. Off by default — zero overhead when disabled.
+#ifndef APP_LV_TASK_LOG
+    #define APP_LV_TASK_LOG 0
+#endif

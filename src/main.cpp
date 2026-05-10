@@ -164,6 +164,13 @@ void loop() {
     #include "hal/ble/ble_server.h"
 #endif
 
+#if APP_LV_TASK_LOG
+// 1 Hz aggregator for lv_task_handler() duration. Single-task (taskUI) so no
+// synchronization is needed.
+static uint32_t s_lvSumUs = 0, s_lvMaxUs = 0, s_lvCount = 0;
+static int64_t s_lvLastFlushUs = 0;
+#endif
+
 void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
 
@@ -234,7 +241,16 @@ void taskUI(void *pvParameters) {
             PageManager::updateWidgets();
             {
                 PERF_SCOPE(::PerfCounters::LV_HANDLER);
+#if APP_LV_TASK_LOG
+                const int64_t _t0 = esp_timer_get_time();
+#endif
                 lv_task_handler();
+#if APP_LV_TASK_LOG
+                const uint32_t _dt = static_cast<uint32_t>(esp_timer_get_time() - _t0);
+                s_lvSumUs += _dt;
+                if (_dt > s_lvMaxUs) s_lvMaxUs = _dt;
+                ++s_lvCount;
+#endif
             }
 
             xSemaphoreGive(g_lvglMutex);
@@ -264,6 +280,23 @@ void taskUI(void *pvParameters) {
             ::PerfCounters::recordFrameMiss();
         }
         ::PerfCounters::tick();
+#endif
+
+#if APP_LV_TASK_LOG
+        {
+            const int64_t _now = esp_timer_get_time();
+            if (s_lvLastFlushUs == 0) s_lvLastFlushUs = _now;
+            if (_now - s_lvLastFlushUs >= 1000000) {
+                const uint32_t avg = s_lvCount ? (s_lvSumUs / s_lvCount) : 0;
+                LOG_INFO("PERF", "lv_task: avg=%uus max=%uus n=%u", avg,
+                         static_cast<unsigned>(s_lvMaxUs),
+                         static_cast<unsigned>(s_lvCount));
+                s_lvSumUs = 0;
+                s_lvMaxUs = 0;
+                s_lvCount = 0;
+                s_lvLastFlushUs = _now;
+            }
+        }
 #endif
 
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS));
