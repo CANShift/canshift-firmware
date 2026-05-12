@@ -83,23 +83,17 @@ static void initDisplayAndLVGL() {
 namespace {
 static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
-static lv_obj_t *s_splashTitleRow = nullptr;
-static lv_obj_t *s_splashTitleCan = nullptr;
-static lv_obj_t *s_splashTitleShift = nullptr;
 } // namespace
 
 // Build the dark splash background.
+// FontManager::init() must have run before this is called so the logo renders
+// at Orbitron Black 32 from the very first frame (no two-phase appearance).
 static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Two-tone CANShift logo: "CAN" in neutral gray, "Shift" in brand red — matches
-    // the canshift-studio wordmark. Held in a transparent flex row so the two
-    // labels stay glued and centred together. Title uses the static built-in
-    // Orbitron 14 at first paint; FontManager::init() upgrades it to Orbitron
-    // Black 32 (#544) once SPIFFS-backed fonts are loaded.
     lv_obj_t *row = lv_obj_create(scr);
     lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
@@ -111,17 +105,19 @@ static lv_obj_t *buildSplashBase() {
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_align(row, LV_ALIGN_CENTER, 0, -50);
 
+    const lv_font_t *titleFont = FontManager::primary(32);
+
     lv_obj_t *titleCan = lv_label_create(row);
     lv_label_set_text(titleCan, "CAN");
     lv_obj_set_style_text_color(titleCan, lv_color_hex(0x9A9A9A), 0);
+    if (titleFont)
+        lv_obj_set_style_text_font(titleCan, titleFont, 0);
 
     lv_obj_t *titleShift = lv_label_create(row);
     lv_label_set_text(titleShift, "Shift");
     lv_obj_set_style_text_color(titleShift, lv_color_hex(0xFF4444), 0);
-
-    s_splashTitleRow = row;
-    s_splashTitleCan = titleCan;
-    s_splashTitleShift = titleShift;
+    if (titleFont)
+        lv_obj_set_style_text_font(titleShift, titleFont, 0);
 
     lv_obj_t *ver = lv_label_create(scr);
     lv_label_set_text(ver, "v" APP_VERSION_STR);
@@ -241,35 +237,27 @@ void BootSequence::run() {
     canshift::hal::memory::initPsram();
 
     logHeap("entry");
-    // 1. Display + LVGL must come early so we can show a splash
-    initDisplayAndLVGL();
 
-    LOG_INFO("BOOT", "Showing splash...");
-    showSplash(); // 0 %
-    LOG_INFO("BOOT", "Splash visible");
-    logHeap("after splash");
+    // 1. Display + LVGL — must come first so LVGL is ready for all later calls.
+    initDisplayAndLVGL();
 
     // 2. Touch controller
     LOG_INFO("BOOT", "Initializing touch...");
     TouchDriver::init();
     LOG_INFO("BOOT", "Touch ready");
-    updateSplash("Initializing touch...", 15);
 
     // 3. Storage — degrade (don't halt) on mount failure so the studio can
     //    still reach the device over USB and the user can see a default
     //    dashboard.
-    updateSplash("Initializing storage...", 20);
     const bool storageOk = initStorage();
     if (storageOk) {
         LOG_INFO("BOOT", "Storage mounted");
-        updateSplash("Storage ready", 35);
     } else {
         LOG_ERROR("BOOT", "Storage mount failed — running with defaults");
         // Persist the failure on the dashboard error bar — the splash message
         // is dismissed after ~2 s and the user otherwise has no on-device
         // indication that their config was not loaded from flash.
         ErrorStore::push(ERROR_SRC_SYSTEM, "MOUNT_FAIL", "Storage offline — config not persisted");
-        updateSplash("Storage error — defaults", 35);
     }
     logHeap("after storage");
 
@@ -280,17 +268,14 @@ void BootSequence::run() {
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default configs (if needed)...");
         const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
-        if (pr.written > 0) {
+        if (pr.written > 0)
             LOG_INFO("BOOT", "Provisioned %u default config file(s)",
                      static_cast<unsigned>(pr.written));
-            updateSplash("Provisioning defaults...", 45);
-        }
-        if (pr.failed > 0) {
+        if (pr.failed > 0)
             LOG_WARN("BOOT",
                      "Default-config provision failed for %u file(s) — "
                      "continuing with whatever is on storage",
                      static_cast<unsigned>(pr.failed));
-        }
     }
 #endif
 
@@ -300,54 +285,38 @@ void BootSequence::run() {
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default fonts (if needed)...");
         const DefaultFonts::ProvisionResult fr = DefaultFonts::provisionMissingFiles();
-        if (fr.written > 0) {
+        if (fr.written > 0)
             LOG_INFO("BOOT", "Provisioned %u default font file(s)",
                      static_cast<unsigned>(fr.written));
-            updateSplash("Provisioning fonts...", 48);
-        }
-        if (fr.failed > 0) {
+        if (fr.failed > 0)
             LOG_WARN("BOOT",
                      "Default-font provision failed for %u file(s) — "
                      "FontManager will fall back to built-in glyph",
                      static_cast<unsigned>(fr.failed));
-        }
     }
     logHeap("before FontManager");
 
-    // 3.7 Now that .bin fonts are guaranteed present (when storage works),
-    //     load them into LVGL. Failures here only degrade typography — the
-    //     fallback glyph keeps text readable.
+    // 3.7 Load SPIFFS-backed fonts before showSplash() so the logo renders at
+    //     Orbitron Black 32 from the very first frame — no two-phase appearance.
     LOG_INFO("BOOT", "Initializing FontManager...");
     FontManager::init();
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
 
-    // Upgrade splash title to Orbitron Black 32 now that SPIFFS-backed fonts
-    // are registered with LVGL (#544). Until this point the title rendered
-    // in the static built-in Orbitron 14 fallback. Both halves of the
-    // two-tone "CANShift" wordmark get the upgrade; the parent flex row
-    // re-centres them automatically.
-    if (s_splashTitleRow != nullptr) {
-        const lv_font_t *bigTitleFont = FontManager::primary(32);
-        if (bigTitleFont != nullptr) {
-            if (s_splashTitleCan != nullptr) {
-                lv_obj_set_style_text_font(s_splashTitleCan, bigTitleFont, 0);
-            }
-            if (s_splashTitleShift != nullptr) {
-                lv_obj_set_style_text_font(s_splashTitleShift, bigTitleFont, 0);
-            }
-            lv_obj_align(s_splashTitleRow, LV_ALIGN_CENTER, 0, -50);
-            lv_task_handler();
-        }
-    }
+    // 4. Show splash — fonts are loaded, logo is at full size immediately.
+    LOG_INFO("BOOT", "Showing splash...");
+    showSplash();
+    LOG_INFO("BOOT", "Splash visible");
+    logHeap("after splash");
 
-    // 4. Config
+    // 5. Config
+    updateSplash("Loading config...", 10);
     logHeap("before loadConfig");
     loadConfig();
     logHeap("after loadConfig");
-    updateSplash("Applying config...", 55);
+    updateSplash("Applying config...", 40);
 
-    // 5. Runtime
+    // 6. Runtime
     LOG_INFO("BOOT", "Initializing TimerService...");
     TimerService::init();
     LOG_INFO("BOOT", "Initializing SignalStore...");
@@ -355,29 +324,32 @@ void BootSequence::run() {
     LOG_INFO("BOOT", "Initializing AlertEngine...");
     AlertEngine::init();
     LOG_INFO("BOOT", "Runtime ready");
-    updateSplash("Starting runtime...", 65);
+    updateSplash("Starting runtime...", 60);
 
-    // 6. CAN hardware (skip in simulation mode)
+    // 7. CAN hardware (skip in simulation mode)
 #if !APP_SIMULATION_MODE
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
     CanManager::initHardware();
-    updateSplash("CAN ready", 80);
+    updateSplash("CAN ready", 78);
 #else
     LOG_INFO("BOOT", "Simulation mode — skipping CAN init");
-    updateSplash("Simulation mode", 80);
+    updateSplash("Simulation mode", 78);
 #endif
 
-    // 7. USB comm
+    // 8. USB comm
     LOG_INFO("BOOT", "Initializing USB comm...");
     UsbComm::init();
-    updateSplash("USB ready", 88);
+    updateSplash("USB ready", 90);
 
-    // 8. Build the UI from config
+    // 9. Build the UI from config.
+    // updateSplash("Ready") must happen BEFORE buildUI() because
+    // PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
+    // splash objects from the LVGL pool before building page widgets.
+    // Any call to updateSplash after that point would dereference freed objects.
+    updateSplash("Ready", 100);
     logHeap("before buildUI");
     buildUI();
     logHeap("dashboard ready");
-
-    updateSplash("Ready", 100);
 
     // Hold the splash for at least SPLASH_MIN_MS so the user can read the
     // version + final progress state before the dashboard takes over.

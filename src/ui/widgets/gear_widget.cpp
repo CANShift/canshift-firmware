@@ -32,16 +32,22 @@ struct GearTag {
     uint32_t lastColorRgb; // 0xFFFFFFFFu sentinel forces the first paint.
 };
 
-const lv_font_t *selectFont(int16_t height) {
-    if (height >= 120)
-        return FontManager::primary(48);
-    if (height >= 80)
-        return FontManager::primary(32);
-    if (height >= 56)
-        return FontManager::secondary(24);
-    if (height >= 40)
-        return FontManager::secondary(20);
-    return FontManager::label(16);
+// Same proportional formula as label_widget so a gear and a numeric widget
+// at the same size render at identical font sizes.
+const lv_font_t *selectFont(int16_t h, int16_t w) {
+    const int byHeight = (h * 65) / 100;
+    const int byWidth = (w * 52) / 100;
+    int s = byHeight < byWidth ? byHeight : byWidth;
+    if (s < 12)
+        s = 12;
+    if (s > 48)
+        s = 48;
+    const uint8_t size = static_cast<uint8_t>(s);
+    if (size >= 32)
+        return FontManager::primary(size);
+    if (size >= 20)
+        return FontManager::secondary(size);
+    return FontManager::label(size);
 }
 
 } // namespace
@@ -59,7 +65,7 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
-    lv_obj_set_style_text_font(label, selectFont(cfg.layout.h), 0);
+    lv_obj_set_style_text_font(label, selectFont(cfg.layout.h, cfg.layout.w), 0);
     lv_label_set_text(label, "N");
 
     auto *tag = new GearTag{};

@@ -273,9 +273,9 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
     const lv_font_t *font = FontManager::secondary(20);
-    if (cfg.layout.h >= 100)
+    if (cfg.layout.h >= 80)
         font = FontManager::secondary(24);
-    if (cfg.layout.h >= 130)
+    if (cfg.layout.h >= 110)
         font = FontManager::primary(32);
     lv_obj_set_style_text_font(label, font, 0);
     {

@@ -219,13 +219,12 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             break;
         }
         case TopBarItemKind::USB_ICON: {
+            // LV_SYMBOL_* glyphs are not in the Orbitron font (no symbol range).
+            // Use "USB" as a colour-coded text badge instead.
             obj = lv_label_create(s_bar);
-            lv_label_set_text(obj, LV_SYMBOL_DOWNLOAD);
+            lv_label_set_text(obj, "USB");
             lv_obj_set_style_text_color(obj, lv_color_hex(COLOR_USB_OFF), 0);
-            // Icon size is iconSizeRatio × font size (see proportion table).
-            const uint8_t iconSize =
-                static_cast<uint8_t>(derivedIconSize(derivedFontSize(s_height)));
-            lv_obj_set_style_text_font(obj, FontManager::label(iconSize), 0);
+            lv_obj_set_style_text_font(obj, FontManager::label(derivedFontSize(s_height)), 0);
             anchor(obj, gap);
             break;
         }

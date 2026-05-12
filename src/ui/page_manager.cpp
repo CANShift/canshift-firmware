@@ -30,8 +30,9 @@ static constexpr uint8_t MAX_PAGES = CONFIG_MAX_PAGES;
 
 struct Page {
     char id[CFG_MAX_ID_LEN];
-    lv_obj_t *screen; // LVGL screen object for this page
+    lv_obj_t *screen; // LVGL screen object — nullptr until first navigation (lazy build)
     bool built;
+    uint8_t cfgIdx; // index into CfgDashboard::pages[] for lazy build
 };
 
 static Page s_pages[MAX_PAGES];
@@ -40,6 +41,16 @@ static uint8_t s_currentIdx = 0;
 static lv_obj_t *s_revOverlay = nullptr; // Red flash overlay, global
 static bool s_rebuildRequested = false;  // Set by ThemeManager::toggleDayMode()
 static bool s_reloadRequested = false;   // Set by USB CMD_PUT_CONFIG handler
+// Page scheduled for pool release after the in-flight animation completes.
+// 0xFF = nothing pending. Consumed at the start of the next showPage() call so
+// the departing screen stays alive for the full animation window (120 ms) before
+// its LVGL objects are deleted.
+static uint8_t s_pendingFreeIdx = 0xFF;
+// Deferred lazy-build state — set by showPage(), consumed by asyncDoLazyBuild().
+// Using lv_async_call defers the lv_obj_del to the next lv_timer_handler()
+// iteration so it never fires from within an event callback.
+static uint8_t s_pendingLazyBuildIdx = 0xFF;
+static uint32_t s_pendingLazyBuildMs = 120;
 
 void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg) {
     lv_obj_set_style_bg_color(screen, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
@@ -100,6 +111,7 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
 void rebuildAllPages() {
     s_rebuildRequested = false;
+    s_pendingFreeIdx = 0xFF; // All pages are about to be deleted — nothing to defer.
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (!dash.loaded || s_pageCount == 0)
@@ -124,14 +136,11 @@ void rebuildAllPages() {
         }
     }
 
-    // Rebuild with the active theme colors. Skip hidden pages so the
-    // visible-page index space stays in sync with init() (issue #204).
-    uint8_t outIdx = 0;
-    for (uint8_t i = 0; i < dash.pageCount && outIdx < s_pageCount; ++i) {
-        if (!dash.pages[i].visible)
-            continue;
-        buildPage(outIdx, dash.pages[i]);
-        ++outIdx;
+    // Rebuild only the previously active page eagerly; all others are left
+    // lazy (screen == nullptr) and will be constructed on first navigation.
+    // This keeps at most one page in the LVGL pool during the rebuild.
+    if (savedIdx < s_pageCount) {
+        buildPage(savedIdx, dash.pages[s_pages[savedIdx].cfgIdx]);
     }
 
     // Return to the page that was active before the rebuild
@@ -146,6 +155,53 @@ void rebuildAllPages() {
     TopBar::reapplyTheme();
 
     LOG_INFO("UI", "Pages rebuilt for theme toggle");
+}
+
+// Deferred lazy-build callback — invoked by lv_async_call() at the start of
+// the next lv_timer_handler() iteration, outside any event callback. This
+// avoids the use-after-free that occurs when lv_obj_del(dep.screen) is called
+// synchronously from within a button click handler: lv_obj_del fires
+// LV_EVENT_DELETE on the button, which frees its tag, and the click handler
+// then continues with a dangling pointer.
+static void asyncDoLazyBuild(void * /*unused*/) {
+    const uint8_t idx = s_pendingLazyBuildIdx;
+    s_pendingLazyBuildIdx = 0xFF;
+
+    if (idx >= s_pageCount || s_pages[idx].screen)
+        return;
+
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    bool placeholderActive = false;
+
+    if (s_currentIdx != idx && s_pages[s_currentIdx].screen) {
+        Page &dep = s_pages[s_currentIdx];
+        lv_obj_t *blank = lv_obj_create(nullptr);
+        if (blank) {
+            lv_obj_set_style_bg_color(blank, lv_color_hex(0x000000), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(blank, LV_OPA_COVER, LV_PART_MAIN);
+            lv_scr_load(blank);
+            placeholderActive = true;
+        }
+        WidgetFactory::clearAll(dep.screen);
+        lv_obj_del(dep.screen);
+        dep.screen = nullptr;
+        dep.built = false;
+        s_pendingFreeIdx = 0xFF;
+        LOG_INFO("UI", "Released page '%s' before lazy build of '%s'", dep.id, s_pages[idx].id);
+    }
+
+    LOG_INFO("UI", "Lazy-building page '%s' on first visit", s_pages[idx].id);
+    buildPage(idx, dash.pages[s_pages[idx].cfgIdx]);
+    if (!s_pages[idx].screen) {
+        LOG_ERROR("UI", "asyncDoLazyBuild: build failed for page '%s'", s_pages[idx].id);
+        return;
+    }
+
+    PERF_RECORD_PAGE_XSTART();
+    lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_FADE_IN, s_pendingLazyBuildMs, 0,
+                     placeholderActive);
+    s_currentIdx = idx;
+    LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
 }
 
 // Page transitions on the ESP32:
@@ -166,8 +222,30 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
         LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
         return;
     }
+
+    // Release the page that finished its last animation. Do this BEFORE building
+    // the new page so the freed pool space is available. Skip if the user
+    // navigated back to the very page that was scheduled for release.
+    if (s_pendingFreeIdx < s_pageCount && s_pendingFreeIdx != idx) {
+        Page &old = s_pages[s_pendingFreeIdx];
+        if (old.screen) {
+            WidgetFactory::clearAll(old.screen);
+            lv_obj_del(old.screen);
+            old.screen = nullptr;
+            old.built = false;
+            LOG_INFO("UI", "Released page '%s' from LVGL pool after navigation", old.id);
+        }
+        s_pendingFreeIdx = 0xFF;
+    }
+
+    // Lazy build: schedule via lv_async_call so lv_obj_del never fires from
+    // within an event callback (button click → navigateTo → showPage).
+    // asyncDoLazyBuild() runs at the start of the next lv_timer_handler()
+    // iteration, safely outside the call stack of any event handler.
     if (!s_pages[idx].screen) {
-        LOG_ERROR("UI", "showPage: page '%s' has no screen object", s_pages[idx].id);
+        s_pendingLazyBuildIdx = idx;
+        s_pendingLazyBuildMs = durationMs;
+        lv_async_call(asyncDoLazyBuild, nullptr);
         return;
     }
 
@@ -187,6 +265,13 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
     if (t)
         lv_timer_set_repeat_count(t, 1);
 #endif
+
+    // Schedule the departing page for pool release on the next navigation.
+    // It must stay alive for the current animation window so LVGL can render
+    // the cross-fade/slide; we free it at the top of the next showPage() call.
+    if (s_currentIdx != idx) {
+        s_pendingFreeIdx = s_currentIdx;
+    }
 
     s_currentIdx = idx;
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
@@ -476,12 +561,30 @@ void showSetupScreen() {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ---------- Logo ----------
-    lv_obj_t *logo = lv_label_create(scr);
-    lv_label_set_text(logo, "CANShift");
-    lv_obj_set_style_text_font(logo, FontManager::primary(32), 0);
-    lv_obj_set_style_text_color(logo, lv_color_hex(0xFF4444), 0);
-    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 28);
+    // ---------- Logo — two-tone "CAN" gray + "Shift" red, matches boot splash ----------
+    lv_obj_t *logoRow = lv_obj_create(scr);
+    lv_obj_set_size(logoRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(logoRow, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(logoRow, 0, 0);
+    lv_obj_set_style_pad_all(logoRow, 0, 0);
+    lv_obj_clear_flag(logoRow, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_layout(logoRow, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(logoRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(logoRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_align(logoRow, LV_ALIGN_TOP_MID, 0, 28);
+
+    lv_obj_t *logoCan = lv_label_create(logoRow);
+    lv_label_set_text(logoCan, "CAN");
+    lv_obj_set_style_text_font(logoCan, FontManager::primary(32), 0);
+    lv_obj_set_style_text_color(logoCan, lv_color_hex(0x9A9A9A), 0);
+
+    lv_obj_t *logoShift = lv_label_create(logoRow);
+    lv_label_set_text(logoShift, "Shift");
+    lv_obj_set_style_text_font(logoShift, FontManager::primary(32), 0);
+    lv_obj_set_style_text_color(logoShift, lv_color_hex(0xFF4444), 0);
+
+    lv_obj_t *logo = logoRow; // keep `logo` as anchor for the version label below
 
     // ---------- Version ----------
     char verBuf[16];
@@ -548,6 +651,11 @@ void PageManager::init() {
     s_pageCount = 0;
     s_currentIdx = 0;
 
+    // Free all splash-screen children from the LVGL pool before registering
+    // pages. The boot sequence built its UI on lv_scr_act(); cleaning it here
+    // recovers that pool space for widget allocations below.
+    lv_obj_clean(lv_scr_act());
+
     // Init error bar first so errors pushed during boot (config load, CAN init)
     // are visible regardless of whether a valid dashboard config exists.
     ErrorBar::init();
@@ -564,15 +672,38 @@ void PageManager::init() {
     // Initialize the top bar (persistent overlay, not part of any page)
     TopBar::init();
 
-    // Build only visible pages — hidden pages stay in the studio config but
-    // are excluded from device iteration / navigation (issue #204).
+    // Register all visible pages and build only the default one eagerly.
+    // All other pages are built lazily the first time they are navigated to
+    // (see showPage). This keeps at most one extra page in the LVGL pool at
+    // boot, avoiding OOM on configs with many gauge-heavy pages.
+    const char *defaultId = dash.defaultPageId;
     for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
         if (!dash.pages[i].visible) {
             LOG_INFO("UI", "Skipping hidden page '%s' (visible=false)", dash.pages[i].id);
             continue;
         }
-        buildPage(s_pageCount, dash.pages[i]);
+        Page &p = s_pages[s_pageCount];
+        strlcpy(p.id, dash.pages[i].id, CFG_MAX_ID_LEN);
+        p.screen = nullptr;
+        p.built = false;
+        p.cfgIdx = i;
+
+        // Build the default page eagerly so the first navigation is instant.
+        if (strcmp(p.id, defaultId) == 0) {
+            buildPage(s_pageCount, dash.pages[i]);
+        }
         s_pageCount++;
+    }
+
+    // If the default page was not found among visible pages, build the first
+    // visible one so the device always boots into a usable screen.
+    if (s_pageCount > 0 && !s_pages[0].screen) {
+        for (uint8_t i = 0; i < s_pageCount; ++i) {
+            if (!s_pages[i].screen) {
+                buildPage(i, dash.pages[s_pages[i].cfgIdx]);
+                break;
+            }
+        }
     }
 
     // Create rev limiter overlay — sits above all pages

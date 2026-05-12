@@ -18,6 +18,7 @@
     #include <ArduinoJson.h>
     #include <freertos/semphr.h>
     #include <Arduino.h>
+    #include <esp_heap_caps.h>
     #include <atomic>
     #include <string.h>
 
@@ -220,6 +221,17 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
 // ---------------------------------------------------------------------------
 
 void BleServer::init() {
+    // esp_bt_controller_init needs ~50 KB of contiguous DRAM. On DRAM-only
+    // boards the heap is too fragmented after LVGL+display init to satisfy
+    // that requirement. NimBLEDevice::init calls ESP_ERROR_CHECK internally,
+    // so a failed alloc would abort() the device. Skip gracefully instead.
+    static constexpr size_t BLE_MIN_HEAP = 50U * 1024U;
+    const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    if (avail < BLE_MIN_HEAP) {
+        LOG_WARN("BLE", "Insufficient contiguous DRAM for BLE stack (%u B < %u B) — disabled",
+                 static_cast<unsigned>(avail), static_cast<unsigned>(BLE_MIN_HEAP));
+        return;
+    }
     NimBLEDevice::init("CANShift");
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
 

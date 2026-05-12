@@ -4,6 +4,7 @@
 #include "can/can_manager.h"
 #include "can_signals_out.h"
 #include "config/config_loader.h"
+#include "ui/font_manager.h"
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
 #include "diag/logger.h"
@@ -15,6 +16,18 @@ namespace {
 
 // Maximum LVGL FS path length including the "S:" SPIFFS drive prefix.
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
+
+const lv_font_t *selectButtonFont(int16_t h) {
+    if (h >= 56)
+        return FontManager::secondary(24);
+    if (h >= 40)
+        return FontManager::secondary(20);
+    if (h >= 28)
+        return FontManager::label(16);
+    if (h >= 20)
+        return FontManager::label(14);
+    return FontManager::label(12);
+}
 
 // Per-button runtime state — owns the latched toggle flag and a pointer back
 // to the const config (kept alive by the dashboard singleton).
@@ -169,6 +182,8 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->toggleActive = false;
     tag->lvglPath[0] = '\0';
 
+    const lv_font_t *btnFont = selectButtonFont(cfg.layout.h);
+
     if (hasIcon) {
         const char *path = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
         if (path[0] != '\0') {
@@ -181,6 +196,8 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             // button still shows an icon glyph.
             tag->iconLabel = lv_label_create(btn);
             lv_label_set_text(tag->iconLabel, IconAssets::fallbackGlyph(p.iconName));
+            // Do NOT override the font here: LV_SYMBOL_* glyphs live in the
+            // LVGL built-in symbol range which Orbitron does not include.
             lv_obj_set_style_text_color(tag->iconLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
         }
     }
@@ -188,6 +205,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     if (hasLabel) {
         lv_obj_t *label = lv_label_create(btn);
         lv_label_set_text(label, p.label);
+        lv_obj_set_style_text_font(label, btnFont, 0);
         lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
     }
 
