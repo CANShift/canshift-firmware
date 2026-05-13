@@ -6,5 +6,6 @@
 
 namespace ButtonWidget {
 lv_obj_t *create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset);
-// Buttons are event-driven — no update() needed
+// Updates the active-map badge on map_switch buttons. Call each render tick.
+void update(lv_obj_t *btn);
 } // namespace ButtonWidget

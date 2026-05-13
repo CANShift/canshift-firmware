@@ -4,6 +4,8 @@
 #include "can/can_manager.h"
 #include "can_signals_out.h"
 #include "config/config_loader.h"
+#include "runtime/signal_store.h"
+#include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
@@ -29,6 +31,9 @@ const lv_font_t *selectButtonFont(int16_t h) {
     return FontManager::label(12);
 }
 
+static constexpr int16_t MAP_BADGE_DIAMETER = 7;
+static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44; // green
+
 // Per-button runtime state — owns the latched toggle flag and a pointer back
 // to the const config (kept alive by the dashboard singleton).
 struct ButtonTag {
@@ -37,6 +42,8 @@ struct ButtonTag {
     lv_obj_t *iconLabel;          // glyph fallback (nullptr if asset rendered or showIcon=false)
     bool toggleActive;            // only meaningful when params->isToggle == true
     char lvglPath[LVGL_PATH_LEN]; // resolved LVGL FS path for the icon, "" if none
+    lv_obj_t *activeBadge;        // green dot overlay, nullptr if not a map_switch button
+    uint8_t mapSwitchIndex;       // mapIndex of the MAP_SWITCH action, 0 = none
 };
 
 // Resolve the icon source. Returns a non-empty C-string LVGL path when an
@@ -181,6 +188,16 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->iconLabel = nullptr;
     tag->toggleActive = false;
     tag->lvglPath[0] = '\0';
+    tag->activeBadge = nullptr;
+    tag->mapSwitchIndex = 0;
+
+    // Resolve map_switch index before layout so badge creation can reference it
+    for (uint8_t i = 0; i < p.actionsCount; ++i) {
+        if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
+            tag->mapSwitchIndex = p.actions[i].mapIndex;
+            break;
+        }
+    }
 
     const lv_font_t *btnFont = selectButtonFont(cfg.layout.h);
 
@@ -209,9 +226,42 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
     }
 
+    // Active-map badge — green dot in top-right corner, shown when MAP_NUMBER
+    // matches this button's mapIndex. Only created for map_switch buttons.
+    if (tag->mapSwitchIndex != 0) {
+        lv_obj_t *badge = lv_obj_create(btn);
+        lv_obj_set_size(badge, MAP_BADGE_DIAMETER, MAP_BADGE_DIAMETER);
+        lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(badge, lv_color_hex(MAP_BADGE_COLOR), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(badge, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(badge, 0, LV_PART_MAIN);
+        lv_obj_add_flag(badge, LV_OBJ_FLAG_IGNORE_LAYOUT);
+        lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -2, 2);
+        lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
+        tag->activeBadge = badge;
+    }
+
     lv_obj_set_user_data(btn, tag);
     lv_obj_add_event_cb(btn, btnClickHandler, LV_EVENT_CLICKED, nullptr);
     lv_obj_add_event_cb(btn, btnDeleteHandler, LV_EVENT_DELETE, tag);
 
     return btn;
+}
+
+void ButtonWidget::update(lv_obj_t *btn) {
+    auto *tag = static_cast<ButtonTag *>(lv_obj_get_user_data(btn));
+    if (!tag || !tag->activeBadge || tag->mapSwitchIndex == 0)
+        return;
+
+    const bool active =
+        SignalStore::isValid(SignalIds::MAP_NUMBER) &&
+        static_cast<uint8_t>(SignalStore::read(SignalIds::MAP_NUMBER)) == tag->mapSwitchIndex;
+
+    if (active) {
+        lv_obj_clear_flag(tag->activeBadge, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(tag->activeBadge, LV_OBJ_FLAG_HIDDEN);
+    }
 }

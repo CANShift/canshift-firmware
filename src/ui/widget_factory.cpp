@@ -75,6 +75,12 @@ lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
 
 void updateWidget(WidgetEntry &entry,
                   const SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS]) {
+    // Button badge update is driven by MAP_NUMBER, not the widget's own signal
+    if (entry.type == WidgetType::BUTTON) {
+        ButtonWidget::update(entry.obj);
+        return;
+    }
+
     if (entry.signalId >= SignalIds::SIGNAL_COUNT)
         return;
     if (entry.signalId >= SIGNAL_STORE_MAX_SIGNALS)
@@ -99,7 +105,7 @@ void updateWidget(WidgetEntry &entry,
             WarningWidget::update(entry.obj, rawValue, valid, entry.cfg);
             break;
         case WidgetType::BUTTON:
-            // Buttons respond to touch events — no signal-driven update needed
+            // Handled above before signalId check
             break;
         case WidgetType::GEAR_IND:
             GearWidget::update(entry.obj, rawValue, valid, entry.cfg);

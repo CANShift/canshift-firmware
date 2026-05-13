@@ -282,6 +282,7 @@ void BleServer::tick() {
     addSignalIfValid(doc, "r", SignalIds::RPM);
     addSignalIfValid(doc, "tps", SignalIds::THROTTLE_POS);
     addSignalIfValid(doc, "map", SignalIds::MAP_KPA);
+    addSignalIfValid(doc, "mi", SignalIds::MAP_NUMBER);
     addSignalIfValid(doc, "bst", SignalIds::BOOST_BAR);
     addSignalIfValid(doc, "iat", SignalIds::IAT_C);
     addSignalIfValid(doc, "ct", SignalIds::COOLANT_TEMP_C);
