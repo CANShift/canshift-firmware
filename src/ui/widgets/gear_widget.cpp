@@ -35,8 +35,8 @@ struct GearTag {
 // Same proportional formula as label_widget so a gear and a numeric widget
 // at the same size render at identical font sizes.
 const lv_font_t *selectFont(int16_t h, int16_t w) {
-    const int byHeight = (h * 65) / 100;
-    const int byWidth = (w * 52) / 100;
+    const int byHeight = (h * 85) / 100;
+    const int byWidth = (w * 72) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
     if (s < 12)
         s = 12;
