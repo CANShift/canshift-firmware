@@ -19,7 +19,6 @@
 #include "config/config_loader.h"
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
-#include "ui/burn_overlay.h"
 #include "ui/page_manager.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
@@ -31,6 +30,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <esp_heap_caps.h>
+#include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <mbedtls/base64.h>
@@ -253,20 +253,30 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
 }
 
 // Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to storage, then
-// trigger an in-place reload via PageManager (no esp_restart). The studio
-// keeps its serial port open across the reload, so telemetry resumes against
-// the new SignalStore as soon as the UI task finishes the rebuild.
+// reboot via esp_restart(). Hot reload (PageManager::requestReload) is not
+// viable at runtime: LVGL's 80 KB heap pool leaves only ~2 KB of contiguous
+// DRAM free, so ArduinoJson fails with NoMemory on any real config file
+// (issue #576 fallout). Cold boot starts with ~110 KB free — enough to parse
+// the JSON before LVGL is initialised. Studio already shows a "reconnect"
+// spinner after PUT_CONFIG, so the UX is identical.
 //
 // Implementation note: we do NOT parse the envelope into a JsonDocument.
 // At schema v1.13 the dashboard JSON is ~13 KB compact; ArduinoJson v7 grows
 // its pool to ~21 KB to materialise it, and a contiguous 21 KB malloc fails
-// once LVGL has consumed its 80 KB pool (issue #576 — boot loop hotfix
-// fallout from #555). Instead, locate the `"payload"` value as a substring
-// of s_rxBuf and stream it straight to flash.
+// once LVGL has consumed its 80 KB pool. Instead, locate the `"payload"`
+// value as a substring of s_rxBuf and stream it straight to flash.
+//
+// Race note: the SPIFFS/IDF flash driver yields to the OS between page writes
+// (vTaskDelay(0)). When USB yields, the LVGL task runs, calls lv_task_handler(),
+// lv_mem_alloc() fails (~1 KB free in LVGL heap), OOM assert fires esp_restart()
+// mid-write — config never committed. A priority boost alone doesn't prevent this
+// because vTaskDelay(0) is an explicit yield regardless of priority.
+// Fix: hold g_lvglMutex for the entire write so lv_task_handler() is blocked.
+// LVGL ticks that fire during the write see "mutex timeout" and skip — harmless
+// since the device reboots immediately after. On failure the mutex is released
+// so the UI recovers. The overlay is omitted (device reboots in <100 ms anyway).
 void handlePutConfig(const char *jsonLine) {
 #ifdef ARDUINO
-    // INFO level so field logs capture the value when a user reports a failed
-    // burn — a single line per PUT, the host has already opened the modal.
     LOG_INFO("USB", "heap.largest_free=%u before PUT_CONFIG",
              static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
 #endif
@@ -280,38 +290,33 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    // Show the "Saving config…" overlay before the storage write so the user
-    // gets immediate feedback. Mirrors studio's BurnProgressModal. lv_refr_now
-    // inside show() flushes the screen before the write blocks the UI.
-    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        BurnOverlay::show();
-        xSemaphoreGive(g_lvglMutex);
+    // Take the LVGL mutex before the write. This blocks lv_task_handler() for
+    // the entire duration so the OOM assert cannot fire mid-write. Priority
+    // inheritance raises our effective priority to TASK_PRIO_UI while we wait,
+    // then we boost further to TASK_PRIO_UI+1 so flash ops are uninterrupted.
+    // On the success path we call esp_restart() and never release; on failure
+    // we release so the UI recovers.
+    const bool mutexTaken = (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) == pdTRUE);
+    if (!mutexTaken) {
+        LOG_WARN("USB", "PUT_CONFIG: could not acquire LVGL mutex — proceeding");
     }
+    vTaskPrioritySet(nullptr, TASK_PRIO_UI + 1);
 
     bool ok = StorageDriver::writeFileAtomic(
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
+        vTaskPrioritySet(nullptr, TASK_PRIO_USB);
+        if (mutexTaken)
+            xSemaphoreGive(g_lvglMutex);
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
-        // Flip the overlay to its error state so the LCD itself surfaces the
-        // failure instead of just snapping back to the dashboard. showError()
-        // schedules its own teardown via an lv_timer one-shot — no extra
-        // sleep here, so we don't block the USB task while the message
-        // holds (issue #189).
-        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            BurnOverlay::showError(BurnOverlay::ErrorReason::WriteFailed);
-            xSemaphoreGive(g_lvglMutex);
-        }
         return;
     }
 
-    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading", written);
-    // Defer the actual reload to the UI task — it owns g_lvglMutex and the
-    // PageManager. The flag is consumed on the next updateWidgets() tick,
-    // which calls ConfigLoader::reloadAll() + rebuildAllPages(), then drops
-    // the BurnOverlay. The studio's serial port stays open the whole time.
-    PageManager::requestReload();
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
+    UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
+    Serial.flush();
+    esp_restart(); // never returns
 }
 
 // ---------------------------------------------------------------------------

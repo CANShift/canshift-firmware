@@ -92,8 +92,12 @@ bool exists(const char *lvglPath) {
 }
 
 const char *fallbackGlyph(const char *iconName) {
-    const IconEntry *e = find(iconName);
-    return e ? e->fallback : LV_SYMBOL_WARNING;
+    // LV_SYMBOL_* strings use LVGL's private-use Unicode range (U+F800+).
+    // The Orbitron font only covers ASCII + degree + bullet — rendering a
+    // symbol with it produces a □ rectangle. Return empty string so the
+    // widget shows nothing rather than garbage when the .bin is missing.
+    (void)iconName;
+    return "";
 }
 
 } // namespace IconAssets
