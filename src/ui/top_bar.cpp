@@ -101,6 +101,7 @@ struct DynItem {
     // tag-based collapse is cheaper than recomputing the bar layout.
     bool hidden;
     int8_t linkedFlagIdx; // SEPARATOR only: index of preceding MODE_FLAG in s_dynItems, -1 if none
+    int8_t nextFlagIdx;   // SEPARATOR only: index of following MODE_FLAG in same bucket, -1 if none
 };
 static DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
 static uint8_t s_dynCount = 0;
@@ -189,7 +190,7 @@ namespace {
 // updates. Items with kind UNKNOWN are silently skipped (already warned at
 // parse time).
 void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastModeFlagIdxByPos[3],
-               bool hasDayTheme) {
+               int8_t pendingSepNeedingNextByPos[3], bool hasDayTheme) {
     lv_obj_t *prev = prevByPos[static_cast<uint8_t>(item.position)];
     lv_obj_t *obj = nullptr;
 
@@ -230,6 +231,9 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         }
         case TopBarItemKind::SEPARATOR: {
             obj = makeBarSeparator(s_bar, COLOR_MUTED);
+            // Hidden until updateLinkedSeparator resolves both adjacent flags
+            // (#659). Avoids a one-frame flicker when the next flag is hidden.
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
         }
@@ -311,10 +315,26 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         d.lastText[0] = '\0';
         d.lastColor = 0; // 0 = unset sentinel (matches no real color emit below)
         d.lastSeenValid = false;
-        d.hidden = (item.kind == TopBarItemKind::MODE_FLAG); // flags start hidden
+        // Flags start hidden (#653). Separators also start hidden (#659) so they
+        // never flicker visible before updateLinkedSeparator resolves both sides.
+        d.hidden =
+            (item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::SEPARATOR);
         d.linkedFlagIdx = (item.kind == TopBarItemKind::SEPARATOR) ? prevFlagIdx : -1;
+        d.nextFlagIdx = -1;
         if (item.kind == TopBarItemKind::MODE_FLAG) {
             lastModeFlagIdxByPos[posIdx] = static_cast<int8_t>(myIdx);
+            // Back-fill: any separator pending a "next flag" in this bucket
+            // now binds forward to this MODE_FLAG (#659).
+            const int8_t pendingSepIdx = pendingSepNeedingNextByPos[posIdx];
+            if (pendingSepIdx >= 0 && pendingSepIdx < static_cast<int8_t>(s_dynCount)) {
+                s_dynItems[pendingSepIdx].nextFlagIdx = static_cast<int8_t>(myIdx);
+            }
+            pendingSepNeedingNextByPos[posIdx] = -1;
+        } else if (item.kind == TopBarItemKind::SEPARATOR) {
+            // Register this separator as awaiting a following MODE_FLAG. If
+            // none arrives before a chain-breaker, it stays orphaned (-1) and
+            // updateLinkedSeparator will keep it permanently hidden.
+            pendingSepNeedingNextByPos[posIdx] = static_cast<int8_t>(myIdx);
         }
     }
 
@@ -323,6 +343,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
     // flag across an unrelated intervening element.
     if (item.kind != TopBarItemKind::MODE_FLAG && item.kind != TopBarItemKind::SEPARATOR) {
         lastModeFlagIdxByPos[posIdx] = -1;
+        pendingSepNeedingNextByPos[posIdx] = -1;
     }
 }
 
@@ -332,12 +353,16 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     // -1 = no MODE_FLAG seen yet in this bucket; used to bind a trailing
     // SEPARATOR's visibility to the preceding flag (#653).
     int8_t lastModeFlagIdxByPos[3] = {-1, -1, -1};
+    // -1 = no SEPARATOR awaiting a following MODE_FLAG in this bucket; used to
+    // back-fill `nextFlagIdx` once that flag is built (#659).
+    int8_t pendingSepNeedingNextByPos[3] = {-1, -1, -1};
 
     // Pass 1: left + center items in array order.
     for (uint8_t i = 0; i < cfg.itemCount; ++i) {
         const auto pos = cfg.items[i].position;
         if (pos == TopBarItemPos::LEFT || pos == TopBarItemPos::CENTER) {
-            buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, hasDayTheme);
+            buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, pendingSepNeedingNextByPos,
+                      hasDayTheme);
         }
     }
 
@@ -346,7 +371,8 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     // studio's flex-row order and the legacy hardcoded path. Fixes #480.
     for (int i = cfg.itemCount - 1; i >= 0; --i) {
         if (cfg.items[i].position == TopBarItemPos::RIGHT) {
-            buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, hasDayTheme);
+            buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, pendingSepNeedingNextByPos,
+                      hasDayTheme);
         }
     }
 }
@@ -522,13 +548,19 @@ static void updateModeFlag(DynItem &d) {
     d.lastColor = color;
 }
 
-// Collapse separators that trail a hidden MODE_FLAG (#653). Tag-based: each
-// separator stores the index of its preceding flag and mirrors that flag's
-// hidden state. Cheaper than recomputing anchors on every visibility flip.
+// Collapse separators that sit next to a hidden MODE_FLAG on either side
+// (#653, #659). A separator only renders when BOTH adjacent flags are
+// visible; otherwise we get a dangling `|` at the visible-region edges.
+// Orphan separators (no following flag in the same bucket) stay permanently
+// hidden via nextFlagIdx == -1.
 static void updateLinkedSeparator(DynItem &d) {
     if (d.linkedFlagIdx < 0 || d.linkedFlagIdx >= static_cast<int8_t>(s_dynCount))
         return;
-    const bool wantHidden = s_dynItems[d.linkedFlagIdx].hidden;
+    const bool prevHidden = s_dynItems[d.linkedFlagIdx].hidden;
+    const bool nextHidden = (d.nextFlagIdx < 0) ||
+                            (d.nextFlagIdx >= static_cast<int8_t>(s_dynCount)) ||
+                            s_dynItems[d.nextFlagIdx].hidden;
+    const bool wantHidden = prevHidden || nextHidden;
     if (wantHidden == d.hidden)
         return;
     if (wantHidden) {
