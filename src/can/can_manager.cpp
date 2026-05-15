@@ -29,6 +29,15 @@ static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
 static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
+// TWAI install / retry state (issue #652). When initHardware() returns
+// non-OK at boot, tick() must not call twai_receive() — that yields
+// ESP_ERR_INVALID_STATE every iteration and floods the log. Instead, the
+// manager retries installation on a timer up to TWAI_INIT_MAX_RETRIES.
+static bool s_twaiInstalled = false;
+static uint32_t s_lastRetryMs = 0;
+static uint8_t s_retryAttempts = 0;
+static bool s_permanentlyDownWarned = false;
+
 // ---------------------------------------------------------------------------
 // TWAI configuration helpers
 // ---------------------------------------------------------------------------
@@ -146,10 +155,36 @@ esp_err_t CanManager::initHardware() {
         return ESP_ERR_TIMEOUT;
     }
     vSemaphoreDelete(ctx.done);
+    if (ctx.result == ESP_OK) {
+        s_twaiInstalled = true;
+    }
     return ctx.result;
 }
 
 void CanManager::tick() {
+    // Guard: if the driver was never installed (e.g. ESP_ERR_NO_MEM at boot),
+    // do not call twai_receive() — it would return ESP_ERR_INVALID_STATE at
+    // every tick (~100 Hz) and flood the log. Schedule retries on a timer.
+    if (!s_twaiInstalled) {
+        const uint32_t nowMs = millis();
+        if (s_retryAttempts < TWAI_INIT_MAX_RETRIES &&
+            (s_lastRetryMs == 0 || nowMs - s_lastRetryMs >= TWAI_INIT_RETRY_MS)) {
+            s_retryAttempts++;
+            s_lastRetryMs = nowMs;
+            esp_err_t err = initHardware();
+            if (err == ESP_OK) {
+                LOG_INFO("CAN", "TWAI initialized after %u retries", s_retryAttempts);
+            }
+        } else if (s_retryAttempts >= TWAI_INIT_MAX_RETRIES && !s_twaiInstalled &&
+                   !s_permanentlyDownWarned) {
+            LOG_ERROR("CAN", "TWAI permanently down — heap too low at boot");
+            ErrorStore::push(ERROR_SRC_CAN, "PERM_DOWN", "TWAI permanently down");
+            s_permanentlyDownWarned = true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+        return;
+    }
+
     twai_message_t message;
 
     // Block for up to 10ms waiting for a frame
@@ -176,8 +211,16 @@ void CanManager::tick() {
         // This happens when ECU is not sending or CAN bus is quiet
     } else {
         s_errorCount++;
-        LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err),
-                 s_errorCount);
+        // Rate-limit the receive-error log to at most once per second. If the
+        // driver state is ever lost at runtime, this prevents 100 Hz log spam
+        // while still surfacing the failure (belt-and-braces for issue #652).
+        static uint32_t s_lastErrLogMs = 0;
+        const uint32_t nowErrLog = millis();
+        if (nowErrLog - s_lastErrLogMs >= 1000) {
+            LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err),
+                     s_errorCount);
+            s_lastErrLogMs = nowErrLog;
+        }
 
         // Check for bus-off condition
         twai_status_info_t status;
