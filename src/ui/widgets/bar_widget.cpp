@@ -403,7 +403,7 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     // (green/orange/red) drives the fill — preserves backward compatibility
     // for configs that haven't opted in.
     const uint32_t fillRgb = t->ramp ? colorAtValue(*t->ramp, displayValue)
-                                     : WidgetHelpers::zoneFillColor(pct, warnPct, dangerPct);
+                                     : WidgetHelpers::zoneFillColorSmooth(pct, warnPct, dangerPct);
     WidgetStyles::setBgColorIfChanged(t->fill, t->lastFillRgb, fillRgb);
 
     if (!t->isVertical) {

@@ -248,15 +248,16 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         createSectorArc(cont, diam, dangerAngle, 280, WidgetHelpers::kZoneDangerRgb, kBgWidth);
     }
 
-    // Gradient mode value arc (issue #175). Draws on top of the gray base.
-    // The indicator sweep + colour are recomputed each tick in update().
-    if (gradientMode) {
-        fillArc = createValueArc(cont, diam, kBgWidth);
+    // Value fill arc — always created, renders on top of the sector/base tracks.
+    // Gradient mode: full kBgWidth, colour interpolated each tick.
+    // Zones mode: kIndWidth (thinner so sector zones remain visible around it).
+    {
+        const uint8_t fillW = gradientMode ? kBgWidth : kIndWidth;
+        fillArc = createValueArc(cont, diam, fillW);
         lv_arc_set_angles(fillArc, 0, 0);
-        // Replace the default white indicator colour with the gradient's
-        // starting colour (green, 0 % of range).
-        lv_obj_set_style_arc_color(fillArc, lv_color_hex(WidgetHelpers::kZoneNormalRgb),
-                                   LV_PART_INDICATOR);
+        const uint32_t startColor =
+            (hasWarning || hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb : kColorValue;
+        lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
     }
 
     // The white indicator needle was dropped per user spec — the coloured
@@ -376,10 +377,9 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb,
                                                 ThemeManager::getEffectiveTextColor());
         }
-        // Gradient mode (issue #175): collapse the value arc to zero on
-        // invalid signals so the gray base track is visible — matches the
-        // "show 0" rule above.
-        if (tag->gradientMode && tag->fillArc) {
+        // Collapse the fill arc to zero on invalid signals so the base track
+        // is fully visible — matches the "show 0" rule above.
+        if (tag->fillArc) {
             lv_arc_set_angles(tag->fillArc, 0, 0);
         }
         AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
@@ -409,19 +409,27 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
     }
 
-    // Gradient mode: redraw the value arc with an interpolated colour and a
-    // sweep proportional to (value - min) / (max - min). The ramp wins when
-    // configured; otherwise fall back to the built-in green→orange→red lerp.
-    if (tag->gradientMode && tag->fillArc) {
+    // Update fill arc angle and colour for both gradient and zones modes.
+    if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
         lv_arc_set_angles(tag->fillArc, 0, angle);
+
         uint32_t fillColor;
         if (tag->ramp) {
             fillColor = colorAtValue(*tag->ramp, value);
-        } else {
+        } else if (tag->gradientMode) {
             const float range = tag->maxValue - tag->minValue;
             const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
             fillColor = interpolateGreenOrangeRed(pct);
+        } else if (tag->hasWarning || tag->hasDanger) {
+            if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
+                fillColor = WidgetHelpers::kZoneDangerRgb;
+            else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
+                fillColor = WidgetHelpers::kZoneWarningRgb;
+            else
+                fillColor = WidgetHelpers::kZoneNormalRgb;
+        } else {
+            fillColor = kColorValue; // white — no thresholds, no ramp
         }
         WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
                                            LV_PART_INDICATOR);

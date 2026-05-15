@@ -40,6 +40,11 @@ ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValu
 // Map a [0,1] pct + warn/danger pcts to the green/orange/red zone fill colour.
 uint32_t zoneFillColor(float pct, float warnPct, float dangerPct);
 
+// Smooth version: interpolates between zone colours instead of hard-stepping.
+// Below warnPct → green. warnPct..dangerPct → green→orange lerp.
+// Above dangerPct → orange→red lerp. Returns green when no thresholds set.
+uint32_t zoneFillColorSmooth(float pct, float warnPct, float dangerPct);
+
 // Convert "coolant_temp_c" → "COOLANT TEMP C". Empty src → "-".
 void formatSignalLabel(const char *src, char *out, size_t outLen);
 
