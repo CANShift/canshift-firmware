@@ -29,8 +29,13 @@ struct WidgetEntry {
     lv_obj_t *parent; // Owning page screen
     lv_obj_t *obj;    // LVGL object
     WidgetType type;
-    SignalId signalId; // Resolved once at create time — SIGNAL_COUNT means none
-    CfgWidget cfg;     // Copy of config for update logic
+    SignalId signalId;    // Resolved once at create time — SIGNAL_COUNT means none
+    const CfgWidget *cfg; // Borrowed pointer into ConfigLoader::s_dashboard.pages[].widgets[]
+                          // (issue #677). Lifetime spans every UI render cycle: the dashboard
+                          // struct lives in BSS for the program lifetime, and any reload path
+                          // that mutates its contents (theme toggle / PUT_CONFIG) routes through
+                          // PageManager::rebuildAllPages → WidgetFactory::clearAll BEFORE any
+                          // further updateAll() can dereference these pointers.
 };
 
 static WidgetEntry s_widgets[MAX_TRACKED_WIDGETS];
@@ -93,25 +98,25 @@ void updateWidget(WidgetEntry &entry,
 
     switch (entry.type) {
         case WidgetType::GAUGE:
-            GaugeWidget::update(entry.obj, value, valid, entry.cfg);
+            GaugeWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::BAR:
-            BarWidget::update(entry.obj, value, valid, entry.cfg);
+            BarWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::LABEL:
-            LabelWidget::update(entry.obj, rawValue, valid, entry.cfg);
+            LabelWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::WARNING:
-            WarningWidget::update(entry.obj, rawValue, valid, entry.cfg);
+            WarningWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::BUTTON:
             // Handled above before signalId check
             break;
         case WidgetType::GEAR_IND:
-            GearWidget::update(entry.obj, rawValue, valid, entry.cfg);
+            GearWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::TIMER:
-            TimerWidget::update(entry.obj, value, valid, entry.cfg);
+            TimerWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::IMAGE:
             // Static image — no per-frame update needed
@@ -179,12 +184,15 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         LOG_WARN("WF", "Unknown signal name: %s", cfg.signalId);
     }
 
-    // Register in tracking table
+    // Register in tracking table. Borrow the caller's CfgWidget by address —
+    // it lives in ConfigLoader::s_dashboard for the program lifetime, and the
+    // existing clearAll/rebuild path drops every entry before the dashboard
+    // contents can change again (issue #677).
     WidgetEntry &entry = s_widgets[s_widgetCount++];
     entry.parent = parent;
     entry.obj = obj;
     entry.type = cfg.type;
-    entry.cfg = cfg;
+    entry.cfg = &cfg;
     entry.signalId = resolved;
 
     LOG_DEBUG("WF", "Created widget '%s' type=%d at (%d,%d)", cfg.id, cfg.type, cfg.layout.x,
