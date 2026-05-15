@@ -101,6 +101,11 @@
 // well below a deliberate page swipe so navigation still feels responsive.
 #define SWIPE_CANCEL_THRESHOLD_PX 12
 
+// Grace window (ms) after a toggle button click during which update() must
+// NOT overwrite the local latch from the bound signal. Lets the ECU echo
+// arrive without flickering or re-arming on re-tap. See issue #658.
+#define BUTTON_SIGNAL_SYNC_GRACE_MS 500
+
 // ---------------------------------------------------------------------------
 // LVGL display buffers
 // Two draw buffers allow double-buffered rendering.

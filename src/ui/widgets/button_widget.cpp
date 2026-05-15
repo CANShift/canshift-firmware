@@ -1,6 +1,7 @@
 // button_widget.cpp — Tap-action button (page nav, ECU map switch, raw CAN, …)
 
 #include "button_widget.h"
+#include "app_config.h"
 #include "can/can_manager.h"
 #include "can_signals_out.h"
 #include "config/config_loader.h"
@@ -10,6 +11,7 @@
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
 #include "diag/logger.h"
+#include <Arduino.h>
 #include <lvgl.h>
 #include <stdio.h>
 #include <string.h>
@@ -45,6 +47,7 @@ struct ButtonTag {
     lv_obj_t *activeBadge;        // green dot overlay, nullptr if not a map_switch button
     uint8_t mapSwitchIndex;       // mapIndex of the MAP_SWITCH action, 0 = none
     char signalId[CFG_MAX_SIGNAL_LEN]; // signal driving toggle state; "" = use local latch
+    uint32_t signalSyncIgnoreUntilMs;  // ms tick before which update() must skip signal-driven sync
 };
 
 // Resolve the icon source. Returns a non-empty C-string LVGL path when an
@@ -145,6 +148,7 @@ void btnClickHandler(lv_event_t *e) {
     if (tag->params->isToggle) {
         tag->toggleActive = !tag->toggleActive;
         applyToggleVisualState(btn, *tag);
+        tag->signalSyncIgnoreUntilMs = millis() + BUTTON_SIGNAL_SYNC_GRACE_MS;
     }
 
     for (uint8_t i = 0; i < tag->params->actionsCount; ++i) {
@@ -199,6 +203,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->activeBadge = nullptr;
     tag->mapSwitchIndex = 0;
     strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
+    tag->signalSyncIgnoreUntilMs = 0;
 
     // Resolve map_switch index before layout so badge creation can reference it
     for (uint8_t i = 0; i < p.actionsCount; ++i) {
@@ -265,8 +270,11 @@ void ButtonWidget::update(lv_obj_t *btn) {
         return;
 
     // Signal-driven toggle: sync visual state from ECU signal so it survives
-    // page changes (the local latch resets on widget destruction).
-    if (tag->params && tag->params->isToggle && tag->signalId[0] != '\0') {
+    // page changes (the local latch resets on widget destruction). The grace
+    // window after a click keeps the local latch authoritative until the ECU
+    // echo can catch up — prevents flicker and re-arm on re-tap (issue #658).
+    if (tag->params && tag->params->isToggle && tag->signalId[0] != '\0' &&
+        millis() >= tag->signalSyncIgnoreUntilMs) {
         const SignalId sid = signalIdFromName(tag->signalId);
         const bool active = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid) &&
                             SignalStore::read(sid, 0.0f) != 0.0f;
