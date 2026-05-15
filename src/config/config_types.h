@@ -172,6 +172,10 @@ struct CfgButtonAction {
     uint32_t canFrameId;
     uint8_t canData[8];
     uint8_t canDataLen;
+    // Optional disarm payload sent when a toggle button turns OFF (dataOff in JSON).
+    // canDataOffLen==0 means no disarm frame is sent.
+    uint8_t canDataOff[8];
+    uint8_t canDataOffLen;
     // True when the user requested a 29-bit extended ID (issue #319). Auto-set
     // when canFrameId exceeds the 11-bit standard range (>0x7FF) so legacy
     // configs without the flag still transmit valid frames.
@@ -250,6 +254,7 @@ enum class TopBarItemKind : uint8_t {
     SEPARATOR,    // Vertical "|"
     SIGNAL,       // Live signal value with printf-style format
     USB_ICON,     // Download arrow — green when host active
+    BLE_ICON,     // "BLE" text badge: blue=connected, dim=advertising, gray=off
     THEME_TOGGLE, // ☀/☾ tap target — only meaningful when hasDayTheme
     MODE_FLAG,    // Text badge — amber when signal ≠ 0, near-black when 0 or invalid
 };

@@ -457,19 +457,23 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
 }
 
 void checkGestures() {
-    // gesture_dir stays armed until a new gesture is detected — without this
-    // tracker the same swipe re-fires every UI tick (#40 page-flip loop).
-    // We consume it once per touch cycle and reset on physical release.
     static lv_dir_t lastDir = LV_DIR_NONE;
 
     lv_indev_t *indev = lv_indev_get_next(nullptr);
+
+    if (indev == nullptr) {
+        static bool s_warned = false;
+        if (!s_warned) {
+            LOG_ERROR("UI", "checkGestures: no indev registered!");
+            s_warned = true;
+        }
+        return;
+    }
+
     while (indev != nullptr) {
         if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            // LVGL 8.3 exposes the state via the proc struct, not a getter.
             const lv_indev_state_t state = indev->proc.state;
 
-            // Drag-to-reveal runs every tick — it owns the press/move/release
-            // cycle for the settings panel.
             updateDrag(indev, state);
 
             if (state == LV_INDEV_STATE_RELEASED) {
@@ -828,7 +832,6 @@ void PageManager::updateWidgets() {
     AlertEngine::tick();
     setRevLimiterOverlay(AlertEngine::isRevLimiterFlashOn());
 
-    SettingsPage::tickSleep();
     ErrorBar::update();
 }
 

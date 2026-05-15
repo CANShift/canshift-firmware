@@ -38,17 +38,16 @@
  *=========================*/
 
         /* Size of the memory available for `lv_mem_alloc()` in bytes.
-   80 KB — bumped from 64 KB after v0.8.1 boot loop on real hardware
-   (LVGL OOM during PageManager::init when the 6 SPIFFS-loaded Orbitron
-   sizes consumed ~53 KB of the 64 KB pool, leaving only ~11 KB for
-   widget creation). 80 KB sits between the previously-tried 96 KB
-   (which tripped LV_ASSERT_MALLOC inside lv_init for ~14 KB contig
-   headroom) and the over-tight 64 KB. Largest free block at boot is
-   ~110 KB, so a 80 KB pool leaves ~30 KB headroom for lv_init contig
-   allocations and ~27 KB free in the pool itself for widget
-   instantiation after the 6 fonts (~53 KB) are loaded. Allocated via
-   malloc (LV_MEM_POOL_ALLOC), so this line consumes runtime heap, not
-   bss.
+   80 KB — sized to fit 6 Orbitron SPIFFS fonts (~54 KB total on disk)
+   plus widget styles and draw descriptors with ~22 KB headroom.
+
+   96 KB was tried and caused a black screen: after malloc(96 KB), only
+   ~12 KB contiguous DRAM remains, but DisplayDriver needs 2×12.8 KB
+   contiguous draw buffers (both allocations fail → display dead).
+
+   lv_init() runs BEFORE DisplayDriver::init() so the pool malloc runs
+   when heap largest = ~110 KB. That leaves ~28 KB contiguous after
+   the pool for the two draw buffers (2×12.8 KB = 25.6 KB — fits).
 
    Sim/QEMU shares the same pool size as production — the QEMU boot
    smoke test (.github/workflows/firmware-boot-smoke.yml) runs the sim
@@ -63,8 +62,12 @@
    Can be in external SRAM too. */
         #define LV_MEM_ADR 0U
 
-        /* Instead of an address give a memory allocator that will be called to get a
-   memory pool for LVGL. E.g. my_malloc */
+        /* lv_init() allocates the pool via malloc() at boot. This works because
+   boot_sequence.cpp calls lv_init() AFTER BLE earlyInit + config load but
+   BEFORE DisplayDriver::init(): LovyanGFX (s_lcd.init) fragments the heap
+   so severely that malloc(N KB) fails afterwards. Config loading (ArduinoJSON,
+   ~20 KB) runs before lv_init() so its scratch is freed first. Static BSS
+   allocation was tried but overflows dram0_0_seg on this board. */
         #if LV_MEM_ADR == 0U
             #define LV_MEM_POOL_INCLUDE <stdlib.h>
             #define LV_MEM_POOL_ALLOC malloc
@@ -129,14 +132,10 @@
  * LOGGING
  *==================*/
 
-        /* Enable the log module */
-        #if APP_DEBUG_BUILD
-            #define LV_USE_LOG 1
-            #define LV_LOG_LEVEL LV_LOG_LEVEL_INFO
-            #define LV_LOG_PRINTF 1
-        #else
-            #define LV_USE_LOG 0
-        #endif
+        /* Enable the log module — WARN always on (temporary: catches pool OOM) */
+        #define LV_USE_LOG 1
+        #define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
+        #define LV_LOG_PRINTF 1
 
         /*=================
  * ASSERT

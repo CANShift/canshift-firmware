@@ -82,7 +82,7 @@ static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
 
     lv_obj_t *lbl = lv_label_create(btn);
-    lv_label_set_text(lbl, LV_SYMBOL_CLOSE);
+    lv_label_set_text(lbl, "x");
     lv_obj_set_style_text_font(lbl, FONT(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(COL_DIM), 0);
     lv_obj_center(lbl);
@@ -154,6 +154,9 @@ void ErrorBar::init() {
     lv_obj_clear_flag(s_headerRow, LV_OBJ_FLAG_CLICKABLE);
 
     s_codeLabel = makeLabel(s_headerRow, COL_CODE);
+    // LV_SYMBOL_WARNING is in the default ROM font but not in the SPIFFS Orbitron
+    // binaries — use LV_FONT_DEFAULT so the symbol renders correctly.
+    lv_obj_set_style_text_font(s_codeLabel, LV_FONT_DEFAULT, 0);
     lv_label_set_text(s_codeLabel, "");
     lv_obj_set_width(s_codeLabel, LV_SIZE_CONTENT);
 
@@ -167,15 +170,13 @@ void ErrorBar::init() {
     lv_obj_set_width(s_countLabel, LV_SIZE_CONTENT);
 
     s_dismissBtn = makeDismissBtn(s_headerRow);
-    // Dismiss button: dismiss latest and stop propagation (don't toggle expand)
+    // Dismiss button: clear all errors and stop propagation (don't toggle expand)
     lv_obj_add_event_cb(
         s_dismissBtn,
         [](lv_event_t *e) {
             lv_event_stop_bubbling(e);
-            ErrorStore::dismissLatest();
-            if (ErrorStore::getCount() == 0) {
-                setExpanded(false);
-            }
+            ErrorStore::clear();
+            setExpanded(false);
         },
         LV_EVENT_CLICKED, nullptr);
 
@@ -272,8 +273,7 @@ void ErrorBar::update() {
     // ---------------------------------------------------------------------------
     {
         char codeBuf[20];
-        snprintf(codeBuf, sizeof(codeBuf), "\xE2\x9A\xA0 %s:%s", srcLabel(errors[0].source),
-                 errors[0].code);
+        snprintf(codeBuf, sizeof(codeBuf), "%s:%s", srcLabel(errors[0].source), errors[0].code);
         lv_label_set_text(s_codeLabel, codeBuf);
         lv_label_set_text(s_msgLabel, errors[0].message);
 

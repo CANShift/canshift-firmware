@@ -4,6 +4,7 @@
 #include "ui/font_manager.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
+#include "hal/ble/ble_server.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -19,22 +20,14 @@
 
 static constexpr char NVS_NS[] = "screen_cfg";
 static constexpr char KEY_BRIGHTNESS[] = "brightness"; // uint8  (10–100 %)
-static constexpr char KEY_SLEEP_S[] = "sleep_s";       // uint32 (0/30/60/300)
+static constexpr char KEY_BLE_ENABLED[] = "ble_en";    // uint8  (0/1)
 
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
 
 static constexpr uint8_t DEFAULT_BRIGHTNESS = 80;
-static constexpr uint32_t DEFAULT_SLEEP_S = 0;
-
-// ---------------------------------------------------------------------------
-// Sleep timeout options
-// ---------------------------------------------------------------------------
-
-static constexpr uint8_t SLEEP_OPTION_COUNT = 4;
-static constexpr uint32_t SLEEP_OPTIONS[SLEEP_OPTION_COUNT] = {0, 30, 60, 300};
-static const char *const SLEEP_LABELS[SLEEP_OPTION_COUNT] = {"Off", "30s", "1m", "5m"};
+static constexpr bool DEFAULT_BLE_ENABLED = true;
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -58,13 +51,12 @@ static constexpr uint32_t CLR_SAVE_TEXT = 0x55AA55;
 namespace {
 
 static uint8_t s_brightness = DEFAULT_BRIGHTNESS;
-static uint32_t s_sleepTimeoutS = DEFAULT_SLEEP_S;
-static bool s_sleeping = false;
+static bool s_bleEnabled = DEFAULT_BLE_ENABLED;
 
 static lv_obj_t *s_panel = nullptr;
 static lv_obj_t *s_brSlider = nullptr;
 static lv_obj_t *s_brValue = nullptr;
-static lv_obj_t *s_sleepBtns[SLEEP_OPTION_COUNT] = {};
+static lv_obj_t *s_bleBtns[2] = {};
 
 static bool s_open = false;
 static bool s_dragging = false;
@@ -87,7 +79,7 @@ void nvsLoad() {
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/true);
     s_brightness = p.getUChar(KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
-    s_sleepTimeoutS = p.getUInt(KEY_SLEEP_S, DEFAULT_SLEEP_S);
+    s_bleEnabled = p.getUChar(KEY_BLE_ENABLED, DEFAULT_BLE_ENABLED ? 1 : 0) != 0;
     p.end();
 
     if (s_brightness < 10 || s_brightness > 100)
@@ -98,9 +90,9 @@ void nvsSave() {
     Preferences p;
     p.begin(NVS_NS, /*readOnly=*/false);
     p.putUChar(KEY_BRIGHTNESS, s_brightness);
-    p.putUInt(KEY_SLEEP_S, s_sleepTimeoutS);
+    p.putUChar(KEY_BLE_ENABLED, s_bleEnabled ? 1 : 0);
     p.end();
-    LOG_INFO("Settings", "Saved — brightness=%d%% sleep=%ds", s_brightness, s_sleepTimeoutS);
+    LOG_INFO("Settings", "Saved — brightness=%d%% ble=%d", s_brightness, s_bleEnabled ? 1 : 0);
 }
 
 // -----------------------------------------------------------------------
@@ -123,18 +115,18 @@ void updateBrValue() {
     lv_label_set_text(s_brValue, buf);
 }
 
-void updateSleepButtons() {
-    for (uint8_t i = 0; i < SLEEP_OPTION_COUNT; ++i) {
-        if (!s_sleepBtns[i])
+void updateBleButtons() {
+    const bool active[2] = {s_bleEnabled, !s_bleEnabled}; // ON=idx0, OFF=idx1
+    for (uint8_t i = 0; i < 2; ++i) {
+        if (!s_bleBtns[i])
             continue;
-        bool active = (SLEEP_OPTIONS[i] == s_sleepTimeoutS);
-        lv_obj_set_style_bg_color(s_sleepBtns[i], lv_color_hex(active ? CLR_BTN_ACT : CLR_BTN_BG),
+        lv_obj_set_style_bg_color(s_bleBtns[i], lv_color_hex(active[i] ? CLR_BTN_ACT : CLR_BTN_BG),
                                   LV_PART_MAIN);
         lv_obj_set_style_border_color(
-            s_sleepBtns[i], lv_color_hex(active ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_t *lbl = lv_obj_get_child(s_sleepBtns[i], 0);
+            s_bleBtns[i], lv_color_hex(active[i] ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
+        lv_obj_t *lbl = lv_obj_get_child(s_bleBtns[i], 0);
         if (lbl)
-            lv_obj_set_style_text_color(lbl, lv_color_hex(active ? CLR_ACCENT : CLR_MUTED), 0);
+            lv_obj_set_style_text_color(lbl, lv_color_hex(active[i] ? CLR_ACCENT : CLR_MUTED), 0);
     }
 }
 
@@ -149,13 +141,14 @@ static void onBrightnessChanged(lv_event_t *e) {
     applyBrightness();
 }
 
-static void onSleepBtn(lv_event_t *e) {
+static void onBleBtn(lv_event_t *e) {
     uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-    if (idx >= SLEEP_OPTION_COUNT)
-        return;
-    s_sleepTimeoutS = SLEEP_OPTIONS[idx];
-    s_sleeping = false;
-    updateSleepButtons();
+    // idx 0 = ON, idx 1 = OFF
+    s_bleEnabled = (idx == 0);
+    updateBleButtons();
+#if APP_BLE_ENABLED
+    BleServer::setPendingEnabled(s_bleEnabled);
+#endif
 }
 
 static void onCalibrateTouch(lv_event_t * /*e*/) {
@@ -180,13 +173,15 @@ static void onSave(lv_event_t * /*e*/) {
 
 static void onReset(lv_event_t * /*e*/) {
     s_brightness = DEFAULT_BRIGHTNESS;
-    s_sleepTimeoutS = DEFAULT_SLEEP_S;
-    s_sleeping = false;
+    s_bleEnabled = DEFAULT_BLE_ENABLED;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
-    updateSleepButtons();
+    updateBleButtons();
     applyBrightness();
+#if APP_BLE_ENABLED
+    BleServer::setPendingEnabled(s_bleEnabled);
+#endif
 }
 
 // -----------------------------------------------------------------------
@@ -327,24 +322,25 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         y += sliderH;
     }
 
-    // ---- Sleep timeout ----
+    // ---- Bluetooth ----
     y += gapRow;
     {
         lv_obj_t *lbl = lv_label_create(s_panel);
-        lv_label_set_text(lbl, "SLEEP");
+        lv_label_set_text(lbl, "BLUETOOTH");
         lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_set_pos(lbl, PAD_H, y);
         y += labelH + gapInner;
 
         const int16_t gap = 4;
-        const int16_t btnW = (rowW - gap * (SLEEP_OPTION_COUNT - 1)) / SLEEP_OPTION_COUNT;
-        for (uint8_t i = 0; i < SLEEP_OPTION_COUNT; ++i) {
-            bool active = (SLEEP_OPTIONS[i] == s_sleepTimeoutS);
-            s_sleepBtns[i] = makeSegButton(s_panel, SLEEP_LABELS[i], active, onSleepBtn,
-                                           reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-            lv_obj_set_pos(s_sleepBtns[i], PAD_H + i * (btnW + gap), y);
-            lv_obj_set_size(s_sleepBtns[i], btnW, btnH);
+        const int16_t btnW = (rowW - gap) / 2;
+        const char *const bleLabels[2] = {"ON", "OFF"};
+        for (uint8_t i = 0; i < 2; ++i) {
+            bool active = (i == 0) ? s_bleEnabled : !s_bleEnabled;
+            s_bleBtns[i] = makeSegButton(s_panel, bleLabels[i], active, onBleBtn,
+                                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+            lv_obj_set_pos(s_bleBtns[i], PAD_H + i * (btnW + gap), y);
+            lv_obj_set_size(s_bleBtns[i], btnW, btnH);
         }
         y += btnH;
     }
@@ -477,28 +473,12 @@ bool SettingsPage::isOpen() {
     return s_open;
 }
 
-uint32_t SettingsPage::getSleepTimeoutS() {
-    return s_sleepTimeoutS;
-}
-
 uint8_t SettingsPage::getBrightness() {
     return s_brightness;
 }
 
-void SettingsPage::tickSleep() {
-    if (s_sleepTimeoutS == 0)
-        return;
-
-    uint32_t inactiveMs = lv_disp_get_inactive_time(nullptr);
-    bool shouldSleep = (inactiveMs >= s_sleepTimeoutS * 1000u);
-
-    if (shouldSleep && !s_sleeping) {
-        s_sleeping = true;
-        DisplayDriver::setBacklight(0);
-    } else if (!shouldSleep && s_sleeping) {
-        s_sleeping = false;
-        applyBrightness();
-    }
+bool SettingsPage::getBleEnabled() {
+    return s_bleEnabled;
 }
 
 // ---------------------------------------------------------------------------
@@ -623,23 +603,17 @@ void SettingsPage::snapClosed() {
     runSnap(s_closedY, onSnapClosedDone);
 }
 
-void SettingsPage::applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS) {
+void SettingsPage::applyFromUsb(uint8_t brightness) {
     if (brightness < 10 || brightness > 100)
         brightness = DEFAULT_BRIGHTNESS;
 
     s_brightness = brightness;
-    s_sleepTimeoutS = sleepTimeoutS;
-    s_sleeping = false;
-
     applyBrightness();
 
     if (s_brSlider)
         lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
-    updateSleepButtons();
-
     nvsSave();
 
-    LOG_INFO("Settings", "Applied from USB — brightness=%d%% sleep=%ds", s_brightness,
-             s_sleepTimeoutS);
+    LOG_INFO("Settings", "Applied from USB — brightness=%d%%", s_brightness);
 }

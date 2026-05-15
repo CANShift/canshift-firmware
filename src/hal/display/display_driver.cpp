@@ -103,15 +103,22 @@ void DisplayDriver::init() {
     if (!s_buf1 || !s_buf2) {
         s_buf1 = static_cast<lv_color_t *>(
             heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
-        s_buf2 = static_cast<lv_color_t *>(
-            heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
-        if (!s_buf1 || !s_buf2) {
-            LOG_ERROR("DISP", "Failed to allocate LVGL draw buffers (%u bytes each)",
+        if (!s_buf1) {
+            LOG_ERROR("DISP", "Failed to allocate primary draw buffer (%u bytes)",
                       static_cast<unsigned>(bufBytes));
             return;
         }
-        LOG_INFO("DISP", "LVGL draw buffers allocated in DRAM (%u bytes each)",
-                 static_cast<unsigned>(bufBytes));
+        // Second buffer is optional — our flush callback is synchronous so
+        // single-buffer mode has no performance cost (no DMA overlap).
+        s_buf2 = static_cast<lv_color_t *>(
+            heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+        if (s_buf2) {
+            LOG_INFO("DISP", "LVGL draw buffers allocated in DRAM (%u bytes each)",
+                     static_cast<unsigned>(bufBytes));
+        } else {
+            LOG_WARN("DISP", "Single draw buffer mode — heap too fragmented for second (%u bytes)",
+                     static_cast<unsigned>(bufBytes));
+        }
     }
 
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
@@ -129,8 +136,8 @@ void DisplayDriver::init() {
 void DisplayDriver::registerWithLVGL() {
     LOG_INFO("DISP", "Registering display with LVGL...");
 
-    if (!s_buf1 || !s_buf2) {
-        LOG_ERROR("DISP", "Cannot register display — draw buffers not allocated");
+    if (!s_buf1) {
+        LOG_ERROR("DISP", "Cannot register display — primary draw buffer not allocated");
         return;
     }
 

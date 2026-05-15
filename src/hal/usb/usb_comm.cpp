@@ -19,6 +19,7 @@
 #include "config/config_loader.h"
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
+#include "ui/burn_overlay.h"
 #include "ui/page_manager.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
@@ -274,7 +275,8 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
 // Fix: hold g_lvglMutex for the entire write so lv_task_handler() is blocked.
 // LVGL ticks that fire during the write see "mutex timeout" and skip — harmless
 // since the device reboots immediately after. On failure the mutex is released
-// so the UI recovers. The overlay is omitted (device reboots in <100 ms anyway).
+// so the UI recovers. BurnOverlay is shown while holding the mutex so the LCD
+// gives feedback on both success (reboot wipes it) and failure (error state).
 void handlePutConfig(const char *jsonLine) {
 #ifdef ARDUINO
     LOG_INFO("USB", "heap.largest_free=%u before PUT_CONFIG",
@@ -301,10 +303,12 @@ void handlePutConfig(const char *jsonLine) {
         LOG_WARN("USB", "PUT_CONFIG: could not acquire LVGL mutex — proceeding");
     }
     vTaskPrioritySet(nullptr, TASK_PRIO_UI + 1);
+    BurnOverlay::show();
 
     bool ok = StorageDriver::writeFileAtomic(
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
+        BurnOverlay::showError(BurnOverlay::ErrorReason::WriteFailed);
         vTaskPrioritySet(nullptr, TASK_PRIO_USB);
         if (mutexTaken)
             xSemaphoreGive(g_lvglMutex);
@@ -423,10 +427,9 @@ void handlePutFile(const JsonObjectConst &obj) {
 
 void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
-    uint32_t sleepS = obj["sleep"] | 0u;
 
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        SettingsPage::applyFromUsb(brightness, sleepS);
+        SettingsPage::applyFromUsb(brightness);
         xSemaphoreGive(g_lvglMutex);
     } else {
         LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");

@@ -157,7 +157,15 @@ void FontManager::init() {
         loadOne("bold", "secondary", kSecondarySizes[i], s_secondary[i]);
     }
     for (size_t i = 0; i < kLabelCount; ++i) {
-        loadOne("medium", "label", kLabelSizes[i], s_label[i]);
+        if (kLabelSizes[i] == 14) {
+            // orbitron_medium_14 already ships as a compiled C array in flash
+            // (lv_font_orbitron_medium_14_nk). Using it directly saves ~4.6 KB
+            // of LVGL pool — the pool is tight after loading all other fonts.
+            s_label[i] = &lv_font_orbitron_medium_14_nk;
+            LOG_INFO("FONT", "orbitron_medium_14: using in-flash copy (saves ~4.6 KB pool)");
+        } else {
+            loadOne("medium", "label", kLabelSizes[i], s_label[i]);
+        }
     }
 
     s_initialized = true;
@@ -166,10 +174,11 @@ void FontManager::init() {
 void FontManager::shutdown() {
     auto freeAll = [](const lv_font_t **slots, size_t count) {
         for (size_t i = 0; i < count; ++i) {
-            if (slots[i] != nullptr) {
+            // Skip the flash-resident fallback — it was never pool-allocated.
+            if (slots[i] != nullptr && slots[i] != &lv_font_orbitron_medium_14_nk) {
                 lv_font_free(const_cast<lv_font_t *>(slots[i]));
-                slots[i] = nullptr;
             }
+            slots[i] = nullptr;
         }
     };
     freeAll(s_primary, kPrimaryCount);

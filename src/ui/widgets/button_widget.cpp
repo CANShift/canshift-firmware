@@ -81,7 +81,7 @@ void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
     lv_obj_set_style_bg_color(btn, lv_color_hex(bg), LV_PART_MAIN);
 }
 
-void dispatchAction(const CfgButtonAction &a) {
+void dispatchAction(const CfgButtonAction &a, bool isActive) {
     switch (a.type) {
         case CfgButtonActionType::NAV_PAGE:
             if (a.pageId[0] != '\0')
@@ -118,7 +118,14 @@ void dispatchAction(const CfgButtonAction &a) {
             // Pass through the parsed extended flag (issue #319). Parser
             // auto-promotes any ID >0x7FF to extended so legacy configs that
             // omit the flag still transmit a valid frame.
-            (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended);
+            // When disarming a toggle and a dataOff payload was configured, send
+            // the off-frame instead of the arm-frame.
+            if (!isActive && a.canDataOffLen > 0) {
+                (void)CanManager::sendFrame(a.canFrameId, a.canDataOff, a.canDataOffLen,
+                                            a.canExtended);
+            } else {
+                (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended);
+            }
             break;
         case CfgButtonActionType::UNKNOWN:
         default:
@@ -141,7 +148,7 @@ void btnClickHandler(lv_event_t *e) {
     }
 
     for (uint8_t i = 0; i < tag->params->actionsCount; ++i) {
-        dispatchAction(tag->params->actions[i]);
+        dispatchAction(tag->params->actions[i], tag->toggleActive);
     }
 }
 

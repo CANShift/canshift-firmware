@@ -10,17 +10,18 @@
     "bgColor": "#0D0D0D",
     "textColor": "#AAAAAA",
     "layout": [
-      { "type": "statusDot", "signal": "rpm", "position": "left" },
-      { "type": "label", "text": "ECU", "position": "left" },
-      { "type": "separator", "position": "left" },
       { "type": "label", "text": "CAN", "position": "left" },
       { "type": "statusDot", "signal": "any", "position": "left" },
       { "type": "modeFlag", "signal": "flag_anti_lag", "text": "ALS", "position": "center" },
       { "type": "separator", "position": "center" },
       { "type": "modeFlag", "signal": "flag_launch_ctrl", "text": "LC", "position": "center" },
+      { "type": "separator", "position": "center" },
+      { "type": "modeFlag", "signal": "flag_flat_shift", "text": "FS", "position": "center" },
+      { "type": "separator", "position": "center" },
+      { "type": "modeFlag", "signal": "flag_traction_cut", "text": "TC", "position": "center" },
       { "type": "signal", "signal": "map_number", "format": "MAP%.0f", "position": "right" },
       { "type": "separator", "position": "right" },
-      { "type": "signal", "signal": "battery_volts", "format": "%.1fV", "position": "right" },
+      { "type": "bleIcon", "position": "right" },
       { "type": "usbIcon", "position": "right" },
       { "type": "separator", "position": "right" },
       { "type": "themeToggle", "position": "right" }
@@ -593,7 +594,7 @@
             "showIcon": true,
             "isToggle": true,
             "colors": { "normal": "#FF4444", "active": "#FF7777" },
-            "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1312, "data": "01" }]
+            "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1312, "data": "01", "dataOff": "00" }]
           }
         },
         {
@@ -617,7 +618,7 @@
             "showIcon": true,
             "isToggle": true,
             "colors": { "normal": "#FF4444", "active": "#FF7777" },
-            "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1313, "data": "01" }]
+            "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1313, "data": "01", "dataOff": "00" }]
           }
         },
         {

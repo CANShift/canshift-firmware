@@ -35,9 +35,6 @@ void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) 
 
     static bool s_wasPressed = false;
     if (pressed && !s_wasPressed) {
-        LOG_DEBUG("TOUCH", "Press at x=%ld y=%ld", x, y);
-        // Latch the press moment so the next LV_EVENT_CLICKED dispatch
-        // closes the press → click latency loop (issue #95 instrumentation).
         PERF_RECORD_TOUCH_PRESS();
     }
     s_wasPressed = pressed;
@@ -112,9 +109,7 @@ void TouchDriver::init() {
     LOG_INFO("TOUCH", "Touch driver registered");
 }
 
-void TouchDriver::poll() {
-    // lv_task_handler() calls all registered read callbacks automatically.
-}
+void TouchDriver::poll() {}
 
 bool TouchDriver::isCalibrated() {
     Preferences p;

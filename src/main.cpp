@@ -14,8 +14,21 @@
 #include "hardware_profile.h"
 
 #include "boot/boot_sequence.h"
+#include "can/can_manager.h"
 #include "diag/logger.h"
 #include "diag/perf_counters.h"
+#include "hal/display/display_driver.h"
+#include "hal/touch/touch_driver.h"
+#include "hal/usb/usb_comm.h"
+#include "runtime/alert_engine.h"
+#include "ui/page_manager.h"
+#include "ui/theme_manager.h"
+#if APP_BLE_ENABLED
+    #include "hal/ble/ble_server.h"
+#endif
+#if APP_SIMULATION_MODE
+    #include "sim/sim_engine.h"
+#endif
 
 // Task function forward declarations
 void taskUI(void *pvParameters);
@@ -24,7 +37,6 @@ void taskUSBComm(void *pvParameters);
 #if APP_BLE_ENABLED
 void taskBLE(void *pvParameters);
 #endif
-
 #if APP_SIMULATION_MODE
 void taskSim(void *pvParameters);
 #endif
@@ -34,6 +46,27 @@ void taskSim(void *pvParameters);
 // LVGL is NOT thread-safe. All LVGL calls from any task must hold this mutex.
 // ---------------------------------------------------------------------------
 SemaphoreHandle_t g_lvglMutex = nullptr;
+
+// ---------------------------------------------------------------------------
+// Task stack buffers — heap-allocated early in setup() before lv_init() claims
+// ~82 KB and fragments DRAM. By task-creation time the largest contiguous block
+// drops to ~15 KB, which is smaller than TASK_STACK_UI=8192 + FreeRTOS overhead,
+// so xTaskCreatePinnedToCore fails. Pre-allocating here guarantees the blocks
+// are reserved from the unfragmented boot heap (~160 KB free).
+// ---------------------------------------------------------------------------
+static StackType_t *s_uiStack = nullptr;
+static StackType_t *s_canStack = nullptr;
+static StackType_t *s_usbStack = nullptr;
+#if APP_BLE_ENABLED
+static StackType_t *s_bleStack = nullptr;
+#endif
+
+static StaticTask_t s_uiTaskTCB;
+static StaticTask_t s_canTaskTCB;
+static StaticTask_t s_usbTaskTCB;
+#if APP_BLE_ENABLED
+static StaticTask_t s_bleTaskTCB;
+#endif
 
 // ---------------------------------------------------------------------------
 // LVGL tick — driven by a periodic esp_timer at LVGL_TICK_MS resolution so
@@ -62,13 +95,67 @@ static void startLvglTickTimer() {
 }
 
 // ---------------------------------------------------------------------------
+// Allocate task stacks before lv_init() fragments the heap.
+// Draw buffers are NOT pre-allocated here — doing so would fragment the heap
+// enough that lv_init()'s 80 KB pool malloc returns NULL (→ panic).
+// DisplayDriver::init() falls back to single-buffer mode if the second 12 KB
+// allocation fails; the flush callback is synchronous so there is no penalty.
+// ---------------------------------------------------------------------------
+static void preallocateTaskStacks() {
+    s_uiStack = static_cast<StackType_t *>(heap_caps_malloc(TASK_STACK_UI * sizeof(StackType_t),
+                                                            MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    s_canStack = static_cast<StackType_t *>(heap_caps_malloc(
+        TASK_STACK_CAN * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    s_usbStack = static_cast<StackType_t *>(heap_caps_malloc(
+        TASK_STACK_USB * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+#if APP_BLE_ENABLED
+    s_bleStack = static_cast<StackType_t *>(heap_caps_malloc(
+        TASK_STACK_BLE * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+#endif
+    if (!s_uiStack || !s_canStack || !s_usbStack
+#if APP_BLE_ENABLED
+        || !s_bleStack
+#endif
+    ) {
+        LOG_ERROR("BOOT", "Task stack pre-allocation failed — halting");
+        while (true) {
+            delay(1000);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Create all FreeRTOS tasks using the pre-allocated static stacks and TCBs.
+// xTaskCreateStaticPinnedToCore never allocates from the heap, so it always
+// succeeds here even with the fragmented post-lv_init() heap.
+// ---------------------------------------------------------------------------
+static void createAllTasks() {
+    xTaskCreateStaticPinnedToCore(taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack,
+                                  &s_uiTaskTCB, TASK_CORE_UI);
+
+#if !APP_SIMULATION_MODE
+    xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
+                                  s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
+#else
+    xTaskCreatePinnedToCore(taskSim, "sim", TASK_STACK_SIM, nullptr, TASK_PRIO_SIM, nullptr,
+                            TASK_CORE_SIM);
+#endif
+
+    xTaskCreateStaticPinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB,
+                                  s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
+
+#if APP_BLE_ENABLED
+    xTaskCreateStaticPinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE,
+                                  s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
+#endif
+}
+
+// ---------------------------------------------------------------------------
 // setup() — runs once on core 1 after reset
 // ---------------------------------------------------------------------------
 void setup() {
     Serial.begin(USB_SERIAL_BAUD);
-
-    // Brief delay to let serial monitor connect
-    delay(200);
+    delay(200); // let serial monitor connect
 
     Logger::init();
     LOG_INFO("BOOT", "CANShift v" APP_VERSION_STR " starting");
@@ -77,7 +164,6 @@ void setup() {
     LOG_WARN("BOOT", "*** SIMULATION MODE ACTIVE — no CAN hardware ***");
 #endif
 
-    // Create the LVGL mutex before any LVGL calls
     g_lvglMutex = xSemaphoreCreateMutex();
     if (!g_lvglMutex) {
         LOG_ERROR("BOOT", "Failed to create LVGL mutex — halting");
@@ -86,92 +172,33 @@ void setup() {
         }
     }
 
-    // Run the synchronous boot sequence:
-    //   1. Init HAL (display, touch, storage)
-    //   2. Init LVGL
-    //   3. Load config from filesystem
-    //   4. Build the initial UI from config
+    // Must run before BootSequence::run() — see preallocateTaskStacks().
+    preallocateTaskStacks();
+
+    // Runs synchronous boot: HAL init → lv_init() → load config → build UI.
     BootSequence::run();
 
-    // Start the LVGL tick timer only after lv_init() has run inside BootSequence.
+    // Start tick timer only after lv_init() has run inside BootSequence.
     startLvglTickTimer();
 
-    // Initialize the perf-counter aggregator (no-op when APP_PROFILE_UI=0).
+    // No-op when APP_PROFILE_UI=0.
     PERF_INIT();
 
     LOG_INFO("BOOT", "Boot complete — starting tasks");
-
-    // ---------------------------------------------------------------------------
-    // UI task — runs LVGL tick and handler on core 1
-    // All UI rendering and touch input processing happens here.
-    // Core 1, priority 10, stack 8192 B (see TASK_CORE_UI/PRIO_UI/STACK_UI in app_config.h).
-    // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, nullptr,
-                            TASK_CORE_UI);
-
-#if !APP_SIMULATION_MODE
-    // ---------------------------------------------------------------------------
-    // CAN task — reads TWAI frames, parses them, writes to SignalStore.
-    // Pinned to core 0 to keep TWAI ISR + parse off core 1, where LVGL renders.
-    // Core 0, priority 15, stack 4096 B (see TASK_CORE_CAN/PRIO_CAN/STACK_CAN in app_config.h).
-    // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN, nullptr,
-                            TASK_CORE_CAN);
-#else
-    // ---------------------------------------------------------------------------
-    // Simulation task — writes fake signal values to SignalStore.
-    // Core 1, priority 5, stack 2048 B (see TASK_CORE_SIM/PRIO_SIM/STACK_SIM in app_config.h).
-    // Lowest priority because it is best-effort and yields generously.
-    // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(taskSim, "sim", TASK_STACK_SIM, nullptr, TASK_PRIO_SIM, nullptr,
-                            TASK_CORE_SIM);
-#endif
-
-    // ---------------------------------------------------------------------------
-    // USB comm task — Phase 1 config sync from desktop app.
-    // Core 1, priority 8, stack 4096 B (see TASK_CORE_USB/PRIO_USB/STACK_USB in app_config.h).
-    // Co-resident with UI on core 1 but lower priority — yields to UI on every tick.
-    // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB, nullptr,
-                            TASK_CORE_USB);
-
-#if APP_BLE_ENABLED
-    // ---------------------------------------------------------------------------
-    // BLE task — Phase 3 mobile app (telemetry + settings + WiFi AP OTA trigger).
-    // Core 1, priority 6, stack 5120 B (see TASK_CORE_BLE/PRIO_BLE/STACK_BLE in app_config.h).
-    // NimBLE host runs on its own core-0 task internally; this task only serializes
-    // JSON telemetry and dispatches command callbacks.
-    // ---------------------------------------------------------------------------
-    xTaskCreatePinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE, nullptr,
-                            TASK_CORE_BLE);
-#endif
-
+    createAllTasks();
     LOG_INFO("BOOT", "All tasks started");
 }
 
 // ---------------------------------------------------------------------------
-// loop() — Arduino main loop. We use FreeRTOS tasks instead.
-// This runs on the main task with lowest priority after task creation.
+// loop() — Arduino main loop. All work is in FreeRTOS tasks.
 // ---------------------------------------------------------------------------
 void loop() {
-    // Nothing to do here — all work is in FreeRTOS tasks.
-    // Yield to avoid starving lower-priority tasks.
     vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
 // ---------------------------------------------------------------------------
 // UI task
 // ---------------------------------------------------------------------------
-#include "hal/display/display_driver.h"
-#include "hal/touch/touch_driver.h"
-#include "ui/page_manager.h"
-#include "ui/theme_manager.h"
-#include "runtime/alert_engine.h"
-#include <lvgl.h>
-#include "hal/usb/usb_comm.h"
-#if APP_BLE_ENABLED
-    #include "hal/ble/ble_server.h"
-#endif
 
 #if APP_LV_TASK_LOG
 // 1 Hz aggregator for lv_task_handler() duration. Single-task (taskUI) so no
@@ -324,7 +351,6 @@ void taskUI(void *pvParameters) {
 // ---------------------------------------------------------------------------
 // CAN task
 // ---------------------------------------------------------------------------
-#include "can/can_manager.h"
 
 void taskCAN(void *pvParameters) {
     // CanManager::initHardware() is called from BootSequence::run() before tasks start.
@@ -338,9 +364,8 @@ void taskCAN(void *pvParameters) {
 }
 
 // ---------------------------------------------------------------------------
-// USB communication task (Phase 1)
+// USB communication task
 // ---------------------------------------------------------------------------
-#include "hal/usb/usb_comm.h"
 
 void taskUSBComm(void *pvParameters) {
     UsbComm::init();
@@ -355,24 +380,29 @@ void taskUSBComm(void *pvParameters) {
 // BLE task — advertising + telemetry notifications
 // ---------------------------------------------------------------------------
 #if APP_BLE_ENABLED
-    #include "hal/ble/ble_server.h"
 
 void taskBLE(void *pvParameters) {
     BleServer::init();
 
     TickType_t lastWake = xTaskGetTickCount();
     while (true) {
+        const int8_t pending = BleServer::takePendingEnabled();
+        if (pending == 0) {
+            BleServer::stop();
+        } else if (pending == 1) {
+            BleServer::start();
+        }
         BleServer::tick();
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(BLE_TELE_INTERVAL_MS));
     }
 }
+
 #endif
 
 // ---------------------------------------------------------------------------
 // Simulation task
 // ---------------------------------------------------------------------------
 #if APP_SIMULATION_MODE
-    #include "sim/sim_engine.h"
 
 void taskSim(void *pvParameters) {
     SimEngine::init();
@@ -382,4 +412,5 @@ void taskSim(void *pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(SIM_UPDATE_MS));
     }
 }
+
 #endif

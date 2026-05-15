@@ -28,6 +28,10 @@
     #include "can/can_manager.h"
 #endif
 
+#if APP_BLE_ENABLED
+    #include "hal/ble/ble_server.h"
+#endif
+
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
@@ -59,14 +63,19 @@ static void logHeap(const char *stage) {
 // ---------------------------------------------------------------------------
 
 static void initDisplayAndLVGL() {
-    LOG_INFO("BOOT", "Initializing display...");
-    DisplayDriver::init();
-    LOG_INFO("BOOT", "Display driver up");
-
+    // lv_init() allocates the LVGL pool (LV_MEM_SIZE) via malloc(). It must
+    // run BEFORE DisplayDriver::init() because LovyanGFX's s_lcd.init()
+    // fragments the heap such that a large contiguous block is no longer
+    // available afterwards. lv_init() does not need the display; only
+    // registerWithLVGL() does (it calls lv_disp_drv_register).
     LOG_INFO("BOOT", "Calling lv_init()...");
     lv_init();
     LOG_INFO("BOOT", "lv_init() returned");
     logHeap("after lv_init");
+
+    LOG_INFO("BOOT", "Initializing display...");
+    DisplayDriver::init();
+    LOG_INFO("BOOT", "Display driver up");
 
     LOG_INFO("BOOT", "Registering display with LVGL...");
     DisplayDriver::registerWithLVGL();
@@ -171,20 +180,10 @@ static void updateSplash(const char *status, uint8_t pct) {
 
 // Returns true if the storage came up cleanly. On failure the boot continues
 // with built-in defaults — the device stays reachable over USB.
-//
-// FontManager::init() is intentionally NOT called here — it must run AFTER
-// DefaultFonts::provisionMissingFiles() so a freshly-flashed device finds
-// the .bin files on SPIFFS rather than seeing every lv_font_load() return
-// NULL (issue #467).
+// NOTE: Does NOT call LvglFsDriver::init() — that requires lv_init() to have
+// run first (lv_fs_drv_register) and is called separately after LVGL is up.
 static bool initStorage() {
-    // Storage attempt is logged by StorageDriver::init() under the STORAGE tag
-    // with partition geometry — duplicating it under BOOT adds noise.
-    const bool ok = StorageDriver::init();
-    if (!ok) {
-        return false;
-    }
-    LvglFsDriver::init();
-    return true;
+    return StorageDriver::init();
 }
 
 static void loadConfig() {
@@ -206,6 +205,25 @@ static void buildUI() {
     PageManager::init();
     LOG_INFO("BOOT", "Navigating to default page...");
     PageManager::navigateTo(PageManager::getDefaultPageId());
+
+    // Log LVGL pool stats — useful to verify fonts + widgets fit in the pool.
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    LOG_INFO("LVGL", "pool: total=%u free=%u frag=%u%% largest=%u",
+             static_cast<unsigned>(mon.total_size), static_cast<unsigned>(mon.free_size),
+             static_cast<unsigned>(mon.frag_pct), static_cast<unsigned>(mon.free_biggest_size));
+
+    // Drive LVGL through the initial page-transition animation so the
+    // display shows the dashboard before the UI task takes over. Without
+    // this, the "Ready" splash frame persists until lv_task_handler ticks.
+    // lv_refr_now() at t=0 of a FADE_IN renders a black frame (new screen
+    // is transparent). Ticking past the animation duration completes it.
+    // Use lv_task_handler() (the public API) not lv_timer_handler() —
+    // lv_task_handler drives the display-refresh path correctly.
+    for (uint8_t i = 0; i < 8; i++) {
+        lv_tick_inc(20);
+        lv_task_handler();
+    }
     LOG_INFO("BOOT", "UI ready");
 }
 
@@ -238,32 +256,30 @@ void BootSequence::run() {
 
     logHeap("entry");
 
-    // 1. Display + LVGL — must come first so LVGL is ready for all later calls.
-    initDisplayAndLVGL();
+// 0. BLE early init — NimBLE needs ~50 KB contiguous DRAM. After LovyanGFX
+//    init the largest free block shrinks to ~16 KB, making BLE impossible.
+//    Initializing the stack here, before the display, guarantees the
+//    allocation succeeds while the heap is still large and unfragmented.
+#if APP_BLE_ENABLED
+    BleServer::earlyInit();
+    logHeap("after BLE early init");
+#endif
 
-    // 2. Touch controller
-    LOG_INFO("BOOT", "Initializing touch...");
-    TouchDriver::init();
-    LOG_INFO("BOOT", "Touch ready");
-
-    // 3. Storage — degrade (don't halt) on mount failure so the studio can
-    //    still reach the device over USB and the user can see a default
-    //    dashboard.
+    // 1. Storage mount — no LVGL dependency; runs before lv_init() so config
+    //    can be parsed while the heap still has a large contiguous block.
+    //    LvglFsDriver::init() is intentionally deferred until after lv_init().
     const bool storageOk = initStorage();
     if (storageOk) {
         LOG_INFO("BOOT", "Storage mounted");
     } else {
         LOG_ERROR("BOOT", "Storage mount failed — running with defaults");
-        // Persist the failure on the dashboard error bar — the splash message
-        // is dismissed after ~2 s and the user otherwise has no on-device
-        // indication that their config was not loaded from flash.
         ErrorStore::push(ERROR_SRC_SYSTEM, "MOUNT_FAIL", "Storage offline — config not persisted");
     }
     logHeap("after storage");
 
-    // 3.5 Provision default configs on a fresh / empty SPIFFS before
-    //     loadConfig reads. Writes only when target is missing AND no .bak
-    //     exists, or when target is empty. Never overwrites user data.
+    // 2. Provision default configs on a fresh / empty SPIFFS before
+    //    loadConfig reads. Writes only when target is missing AND no .bak
+    //    exists, or when target is empty. Never overwrites user data.
 #if DEFAULT_CONFIG_PROVISION_ENABLED
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default configs (if needed)...");
@@ -279,9 +295,31 @@ void BootSequence::run() {
     }
 #endif
 
-    // 3.6 Provision the 8 Orbitron .bin fonts on a fresh / empty SPIFFS
-    //     BEFORE FontManager::init() so lv_font_load() finds them. Writes
-    //     only when target is missing — never overwrites existing files.
+    // 3. Config — must run BEFORE lv_init() because ArduinoJSON's stream
+    //    parser needs ~20 KB contiguous heap. After lv_init() takes its 80 KB
+    //    pool the largest free block drops to ~15 KB causing NoMemory parse
+    //    failures. At this point the heap has ~120 KB contiguous — ample.
+    logHeap("before loadConfig");
+    loadConfig();
+    logHeap("after loadConfig");
+
+    // 4. Display + LVGL — lv_init() malloc(80 KB) runs here, after config is
+    //    parsed and ArduinoJSON scratch freed, so the pool allocation succeeds.
+    initDisplayAndLVGL();
+
+    // 5. Touch controller
+    LOG_INFO("BOOT", "Initializing touch...");
+    TouchDriver::init();
+    LOG_INFO("BOOT", "Touch ready");
+
+    // 6. LVGL filesystem driver — needs lv_init() (calls lv_fs_drv_register).
+    if (storageOk) {
+        LvglFsDriver::init();
+    }
+
+    // 7. Provision the 8 Orbitron .bin fonts on a fresh / empty SPIFFS
+    //    BEFORE FontManager::init() so lv_font_load() finds them. Writes
+    //    only when target is missing — never overwrites existing files.
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default fonts (if needed)...");
         const DefaultFonts::ProvisionResult fr = DefaultFonts::provisionMissingFiles();
@@ -296,27 +334,23 @@ void BootSequence::run() {
     }
     logHeap("before FontManager");
 
-    // 3.7 Load SPIFFS-backed fonts before showSplash() so the logo renders at
-    //     Orbitron Black 32 from the very first frame — no two-phase appearance.
+    // 8. Load SPIFFS-backed fonts before showSplash() so the logo renders at
+    //    Orbitron Black 32 from the very first frame — no two-phase appearance.
     LOG_INFO("BOOT", "Initializing FontManager...");
     FontManager::init();
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
 
-    // 4. Show splash — fonts are loaded, logo is at full size immediately.
+    // 9. Show splash — fonts loaded, logo at full size from first frame.
     LOG_INFO("BOOT", "Showing splash...");
     showSplash();
     LOG_INFO("BOOT", "Splash visible");
     logHeap("after splash");
 
-    // 5. Config
-    updateSplash("Loading config...", 10);
-    logHeap("before loadConfig");
-    loadConfig();
-    logHeap("after loadConfig");
+    updateSplash("Config loaded", 10);
     updateSplash("Applying config...", 40);
 
-    // 6. Runtime
+    // 10. Runtime
     LOG_INFO("BOOT", "Initializing TimerService...");
     TimerService::init();
     LOG_INFO("BOOT", "Initializing SignalStore...");
@@ -326,7 +360,7 @@ void BootSequence::run() {
     LOG_INFO("BOOT", "Runtime ready");
     updateSplash("Starting runtime...", 60);
 
-    // 7. CAN hardware (skip in simulation mode)
+    // 11. CAN hardware (skip in simulation mode)
 #if !APP_SIMULATION_MODE
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
     CanManager::initHardware();
@@ -336,12 +370,12 @@ void BootSequence::run() {
     updateSplash("Simulation mode", 78);
 #endif
 
-    // 8. USB comm
+    // 12. USB comm
     LOG_INFO("BOOT", "Initializing USB comm...");
     UsbComm::init();
     updateSplash("USB ready", 90);
 
-    // 9. Build the UI from config.
+    // 13. Build the UI from config.
     // updateSplash("Ready") must happen BEFORE buildUI() because
     // PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
     // splash objects from the LVGL pool before building page widgets.

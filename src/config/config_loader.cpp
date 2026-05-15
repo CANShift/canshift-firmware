@@ -140,6 +140,8 @@ TopBarItemKind parseTopBarItemKind(const char *str) {
         return TopBarItemKind::SIGNAL;
     if (strcmp(str, "usbIcon") == 0)
         return TopBarItemKind::USB_ICON;
+    if (strcmp(str, "bleIcon") == 0)
+        return TopBarItemKind::BLE_ICON;
     if (strcmp(str, "themeToggle") == 0)
         return TopBarItemKind::THEME_TOGGLE;
     if (strcmp(str, "modeFlag") == 0)
@@ -214,8 +216,10 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     out->mapIndex = 0;
     out->canFrameId = 0;
     out->canDataLen = 0;
+    out->canDataOffLen = 0;
     out->canExtended = false;
     memset(out->canData, 0, sizeof(out->canData));
+    memset(out->canDataOff, 0, sizeof(out->canDataOff));
 
     switch (out->type) {
         case CfgButtonActionType::NAV_PAGE:
@@ -266,6 +270,19 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
                 out->type = CfgButtonActionType::UNKNOWN;
                 out->canDataLen = 0;
                 memset(out->canData, 0, sizeof(out->canData));
+            }
+            // Optional disarm payload (toggle-off). Missing = no disarm frame sent.
+            const char *hexOff = src["dataOff"] | "";
+            if (hexOff[0] != '\0') {
+                if (!decodeHexBytes(hexOff, out->canDataOff, sizeof(out->canDataOff),
+                                    &out->canDataOffLen)) {
+                    LOG_WARN("CFG",
+                             "can_raw: invalid dataOff='%s' (must be ≤16 even-length hex chars) — "
+                             "disarm frame suppressed",
+                             hexOff);
+                    out->canDataOffLen = 0;
+                    memset(out->canDataOff, 0, sizeof(out->canDataOff));
+                }
             }
             break;
         }
@@ -666,7 +683,27 @@ bool loadDashboard() {
             ++s_dashboard.topBar.itemCount;
         }
     } else {
-        LOG_WARN("CFG", "topBar.layout missing — top bar will render empty");
+        // No layout in config — mirror canshift-core DEFAULT_TOP_BAR_LAYOUT
+        LOG_INFO("CFG", "topBar.layout missing — applying default layout");
+        uint8_t &n = s_dashboard.topBar.itemCount;
+        auto &items = s_dashboard.topBar.items;
+        auto addItem = [&](TopBarItemKind kind, TopBarItemPos pos, const char *sig,
+                           const char *txt) {
+            if (n >= CFG_MAX_TOPBAR_ITEMS)
+                return;
+            CfgTopBarItem &out = items[n++];
+            out.kind = kind;
+            out.position = pos;
+            strlcpy(out.signalId, sig, sizeof(out.signalId));
+            strlcpy(out.text, txt, sizeof(out.text));
+            out.format[0] = '\0';
+        };
+        addItem(TopBarItemKind::STATUS_DOT, TopBarItemPos::LEFT, "any", "");
+        addItem(TopBarItemKind::LABEL, TopBarItemPos::LEFT, "", "CAN");
+        addItem(TopBarItemKind::BLE_ICON, TopBarItemPos::RIGHT, "", "");
+        addItem(TopBarItemKind::USB_ICON, TopBarItemPos::RIGHT, "", "");
+        addItem(TopBarItemKind::SEPARATOR, TopBarItemPos::RIGHT, "", "");
+        addItem(TopBarItemKind::THEME_TOGGLE, TopBarItemPos::RIGHT, "", "");
     }
 
     // Optional day theme (hasDayTheme = false when key absent)

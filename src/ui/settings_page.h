@@ -3,7 +3,7 @@
 //
 // A full-canvas overlay (below the top bar) that exposes:
 //   - Brightness (slider, live preview via DisplayDriver::setBacklight)
-//   - Sleep timeout (segmented buttons: Off / 30s / 1m / 5m)
+//   - Bluetooth (ON/OFF toggle — persisted in NVS, applied immediately)
 //   - Calibrate Touch (runs TFT_eSPI crosshair calibration, stores to NVS)
 //
 // Navigation:
@@ -65,24 +65,17 @@ void snapClosed();
 bool isDragging();
 void setDragging(bool dragging);
 
-/** Returns the configured sleep timeout in seconds (0 = disabled). */
-uint32_t getSleepTimeoutS();
-
 /** Returns the current brightness percentage (10–100). */
 uint8_t getBrightness();
 
-/**
- * Called each UI tick from PageManager::updateWidgets().
- * Dims backlight after inactivity period; restores on touch.
- * No-op when sleep timeout is 0.
- */
-void tickSleep();
+/** Returns true when BLE is enabled (default: true). */
+bool getBleEnabled();
 
 /**
  * Apply settings pushed from the desktop Studio over USB.
  * Must be called while holding g_lvglMutex.
- * Applies backlight immediately and persists all values to NVS.
+ * Applies backlight immediately and persists to NVS.
  */
-void applyFromUsb(uint8_t brightness, uint32_t sleepTimeoutS);
+void applyFromUsb(uint8_t brightness);
 
 } // namespace SettingsPage
