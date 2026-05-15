@@ -15,6 +15,11 @@
       { "type": "separator", "position": "left" },
       { "type": "label", "text": "CAN", "position": "left" },
       { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "modeFlag", "signal": "flag_anti_lag", "text": "ALS", "position": "center" },
+      { "type": "separator", "position": "center" },
+      { "type": "modeFlag", "signal": "flag_launch_ctrl", "text": "LC", "position": "center" },
+      { "type": "signal", "signal": "map_number", "format": "MAP%.0f", "position": "right" },
+      { "type": "separator", "position": "right" },
       { "type": "signal", "signal": "battery_volts", "format": "%.1fV", "position": "right" },
       { "type": "usbIcon", "position": "right" },
       { "type": "separator", "position": "right" },
@@ -570,7 +575,7 @@
         {
           "id": "btn_launch",
           "type": "button",
-          "signal": "",
+          "signal": "flag_launch_ctrl",
           "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
@@ -594,7 +599,7 @@
         {
           "id": "btn_antilag",
           "type": "button",
-          "signal": "",
+          "signal": "flag_anti_lag",
           "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",

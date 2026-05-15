@@ -44,6 +44,7 @@ struct ButtonTag {
     char lvglPath[LVGL_PATH_LEN]; // resolved LVGL FS path for the icon, "" if none
     lv_obj_t *activeBadge;        // green dot overlay, nullptr if not a map_switch button
     uint8_t mapSwitchIndex;       // mapIndex of the MAP_SWITCH action, 0 = none
+    char signalId[CFG_MAX_SIGNAL_LEN]; // signal driving toggle state; "" = use local latch
 };
 
 // Resolve the icon source. Returns a non-empty C-string LVGL path when an
@@ -190,6 +191,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->lvglPath[0] = '\0';
     tag->activeBadge = nullptr;
     tag->mapSwitchIndex = 0;
+    strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
 
     // Resolve map_switch index before layout so badge creation can reference it
     for (uint8_t i = 0; i < p.actionsCount; ++i) {
@@ -252,7 +254,23 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
 void ButtonWidget::update(lv_obj_t *btn) {
     auto *tag = static_cast<ButtonTag *>(lv_obj_get_user_data(btn));
-    if (!tag || !tag->activeBadge || tag->mapSwitchIndex == 0)
+    if (!tag)
+        return;
+
+    // Signal-driven toggle: sync visual state from ECU signal so it survives
+    // page changes (the local latch resets on widget destruction).
+    if (tag->params && tag->params->isToggle && tag->signalId[0] != '\0') {
+        const SignalId sid = signalIdFromName(tag->signalId);
+        const bool active = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid) &&
+                            SignalStore::read(sid, 0.0f) != 0.0f;
+        if (active != tag->toggleActive) {
+            tag->toggleActive = active;
+            applyToggleVisualState(btn, *tag);
+        }
+    }
+
+    // Active-map badge for map_switch buttons.
+    if (!tag->activeBadge || tag->mapSwitchIndex == 0)
         return;
 
     const bool active =

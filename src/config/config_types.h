@@ -251,6 +251,7 @@ enum class TopBarItemKind : uint8_t {
     SIGNAL,       // Live signal value with printf-style format
     USB_ICON,     // Download arrow — green when host active
     THEME_TOGGLE, // ☀/☾ tap target — only meaningful when hasDayTheme
+    MODE_FLAG,    // Text badge — amber when signal ≠ 0, near-black when 0 or invalid
 };
 
 enum class TopBarItemPos : uint8_t {

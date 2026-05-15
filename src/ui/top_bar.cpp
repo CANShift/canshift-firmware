@@ -101,10 +101,12 @@ static uint8_t s_dynCount = 0;
 // scripts/png_to_lvgl_bin.py. We can't use the Unicode sun/moon glyphs
 // because the Latin-only Orbitron fonts don't include them.
 
-static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;    // green — connected, fresh data
-static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800; // orange — was connected but timing out
-static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;  // red — never connected since boot
-static constexpr uint32_t COLOR_USB_OFF = 0x444444;   // gray — host not active
+static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;      // green — connected, fresh data
+static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800;   // orange — was connected but timing out
+static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;    // red — never connected since boot
+static constexpr uint32_t COLOR_USB_OFF = 0x444444;     // gray — host not active
+static constexpr uint32_t COLOR_MODE_ACTIVE = 0xFF8800; // amber — mode armed
+static constexpr uint32_t COLOR_MODE_IDLE = 0x1C1C1C;   // near-black — mode off
 static constexpr uint32_t COLOR_LABEL = 0xCCCCCC;
 static constexpr uint32_t COLOR_MUTED = 0x666666;
 
@@ -228,6 +230,11 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             anchor(obj, gap);
             break;
         }
+        case TopBarItemKind::MODE_FLAG: {
+            obj = makeBarLabel(s_bar, item.text, COLOR_MODE_IDLE);
+            anchor(obj, gap);
+            break;
+        }
         case TopBarItemKind::THEME_TOGGLE: {
             obj = lv_img_create(s_bar);
             lv_img_set_src(obj, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
@@ -258,7 +265,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
     // Track dynamic items for update()
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
-         item.kind == TopBarItemKind::USB_ICON);
+         item.kind == TopBarItemKind::USB_ICON || item.kind == TopBarItemKind::MODE_FLAG);
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         DynItem &d = s_dynItems[s_dynCount++];
         d.kind = item.kind;
@@ -425,6 +432,19 @@ static void updateUsbIcon(lv_obj_t *obj, DynItem *d) {
         d->lastColor = color;
 }
 
+static void updateModeFlag(DynItem &d) {
+    SignalId sid = signalIdFromName(d.signalId);
+    bool active = false;
+    if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
+        active = SignalStore::read(sid, 0.0f) != 0.0f;
+    }
+    const uint32_t color = active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE;
+    if (color == d.lastColor)
+        return;
+    lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
+    d.lastColor = color;
+}
+
 void TopBar::update() {
     if (!s_bar)
         return;
@@ -440,6 +460,9 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::USB_ICON:
                 updateUsbIcon(d.obj, &d);
+                break;
+            case TopBarItemKind::MODE_FLAG:
+                updateModeFlag(d);
                 break;
             default:
                 break;
