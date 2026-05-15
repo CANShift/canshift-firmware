@@ -347,15 +347,48 @@ void abortChunkTransfer(const char *reason) {
     s_chunk.total = 0;
 }
 
+// Allowlist of top-level prefixes the host may target via CMD_PUT_FILE.
+// /config/ is intentionally absent — that path is owned by CMD_PUT_CONFIG,
+// which validates against the dashboard schema. Add new prefixes here only
+// after reviewing the impact on the storage layout.
+static const char *kAllowedPutPrefixes[] = {
+    "/assets/",
+    "/fonts/",
+};
+
 bool isPathSafe(const char *path) {
-    if (!path || path[0] != '/')
+    if (!path)
         return false;
-    const size_t len = strlen(path);
-    if (len == 1 || len >= CFG_MAX_PATH_LEN)
+    const size_t len = strnlen(path, CFG_MAX_PATH_LEN);
+    if (len == 0 || len >= CFG_MAX_PATH_LEN)
         return false;
+
+    // Reject control chars (0x00..0x1F) and DEL (0x7F). NUL would already
+    // truncate strnlen, but checking here documents intent.
+    for (size_t i = 0; i < len; ++i) {
+        const unsigned char c = static_cast<unsigned char>(path[i]);
+        if (c < 0x20 || c == 0x7F)
+            return false;
+    }
+
+    // Reject double slashes — would let a host obfuscate the prefix match
+    // ("/assets//../config/x" style payloads on hosts that normalize lazily).
+    if (strstr(path, "//"))
+        return false;
+
+    // Belt-and-braces: the anchored allowlist below already prevents traversal
+    // on flat SPIFFS, but reject literal ".." to keep this defense-in-depth.
     if (strstr(path, ".."))
         return false;
-    return true;
+
+    // Require an exact prefix match from the allowlist. The path must contain
+    // at least one byte beyond the prefix (i.e. an actual filename).
+    for (const char *prefix : kAllowedPutPrefixes) {
+        const size_t plen = strlen(prefix);
+        if (len > plen && strncmp(path, prefix, plen) == 0)
+            return true;
+    }
+    return false;
 }
 
 void handlePutFile(const JsonObjectConst &obj) {
