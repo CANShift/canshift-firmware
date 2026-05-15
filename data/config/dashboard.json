@@ -128,31 +128,6 @@
           }
         },
         {
-          "id": "battery_l",
-          "type": "gauge",
-          "signal": "battery_volts",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FFFFFF",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 28
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "minValue": 10,
-            "maxValue": 15,
-            "warningLevel": 11,
-            "dangerLevel": 10.5,
-            "decimalPlaces": 1,
-            "label": "Battery",
-            "labelPosition": "bottom-left"
-          }
-        },
-        {
           "id": "lambda_overview_l",
           "type": "gauge",
           "signal": "lambda_1",
@@ -416,31 +391,6 @@
             "dangerLevel": 5.5,
             "decimalPlaces": 1,
             "label": "Fuel press",
-            "labelPosition": "bottom-left"
-          }
-        },
-        {
-          "id": "fluids_battery_l",
-          "type": "gauge",
-          "signal": "battery_volts",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FFFFFF",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "minValue": 10,
-            "maxValue": 15,
-            "warningLevel": 11,
-            "dangerLevel": 10.5,
-            "decimalPlaces": 1,
-            "label": "Battery",
             "labelPosition": "bottom-left"
           }
         },

@@ -94,6 +94,12 @@ struct DynItem {
     char lastText[16];
     uint32_t lastColor;
     bool lastSeenValid;
+    // modeFlag/separator visibility coupling (#653). For MODE_FLAG entries this
+    // mirrors the LVGL hidden flag so we can skip redundant style writes. For
+    // SEPARATOR entries we hide when the linked preceding flag is hidden —
+    // tag-based collapse is cheaper than recomputing the bar layout.
+    bool hidden;
+    int8_t linkedFlagIdx; // SEPARATOR only: index of preceding MODE_FLAG in s_dynItems, -1 if none
 };
 static DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
 static uint8_t s_dynCount = 0;
@@ -176,7 +182,8 @@ namespace {
 // position bucket, and register it in s_dynItems if it needs per-frame
 // updates. Items with kind UNKNOWN are silently skipped (already warned at
 // parse time).
-void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayTheme) {
+void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastModeFlagIdxByPos[3],
+               bool hasDayTheme) {
     lv_obj_t *prev = prevByPos[static_cast<uint8_t>(item.position)];
     lv_obj_t *obj = nullptr;
 
@@ -244,7 +251,11 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
             break;
         }
         case TopBarItemKind::MODE_FLAG: {
-            obj = makeBarLabel(s_bar, item.text, COLOR_MODE_IDLE);
+            obj = makeBarLabel(s_bar, item.text, COLOR_MODE_ACTIVE);
+            // Hidden until the bound signal goes active (#653). The first
+            // update() tick promotes to visible once the signal is valid and
+            // non-zero. Acceptance: all flags hidden at boot.
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
         }
@@ -275,12 +286,17 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
 
     prevByPos[static_cast<uint8_t>(item.position)] = obj;
 
-    // Track dynamic items for update()
+    // Track dynamic items for update(). Separators are tracked too when
+    // they trail a MODE_FLAG (#653) so we can hide them in lockstep.
+    const uint8_t posIdx = static_cast<uint8_t>(item.position);
+    const int8_t prevFlagIdx = lastModeFlagIdxByPos[posIdx];
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
          item.kind == TopBarItemKind::USB_ICON || item.kind == TopBarItemKind::BLE_ICON ||
-         item.kind == TopBarItemKind::MODE_FLAG);
+         item.kind == TopBarItemKind::MODE_FLAG ||
+         (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
+        const uint8_t myIdx = s_dynCount;
         DynItem &d = s_dynItems[s_dynCount++];
         d.kind = item.kind;
         d.obj = obj;
@@ -289,18 +305,33 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], bool hasDayThe
         d.lastText[0] = '\0';
         d.lastColor = 0; // 0 = unset sentinel (matches no real color emit below)
         d.lastSeenValid = false;
+        d.hidden = (item.kind == TopBarItemKind::MODE_FLAG); // flags start hidden
+        d.linkedFlagIdx = (item.kind == TopBarItemKind::SEPARATOR) ? prevFlagIdx : -1;
+        if (item.kind == TopBarItemKind::MODE_FLAG) {
+            lastModeFlagIdxByPos[posIdx] = static_cast<int8_t>(myIdx);
+        }
+    }
+
+    // Any non-MODE_FLAG, non-SEPARATOR item breaks the linked-separator chain
+    // so a separator further down in the same bucket can't bind to an earlier
+    // flag across an unrelated intervening element.
+    if (item.kind != TopBarItemKind::MODE_FLAG && item.kind != TopBarItemKind::SEPARATOR) {
+        lastModeFlagIdxByPos[posIdx] = -1;
     }
 }
 
 void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     s_dynCount = 0;
     lv_obj_t *prevByPos[3] = {nullptr, nullptr, nullptr};
+    // -1 = no MODE_FLAG seen yet in this bucket; used to bind a trailing
+    // SEPARATOR's visibility to the preceding flag (#653).
+    int8_t lastModeFlagIdxByPos[3] = {-1, -1, -1};
 
     // Pass 1: left + center items in array order.
     for (uint8_t i = 0; i < cfg.itemCount; ++i) {
         const auto pos = cfg.items[i].position;
         if (pos == TopBarItemPos::LEFT || pos == TopBarItemPos::CENTER) {
-            buildItem(cfg.items[i], prevByPos, hasDayTheme);
+            buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, hasDayTheme);
         }
     }
 
@@ -309,7 +340,7 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     // studio's flex-row order and the legacy hardcoded path. Fixes #480.
     for (int i = cfg.itemCount - 1; i >= 0; --i) {
         if (cfg.items[i].position == TopBarItemPos::RIGHT) {
-            buildItem(cfg.items[i], prevByPos, hasDayTheme);
+            buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, hasDayTheme);
         }
     }
 }
@@ -467,11 +498,41 @@ static void updateModeFlag(DynItem &d) {
     if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
         active = SignalStore::read(sid, 0.0f) != 0.0f;
     }
+    // Visibility tracks the signal (#653) — badges only render when armed.
+    const bool wantHidden = !active;
+    if (wantHidden != d.hidden) {
+        if (wantHidden) {
+            lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+        }
+        d.hidden = wantHidden;
+    }
+    // Active flags stay amber; idle flags would be invisible anyway, so we
+    // still write the muted color to keep the LVGL state coherent for any
+    // future code path that unhides them without going through update().
     const uint32_t color = active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE;
     if (color == d.lastColor)
         return;
     lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
     d.lastColor = color;
+}
+
+// Collapse separators that trail a hidden MODE_FLAG (#653). Tag-based: each
+// separator stores the index of its preceding flag and mirrors that flag's
+// hidden state. Cheaper than recomputing anchors on every visibility flip.
+static void updateLinkedSeparator(DynItem &d) {
+    if (d.linkedFlagIdx < 0 || d.linkedFlagIdx >= static_cast<int8_t>(s_dynCount))
+        return;
+    const bool wantHidden = s_dynItems[d.linkedFlagIdx].hidden;
+    if (wantHidden == d.hidden)
+        return;
+    if (wantHidden) {
+        lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+    }
+    d.hidden = wantHidden;
 }
 
 void TopBar::update() {
@@ -495,6 +556,9 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::MODE_FLAG:
                 updateModeFlag(d);
+                break;
+            case TopBarItemKind::SEPARATOR:
+                updateLinkedSeparator(d);
                 break;
             default:
                 break;
