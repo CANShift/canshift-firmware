@@ -3,9 +3,20 @@
 #include "signal_store.h"
 #include "diag/logger.h"
 
-#include <Arduino.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/portmacro.h>
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+    #include <Arduino.h>
+    #include <freertos/FreeRTOS.h>
+    #include <freertos/portmacro.h>
+#else
+// Native test env (no FreeRTOS): the harness is single-threaded so the
+// critical-section macros become no-ops. portMUX_TYPE is reduced to a
+// tag so the existing call sites compile unchanged. See PR fixing
+// post-#752 native test build break.
+typedef int portMUX_TYPE;
+    #define portMUX_INITIALIZER_UNLOCKED 0
+    #define portENTER_CRITICAL(mux) ((void)(mux))
+    #define portEXIT_CRITICAL(mux) ((void)(mux))
+#endif
 #include <string.h>
 
 // ---------------------------------------------------------------------------
