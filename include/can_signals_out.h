@@ -1,10 +1,9 @@
 #pragma once
 // can_signals_out.h — Outbound (firmware → ECU) CAN frame definitions
 //
-// UNVERIFIED: every constant in this file is a placeholder. The MaxxECU
-// Street firmware does not document a stable map_switch input frame ID, so
-// `CAN_OUT_MAP_SWITCH_ID` (0x600) is a safe-but-unverified guess that lives
-// in the SAE J1939 proprietary range. Verify against the ECU's CAN input
+// UNVERIFIED: every constant in this file is a placeholder.
+// `CAN_OUT_MAP_SWITCH_ID` (0x600) is a safe-but-unverified default in the
+// SAE J1939 proprietary range. Verify against your ECU's CAN input
 // configuration before sending these frames on a live bus, otherwise the
 // transmitted frame will simply be ignored — or, in the worst case, collide
 // with another node that legitimately owns 0x600.
@@ -20,7 +19,7 @@
 constexpr uint32_t CAN_OUT_MAP_SWITCH_ID = 0x600;
 constexpr uint8_t CAN_OUT_MAP_SWITCH_DLC = 1;
 
-// MaxxECU Street advertises 8 user map slots. mapIndex outside this range is
+// Default map slot range (1–8). mapIndex outside this range is
 // rejected at dispatch time so the firmware never transmits a known-bad value.
 constexpr uint8_t MAP_SWITCH_MIN_INDEX = 1;
 constexpr uint8_t MAP_SWITCH_MAX_INDEX = 8;

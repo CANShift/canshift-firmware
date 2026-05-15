@@ -65,8 +65,8 @@
 // Wiring:
 //   CAN Pal CTX  → ESP32 TWAI_TX (GPIO below)
 //   CAN Pal CRX  → ESP32 TWAI_RX (GPIO below)
-//   CAN Pal CANH → MaxxECU CAN H
-//   CAN Pal CANL → MaxxECU CAN L
+//   CAN Pal CANH → ECU CAN H
+//   CAN Pal CANL → ECU CAN L
 //   CAN Pal VCC  → 5V rail
 //   CAN Pal GND  → GND
 //
@@ -88,9 +88,8 @@
 #define PIN_TWAI_TX 25
 #define PIN_TWAI_RX 32
 
-// CAN bus speed — must match MaxxECU CAN output configuration
-// MaxxECU Street default is typically 500 kbps or 1 Mbps
-// TODO: Confirm MaxxECU CAN baud rate setting
+// CAN bus speed — must match your ECU's CAN output configuration
+// Common values: 500 kbps, 1 Mbps — verify in your ECU software
 #define CAN_SPEED_KBPS 500
 
 // ---------------------------------------------------------------------------

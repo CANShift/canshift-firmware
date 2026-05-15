@@ -1,23 +1,12 @@
 #pragma once
-// maxxecu_parser.h — MaxxECU CAN protocol parser
+// maxxecu_parser.h — CAN frame decoder
 //
-// MaxxECU Street exposes engine data over CAN (TWAI).
-// The exact frame IDs and signal positions depend on the MaxxECU firmware version
-// and the CAN output configuration in the MaxxECU PC software.
+// Data-driven parser: signal definitions are loaded from signals.json at runtime.
+// The hardcoded defaults here serve as a fallback only.
 //
-// IMPORTANT: The mappings below are ESTIMATES based on common MaxxECU CAN
-// documentation. You MUST verify them in the MaxxECU PC software:
-//   MaxxECU PC software → CAN → CAN output → check enabled frames and byte positions
-//
-// The parser is data-driven: signal definitions are loaded from signals.json
-// at runtime. The hardcoded defaults here serve as a fallback and reference.
-//
-// Supported MaxxECU CAN protocol: v1.2 / v1.3 (configurable in MaxxECU software)
-//
-// References:
-//   - MaxxECU CAN protocol documentation (request from MaxxECU support or check
-//     the official MaxxECU documentation portal)
-//   - TODO: Add documentation URL when confirmed
+// IMPORTANT: The frame IDs and byte positions below are EXAMPLES.
+// You MUST verify them against your ECU's CAN output configuration before use.
+// Use Studio's CAN Scanner to capture live frames and map them in signals.json.
 
 #include <stdint.h>
 #include <stddef.h>
@@ -25,7 +14,7 @@
 namespace MaxxEcuParser {
 
 // ---------------------------------------------------------------------------
-// Known MaxxECU CAN frame IDs (verify against your ECU config)
+// Example CAN frame IDs — verify against your ECU config
 // ---------------------------------------------------------------------------
 
 // Frame set 1 — Primary engine data
@@ -44,12 +33,12 @@ static constexpr uint32_t FRAME_ID_ELEC = 0x373; // TODO: Verify
 // Frame set 5 — Status flags / bitmask
 static constexpr uint32_t FRAME_ID_FLAGS = 0x374; // TODO: Verify
 
-// Frame set 6 — Map number and profile info (if enabled in MaxxECU)
+// Frame set 6 — Map number and profile info (if enabled in ECU)
 static constexpr uint32_t FRAME_ID_MAP_INFO = 0x375; // TODO: Verify
 
 // ---------------------------------------------------------------------------
 // Signal byte layout for FRAME_ID_ENGINE_1 (8 bytes)
-// These are ASSUMED positions — must be validated against MaxxECU output config
+// These are ASSUMED positions — must be validated against your ECU's output config
 //
 // Byte 0-1: RPM (uint16, big-endian, 1 RPM/bit, 0-15000 RPM)
 // Byte 2:   TPS (uint8, 0.5 %/bit, 0-100%)

@@ -2,7 +2,7 @@
 // can_manager.h — TWAI (CAN) hardware manager and receive task
 //
 // Initializes the ESP32 TWAI controller, installs the driver,
-// receives frames in a loop, and dispatches to MaxxEcuParser.
+// receives frames in a loop, and dispatches to the CAN parser.
 //
 // The ESP32 TWAI controller supports:
 //   - Standard (11-bit) and extended (29-bit) frame IDs

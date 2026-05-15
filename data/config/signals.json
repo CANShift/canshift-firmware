@@ -1,6 +1,6 @@
 {
-  "_comment": "CANShift CAN signal mapping — MaxxECU Street, VW VR6 2.9",
-  "_warning": "Frame IDs and byte positions are ESTIMATES based on MaxxECU CAN documentation. MUST be verified in MaxxECU PC software under: CAN -> CAN Output -> check enabled frames and byte positions.",
+  "_comment": "CANShift CAN signal mapping — example profile. Edit frame IDs and byte positions to match your ECU.",
+  "_warning": "Frame IDs and byte positions are EXAMPLES. MUST be verified against your ECU's CAN output configuration before use.",
   "_outboundWarning": "Outbound frame IDs in `out` are UNVERIFIED placeholders. The firmware reads this section at boot (issue #317): `id` overrides the baked default in include/can_signals_out.h, `extended` (optional, default false) selects 29-bit framing — auto-set when id > 0x7FF.",
   "version": "1.0.0",
   "protocol": "maxxecu_v1.2",

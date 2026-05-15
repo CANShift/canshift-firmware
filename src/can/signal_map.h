@@ -49,14 +49,14 @@ static constexpr SignalId GEAR = 12; // Estimated gear (0=neutral)
 // Electrical
 static constexpr SignalId BATTERY_VOLTS = 13;
 
-// ECU status flags (from MaxxECU status word)
+// ECU status flags
 static constexpr SignalId FLAG_MIL = 20; // Check engine light
 static constexpr SignalId FLAG_LAUNCH_CTRL = 21;
 static constexpr SignalId FLAG_FLAT_SHIFT = 22;
 static constexpr SignalId FLAG_ANTI_LAG = 23;
 static constexpr SignalId FLAG_TRACTION_CUT = 24;
 
-// MaxxECU map/profile info
+// ECU map/profile info
 static constexpr SignalId MAP_NUMBER = 30;   // Active map number
 static constexpr SignalId MAP_NAME_IDX = 31; // Map name index (if ECU exposes it)
 
