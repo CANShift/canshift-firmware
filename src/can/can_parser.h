@@ -1,17 +1,16 @@
 #pragma once
-// maxxecu_parser.h — CAN frame decoder
+// can_parser.h — CAN frame parser
 //
-// Data-driven parser: signal definitions are loaded from signals.json at runtime.
-// The hardcoded defaults here serve as a fallback only.
+// Data-driven: signal definitions are loaded from signals.json at runtime.
+// The hardcoded defaults below serve as a fallback only.
 //
-// IMPORTANT: The frame IDs and byte positions below are EXAMPLES.
-// You MUST verify them against your ECU's CAN output configuration before use.
-// Use Studio's CAN Scanner to capture live frames and map them in signals.json.
+// IMPORTANT: Frame IDs and byte positions are EXAMPLES.
+// Verify them against your ECU's CAN output configuration before use.
 
 #include <stdint.h>
 #include <stddef.h>
 
-namespace MaxxEcuParser {
+namespace CanParser {
 
 // ---------------------------------------------------------------------------
 // Example CAN frame IDs — verify against your ECU config
@@ -112,4 +111,4 @@ float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen, bool 
                   bool isSigned, uint8_t bitMask, float scale, float offset);
 } // namespace detail
 
-} // namespace MaxxEcuParser
+} // namespace CanParser

@@ -1,6 +1,6 @@
-// maxxecu_parser.cpp — MaxxECU CAN protocol parser implementation
+// can_parser.cpp — CAN frame parser implementation
 
-#include "maxxecu_parser.h"
+#include "can_parser.h"
 #include "signal_map.h"
 #include "runtime/signal_store.h"
 #include "config/config_loader.h"
@@ -99,13 +99,13 @@ void parseMapInfoFrame(const uint8_t *data, uint8_t len) {
 } // namespace
 
 // ---------------------------------------------------------------------------
-// Generic multi-byte decoder — lives in MaxxEcuParser::detail so unit tests
+// Generic multi-byte decoder — lives in CanParser::detail so unit tests
 // can link against it. Production callers reach it through `parseFrame`.
 // ---------------------------------------------------------------------------
 
-float MaxxEcuParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
-                                         bool bigEndian, bool isSigned, uint8_t bitMask,
-                                         float scale, float offset) {
+float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
+                                     bool bigEndian, bool isSigned, uint8_t bitMask, float scale,
+                                     float offset) {
     static constexpr uint16_t kCanFrameMaxBytes = 8;
     if (byteLen == 0 ||
         static_cast<uint16_t>(startByte) + static_cast<uint16_t>(byteLen) > kCanFrameMaxBytes)
@@ -143,7 +143,7 @@ float MaxxEcuParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte,
 // Public API
 // ---------------------------------------------------------------------------
 
-void MaxxEcuParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
+void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
     if (s_runtimeLoaded) {
         // Data-driven dispatch — processes all signals defined for this frame ID
         bool matched = false;
@@ -164,8 +164,8 @@ void MaxxEcuParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t le
             return;
     }
 
-    // Fallback: hardcoded handlers for the default MaxxECU frame layout.
-    // Active when signals.json has not been loaded or does not cover this frame ID.
+    // Fallback: hardcoded handlers used when signals.json has not been loaded
+    // or does not cover this frame ID.
     switch (frameId) {
         case FRAME_ID_ENGINE_1:
             parseEngineFrame1(data, length);
@@ -186,12 +186,11 @@ void MaxxEcuParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t le
             parseMapInfoFrame(data, length);
             break;
         default:
-            // Unknown frame — MaxxECU broadcasts many frames we don't use
             break;
     }
 }
 
-void MaxxEcuParser::loadSignalDefinitions() {
+void CanParser::loadSignalDefinitions() {
     const CfgSignalConfig &cfg = ConfigLoader::getSignalConfig();
     if (!cfg.loaded || cfg.signalCount == 0) {
         LOG_WARN("CAN", "Signal config not loaded — using hardcoded defaults");

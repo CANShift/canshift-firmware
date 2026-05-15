@@ -20,7 +20,7 @@ hardware is required.
 test/
 ├── native/shim/                 # Host-only stand-ins for Arduino, FreeRTOS,
 │                                # logger, storage, error_store
-├── test_maxxecu_parser/         # Multi-byte CAN frame decoder (LE/BE/signed/mask)
+├── test_can_parser/             # Multi-byte CAN frame decoder (LE/BE/signed/mask)
 ├── test_signal_store/           # Thread-safe signal value store
 └── test_config_loader/          # JSON → CfgDashboard / CfgSignalConfig
     └── fixtures/                # Embedded JSON payloads

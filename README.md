@@ -21,7 +21,7 @@ Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–1
 - **MCU** — ESP32-WROOM-32 mounted on the Elecrow CrowPanel 2.8" ESP32 HMI (SKU `DIS05028H`).
 - **Display** — ILI9341, 320×240, SPI bus, backlight on GPIO 27 (PWM channel 0, 5 kHz, 8-bit).
 - **Touch** — XPT2046 resistive controller, sharing the display's HSPI bus, polled (no IRQ).
-- **CAN** — ESP32 TWAI controller fed through an Adafruit CAN Pal (TJA1051T/3) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → ECU CAN H/L`, `VCC → 5 V`, `GND → GND`.
+- **CAN** — ESP32 TWAI controller fed through an Adafruit CAN Pal (TJA1051T/3) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → MaxxECU CAN H/L`, `VCC → 5 V`, `GND → GND`.
 
 All pin assignments live in [`include/board_config.h`](include/board_config.h) and are still flagged as assumptions until they're verified on the actual board.
 
@@ -33,7 +33,7 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 - Gauge `revFlash` pulse triggered at the configured `revLimitRpm` (`src/ui/widgets/gauge_widget.cpp:261-270`, issue #263).
 - Button widgets with toggle latch, optional icon, and idle/active color tints (`src/ui/widgets/button_widget.cpp`).
 - ESP32 TWAI CAN reception at 500 kbps, runtime-overridable via `device.json`.
-- CAN frame parsing — RPM, throttle, MAP, boost, IAT, coolant, oil temp/pressure, fuel pressure, lambda, AFR, road speed, gear, battery, MIL/launch flags, map number.
+- MaxxECU CAN frame parsing — RPM, throttle, MAP, boost, IAT, coolant, oil temp/pressure, fuel pressure, lambda, AFR, road speed, gear, battery, MIL/launch flags, map number.
 - Dynamic CAN signal table built from `signals.json` at boot — runtime dispatch with bitmask support and per-signal timeout.
 - Touch calibration via TFT_eSPI's 4-point crosshair routine; result stored in NVS (`namespace="touch"`, `key="cal"`).
 - Day/night theme toggle that rebuilds all LVGL pages.
@@ -49,7 +49,7 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 - CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains them to USB at ≤32 frames per tick.
 - CAN health stats emitted as `{"can_stat":1,"fps":X.X,"errors":N}` every 2 s.
 - Telemetry push — `{"tele":1,"v":{...}}` every ~200 ms over USB; same payload at 10 Hz over BLE TELE.
-- Simulation mode (`[env:sim]`) generates synthetic engine data with no CAN hardware required.
+- Simulation mode (`[env:sim]`) generates VR6-shaped data with no CAN hardware required.
 - LVGL draw buffers sized at 20 lines × 320 px × 2 bytes (~12.8 KB each) so the firmware fits comfortably alongside NimBLE in DRAM.
 
 ---
@@ -182,7 +182,7 @@ canshift-firmware/
 │   │   └── wifi/wifi_ap.{cpp,h}    # On-demand softAP for OTA (compile-gated)
 │   ├── can/
 │   │   ├── can_manager.{cpp,h}     # TWAI receive loop, CAN health stats
-│   │   ├── maxxecu_parser.{cpp,h}  # Runtime signal table from signals.json + fallback
+│   │   ├── can_parser.{cpp,h}      # Runtime signal table from signals.json + fallback
 │   │   ├── signal_map.{cpp,h}      # Canonical SignalId enum + name table (#279)
 │   ├── config/
 │   │   ├── config_loader.{cpp,h}   # JSON → domain structs, atomic writes + .bak
@@ -213,7 +213,7 @@ canshift-firmware/
 ├── data/                           # SPIFFS image — uploaded via `pio run -t uploadfs`
 │   ├── config/
 │   │   ├── dashboard.json          # Default dashboard layout (also embedded)
-│   │   ├── signals.json            # CAN signal mapping — edit to match your ECU (also embedded)
+│   │   ├── signals.json            # MaxxECU CAN signal mapping (UNVERIFIED, also embedded)
 │   │   ├── theme.json              # Default theme overrides (also embedded)
 │   │   └── device.json             # Runtime hardware overrides
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
@@ -371,7 +371,7 @@ the stack to peripheral-only.
 ## Dynamic CAN signal loading
 
 At boot, `ConfigLoader` reads `signals.json` and builds a `RuntimeSignal[]`
-table in `maxxecu_parser.cpp`. Each entry maps a CAN frame ID and byte offset
+table in `can_parser.cpp`. Each entry maps a CAN frame ID and byte offset
 to a `SignalId` with scale, offset, endianness, sign, and optional bit mask.
 
 - `parseFrame()` iterates the runtime table first; unmatched frames fall
@@ -440,8 +440,8 @@ in your build flags. In sim mode:
 | TWAI RX | **32** | ← CAN Pal CRX |
 
 CAN speed: 500 kbps default (`board_config.h:89`); runtime override via
-`device.json`. Frame IDs in `signals.json` are examples — verify them against
-your ECU's CAN output configuration.
+`device.json`. MaxxECU CAN frame IDs in `signals.json` are **unverified** —
+confirm them in the MaxxECU PC software.
 
 ---
 
@@ -453,7 +453,7 @@ Each canonical config lives at `/config/` on the SPIFFS partition (paths from
 | File | Purpose | Required? |
 |------|---------|-----------|
 | `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot (`platformio.ini`) |
-| `signals.json` | CAN signal mapping (edit to match your ECU) | Same — provisioned on first boot |
+| `signals.json` | MaxxECU CAN signal mapping | Same — provisioned on first boot |
 | `theme.json` | Default theme overrides | Optional; provisioned with the embed defaults |
 | `device.json` | Runtime hardware overrides (TWAI pins, CAN speed) | Optional — falls back to `board_config.h` |
 

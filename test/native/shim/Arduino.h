@@ -5,7 +5,7 @@
 // printf-style helpers. The host build replaces those with deterministic
 // stand-ins so tests can advance time precisely. No `String`, no `Serial`,
 // no PROGMEM — production code in our scope (signal_store, config_loader,
-// maxxecu_parser, json_reader) does not need them.
+// can_parser, json_reader) does not need them.
 
 #include <stdint.h>
 #include <stddef.h>

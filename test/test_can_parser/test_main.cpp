@@ -1,14 +1,14 @@
-// test_main.cpp — Unity tests for MaxxEcuParser::detail::decodeBytes.
+// test_main.cpp — Unity tests for CanParser::detail::decodeBytes.
 //
 // Covers the three decoder modes the parser dispatches on:
 //   - little-endian unsigned with scale + offset
 //   - big-endian signed with negative result (sign-extension path)
 //   - bit-mask flag extraction
 //
-// The decoder lives in MaxxEcuParser::detail because it has no SignalStore
+// The decoder lives in CanParser::detail because it has no SignalStore
 // or CAN-frame coupling — tests can call it as a pure function.
 
-#include "can/maxxecu_parser.h"
+#include "can/can_parser.h"
 
 #include <unity.h>
 
@@ -37,7 +37,7 @@ void setUp() {}
 void tearDown() {}
 
 void test_decodeBytes_littleEndian_unsigned_scaleOffset() {
-    const float result = MaxxEcuParser::detail::decodeBytes(
+    const float result = CanParser::detail::decodeBytes(
         kLittleEndianFrame,
         /*startByte=*/0, /*byteLen=*/2,
         /*bigEndian=*/false, /*isSigned=*/false, /*bitMask=*/0,
@@ -46,7 +46,7 @@ void test_decodeBytes_littleEndian_unsigned_scaleOffset() {
 }
 
 void test_decodeBytes_bigEndian_signed_negative() {
-    const float result = MaxxEcuParser::detail::decodeBytes(
+    const float result = CanParser::detail::decodeBytes(
         kBigEndianSignedFrame,
         /*startByte=*/0, /*byteLen=*/2,
         /*bigEndian=*/true, /*isSigned=*/true, /*bitMask=*/0,
@@ -55,14 +55,14 @@ void test_decodeBytes_bigEndian_signed_negative() {
 }
 
 void test_decodeBytes_bitMask_extractsFlag() {
-    const float setResult = MaxxEcuParser::detail::decodeBytes(
+    const float setResult = CanParser::detail::decodeBytes(
         kFlagsFrame,
         /*startByte=*/0, /*byteLen=*/1,
         /*bigEndian=*/false, /*isSigned=*/false, kMaskBit6,
         /*scale=*/1.0f, /*offset=*/0.0f);
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 1.0f, setResult);
 
-    const float clearResult = MaxxEcuParser::detail::decodeBytes(
+    const float clearResult = CanParser::detail::decodeBytes(
         kFlagsFrame,
         /*startByte=*/0, /*byteLen=*/1,
         /*bigEndian=*/false, /*isSigned=*/false, kMaskBit0,
