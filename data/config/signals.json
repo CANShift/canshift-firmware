@@ -3,7 +3,7 @@
   "_warning": "Frame IDs and byte positions are EXAMPLES. MUST be verified against your ECU's CAN output configuration before use.",
   "_outboundWarning": "Outbound frame IDs in `out` are UNVERIFIED placeholders. The firmware reads this section at boot (issue #317): `id` overrides the baked default in include/can_signals_out.h, `extended` (optional, default false) selects 29-bit framing — auto-set when id > 0x7FF.",
   "version": "1.0.0",
-  "protocol": "maxxecu_v1.2",
+  "protocol": "custom_v1.0",
   "canSpeedKbps": 500,
   "out": {
     "map_switch": {

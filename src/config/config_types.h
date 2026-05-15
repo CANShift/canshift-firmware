@@ -370,7 +370,7 @@ struct CfgSignalsOut {
 
 struct CfgSignalConfig {
     char version[16];
-    char protocol[32]; // e.g. "maxxecu_v1.2"
+    char protocol[32]; // Informational tag (e.g. "custom_v1.0"); not used in parsing
     uint32_t canSpeedKbps;
     uint8_t signalCount;
     CfgSignalDef signals[CONFIG_MAX_SIGNALS];
