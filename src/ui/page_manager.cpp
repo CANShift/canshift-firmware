@@ -15,6 +15,10 @@
 #include "diag/perf_counters.h"
 #include "app_config.h"
 
+#include <Arduino.h>
+#include <esp_heap_caps.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <lvgl.h>
 #include <string.h>
 #include <stdio.h>
@@ -73,6 +77,11 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg) {
 }
 
 void buildPage(uint8_t idx, const CfgPage &cfg) {
+    LOG_INFO("UI", "buildPage(%s) entry: heap.largest=%u heap.free=%u stack.hwm=%u", cfg.id,
+             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
+             static_cast<unsigned>(ESP.getFreeHeap()),
+             static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+
     Page &p = s_pages[idx];
     strlcpy(p.id, cfg.id, CFG_MAX_ID_LEN);
 
@@ -107,6 +116,11 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
         LOG_INFO("UI", "Built page '%s' with %u widgets", cfg.id,
                  static_cast<unsigned>(cfg.widgetCount));
     }
+
+    LOG_INFO("UI", "buildPage(%s) exit:  heap.largest=%u heap.free=%u stack.hwm=%u", cfg.id,
+             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
+             static_cast<unsigned>(ESP.getFreeHeap()),
+             static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 }
 
 void rebuildAllPages() {

@@ -12,6 +12,7 @@
 #include "ui/page_manager.h"
 #include "diag/logger.h"
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <lvgl.h>
 #include <stdio.h>
 #include <string.h>
@@ -87,8 +88,22 @@ void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
 void dispatchAction(const CfgButtonAction &a, bool isActive) {
     switch (a.type) {
         case CfgButtonActionType::NAV_PAGE:
-            if (a.pageId[0] != '\0')
-                PageManager::navigateTo(a.pageId);
+            if (a.pageId[0] != '\0') {
+                // Defer navigateTo to the next LVGL tick: it can synchronously
+                // free the screen this button lives on (lazy-build path releases
+                // the departing page), and the event loop would otherwise return
+                // into freed memory. lv_async_call drains at the top of the next
+                // lv_timer_handler() iteration, after this click handler unwinds.
+                // Closes the re-entrant navigation path in #717.
+                static char s_pendingNavId[CFG_MAX_ID_LEN];
+                strlcpy(s_pendingNavId, a.pageId, sizeof(s_pendingNavId));
+                lv_async_call(
+                    [](void *p) {
+                        const char *id = static_cast<const char *>(p);
+                        PageManager::navigateTo(id);
+                    },
+                    s_pendingNavId);
+            }
             break;
         case CfgButtonActionType::MAP_SWITCH: {
             // Frame ID is sourced from signals.json `out.map_switch.id` (issue
@@ -195,6 +210,8 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     }
 
     auto *tag = new ButtonTag{};
+    LOG_DEBUG("BTN", "create %s heap.largest=%u", cfg.id,
+              static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     tag->params = &p;
     tag->iconImg = nullptr;
     tag->iconLabel = nullptr;
@@ -217,14 +234,26 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     if (hasIcon) {
         const char *path = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
-        if (path[0] != '\0') {
+        // Heap guard: under fragmentation the SPIFFS icon load via
+        // lv_img_set_src → lv_fs_open → newlib fopen can abort(). Mirrors the
+        // gate in lvgl_fs_driver.cpp::fs_open so the icon path bails out at
+        // the widget layer too and we still render the glyph fallback.
+        // Closes the OOM suspect in #717 / #651 / #660.
+        const size_t poolLargest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+        const bool heapOk = (poolLargest >= LVGL_FS_MIN_HEAP_BYTES);
+        if (path[0] != '\0' && heapOk) {
             tag->iconImg = lv_img_create(btn);
             lv_img_set_src(tag->iconImg, tag->lvglPath);
             lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(cfg.style.textColor.rgb), 0);
             lv_obj_set_style_img_recolor_opa(tag->iconImg, LV_OPA_COVER, 0);
         } else {
-            // No asset on disk — render the LVGL symbol fallback so the
-            // button still shows an icon glyph.
+            if (path[0] != '\0' && !heapOk) {
+                LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
+                         static_cast<unsigned>(poolLargest));
+                tag->lvglPath[0] = '\0';
+            }
+            // No asset on disk (or heap too low) — render the LVGL symbol
+            // fallback so the button still shows an icon glyph.
             tag->iconLabel = lv_label_create(btn);
             lv_label_set_text(tag->iconLabel, IconAssets::fallbackGlyph(p.iconName));
             // Do NOT override the font here: LV_SYMBOL_* glyphs live in the
