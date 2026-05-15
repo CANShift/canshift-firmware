@@ -5,7 +5,7 @@
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
+#include <freertos/portmacro.h>
 #include <string.h>
 
 // ---------------------------------------------------------------------------
@@ -13,21 +13,13 @@
 // ---------------------------------------------------------------------------
 
 static SignalStore::SignalValue s_signals[SIGNAL_STORE_MAX_SIGNALS];
-static SemaphoreHandle_t s_mutex = nullptr;
+static portMUX_TYPE s_signalsMux = portMUX_INITIALIZER_UNLOCKED;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
 namespace {
-
-inline bool acquireLock() {
-    return xSemaphoreTake(s_mutex, pdMS_TO_TICKS(5)) == pdTRUE;
-}
-
-inline void releaseLock() {
-    xSemaphoreGive(s_mutex);
-}
 
 inline bool idValid(SignalId id) {
     return id < SIGNAL_STORE_MAX_SIGNALS;
@@ -40,13 +32,8 @@ inline bool idValid(SignalId id) {
 // ---------------------------------------------------------------------------
 
 void SignalStore::init() {
-    s_mutex = xSemaphoreCreateMutex();
-    if (!s_mutex) {
-        LOG_ERROR("STORE", "Failed to create signal store mutex");
-        return;
-    }
-
     // Initialize all signals to invalid state
+    portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         s_signals[i] = {.raw = 0.0f,
                         .smoothed = 0.0f,
@@ -54,6 +41,7 @@ void SignalStore::init() {
                         .valid = false,
                         .timeoutMs = SIGNAL_DEFAULT_TIMEOUT_MS};
     }
+    portEXIT_CRITICAL(&s_signalsMux);
 
     LOG_INFO("STORE", "Signal store initialized (%d slots)", SIGNAL_STORE_MAX_SIGNALS);
 }
@@ -62,10 +50,9 @@ void SignalStore::update(SignalId id, float value) {
     if (!idValid(id))
         return;
 
-    if (!acquireLock()) {
-        LOG_WARN("STORE", "update() lock timeout for signal %d", id);
-        return;
-    }
+    uint32_t now = millis();
+
+    portENTER_CRITICAL(&s_signalsMux);
 
     SignalValue &sig = s_signals[id];
 
@@ -78,21 +65,19 @@ void SignalStore::update(SignalId id, float value) {
     }
 
     sig.raw = value;
-    sig.lastUpdateMs = millis();
+    sig.lastUpdateMs = now;
     sig.valid = true;
 
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
 }
 
 float SignalStore::read(SignalId id, float defaultValue) {
     if (!idValid(id))
         return defaultValue;
 
-    if (!acquireLock())
-        return defaultValue;
-
+    portENTER_CRITICAL(&s_signalsMux);
     float result = s_signals[id].valid ? s_signals[id].smoothed : defaultValue;
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
     return result;
 }
 
@@ -100,11 +85,9 @@ float SignalStore::readRaw(SignalId id, float defaultValue) {
     if (!idValid(id))
         return defaultValue;
 
-    if (!acquireLock())
-        return defaultValue;
-
+    portENTER_CRITICAL(&s_signalsMux);
     float result = s_signals[id].valid ? s_signals[id].raw : defaultValue;
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
     return result;
 }
 
@@ -112,10 +95,9 @@ bool SignalStore::isValid(SignalId id) {
     if (!idValid(id))
         return false;
 
-    if (!acquireLock())
-        return false;
+    portENTER_CRITICAL(&s_signalsMux);
     bool result = s_signals[id].valid;
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
     return result;
 }
 
@@ -124,10 +106,9 @@ SignalStore::SignalValue SignalStore::get(SignalId id) {
     if (!idValid(id))
         return copy;
 
-    if (!acquireLock())
-        return copy;
+    portENTER_CRITICAL(&s_signalsMux);
     copy = s_signals[id];
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
     return copy;
 }
 
@@ -135,44 +116,31 @@ void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
     if (out == nullptr)
         return;
 
-    if (!acquireLock()) {
-        // Best-effort: zero out the buffer so callers see invalid signals
-        // rather than reading uninitialized memory.
-        for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
-            out[i] = SignalValue{};
-        }
-        return;
-    }
-
+    portENTER_CRITICAL(&s_signalsMux);
     memcpy(out, s_signals, sizeof(SignalValue) * SIGNAL_STORE_MAX_SIGNALS);
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
 }
 
 void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
     if (!idValid(id))
         return;
 
-    if (!acquireLock())
-        return;
+    portENTER_CRITICAL(&s_signalsMux);
     s_signals[id].timeoutMs = timeoutMs;
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
 }
 
 void SignalStore::checkTimeouts() {
     uint32_t now = millis();
 
-    if (!acquireLock())
-        return;
-
+    portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         if (s_signals[i].valid) {
             uint32_t age = now - s_signals[i].lastUpdateMs;
             if (age > s_signals[i].timeoutMs) {
                 s_signals[i].valid = false;
-                LOG_VDEBUG("STORE", "Signal %d timed out (age=%ums)", i, age);
             }
         }
     }
-
-    releaseLock();
+    portEXIT_CRITICAL(&s_signalsMux);
 }
