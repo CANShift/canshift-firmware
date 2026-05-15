@@ -28,6 +28,7 @@
 #include <lvgl.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // TopBar proportion table — MIRROR OF canshift-core/src/topbar-metrics.ts
@@ -103,6 +104,11 @@ struct DynItem {
 };
 static DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
 static uint8_t s_dynCount = 0;
+
+// Per-DynItem "ever seen valid" history — index-aligned with s_dynItems.
+// Reset alongside s_dynCount in TopBar::init() so a theme rebuild does not
+// leak stale "seen" truth values onto freshly-built dyn items (#660).
+static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 
 // Day/night icons live on SPIFFS as 12×12 RGB565 .bin (LVGL native format).
 // Source PNGs are in scripts/icon_sources/, regenerable via
@@ -395,6 +401,7 @@ void TopBar::init() {
     // Reset captured handles — cheap insurance against re-init.
     s_themeIcon = nullptr;
     s_dynCount = 0;
+    memset(s_dynEverSeen, 0, sizeof(s_dynEverSeen));
 
     buildFromLayout(cfg, dash.hasDayTheme);
 
@@ -423,9 +430,6 @@ static uint32_t statusDotColor(bool valid, bool everSeen) {
         return COLOR_DOT_OK;
     return everSeen ? COLOR_DOT_STALE : COLOR_DOT_DOWN;
 }
-
-// Per-DynItem "ever seen valid" history — index-aligned with s_dynItems.
-static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 
 static void updateDynStatusDot(uint8_t idx, DynItem &d) {
     bool valid = false;

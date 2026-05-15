@@ -113,10 +113,15 @@
 
 // Minimum largest-free-block to allow an LVGL FS open. Below this, return
 // nullptr to keep newlib __sfp out of abort() territory. See issue #651.
+// Empirically, newlib's real abort threshold is ~256-512 bytes (FILE struct
+// + recursive mutex). 1024 leaves headroom for transient fragmentation
+// without prematurely refusing legitimate font/icon loads — the original
+// boot trace from #651 shows fonts opening with largest_free=1620, which a
+// 4096 guard would have rejected. See #660.
 #ifdef __cplusplus
-static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 4096;
+static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 1024;
 #else
-    #define LVGL_FS_MIN_HEAP_BYTES 4096
+    #define LVGL_FS_MIN_HEAP_BYTES 1024
 #endif
 
 // ---------------------------------------------------------------------------
