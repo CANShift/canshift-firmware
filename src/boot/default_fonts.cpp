@@ -3,7 +3,7 @@
 // Symbol naming: PlatformIO's embed_files generates `_binary_<munged_path>`
 // where the munged path is the file path with non-identifier characters
 // replaced by underscores. Embed sources live under `data/fonts/` (see
-// platformio.ini), giving e.g. `_binary_data_fonts_orbitron_black_32_bin_start`.
+// platformio.ini), giving e.g. `_binary_data_fonts_orbitron_bold_20_bin_start`.
 //
 // Font payloads are linked in via PlatformIO `board_build.embed_files`. Each
 // embedded blob exposes `_binary_<munged_path>_start` / `_end` symbols. We
@@ -11,7 +11,8 @@
 // the addresses (see https://docs.platformio.org/en/latest/platforms/espressif32.html).
 //
 // Mirror of src/config/default_config.cpp — same provisioning pattern, applied
-// to the 6 SPIFFS-resident font files shipped by FontManager (issues #467 + #487).
+// to the 5 SPIFFS-resident font files shipped by FontManager (the two Black
+// primary sizes ship in-flash; issues #467 + #487 + #664).
 
 #include "default_fonts.h"
 
@@ -22,9 +23,6 @@
 #include <Arduino.h>
 
 extern "C" {
-extern const uint8_t kFontBlack32Start[] asm("_binary_data_fonts_orbitron_black_32_bin_start");
-extern const uint8_t kFontBlack32End[] asm("_binary_data_fonts_orbitron_black_32_bin_end");
-
 extern const uint8_t kFontBold20Start[] asm("_binary_data_fonts_orbitron_bold_20_bin_start");
 extern const uint8_t kFontBold20End[] asm("_binary_data_fonts_orbitron_bold_20_bin_end");
 
@@ -51,7 +49,6 @@ struct EmbeddedFont {
 };
 
 const EmbeddedFont kEmbeddedFonts[] = {
-    {"/fonts/orbitron_black_32.bin", kFontBlack32Start, kFontBlack32End, "orbitron_black_32"},
     {"/fonts/orbitron_bold_20.bin", kFontBold20Start, kFontBold20End, "orbitron_bold_20"},
     {"/fonts/orbitron_bold_24.bin", kFontBold24Start, kFontBold24End, "orbitron_bold_24"},
     {"/fonts/orbitron_medium_12.bin", kFontMedium12Start, kFontMedium12End, "orbitron_medium_12"},
