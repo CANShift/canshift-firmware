@@ -79,6 +79,11 @@
 #define TASK_CORE_USB 1
 #define TASK_CORE_SIM 1
 
+// Watchdog timeout for UI/CAN/USB tasks. Long enough to survive page
+// rebuild (#717 instrumentation showed up to ~1.5s on cold cache) and
+// SPIFFS-backed font load (~600ms each, 6 fonts).
+#define TASK_WDT_TIMEOUT_MS 8000U
+
 // ---------------------------------------------------------------------------
 // LVGL timing
 // ---------------------------------------------------------------------------

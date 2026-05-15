@@ -37,6 +37,7 @@
 #include <esp_log.h>
 #if !APP_SIMULATION_MODE
     #include <esp_ota_ops.h>
+    #include <esp_task_wdt.h>
 #endif
 #include <lvgl.h>
 
@@ -289,6 +290,26 @@ void BootSequence::run() {
     canshift::hal::memory::initPsram();
 
     logHeap("entry");
+
+    // Task Watchdog Timer — initialised here, before any task is spawned in
+    // main.cpp::createAllTasks(). Registered tasks (UI/CAN/USB) must call
+    // esp_task_wdt_reset() each loop iteration or the panic handler resets
+    // the device. Skipped in simulation builds because QEMU has no real WDT
+    // and the boot smoke test would otherwise reset before reaching
+    // "[BOOT] Ready". Issue #666.
+    //
+    // The arduino-esp32 SDK pinned here ships the IDF v4 TWDT API
+    // (seconds + bool, idempotent — re-init updates the existing config).
+#if !APP_SIMULATION_MODE
+    constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
+    const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, /*panic=*/true);
+    if (wdtErr != ESP_OK) {
+        LOG_ERROR("BOOT", "Task WDT init failed: %d — continuing without WDT",
+                  static_cast<int>(wdtErr));
+    } else {
+        LOG_INFO("BOOT", "Task WDT armed (%u s)", static_cast<unsigned>(WDT_TIMEOUT_S));
+    }
+#endif
 
 // 0. BLE early init — NimBLE needs ~50 KB contiguous DRAM. After LovyanGFX
 //    init the largest free block shrinks to ~16 KB, making BLE impossible.

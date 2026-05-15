@@ -13,6 +13,10 @@
 #include "board_config.h"
 #include "hardware_profile.h"
 
+#if !APP_SIMULATION_MODE
+    #include <esp_task_wdt.h>
+#endif
+
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
 #include "diag/logger.h"
@@ -128,25 +132,55 @@ static void preallocateTaskStacks() {
 // Create all FreeRTOS tasks using the pre-allocated static stacks and TCBs.
 // xTaskCreateStaticPinnedToCore never allocates from the heap, so it always
 // succeeds here even with the fragmented post-lv_init() heap.
+//
+// Each "hot loop" task (UI/CAN/USB) is also subscribed to the Task Watchdog
+// Timer that was armed in BootSequence::run(). Its tick body calls
+// esp_task_wdt_reset() once per iteration — a hang in any of those loops
+// longer than TASK_WDT_TIMEOUT_MS fires the panic handler and the device
+// auto-resets (issue #666). BLE / Sim / WiFi-AP are intentionally NOT
+// registered.
 // ---------------------------------------------------------------------------
 static void createAllTasks() {
-    xTaskCreateStaticPinnedToCore(taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack,
-                                  &s_uiTaskTCB, TASK_CORE_UI);
+    TaskHandle_t uiHandle = xTaskCreateStaticPinnedToCore(
+        taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack, &s_uiTaskTCB, TASK_CORE_UI);
 
 #if !APP_SIMULATION_MODE
-    xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
-                                  s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
+    TaskHandle_t canHandle =
+        xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
+                                      s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
 #else
     xTaskCreatePinnedToCore(taskSim, "sim", TASK_STACK_SIM, nullptr, TASK_PRIO_SIM, nullptr,
                             TASK_CORE_SIM);
 #endif
 
-    xTaskCreateStaticPinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB,
-                                  s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
+    TaskHandle_t usbHandle =
+        xTaskCreateStaticPinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB,
+                                      s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
 
 #if APP_BLE_ENABLED
     xTaskCreateStaticPinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE,
                                   s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
+#endif
+
+#if !APP_SIMULATION_MODE
+    if (uiHandle) {
+        const esp_err_t err = esp_task_wdt_add(uiHandle);
+        if (err != ESP_OK)
+            LOG_WARN("BOOT", "WDT add(ui) failed: %d", static_cast<int>(err));
+    }
+    if (canHandle) {
+        const esp_err_t err = esp_task_wdt_add(canHandle);
+        if (err != ESP_OK)
+            LOG_WARN("BOOT", "WDT add(can) failed: %d", static_cast<int>(err));
+    }
+    if (usbHandle) {
+        const esp_err_t err = esp_task_wdt_add(usbHandle);
+        if (err != ESP_OK)
+            LOG_WARN("BOOT", "WDT add(usb) failed: %d", static_cast<int>(err));
+    }
+#else
+    (void)uiHandle;
+    (void)usbHandle;
 #endif
 }
 
@@ -301,6 +335,13 @@ void taskUI(void *pvParameters) {
             xSemaphoreGive(g_lvglMutex);
         }
 
+#if !APP_SIMULATION_MODE
+        // Issue #666 — feed the Task WDT once per UI tick. Placed after
+        // lv_task_handler() (the slowest leg of the loop) so genuine LVGL
+        // deadlocks deeper in the iteration still trip the watchdog.
+        esp_task_wdt_reset();
+#endif
+
 #if APP_BLE_ENABLED
         // Notify STATUS after releasing LVGL mutex so ThemeManager::isDayMode() is stable
         if (didDayNightChange) {
@@ -359,6 +400,12 @@ void taskCAN(void *pvParameters) {
     // twai_receive returns immediately every iteration (issue #200).
     while (true) {
         CanManager::tick();
+#if !APP_SIMULATION_MODE
+        // Issue #666 — CAN task WDT feed. CanManager::tick() blocks up to
+        // 10 ms in twai_receive and may sleep 100 ms while retrying install;
+        // both are well within TASK_WDT_TIMEOUT_MS.
+        esp_task_wdt_reset();
+#endif
         vTaskDelay(CAN_TASK_YIELD_TICKS);
     }
 }
@@ -372,6 +419,12 @@ void taskUSBComm(void *pvParameters) {
 
     while (true) {
         UsbComm::tick();
+#if !APP_SIMULATION_MODE
+        // Issue #666 — USB task WDT feed. Default tick cadence is 20 ms,
+        // worst case (CMD_PUT_CONFIG burn under LVGL mutex) ~200 ms, both
+        // far below TASK_WDT_TIMEOUT_MS.
+        esp_task_wdt_reset();
+#endif
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
