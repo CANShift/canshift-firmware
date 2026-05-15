@@ -22,6 +22,7 @@
         #include <esp_system.h>
         #include <freertos/FreeRTOS.h>
         #include <freertos/task.h>
+        #include <mbedtls/sha256.h>
         #include <stdio.h>
         #include <string.h>
 
@@ -42,17 +43,116 @@ static constexpr char NVS_NS_WIFI_AP[] = "wifi_ap";
 static constexpr char NVS_KEY_PWD[] = "pwd";
 static constexpr size_t AP_PASSWORD_LEN = 16;
 
+// Per-request bearer token gating the /ota endpoint (issue #667).
+//
+// Derivation — deterministic from the AP password, so the token survives
+// reboots and clients can recompute it from the password they already
+// scanned/typed to join the softAP:
+//
+//     ota_token = first 16 bytes of SHA-256(ap_password || "ota-bearer-v1")
+//
+// Stored as a 32-char lowercase hex string (plus NUL). Clients send the
+// header `Authorization: Bearer <hex>` on every POST /ota request; any
+// mismatch returns HTTP 401 before a single byte of firmware is accepted.
+static constexpr size_t OTA_TOKEN_BYTES = 16;
+static constexpr size_t OTA_TOKEN_HEX_LEN = OTA_TOKEN_BYTES * 2;
+static constexpr char OTA_TOKEN_SALT[] = "ota-bearer-v1";
+static char s_otaTokenHex[OTA_TOKEN_HEX_LEN + 1] = {};
+
 // OTA HMAC trailer verifier — heap-allocated for the duration of one upload
 // so chunked WRITEs don't have to thread the verifier through closures. The
 // HTTP server task is single-threaded, so a single static is safe.
 static OtaHmac::OtaHmacVerifier *s_otaVerifier = nullptr;
 static bool s_otaHmacOk = false;
+// Sticky reject flag — set by the upload handler when the bearer token is
+// missing or wrong so the matching complete handler can return 401 cleanly
+// (Arduino WebServer dispatches upload + complete separately).
+static bool s_otaAuthRejected = false;
 
 // ---------------------------------------------------------------------------
 // HTTP handlers
 // ---------------------------------------------------------------------------
 
 namespace {
+
+// Write the lowercase hex form of `len` bytes into `out` (out must be at
+// least 2*len + 1 chars). Trailing NUL written. Local to keep this file
+// self-contained — there's no shared hex helper in the codebase yet.
+void bytesToHex(const uint8_t *bytes, size_t len, char *out) {
+    static const char kHex[] = "0123456789abcdef";
+    for (size_t i = 0; i < len; ++i) {
+        out[i * 2] = kHex[(bytes[i] >> 4) & 0x0F];
+        out[i * 2 + 1] = kHex[bytes[i] & 0x0F];
+    }
+    out[len * 2] = '\0';
+}
+
+// Compute the per-device OTA bearer token from the live AP password and the
+// versioned salt. Called once at AP start; result cached in s_otaTokenHex.
+// Returns false only if mbedTLS fails to initialise (effectively impossible
+// on ESP32 IDF builds but checked anyway so we don't ship an empty token).
+bool deriveOtaToken() {
+    if (s_password[0] == '\0') {
+        return false;
+    }
+    uint8_t digest[32];
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    if (mbedtls_sha256_starts_ret(&ctx, /*is224=*/0) != 0) {
+        mbedtls_sha256_free(&ctx);
+        return false;
+    }
+    if (mbedtls_sha256_update_ret(&ctx, reinterpret_cast<const uint8_t *>(s_password),
+                                  strlen(s_password)) != 0 ||
+        mbedtls_sha256_update_ret(&ctx, reinterpret_cast<const uint8_t *>(OTA_TOKEN_SALT),
+                                  sizeof(OTA_TOKEN_SALT) - 1) != 0 ||
+        mbedtls_sha256_finish_ret(&ctx, digest) != 0) {
+        mbedtls_sha256_free(&ctx);
+        return false;
+    }
+    mbedtls_sha256_free(&ctx);
+    bytesToHex(digest, OTA_TOKEN_BYTES, s_otaTokenHex);
+    return true;
+}
+
+// Constant-time compare for the 32-hex-char bearer token. The compared
+// region is short and known, so we never branch on a per-byte match.
+bool tokenMatches(const char *received) {
+    if (received == nullptr || s_otaTokenHex[0] == '\0') {
+        return false;
+    }
+    size_t len = 0;
+    while (received[len] != '\0' && len < OTA_TOKEN_HEX_LEN + 1) {
+        ++len;
+    }
+    if (len != OTA_TOKEN_HEX_LEN) {
+        return false;
+    }
+    uint8_t diff = 0;
+    for (size_t i = 0; i < OTA_TOKEN_HEX_LEN; ++i) {
+        diff |= static_cast<uint8_t>(received[i] ^ s_otaTokenHex[i]);
+    }
+    return diff == 0;
+}
+
+// Validate the inbound `Authorization: Bearer <token>` header. Returns true
+// on a clean match; returns false (and leaves no side effects) otherwise so
+// the caller can decide whether to send 401 or just record a sticky reject.
+bool hasValidBearerToken() {
+    if (!s_server.hasHeader("Authorization")) {
+        return false;
+    }
+    String value = s_server.header("Authorization");
+    static const char kPrefix[] = "Bearer ";
+    constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
+    if (static_cast<size_t>(value.length()) < kPrefixLen + OTA_TOKEN_HEX_LEN) {
+        return false;
+    }
+    if (strncmp(value.c_str(), kPrefix, kPrefixLen) != 0) {
+        return false;
+    }
+    return tokenMatches(value.c_str() + kPrefixLen);
+}
 
 void handleStatus() {
     char buf[64];
@@ -78,6 +178,18 @@ bool otaUpdateSink(const uint8_t *data, size_t len, void * /*user*/) {
 }
 
 void handleOtaComplete() {
+    // Auth gate takes precedence: a 401 leaves no ambiguity about why the
+    // upload was rejected and avoids leaking HMAC / Update state to an
+    // unauthenticated peer.
+    if (s_otaAuthRejected) {
+        s_server.send(401, "application/json", "{\"status\":\"error\",\"reason\":\"auth\"}");
+        s_otaAuthRejected = false;
+        cleanupVerifier();
+        Update.abort();
+        LOG_WARN("WiFi", "OTA rejected: missing or invalid bearer token");
+        return;
+    }
+
     // Reject if either the Update layer reported an error OR the HMAC check
     // failed (or never happened when it was required).
     const bool updateOk = !Update.hasError();
@@ -111,6 +223,17 @@ void handleOtaComplete() {
 void handleOtaUpload() {
     HTTPUpload &upload = s_server.upload();
     if (upload.status == UPLOAD_FILE_START) {
+        // Bearer-token check happens on the first chunk so the upload handler
+        // doesn't even invoke Update.begin() for unauthenticated peers
+        // (issue #667). The Arduino WebServer calls this handler before the
+        // matching complete handler, so we record the rejection in a sticky
+        // flag and let handleOtaComplete() send the 401.
+        if (!hasValidBearerToken()) {
+            s_otaAuthRejected = true;
+            return;
+        }
+        s_otaAuthRejected = false;
+
         LOG_INFO("WiFi", "OTA upload start: %s (%u bytes expected)", upload.filename.c_str(),
                  upload.totalSize);
         s_otaHmacOk = false;
@@ -136,6 +259,9 @@ void handleOtaUpload() {
         LOG_WARN("WiFi", "OTA HMAC verification disabled (APP_OTA_REQUIRE_HMAC=0) — insecure");
         #endif
     } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (s_otaAuthRejected) {
+            return; // unauthenticated peer — drop the bytes on the floor
+        }
         #if APP_OTA_REQUIRE_HMAC
         if (s_otaVerifier == nullptr) {
             return; // begin failed earlier
@@ -151,6 +277,9 @@ void handleOtaUpload() {
         }
         #endif
     } else if (upload.status == UPLOAD_FILE_END) {
+        if (s_otaAuthRejected) {
+            return; // handled by handleOtaComplete → 401
+        }
         #if APP_OTA_REQUIRE_HMAC
         if (s_otaVerifier == nullptr) {
             return;
@@ -214,7 +343,28 @@ void apTaskFn(void *) {
     WiFi.softAP(s_ssid, s_password);
     LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid, WiFi.softAPIP().toString().c_str());
 
+    // Derive the per-device OTA bearer token once per AP session. Cheap
+    // (one SHA-256) and deterministic, so the token stays stable across
+    // reboots as long as the AP password in NVS doesn't rotate.
+    if (!deriveOtaToken()) {
+        LOG_ERROR("WiFi", "OTA bearer token derivation failed — /ota will reject everything");
+    }
+
+    // Tell the WebServer parser to retain the Authorization header on each
+    // request. Arduino WebServer drops every header except this allow-list,
+    // so without this hasHeader("Authorization") would always return false.
+    static const char *kCollect[] = {"Authorization"};
+    s_server.collectHeaders(kCollect, sizeof(kCollect) / sizeof(kCollect[0]));
+
     s_server.on("/status", HTTP_GET, handleStatus);
+    // /ota — firmware upload endpoint (issue #667).
+    //
+    // Clients MUST authenticate with `Authorization: Bearer <hex>` where
+    // <hex> is the 32-char lowercase token derived from the AP password:
+    //     ota_token = first 16 bytes of SHA-256(ap_password || "ota-bearer-v1")
+    // The studio and the mobile app both ship a matching derivation in
+    // canshift-mobile/src/services/ota-secret.ts and the studio's OTA push
+    // pipeline; keep all three in sync.
     s_server.on("/ota", HTTP_POST, handleOtaComplete, handleOtaUpload);
     s_server.begin();
 

@@ -5,8 +5,10 @@
 #   (CURRENT_SCHEMA_VERSION in src/index.ts) so firmware and shared-core can
 #   never disagree on the schema version (issue #203).
 # - Injects OTA_HMAC_SECRET from canshift-firmware/secrets.ini (gitignored)
-#   so the OTA HMAC trailer can be verified at upload time. Falls back to a
-#   placeholder with a loud warning if secrets.ini is missing (issue #205).
+#   so the OTA HMAC trailer can be verified at upload time. Hard-fails the
+#   build on prod flavours when secrets.ini is missing or still holds the
+#   placeholder string (issue #667). Dev flavours (env name contains "debug",
+#   "sim", or "native") accept the placeholder with a loud WARN line.
 
 Import("env")
 import configparser
@@ -68,12 +70,54 @@ def read_core_schema_version():
     return match.group(1)
 
 
-def read_ota_hmac_secret():
-    """Read OTA_HMAC_SECRET from canshift-firmware/secrets.ini if present.
+# Placeholder secret literal from include/app_config.h fallback. Kept in sync
+# manually — if you rename the placeholder, update both sites.
+PLACEHOLDER_SECRET = "DEV_INSECURE_REPLACE_BEFORE_PROD"
 
-    Returns (secret, is_fallback). When secrets.ini is missing or the section
-    is incomplete, falls back to the dev placeholder so the build still
-    succeeds — but prints a loud warning so it can never go unnoticed.
+# Example string shipped in secrets.ini.example. Treated as "not configured".
+EXAMPLE_SECRET = "REPLACE_WITH_OUTPUT_OF_openssl_rand_hex_32"
+
+# Build flavours that may use the placeholder secret. Any pio env whose name
+# contains one of these tokens is treated as a development build; everything
+# else (crowpanel_28, debug-perf, secure, …) is a production build and the
+# placeholder is a hard error. Keep this list short and explicit so a typo'd
+# env name fails closed.
+DEV_ENV_TOKENS = ("sim", "debug", "native")
+
+
+def is_dev_build():
+    """Return True iff the current PlatformIO env name marks a dev build.
+
+    The discriminator is the env name (PIOENV) — simpler than threading a new
+    APP_BUILD_FLAVOR env var through the build, and it matches the way the
+    existing envs are already split (production = crowpanel_28 / debug-perf /
+    secure; dev = sim / debug / native).
+
+    Also returns True for GitHub Actions pull_request CI runs: those exercise
+    the prod env (crowpanel_28) as a compile check on every PR but the binary
+    is never published, so the placeholder secret is acceptable there. The
+    release workflow runs on tag push (GITHUB_EVENT_NAME=push) and stays
+    subject to the prod gate — release artifacts MUST be built with a real
+    secret from gh-secrets."""
+    pio_env = env.get("PIOENV", "") or ""
+    lowered = pio_env.lower()
+    if any(token in lowered for token in DEV_ENV_TOKENS):
+        return True
+    if (
+        os.environ.get("CI") == "true"
+        and os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+    ):
+        return True
+    return False
+
+
+def read_ota_hmac_secret():
+    """Read OTA_HMAC_SECRET from canshift-firmware/secrets.ini.
+
+    Returns (secret, is_fallback). The caller decides whether a fallback is
+    tolerable based on the current build flavour: dev builds accept the
+    placeholder with a WARN, prod builds hard-fail (issue #667 — the
+    placeholder must never reach a production binary silently).
 
     secrets.ini format:
         [ota]
@@ -87,7 +131,7 @@ def read_ota_hmac_secret():
     try:
         parser.read(ini_path)
     except configparser.Error as exc:
-        print(f"warning: cannot parse {ini_path}: {exc} — using fallback secret")
+        print(f"warning: cannot parse {ini_path}: {exc} — treating as missing")
         return None, True
 
     if not parser.has_option("ota", "hmac_secret"):
@@ -96,7 +140,40 @@ def read_ota_hmac_secret():
     secret = parser.get("ota", "hmac_secret").strip()
     if not secret:
         return None, True
+
+    # The example value is not a real secret — surface it the same way as a
+    # missing file so the prod gate fires.
+    if secret == EXAMPLE_SECRET or secret == PLACEHOLDER_SECRET:
+        return secret, True
+
     return secret, False
+
+
+def enforce_ota_secret_policy(secret, is_fallback):
+    """Gate the build on the OTA secret. Prod flavours must have a real
+    secret in secrets.ini; dev flavours may keep the placeholder with a loud
+    WARN. Issue #667."""
+    if not is_fallback:
+        return
+
+    pio_env = env.get("PIOENV", "<unknown>")
+    if is_dev_build():
+        print(
+            f"WARN: OTA HMAC secret falls back to the dev placeholder for "
+            f"env '{pio_env}'. This build MUST NOT be shipped to users."
+        )
+        return
+
+    raise SystemExit(
+        "ERROR: refusing to build production firmware with the placeholder "
+        "OTA HMAC secret (env '"
+        + str(pio_env)
+        + "'). Create canshift-firmware/secrets.ini with a fresh secret:\n"
+        + "    openssl rand -hex 32\n"
+        + "Then set it under [ota] hmac_secret = <hex>. To build a dev "
+        + "image without a real secret, pick a dev env (sim / debug / "
+        + "native). Closes #667."
+    )
 
 
 # Inject all three macros. Quotes need to survive shell + compiler — use the
@@ -109,6 +186,11 @@ def read_ota_hmac_secret():
 _studio_version = read_studio_version()
 _schema_version = read_core_schema_version()
 _ota_secret, _ota_fallback = read_ota_hmac_secret()
+
+# Hard-fail prod builds before we even hand defines to the compiler, so a
+# misconfigured secrets.ini cannot produce a flashable binary that silently
+# trusts the placeholder OTA key (issue #667).
+enforce_ota_secret_policy(_ota_secret, _ota_fallback)
 
 _defines = [
     ("APP_VERSION_STR", env.StringifyMacro(_studio_version)),
@@ -130,9 +212,11 @@ except Exception as exc:
 print(f"firmware version (from studio package.json): {_studio_version}")
 print(f"config schema version (from canshift-core): {_schema_version}")
 if _ota_fallback:
+    # Dev path only — prod would already have raised in
+    # enforce_ota_secret_policy() above.
     print(
-        "warning: secrets.ini missing or incomplete — OTA_HMAC_SECRET falls back "
-        "to the placeholder in app_config.h. DO NOT ship this build to users."
+        "WARN: secrets.ini missing or incomplete — OTA_HMAC_SECRET falls back "
+        "to the dev placeholder in app_config.h. This build MUST NOT ship."
     )
 else:
     print("OTA HMAC secret loaded from secrets.ini")

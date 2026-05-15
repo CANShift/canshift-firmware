@@ -272,12 +272,16 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 1024;
 
 // Require an HMAC-SHA256 trailer on every OTA upload. The trailer is the
 // last 32 bytes of the upload and must equal HMAC_SHA256(firmware, secret).
-// When 0 (default while studio + mobile catch up), the firmware logs a WARN
-// at upload start and accepts the upload as before — same behaviour as
-// before this feature shipped. Flip to 1 once both publishers append the
-// trailer; that gate change is a separate, intentional PR.
+// Production builds ALWAYS require the trailer: the firmware will reject any
+// OTA payload that is either missing the trailer or that carries a bad HMAC,
+// returning HTTP 500 with reason="hmac" and aborting Update.write. Combined
+// with the per-request bearer token derived from the AP password in
+// wifi_ap.cpp, this closes issue #667 (unauthenticated firmware writes on
+// the device's softAP). Overriding to 0 is intentionally not supported via
+// the public build envs — secrets.ini hard-fails the build if the OTA secret
+// is the dev placeholder for prod flavours (scripts/extra_targets.py).
 #ifndef APP_OTA_REQUIRE_HMAC
-    #define APP_OTA_REQUIRE_HMAC 0
+    #define APP_OTA_REQUIRE_HMAC 1
 #endif
 
 // Build-time shared secret used to verify OTA HMAC trailers. The real value
