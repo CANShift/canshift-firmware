@@ -242,7 +242,20 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
     // within an event callback (button click → navigateTo → showPage).
     // asyncDoLazyBuild() runs at the start of the next lv_timer_handler()
     // iteration, safely outside the call stack of any event handler.
+    //
+    // Coalesce concurrent requests: if a lazy build is already scheduled but
+    // the async callback has not yet drained, overwrite the pending idx with
+    // the latest request (latest-wins debounce) and skip the second
+    // lv_async_call. This prevents a stale enqueue and matches typical UI
+    // debounce semantics — the user's most recent navigation intent wins.
     if (!s_pages[idx].screen) {
+        if (s_pendingLazyBuildIdx != 0xFF) {
+            LOG_DEBUG("UI", "Lazy build already pending for idx=%u; coalescing new request idx=%u",
+                      s_pendingLazyBuildIdx, idx);
+            s_pendingLazyBuildIdx = idx;
+            s_pendingLazyBuildMs = durationMs;
+            return;
+        }
         s_pendingLazyBuildIdx = idx;
         s_pendingLazyBuildMs = durationMs;
         lv_async_call(asyncDoLazyBuild, nullptr);
