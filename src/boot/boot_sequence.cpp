@@ -35,6 +35,9 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#if !APP_SIMULATION_MODE
+    #include <esp_ota_ops.h>
+#endif
 #include <lvgl.h>
 
 // Diagnostic — log free heap, largest contiguous LVGL-relevant block, and
@@ -227,6 +230,37 @@ static void buildUI() {
     LOG_INFO("BOOT", "UI ready");
 }
 
+// Mark the running OTA slot as valid so the bootloader cancels its pending
+// rollback. No-op when the running partition is not in PENDING_VERIFY state
+// (e.g. factory boot, or already-marked slot from an earlier boot). Called
+// once after [BOOT] Ready — the simpler "immediate" criterion: if execution
+// reaches this point the UI is built and the splash has rendered, which is a
+// strong signal of a healthy image. Tradeoff: a crash within the first few
+// hundred ms after this call will NOT trigger rollback. A delayed mark (e.g.
+// 10 s into the UI loop) would catch that class of bug at the cost of a
+// longer rollback window — out of scope here. Issue #674.
+#if !APP_SIMULATION_MODE
+static void markOtaSlotValidIfPending() {
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (!running) {
+        return;
+    }
+    esp_ota_img_states_t state;
+    if (esp_ota_get_state_partition(running, &state) != ESP_OK) {
+        return;
+    }
+    if (state != ESP_OTA_IMG_PENDING_VERIFY) {
+        return;
+    }
+    const esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+    if (err == ESP_OK) {
+        LOG_INFO("OTA", "Marked running app valid — rollback cancelled");
+    } else {
+        LOG_WARN("OTA", "esp_ota_mark_app_valid_cancel_rollback returned %s", esp_err_to_name(err));
+    }
+}
+#endif
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -400,4 +434,11 @@ void BootSequence::run() {
     // appears once within 30 s. Do not remove. See
     // .github/workflows/firmware-boot-smoke.yml (issue #486).
     LOG_INFO("BOOT", "[BOOT] Ready");
+
+    // OTA rollback handshake — confirm this image is healthy so the
+    // bootloader cancels its pending rollback. Sim builds have no OTA
+    // partitions, so the call is compiled out. Issue #674.
+#if !APP_SIMULATION_MODE
+    markOtaSlotValidIfPending();
+#endif
 }
