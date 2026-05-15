@@ -5,6 +5,7 @@
 // LVGL settings          → lv_conf.h
 // Board capabilities     → hardware_profile.h
 
+#include <stddef.h>
 #include <stdint.h>
 
 // ---------------------------------------------------------------------------
@@ -109,6 +110,14 @@
 // ---------------------------------------------------------------------------
 // LVGL draw-buffer line count is derived from HW_LVGL_DRAW_BUDGET_BYTES +
 // HW_DISPLAY_WIDTH in display_driver.cpp::computeLvglBufLines
+
+// Minimum largest-free-block to allow an LVGL FS open. Below this, return
+// nullptr to keep newlib __sfp out of abort() territory. See issue #651.
+#ifdef __cplusplus
+static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 4096;
+#else
+    #define LVGL_FS_MIN_HEAP_BYTES 4096
+#endif
 
 // ---------------------------------------------------------------------------
 // Signal store

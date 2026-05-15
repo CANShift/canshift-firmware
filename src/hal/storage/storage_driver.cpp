@@ -9,11 +9,18 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 #include <esp_partition.h>
+#include <sys/stat.h>
 
 namespace {
 // Tracks the most recent init() outcome so callers (boot UI, USB status)
 // can surface a meaningful state instead of a bare bool.
 StorageDriver::InitStatus s_initStatus = StorageDriver::InitStatus::NotInitialized;
+
+// SPIFFS is mounted by SPIFFS.begin(formatOnFail=true) at the Arduino default
+// mountpoint "/spiffs". stat() needs the absolute VFS path; the Arduino
+// wrappers prepend the mountpoint internally, but ::stat() does not.
+constexpr const char *kSpiffsMount = "/spiffs";
+constexpr size_t kSpiffsMountLen = 7; // strlen("/spiffs")
 } // namespace
 
 // Suffix length: ".tmp" / ".bak" = 4 chars + null terminator.
@@ -274,7 +281,23 @@ bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_
 }
 
 bool StorageDriver::fileExists(const char *path) {
-    return SPIFFS.exists(path);
+    // Avoid SPIFFS.exists() (wraps fopen+fclose) — under heap pressure newlib's
+    // __sfp() can abort() during FILE-slot mutex init. stat() goes through VFS
+    // directly without touching newlib stdio. See issue #651.
+    //
+    // Arduino's SPIFFS wrappers prepend the mountpoint ("/spiffs") before
+    // calling into the VFS; ::stat() does not, so a bare "/config/foo.json"
+    // resolves outside any registered mount and always returns -1. Prepend
+    // the mountpoint here, plus guard against null / non-absolute paths and
+    // snprintf truncation so silent false-negatives don't mask future bugs.
+    if (!path || path[0] != '/')
+        return false;
+    char full[kSpiffsMountLen + CFG_MAX_PATH_LEN + 1];
+    const int n = snprintf(full, sizeof(full), "%s%s", kSpiffsMount, path);
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof(full))
+        return false;
+    struct stat st;
+    return ::stat(full, &st) == 0;
 }
 
 bool StorageDriver::renameFile(const char *src, const char *dst) {

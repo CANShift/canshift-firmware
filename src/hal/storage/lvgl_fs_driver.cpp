@@ -9,11 +9,13 @@
 //   Opened on SPIFFS   → SPIFFS.open("/fonts/orbitron_black_32.bin", "r")
 
 #include "lvgl_fs_driver.h"
+#include "app_config.h"
 #include "board_config.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
 #include <SPIFFS.h>
+#include <esp_heap_caps.h>
 
 // ---------------------------------------------------------------------------
 // FS callbacks (static — no state other than the open File object)
@@ -22,6 +24,14 @@
 namespace {
 
 void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
+    // Heap guard: under fragmentation, newlib's __sfp() can abort() inside
+    // fopen() when extending _iob[]. Refuse the open early — LVGL treats
+    // nullptr as a load failure and renders an empty image. See issue #651.
+    const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    if (largest < LVGL_FS_MIN_HEAP_BYTES) {
+        LOG_WARN("FS", "Refused open of %s (largest=%u) — heap too low", path, (unsigned)largest);
+        return nullptr;
+    }
     const char *modeStr = (mode == LV_FS_MODE_WR) ? "w" : "r";
     File *f = new File(SPIFFS.open(path, modeStr));
     if (!*f) {
