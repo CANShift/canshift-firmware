@@ -94,6 +94,12 @@
 // per-iteration cost is well below 10 ms in steady state.
 #define LVGL_HANDLER_PERIOD_MS 10
 
+// Horizontal travel (in px) that reclassifies a press as a swipe and cancels
+// any pending button click underneath the finger (issue #640). Tuned above the
+// expected jitter of a stationary tap on the resistive XPT2046 (~4 px) yet
+// well below a deliberate page swipe so navigation still feels responsive.
+#define SWIPE_CANCEL_THRESHOLD_PX 12
+
 // ---------------------------------------------------------------------------
 // LVGL display buffers
 // Two draw buffers allow double-buffered rendering.

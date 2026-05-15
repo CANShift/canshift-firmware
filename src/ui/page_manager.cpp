@@ -456,6 +456,49 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
     }
 }
 
+// Track horizontal travel since press-down. If it exceeds the swipe cancel
+// threshold we clear pressed state on the underlying object so its click
+// handler does not fire on release — the press has clearly become a swipe.
+// Issue #640: a swipe whose path crosses a button widget previously triggered
+// the button on lift-up because LVGL routes touch events to the object under
+// the press-down point regardless of finger movement.
+void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
+    static int16_t s_pressStartX = 0;
+    static bool s_pressActive = false;
+    static bool s_pressCancelled = false;
+
+    if (state == LV_INDEV_STATE_RELEASED) {
+        s_pressActive = false;
+        s_pressCancelled = false;
+        return;
+    }
+
+    lv_point_t p;
+    lv_indev_get_point(indev, &p);
+
+    if (!s_pressActive) {
+        s_pressActive = true;
+        s_pressCancelled = false;
+        s_pressStartX = p.x;
+        return;
+    }
+
+    if (s_pressCancelled)
+        return;
+
+    const int16_t travelX = static_cast<int16_t>(abs(p.x - s_pressStartX));
+    if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
+        return;
+
+    // Reset clears act_obj/last_pressed and sets reset_query so the in-flight
+    // touch cycle terminates without dispatching LV_EVENT_CLICKED on release.
+    // Also reset long-press timing so a stuck long-press timer can't refire.
+    lv_indev_reset_long_press(indev);
+    lv_indev_reset(indev, nullptr);
+    s_pressCancelled = true;
+    LOG_VDEBUG("UI", "Swipe cancelled pending click (travelX=%d)", travelX);
+}
+
 void checkGestures() {
     static lv_dir_t lastDir = LV_DIR_NONE;
 
@@ -475,6 +518,7 @@ void checkGestures() {
             const lv_indev_state_t state = indev->proc.state;
 
             updateDrag(indev, state);
+            cancelClickIfSwiping(indev, state);
 
             if (state == LV_INDEV_STATE_RELEASED) {
                 lastDir = LV_DIR_NONE;
