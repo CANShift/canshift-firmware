@@ -126,7 +126,6 @@ bool StorageDriver::init() {
     // next atomic rotation starts from a clean slate.
     sweepOrphanTmp(CONFIG_PATH_DASHBOARD);
     sweepOrphanTmp(CONFIG_PATH_SIGNALS);
-    sweepOrphanTmp(CONFIG_PATH_DEVICE);
 
     s_initStatus = InitStatus::Ok;
     return true;
