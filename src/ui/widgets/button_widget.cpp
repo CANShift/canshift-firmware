@@ -51,12 +51,13 @@ struct ButtonTag {
 };
 
 // Resolve the icon source. Returns a non-empty C-string LVGL path when an
-// asset exists for the widget, or "" when only a glyph fallback is available.
-// Prefers user-provided iconPath over the built-in iconName lookup.
+// asset exists for the widget, or "" when no icon will be drawn (see #681 —
+// the LVGL symbol fallback was removed). Prefers user-provided iconPath over
+// the built-in iconName lookup.
 //
 // Both branches probe the underlying file before returning: LVGL silently
 // no-ops on lv_img_set_src for a missing file, so without the probe the
-// widget would render an empty box instead of the LV_SYMBOL_* fallback.
+// widget would render an empty box.
 const char *resolveIconAsset(const CfgButtonParams &p, char *out, size_t outLen) {
     out[0] = '\0';
     if (p.iconPath[0] != '\0') {

@@ -4,7 +4,12 @@
 // The SignalStore is the data bus between the CAN decode layer and the UI layer.
 // CAN task writes decoded values.
 // UI task reads values at render time.
-// Thread safety is achieved with a FreeRTOS mutex.
+//
+// Thread safety (see #675):
+//   - Access is serialized with a portMUX_TYPE spinlock, not a FreeRTOS mutex.
+//   - The spinlock disables IRQs on the entering core; critical sections must
+//     stay short and must not perform blocking calls (no logging, no malloc,
+//     no FS/CAN I/O) while held.
 //
 // Each signal has:
 //   - Current float value
@@ -33,7 +38,7 @@ struct SignalValue {
 
 /**
      * Initialize the signal store.
-     * Creates the mutex and sets all signals to invalid state.
+     * Initializes the spinlock and sets all signals to invalid state.
      */
 void init();
 

@@ -120,7 +120,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
                               ThemeManager::getEffectiveTextColor());
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
-              iconImg ? "asset" : "glyph");
+              iconImg ? "asset" : "none");
     return root;
 }
 
