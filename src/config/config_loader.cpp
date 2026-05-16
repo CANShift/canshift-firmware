@@ -669,18 +669,18 @@ bool loadDashboard() {
         for (JsonObjectConst item : topBarLayout) {
             if (s_dashboard.topBar.itemCount >= CFG_MAX_TOPBAR_ITEMS)
                 break;
-            CfgTopBarItem &out = s_dashboard.topBar.items[s_dashboard.topBar.itemCount];
-            out.kind = parseTopBarItemKind(item["type"] | "");
-            out.position = parseTopBarItemPos(item["position"] | "left");
-            strlcpy(out.signalId, item["signal"] | "", CFG_MAX_SIGNAL_LEN);
-            strlcpy(out.text, item["text"] | "", sizeof(out.text));
-            strlcpy(out.format, item["format"] | "", sizeof(out.format));
-            if (out.kind == TopBarItemKind::UNKNOWN) {
+            CfgTopBarItem tmp{};
+            tmp.kind = parseTopBarItemKind(item["type"] | "");
+            tmp.position = parseTopBarItemPos(item["position"] | "left");
+            strlcpy(tmp.signalId, item["signal"] | "", CFG_MAX_SIGNAL_LEN);
+            strlcpy(tmp.text, item["text"] | "", sizeof(tmp.text));
+            strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
+            if (tmp.kind == TopBarItemKind::UNKNOWN) {
                 LOG_WARN("CFG", "topBar.layout[%u]: unknown type — item dropped",
                          static_cast<unsigned>(s_dashboard.topBar.itemCount));
-                continue; // don't increment count — leave the slot reusable
+                continue; // slot untouched — no stale data risk
             }
-            ++s_dashboard.topBar.itemCount;
+            s_dashboard.topBar.items[s_dashboard.topBar.itemCount++] = tmp;
         }
     } else {
         // No layout in config — mirror canshift-core DEFAULT_TOP_BAR_LAYOUT
