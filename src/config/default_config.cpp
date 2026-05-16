@@ -35,9 +35,6 @@ extern const uint8_t kDefaultDashboardEnd[] asm("_binary_data_config_dashboard_j
 
 extern const uint8_t kDefaultSignalsStart[] asm("_binary_data_config_signals_json_start");
 extern const uint8_t kDefaultSignalsEnd[] asm("_binary_data_config_signals_json_end");
-
-extern const uint8_t kDefaultThemeStart[] asm("_binary_data_config_theme_json_start");
-extern const uint8_t kDefaultThemeEnd[] asm("_binary_data_config_theme_json_end");
 }
 
 namespace {
@@ -52,7 +49,6 @@ struct EmbeddedBlob {
 const EmbeddedBlob kEmbedded[] = {
     {CONFIG_PATH_DASHBOARD, kDefaultDashboardStart, kDefaultDashboardEnd, "dashboard.json"},
     {CONFIG_PATH_SIGNALS, kDefaultSignalsStart, kDefaultSignalsEnd, "signals.json"},
-    {CONFIG_PATH_THEME, kDefaultThemeStart, kDefaultThemeEnd, "theme.json"},
 };
 
 bool buildBakPath(char *out, size_t outLen, const char *base) {

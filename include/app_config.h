@@ -185,7 +185,6 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 1024;
 // overflow → parse_error. Bumped to 16 KB.
 #define CONFIG_JSON_DOC_DASHBOARD 16384
 #define CONFIG_JSON_DOC_SIGNALS 4096
-#define CONFIG_JSON_DOC_THEME 2048
 
 // Maximum number of pages, widgets, and signals
 // NOTE: CfgDashboard and CfgPage are statically sized arrays in BSS.
