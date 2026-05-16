@@ -56,8 +56,8 @@ static uint8_t s_pendingFreeIdx = 0xFF;
 static uint8_t s_pendingLazyBuildIdx = 0xFF;
 static uint32_t s_pendingLazyBuildMs = 120;
 
-void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg) {
-    lv_obj_set_style_bg_color(screen, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
+void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &effectiveBg) {
+    lv_obj_set_style_bg_color(screen, lv_color_hex(effectiveBg.rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
 
     // Load background image from SPIFFS if set.
@@ -90,10 +90,9 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
     lv_obj_set_size(p.screen, LV_HOR_RES, LV_VER_RES);
     lv_obj_clear_flag(p.screen, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Apply theme-aware background (day vs night)
-    CfgPage effectiveCfg = cfg;
-    effectiveCfg.bgColor = ThemeManager::getEffectiveBgColor(cfg.bgColor);
-    applyPageBackground(p.screen, effectiveCfg);
+    // Apply theme-aware background (day vs night). Pass the resolved color
+    // by value to avoid copying the multi-kB CfgPage onto the stack.
+    applyPageBackground(p.screen, cfg, ThemeManager::getEffectiveBgColor(cfg.bgColor));
 
     // Adjust content area for top bar
     int16_t contentY = cfg.showTopBar ? TopBar::getHeight() : 0;
