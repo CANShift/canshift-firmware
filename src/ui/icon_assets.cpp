@@ -1,4 +1,4 @@
-// icon_assets.cpp — Sensor icon name → asset path / fallback glyph.
+// icon_assets.cpp — Sensor icon name → SPIFFS asset path.
 
 #include "icon_assets.h"
 #include "hal/storage/storage_driver.h"
@@ -11,37 +11,37 @@ namespace {
 
 struct IconEntry {
     const char *name;
-    const char *path;     // SPIFFS path, "" if no shipped asset yet
-    const char *fallback; // LVGL symbol used when path missing or empty
+    const char *path; // SPIFFS path
 };
 
 // SensorIconName values (canshift-core/src/types/dashboard.ts).
 // .bin assets are expected at "S:/assets/sensor_<name>.bin" on SPIFFS;
-// when missing, the fallback glyph keeps the widget visible.
+// when missing the widget skips the icon entirely (see #681 — the LVGL
+// symbol fallback was removed because Orbitron does not cover that range).
 constexpr IconEntry kIcons[] = {
-    {"rpm", "S:/assets/sensor_rpm.bin", LV_SYMBOL_LOOP},
-    {"speed", "S:/assets/sensor_speed.bin", LV_SYMBOL_RIGHT},
-    {"coolant", "S:/assets/sensor_coolant.bin", LV_SYMBOL_TINT},
-    {"oil_pressure", "S:/assets/sensor_oil_pressure.bin", LV_SYMBOL_DRIVE},
-    {"oil_temp", "S:/assets/sensor_oil_temp.bin", LV_SYMBOL_DRIVE},
-    {"battery", "S:/assets/sensor_battery.bin", LV_SYMBOL_BATTERY_FULL},
-    {"fuel", "S:/assets/sensor_fuel.bin", LV_SYMBOL_GPS},
-    {"afr", "S:/assets/sensor_afr.bin", LV_SYMBOL_CHARGE},
-    {"boost", "S:/assets/sensor_boost.bin", LV_SYMBOL_UP},
-    {"throttle", "S:/assets/sensor_throttle.bin", LV_SYMBOL_PLAY},
-    {"iat", "S:/assets/sensor_iat.bin", LV_SYMBOL_DOWNLOAD},
-    {"gear", "S:/assets/sensor_gear.bin", LV_SYMBOL_SETTINGS},
-    {"timer", "S:/assets/sensor_timer.bin", LV_SYMBOL_REFRESH},
-    {"warning", "S:/assets/sensor_warning.bin", LV_SYMBOL_WARNING},
-    {"flame", "S:/assets/sensor_flame.bin", LV_SYMBOL_CHARGE},
-    {"turbo", "S:/assets/sensor_turbo.bin", LV_SYMBOL_REFRESH},
-    {"engine", "S:/assets/sensor_engine.bin", LV_SYMBOL_SETTINGS},
-    {"brake", "S:/assets/sensor_brake.bin", LV_SYMBOL_STOP},
-    {"launch", "S:/assets/sensor_launch.bin", LV_SYMBOL_PLAY},
-    {"traction", "S:/assets/sensor_traction.bin", LV_SYMBOL_REFRESH},
-    {"map_icon", "S:/assets/sensor_map_icon.bin", LV_SYMBOL_LIST},
-    {"exhaust", "S:/assets/sensor_exhaust.bin", LV_SYMBOL_AUDIO},
-    {"cog", "S:/assets/sensor_cog.bin", LV_SYMBOL_SETTINGS},
+    {"rpm", "S:/assets/sensor_rpm.bin"},
+    {"speed", "S:/assets/sensor_speed.bin"},
+    {"coolant", "S:/assets/sensor_coolant.bin"},
+    {"oil_pressure", "S:/assets/sensor_oil_pressure.bin"},
+    {"oil_temp", "S:/assets/sensor_oil_temp.bin"},
+    {"battery", "S:/assets/sensor_battery.bin"},
+    {"fuel", "S:/assets/sensor_fuel.bin"},
+    {"afr", "S:/assets/sensor_afr.bin"},
+    {"boost", "S:/assets/sensor_boost.bin"},
+    {"throttle", "S:/assets/sensor_throttle.bin"},
+    {"iat", "S:/assets/sensor_iat.bin"},
+    {"gear", "S:/assets/sensor_gear.bin"},
+    {"timer", "S:/assets/sensor_timer.bin"},
+    {"warning", "S:/assets/sensor_warning.bin"},
+    {"flame", "S:/assets/sensor_flame.bin"},
+    {"turbo", "S:/assets/sensor_turbo.bin"},
+    {"engine", "S:/assets/sensor_engine.bin"},
+    {"brake", "S:/assets/sensor_brake.bin"},
+    {"launch", "S:/assets/sensor_launch.bin"},
+    {"traction", "S:/assets/sensor_traction.bin"},
+    {"map_icon", "S:/assets/sensor_map_icon.bin"},
+    {"exhaust", "S:/assets/sensor_exhaust.bin"},
+    {"cog", "S:/assets/sensor_cog.bin"},
 };
 
 const IconEntry *find(const char *iconName) {
@@ -76,9 +76,8 @@ const char *path(const char *iconName) {
         return "";
     // Probe storage before returning the path: when the .bin isn't on
     // SPIFFS the LVGL image draw silently no-ops, so the caller would
-    // render an empty box. Returning "" here lets the widget activate the
-    // glyph fallback path instead. Cost: one SPIFFS stat per icon at UI
-    // build time.
+    // render an empty box. Returning "" here lets the widget skip icon
+    // rendering instead. Cost: one SPIFFS stat per icon at UI build time.
     if (!exists(e->path))
         return "";
     return e->path;
@@ -89,15 +88,6 @@ bool exists(const char *lvglPath) {
     if (!raw || raw[0] == '\0')
         return false;
     return StorageDriver::fileExists(raw);
-}
-
-const char *fallbackGlyph(const char *iconName) {
-    // LV_SYMBOL_* strings use LVGL's private-use Unicode range (U+F800+).
-    // The Orbitron font only covers ASCII + degree + bullet — rendering a
-    // symbol with it produces a □ rectangle. Return empty string so the
-    // widget shows nothing rather than garbage when the .bin is missing.
-    (void)iconName;
-    return "";
 }
 
 } // namespace IconAssets

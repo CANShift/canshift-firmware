@@ -1,14 +1,13 @@
 #pragma once
 // icon_assets.h — Maps SensorIconName keys (from canshift-core) to LVGL
-// asset paths and Unicode fallback glyphs.
+// asset paths on SPIFFS.
 //
 // Studio renders sensor icons as SVG components; the firmware loads matching
-// .bin (RGB565) files from SPIFFS under "/assets/sensor_<name>.bin". When
-// the asset is absent (e.g. freshly flashed device that never received the
-// asset bundle) the widget falls back to a LV_SYMBOL_* glyph so the widget
-// always renders something.
-
-#include <lvgl.h>
+// .bin (RGB565) files from SPIFFS under "/assets/sensor_<name>.bin". The
+// Unicode-glyph fallback path was removed in #681 — the Orbitron font we ship
+// does not cover LVGL's private-use symbol range, so rendering LV_SYMBOL_*
+// just produced empty squares. Widgets now skip the icon entirely when no
+// .bin is present.
 
 namespace IconAssets {
 
@@ -21,9 +20,5 @@ const char *path(const char *iconName);
 // and report whether the backing file exists on storage. Used by widgets that
 // accept a free-form iconPath in addition to the iconName lookup.
 bool exists(const char *lvglPath);
-
-// Single-codepoint LVGL symbol used when no .bin asset is available. Always
-// returns a non-null UTF-8 string (defaults to LV_SYMBOL_WARNING).
-const char *fallbackGlyph(const char *iconName);
 
 } // namespace IconAssets

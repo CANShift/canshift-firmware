@@ -41,12 +41,11 @@ static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44; // green
 // to the const config (kept alive by the dashboard singleton).
 struct ButtonTag {
     const CfgButtonParams *params;
-    lv_obj_t *iconImg;            // nullptr if no asset rendered
-    lv_obj_t *iconLabel;          // glyph fallback (nullptr if asset rendered or showIcon=false)
-    bool toggleActive;            // only meaningful when params->isToggle == true
-    char lvglPath[LVGL_PATH_LEN]; // resolved LVGL FS path for the icon, "" if none
-    lv_obj_t *activeBadge;        // green dot overlay, nullptr if not a map_switch button
-    uint8_t mapSwitchIndex;       // mapIndex of the MAP_SWITCH action, 0 = none
+    lv_obj_t *iconImg;                 // nullptr when no asset is rendered
+    bool toggleActive;                 // only meaningful when params->isToggle == true
+    char lvglPath[LVGL_PATH_LEN];      // resolved LVGL FS path for the icon, "" if none
+    lv_obj_t *activeBadge;             // green dot overlay, nullptr if not a map_switch button
+    uint8_t mapSwitchIndex;            // mapIndex of the MAP_SWITCH action, 0 = none
     char signalId[CFG_MAX_SIGNAL_LEN]; // signal driving toggle state; "" = use local latch
     uint32_t signalSyncIgnoreUntilMs;  // ms tick before which update() must skip signal-driven sync
 };
@@ -214,7 +213,6 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     tag->params = &p;
     tag->iconImg = nullptr;
-    tag->iconLabel = nullptr;
     tag->toggleActive = false;
     tag->lvglPath[0] = '\0';
     tag->activeBadge = nullptr;
@@ -237,8 +235,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         // Heap guard: under fragmentation the SPIFFS icon load via
         // lv_img_set_src → lv_fs_open → newlib fopen can abort(). Mirrors the
         // gate in lvgl_fs_driver.cpp::fs_open so the icon path bails out at
-        // the widget layer too and we still render the glyph fallback.
-        // Closes the OOM suspect in #717 / #651 / #660.
+        // the widget layer too. Closes the OOM suspect in #717 / #651 / #660.
         const size_t poolLargest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
         const bool heapOk = (poolLargest >= LVGL_FS_MIN_HEAP_BYTES);
         if (path[0] != '\0' && heapOk) {
@@ -246,20 +243,15 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             lv_img_set_src(tag->iconImg, tag->lvglPath);
             lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(cfg.style.textColor.rgb), 0);
             lv_obj_set_style_img_recolor_opa(tag->iconImg, LV_OPA_COVER, 0);
-        } else {
-            if (path[0] != '\0' && !heapOk) {
-                LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
-                         static_cast<unsigned>(poolLargest));
-                tag->lvglPath[0] = '\0';
-            }
-            // No asset on disk (or heap too low) — render the LVGL symbol
-            // fallback so the button still shows an icon glyph.
-            tag->iconLabel = lv_label_create(btn);
-            lv_label_set_text(tag->iconLabel, IconAssets::fallbackGlyph(p.iconName));
-            // Do NOT override the font here: LV_SYMBOL_* glyphs live in the
-            // LVGL built-in symbol range which Orbitron does not include.
-            lv_obj_set_style_text_color(tag->iconLabel, lv_color_hex(cfg.style.textColor.rgb), 0);
+        } else if (path[0] != '\0' && !heapOk) {
+            // Asset is on disk but heap is too fragmented to load it — skip
+            // and log once. The button still renders its label/colour cues.
+            LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
+                     static_cast<unsigned>(poolLargest));
+            tag->lvglPath[0] = '\0';
         }
+        // No glyph fallback (#681): Orbitron does not cover the LVGL symbol
+        // range, so an "empty" label just consumed layout slots for nothing.
     }
 
     if (hasLabel) {

@@ -20,9 +20,8 @@ namespace {
 constexpr uint32_t BLINK_PERIOD_MS = 1000;
 
 struct WarningTag {
-    lv_obj_t *root;      // colored background container
-    lv_obj_t *iconImg;   // nullptr if asset missing — falls back to glyph label
-    lv_obj_t *iconLabel; // nullptr unless the glyph fallback is used
+    lv_obj_t *root;    // colored background container
+    lv_obj_t *iconImg; // nullptr when no .bin asset is available on SPIFFS
     lv_obj_t *signalLabel;
     lv_anim_t blinkAnim;
     bool wasActive;
@@ -73,32 +72,16 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
     const uint32_t critRgb = cfg.style.criticalColor.rgb;
 
-    // Try the .bin asset first; fall back to a glyph if missing/empty.
+    // Render the .bin asset when present; widget is icon-less when missing.
+    // Glyph fallback was removed in #681 because Orbitron does not cover the
+    // LVGL symbol range — an "empty" label only consumed layout space.
     lv_obj_t *iconImg = nullptr;
-    lv_obj_t *iconLabel = nullptr;
     const char *assetPath = IconAssets::path(cfg.warning.iconName);
     if (assetPath[0] != '\0') {
         iconImg = lv_img_create(root);
         lv_img_set_src(iconImg, assetPath);
         lv_obj_set_style_img_recolor(iconImg, lv_color_hex(critRgb), 0);
         lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
-    } else {
-        iconLabel = lv_label_create(root);
-        lv_label_set_text(iconLabel, IconAssets::fallbackGlyph(cfg.warning.iconName));
-        // Sized so icon + signal label both fit in the widget height.
-        uint8_t iconSize = cfg.layout.h >= 80   ? 32
-                           : cfg.layout.h >= 56 ? 24
-                           : cfg.layout.h >= 40 ? 20
-                           : cfg.layout.h >= 32 ? 16
-                                                : 12;
-        // Warning icon is the attention-getter — pick the heaviest weight that
-        // fits the requested size (primary at ≥32, secondary at 20–28, label
-        // for the tiny 12/16 px cells).
-        const lv_font_t *iconFont = (iconSize >= 32)   ? FontManager::primary(iconSize)
-                                    : (iconSize >= 20) ? FontManager::secondary(iconSize)
-                                                       : FontManager::label(iconSize);
-        lv_obj_set_style_text_font(iconLabel, iconFont, 0);
-        lv_obj_set_style_text_color(iconLabel, lv_color_hex(critRgb), 0);
     }
 
     // Signal label below the icon — replaced by the user-configured corner
@@ -119,7 +102,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
     }
 
-    auto *tag = new WarningTag{root, iconImg, iconLabel, signalLabel, lv_anim_t{}, false, critRgb};
+    auto *tag = new WarningTag{root, iconImg, signalLabel, lv_anim_t{}, false, critRgb};
     lv_obj_set_user_data(root, tag);
     lv_obj_add_event_cb(
         root,
