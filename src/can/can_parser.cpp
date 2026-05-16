@@ -29,73 +29,6 @@ static RuntimeSignal s_runtime[CONFIG_MAX_SIGNALS];
 static uint8_t s_runtimeCount = 0;
 static bool s_runtimeLoaded = false;
 
-// ---------------------------------------------------------------------------
-// Hardcoded fallback helpers (used when runtime table is not loaded)
-// ---------------------------------------------------------------------------
-
-inline uint16_t readU16BE(const uint8_t *data, uint8_t offset) {
-    return static_cast<uint16_t>((data[offset] << 8) | data[offset + 1]);
-}
-
-inline int16_t readI16BE(const uint8_t *data, uint8_t offset) {
-    return static_cast<int16_t>((data[offset] << 8) | data[offset + 1]);
-}
-
-void parseEngineFrame1(const uint8_t *data, uint8_t len) {
-    if (len < 7)
-        return;
-    SignalStore::update(SignalIds::RPM, static_cast<float>(readU16BE(data, 0)));
-    SignalStore::update(SignalIds::THROTTLE_POS, data[2] * 0.5f);
-    const float mapKpa = readU16BE(data, 3) * 0.1f;
-    SignalStore::update(SignalIds::MAP_KPA, mapKpa);
-    SignalStore::update(SignalIds::BOOST_BAR, (mapKpa - 100.0f) / 100.0f);
-    SignalStore::update(SignalIds::IAT_C, static_cast<float>(data[5]) - 40.0f);
-    if (len >= 8)
-        SignalStore::update(SignalIds::SPEED_KPH, readU16BE(data, 6) * 0.1f);
-}
-
-void parseEngineFrame2(const uint8_t *data, uint8_t len) {
-    if (len < 3)
-        return;
-    const float lambda = readU16BE(data, 0) * 0.001f;
-    SignalStore::update(SignalIds::LAMBDA_1, lambda);
-    SignalStore::update(SignalIds::AFR_1, lambda * 14.7f);
-    SignalStore::update(SignalIds::GEAR, static_cast<float>(data[2]));
-    if (len >= 5)
-        SignalStore::update(SignalIds::FUEL_PRESS_BAR, readU16BE(data, 3) * 0.01f);
-}
-
-void parseTempsFrame(const uint8_t *data, uint8_t len) {
-    if (len < 6)
-        return;
-    SignalStore::update(SignalIds::COOLANT_TEMP_C, readI16BE(data, 0) * 0.1f - 40.0f);
-    SignalStore::update(SignalIds::OIL_TEMP_C, readI16BE(data, 2) * 0.1f - 40.0f);
-    SignalStore::update(SignalIds::OIL_PRESS_BAR, readU16BE(data, 4) * 0.01f);
-}
-
-void parseElecFrame(const uint8_t *data, uint8_t len) {
-    if (len < 2)
-        return;
-    SignalStore::update(SignalIds::BATTERY_VOLTS, readU16BE(data, 0) * 0.01f);
-}
-
-void parseFlagsFrame(const uint8_t *data, uint8_t len) {
-    if (len < 1)
-        return;
-    const uint8_t flags = data[0];
-    SignalStore::update(SignalIds::FLAG_MIL, (flags >> 0) & 0x01);
-    SignalStore::update(SignalIds::FLAG_LAUNCH_CTRL, (flags >> 1) & 0x01);
-    SignalStore::update(SignalIds::FLAG_FLAT_SHIFT, (flags >> 2) & 0x01);
-    SignalStore::update(SignalIds::FLAG_ANTI_LAG, (flags >> 3) & 0x01);
-    SignalStore::update(SignalIds::FLAG_TRACTION_CUT, (flags >> 4) & 0x01);
-}
-
-void parseMapInfoFrame(const uint8_t *data, uint8_t len) {
-    if (len < 1)
-        return;
-    SignalStore::update(SignalIds::MAP_NUMBER, static_cast<float>(data[0]));
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -144,56 +77,30 @@ float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uin
 // ---------------------------------------------------------------------------
 
 void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
-    if (s_runtimeLoaded) {
-        // Data-driven dispatch — processes all signals defined for this frame ID
-        bool matched = false;
-        for (uint8_t i = 0; i < s_runtimeCount; ++i) {
-            if (s_runtime[i].canFrameId != frameId)
-                continue;
-            matched = true;
-            const RuntimeSignal &sig = s_runtime[i];
-            if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) >
-                length)
-                continue;
-            const float val =
-                detail::decodeBytes(data, sig.startByte, sig.byteLength, sig.bigEndian,
-                                    sig.isSigned, sig.bitMask, sig.scale, sig.offset);
-            SignalStore::update(sig.signalId, val);
-        }
-        if (matched)
-            return;
-    }
+    if (!s_runtimeLoaded)
+        return;
 
-    // Fallback: hardcoded handlers used when signals.json has not been loaded
-    // or does not cover this frame ID.
-    switch (frameId) {
-        case FRAME_ID_ENGINE_1:
-            parseEngineFrame1(data, length);
-            break;
-        case FRAME_ID_ENGINE_2:
-            parseEngineFrame2(data, length);
-            break;
-        case FRAME_ID_TEMPS:
-            parseTempsFrame(data, length);
-            break;
-        case FRAME_ID_ELEC:
-            parseElecFrame(data, length);
-            break;
-        case FRAME_ID_FLAGS:
-            parseFlagsFrame(data, length);
-            break;
-        case FRAME_ID_MAP_INFO:
-            parseMapInfoFrame(data, length);
-            break;
-        default:
-            break;
+    // Data-driven dispatch — processes all signals defined for this frame ID.
+    // Unknown frame IDs and partial-length frames (start+len > DLC) are
+    // silently dropped. No fallback to hardcoded handlers — decoding random
+    // frame IDs with assumed semantics produced more wrong data than the
+    // value of having any default at all (#682).
+    for (uint8_t i = 0; i < s_runtimeCount; ++i) {
+        if (s_runtime[i].canFrameId != frameId)
+            continue;
+        const RuntimeSignal &sig = s_runtime[i];
+        if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
+            continue;
+        const float val = detail::decodeBytes(data, sig.startByte, sig.byteLength, sig.bigEndian,
+                                              sig.isSigned, sig.bitMask, sig.scale, sig.offset);
+        SignalStore::update(sig.signalId, val);
     }
 }
 
 void CanParser::loadSignalDefinitions() {
     const CfgSignalConfig &cfg = ConfigLoader::getSignalConfig();
     if (!cfg.loaded || cfg.signalCount == 0) {
-        LOG_WARN("CAN", "Signal config not loaded — using hardcoded defaults");
+        LOG_ERROR("CAN", "Signal config not loaded — incoming frames will NOT be decoded");
         return;
     }
 
