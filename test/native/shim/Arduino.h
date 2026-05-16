@@ -57,7 +57,20 @@ public:
     }
 };
 
-#ifndef strlcpy
+// glibc 2.38+ provides strlcpy natively (exposed by _FORTIFY_SOURCE under -O1+);
+// BSD/macOS libc has always had it. Only define the shim on older glibc where
+// the symbol is genuinely missing, otherwise the inline collides with the libc
+// declaration (issue #830 surfaced this when ASan flipped -O0 -> -O1).
+#ifdef __APPLE__
+#define CANSHIFT_HAVE_STRLCPY 1
+#elif defined(__GLIBC__)
+#include <features.h>
+#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 38)
+#define CANSHIFT_HAVE_STRLCPY 1
+#endif
+#endif
+
+#ifndef CANSHIFT_HAVE_STRLCPY
 inline size_t strlcpy(char *dst, const char *src, size_t dstSize) {
     if (dstSize == 0)
         return strlen(src);
