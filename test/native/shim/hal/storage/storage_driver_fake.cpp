@@ -1,6 +1,6 @@
 // storage_driver_fake.cpp — in-memory implementation of StorageDriver for
 // host unit tests. Tests stage file contents via `fakeWrite()` before they
-// invoke ConfigLoader; readFile() then returns the staged buffer.
+// invoke ConfigLoader; parseJsonFile() then deserializes from the staged buffer.
 //
 // The implementation deliberately keeps a fixed-size table — host tests need
 // at most three config files at once, so dynamic allocation is overkill.
@@ -8,7 +8,6 @@
 #include "hal/storage/storage_driver.h"
 
 #include <ArduinoJson.h>
-#include <stdlib.h>
 #include <string.h>
 
 namespace StorageDriver {
@@ -64,26 +63,6 @@ InitStatus getStatus() {
     return InitStatus::Ok;
 }
 
-char *readFile(const char *path, size_t *outSize) {
-    FakeFile *f = findFile(path);
-    if (!f) {
-        if (outSize)
-            *outSize = 0;
-        return nullptr;
-    }
-    char *buf = static_cast<char *>(malloc(f->size + 1));
-    if (!buf) {
-        if (outSize)
-            *outSize = 0;
-        return nullptr;
-    }
-    memcpy(buf, f->data, f->size);
-    buf[f->size] = '\0';
-    if (outSize)
-        *outSize = f->size;
-    return buf;
-}
-
 DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *outSize) {
     FakeFile *f = findFile(path);
     if (!f) {
@@ -108,7 +87,11 @@ size_t streamFileTo(const char *path, Print & /*out*/, bool /*replaceNewlinesWit
     return f ? f->size : 0;
 }
 
-bool writeFile(const char *path, const uint8_t *data, size_t length) {
+namespace {
+
+// Internal helper shared by writeFileAtomic and the fakeWrite test stager.
+// Not part of the public StorageDriver API (real driver dropped writeFile).
+bool stageFileBytes(const char *path, const uint8_t *data, size_t length) {
     if (!path || length > kMaxFileBytes)
         return false;
     FakeFile *f = findFile(path);
@@ -121,8 +104,10 @@ bool writeFile(const char *path, const uint8_t *data, size_t length) {
     return true;
 }
 
+} // namespace
+
 bool writeFileAtomic(const char *path, const uint8_t *data, size_t length) {
-    return writeFile(path, data, length);
+    return stageFileBytes(path, data, length);
 }
 
 bool fileExists(const char *path) {
@@ -196,7 +181,7 @@ void fakeReset() {
 }
 
 void fakeWrite(const char *path, const char *contents, size_t length) {
-    writeFile(path, reinterpret_cast<const uint8_t *>(contents), length);
+    stageFileBytes(path, reinterpret_cast<const uint8_t *>(contents), length);
 }
 
 } // namespace StorageDriver

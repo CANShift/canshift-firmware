@@ -19,12 +19,9 @@ enum class InitStatus : uint8_t {
 
 bool init();
 InitStatus getStatus();
-char *readFile(const char *path, size_t *outSize);
-DeserializationError parseJsonFile(const char *path, JsonDocument &doc,
-                                   size_t *outSize = nullptr);
+DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *outSize = nullptr);
 size_t fileSize(const char *path);
 size_t streamFileTo(const char *path, Print &out, bool replaceNewlinesWithSpaces = false);
-bool writeFile(const char *path, const uint8_t *data, size_t length);
 bool writeFileAtomic(const char *path, const uint8_t *data, size_t length);
 bool fileExists(const char *path);
 bool renameFile(const char *src, const char *dst);

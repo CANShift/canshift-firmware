@@ -41,20 +41,9 @@ bool init();
 InitStatus getStatus();
 
 /**
- * Read an entire file into a heap-allocated buffer.
- * Caller is responsible for calling free() on the returned pointer.
- * Returns nullptr on failure. outSize is set to the file size in bytes.
- *
- * Heap pressure: this performs a single contiguous `malloc(size+1)` for the
- * whole file. For JSON parsing prefer `parseJsonFile()` instead — it streams
- * the file straight into the JsonDocument and avoids the temporary buffer.
- */
-char *readFile(const char *path, size_t *outSize);
-
-/**
  * Stream a JSON file directly into a JsonDocument without staging the full
- * file in a contiguous heap buffer first. Eliminates the readFile() malloc
- * for the common config-load path (issue #576). Returns a non-empty
+ * file in a contiguous heap buffer first. Avoids the contiguous malloc that
+ * the legacy file-read path used (issue #576). Returns a non-empty
  * DeserializationError on parse failure or when the file cannot be opened.
  *
  * On success, `outSize` (when non-null) is set to the file size in bytes.
@@ -63,26 +52,19 @@ DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *
 
 /**
  * Return the on-disk size of a file in bytes, or 0 when the file does not
- * exist or cannot be opened. Cheaper than readFile() when the caller only
- * needs to ask "is this file empty / how large is it?".
+ * exist or cannot be opened.
  */
 size_t fileSize(const char *path);
 
 /**
  * Stream a file to an Arduino Print stream (e.g., Serial) in fixed-size
- * chunks, avoiding the large readFile() malloc. Returns the number of bytes
- * actually written, or 0 on open failure.
+ * chunks, avoiding any contiguous file-sized allocation. Returns the number
+ * of bytes actually written, or 0 on open failure.
  *
  * `replaceNewlinesWithSpaces` is provided for the USB GET_CONFIG path which
  * needs a single-line response on a line-delimited wire protocol.
  */
 size_t streamFileTo(const char *path, Print &out, bool replaceNewlinesWithSpaces = false);
-
-/**
- * Write data to a file, replacing any existing content.
- * Returns true on success.
- */
-bool writeFile(const char *path, const uint8_t *data, size_t length);
 
 /**
  * Atomic write: stage to "<path>.tmp", rotate previous "<path>" to

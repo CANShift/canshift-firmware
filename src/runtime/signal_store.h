@@ -53,20 +53,9 @@ void update(SignalId id, float value);
 float read(SignalId id, float defaultValue = 0.0f);
 
 /**
-     * Read the raw (unsmoothed) value. Thread-safe.
-     */
-float readRaw(SignalId id, float defaultValue = 0.0f);
-
-/**
      * Check if a signal is valid (received recently, within timeout).
      */
 bool isValid(SignalId id);
-
-/**
-     * Get the full signal state. Thread-safe.
-     * Copies the struct to avoid holding the lock during reads.
-     */
-SignalValue get(SignalId id);
 
 /**
      * Bulk-copy every signal slot under one mutex acquisition. Designed for the

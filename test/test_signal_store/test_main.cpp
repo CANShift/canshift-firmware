@@ -41,13 +41,13 @@ void test_set_then_get_returnsValue_andValid() {
 
     TEST_ASSERT_TRUE(SignalStore::isValid(kTestSignalId));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kTestSignalValue,
-                             SignalStore::readRaw(kTestSignalId, kReadDefault));
+                             SignalStore::read(kTestSignalId, kReadDefault));
 }
 
 void test_get_unwritten_signal_isInvalid() {
     TEST_ASSERT_FALSE(SignalStore::isValid(kUnwrittenSignalId));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kReadDefault,
-                             SignalStore::readRaw(kUnwrittenSignalId, kReadDefault));
+                             SignalStore::read(kUnwrittenSignalId, kReadDefault));
 }
 
 void test_timeout_invalidates_after_threshold() {

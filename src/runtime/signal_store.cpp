@@ -92,16 +92,6 @@ float SignalStore::read(SignalId id, float defaultValue) {
     return result;
 }
 
-float SignalStore::readRaw(SignalId id, float defaultValue) {
-    if (!idValid(id))
-        return defaultValue;
-
-    portENTER_CRITICAL(&s_signalsMux);
-    float result = s_signals[id].valid ? s_signals[id].raw : defaultValue;
-    portEXIT_CRITICAL(&s_signalsMux);
-    return result;
-}
-
 bool SignalStore::isValid(SignalId id) {
     if (!idValid(id))
         return false;
@@ -110,17 +100,6 @@ bool SignalStore::isValid(SignalId id) {
     bool result = s_signals[id].valid;
     portEXIT_CRITICAL(&s_signalsMux);
     return result;
-}
-
-SignalStore::SignalValue SignalStore::get(SignalId id) {
-    SignalValue copy = {};
-    if (!idValid(id))
-        return copy;
-
-    portENTER_CRITICAL(&s_signalsMux);
-    copy = s_signals[id];
-    portEXIT_CRITICAL(&s_signalsMux);
-    return copy;
 }
 
 void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {

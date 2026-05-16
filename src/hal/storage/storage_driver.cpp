@@ -136,35 +136,6 @@ StorageDriver::InitStatus StorageDriver::getStatus() {
     return s_initStatus;
 }
 
-char *StorageDriver::readFile(const char *path, size_t *outSize) {
-    File file = SPIFFS.open(path, "r");
-    if (!file || file.isDirectory()) {
-        LOG_WARN("STORAGE", "Cannot open file: %s", path);
-        if (outSize)
-            *outSize = 0;
-        return nullptr;
-    }
-
-    size_t size = file.size();
-    char *buf = static_cast<char *>(malloc(size + 1));
-    if (!buf) {
-        LOG_ERROR("STORAGE", "malloc(%u) failed reading %s", size + 1, path);
-        file.close();
-        if (outSize)
-            *outSize = 0;
-        return nullptr;
-    }
-
-    size_t read = file.readBytes(buf, size);
-    buf[read] = '\0';
-    file.close();
-
-    if (outSize)
-        *outSize = read;
-    LOG_DEBUG("STORAGE", "Read %u bytes from %s", read, path);
-    return buf;
-}
-
 DeserializationError StorageDriver::parseJsonFile(const char *path, JsonDocument &doc,
                                                   size_t *outSize) {
     if (outSize)
@@ -224,25 +195,6 @@ size_t StorageDriver::streamFileTo(const char *path, Print &out, bool replaceNew
     }
     file.close();
     return total;
-}
-
-bool StorageDriver::writeFile(const char *path, const uint8_t *data, size_t length) {
-    File file = SPIFFS.open(path, "w");
-    if (!file) {
-        LOG_ERROR("STORAGE", "Cannot open for write: %s", path);
-        return false;
-    }
-
-    size_t written = file.write(data, length);
-    file.close();
-
-    if (written != length) {
-        LOG_ERROR("STORAGE", "Write incomplete: %u/%u bytes for %s", written, length, path);
-        return false;
-    }
-
-    LOG_DEBUG("STORAGE", "Wrote %u bytes to %s", written, path);
-    return true;
 }
 
 bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_t length) {
