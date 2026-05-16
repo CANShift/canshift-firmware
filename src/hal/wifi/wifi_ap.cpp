@@ -147,16 +147,23 @@ bool hasValidBearerToken() {
     if (!s_server.hasHeader("Authorization")) {
         return false;
     }
-    String value = s_server.header("Authorization");
     static const char kPrefix[] = "Bearer ";
     constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
-    if (static_cast<size_t>(value.length()) < kPrefixLen + OTA_TOKEN_HEX_LEN) {
+    // Copy the header into a fixed-size C buffer so the OTA auth path doesn't
+    // hold an Arduino String on the heap during Update.begin() (issue #782).
+    // Sized for "Bearer " + 32 hex chars + NUL, with room for one extra byte
+    // so an over-long header trips the length check below instead of being
+    // silently truncated to a valid-looking value.
+    char buf[kPrefixLen + OTA_TOKEN_HEX_LEN + 2] = {};
+    strlcpy(buf, s_server.header("Authorization").c_str(), sizeof(buf));
+    const size_t len = strlen(buf);
+    if (len < kPrefixLen + OTA_TOKEN_HEX_LEN) {
         return false;
     }
-    if (strncmp(value.c_str(), kPrefix, kPrefixLen) != 0) {
+    if (strncmp(buf, kPrefix, kPrefixLen) != 0) {
         return false;
     }
-    return tokenMatches(value.c_str() + kPrefixLen);
+    return tokenMatches(buf + kPrefixLen);
 }
 
 void handleStatus() {
