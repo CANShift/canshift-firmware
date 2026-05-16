@@ -143,32 +143,31 @@ bool OtaHmacVerifier::finish() {
 #ifndef UNIT_TEST
 
     #include <mbedtls/md.h>
-    #include <stdlib.h>
 
 namespace {
 
+mbedtls_md_context_t s_mdContext;
+bool s_mdContextInUse = false;
+
 void *mbedInit(const uint8_t *secret, size_t secretLen) {
-    auto *ctx = static_cast<mbedtls_md_context_t *>(malloc(sizeof(mbedtls_md_context_t)));
-    if (ctx == nullptr) {
+    // OTA is single-instance; mbedtls backend matches.
+    if (s_mdContextInUse)
         return nullptr;
-    }
-    mbedtls_md_init(ctx);
+
+    mbedtls_md_init(&s_mdContext);
     const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    if (info == nullptr) {
-        free(ctx);
+    if (info == nullptr)
+        return nullptr;
+    if (mbedtls_md_setup(&s_mdContext, info, /*hmac=*/1) != 0) {
+        mbedtls_md_free(&s_mdContext);
         return nullptr;
     }
-    if (mbedtls_md_setup(ctx, info, /*hmac=*/1) != 0) {
-        mbedtls_md_free(ctx);
-        free(ctx);
+    if (mbedtls_md_hmac_starts(&s_mdContext, secret, secretLen) != 0) {
+        mbedtls_md_free(&s_mdContext);
         return nullptr;
     }
-    if (mbedtls_md_hmac_starts(ctx, secret, secretLen) != 0) {
-        mbedtls_md_free(ctx);
-        free(ctx);
-        return nullptr;
-    }
-    return ctx;
+    s_mdContextInUse = true;
+    return &s_mdContext;
 }
 
 bool mbedUpdate(void *ctx, const uint8_t *data, size_t len) {
@@ -179,7 +178,7 @@ bool mbedFinalize(void *ctx, uint8_t out[kHmacLen]) {
     auto *mdCtx = static_cast<mbedtls_md_context_t *>(ctx);
     const int rc = mbedtls_md_hmac_finish(mdCtx, out);
     mbedtls_md_free(mdCtx);
-    free(mdCtx);
+    s_mdContextInUse = false;
     return rc == 0;
 }
 
