@@ -5,6 +5,7 @@
 #include "ui/burn_overlay.h"
 #include "widget_factory.h"
 #include "top_bar.h"
+#include "diag_drawer.h"
 #include "error_bar.h"
 #include "settings_page.h"
 #include "theme_manager.h"
@@ -733,6 +734,9 @@ void PageManager::init() {
     // Init error bar first so errors pushed during boot (config load, CAN init)
     // are visible regardless of whether a valid dashboard config exists.
     ErrorBar::init();
+    // Diag drawer shares lv_layer_top with the error bar (#635). Init after
+    // it so the drawer's handle z-order sits cleanly above the bar.
+    DiagDrawer::init();
 
     if (!dash.loaded) {
         LOG_WARN("UI", "No dashboard config — showing setup screen");
@@ -903,6 +907,7 @@ void PageManager::updateWidgets() {
     setRevLimiterOverlay(AlertEngine::isRevLimiterFlashOn());
 
     ErrorBar::update();
+    DiagDrawer::update();
 }
 
 void PageManager::setRevLimiterOverlay(bool visible) {
