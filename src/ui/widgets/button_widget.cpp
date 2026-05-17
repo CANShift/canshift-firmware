@@ -38,6 +38,7 @@ static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44; // green
 // Per-button runtime state — owns the latched toggle flag and a pointer back
 // to the const config (kept alive by the dashboard singleton).
 struct ButtonTag {
+    const CfgWidget *cfg; // For style.primaryColor when computing derived toggle visuals (#838)
     const CfgButtonParams *params;
     lv_obj_t *iconImg;                 // nullptr when no asset is rendered
     bool toggleActive;                 // only meaningful when params->isToggle == true
@@ -75,12 +76,55 @@ const char *resolveIconAsset(const CfgButtonParams &p, char *out, size_t outLen)
     return out; // empty
 }
 
+// Brighten an RGB colour by a fixed per-channel delta (saturating). Used to
+// derive an "active" tint from a toggle button's resting colour when the
+// dashboard config did not provide an explicit `colors{normal,active}` block
+// (issue #838). Keeps the resting appearance untouched and only shifts the
+// pressed state, so existing dashboards don't suddenly look different.
+constexpr uint32_t TOGGLE_DERIVED_ACTIVE_DELTA = 0x40; // ~25 % brighter
+constexpr uint32_t TOGGLE_DERIVED_BORDER = 0xFFFFFFu;
+
+uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
+    const uint32_t r = (rgb >> 16) & 0xFF;
+    const uint32_t g = (rgb >> 8) & 0xFF;
+    const uint32_t b = rgb & 0xFF;
+    const uint32_t rL = r + delta > 0xFF ? 0xFF : r + delta;
+    const uint32_t gL = g + delta > 0xFF ? 0xFF : g + delta;
+    const uint32_t bL = b + delta > 0xFF ? 0xFF : b + delta;
+    return (rL << 16) | (gL << 8) | bL;
+}
+
+// Resting / active colours for a toggle button. When the dashboard provides
+// an explicit `colors` block we honour it verbatim. Otherwise we derive an
+// active tint from the widget's primary colour AND surface a 1 px border to
+// give the latched state a second visual cue (issue #838). Both branches
+// share the same surface so the caller doesn't have to special-case.
+struct ToggleVisual {
+    uint32_t bg;
+    bool showBorder;
+};
+
+ToggleVisual computeToggleVisual(const CfgWidget &cfg, const CfgButtonParams &p, bool active) {
+    if (p.hasColors) {
+        return {active ? p.colorActive.rgb : p.colorNormal.rgb, false};
+    }
+    if (active) {
+        return {lightenRgb(cfg.style.primaryColor.rgb, TOGGLE_DERIVED_ACTIVE_DELTA), true};
+    }
+    return {cfg.style.primaryColor.rgb, false};
+}
+
 void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
-    if (!tag.params || !tag.params->isToggle || !tag.params->hasColors)
+    if (!tag.params || !tag.params->isToggle || !tag.cfg)
         return;
-    const uint32_t bg =
-        tag.toggleActive ? tag.params->colorActive.rgb : tag.params->colorNormal.rgb;
-    lv_obj_set_style_bg_color(btn, lv_color_hex(bg), LV_PART_MAIN);
+    const ToggleVisual v = computeToggleVisual(*tag.cfg, *tag.params, tag.toggleActive);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(v.bg), LV_PART_MAIN);
+    if (v.showBorder) {
+        lv_obj_set_style_border_color(btn, lv_color_hex(TOGGLE_DERIVED_BORDER), LV_PART_MAIN);
+        lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+    } else {
+        lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
+    }
 }
 
 void btnClickHandler(lv_event_t *e) {
@@ -144,6 +188,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     auto *tag = new ButtonTag{};
     LOG_DEBUG("BTN", "create %s heap.largest=%u", cfg.id,
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+    tag->cfg = &cfg;
     tag->params = &p;
     tag->iconImg = nullptr;
     tag->toggleActive = false;
