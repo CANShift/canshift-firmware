@@ -21,7 +21,7 @@ Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–1
 - **MCU** — ESP32-WROOM-32 mounted on the Elecrow CrowPanel 2.8" ESP32 HMI (SKU `DIS05028H`).
 - **Display** — ILI9341, 320×240, SPI bus, backlight on GPIO 27 (PWM channel 0, 5 kHz, 8-bit).
 - **Touch** — XPT2046 resistive controller, sharing the display's HSPI bus, polled (no IRQ).
-- **CAN** — ESP32 TWAI controller fed through an Adafruit CAN Pal (TJA1051T/3) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → MaxxECU CAN H/L`, `VCC → 5 V`, `GND → GND`.
+- **CAN** — ESP32 TWAI controller fed through an Adafruit CAN Pal (TJA1051T/3) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → ECU CAN H/L`, `VCC → 5 V`, `GND → GND`. CANShift is ECU-agnostic — MaxxECU is the example used during development, but `signals.json` accepts any passively-broadcast frame layout (see #556).
 
 All pin assignments live in [`include/board_config.h`](include/board_config.h) and are still flagged as assumptions until they're verified on the actual board.
 
@@ -33,7 +33,7 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 - Gauge `revFlash` pulse triggered at the configured `revLimitRpm` (`src/ui/widgets/gauge_widget.cpp:261-270`, issue #263).
 - Button widgets with toggle latch, optional icon, and idle/active color tints (`src/ui/widgets/button_widget.cpp`).
 - ESP32 TWAI CAN reception at 500 kbps, runtime-overridable via `device.json`.
-- MaxxECU CAN frame parsing — RPM, throttle, MAP, boost, IAT, coolant, oil temp/pressure, fuel pressure, lambda, AFR, road speed, gear, battery, MIL/launch flags, map number.
+- CAN frame parsing — RPM, throttle, MAP, boost, IAT, coolant, oil temp/pressure, fuel pressure, lambda, AFR, road speed, gear, battery, MIL/launch flags, map number. The shipped default `signals.json` is tuned for MaxxECU but `signals.json` is fully generic; swap it for any passive-broadcast ECU.
 - Dynamic CAN signal table built from `signals.json` at boot — runtime dispatch with bitmask support and per-signal timeout.
 - Touch calibration via TFT_eSPI's 4-point crosshair routine; result stored in NVS (`namespace="touch"`, `key="cal"`).
 - Day/night theme toggle that rebuilds all LVGL pages.
@@ -213,7 +213,7 @@ canshift-firmware/
 ├── data/                           # SPIFFS image — uploaded via `pio run -t uploadfs`
 │   ├── config/
 │   │   ├── dashboard.json          # Default dashboard layout (also embedded)
-│   │   ├── signals.json            # MaxxECU CAN signal mapping (UNVERIFIED, also embedded)
+│   │   ├── signals.json            # Default CAN signal mapping (MaxxECU example, UNVERIFIED, also embedded)
 │   │   ├── theme.json              # Default theme overrides (also embedded)
 │   │   └── device.json             # Runtime hardware overrides
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
@@ -440,8 +440,11 @@ in your build flags. In sim mode:
 | TWAI RX | **32** | ← CAN Pal CRX |
 
 CAN speed: 500 kbps default (`board_config.h:89`); runtime override via
-`device.json`. MaxxECU CAN frame IDs in `signals.json` are **unverified** —
-confirm them in the MaxxECU PC software.
+`device.json`. The default `signals.json` shipped with the firmware is a
+MaxxECU layout and the frame IDs in it are **unverified** — confirm them
+against your ECU's CAN protocol document (the MaxxECU PC software for that
+default, or your ECU vendor's docs for any other layout) before relying on
+the readings.
 
 ---
 
@@ -453,7 +456,7 @@ Each canonical config lives at `/config/` on the SPIFFS partition (paths from
 | File | Purpose | Required? |
 |------|---------|-----------|
 | `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot (`platformio.ini`) |
-| `signals.json` | MaxxECU CAN signal mapping | Same — provisioned on first boot |
+| `signals.json` | CAN signal mapping (default: MaxxECU example) | Same — provisioned on first boot |
 | `theme.json` | Default theme overrides | Optional; provisioned with the embed defaults |
 | `device.json` | Runtime hardware overrides (TWAI pins, CAN speed) | Optional — falls back to `board_config.h` |
 

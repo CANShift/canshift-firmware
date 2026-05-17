@@ -167,7 +167,8 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 1024;
 // Required because twai_receive returns immediately on a busy bus, which
 // otherwise starves IDLE0 at TASK_PRIO_CAN=15 and trips the Task Watchdog
 // Timer. 1 tick (~1 ms at configTICK_RATE_HZ=1000) is enough for IDLE0
-// to run while staying well below the MaxxECU group cadence (issue #200).
+// to run while staying well below typical ECU group cadence (issue #200 —
+// originally tuned against MaxxECU; applies equally to other CAN-bus ECUs).
 #define CAN_TASK_YIELD_TICKS 1
 
 // TWAI init retry policy (issue #652). When initHardware() fails at boot

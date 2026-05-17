@@ -1,13 +1,14 @@
 #pragma once
 // signals_minimal.json.h — minimal signals.json fixture for config_loader
-// tests. One signal mapped to MaxxECU frame 0x370 (RPM) is enough to verify
-// the loader populates CfgSignalConfig.signals[0] without warnings.
+// tests. One signal mapped to CAN frame 0x370 (RPM, MaxxECU-style layout) is
+// enough to verify the loader populates CfgSignalConfig.signals[0] without
+// warnings.
 
 namespace fixtures {
 
 constexpr const char *kSignalsMinimal = R"({
   "version": "1.0.0",
-  "protocol": "maxxecu_v1.2",
+  "protocol": "custom_v1.0",
   "canSpeedKbps": 500,
   "signals": [
     {
@@ -31,7 +32,7 @@ constexpr const char *kSignalsMinimal = R"({
 // reloadAll() leaves s_signals byte-identical when the signals file is bad.
 constexpr const char *kSignalsCorrupt = R"({
   "version": "1.0.0",
-  "protocol": "maxxecu_v1.2",
+  "protocol": "custom_v1.0",
   "signals": [
     {"name": "rpm"
 )";
