@@ -12,9 +12,17 @@
 // Layout constants
 // ---------------------------------------------------------------------------
 
-static constexpr int16_t BAR_H = 20;   // Collapsed height (px)
-static constexpr int16_t ROW_H = 20;   // Height of each expanded row
-static constexpr uint8_t MAX_ROWS = 3; // Max errors shown when expanded
+static constexpr int16_t BAR_H = 20; // Collapsed height (px)
+static constexpr int16_t ROW_H = 20; // Height of each expanded row
+// Mirrors the ErrorStore ring capacity (`RING_SIZE` in `error_store.cpp`).
+// Pre-allocating exactly that many detail rows means we never touch the heap
+// on the UI hot path while still showing every error the store can hold.
+// Issue #642.
+static constexpr uint8_t MAX_ROWS = 6;
+// Detail panel cap — beyond this LVGL scrolls the rows vertically.
+// 120 = 6 rows × 20 px; the cap exists so future ring-size bumps can't push
+// the drawer past the dashboard's visible area.
+static constexpr int16_t DETAIL_MAX_H = 120;
 
 static constexpr uint32_t COL_BG = 0x160808;     // Very dark red background
 static constexpr uint32_t COL_BORDER = 0xCC3333; // Left accent
@@ -122,7 +130,10 @@ void ErrorBar::init() {
     // Outer container — flush to the bottom of lv_layer_top()
     s_container = lv_obj_create(lv_layer_top());
     lv_obj_set_width(s_container, LV_HOR_RES);
-    lv_obj_set_height(s_container, BAR_H); // Expanded later in update()
+    // Height tracks the detail panel's visibility (LV_SIZE_CONTENT) so the
+    // collapsed bar is always exactly BAR_H and the expanded variant
+    // grows just enough to show its scrollable rows (#642).
+    lv_obj_set_height(s_container, LV_SIZE_CONTENT);
     lv_obj_align(s_container, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(s_container, lv_color_hex(COL_BG), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_container, LV_OPA_COVER, LV_PART_MAIN);
@@ -138,10 +149,22 @@ void ErrorBar::init() {
                           LV_FLEX_ALIGN_START);
     lv_obj_add_flag(s_container, LV_OBJ_FLAG_HIDDEN); // Hidden until first error
 
-    // Click on container = toggle expanded
+    // Swipe up = expand, swipe down = collapse (issue #642). The container
+    // sits on `lv_layer_top()` above the pages, so its gesture handler runs
+    // before PageManager's horizontal swipe — UP/DOWN never conflict with
+    // page LEFT/RIGHT.
     lv_obj_add_event_cb(
-        s_container, [](lv_event_t * /*e*/) { setExpanded(!s_expanded); }, LV_EVENT_CLICKED,
-        nullptr);
+        s_container,
+        [](lv_event_t *e) {
+            const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
+            if (dir == LV_DIR_TOP) {
+                setExpanded(true);
+            } else if (dir == LV_DIR_BOTTOM) {
+                setExpanded(false);
+            }
+            (void)e;
+        },
+        LV_EVENT_GESTURE, nullptr);
 
     // ---------------------------------------------------------------------------
     // Header row — always visible when bar is shown
@@ -186,6 +209,9 @@ void ErrorBar::init() {
     s_detailPanel = lv_obj_create(s_container);
     lv_obj_set_width(s_detailPanel, LV_PCT(100));
     lv_obj_set_height(s_detailPanel, LV_SIZE_CONTENT);
+    // Cap the rendered height so the drawer never pushes past the dashboard.
+    // Beyond DETAIL_MAX_H the rows scroll inside the panel (#642).
+    lv_obj_set_style_max_height(s_detailPanel, DETAIL_MAX_H, LV_PART_MAIN);
     lv_obj_set_style_bg_color(s_detailPanel, lv_color_hex(0x100505), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_detailPanel, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_detailPanel, 1, LV_PART_MAIN);
@@ -193,7 +219,8 @@ void ErrorBar::init() {
     lv_obj_set_style_border_side(s_detailPanel, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_detailPanel, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_detailPanel, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(s_detailPanel, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_scroll_dir(s_detailPanel, LV_DIR_VER);
+    lv_obj_clear_flag(s_detailPanel, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(s_detailPanel, LV_FLEX_FLOW_COLUMN);
     lv_obj_add_flag(s_detailPanel, LV_OBJ_FLAG_HIDDEN);
 
@@ -304,9 +331,7 @@ void ErrorBar::update() {
         }
     }
 
-    // Resize container to fit header + (expanded ? detail rows : 0)
-    const int16_t detailH = s_expanded ? static_cast<int16_t>(fetched) * ROW_H : 0;
-    lv_obj_set_height(s_container, BAR_H + detailH);
-    // Re-align to bottom after height change
+    // Re-align to bottom after the LV_SIZE_CONTENT-driven height change so
+    // the bar stays flush with the bottom edge regardless of row count.
     lv_obj_align(s_container, LV_ALIGN_BOTTOM_MID, 0, 0);
 }
