@@ -66,10 +66,11 @@
 
 // Task priorities (0=lowest, configMAX_PRIORITIES-1=highest)
 // ESP32 Arduino framework default configMAX_PRIORITIES is 25.
-#define TASK_PRIO_UI 10  // UI rendering — moderate priority
-#define TASK_PRIO_CAN 15 // CAN parsing — higher, time-sensitive
-#define TASK_PRIO_USB 8  // USB sync — lower, not time-critical
-#define TASK_PRIO_SIM 5  // Sim — lowest, best-effort
+#define TASK_PRIO_UI 10   // UI rendering — moderate priority
+#define TASK_PRIO_CAN 15  // CAN parsing — higher, time-sensitive
+#define TASK_PRIO_USB 8   // USB sync — lower, not time-critical
+#define TASK_PRIO_SIM 5   // Sim — lowest, best-effort
+#define TASK_PRIO_INPUT 7 // GPIO button polling — below UI, above sim (#833)
 
 // Task core pinning — ESP32 has 2 cores (0 and 1)
 // Core 1 (APP_CPU) is typically used for Arduino loop/app code
@@ -78,6 +79,11 @@
 #define TASK_CORE_CAN 0
 #define TASK_CORE_USB 1
 #define TASK_CORE_SIM 1
+#define TASK_CORE_INPUT 0 // Pinned to core 0 to keep UI core jitter-free (#833)
+
+#ifndef TASK_STACK_INPUT
+    #define TASK_STACK_INPUT 2048 // GPIO polling + dispatch — tiny stack
+#endif
 
 // Watchdog timeout for UI/CAN/USB tasks. Long enough to survive page
 // rebuild (#717 instrumentation showed up to ~1.5s on cold cache) and

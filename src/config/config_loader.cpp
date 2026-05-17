@@ -40,6 +40,7 @@ void logLargestFreeBlock(const char *where) {
 static CfgDashboard s_dashboard = {};
 static CfgSignalConfig s_signals = {};
 static CfgDeviceConfig s_device = {};
+static CfgInputBindings s_inputs = {};
 
 // Issue #458: transactional reload uses heap-allocated snapshots taken on
 // entry to each load* function and freed on exit. CfgDashboard is ~22 KB and
@@ -198,8 +199,30 @@ CfgButtonActionType parseButtonActionType(const char *category, const char *type
         return CfgButtonActionType::MAP_SWITCH;
     if (strcmp(type, "can_raw") == 0)
         return CfgButtonActionType::CAN_RAW;
+    if (strcmp(type, "cruise_control") == 0)
+        return CfgButtonActionType::CRUISE_CONTROL;
     (void)category;
     return CfgButtonActionType::UNKNOWN;
+}
+
+CfgCruiseOp parseCruiseOp(const char *op) {
+    if (!op)
+        return CfgCruiseOp::UNKNOWN;
+    if (strcmp(op, "on") == 0)
+        return CfgCruiseOp::ON;
+    if (strcmp(op, "off") == 0)
+        return CfgCruiseOp::OFF;
+    if (strcmp(op, "toggle") == 0)
+        return CfgCruiseOp::TOGGLE;
+    if (strcmp(op, "set") == 0)
+        return CfgCruiseOp::SET;
+    if (strcmp(op, "resume") == 0)
+        return CfgCruiseOp::RESUME;
+    if (strcmp(op, "increment") == 0)
+        return CfgCruiseOp::INCREMENT;
+    if (strcmp(op, "decrement") == 0)
+        return CfgCruiseOp::DECREMENT;
+    return CfgCruiseOp::UNKNOWN;
 }
 
 // Standard 11-bit CAN identifier max — anything above this requires the
@@ -218,6 +241,8 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     out->canDataLen = 0;
     out->canDataOffLen = 0;
     out->canExtended = false;
+    out->cruiseOp = CfgCruiseOp::UNKNOWN;
+    out->cruiseStepKmh = 0;
     memset(out->canData, 0, sizeof(out->canData));
     memset(out->canDataOff, 0, sizeof(out->canDataOff));
 
@@ -284,6 +309,22 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
                     memset(out->canDataOff, 0, sizeof(out->canDataOff));
                 }
             }
+            break;
+        }
+        case CfgButtonActionType::CRUISE_CONTROL: {
+            const char *opStr = src["op"] | "";
+            out->cruiseOp = parseCruiseOp(opStr);
+            if (out->cruiseOp == CfgCruiseOp::UNKNOWN) {
+                LOG_WARN("CFG", "cruise_control: unknown op='%s' — action dropped", opStr);
+                out->type = CfgButtonActionType::UNKNOWN;
+                break;
+            }
+            int step = src["stepKmh"] | 0;
+            if (step < 0)
+                step = 0;
+            if (step > 255)
+                step = 255;
+            out->cruiseStepKmh = static_cast<uint8_t>(step);
             break;
         }
         case CfgButtonActionType::UNKNOWN:
@@ -908,6 +949,102 @@ bool loadDevice() {
     return true;
 }
 
+CfgInputActive parseInputActive(const char *str) {
+    if (str && strcmp(str, "high") == 0)
+        return CfgInputActive::ACTIVE_HIGH;
+    return CfgInputActive::ACTIVE_LOW;
+}
+
+CfgInputPressKind parseInputPressKind(const char *str) {
+    if (!str)
+        return CfgInputPressKind::SHORT;
+    if (strcmp(str, "long") == 0)
+        return CfgInputPressKind::LONG;
+    if (strcmp(str, "double") == 0)
+        return CfgInputPressKind::DOUBLE;
+    return CfgInputPressKind::SHORT;
+}
+
+// Reject pins already claimed by the active TWAI config. Display/touch pins
+// are baked into board_config.h and a fuller cross-check belongs in a
+// follow-up alongside hardware_profile.h.
+bool isPinConflict(int8_t pin) {
+    const CfgDeviceConfig &dev = s_device;
+    if (!dev.loaded)
+        return false;
+    return pin == dev.twaiTxPin || pin == dev.twaiRxPin;
+}
+
+bool loadInputBindings() {
+    s_inputs.count = 0;
+    s_inputs.loaded = false;
+    memset(s_inputs.bindings, 0, sizeof(s_inputs.bindings));
+
+    if (!StorageDriver::fileExists(CONFIG_PATH_INPUTS)) {
+        LOG_INFO("CFG", "input_bindings.json not found — no physical buttons configured");
+        return false;
+    }
+
+    JsonDocument doc;
+    DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_INPUTS, doc);
+    if (err) {
+        LOG_WARN("CFG", "input_bindings.json parse error: %s — ignoring file", err.c_str());
+        return false;
+    }
+
+    JsonArrayConst arr = doc["input_bindings"].as<JsonArrayConst>();
+    if (arr.isNull()) {
+        LOG_WARN("CFG", "input_bindings.json missing 'input_bindings' array — ignoring file");
+        return false;
+    }
+
+    for (JsonObjectConst entry : arr) {
+        if (s_inputs.count >= CFG_MAX_INPUT_BINDINGS) {
+            LOG_WARN("CFG", "input_bindings.json: > %u entries — extras dropped",
+                     static_cast<unsigned>(CFG_MAX_INPUT_BINDINGS));
+            break;
+        }
+        CfgInputBinding &b = s_inputs.bindings[s_inputs.count];
+        memset(&b, 0, sizeof(b));
+        strlcpy(b.id, entry["id"] | "", sizeof(b.id));
+        const int pin = entry["pin"] | -1;
+        if (pin < 0 || pin > 39) {
+            LOG_WARN("CFG", "input binding '%s': pin=%d out of range — dropped", b.id, pin);
+            continue;
+        }
+        if (isPinConflict(static_cast<int8_t>(pin))) {
+            LOG_WARN("CFG", "input binding '%s': pin=%d conflicts with TWAI — dropped", b.id, pin);
+            continue;
+        }
+        b.pin = static_cast<int8_t>(pin);
+        b.active = parseInputActive(entry["active"] | "low");
+        b.pullup = entry["pullup"] | true;
+        int debounce = entry["debounce_ms"] | 20;
+        if (debounce < 1)
+            debounce = 1;
+        if (debounce > 500)
+            debounce = 500;
+        b.debounceMs = static_cast<uint16_t>(debounce);
+        b.kind = parseInputPressKind(entry["kind"] | "short");
+        JsonObjectConst action = entry["action"].as<JsonObjectConst>();
+        if (action.isNull()) {
+            LOG_WARN("CFG", "input binding '%s': missing 'action' — dropped", b.id);
+            continue;
+        }
+        parseButtonAction(action, &b.action);
+        if (b.action.type == CfgButtonActionType::UNKNOWN) {
+            LOG_WARN("CFG", "input binding '%s': unknown / invalid action — dropped", b.id);
+            continue;
+        }
+        strlcpy(b.signal, entry["signal"] | "", sizeof(b.signal));
+        s_inputs.count++;
+    }
+
+    s_inputs.loaded = true;
+    LOG_INFO("CFG", "input_bindings.json loaded: %u bindings", s_inputs.count);
+    return true;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -919,6 +1056,9 @@ ConfigLoader::LoadResult ConfigLoader::loadAll() {
     r.dashboardOk = loadDashboard();
     r.signalsOk = loadSignals();
     r.deviceOk = loadDevice();
+    // loadInputBindings depends on the parsed device config for pin-conflict
+    // detection, so it must run AFTER loadDevice.
+    r.inputsOk = loadInputBindings();
     return r;
 }
 
@@ -931,9 +1071,13 @@ const CfgSignalConfig &ConfigLoader::getSignalConfig() {
 const CfgDeviceConfig &ConfigLoader::getDeviceConfig() {
     return s_device;
 }
+const CfgInputBindings &ConfigLoader::getInputBindings() {
+    return s_inputs;
+}
 bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();
-    LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d", r.dashboardOk, r.signalsOk);
+    LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d inputs=%d", r.dashboardOk,
+             r.signalsOk, r.inputsOk);
     return r.dashboardOk; // Dashboard is mandatory
 }
 

@@ -25,6 +25,7 @@
 #include "hal/touch/touch_driver.h"
 #include "hal/usb/usb_comm.h"
 #include "runtime/alert_engine.h"
+#include "runtime/input_buttons.h"
 #include "ui/page_manager.h"
 #include "ui/theme_manager.h"
 #if APP_BLE_ENABLED
@@ -220,6 +221,9 @@ void setup() {
 
     LOG_INFO("BOOT", "Boot complete — starting tasks");
     createAllTasks();
+    // Physical GPIO buttons (#833) — owns its own task, started here so that
+    // it sees the configs already loaded by BootSequence::run().
+    InputButtons::init();
     LOG_INFO("BOOT", "All tasks started");
 }
 

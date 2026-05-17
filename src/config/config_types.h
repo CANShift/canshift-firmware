@@ -156,9 +156,25 @@ struct CfgWarningParams {
 // dropped at parse time with a LOG_WARN.
 enum class CfgButtonActionType : uint8_t {
     UNKNOWN = 0,
-    NAV_PAGE,   // Navigate to dashboard page
-    MAP_SWITCH, // Ask ECU to switch to a specific map slot
-    CAN_RAW,    // Send raw CAN frame
+    NAV_PAGE,       // Navigate to dashboard page
+    MAP_SWITCH,     // Ask ECU to switch to a specific map slot
+    CAN_RAW,        // Send raw CAN frame
+    CRUISE_CONTROL, // Cruise-control op (issue #833, full integration #451)
+};
+
+// Cruise-control operations. Mirrors CruiseControlOp in canshift-core. The
+// firmware currently logs the op and (where applicable) flips a shared
+// `cruise_armed` signal so any on-screen widget bound to it can render the
+// state. Real CAN frames land with issue #451 once per-ECU support is known.
+enum class CfgCruiseOp : uint8_t {
+    UNKNOWN = 0,
+    ON,
+    OFF,
+    TOGGLE,
+    SET,
+    RESUME,
+    INCREMENT,
+    DECREMENT,
 };
 
 struct CfgButtonAction {
@@ -180,6 +196,9 @@ struct CfgButtonAction {
     // when canFrameId exceeds the 11-bit standard range (>0x7FF) so legacy
     // configs without the flag still transmit valid frames.
     bool canExtended;
+    // cruise_control payload (issue #833). stepKmh==0 means "firmware default".
+    CfgCruiseOp cruiseOp;
+    uint8_t cruiseStepKmh;
 };
 
 struct CfgButtonParams {
@@ -387,4 +406,48 @@ struct CfgDeviceConfig {
     int8_t twaiTxPin;      // ESP32 TWAI TX GPIO (-1 = use board_config.h default)
     int8_t twaiRxPin;      // ESP32 TWAI RX GPIO (-1 = use board_config.h default)
     bool loaded;
+};
+
+// ---------------------------------------------------------------------------
+// Physical GPIO input bindings (from input_bindings.json) — issue #833.
+// Each entry wires one GPIO press (with debounce + press kind) to one
+// dashboard action, reusing the existing CfgButtonAction shape.
+// ---------------------------------------------------------------------------
+
+// Hard cap mirrored from canshift-core MAX_INPUT_BINDINGS. Entries beyond
+// this are dropped at parse time with a LOG_WARN.
+#define CFG_MAX_INPUT_BINDINGS 16
+
+enum class CfgInputActive : uint8_t {
+    // Avoid the names LOW/HIGH — Arduino defines those as numeric macros.
+    ACTIVE_LOW = 0,  // Button pulls pin to GND when pressed (default; needs pullup)
+    ACTIVE_HIGH = 1, // Button drives pin to Vcc when pressed
+};
+
+enum class CfgInputPressKind : uint8_t {
+    UNKNOWN = 0,
+    SHORT,
+    LONG,
+    DOUBLE,
+};
+
+struct CfgInputBinding {
+    char id[CFG_MAX_ID_LEN];
+    int8_t pin;            // ESP32 input-capable GPIO (-1 = disabled)
+    CfgInputActive active; // Activation level
+    bool pullup;           // Enable internal pullup (paired with ACTIVE_LOW)
+    uint16_t debounceMs;
+    CfgInputPressKind kind;
+    CfgButtonAction action;
+    // Optional signal name shared with an on-screen toggle button widget.
+    // When set, firing this binding writes the FLIPPED current signal value
+    // into the SignalStore so the on-screen widget syncs without waiting for
+    // an ECU echo. "" = no shared signal (no cross-widget sync).
+    char signal[CFG_MAX_SIGNAL_LEN];
+};
+
+struct CfgInputBindings {
+    uint8_t count;
+    CfgInputBinding bindings[CFG_MAX_INPUT_BINDINGS];
+    bool loaded; // True if input_bindings.json existed and parsed
 };

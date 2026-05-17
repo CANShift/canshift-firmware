@@ -2,14 +2,12 @@
 
 #include "button_widget.h"
 #include "app_config.h"
-#include "can/can_manager.h"
-#include "can_signals_out.h"
 #include "config/config_loader.h"
+#include "runtime/action_dispatcher.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
-#include "ui/page_manager.h"
 #include "diag/logger.h"
 #include <Arduino.h>
 #include <esp_heap_caps.h>
@@ -85,72 +83,6 @@ void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
     lv_obj_set_style_bg_color(btn, lv_color_hex(bg), LV_PART_MAIN);
 }
 
-void dispatchAction(const CfgButtonAction &a, bool isActive) {
-    switch (a.type) {
-        case CfgButtonActionType::NAV_PAGE:
-            if (a.pageId[0] != '\0') {
-                // Defer navigateTo to the next LVGL tick: it can synchronously
-                // free the screen this button lives on (lazy-build path releases
-                // the departing page), and the event loop would otherwise return
-                // into freed memory. lv_async_call drains at the top of the next
-                // lv_timer_handler() iteration, after this click handler unwinds.
-                // Closes the re-entrant navigation path in #717.
-                static char s_pendingNavId[CFG_MAX_ID_LEN];
-                strlcpy(s_pendingNavId, a.pageId, sizeof(s_pendingNavId));
-                lv_async_call(
-                    [](void *p) {
-                        const char *id = static_cast<const char *>(p);
-                        PageManager::navigateTo(id);
-                    },
-                    s_pendingNavId);
-            }
-            break;
-        case CfgButtonActionType::MAP_SWITCH: {
-            // Frame ID is sourced from signals.json `out.map_switch.id` (issue
-            // #317) and falls back to the baked default in can_signals_out.h
-            // when the user hasn't provided an override. Either way it remains
-            // ECU-specific and unverified — warn once so field testers see it.
-            const CfgSignalsOut &outCfg = ConfigLoader::getSignalConfig().out;
-            const uint32_t frameId =
-                outCfg.mapSwitchFrameId != 0 ? outCfg.mapSwitchFrameId : CAN_OUT_MAP_SWITCH_ID;
-            const bool extended = outCfg.mapSwitchExtended;
-            static bool s_warnedMapSwitchUnverified = false;
-            if (!s_warnedMapSwitchUnverified) {
-                LOG_WARN("BTN",
-                         "map_switch frame id=0x%lX (ext=%d) is UNVERIFIED — confirm against ECU",
-                         static_cast<unsigned long>(frameId), extended ? 1 : 0);
-                s_warnedMapSwitchUnverified = true;
-            }
-            if (a.mapIndex < MAP_SWITCH_MIN_INDEX || a.mapIndex > MAP_SWITCH_MAX_INDEX) {
-                LOG_WARN("BTN", "map_switch: mapIndex=%u out of range [%u,%u] — dropped",
-                         static_cast<unsigned>(a.mapIndex),
-                         static_cast<unsigned>(MAP_SWITCH_MIN_INDEX),
-                         static_cast<unsigned>(MAP_SWITCH_MAX_INDEX));
-                break;
-            }
-            const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = {a.mapIndex};
-            (void)CanManager::sendFrame(frameId, payload, CAN_OUT_MAP_SWITCH_DLC, extended);
-            break;
-        }
-        case CfgButtonActionType::CAN_RAW:
-            // Pass through the parsed extended flag (issue #319). Parser
-            // auto-promotes any ID >0x7FF to extended so legacy configs that
-            // omit the flag still transmit a valid frame.
-            // When disarming a toggle and a dataOff payload was configured, send
-            // the off-frame instead of the arm-frame.
-            if (!isActive && a.canDataOffLen > 0) {
-                (void)CanManager::sendFrame(a.canFrameId, a.canDataOff, a.canDataOffLen,
-                                            a.canExtended);
-            } else {
-                (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended);
-            }
-            break;
-        case CfgButtonActionType::UNKNOWN:
-        default:
-            break;
-    }
-}
-
 void btnClickHandler(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED)
         return;
@@ -167,7 +99,7 @@ void btnClickHandler(lv_event_t *e) {
     }
 
     for (uint8_t i = 0; i < tag->params->actionsCount; ++i) {
-        dispatchAction(tag->params->actions[i], tag->toggleActive);
+        ActionDispatcher::dispatchAction(tag->params->actions[i], tag->toggleActive);
     }
 }
 

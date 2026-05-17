@@ -13,6 +13,7 @@ struct LoadResult {
     bool dashboardOk;
     bool signalsOk;
     bool deviceOk;
+    bool inputsOk;
 };
 
 /**
@@ -40,6 +41,13 @@ const CfgSignalConfig &getSignalConfig();
      * and callers should fall back to board_config.h defaults.
      */
 const CfgDeviceConfig &getDeviceConfig();
+
+/**
+     * Access the loaded physical-button bindings (issue #833).
+     * Returns a struct with .count=0 / .loaded=false when
+     * input_bindings.json is absent or malformed.
+     */
+const CfgInputBindings &getInputBindings();
 
 /**
      * Reload all configs from storage and rebuild the UI.
