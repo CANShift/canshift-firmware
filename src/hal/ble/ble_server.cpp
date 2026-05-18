@@ -13,6 +13,7 @@
     #include "config/rotation_config.h"
     #include "diag/logger.h"
     #include "diag/lvgl_lock_guard.h"
+    #include "runtime/track_store.h"
     #include "app_config.h"
 
     #include <NimBLEDevice.h>
@@ -217,6 +218,22 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             // next boot falls back to board defaults + first-boot calibration.
             s_pendingCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration reset queued");
+        } else if (strcmp(cmd, "track_state") == 0) {
+            // Track-mode telemetry pushed by canshift-mobile. Mirrors the
+            // `TrackTelemetrySchema` in canshift-core (#843). Bounds are
+            // already enforced TS-side, but we re-clamp the wide ints to
+            // the embedded-side struct widths defensively. Issue #844.
+            TrackStore::State next = {};
+            next.trackMode = doc["trackMode"] | false;
+            next.currentLapMs = doc["currentLapMs"] | 0;
+            next.lastLapMs = doc["lastLapMs"] | 0;
+            next.bestLapMs = doc["bestLapMs"] | 0;
+            const int lapNum = doc["lapNumber"] | 0;
+            next.lapNumber =
+                (lapNum < 0) ? 0 : static_cast<uint16_t>(lapNum > 9999 ? 9999 : lapNum);
+            next.deltaMs = doc["deltaMs"] | 0;
+            next.isBestLap = doc["isBestLap"] | false;
+            TrackStore::setTelemetry(next);
         } else if (strcmp(cmd, "reboot") == 0) {
             LOG_INFO("BLE", "CMD: reboot");
             delay(100);

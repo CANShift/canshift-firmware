@@ -280,6 +280,7 @@ enum class TopBarItemKind : uint8_t {
     BLE_ICON,     // "BLE" text badge: blue=connected, dim=advertising, gray=off
     THEME_TOGGLE, // ☀/☾ tap target — only meaningful when hasDayTheme
     MODE_FLAG,    // Text badge — amber when signal ≠ 0, near-black when 0 or invalid
+    TRACK_BADGE,  // "TRACK" text — lit while the mobile app pushes trackMode=true (#844)
 };
 
 enum class TopBarItemPos : uint8_t {

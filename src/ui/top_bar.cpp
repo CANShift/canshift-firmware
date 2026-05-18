@@ -17,6 +17,7 @@
 #include "theme_manager.h"
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
+#include "runtime/track_store.h"
 #include "can/signal_map.h"
 #include "hal/usb/usb_comm.h"
 #if APP_BLE_ENABLED
@@ -269,6 +270,16 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             anchor(obj, gap);
             break;
         }
+        case TopBarItemKind::TRACK_BADGE: {
+            // Lit while canshift-mobile pushes `trackMode=true` over BLE
+            // (#844). Static label — TopBar::update() toggles visibility
+            // every tick by polling TrackStore. Stays hidden at boot until
+            // the first valid mobile push lands.
+            obj = makeBarLabel(s_bar, "TRACK", COLOR_MODE_ACTIVE);
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+            anchor(obj, gap);
+            break;
+        }
         case TopBarItemKind::THEME_TOGGLE: {
             obj = lv_img_create(s_bar);
             lv_img_set_src(obj, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
@@ -303,7 +314,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
          item.kind == TopBarItemKind::USB_ICON || item.kind == TopBarItemKind::BLE_ICON ||
-         item.kind == TopBarItemKind::MODE_FLAG ||
+         item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::TRACK_BADGE ||
          (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         const uint8_t myIdx = s_dynCount;
@@ -548,6 +559,24 @@ static void updateModeFlag(DynItem &d) {
     d.lastColor = color;
 }
 
+// Track-mode timeout. Match the mobile push cadence (~5 Hz) + generous
+// link-loss tolerance — mobile dropping out for a couple seconds shouldn't
+// clear the badge mid-lap.
+static constexpr uint32_t TRACK_BADGE_TIMEOUT_MS = 5000;
+
+static void updateTrackBadge(DynItem &d) {
+    const bool active = TrackStore::isActiveWithin(TRACK_BADGE_TIMEOUT_MS);
+    const bool wantHidden = !active;
+    if (wantHidden == d.hidden)
+        return;
+    if (wantHidden) {
+        lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+    }
+    d.hidden = wantHidden;
+}
+
 // Collapse separators that sit next to a hidden MODE_FLAG on either side
 // (#653, #659). A separator only renders when BOTH adjacent flags are
 // visible; otherwise we get a dangling `|` at the visible-region edges.
@@ -592,6 +621,9 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::MODE_FLAG:
                 updateModeFlag(d);
+                break;
+            case TopBarItemKind::TRACK_BADGE:
+                updateTrackBadge(d);
                 break;
             case TopBarItemKind::SEPARATOR:
                 updateLinkedSeparator(d);

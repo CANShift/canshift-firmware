@@ -147,6 +147,8 @@ TopBarItemKind parseTopBarItemKind(const char *str) {
         return TopBarItemKind::THEME_TOGGLE;
     if (strcmp(str, "modeFlag") == 0)
         return TopBarItemKind::MODE_FLAG;
+    if (strcmp(str, "trackBadge") == 0)
+        return TopBarItemKind::TRACK_BADGE;
     return TopBarItemKind::UNKNOWN;
 }
 

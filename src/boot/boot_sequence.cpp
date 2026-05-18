@@ -17,6 +17,7 @@
 #include "config/config_loader.h"
 #include "config/default_config.h"
 #include "runtime/signal_store.h"
+#include "runtime/track_store.h"
 #include "runtime/alert_engine.h"
 #include "runtime/timer_service.h"
 #include "ui/page_manager.h"
@@ -410,6 +411,8 @@ void BootSequence::run() {
     TimerService::init();
     LOG_INFO("BOOT", "Initializing SignalStore...");
     SignalStore::init();
+    LOG_INFO("BOOT", "Initializing TrackStore...");
+    TrackStore::init();
     LOG_INFO("BOOT", "Initializing AlertEngine...");
     AlertEngine::init();
     LOG_INFO("BOOT", "Runtime ready");
