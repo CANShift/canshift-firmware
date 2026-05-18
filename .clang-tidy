@@ -1,0 +1,49 @@
+# .clang-tidy — Semantic static-analysis checks for the firmware (#829).
+#
+# Initial conservative ruleset. The CI job is run as non-blocking until the
+# baseline is cleaned up (issue #829 plan, Step 2). Once warnings hit zero
+# the job will flip to a required check.
+#
+# Disabled selectively because they fire too noisily on Arduino-style code:
+#   - bugprone-easily-swappable-parameters    Half the LVGL API.
+#   - cppcoreguidelines-avoid-magic-numbers   Pin numbers, font sizes.
+#   - cert-err58-cpp                          Arduino global init pattern.
+#   - bugprone-narrowing-conversions          int → uint8_t everywhere LVGL touches.
+#   - bugprone-implicit-widening-of-multiplication-result  Same as above.
+#
+# HeaderFilterRegex restricts the check to first-party headers so third-party
+# libs (LovyanGFX, LVGL, ArduinoJson) don't drown the report.
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  misc-const-correctness,
+  misc-unused-parameters,
+  misc-unused-using-decls,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  performance-*,
+  readability-redundant-*,
+  readability-misleading-indentation,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-narrowing-conversions,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cert-err58-cpp
+
+# Not yet promoted to errors — baseline cleanup PRs land first (#829 plan).
+WarningsAsErrors: ''
+
+# Restrict header analysis to first-party code. clang-tidy uses regex_search
+# so the pattern must anchor at start (`^`) — without it `src/.*` matches the
+# `src/` inside any third-party lib path like `.pio/libdeps/LovyanGFX/src/`.
+# The `^(src|include)/` form covers both `src/foo.h` and `include/foo.h`
+# emitted as relative paths when clang-tidy runs from `canshift-firmware/`.
+HeaderFilterRegex: '^(src|include)/'
+
+# Honour `.clang-format` for any auto-fix suggestions clang-tidy emits.
+FormatStyle: file
