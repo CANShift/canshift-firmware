@@ -1,13 +1,13 @@
 // page_manager.cpp — Dashboard page lifecycle and navigation
 
 #include "page_manager.h"
-#include "ui/font_manager.h"
 #include "ui/burn_overlay.h"
 #include "widget_factory.h"
 #include "top_bar.h"
 #include "diag_drawer.h"
 #include "error_bar.h"
-#include "settings_page.h"
+#include "gesture_controller.h"
+#include "setup_screen.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
@@ -16,14 +16,11 @@
 #include "diag/perf_counters.h"
 #include "app_config.h"
 
-#include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <lvgl.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -305,413 +302,27 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
 }
 
 // ---------------------------------------------------------------------------
-// Gesture handling
+// Gesture handling — extracted to gesture_controller (#704). PageManager
+// receives swipe events via the callback registered in init().
 // ---------------------------------------------------------------------------
-//
-// LVGL 8.3 gesture recognition lives in the indev layer, not in the object
-// event system. Reading lv_indev_get_gesture_dir() here (after lv_task_handler
-// has run) is the reliable path — it works even when buttons or sliders absorb
-// the touch event and prevent LV_EVENT_GESTURE from reaching the screen object.
-//
-// Gesture map:
-//   Drag DOWN from top edge   → reveal settings panel (panel follows finger,
-//                                snap-open / snap-closed at 50% threshold)
-//   Drag UP   from top bar    → conceal settings panel (same model, reversed)
-//   Swipe LEFT                → next page           (only while settings closed)
-//   Swipe RIGHT               → previous page       (only while settings closed)
-//
-// The drag tracker takes priority over the LVGL swipe-gesture path: while a
-// drag is in progress the swipe handler is suppressed for that touch cycle so
-// we don't both translate the panel and fire a second open/close at release.
 
-// y-coordinate band that triggers the drag from the closed state. Picked to
-// be a hair larger than the top bar so a finger landing on the bar can still
-// initiate the gesture without needing pixel-perfect aim.
-static constexpr int16_t DRAG_HOTZONE_PX = 40;
-
-// Movement (in px) below which a press isn't a drag. Below the LVGL gesture
-// threshold so we settle ambiguity before the swipe path fires.
-static constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
-
-void onGesture(lv_dir_t dir) {
-    // Settings drag is handled by the drag tracker — ignore swipe gestures
-    // when the panel is open or in motion so we don't double-fire close().
-    if (SettingsPage::isOpen() || SettingsPage::isDragging())
+void onSwipe(lv_dir_t dir) {
+    if (s_pageCount <= 1)
         return;
-
     switch (dir) {
         case LV_DIR_LEFT:
-            if (s_pageCount > 1) {
-                // Next page enters from the right, slides left — matches finger motion.
-                showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT,
-                         SWIPE_ANIM_MS);
-                LOG_VDEBUG("UI", "Gesture: swipe left → next page");
-            }
+            // Next page enters from the right, slides left — matches finger motion.
+            showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT, SWIPE_ANIM_MS);
+            LOG_VDEBUG("UI", "Gesture: swipe left → next page");
             break;
         case LV_DIR_RIGHT:
-            if (s_pageCount > 1) {
-                showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
-                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
-                LOG_VDEBUG("UI", "Gesture: swipe right → prev page");
-            }
+            showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
+                     LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
+            LOG_VDEBUG("UI", "Gesture: swipe right → prev page");
             break;
-        case LV_DIR_TOP:
-        case LV_DIR_BOTTOM:
         default:
-            // Vertical gestures are owned by the drag tracker — see updateDrag().
             break;
     }
-}
-
-// Drag tracker state — reset on every touch release.
-struct DragState {
-    bool active = false;     // True between press and release.
-    bool tracking = false;   // True once we've decided this is our gesture.
-    int16_t startY = 0;      // Touch y where the press began.
-    int16_t startPanelY = 0; // s_panel y at gesture start (open or closed Y).
-};
-
-static DragState s_drag;
-
-void resetDrag() {
-    s_drag = DragState{};
-    SettingsPage::setDragging(false);
-}
-
-// Crossed-threshold flag — written by updateDrag() while the gesture is in
-// flight, read by onDragRelease() to decide which way to snap. File-scope
-// static so it shares the anonymous namespace with the rest of the tracker.
-static bool s_dragCrossedThreshold = false;
-
-void onDragRelease() {
-    if (!s_drag.tracking) {
-        resetDrag();
-        return;
-    }
-
-    // Snap based on the issue spec ("drag > 50% of panel height"):
-    //  - Started closed: cross midpoint downward → open, else fall back closed.
-    //  - Started open:   cross midpoint upward   → close, else fall back open.
-    const int16_t closedY = SettingsPage::getClosedY();
-    const bool startedClosed = (s_drag.startPanelY == closedY);
-
-    if (startedClosed) {
-        if (s_dragCrossedThreshold)
-            SettingsPage::snapOpen();
-        else
-            SettingsPage::snapClosed();
-    } else {
-        if (s_dragCrossedThreshold)
-            SettingsPage::snapClosed();
-        else
-            SettingsPage::snapOpen();
-    }
-
-    resetDrag();
-}
-
-void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
-    lv_point_t p;
-    lv_indev_get_point(indev, &p);
-
-    if (state == LV_INDEV_STATE_RELEASED) {
-        if (s_drag.active)
-            onDragRelease();
-        return;
-    }
-
-    // Pressed.
-    if (!s_drag.active) {
-        s_drag.active = true;
-        s_drag.tracking = false;
-        s_drag.startY = p.y;
-        s_dragCrossedThreshold = false;
-
-        const bool isOpen = SettingsPage::isOpen();
-        // The drag is only armed when the press starts in the top hot-zone.
-        // From closed, this is the band just under the top edge; from open,
-        // it's the top bar itself — both at p.y < DRAG_HOTZONE_PX. Anywhere
-        // else inside the open panel keeps its normal click/scroll behavior.
-        if (p.y > DRAG_HOTZONE_PX) {
-            s_drag.active = false;
-            return; // Not our gesture.
-        }
-
-        s_drag.startPanelY = isOpen ? SettingsPage::getOpenY() : SettingsPage::getClosedY();
-    }
-
-    if (!s_drag.active)
-        return;
-
-    const int16_t deltaY = p.y - s_drag.startY;
-
-    // Latch into "tracking" only once the finger has moved enough — below the
-    // threshold the press is treated as a tap so buttons / sliders inside the
-    // panel still work normally when Settings is open.
-    if (!s_drag.tracking) {
-        if (abs(deltaY) < DRAG_START_THRESHOLD_PX)
-            return;
-
-        const bool isOpen = SettingsPage::isOpen();
-        // From closed, only downward drags qualify; from open, only upward.
-        if (!isOpen && deltaY <= 0)
-            return;
-        if (isOpen && deltaY >= 0)
-            return;
-
-        s_drag.tracking = true;
-        SettingsPage::setDragging(true);
-        LOG_VDEBUG("UI", "Drag: settings tracker armed (open=%d)", static_cast<int>(isOpen));
-    }
-
-    // Translate panel position 1:1 with the finger.
-    int16_t targetY = static_cast<int16_t>(s_drag.startPanelY + deltaY);
-    SettingsPage::setPanelY(targetY);
-
-    // Threshold = midpoint between closed and open. Once crossed in either
-    // direction we remember it for the release decision.
-    const int16_t closedY = SettingsPage::getClosedY();
-    const int16_t openY = SettingsPage::getOpenY();
-    const int16_t midpointY = closedY + (openY - closedY) / 2;
-    const bool startedClosed = (s_drag.startPanelY == closedY);
-    if (startedClosed) {
-        // Crossed = pulled past midpoint (user wants to open).
-        s_dragCrossedThreshold = (targetY >= midpointY);
-    } else {
-        // Crossed = pushed past midpoint upward (user wants to close).
-        s_dragCrossedThreshold = (targetY <= midpointY);
-    }
-}
-
-// Track horizontal travel since press-down. If it exceeds the swipe cancel
-// threshold we clear pressed state on the underlying object so its click
-// handler does not fire on release — the press has clearly become a swipe.
-// Issue #640: a swipe whose path crosses a button widget previously triggered
-// the button on lift-up because LVGL routes touch events to the object under
-// the press-down point regardless of finger movement.
-void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
-    static int16_t s_pressStartX = 0;
-    static bool s_pressActive = false;
-    static bool s_pressCancelled = false;
-
-    if (state == LV_INDEV_STATE_RELEASED) {
-        s_pressActive = false;
-        s_pressCancelled = false;
-        return;
-    }
-
-    lv_point_t p;
-    lv_indev_get_point(indev, &p);
-
-    if (!s_pressActive) {
-        s_pressActive = true;
-        s_pressCancelled = false;
-        s_pressStartX = p.x;
-        return;
-    }
-
-    if (s_pressCancelled)
-        return;
-
-    const int16_t travelX = static_cast<int16_t>(abs(p.x - s_pressStartX));
-    if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
-        return;
-
-    // Reset clears act_obj/last_pressed and sets reset_query so the in-flight
-    // touch cycle terminates without dispatching LV_EVENT_CLICKED on release.
-    // Also reset long-press timing so a stuck long-press timer can't refire.
-    lv_indev_reset_long_press(indev);
-    lv_indev_reset(indev, nullptr);
-    s_pressCancelled = true;
-    LOG_VDEBUG("UI", "Swipe cancelled pending click (travelX=%d)", travelX);
-}
-
-void checkGestures() {
-    static lv_dir_t lastDir = LV_DIR_NONE;
-
-    lv_indev_t *indev = lv_indev_get_next(nullptr);
-
-    if (indev == nullptr) {
-        static bool s_warned = false;
-        if (!s_warned) {
-            LOG_ERROR("UI", "checkGestures: no indev registered!");
-            s_warned = true;
-        }
-        return;
-    }
-
-    while (indev != nullptr) {
-        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            const lv_indev_state_t state = indev->proc.state;
-
-            updateDrag(indev, state);
-            cancelClickIfSwiping(indev, state);
-
-            if (state == LV_INDEV_STATE_RELEASED) {
-                lastDir = LV_DIR_NONE;
-            } else {
-                lv_dir_t dir = lv_indev_get_gesture_dir(indev);
-                if (dir != LV_DIR_NONE && dir != lastDir) {
-                    onGesture(dir);
-                    lastDir = dir;
-                }
-            }
-            break;
-        }
-        indev = lv_indev_get_next(indev);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Setup screen — shown when no dashboard.json is present
-// ---------------------------------------------------------------------------
-
-static void animBreath(void *obj, int32_t v) {
-    lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0);
-}
-
-// Builds a simple USB-A plug icon from primitives. We can't use LV_SYMBOL_USB
-// because the Orbitron font shipped with the firmware doesn't include the
-// FontAwesome glyph range (issue #577). Drawing rectangles keeps the icon
-// asset-free and renders correctly on every theme.
-static lv_obj_t *createUsbIcon(lv_obj_t *parent, uint32_t color) {
-    constexpr int16_t SLEEVE_W = 18;
-    constexpr int16_t SLEEVE_H = 24;
-    constexpr int16_t CABLE_W = 4;
-    constexpr int16_t CABLE_H = 6;
-    constexpr int16_t CONTACT_W = 10;
-    constexpr int16_t CONTACT_H = 4;
-    constexpr int16_t CONTACT_TOP_PAD = 4;
-    constexpr int16_t ICON_W = SLEEVE_W;
-    constexpr int16_t ICON_H = SLEEVE_H + CABLE_H;
-
-    lv_obj_t *icon = lv_obj_create(parent);
-    lv_obj_set_size(icon, ICON_W, ICON_H);
-    lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(icon, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(icon, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(icon, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-
-    // Connector sleeve — the metal body of a USB-A plug.
-    lv_obj_t *sleeve = lv_obj_create(icon);
-    lv_obj_set_size(sleeve, SLEEVE_W, SLEEVE_H);
-    lv_obj_set_style_radius(sleeve, 2, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(sleeve, lv_color_hex(color), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(sleeve, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(sleeve, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(sleeve, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(sleeve, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(sleeve, LV_ALIGN_TOP_MID, 0, 0);
-
-    // Inner contact plate — sits just inside the top of the sleeve.
-    lv_obj_t *contact = lv_obj_create(sleeve);
-    lv_obj_set_size(contact, CONTACT_W, CONTACT_H);
-    lv_obj_set_style_radius(contact, 1, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(contact, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(contact, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(contact, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(contact, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(contact, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(contact, LV_ALIGN_TOP_MID, 0, CONTACT_TOP_PAD);
-
-    // Cable stub — short tail extending out the back of the connector.
-    lv_obj_t *cable = lv_obj_create(icon);
-    lv_obj_set_size(cable, CABLE_W, CABLE_H);
-    lv_obj_set_style_radius(cable, 1, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(cable, lv_color_hex(color), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(cable, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(cable, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(cable, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(cable, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(cable, LV_ALIGN_BOTTOM_MID, 0, 0);
-
-    return icon;
-}
-
-void showSetupScreen() {
-    lv_obj_t *scr = lv_obj_create(nullptr);
-    lv_obj_set_size(scr, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-
-    // ---------- Logo — two-tone "CAN" gray + "Shift" red, matches boot splash ----------
-    lv_obj_t *logoRow = lv_obj_create(scr);
-    lv_obj_set_size(logoRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(logoRow, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(logoRow, 0, 0);
-    lv_obj_set_style_pad_all(logoRow, 0, 0);
-    lv_obj_clear_flag(logoRow, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_layout(logoRow, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(logoRow, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(logoRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_align(logoRow, LV_ALIGN_TOP_MID, 0, 28);
-
-    lv_obj_t *logoCan = lv_label_create(logoRow);
-    lv_label_set_text(logoCan, "CAN");
-    lv_obj_set_style_text_font(logoCan, FontManager::primary(32), 0);
-    lv_obj_set_style_text_color(logoCan, lv_color_hex(0x9A9A9A), 0);
-
-    lv_obj_t *logoShift = lv_label_create(logoRow);
-    lv_label_set_text(logoShift, "Shift");
-    lv_obj_set_style_text_font(logoShift, FontManager::primary(32), 0);
-    lv_obj_set_style_text_color(logoShift, lv_color_hex(0xFF4444), 0);
-
-    lv_obj_t *logo = logoRow; // keep `logo` as anchor for the version label below
-
-    // ---------- Version ----------
-    char verBuf[16];
-    snprintf(verBuf, sizeof(verBuf), "v" APP_VERSION_STR);
-    lv_obj_t *ver = lv_label_create(scr);
-    lv_label_set_text(ver, verBuf);
-    lv_obj_set_style_text_font(ver, FontManager::label(12), 0);
-    lv_obj_set_style_text_color(ver, lv_color_hex(0x444444), 0);
-    lv_obj_align_to(ver, logo, LV_ALIGN_OUT_BOTTOM_MID, 0, 4);
-
-    // ---------- Separator ----------
-    lv_obj_t *sep = lv_obj_create(scr);
-    lv_obj_set_size(sep, 200, 1);
-    lv_obj_set_style_bg_color(sep, lv_color_hex(0x2A2A2A), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(sep, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(sep, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(sep, 0, LV_PART_MAIN);
-    lv_obj_align(sep, LV_ALIGN_CENTER, 0, -28);
-
-    // ---------- "Ready to configure" ----------
-    lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Ready to configure");
-    lv_obj_set_style_text_font(title, FontManager::label(16), 0);
-    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -8);
-
-    // ---------- Instruction ----------
-    lv_obj_t *instr = lv_label_create(scr);
-    lv_label_set_text(instr, "Open CANShift Studio and connect\nthis device via USB.");
-    lv_obj_set_style_text_font(instr, FontManager::label(12), 0);
-    lv_obj_set_style_text_color(instr, lv_color_hex(0x666666), 0);
-    lv_obj_set_style_text_align(instr, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(instr, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(instr, LV_HOR_RES - 40);
-    lv_obj_align(instr, LV_ALIGN_CENTER, 0, 26);
-
-    // ---------- Pulsing USB icon — "plug in via USB and connect" ----------
-    lv_obj_t *usbIcon = createUsbIcon(scr, 0xFF3030);
-    lv_obj_align(usbIcon, LV_ALIGN_BOTTOM_MID, 0, -16);
-
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_exec_cb(&a, animBreath);
-    lv_anim_set_var(&a, usbIcon);
-    lv_anim_set_values(&a, LV_OPA_20, LV_OPA_COVER);
-    lv_anim_set_time(&a, 900);
-    lv_anim_set_playback_time(&a, 900);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&a);
-
-    lv_scr_load(scr);
-    LOG_INFO("UI", "Setup screen shown — waiting for Studio connection");
 }
 
 } // namespace
@@ -722,6 +333,10 @@ void showSetupScreen() {
 
 void PageManager::init() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+
+    // Route page-nav swipes detected by the gesture controller back here so
+    // showPage stays a TU-local function (#704).
+    GestureController::setSwipeHandler(onSwipe);
 
     s_pageCount = 0;
     s_currentIdx = 0;
@@ -740,7 +355,7 @@ void PageManager::init() {
 
     if (!dash.loaded) {
         LOG_WARN("UI", "No dashboard config — showing setup screen");
-        showSetupScreen();
+        SetupScreen::show();
         return;
     }
 
@@ -875,7 +490,7 @@ void PageManager::updateWidgets() {
 
     // Process swipe gestures before widget updates so navigation changes take
     // effect on the same frame that LVGL renders.
-    checkGestures();
+    GestureController::checkGestures();
 
     // Update widgets on the current page
     lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
