@@ -79,6 +79,10 @@ struct CfgStyle {
     uint8_t fontSize;        // Font size (must be an enabled LV font size)
     bool hasBorder;          // True if borderColor is active
     CfgColor borderColor;    // Widget container border (1 px, only if hasBorder)
+    // When false, the widget keeps `textColor` regardless of day/night mode.
+    // Default true (set by the parser even when the field is absent from the
+    // JSON) preserves the v0.7.0 behaviour from #171. Issue #191.
+    bool respectDayMode;
 };
 
 // ---------------------------------------------------------------------------

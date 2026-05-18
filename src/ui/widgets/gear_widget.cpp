@@ -61,7 +61,8 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
@@ -87,7 +88,8 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
         return;
     lv_obj_t *label = tag->label;
 
-    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
     if (!valid || value == 0.0f) {
         WidgetHelpers::setLabelTextIfChanged(label, "N");

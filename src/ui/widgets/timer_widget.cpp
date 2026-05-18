@@ -155,7 +155,8 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
 
     // Time label.
-    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);

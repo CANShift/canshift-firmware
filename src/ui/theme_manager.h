@@ -62,4 +62,13 @@ CfgColor getEffectiveBgColor(const CfgColor &nightBg);
  */
 uint32_t getEffectiveTextColor();
 
+/**
+ * Resolve the text colour for a widget that opts out of the mode-driven
+ * override (issue #191). When `respectDayMode` is true (default), behaves
+ * like the no-argument variant. When false, returns the widget's bespoke
+ * `style.textColor` verbatim so user-chosen accents (cyan COOLANT, …)
+ * survive day mode.
+ */
+uint32_t getEffectiveTextColor(uint32_t styleTextColor, bool respectDayMode);
+
 } // namespace ThemeManager

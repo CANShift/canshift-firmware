@@ -489,6 +489,9 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     w->style.hasBorder = (borderHex != nullptr);
     if (w->style.hasBorder)
         parseColor(borderHex, &w->style.borderColor);
+    // respectDayMode default = true preserves the v0.7.0 contract (#171).
+    // Absent or non-bool JSON falls back to true. Issue #191.
+    w->style.respectDayMode = style["respectDayMode"] | true;
 
     JsonObjectConst cfg = src["config"];
     switch (w->type) {

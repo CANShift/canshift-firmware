@@ -268,7 +268,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // ---------------------------------------------------------------------------
 
     bool hasUnit = cfg.gauge.suffix[0] != '\0';
-    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
@@ -374,8 +375,10 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             tag->lastValid = false;
         }
         if (!tag->alert.active) {
-            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb,
-                                                ThemeManager::getEffectiveTextColor());
+            WidgetStyles::setTextColorIfChanged(
+                tag->valueLabel, tag->lastLabelRgb,
+                ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb,
+                                                    cfg.style.respectDayMode));
         }
         // Collapse the fill arc to zero on invalid signals so the base track
         // is fully visible — matches the "show 0" rule above.
@@ -398,7 +401,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // ramp is configured (issue #430), the ramp drives the colour at the
     // live value. Otherwise fall back to the legacy warn/danger zone tints.
     if (!tag->alert.active) {
-        uint32_t labelColor = ThemeManager::getEffectiveTextColor();
+        uint32_t labelColor =
+            ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
         if (tag->ramp) {
             labelColor = colorAtValue(*tag->ramp, value);
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {

@@ -102,7 +102,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    const uint32_t textRgb = ThemeManager::getEffectiveTextColor();
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
 

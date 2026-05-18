@@ -252,7 +252,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
                     break;
             }
             WidgetLabelOverlay::apply(band, cfg.bar.label, innerPos,
-                                      ThemeManager::getEffectiveTextColor());
+                                      ThemeManager::getEffectiveTextColor(
+                                          cfg.style.textColor.rgb, cfg.style.respectDayMode));
         }
 
         // Optional icon (drawn at left edge of the band, before any label)

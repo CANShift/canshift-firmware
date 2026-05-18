@@ -107,3 +107,10 @@ uint32_t ThemeManager::getEffectiveTextColor() {
     // own constants and is unaffected.
     return s_isDayMode ? 0x000000u : 0xFFFFFFu;
 }
+
+uint32_t ThemeManager::getEffectiveTextColor(uint32_t styleTextColor, bool respectDayMode) {
+    // Opt-out path (#191) — widget keeps its bespoke colour in both modes.
+    if (!respectDayMode)
+        return styleTextColor;
+    return getEffectiveTextColor();
+}

@@ -62,8 +62,9 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     WidgetHelpers::attachTagDeleter(cont, tag);
 
     // Optional widget label drawn at the configured corner.
-    WidgetLabelOverlay::apply(cont, cfg.image.label, cfg.image.labelPosition,
-                              ThemeManager::getEffectiveTextColor());
+    WidgetLabelOverlay::apply(
+        cont, cfg.image.label, cfg.image.labelPosition,
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode));
 
     LOG_DEBUG("IMG", "Image widget created: %s", tag->lvglPath);
     return cont;
