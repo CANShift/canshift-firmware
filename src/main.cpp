@@ -20,6 +20,7 @@
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
 #include "diag/logger.h"
+#include "diag/lvgl_lock_guard.h"
 #include "diag/perf_counters.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
@@ -290,6 +291,7 @@ void taskUI(void *pvParameters) {
         if (mutexTaken != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
         } else {
+            LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_UI);
             // lv_tick_inc() is driven by the esp_timer set up in setup() —
             // keeping it out of this loop means animations stay wall-clock
             // accurate even when the UI task overruns.

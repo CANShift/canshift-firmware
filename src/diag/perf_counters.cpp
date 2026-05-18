@@ -41,6 +41,12 @@ const char *metricName(PerfCounters::Metric m) {
             return "xsition";
         case PerfCounters::TOUCH_LATENCY:
             return "touch";
+        case PerfCounters::MUTEX_HOLD_UI:
+            return "hold_ui";
+        case PerfCounters::MUTEX_HOLD_USB:
+            return "hold_usb";
+        case PerfCounters::MUTEX_HOLD_BLE:
+            return "hold_ble";
         default:
             return "?";
     }

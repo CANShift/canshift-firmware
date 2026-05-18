@@ -52,6 +52,13 @@ enum Metric : uint8_t {
     FRAME_TOTAL,
     PAGE_XSITION,
     TOUCH_LATENCY,
+    // Per-holder LVGL mutex hold-time histogram (issue #542). MUTEX_WAIT
+    // already tells us when the UI task starved on the lock; these three
+    // identify WHO was holding it at the time. Each non-UI take/give pair
+    // is wrapped in `LvglLockGuard` from `lvgl_lock_guard.h`.
+    MUTEX_HOLD_UI,
+    MUTEX_HOLD_USB,
+    MUTEX_HOLD_BLE,
     METRIC_COUNT,
 };
 

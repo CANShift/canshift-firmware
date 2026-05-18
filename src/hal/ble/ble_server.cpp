@@ -12,6 +12,7 @@
     #include "config/json_reader.h"
     #include "config/rotation_config.h"
     #include "diag/logger.h"
+    #include "diag/lvgl_lock_guard.h"
     #include "app_config.h"
 
     #include <NimBLEDevice.h>
@@ -137,6 +138,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         uint8_t brightness = doc["brightness"] | 80;
 
         if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_BLE);
             SettingsPage::applyFromUsb(brightness);
             xSemaphoreGive(g_lvglMutex);
         }

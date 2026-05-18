@@ -15,6 +15,7 @@
 #include "board_config.h"
 #include "app_config.h"
 #include "diag/logger.h"
+#include "diag/lvgl_lock_guard.h"
 #include "hal/storage/storage_driver.h"
 #include "config/config_loader.h"
 #include "config/json_reader.h"
@@ -462,6 +463,7 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
 
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_USB);
         SettingsPage::applyFromUsb(brightness);
         xSemaphoreGive(g_lvglMutex);
     } else {
