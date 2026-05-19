@@ -187,6 +187,21 @@ void sendTelemetry() {
 // into a JsonDocument grew the pool to ~21 KB, which couldn't be satisfied
 // after the LV_MEM_SIZE bump in #555 (issue #576). Skipping the full parse
 // keeps the PUT_CONFIG path heap-allocation-free.
+// Length-bounded substring search. Used in place of strstr() so an embedded
+// NUL in the JSON line (corrupted USB stream, malformed input) cannot
+// short-circuit the search before reaching the needle. Issue #884.
+const char *findNeedle(const char *haystack, size_t haystackLen, const char *needle,
+                       size_t needleLen) {
+    if (needleLen == 0 || haystackLen < needleLen)
+        return nullptr;
+    const size_t lastStart = haystackLen - needleLen;
+    for (size_t i = 0; i <= lastStart; ++i) {
+        if (memcmp(haystack + i, needle, needleLen) == 0)
+            return haystack + i;
+    }
+    return nullptr;
+}
+
 const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLen) {
     if (!jsonLine || !outLen)
         return nullptr;
@@ -195,13 +210,11 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
     // Plain-text needle is acceptable here: the studio always emits the
     // envelope with the literal key `"payload"` and never inside a nested
     // string by accident — the surrounding `{"cmd":2,...}` frame is fixed.
-    // `strstr` is OK because `jsonLine` is the null-terminated `s_rxBuf` and
-    // `kNeedle` contains no NUL bytes.
     static constexpr char kNeedle[] = "\"payload\"";
-    const char *needle = strstr(jsonLine, kNeedle);
-    if (!needle || needle >= jsonLine + lineLen)
-        return nullptr;
     static constexpr size_t kNeedleLen = sizeof(kNeedle) - 1;
+    const char *needle = findNeedle(jsonLine, lineLen, kNeedle, kNeedleLen);
+    if (!needle)
+        return nullptr;
 
     // Skip past `"payload"` then optional whitespace then the `:` separator.
     const char *cursor = needle + kNeedleLen;

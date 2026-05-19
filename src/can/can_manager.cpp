@@ -195,14 +195,21 @@ void CanManager::tick() {
         s_windowFrames++;
 
         if (!(message.rtr)) {
-            // Data frame (not remote frame)
-            CanParser::parseFrame(message.identifier, message.data,
-                                  static_cast<uint8_t>(message.data_length_code));
+            // Data frame (not remote frame). Clamp DLC to 8: twai_message_t
+            // carries a 4-bit data_length_code, but the classic-CAN data array
+            // is only 8 bytes. A non-conforming peer can report DLC 9..15
+            // while the buffer past `message.data[8]` is undefined memory.
+            // Without this clamp, parseFrame's bounds check (start+len ≤ DLC)
+            // would accept reads past index 8, and the memcpy below would
+            // overflow CanScanFrame::data[8].
+            const uint8_t safeLen =
+                static_cast<uint8_t>(message.data_length_code < 8 ? message.data_length_code : 8);
+            CanParser::parseFrame(message.identifier, message.data, safeLen);
 
             // Forward raw frame to USB scan queue if scanner is active (best-effort, no lock)
             UsbComm::CanScanFrame sf;
             sf.id = message.identifier;
-            sf.len = static_cast<uint8_t>(message.data_length_code);
+            sf.len = safeLen;
             memcpy(sf.data, message.data, sf.len);
             UsbComm::pushCanFrame(sf);
         }
