@@ -12,6 +12,7 @@
 #include "diag/error_store.h"
 #include "runtime/signal_store.h"
 #include "ui/font_manager.h"
+#include "ui/gesture_controller.h"
 
 #include <lvgl.h>
 #include <stdint.h>
@@ -26,14 +27,12 @@ namespace {
 // Geometry
 // ---------------------------------------------------------------------------
 
-// Swipe-up zone — invisible touch surface anchored to the bottom of the
-// screen. The drawer used to expose a visible "▴ DIAG" handle that ate
-// 14 px of widget real estate even when there was nothing to surface;
-// the user now opens the drawer with a swipe-up gesture starting in this
-// zone (which itself never renders). 32 px is comfortable for the
-// resistive XPT2046 touch — large enough to catch fast swipes, small
-// enough to not steal the bottom row of widget taps.
-constexpr int16_t SWIPE_ZONE_H = 32;
+// Swipe-up access — no UI element. The drawer hooks into the global
+// `GestureController` polling path: any LV_DIR_TOP gesture anywhere on
+// screen calls `open()`. The previous transparent-zone approach relied on
+// LV_EVENT_GESTURE event routing through `lv_layer_top()`, which never
+// fired on device — the polling path here is the one already used by
+// page-nav swipes and `error_bar`, so we know it works.
 
 // Drawer panel covers the full screen height when open. Earlier versions
 // used a partial-height (180 px) drawer that overlapped the dashboard;
@@ -109,7 +108,6 @@ const ScalarRow s_scalars[SCALARS_COUNT] = {
 // LVGL handles
 // ---------------------------------------------------------------------------
 
-lv_obj_t *s_swipeZone = nullptr;
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_closeBtn = nullptr;
 lv_obj_t *s_flagBadges[FLAGS_COUNT] = {nullptr};
@@ -266,15 +264,14 @@ void onCloseClicked(lv_event_t * /*e*/) {
     close();
 }
 
-void onSwipeZoneGesture(lv_event_t *e) {
-    // Open the drawer when the user swipes up FROM the bottom strip.
-    // Other directions are ignored so a horizontal swipe (page nav) on
-    // top of the zone doesn't accidentally pop the drawer.
-    const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
+void onVerticalSwipe(lv_dir_t dir) {
+    // Registered with GestureController. Swipe-up anywhere opens the
+    // drawer; swipe-down inside the open drawer closes it (the panel
+    // already has its own swipe-down handler for that case, but routing
+    // both through here keeps the code obvious for a future reader).
     if (dir == LV_DIR_TOP && !s_open) {
         open();
     }
-    (void)e;
 }
 
 void onPanelGesture(lv_event_t *e) {
@@ -295,35 +292,12 @@ void init() {
     if (s_initDone)
         return;
 
-    // -------- Swipe-up zone ------------------------------------------------
-    // Invisible touch surface anchored to the bottom of the screen. Listens
-    // for LV_DIR_TOP gestures and pops the drawer when fired. Never renders
-    // (zero opa) so it never occludes widget content.
-    //
-    // The zone MUST be CLICKABLE: LVGL only routes LV_EVENT_GESTURE to the
-    // object that received the initial LV_EVENT_PRESSED, and that path
-    // requires LV_OBJ_FLAG_CLICKABLE. Without it, the touch falls through
-    // to the page widgets below and the gesture never reaches us — which is
-    // exactly the bug observed on device after the first iteration of this
-    // refactor.
-    //
-    // Trade-off: a tap that lands in the bottom 32 px is consumed by the
-    // zone and swallowed (no LV_EVENT_CLICKED handler is wired). The
-    // dashboard's bottom row is bar/gauge widgets that do not react to
-    // taps in the first place, so the practical impact is zero. If a
-    // future page lands a button widget in the bottom 32 px we'll need to
-    // rethink — until then, a working swipe is more important than
-    // theoretical reachability.
-    s_swipeZone = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_swipeZone, LV_HOR_RES, SWIPE_ZONE_H);
-    lv_obj_align(s_swipeZone, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_opa(s_swipeZone, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_swipeZone, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(s_swipeZone, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_swipeZone, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(s_swipeZone, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(s_swipeZone, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(s_swipeZone, onSwipeZoneGesture, LV_EVENT_GESTURE, nullptr);
+    // No swipe-up obj on the dashboard — the open trigger goes through
+    // GestureController's polling handler registered below. That polling
+    // path is the same one used by page-nav and error_bar, so we know
+    // gestures actually fire there (the previous transparent-overlay obj
+    // approach silently never received LV_EVENT_GESTURE on device).
+    GestureController::setVerticalSwipeHandler(onVerticalSwipe);
 
     // -------- Panel --------------------------------------------------------
     s_panel = lv_obj_create(lv_layer_top());

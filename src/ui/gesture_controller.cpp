@@ -27,6 +27,7 @@ constexpr int16_t DRAG_HOTZONE_PX = 40;
 constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 
 SwipeHandler s_swipeHandler = nullptr;
+VerticalSwipeHandler s_verticalSwipeHandler = nullptr;
 
 // LVGL 8.3 gesture recognition lives in the indev layer, not in the object
 // event system. Reading lv_indev_get_gesture_dir() after lv_task_handler has
@@ -48,8 +49,17 @@ void onGesture(lv_dir_t dir) {
             break;
         case LV_DIR_TOP:
         case LV_DIR_BOTTOM:
+            // Vertical gestures: forward to the registered handler (used by
+            // DiagDrawer to open on swipe-up). The settings drag tracker
+            // also reads vertical motion, but through `updateDrag` polling
+            // the indev directly — these two paths don't conflict because
+            // the drag tracker handles state during press while this
+            // dispatch only fires once on the indev's gesture latch.
+            if (s_verticalSwipeHandler) {
+                s_verticalSwipeHandler(dir);
+            }
+            break;
         default:
-            // Vertical gestures are owned by the drag tracker — see updateDrag().
             break;
     }
 }
@@ -220,6 +230,10 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
 
 void setSwipeHandler(SwipeHandler handler) {
     s_swipeHandler = handler;
+}
+
+void setVerticalSwipeHandler(VerticalSwipeHandler handler) {
+    s_verticalSwipeHandler = handler;
 }
 
 void checkGestures() {

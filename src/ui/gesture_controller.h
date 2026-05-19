@@ -34,6 +34,21 @@ using SwipeHandler = void (*)(lv_dir_t direction);
 void setSwipeHandler(SwipeHandler handler);
 
 /**
+ * Callback fired on a vertical swipe (LV_DIR_TOP / LV_DIR_BOTTOM). Used by
+ * DiagDrawer to open on a swipe-up gesture without needing its own input
+ * obj — relying on the polling path here is more reliable than LVGL's
+ * event-system gestures on a transparent overlay (see #635 follow-up).
+ */
+using VerticalSwipeHandler = void (*)(lv_dir_t direction);
+
+/**
+ * Register the vertical swipe handler. Idempotent; pass `nullptr` to
+ * detach. Same dispatch path as the horizontal handler — polled once per
+ * LVGL tick from `checkGestures()`.
+ */
+void setVerticalSwipeHandler(VerticalSwipeHandler handler);
+
+/**
  * Poll the input device for gesture / drag / click-cancel events. Call once
  * per LVGL tick from `PageManager::updateWidgets()`. Internally walks every
  * pointer indev so it works whether touch is plugged into LVGL via the
