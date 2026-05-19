@@ -258,7 +258,13 @@
         #define LV_USE_CHECKBOX 0
         #define LV_USE_DROPDOWN 0 /* Not needed for dash UI */
         #define LV_USE_IMG 1      /* Background images and icons */
-        #define LV_USE_LABEL 1    /* Text labels */
+        /* Image cache size — how many decoded images LVGL keeps in RAM.
+         * Default (1) evicts on every theme/page change, forcing a SPIFFS
+         * reload that fails under heap fragmentation (#956). Sized to cover
+         * the day/night theme icons + a typical dashboard's sensor icons;
+         * ~1.2 KB per cached 24×24 RGB565 entry. */
+        #define LV_IMG_CACHE_DEF_SIZE 12
+        #define LV_USE_LABEL 1 /* Text labels */
         #define LV_USE_LINE 0     /* Unused — drop class to save flash */
         #define LV_USE_ROLLER 0
         #define LV_USE_SLIDER 1 /* Settings page brightness/contrast sliders */

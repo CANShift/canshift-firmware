@@ -21,4 +21,21 @@ const char *path(const char *iconName);
 // accept a free-form iconPath in addition to the iconName lookup.
 bool exists(const char *lvglPath);
 
+// Warm the LVGL image cache for an asset path so a later `lv_img_set_src`
+// hits the cache instead of re-opening the SPIFFS file. Safe to call with a
+// nullptr / empty string (no-op) and with a path that's already cached
+// (no-op via LVGL's de-dupe). Must be called *after* `lv_init()` and the
+// SPIFFS LVGL FS driver are up. Issue #956 — page rebuilds and theme
+// toggles previously evicted the single-slot cache and forced reloads
+// against a fragmented heap, leaving dashboard icons blank.
+void preload(const char *lvglPath);
+
+// Walk the loaded dashboard config and preload every unique sensor icon
+// referenced by bar / warning / button widgets, plus the theme day/night
+// icons used by the top bar. Intended to run once at boot, immediately
+// after FontManager::init() when the heap still has a contiguous
+// ~15 KB block available — the time window before page widgets allocate
+// against the same pool.
+void preloadDashboardAssets();
+
 } // namespace IconAssets

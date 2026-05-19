@@ -20,6 +20,7 @@
 #include "runtime/track_store.h"
 #include "runtime/alert_engine.h"
 #include "runtime/timer_service.h"
+#include "ui/icon_assets.h"
 #include "ui/page_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/font_manager.h"
@@ -396,6 +397,17 @@ void BootSequence::run() {
     FontManager::init();
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
+
+    // 8b. Preload dashboard icons + theme icons while the heap still has a
+    //     contiguous block large enough for the SPIFFS reads. Once page
+    //     widgets start allocating against the same pool the largest free
+    //     block drops below the FS-open threshold and on-demand icon
+    //     loads fail (#956). Preloaded entries live in the LVGL image
+    //     cache (LV_IMG_CACHE_DEF_SIZE) and survive page rebuilds + theme
+    //     toggles without re-touching SPIFFS.
+    LOG_INFO("BOOT", "Preloading dashboard icons...");
+    IconAssets::preloadDashboardAssets();
+    logHeap("after icon preload");
 
     // 9. Show splash — fonts loaded, logo at full size from first frame.
     LOG_INFO("BOOT", "Showing splash...");
