@@ -205,7 +205,7 @@ void buildScalarsSection(lv_obj_t *parent) {
             lv_obj_set_style_text_color(lbl, lv_color_hex(COL_LABEL), 0);
 
             lv_obj_t *val = lv_label_create(cell);
-            lv_label_set_text(val, "—");
+            lv_label_set_text(val, "--");
             lv_obj_set_style_text_font(val, FONT_SM(), 0);
             lv_obj_set_style_text_color(val, lv_color_hex(COL_VALUE), 0);
             s_scalarValues[idx] = val;
@@ -358,6 +358,12 @@ void open() {
     if (!s_panel)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
+    // Top bar lives on lv_layer_top too and was init'd AFTER us by
+    // PageManager::init, so it sits z-above the drawer panel by default —
+    // visually covering the close X and making the drawer untappable.
+    // Push the panel (and its FLOATING close-btn child) to the foreground
+    // on every open so the topbar is hidden behind the panel as intended.
+    lv_obj_move_foreground(s_panel);
     // Close btn is a child of s_panel — hidden flag on the parent already
     // propagates, no separate show/hide call needed.
     s_open = true;
@@ -396,7 +402,7 @@ void update() {
         const SignalId sid = s_scalars[i].signalId;
         char buf[24];
         if (sid >= SignalIds::SIGNAL_COUNT || !SignalStore::isValid(sid)) {
-            snprintf(buf, sizeof(buf), "—");
+            snprintf(buf, sizeof(buf), "--");
         } else {
             const float v = SignalStore::read(sid, 0.0f);
             if (s_scalars[i].decimals == 0) {
