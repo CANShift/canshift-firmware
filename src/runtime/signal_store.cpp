@@ -1,4 +1,14 @@
 // signal_store.cpp — Thread-safe signal value store
+//
+// CRITICAL-SECTION INVARIANT (issue #877):
+// All portENTER_CRITICAL / portEXIT_CRITICAL pairs below guard
+// s_signals against cross-core access. On ESP32 the IDF implementation
+// is a spinlock plus IRQ-disable on the current core. Inside any such
+// pair you MUST NOT:
+//   - call LOG_* (can block / take another mutex / alloc),
+//   - allocate (new/delete/malloc/free, String, snprintf to heap),
+//   - take any other lock (mutex / semaphore / lv_lock).
+// Violations deadlock or trip the IDF crit-section assert at runtime.
 
 #include "signal_store.h"
 #include "diag/logger.h"
@@ -44,6 +54,7 @@ inline bool idValid(SignalId id) {
 
 void SignalStore::init() {
     // Initialize all signals to invalid state
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         s_signals[i] = {.raw = 0.0f,
@@ -70,6 +81,7 @@ void SignalStore::update(SignalId id, float value) {
     // id, so the reference stays valid between the two sections.
     SignalValue &sig = s_signals[id];
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     const bool wasValid = sig.valid;
     const float prevSmoothed = sig.smoothed;
@@ -80,6 +92,7 @@ void SignalStore::update(SignalId id, float value) {
         wasValid ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * prevSmoothed)
                  : value; // First value — initialize smoothed to raw value
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     sig.raw = value;
     sig.smoothed = newSmoothed;
@@ -92,6 +105,7 @@ float SignalStore::read(SignalId id, float defaultValue) {
     if (!idValid(id))
         return defaultValue;
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     float result = s_signals[id].valid ? s_signals[id].smoothed : defaultValue;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -102,6 +116,7 @@ bool SignalStore::isValid(SignalId id) {
     if (!idValid(id))
         return false;
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     bool result = s_signals[id].valid;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -112,6 +127,7 @@ void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
     if (out == nullptr)
         return;
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     memcpy(out, s_signals, sizeof(SignalValue) * SIGNAL_STORE_MAX_SIGNALS);
     portEXIT_CRITICAL(&s_signalsMux);
@@ -121,6 +137,7 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
     if (!idValid(id))
         return;
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     s_signals[id].timeoutMs = timeoutMs;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -129,6 +146,7 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
 void SignalStore::checkTimeouts() {
     uint32_t now = millis();
 
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         if (s_signals[i].valid) {

@@ -1,4 +1,15 @@
 // error_store.cpp — Thread-safe firmware error ring buffer
+//
+// CRITICAL-SECTION INVARIANT (issue #877):
+// All portENTER_CRITICAL / portEXIT_CRITICAL pairs below guard the
+// s_ring buffer against cross-core access. On ESP32 the IDF
+// implementation is a spinlock plus IRQ-disable on the current core.
+// Inside any such pair you MUST NOT:
+//   - call LOG_* (can block / take another mutex / alloc),
+//   - allocate (new/delete/malloc/free, String, snprintf to heap),
+//   - take any other lock (mutex / semaphore / lv_lock).
+// Violations deadlock or trip the IDF crit-section assert at runtime.
+// Note: strncpy / memcpy on fixed-size buffers below is fine — no heap.
 
 #include "error_store.h"
 
@@ -23,6 +34,7 @@ static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 // ---------------------------------------------------------------------------
 
 void ErrorStore::push(ErrorSource source, const char *code, const char *message) {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
 
     // If same source+code already in ring, update message in-place
@@ -59,6 +71,7 @@ void ErrorStore::push(ErrorSource source, const char *code, const char *message)
 }
 
 void ErrorStore::getAll(FwError *buf, uint8_t *count, uint8_t maxCount) {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
     uint8_t n = s_count < maxCount ? s_count : maxCount;
     // Copy newest-first: index (head + count - 1) down to head
@@ -71,6 +84,7 @@ void ErrorStore::getAll(FwError *buf, uint8_t *count, uint8_t maxCount) {
 }
 
 uint8_t ErrorStore::getCount() {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
     uint8_t c = s_count;
     portEXIT_CRITICAL(&s_mux);
@@ -78,6 +92,7 @@ uint8_t ErrorStore::getCount() {
 }
 
 uint32_t ErrorStore::getVersion() {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
     uint32_t v = s_version;
     portEXIT_CRITICAL(&s_mux);
@@ -85,6 +100,7 @@ uint32_t ErrorStore::getVersion() {
 }
 
 void ErrorStore::dismissLatest() {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
     if (s_count > 0) {
         s_count--;
@@ -94,6 +110,7 @@ void ErrorStore::dismissLatest() {
 }
 
 void ErrorStore::clear() {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
     s_count = 0;
     s_head = 0;
