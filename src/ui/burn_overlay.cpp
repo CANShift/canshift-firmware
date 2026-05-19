@@ -143,6 +143,21 @@ void BurnOverlay::show() {
     // Force a synchronous redraw so the overlay actually paints before the
     // caller starts the long storage write that would otherwise block all
     // rendering for the duration of the transfer.
+    //
+    // Task-coupling invariant — read before editing either side:
+    //   lv_refr_now() drives DisplayDriver::flushCallback (see
+    //   src/hal/display/display_driver.cpp:51) inline on the *calling* task.
+    //   In the PUT_CONFIG path that caller is the USB task, not the UI task
+    //   (see handlePutConfig in src/hal/usb/usb_comm.cpp). This is safe today
+    //   because LVGL is single-threaded as long as g_lvglMutex is held, and
+    //   handlePutConfig explicitly takes the mutex before calling show(); SPI
+    //   writes from the USB task work the same as from the UI task.
+    //
+    //   If LVGL is ever reworked for partial-buffer + SPI-DMA, the
+    //   flush-complete semaphore would become bound to the calling task and
+    //   this assumption breaks — revisit both show() and handlePutConfig at
+    //   that point (likely by setting overlay state here and letting the UI
+    //   task render on the next tick instead of forcing lv_refr_now).
     lv_refr_now(nullptr);
 }
 

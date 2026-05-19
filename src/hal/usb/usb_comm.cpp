@@ -317,6 +317,12 @@ void handlePutConfig(const char *jsonLine) {
         LOG_WARN("USB", "PUT_CONFIG: could not acquire LVGL mutex — proceeding");
     }
     vTaskPrioritySet(nullptr, TASK_PRIO_UI + 1);
+    // BurnOverlay::show() calls lv_refr_now(), which runs
+    // DisplayDriver::flushCallback inline on this (USB) task — see the
+    // task-coupling note in src/ui/burn_overlay.cpp::show(). The LVGL mutex
+    // taken above is what makes that safe: it serialises LVGL state and SPI
+    // access with the UI task. Do not call show() without holding the mutex,
+    // and do not relax the mutex contract here without revisiting show().
     BurnOverlay::show();
 
     bool ok = StorageDriver::writeFileAtomic(
