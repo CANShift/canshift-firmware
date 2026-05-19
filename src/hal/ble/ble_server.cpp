@@ -252,8 +252,16 @@ namespace {
 // Called from earlyInit() (pre-lv_init, heap ~100 KB) or from startStack()
 // at runtime (heap may be fragmented — guarded by kGattMinHeap check).
 static void setupGatt() {
+    // Callbacks are stateless dispatchers — file-scope statics so NimBLE can
+    // retain the same instances across deinit/init cycles without leaking
+    // (issue #883). Function-local statics keep construction lazy and
+    // thread-safe (C++11 magic statics).
+    static ServerCallbacks s_serverCb;
+    static SettingsCallbacks s_settingsCb;
+    static CmdCallbacks s_cmdCb;
+
     NimBLEServer *pServer = NimBLEDevice::createServer();
-    pServer->setCallbacks(new ServerCallbacks());
+    pServer->setCallbacks(&s_serverCb);
 
     NimBLEService *pSvc = pServer->createService(SVC_UUID);
 
@@ -269,11 +277,11 @@ static void setupGatt() {
 
     NimBLECharacteristic *pSettings =
         pSvc->createCharacteristic(SETTINGS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-    pSettings->setCallbacks(new SettingsCallbacks());
+    pSettings->setCallbacks(&s_settingsCb);
 
     NimBLECharacteristic *pCmd =
         pSvc->createCharacteristic(CMD_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
-    pCmd->setCallbacks(new CmdCallbacks());
+    pCmd->setCallbacks(&s_cmdCb);
 
     pSvc->start();
 
