@@ -26,11 +26,14 @@ namespace {
 // Geometry
 // ---------------------------------------------------------------------------
 
-// Handle = the tab the user taps to open the drawer. Only shown when
-// ErrorStore has errors to surface — otherwise the dashboard stays clean
-// (the handle used to permanently occupy 14 px at the bottom and hide
-// widget content).
-constexpr int16_t HANDLE_H = 14;
+// Swipe-up zone — invisible touch surface anchored to the bottom of the
+// screen. The drawer used to expose a visible "▴ DIAG" handle that ate
+// 14 px of widget real estate even when there was nothing to surface;
+// the user now opens the drawer with a swipe-up gesture starting in this
+// zone (which itself never renders). 32 px is comfortable for the
+// resistive XPT2046 touch — large enough to catch fast swipes, small
+// enough to not steal the bottom row of widget taps.
+constexpr int16_t SWIPE_ZONE_H = 32;
 
 // Drawer panel covers the full screen height when open. Earlier versions
 // used a partial-height (180 px) drawer that overlapped the dashboard;
@@ -106,8 +109,7 @@ const ScalarRow s_scalars[SCALARS_COUNT] = {
 // LVGL handles
 // ---------------------------------------------------------------------------
 
-lv_obj_t *s_handle = nullptr;
-lv_obj_t *s_handleLabel = nullptr;
+lv_obj_t *s_swipeZone = nullptr;
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_closeBtn = nullptr;
 lv_obj_t *s_flagBadges[FLAGS_COUNT] = {nullptr};
@@ -260,12 +262,19 @@ const char *errorSrcLabel(ErrorSource src) {
     return "?";
 }
 
-void onHandleClicked(lv_event_t * /*e*/) {
-    s_open ? close() : open();
-}
-
 void onCloseClicked(lv_event_t * /*e*/) {
     close();
+}
+
+void onSwipeZoneGesture(lv_event_t *e) {
+    // Open the drawer when the user swipes up FROM the bottom strip.
+    // Other directions are ignored so a horizontal swipe (page nav) on
+    // top of the zone doesn't accidentally pop the drawer.
+    const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
+    if (dir == LV_DIR_TOP && !s_open) {
+        open();
+    }
+    (void)e;
 }
 
 void onPanelGesture(lv_event_t *e) {
@@ -286,30 +295,35 @@ void init() {
     if (s_initDone)
         return;
 
-    // -------- Handle -------------------------------------------------------
-    s_handle = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_handle, LV_HOR_RES, HANDLE_H);
-    lv_obj_align(s_handle, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_handle, lv_color_hex(COL_HANDLE_BG), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_handle, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_handle, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_side(s_handle, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
-    lv_obj_set_style_border_color(s_handle, lv_color_hex(COL_PANEL_BORDER), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(s_handle, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_handle, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(s_handle, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(s_handle, onHandleClicked, LV_EVENT_CLICKED, nullptr);
-
-    s_handleLabel = lv_label_create(s_handle);
-    lv_label_set_text(s_handleLabel, "▴ DIAG");
-    lv_obj_set_style_text_font(s_handleLabel, FONT_SM(), 0);
-    lv_obj_set_style_text_color(s_handleLabel, lv_color_hex(COL_HANDLE_TXT), 0);
-    lv_obj_center(s_handleLabel);
-
-    // Hidden by default — only surfaces when ErrorStore has something to
-    // show. update() flips the flag from the version-poll path.
-    lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+    // -------- Swipe-up zone ------------------------------------------------
+    // Invisible touch surface anchored to the bottom of the screen. Listens
+    // for LV_DIR_TOP gestures and pops the drawer when fired. Never renders
+    // (zero opa) so it never occludes widget content.
+    //
+    // The zone MUST be CLICKABLE: LVGL only routes LV_EVENT_GESTURE to the
+    // object that received the initial LV_EVENT_PRESSED, and that path
+    // requires LV_OBJ_FLAG_CLICKABLE. Without it, the touch falls through
+    // to the page widgets below and the gesture never reaches us — which is
+    // exactly the bug observed on device after the first iteration of this
+    // refactor.
+    //
+    // Trade-off: a tap that lands in the bottom 32 px is consumed by the
+    // zone and swallowed (no LV_EVENT_CLICKED handler is wired). The
+    // dashboard's bottom row is bar/gauge widgets that do not react to
+    // taps in the first place, so the practical impact is zero. If a
+    // future page lands a button widget in the bottom 32 px we'll need to
+    // rethink — until then, a working swipe is more important than
+    // theoretical reachability.
+    s_swipeZone = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_swipeZone, LV_HOR_RES, SWIPE_ZONE_H);
+    lv_obj_align(s_swipeZone, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_opa(s_swipeZone, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_swipeZone, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_swipeZone, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_swipeZone, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(s_swipeZone, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_swipeZone, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_swipeZone, onSwipeZoneGesture, LV_EVENT_GESTURE, nullptr);
 
     // -------- Panel --------------------------------------------------------
     s_panel = lv_obj_create(lv_layer_top());
@@ -352,7 +366,9 @@ void init() {
     lv_obj_add_event_cb(s_closeBtn, onCloseClicked, LV_EVENT_CLICKED, nullptr);
 
     lv_obj_t *closeLabel = lv_label_create(s_closeBtn);
-    lv_label_set_text(closeLabel, LV_SYMBOL_CLOSE);
+    // Plain "X" — LV_SYMBOL_CLOSE (U+F00D, FontAwesome PUA) is not in our
+    // Orbitron font and would render as a placeholder + flood LVGL warnings.
+    lv_label_set_text(closeLabel, "X");
     lv_obj_set_style_text_font(closeLabel, FONT_SM(), 0);
     lv_obj_set_style_text_color(closeLabel, lv_color_hex(COL_VALUE), 0);
     lv_obj_center(closeLabel);
@@ -364,9 +380,6 @@ void open() {
     if (!s_panel)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    // Hide the handle while open so it does not overlap the panel border.
-    if (s_handle)
-        lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
     if (s_closeBtn) {
         lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(s_closeBtn);
@@ -384,31 +397,11 @@ void close() {
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
     if (s_closeBtn)
         lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
-    // Handle visibility resyncs in update() based on ErrorStore::getCount().
     s_open = false;
-    update();
 }
 
 void update() {
-    if (!s_panel)
-        return;
-
-    // Handle visibility tracks ErrorStore — drawer is hidden by default and
-    // only surfaces when there's something the user should see. When the
-    // drawer is open we keep the handle hidden regardless (the close button
-    // replaces it as the visible affordance).
-    if (s_handle) {
-        const bool wantHandle = !s_open && ErrorStore::getCount() > 0;
-        const bool isHidden = lv_obj_has_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
-        if (wantHandle && isHidden)
-            lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
-        else if (!wantHandle && !isHidden)
-            lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    // Nothing more to refresh while collapsed — flags / scalars / errors
-    // only need labels updated when the user is looking at them.
-    if (!s_open)
+    if (!s_panel || !s_open)
         return;
 
     // Flags

@@ -130,14 +130,17 @@
 // Minimum largest-free-block to allow an LVGL FS open. Below this, return
 // nullptr to keep newlib __sfp out of abort() territory. See issue #651.
 // Empirically, newlib's real abort threshold is ~256-512 bytes (FILE struct
-// + recursive mutex). 1024 leaves headroom for transient fragmentation
-// without prematurely refusing legitimate font/icon loads — the original
-// boot trace from #651 shows fonts opening with largest_free=1620, which a
-// 4096 guard would have rejected. See #660.
+// + recursive mutex). 768 covers the abort threshold + a 256-byte safety
+// margin — was 1024 (per #660) but the device's runtime heap fragments
+// down to ~820 bytes when the user toggles theme on a no-PSRAM build, and
+// icons are refused at that point. 768 lets icons load through. If the
+// abort threshold turns out to be higher on a future newlib bump, raise
+// this back. The threshold is only relevant on no-PSRAM ESP32 — boards
+// with PSRAM have largest_free in the hundreds of KB throughout.
 #ifdef __cplusplus
-static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 1024;
+static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
 #else
-    #define LVGL_FS_MIN_HEAP_BYTES 1024
+    #define LVGL_FS_MIN_HEAP_BYTES 768
 #endif
 
 // ---------------------------------------------------------------------------
