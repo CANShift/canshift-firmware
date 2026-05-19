@@ -109,7 +109,13 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         [](lv_event_t *e) {
             auto *t = static_cast<WarningTag *>(lv_event_get_user_data(e));
             if (t) {
-                lv_anim_del(t->root, blinkAnimCb);
+                // Nuke ALL animations bound to this object (not just blinkAnimCb)
+                // before freeing the tag. lv_anim_del is synchronous in LVGL 8.3
+                // but does not flush an exec_cb that's already in-flight on the
+                // current animation tick — by clearing every anim slot on this
+                // var we close any window where a queued callback could fire
+                // against root after delete t. Issue #886.
+                lv_anim_del(t->root, nullptr);
                 delete t;
             }
         },
