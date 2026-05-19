@@ -7,15 +7,24 @@ description = "Rust port of CANShift OTA HMAC verifier — issue #827 / #936 spi
 license = "UNLICENSED"
 
 [lib]
-# Phase 1: rlib only — host parity tests run via `cargo test`.
-# Phase 2 will add `crate-type = ["staticlib"]` so PlatformIO can link the
-# resulting `.a` into the ESP32 firmware.
-crate-type = ["rlib"]
+# rlib: required for cargo test (host parity suite).
+# staticlib: emits `.a` so the PlatformIO Xtensa link step can pull the
+#   Rust code into the ESP32 firmware (Phase 3 integration).
+crate-type = ["rlib", "staticlib"]
+
+[features]
+# `std` is on by default so `cargo test` (integration tests) and editor
+# tools work without ceremony. The Phase 3 PlatformIO build turns it off:
+#   cargo build --release --no-default-features --features ffi
+# That path is `no_std`, links our panic_handler, and emits the staticlib.
+default = ["std"]
+std = []
+# Compile the `extern "C"` bridge module. Enabled by the firmware build.
+ffi = []
 
 [dependencies]
 # Crypto: RustCrypto's well-audited HMAC + SHA-256 implementations. Both
-# crates support `#![no_std]` so the Phase 2 ESP32 build will pull them in
-# unchanged.
+# crates support `#![no_std]` so the ESP32 build pulls them in unchanged.
 hmac = { version = "0.12", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 

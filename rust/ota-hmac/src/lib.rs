@@ -17,12 +17,28 @@
 //! * `no_std` compatible: no `alloc`, no `std::` types. Phase 2 PlatformIO
 //!   integration consumes this crate verbatim with `crate-type = staticlib`.
 
-#![cfg_attr(not(test), no_std)]
-#![deny(unsafe_code)]
+#![cfg_attr(not(any(test, feature = "std")), no_std)]
 // `Result<(), ()>` is intentional here — Phase 1 mirrors the C++ bool API
 // to keep the FFI surface boring. A typed error variant goes in Phase 2 if
 // it adds value at the C bridge.
 #![allow(clippy::result_unit_err)]
+
+#[cfg(feature = "ffi")]
+pub mod ffi;
+
+// Panic handler — required for `no_std` + `staticlib` builds. Strategy:
+// halt forever. The firmware's diag/logger sees the verifier return an
+// error from feed/finish (each Rust→C return is fallible) so a logic bug
+// here surfaces through normal error paths rather than via panic. Anything
+// that *does* panic is an internal invariant break — halting is safer than
+// rebooting in a loop. Phase 3 may revisit this to log via UART first.
+#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        core::hint::spin_loop();
+    }
+}
 
 /// HMAC-SHA256 output length (and trailer length we look for at EOF).
 pub const HMAC_LEN: usize = 32;
