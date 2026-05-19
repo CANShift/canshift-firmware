@@ -82,17 +82,26 @@ static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
 
 static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, BAR_H, BAR_H);
-    lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN);
+    // Wider than tall so the right-edge tap target is comfortable on the
+    // resistive touch panel. The previous 20×20 hit area was both small and
+    // sat flush against the screen edge where calibration is least accurate
+    // — users frequently reported "the X doesn't close the error" because
+    // the tap landed outside the button bounds.
+    lv_obj_set_size(btn, 32, BAR_H);
+    // Subtle filled background so the target is visible, not just the glyph.
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A1010), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
     lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 2, LV_PART_MAIN);
 
     lv_obj_t *lbl = lv_label_create(btn);
-    lv_label_set_text(lbl, "x");
+    // Uppercase X is wider and renders clearly in the bundled Orbitron font
+    // (lowercase "x" was too thin to read against a dark error background).
+    lv_label_set_text(lbl, "X");
     lv_obj_set_style_text_font(lbl, FONT(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(COL_DIM), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(COL_MSG), 0);
     lv_obj_center(lbl);
     return btn;
 }
