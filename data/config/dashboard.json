@@ -1,5 +1,5 @@
 {
-  "_comment": "CANShift demo dashboard — coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160×56) and XL (160×112) per issue #131; horizontal bars use H-FULL (320×28).",
+  "_comment": "CANShift demo dashboard — coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160×56) and XL (160×112) per issue #131; horizontal bars use H-FULL (320×28). Gauges pin `iconName` to opt into the semantic two-zone sensor palette (#954).",
   "version": "1.16.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
@@ -53,6 +53,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "arc",
+            "iconName": "speed",
             "minValue": 0,
             "maxValue": 300,
             "warningLevel": 240,
@@ -78,6 +79,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "arc",
+            "iconName": "coolant",
             "minValue": 0,
             "maxValue": 120,
             "warningLevel": 95,
@@ -118,6 +120,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "oil_pressure",
             "minValue": 0,
             "maxValue": 6,
             "warningLevel": 1,
@@ -143,6 +146,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "afr",
             "minValue": 0.7,
             "maxValue": 1.3,
             "warningLevel": 1.15,
@@ -176,6 +180,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "arc",
+            "iconName": "boost",
             "minValue": 0,
             "maxValue": 300,
             "warningLevel": 230,
@@ -201,6 +206,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "iat",
             "minValue": -20,
             "maxValue": 80,
             "warningLevel": 50,
@@ -226,6 +232,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "afr",
             "minValue": 0.7,
             "maxValue": 1.3,
             "warningLevel": 1.15,
@@ -251,6 +258,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "rpm",
             "minValue": 0,
             "maxValue": 8000,
             "warningLevel": 6500,
@@ -276,6 +284,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "bar",
+            "iconName": "throttle",
             "barOrientation": "horizontal",
             "minValue": 0,
             "maxValue": 100,
@@ -310,6 +319,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "arc",
+            "iconName": "coolant",
             "minValue": 0,
             "maxValue": 120,
             "warningLevel": 95,
@@ -335,6 +345,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "arc",
+            "iconName": "oil_pressure",
             "minValue": 0,
             "maxValue": 6,
             "warningLevel": 1,
@@ -360,6 +371,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "oil_temp",
             "minValue": 0,
             "maxValue": 150,
             "warningLevel": 120,
@@ -385,6 +397,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "fuel",
             "minValue": 0,
             "maxValue": 6,
             "warningLevel": 5,
@@ -410,6 +423,7 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
+            "iconName": "iat",
             "minValue": -20,
             "maxValue": 80,
             "warningLevel": 50,
@@ -431,7 +445,7 @@
           "id": "btn_map1",
           "type": "button",
           "signal": "",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",
@@ -447,7 +461,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": false,
-            "colors": { "normal": "#FF4444", "active": "#FF7777" },
+            "colors": { "normal": "#3A1212", "active": "#FF4444" },
             "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 1 }]
           }
         },
@@ -455,7 +469,7 @@
           "id": "btn_map2",
           "type": "button",
           "signal": "",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",
@@ -471,63 +485,15 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": false,
-            "colors": { "normal": "#FF4444", "active": "#FF7777" },
+            "colors": { "normal": "#3A1212", "active": "#FF4444" },
             "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 2 }]
-          }
-        },
-        {
-          "id": "btn_map3",
-          "type": "button",
-          "signal": "",
-          "layout": { "x": 0, "y": 56, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF4444",
-            "secondaryColor": "#1A1A1A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "button",
-            "label": "MAP 3",
-            "iconName": "map_icon",
-            "showLabel": true,
-            "showIcon": true,
-            "isToggle": false,
-            "colors": { "normal": "#FF4444", "active": "#FF7777" },
-            "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 3 }]
-          }
-        },
-        {
-          "id": "btn_map4",
-          "type": "button",
-          "signal": "",
-          "layout": { "x": 160, "y": 56, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF4444",
-            "secondaryColor": "#1A1A1A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "button",
-            "label": "MAP 4",
-            "iconName": "map_icon",
-            "showLabel": true,
-            "showIcon": true,
-            "isToggle": false,
-            "colors": { "normal": "#FF4444", "active": "#FF7777" },
-            "actions": [{ "category": "ecu", "type": "map_switch", "mapIndex": 4 }]
           }
         },
         {
           "id": "btn_launch",
           "type": "button",
           "signal": "flag_launch_ctrl",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",
@@ -543,7 +509,7 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": true,
-            "colors": { "normal": "#FF4444", "active": "#FF7777" },
+            "colors": { "normal": "#1F1F1F", "active": "#43A047" },
             "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1312, "data": "01", "dataOff": "00" }]
           }
         },
@@ -551,7 +517,7 @@
           "id": "btn_antilag",
           "type": "button",
           "signal": "flag_anti_lag",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",
@@ -567,54 +533,8 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": true,
-            "colors": { "normal": "#FF4444", "active": "#FF7777" },
+            "colors": { "normal": "#1F1F1F", "active": "#FF6F00" },
             "actions": [{ "category": "ecu", "type": "can_raw", "frameId": 1313, "data": "01", "dataOff": "00" }]
-          }
-        },
-        {
-          "id": "btn_nav_overview",
-          "type": "button",
-          "signal": "",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#444444",
-            "secondaryColor": "#1A1A1A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "button",
-            "label": "Overview",
-            "showLabel": true,
-            "showIcon": false,
-            "isToggle": false,
-            "colors": { "normal": "#444444", "active": "#777777" },
-            "actions": [{ "category": "dashboard", "type": "navigate", "pageId": "overview" }]
-          }
-        },
-        {
-          "id": "btn_nav_engine",
-          "type": "button",
-          "signal": "",
-          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#444444",
-            "secondaryColor": "#1A1A1A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "button",
-            "label": "Engine",
-            "showLabel": true,
-            "showIcon": false,
-            "isToggle": false,
-            "colors": { "normal": "#444444", "active": "#777777" },
-            "actions": [{ "category": "dashboard", "type": "navigate", "pageId": "engine" }]
           }
         }
       ]

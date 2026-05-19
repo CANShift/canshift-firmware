@@ -283,7 +283,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Value label (centered inside the arc)
     // ---------------------------------------------------------------------------
 
-    bool hasUnit = cfg.gauge.suffix[0] != '\0';
+    // Auto-default unit from signal definition (signals.json). Keeps the unit
+    // visible without requiring the dashboard config to carry it on every
+    // gauge — explicit `cfg.gauge.suffix` still wins for legacy overrides.
+    const char *unitText = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix);
+    const bool hasUnit = unitText[0] != '\0';
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_t *label = lv_label_create(cont);
@@ -312,7 +316,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
         lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
         lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
-        lv_label_set_text(unitLabel, cfg.gauge.suffix);
+        lv_label_set_text(unitLabel, unitText);
     }
 
     // Optional widget label drawn at the configured corner.

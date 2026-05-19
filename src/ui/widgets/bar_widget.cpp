@@ -100,7 +100,12 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     t->criticalRgb = cfg.style.criticalColor.rgb;
     t->decimalPlaces = cfg.bar.decimalPlaces;
     strlcpy(t->prefix, cfg.bar.prefix, sizeof(t->prefix));
-    strlcpy(t->suffix, cfg.bar.suffix, sizeof(t->suffix));
+    // Default the unit from the bound signal definition (signals.json), with
+    // the per-widget `cfg.bar.suffix` winning as a manual override — same
+    // resolution as the numeric label widget so the dashboard config doesn't
+    // need to repeat the unit per widget.
+    strlcpy(t->suffix, WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.bar.suffix),
+            sizeof(t->suffix));
     // Sentinel that no real value has been pushed yet — guarantees the
     // first update() runs through the paint path even if minValue == 0.
     t->lastValue = NAN;

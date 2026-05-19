@@ -145,6 +145,17 @@ const CfgColorRamp *resolveSignalRamp(const char *signalId) {
     return resolveRamp(perSignal, signalId);
 }
 
+const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
+    // Explicit per-widget override wins so existing dashboards keep their
+    // hand-picked unit string (e.g. "MPH" instead of the signal's "km/h").
+    if (configSuffix && configSuffix[0] != '\0')
+        return configSuffix;
+    if (!signalId || signalId[0] == '\0')
+        return "";
+    const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
+    return (def && def->unit[0] != '\0') ? def->unit : "";
+}
+
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
                    uint32_t borderRgb) {
     if (!cont)

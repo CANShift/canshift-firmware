@@ -64,6 +64,15 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
 // don't drag in config_loader.h.
 const CfgColorRamp *resolveSignalRamp(const char *signalId);
 
+// Resolve the unit string a widget should display next to its value.
+// Precedence: explicit widget config suffix (legacy override) > the unit
+// declared on the bound signal in signals.json > empty. Returns a stable
+// non-null `const char *` that points either into the caller's config
+// memory or into the signal definition cache — safe to hold for the life
+// of the widget. Defined in the .cpp so widget headers don't drag in
+// config_loader.h.
+const char *resolveDisplayUnit(const char *signalId, const char *configSuffix);
+
 // Apply the standard widget-container boilerplate: position + size +
 // non-scrollable + transparent base style with optional border.
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,

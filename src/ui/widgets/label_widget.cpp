@@ -54,6 +54,8 @@ const lv_font_t *valueFontFor(uint8_t size) {
 
 struct LabelTag {
     lv_obj_t *valueLabel;
+    lv_obj_t *unitLabel;  // Optional small grey suffix anchored bottom-right.
+                          // nullptr when no suffix configured.
     float alertThreshold; // NaN = disabled (issue #133)
     AlertFlash::State alert;
     // Cached numeric value & validity — short-circuits the per-tick snprintf
@@ -128,8 +130,25 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
     }
 
+    // Unit label — small grey, anchored bottom-right, mirroring the arc
+    // gauge's unit overlay. Resolved from the bound signal's `unit` field
+    // (signals.json) so the dashboard config doesn't need to repeat it per
+    // widget; an explicit `cfg.label.suffix` still wins as a manual override.
+    lv_obj_t *unitLabel = nullptr;
+    const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
+    if (unit[0] != '\0') {
+        unitLabel = lv_label_create(cont);
+        if (unitLabel) {
+            lv_obj_set_style_text_color(unitLabel, lv_color_hex(0x888888), 0);
+            lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
+            lv_label_set_text(unitLabel, unit);
+            lv_obj_align(unitLabel, LV_ALIGN_BOTTOM_RIGHT, -3, -2);
+        }
+    }
+
     auto *tag = new LabelTag{};
     tag->valueLabel = label;
+    tag->unitLabel = unitLabel;
     tag->alertThreshold = cfg.label.alertThreshold;
     tag->lastValue = NAN;
     tag->lastValid = false;
