@@ -47,6 +47,15 @@ static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
 
 static constexpr size_t BLE_MIN_HEAP = 50U * 1024U;
 
+// Hard cap on BLE write payloads parsed as JSON (issue #897). Both the
+// SETTINGS and CMD characteristics carry tiny control objects — the largest
+// real payload today (`{"cmd":"set_day_night","day":true}`) is well under 64
+// bytes. 256 leaves comfortable headroom while denying a peer the ability to
+// push MTU-sized (≤512) deeply-nested JSON into ArduinoJson's allocator on
+// the BLE task. Any oversized write is dropped before `JsonReader::parse`
+// touches the buffer.
+static constexpr size_t BLE_MAX_WRITE_LEN = 256U;
+
 // s_stackInited: NimBLEDevice::init() has run (stack allocated).
 // s_gattInited:  GATT service + characteristics are set up and advertising started.
 //                True after earlyInit() or a successful runtime startStack().
@@ -139,6 +148,11 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         std::string val = pChar->getValue();
         if (val.empty())
             return;
+        if (val.length() > BLE_MAX_WRITE_LEN) {
+            LOG_WARN("BLE", "SETTINGS write %u bytes exceeds cap %u — dropping",
+                     static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+            return;
+        }
 
         JsonDocument doc;
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
@@ -190,6 +204,11 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         std::string val = pChar->getValue();
         if (val.empty())
             return;
+        if (val.length() > BLE_MAX_WRITE_LEN) {
+            LOG_WARN("BLE", "CMD write %u bytes exceeds cap %u — dropping",
+                     static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+            return;
+        }
 
         JsonDocument doc;
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
