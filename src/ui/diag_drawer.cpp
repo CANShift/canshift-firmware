@@ -26,15 +26,25 @@ namespace {
 // Geometry
 // ---------------------------------------------------------------------------
 
-// Handle = the always-visible tab the user taps to open the drawer. Kept
-// narrow vertically so it does not eat into widget real estate, but wide
-// enough to be a comfortable tap target on the resistive XPT2046 touch.
+// Handle = the tab the user taps to open the drawer. Only shown when
+// ErrorStore has errors to surface — otherwise the dashboard stays clean
+// (the handle used to permanently occupy 14 px at the bottom and hide
+// widget content).
 constexpr int16_t HANDLE_H = 14;
 
-// Drawer panel target dimensions — matches the issue's "~180 px" guidance.
-constexpr int16_t PANEL_H = 180;
+// Drawer panel covers the full screen height when open. Earlier versions
+// used a partial-height (180 px) drawer that overlapped the dashboard;
+// going full-screen gives the user enough room to scan errors + signals
+// without the dash showing through, and matches the close-button UX.
+// CrowPanel 2.8" is 320×240, hardcoded everywhere else (board_config.h).
+constexpr int16_t PANEL_H = 240;
 constexpr int16_t PANEL_PAD = 6;
 constexpr int16_t ROW_H = 18;
+
+// Close button — visible "✕" tap target at the panel's top-right. Replaces
+// the swipe-down-to-close gesture which was undiscoverable on the
+// resistive touch panel.
+constexpr int16_t CLOSE_BTN_SIZE = 24;
 
 // Section heights computed from row counts so they stay in sync with the
 // row arrays below.
@@ -99,6 +109,7 @@ const ScalarRow s_scalars[SCALARS_COUNT] = {
 lv_obj_t *s_handle = nullptr;
 lv_obj_t *s_handleLabel = nullptr;
 lv_obj_t *s_panel = nullptr;
+lv_obj_t *s_closeBtn = nullptr;
 lv_obj_t *s_flagBadges[FLAGS_COUNT] = {nullptr};
 lv_obj_t *s_scalarValues[SCALARS_COUNT] = {nullptr};
 lv_obj_t *s_errorRows[ERRORS_MAX_ROWS] = {nullptr};
@@ -253,6 +264,10 @@ void onHandleClicked(lv_event_t * /*e*/) {
     s_open ? close() : open();
 }
 
+void onCloseClicked(lv_event_t * /*e*/) {
+    close();
+}
+
 void onPanelGesture(lv_event_t *e) {
     const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
     if (dir == LV_DIR_BOTTOM) {
@@ -292,6 +307,10 @@ void init() {
     lv_obj_set_style_text_color(s_handleLabel, lv_color_hex(COL_HANDLE_TXT), 0);
     lv_obj_center(s_handleLabel);
 
+    // Hidden by default — only surfaces when ErrorStore has something to
+    // show. update() flips the flag from the version-poll path.
+    lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+
     // -------- Panel --------------------------------------------------------
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_panel, LV_HOR_RES, PANEL_H);
@@ -316,6 +335,28 @@ void init() {
     buildScalarsSection(s_panel);
     buildErrorsSection(s_panel);
 
+    // -------- Close button -------------------------------------------------
+    // Built on lv_layer_top() directly (not as a child of s_panel) so the
+    // panel's vertical flex layout doesn't stack it among the rows. Placed
+    // last so it draws over the panel content. Hidden until the panel opens.
+    s_closeBtn = lv_btn_create(lv_layer_top());
+    lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
+    lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, -4, 4);
+    lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(COL_HANDLE_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_closeBtn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_closeBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(s_closeBtn, lv_color_hex(COL_PANEL_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_radius(s_closeBtn, 4, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_closeBtn, 0, LV_PART_MAIN);
+    lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(s_closeBtn, onCloseClicked, LV_EVENT_CLICKED, nullptr);
+
+    lv_obj_t *closeLabel = lv_label_create(s_closeBtn);
+    lv_label_set_text(closeLabel, LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_font(closeLabel, FONT_SM(), 0);
+    lv_obj_set_style_text_color(closeLabel, lv_color_hex(COL_VALUE), 0);
+    lv_obj_center(closeLabel);
+
     s_initDone = true;
 }
 
@@ -326,6 +367,10 @@ void open() {
     // Hide the handle while open so it does not overlap the panel border.
     if (s_handle)
         lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+    if (s_closeBtn) {
+        lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_closeBtn);
+    }
     s_open = true;
     // Force the next update() to refresh the error rows even if the version
     // hasn't moved since the last open.
@@ -337,13 +382,33 @@ void close() {
     if (!s_panel)
         return;
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    if (s_handle)
-        lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+    if (s_closeBtn)
+        lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
+    // Handle visibility resyncs in update() based on ErrorStore::getCount().
     s_open = false;
+    update();
 }
 
 void update() {
-    if (!s_panel || !s_open)
+    if (!s_panel)
+        return;
+
+    // Handle visibility tracks ErrorStore — drawer is hidden by default and
+    // only surfaces when there's something the user should see. When the
+    // drawer is open we keep the handle hidden regardless (the close button
+    // replaces it as the visible affordance).
+    if (s_handle) {
+        const bool wantHandle = !s_open && ErrorStore::getCount() > 0;
+        const bool isHidden = lv_obj_has_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+        if (wantHandle && isHidden)
+            lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+        else if (!wantHandle && !isHidden)
+            lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    // Nothing more to refresh while collapsed — flags / scalars / errors
+    // only need labels updated when the user is looking at them.
+    if (!s_open)
         return;
 
     // Flags
