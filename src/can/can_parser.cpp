@@ -6,6 +6,8 @@
 #include "config/config_loader.h"
 #include "diag/logger.h"
 
+#include <algorithm>
+
 // ---------------------------------------------------------------------------
 // Internal state — runtime signal dispatch table
 // ---------------------------------------------------------------------------
@@ -85,10 +87,17 @@ void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length
     // silently dropped. No fallback to hardcoded handlers — decoding random
     // frame IDs with assumed semantics produced more wrong data than the
     // value of having any default at all (#682).
-    for (uint8_t i = 0; i < s_runtimeCount; ++i) {
-        if (s_runtime[i].canFrameId != frameId)
-            continue;
-        const RuntimeSignal &sig = s_runtime[i];
+    //
+    // s_runtime[] is sorted by canFrameId in loadSignalDefinitions(), so we
+    // binary-search the first matching entry then forward-scan contiguous
+    // matches. Avoids the O(N) walk per received frame (#885).
+    const auto *begin = s_runtime;
+    const auto *end = s_runtime + s_runtimeCount;
+    const auto *it = std::lower_bound(
+        begin, end, frameId, [](const RuntimeSignal &s, uint32_t id) { return s.canFrameId < id; });
+
+    for (; it != end && it->canFrameId == frameId; ++it) {
+        const RuntimeSignal &sig = *it;
         if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
             continue;
         const float val = detail::decodeBytes(data, sig.startByte, sig.byteLength, sig.bigEndian,
@@ -132,6 +141,12 @@ void CanParser::loadSignalDefinitions() {
         // Apply per-signal timeout from the config
         SignalStore::setTimeout(sid, def.timeoutMs);
     }
+
+    // Sort by canFrameId so parseFrame() can binary-search the dispatch table
+    // and forward-scan contiguous matches for multi-signal frames (#885).
+    std::sort(
+        s_runtime, s_runtime + s_runtimeCount,
+        [](const RuntimeSignal &a, const RuntimeSignal &b) { return a.canFrameId < b.canFrameId; });
 
     s_runtimeLoaded = true;
     LOG_INFO("CAN", "Dynamic signal table loaded: %d signals from signals.json", s_runtimeCount);
