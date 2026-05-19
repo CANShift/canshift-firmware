@@ -572,10 +572,19 @@ void handleCommand(const char *jsonLine) {
     switch (cmd) {
         case UsbComm::CMD_GET_STATUS: {
             char resp[160];
-            snprintf(resp, sizeof(resp),
-                     "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
-                     APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                     ThemeManager::isDayMode() ? 1 : 0);
+            // snprintf returns the would-have-written length — if it equals or
+            // exceeds sizeof(resp), the payload is truncated and no longer
+            // valid JSON. Log + skip so the host doesn't get garbage (#936).
+            const int n =
+                snprintf(resp, sizeof(resp),
+                         "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
+                         APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
+                         ThemeManager::isDayMode() ? 1 : 0);
+            if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
+                LOG_WARN("USB", "GET_STATUS payload truncated (n=%d, cap=%u)", n,
+                         static_cast<unsigned>(sizeof(resp)));
+                break;
+            }
             UsbComm::sendLine(resp);
             break;
         }
@@ -652,8 +661,14 @@ void handleCommand(const char *jsonLine) {
                 xQueueReset(s_canScanQueue);
             LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
             char stopResp[64];
-            snprintf(stopResp, sizeof(stopResp), "{\"status\":\"ok\",\"drops\":%lu}",
-                     (unsigned long)s_scanDrops);
+            const int stopN =
+                snprintf(stopResp, sizeof(stopResp), "{\"status\":\"ok\",\"drops\":%lu}",
+                         (unsigned long)s_scanDrops);
+            if (stopN <= 0 || static_cast<size_t>(stopN) >= sizeof(stopResp)) {
+                LOG_WARN("USB", "STOP_CAN_SCAN payload truncated (n=%d, cap=%u)", stopN,
+                         static_cast<unsigned>(sizeof(stopResp)));
+                break;
+            }
             UsbComm::sendLine(stopResp);
             break;
         }
@@ -817,11 +832,20 @@ void UsbComm::tick() {
         // Format: {"can_stat":1,"fps":12.5,"errors":0}\n
         char statBuf[72];
         const CanHealthStats stats = {s_canStats.fpsX10, s_canStats.errors};
-        snprintf(statBuf, sizeof(statBuf), "{\"can_stat\":1,\"fps\":%lu.%lu,\"errors\":%lu}\n",
-                 static_cast<unsigned long>(stats.fpsX10 / 10),
-                 static_cast<unsigned long>(stats.fpsX10 % 10),
-                 static_cast<unsigned long>(stats.errors));
-        UsbComm::sendLine(statBuf);
+        const int n =
+            snprintf(statBuf, sizeof(statBuf), "{\"can_stat\":1,\"fps\":%lu.%lu,\"errors\":%lu}\n",
+                     static_cast<unsigned long>(stats.fpsX10 / 10),
+                     static_cast<unsigned long>(stats.fpsX10 % 10),
+                     static_cast<unsigned long>(stats.errors));
+        if (n > 0 && static_cast<size_t>(n) < sizeof(statBuf)) {
+            UsbComm::sendLine(statBuf);
+        } else {
+            // 72-byte cap fits the worst-case max-uint values today, but if a
+            // future protocol bump grows the payload we want to know rather
+            // than ship malformed JSON to the host (#936).
+            LOG_WARN("USB", "can_stat payload truncated (n=%d, cap=%u)", n,
+                     static_cast<unsigned>(sizeof(statBuf)));
+        }
     }
 
     if (++s_tickCount >= TELE_PERIOD_TICKS) {
