@@ -109,6 +109,31 @@ void ErrorStore::dismissLatest() {
     portEXIT_CRITICAL(&s_mux);
 }
 
+void ErrorStore::dismissAt(uint8_t row) {
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    portENTER_CRITICAL(&s_mux);
+    if (row < s_count) {
+        // `row` is newest-first (matches getAll); convert to oldest-first
+        // position inside the ring so the shift math reads naturally.
+        const uint8_t pos = static_cast<uint8_t>(s_count - 1 - row);
+        if (pos == 0) {
+            // Drop oldest — advance head, no copy needed.
+            s_head = static_cast<uint8_t>((s_head + 1) % RING_SIZE);
+        } else if (pos < s_count - 1) {
+            // Collapse the gap by shifting positions pos+1..count-1 down by one.
+            for (uint8_t i = pos; i + 1 < s_count; i++) {
+                const uint8_t dst = static_cast<uint8_t>((s_head + i) % RING_SIZE);
+                const uint8_t src = static_cast<uint8_t>((s_head + i + 1) % RING_SIZE);
+                s_ring[dst] = s_ring[src];
+            }
+        }
+        // pos == s_count - 1 → newest, no copy needed (matches dismissLatest).
+        s_count--;
+        s_version++;
+    }
+    portEXIT_CRITICAL(&s_mux);
+}
+
 void ErrorStore::clear() {
     // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);

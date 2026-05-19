@@ -30,6 +30,12 @@ void getAll(FwError *buf, uint8_t *count, uint8_t maxCount);
 uint8_t getCount();
 uint32_t getVersion(); // Increments on every push/dismiss/clear — use to detect changes.
 void dismissLatest();
+
+// Drop the error at newest-first position `row` (i.e. the same index the
+// caller would pass to `getAll`'s returned buffer). No-op when `row` is
+// out of range, so callers don't need to re-check `getCount()` first.
+void dismissAt(uint8_t row);
+
 void clear();
 
 } // namespace ErrorStore

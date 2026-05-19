@@ -256,22 +256,16 @@ void ErrorBar::init() {
         s_detailDism[i] = makeDismissBtn(s_detailRows[i]);
     }
 
-    // Wire dismiss for rows 0..MAX_ROWS-1 using individual lambdas (no closure capture in C++11)
-    // We use a generic callback and retrieve the row index from user_data.
+    // Per-row dismiss buttons. `getAll` returns newest-first into the same
+    // row slots, so the `i` index baked into the lambda's user_data maps
+    // directly to ErrorStore's newest-first row index (issue #898).
     for (uint8_t i = 0; i < MAX_ROWS; i++) {
-        // Pass the row label pointer as user data to identify which error to dismiss.
-        // On click, we dismiss the oldest of the currently-shown errors for that slot.
         lv_obj_add_event_cb(
             s_detailDism[i],
             [](lv_event_t *e) {
                 lv_event_stop_bubbling(e);
-                // Identify which row was clicked via user_data (row index stored as pointer)
-                uintptr_t row = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-                // Dismiss the error at position 'row' (newest=0) by rebuilding:
-                // We can only dismiss latest via ErrorStore. For now dismiss latest.
-                // TODO: add dismiss-by-index to ErrorStore for per-row dismiss.
-                (void)row;
-                ErrorStore::dismissLatest();
+                const uintptr_t row = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+                ErrorStore::dismissAt(static_cast<uint8_t>(row));
                 if (ErrorStore::getCount() == 0)
                     setExpanded(false);
             },
