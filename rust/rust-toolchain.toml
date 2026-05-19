@@ -1,0 +1,10 @@
+# rust-toolchain.toml — Pin the firmware Rust spike to the Espressif fork.
+#
+# Required because `xtensa-esp32-none-elf` is NOT an upstream LLVM target;
+# Espressif maintains its own LLVM/Rust fork installed via `espup`. Any
+# contributor running `cargo build` in this workspace gets the right
+# toolchain without typing `+esp` — but they DO need `espup install` to
+# have run first (see ../README.md § Phase 3).
+
+[toolchain]
+channel = "esp"

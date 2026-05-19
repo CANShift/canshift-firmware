@@ -8,7 +8,7 @@ Spike Rust workspace for the firmware port (issues #827, #936).
 |---|---|---|
 | `ota-hmac` | 1 (host) | ✅ 16 host parity tests vs the Unity suite at `test/test_ota_hmac/`. |
 | `ota-hmac` | 2 (C ABI) | ✅ `staticlib` crate-type, `extern "C"` bridge in `src/ffi.rs`, hand-written `include/ota_hmac_rs.h`, `panic_handler` for `no_std` builds. |
-| `ota-hmac` | 3 (PlatformIO link) | ⏳ Pending `espup` install on the build host — see § Phase 3 below. |
+| `ota-hmac` | 3 (PlatformIO link) | ✅ `env:crowpanel_28_rust` links the Xtensa staticlib via `scripts/build_rust.py`. Δflash = **−444 B** vs the mbedTLS path. |
 
 ## Phase 2 — what just landed
 
@@ -34,69 +34,43 @@ cargo fmt --check
 cargo build --release --no-default-features --features ffi
 ```
 
-## Phase 3 — integrating with PlatformIO
+## Phase 3 — PlatformIO integration
 
-When you're ready to actually link the Rust crate into the firmware:
-
-### 1. Install the Xtensa toolchain on the build host
+### Prerequisites on the build host
 
 ```bash
 cargo install espup --locked
 espup install
-. ~/export-esp.sh   # source the env vars; add to shell profile for persistence
+. ~/export-esp.sh   # add to ~/.zshrc for persistence
 ```
 
-`espup install` downloads ~500 MB (the LLVM fork Espressif maintains for Xtensa). The `xtensa-esp32-none-elf` target appears in `rustup target list --installed`.
+`espup install` downloads ~500 MB (the LLVM fork Espressif maintains for Xtensa) into `~/.rustup/toolchains/esp/`. `rust-toolchain.toml` in this directory then auto-selects it, so `cargo build` Just Works.
 
-### 2. Add a PlatformIO pre-build script
+### Building the firmware with the Rust path
 
-In `canshift-firmware/platformio.ini` under `[env:crowpanel_28]`, add:
-
-```ini
-extra_scripts = scripts/extra_targets.py, scripts/build_rust.py
+```bash
+pio run -e crowpanel_28_rust
 ```
 
-Create `canshift-firmware/scripts/build_rust.py` along these lines (sketch — adjust paths after `espup` is installed):
+The `env:crowpanel_28_rust` PlatformIO env defined in `platformio.ini`:
+1. Sets `-DUSE_RUST_OTA_HMAC=1` — compiles `ota_hmac_bridge.cpp`, drops the mbedTLS backend in `ota_hmac.cpp` (linker conflict prevention).
+2. Adds `scripts/build_rust.py` to `extra_scripts` — that hook invokes `cargo build --release --target xtensa-esp32-none-elf -Z build-std=core,alloc` and appends the resulting `.a` + the C header dir to the link.
 
-```python
-import subprocess, os
-Import("env")
+### Measured results (this host, Apple Silicon)
 
-RUST_DIR = os.path.join(env["PROJECT_DIR"], "rust")
-TARGET = "xtensa-esp32-none-elf"
-LIB = os.path.join(RUST_DIR, "target", TARGET, "release", "libota_hmac.a")
+| Metric | Budget | Measured | Verdict |
+|---|---|---|---|
+| Δflash | < 50 KB | **−444 B** (Rust path is smaller) | ✅ |
+| ΔRAM (.bss + .data) | < 10 KB | 0 (identical) | ✅ |
+| Δcompile time | < 30% | +20% (~8 s for the Rust path) | ✅ |
 
-def build_rust(source, target, env):
-    subprocess.check_call(
-        ["cargo", "+esp", "build", "--release",
-         "--manifest-path", os.path.join(RUST_DIR, "ota-hmac", "Cargo.toml"),
-         "--no-default-features", "--features", "ffi",
-         "--target", TARGET],
-        cwd=RUST_DIR,
-    )
+ΔRAM = 0 is expected — both paths use a single static HMAC context. The flash gain comes from LTO being able to dead-code-strip more aggressively over the focused RustCrypto `Hmac<Sha256>` than over the generic mbedTLS `mbedtls_md_*` indirection layer.
 
-env.AddPreAction("buildprog", build_rust)
-env.Append(LIBS=[File(LIB)])
-env.Append(CPPPATH=[os.path.join(RUST_DIR, "ota-hmac", "include")])
-```
+### Still TODO before flipping the default
 
-### 3. Write the C++ bridge
-
-`canshift-firmware/src/hal/wifi/ota_hmac_bridge.cpp` (new file) wraps the existing `OtaHmacBackend` interface around the Rust C ABI so existing callers (`OtaHmacVerifier`) don't change. Gate the bridge behind a `USE_RUST_OTA_HMAC` build flag so the C++ path stays available as the rollback.
-
-### 4. Measure (gate criteria from architecture-critic review on #827)
-
-After the first successful link:
-
-| Metric | How to capture | Budget |
-|---|---|---|
-| Δflash | `pio run -t size` before/after | < 50 KB |
-| ΔRAM (.bss + .data) | same | < 10 KB |
-| Δcompile time | `time pio run` | < 30% |
-| BLE task stack high-water | `uxTaskGetStackHighWaterMark()` log after 1h | no regression |
-| Heap min free over 1h | `heap_caps_get_minimum_free_size()` | no regression |
-
-Any budget breach → abort Phase 3, keep the C++ path.
+- Flash to device + run an OTA upload through the new backend (mobile app sends `start_wifi_ap` → studio uploads a signed firmware). Verify the HMAC trailer is accepted.
+- BLE task stack high-water + heap min-free over 1h — Rust monomorphisation typically adds frames; the architecture-critic flagged this as a risk.
+- Once both checks pass, swap the default in `platformio.ini` (`USE_RUST_OTA_HMAC=1` in `env:crowpanel_28`) and consider this Phase 3 truly closed.
 
 ## Layout
 

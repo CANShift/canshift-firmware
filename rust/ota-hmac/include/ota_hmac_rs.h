@@ -61,6 +61,25 @@ void ota_hmac_rs_destroy(OtaHmacRs *slot);
 // verifier). Returns 0 iff equal over `len` bytes.
 int32_t ota_hmac_rs_const_memcmp(const uint8_t *a, const uint8_t *b, size_t len);
 
+// ---------------------------------------------------------------------------
+// Raw HMAC primitive — separate from the streaming verifier above.
+// Used by `src/hal/wifi/ota_hmac_bridge.cpp` to plug the RustCrypto
+// HMAC-SHA256 implementation into the existing C++ `OtaHmac::HmacBackend`
+// interface. No trailer logic, no rolling window — just a straight
+// init/update/finalize chain.
+// ---------------------------------------------------------------------------
+
+typedef struct OtaHmacRsRaw OtaHmacRsRaw;
+
+size_t ota_hmac_rs_raw_sizeof(void);
+size_t ota_hmac_rs_raw_alignof(void);
+
+int32_t ota_hmac_rs_raw_init(OtaHmacRsRaw *slot, const uint8_t *secret, size_t secret_len);
+int32_t ota_hmac_rs_raw_update(OtaHmacRsRaw *slot, const uint8_t *data, size_t len);
+// Writes exactly 32 bytes to `out`. Slot is destroyed after this call.
+int32_t ota_hmac_rs_raw_finalize(OtaHmacRsRaw *slot, uint8_t *out);
+void ota_hmac_rs_raw_destroy(OtaHmacRsRaw *slot);
+
 #ifdef __cplusplus
 }
 #endif

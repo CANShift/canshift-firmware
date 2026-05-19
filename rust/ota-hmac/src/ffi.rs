@@ -23,7 +23,7 @@
 
 use core::slice;
 
-use crate::{OtaHmacVerifier, RustCryptoBackend, Sink, MAX_SECRET_LEN};
+use crate::{HmacBackend, OtaHmacVerifier, RustCryptoBackend, Sink, HMAC_LEN, MAX_SECRET_LEN};
 
 // ---------------------------------------------------------------------------
 // Sink shim — bridges `extern "C"` callbacks to the Rust `Sink` trait.
@@ -261,4 +261,139 @@ pub unsafe extern "C" fn ota_hmac_rs_const_memcmp(a: *const u8, b: *const u8, le
     let aa = unsafe { slice::from_raw_parts(a, len) };
     let bb = unsafe { slice::from_raw_parts(b, len) };
     crate::constant_time_memcmp(aa, bb) as i32
+}
+
+// ---------------------------------------------------------------------------
+// Raw HMAC primitive — separate from the streaming verifier above.
+//
+// The C++ side already owns the rolling-window framing layer in
+// `ota_hmac.cpp::OtaHmacVerifier`; that layer needs an `HmacBackend` that
+// answers `init(secret) -> ctx`, `update(ctx, data)`, `finalize(ctx, out)`
+// with no trailer logic. The streaming Rust verifier (`OtaHmacRs`) wraps
+// the full framing inside, so it would re-window the bytes — wrong here.
+//
+// This second ABI surface exposes the underlying HMAC-SHA256 primitive
+// directly so the C++ HmacBackend bridge can swap mbedTLS → RustCrypto
+// without changing the framing layer.
+// ---------------------------------------------------------------------------
+
+/// Opaque raw HMAC state — stores a `RustCryptoBackend` internally.
+#[repr(C)]
+pub struct OtaHmacRsRaw {
+    inner: Option<RustCryptoBackend>,
+}
+
+#[no_mangle]
+pub extern "C" fn ota_hmac_rs_raw_sizeof() -> usize {
+    core::mem::size_of::<OtaHmacRsRaw>()
+}
+
+#[no_mangle]
+pub extern "C" fn ota_hmac_rs_raw_alignof() -> usize {
+    core::mem::align_of::<OtaHmacRsRaw>()
+}
+
+/// Initialise a raw HMAC at `slot` (zeroed caller storage). Returns 0 on
+/// success.
+///
+/// # Safety
+/// `slot` must point to zeroed storage of `ota_hmac_rs_raw_sizeof()` bytes
+/// with `ota_hmac_rs_raw_alignof()` alignment. `secret` must be readable
+/// for `secret_len` bytes (or null when `secret_len == 0`).
+#[no_mangle]
+pub unsafe extern "C" fn ota_hmac_rs_raw_init(
+    slot: *mut OtaHmacRsRaw,
+    secret: *const u8,
+    secret_len: usize,
+) -> i32 {
+    if slot.is_null() {
+        return 1;
+    }
+    let secret_slice = if secret_len == 0 {
+        &[][..]
+    } else if secret.is_null() {
+        return 2;
+    } else {
+        unsafe { slice::from_raw_parts(secret, secret_len) }
+    };
+    let mut backend = RustCryptoBackend::new();
+    if backend.init(secret_slice).is_err() {
+        return 3;
+    }
+    unsafe {
+        core::ptr::write(
+            slot,
+            OtaHmacRsRaw {
+                inner: Some(backend),
+            },
+        )
+    };
+    0
+}
+
+/// Feed bytes into the HMAC computation.
+///
+/// # Safety
+/// `slot` previously initialised; `data` readable for `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn ota_hmac_rs_raw_update(
+    slot: *mut OtaHmacRsRaw,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if slot.is_null() {
+        return 1;
+    }
+    let buf = if len == 0 {
+        &[][..]
+    } else if data.is_null() {
+        return 1;
+    } else {
+        unsafe { slice::from_raw_parts(data, len) }
+    };
+    let s = unsafe { &mut *slot };
+    let Some(backend) = s.inner.as_mut() else {
+        return 1;
+    };
+    if backend.update(buf).is_err() {
+        return 1;
+    }
+    0
+}
+
+/// Finalise: write 32 bytes of HMAC into `out`. Returns 0 on success. The
+/// slot is left in a destroyed state and must be re-initialised before
+/// further use.
+///
+/// # Safety
+/// `slot` previously initialised; `out` writable for 32 bytes.
+#[no_mangle]
+pub unsafe extern "C" fn ota_hmac_rs_raw_finalize(slot: *mut OtaHmacRsRaw, out: *mut u8) -> i32 {
+    if slot.is_null() || out.is_null() {
+        return 1;
+    }
+    let s = unsafe { &mut *slot };
+    let Some(backend) = s.inner.as_mut() else {
+        return 1;
+    };
+    let mut tmp = [0u8; HMAC_LEN];
+    if backend.finalize(&mut tmp).is_err() {
+        return 1;
+    }
+    unsafe { core::ptr::copy_nonoverlapping(tmp.as_ptr(), out, HMAC_LEN) };
+    unsafe { core::ptr::write(slot, OtaHmacRsRaw { inner: None }) };
+    0
+}
+
+/// Release a raw HMAC slot without computing the HMAC. Use this for early
+/// abort paths.
+///
+/// # Safety
+/// `slot` previously initialised or zero-filled.
+#[no_mangle]
+pub unsafe extern "C" fn ota_hmac_rs_raw_destroy(slot: *mut OtaHmacRsRaw) {
+    if slot.is_null() {
+        return;
+    }
+    unsafe { core::ptr::write(slot, OtaHmacRsRaw { inner: None }) };
 }

@@ -1,0 +1,13 @@
+# .cargo/config.toml — Workspace cargo settings for the firmware Rust spike.
+#
+# `build-std` is NOT set globally here — that would force core + alloc to
+# rebuild for every host `cargo test` too, breaking the dev loop. Instead,
+# the PlatformIO build script (Phase 3) passes `-Z build-std=core,alloc`
+# explicitly when targeting Xtensa. Manual repro:
+#
+#   cargo +esp build --release --no-default-features --features ffi \
+#         --target xtensa-esp32-none-elf -Z build-std=core,alloc
+
+# Reserved for per-target linker flags once the Phase 3 bridge needs them.
+[target.xtensa-esp32-none-elf]
+rustflags = []

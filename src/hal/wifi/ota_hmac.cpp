@@ -137,10 +137,13 @@ bool OtaHmacVerifier::finish() {
 }
 
 // ---------------------------------------------------------------------------
-// Production backend — mbedTLS. Excluded from native unit tests, which use a
-// stub backend that exercises only the framing/streaming logic above.
+// Production backend — mbedTLS. Excluded from:
+//   - native unit tests (UNIT_TEST), which use a stub backend
+//   - USE_RUST_OTA_HMAC builds (#827 Phase 3), where ota_hmac_bridge.cpp
+//     provides a Rust-backed HmacBackend instead. Both definitions of
+//     `mbedtlsHmacBackend()` would collide at link time otherwise.
 // ---------------------------------------------------------------------------
-#ifndef UNIT_TEST
+#if !defined(UNIT_TEST) && !defined(USE_RUST_OTA_HMAC)
 
     #include <mbedtls/md.h>
 
@@ -190,6 +193,6 @@ const HmacBackend &mbedtlsHmacBackend() {
     return kMbedBackend;
 }
 
-#endif // !UNIT_TEST
+#endif // !UNIT_TEST && !USE_RUST_OTA_HMAC
 
 } // namespace OtaHmac
