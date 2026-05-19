@@ -468,198 +468,258 @@ WidgetType parseWidgetType(const char *str) {
     return WidgetType::UNKNOWN;
 }
 
+// alertThreshold: optional NaN sentinel = disabled (issue #133). Several
+// widget config blocks read the same field — factor it out so the per-type
+// parsers stay focused on the fields unique to each widget.
+float readAlertThreshold(JsonObjectConst cfg) {
+    return cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
+}
+
+void parseWidgetLayout(JsonObjectConst layout, CfgLayout *out) {
+    out->x = layout["x"] | 0;
+    out->y = layout["y"] | 0;
+    out->w = layout["w"] | 80;
+    out->h = layout["h"] | 60;
+    out->zOrder = layout["zOrder"] | 0;
+}
+
+void parseWidgetStyle(JsonObjectConst style, CfgStyle *out) {
+    parseColor(style["primaryColor"] | "#FFFFFF", &out->primaryColor);
+    parseColor(style["secondaryColor"] | "#333333", &out->secondaryColor);
+    parseColor(style["warningColor"] | "#FF8800", &out->warningColor);
+    parseColor(style["criticalColor"] | "#FF0000", &out->criticalColor);
+    parseColor(style["textColor"] | "#FFFFFF", &out->textColor);
+    out->fontSize = style["fontSize"] | 16;
+    const char *borderHex = style["borderColor"] | nullptr;
+    out->hasBorder = (borderHex != nullptr);
+    if (out->hasBorder)
+        parseColor(borderHex, &out->borderColor);
+    // respectDayMode default = true preserves the v0.7.0 contract (#171).
+    // Absent or non-bool JSON falls back to true. Issue #191.
+    out->respectDayMode = style["respectDayMode"] | true;
+}
+
+void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
+    out->minValue = cfg["minValue"] | 0.0f;
+    out->maxValue = cfg["maxValue"] | 100.0f;
+    out->warningLevel = cfg["warningLevel"] | 80.0f;
+    out->dangerLevel = cfg["dangerLevel"] | 95.0f;
+    out->alertThreshold = readAlertThreshold(cfg);
+    out->showArc = cfg["showArc"] | true;
+    out->revFlash = cfg["revFlash"] | false;
+    out->decimalPlaces = cfg["decimalPlaces"] | 0;
+    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
+    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+    out->arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "zones");
+    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
+}
+
+// Bar parameters reached via the legacy `gauge` widget with displayStyle=bar.
+// Behaviour identical to the old monolith — kept separate from the direct
+// "type":"bar" parser because the defaults differ (warning/danger here are
+// hardcoded 80/95 vs. NaN for the standalone BarWidgetConfig).
+void parseGaugeBarParams(JsonObjectConst cfg, CfgBarParams *out, float alertThreshold) {
+    out->minValue = cfg["minValue"] | 0.0f;
+    out->maxValue = cfg["maxValue"] | 100.0f;
+    out->warningLevel = cfg["warningLevel"] | 80.0f;
+    out->dangerLevel = cfg["dangerLevel"] | 95.0f;
+    out->alertThreshold = alertThreshold;
+    const char *orient = cfg["barOrientation"] | "horizontal";
+    out->isVertical = (strcmp(orient, "vertical") == 0);
+    out->decimalPlaces = cfg["decimalPlaces"] | 0;
+    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
+    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
+}
+
+void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThreshold) {
+    out->decimalPlaces = cfg["decimalPlaces"] | 0;
+    out->alertThreshold = alertThreshold;
+    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
+    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
+    out->hideWhenInvalid = cfg["hideWhenInvalid"] | false;
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+}
+
+// Gauge widgets in dashboard.json use displayStyle "bar" / "numeric" / "arc"
+// to encode sub-types — reclassify the outgoing WidgetType here so downstream
+// renderers can stay simple and dispatch on a single enum.
+void parseGaugeWidget(JsonObjectConst cfg, CfgWidget *w) {
+    const char *displayStyle = cfg["displayStyle"] | "arc";
+    const float alertThreshold = readAlertThreshold(cfg);
+    if (strcmp(displayStyle, "bar") == 0) {
+        w->type = WidgetType::BAR;
+        parseGaugeBarParams(cfg, &w->bar, alertThreshold);
+    } else if (strcmp(displayStyle, "numeric") == 0) {
+        // Large numeric readout — render as a label widget.
+        w->type = WidgetType::LABEL;
+        parseLabelParams(cfg, &w->label, alertThreshold);
+    } else {
+        // "arc" or unrecognised — arc gauge keeps WidgetType::GAUGE.
+        parseArcGaugeParams(cfg, &w->gauge);
+    }
+}
+
+void parseWarningWidget(JsonObjectConst cfg, CfgWarningParams *out) {
+    out->invertLogic = cfg["invertLogic"] | false;
+    out->threshold = cfg["threshold"] | 0.5f;
+    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+}
+
+// Direct "type":"bar" — BarWidgetConfig schema (always horizontal, warning /
+// danger default to NaN unlike the legacy gauge-bar reclassification path).
+void parseBarWidget(JsonObjectConst cfg, CfgBarParams *out) {
+    out->minValue = cfg["minValue"] | 0.0f;
+    out->maxValue = cfg["maxValue"] | 100.0f;
+    out->warningLevel = cfg["warningLevel"] | NAN;
+    out->dangerLevel = cfg["dangerLevel"] | NAN;
+    out->alertThreshold = readAlertThreshold(cfg);
+    out->isVertical = false;
+    out->decimalPlaces = cfg["decimalPlaces"] | 0;
+    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
+    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "bottom-center");
+    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
+}
+
+void parseButtonColors(JsonObjectConst cfg, CfgButtonParams *out) {
+    JsonObjectConst colors = cfg["colors"];
+    out->hasColors = !colors.isNull();
+    if (out->hasColors) {
+        parseColor(colors["normal"] | "#FFFFFF", &out->colorNormal);
+        parseColor(colors["active"] | "#FFFFFF", &out->colorActive);
+    } else {
+        out->colorNormal.rgb = 0x000000;
+        out->colorActive.rgb = 0x000000;
+    }
+}
+
+// Walk the `actions[]` JSON array, drop UNKNOWN entries with a warning, and
+// cap at CFG_MAX_BUTTON_ACTIONS. `widgetId` is only used for log context.
+void parseButtonActionsArray(JsonArrayConst actionsArr, const char *widgetId,
+                             CfgButtonParams *out) {
+    if (actionsArr.isNull())
+        return;
+    const size_t total = actionsArr.size();
+    if (total > CFG_MAX_BUTTON_ACTIONS) {
+        LOG_WARN("BTN", "button '%s': %u actions exceed CFG_MAX_BUTTON_ACTIONS=%u — extras ignored",
+                 widgetId, static_cast<unsigned>(total),
+                 static_cast<unsigned>(CFG_MAX_BUTTON_ACTIONS));
+    }
+    for (JsonObjectConst a : actionsArr) {
+        if (out->actionsCount >= CFG_MAX_BUTTON_ACTIONS)
+            break;
+        CfgButtonAction parsed;
+        parseButtonAction(a, &parsed);
+        if (parsed.type == CfgButtonActionType::UNKNOWN) {
+            LOG_WARN("BTN", "button '%s': unknown action type '%s' — skipped", widgetId,
+                     static_cast<const char *>(a["type"] | ""));
+            continue;
+        }
+        out->actions[out->actionsCount++] = parsed;
+    }
+}
+
+// Synthesise a single NAV_PAGE action from the deprecated `targetPageId`
+// field so legacy configs (pre-#673) keep navigating. Caller guarantees
+// actionsCount==0 on entry.
+void applyLegacyTargetPageId(JsonObjectConst cfg, CfgButtonParams *out) {
+    const char *legacy = cfg["targetPageId"] | "";
+    if (legacy[0] == '\0')
+        return;
+    CfgButtonAction &a = out->actions[0];
+    a.type = CfgButtonActionType::NAV_PAGE;
+    strlcpy(a.pageId, legacy, sizeof(a.pageId));
+    a.mapIndex = 0;
+    a.canFrameId = 0;
+    a.canDataLen = 0;
+    a.canExtended = false;
+    memset(a.canData, 0, sizeof(a.canData));
+    out->actionsCount = 1;
+}
+
+void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParams *out) {
+    strlcpy(out->label, cfg["label"] | "", CFG_MAX_NAME_LEN);
+    strlcpy(out->iconPath, cfg["iconPath"] | "", CFG_MAX_PATH_LEN);
+    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
+    out->isToggle = cfg["isToggle"] | false;
+    out->showIcon = cfg["showIcon"] | true;
+    out->showLabel = cfg["showLabel"] | true;
+    parseButtonColors(cfg, out);
+    out->actionsCount = 0;
+    parseButtonActionsArray(cfg["actions"], widgetId, out);
+    if (out->actionsCount == 0)
+        applyLegacyTargetPageId(cfg, out);
+}
+
+void parseTimerWidget(JsonObjectConst cfg, CfgTimerParams *out) {
+    out->autoStart = cfg["autoStart"] | false;
+    out->formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+}
+
+void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
+    strlcpy(out->imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+}
+
+// Gear indicator reuses the label params for prefix/suffix/hideWhenInvalid.
+// Kept separate because decimalPlaces is forced to 0 (the firmware always
+// renders a single character) and alertThreshold isn't part of the schema.
+void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
+    out->decimalPlaces = 0;
+    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
+    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
+    out->hideWhenInvalid = cfg["hideWhenInvalid"] | false;
+    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
+    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+}
+
 void parseWidget(JsonObjectConst src, CfgWidget *w) {
     strlcpy(w->id, src["id"] | "", CFG_MAX_ID_LEN);
     strlcpy(w->signalId, src["signal"] | "", CFG_MAX_SIGNAL_LEN);
     w->type = parseWidgetType(src["type"] | "");
 
-    JsonObjectConst layout = src["layout"];
-    w->layout.x = layout["x"] | 0;
-    w->layout.y = layout["y"] | 0;
-    w->layout.w = layout["w"] | 80;
-    w->layout.h = layout["h"] | 60;
-    w->layout.zOrder = layout["zOrder"] | 0;
-
-    JsonObjectConst style = src["style"];
-    parseColor(style["primaryColor"] | "#FFFFFF", &w->style.primaryColor);
-    parseColor(style["secondaryColor"] | "#333333", &w->style.secondaryColor);
-    parseColor(style["warningColor"] | "#FF8800", &w->style.warningColor);
-    parseColor(style["criticalColor"] | "#FF0000", &w->style.criticalColor);
-    parseColor(style["textColor"] | "#FFFFFF", &w->style.textColor);
-    w->style.fontSize = style["fontSize"] | 16;
-    const char *borderHex = style["borderColor"] | nullptr;
-    w->style.hasBorder = (borderHex != nullptr);
-    if (w->style.hasBorder)
-        parseColor(borderHex, &w->style.borderColor);
-    // respectDayMode default = true preserves the v0.7.0 contract (#171).
-    // Absent or non-bool JSON falls back to true. Issue #191.
-    w->style.respectDayMode = style["respectDayMode"] | true;
+    parseWidgetLayout(src["layout"], &w->layout);
+    parseWidgetStyle(src["style"], &w->style);
 
     JsonObjectConst cfg = src["config"];
     switch (w->type) {
-        case WidgetType::GAUGE: {
-            // dashboard.json uses type "gauge" with displayStyle "bar" or "numeric"
-            // to encode sub-types — reclassify here so downstream renderers are simple.
-            const char *displayStyle = cfg["displayStyle"] | "arc";
-            // alertThreshold: optional, NaN sentinel = disabled (issue #133)
-            const float alertThreshold =
-                cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
-            if (strcmp(displayStyle, "bar") == 0) {
-                w->type = WidgetType::BAR;
-                w->bar.minValue = cfg["minValue"] | 0.0f;
-                w->bar.maxValue = cfg["maxValue"] | 100.0f;
-                w->bar.warningLevel = cfg["warningLevel"] | 80.0f;
-                w->bar.dangerLevel = cfg["dangerLevel"] | 95.0f;
-                w->bar.alertThreshold = alertThreshold;
-                const char *orient = cfg["barOrientation"] | "horizontal";
-                w->bar.isVertical = (strcmp(orient, "vertical") == 0);
-                w->bar.decimalPlaces = cfg["decimalPlaces"] | 0;
-                strlcpy(w->bar.prefix, cfg["prefix"] | "", sizeof(w->bar.prefix));
-                strlcpy(w->bar.suffix, cfg["suffix"] | "", sizeof(w->bar.suffix));
-                strlcpy(w->bar.label, cfg["label"] | "", sizeof(w->bar.label));
-                w->bar.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
-                strlcpy(w->bar.iconName, cfg["iconName"] | "", sizeof(w->bar.iconName));
-            } else if (strcmp(displayStyle, "numeric") == 0) {
-                // Large numeric readout — render as a label widget
-                w->type = WidgetType::LABEL;
-                w->label.decimalPlaces = cfg["decimalPlaces"] | 0;
-                w->label.alertThreshold = alertThreshold;
-                strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
-                strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
-                w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
-                strlcpy(w->label.label, cfg["label"] | "", sizeof(w->label.label));
-                w->label.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
-            } else {
-                // "arc" or unrecognised — arc gauge
-                w->gauge.minValue = cfg["minValue"] | 0.0f;
-                w->gauge.maxValue = cfg["maxValue"] | 100.0f;
-                w->gauge.warningLevel = cfg["warningLevel"] | 80.0f;
-                w->gauge.dangerLevel = cfg["dangerLevel"] | 95.0f;
-                w->gauge.alertThreshold = alertThreshold;
-                w->gauge.showArc = cfg["showArc"] | true;
-                w->gauge.revFlash = cfg["revFlash"] | false;
-                w->gauge.decimalPlaces = cfg["decimalPlaces"] | 0;
-                strlcpy(w->gauge.prefix, cfg["prefix"] | "", sizeof(w->gauge.prefix));
-                strlcpy(w->gauge.suffix, cfg["suffix"] | "", sizeof(w->gauge.suffix));
-                strlcpy(w->gauge.label, cfg["label"] | "", sizeof(w->gauge.label));
-                w->gauge.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
-                w->gauge.arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "zones");
-                strlcpy(w->gauge.iconName, cfg["iconName"] | "", sizeof(w->gauge.iconName));
-            }
+        case WidgetType::GAUGE:
+            parseGaugeWidget(cfg, w);
             break;
-        }
         case WidgetType::LABEL:
-            w->label.decimalPlaces = cfg["decimalPlaces"] | 0;
-            w->label.alertThreshold =
-                cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
-            strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
-            strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
-            w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
-            strlcpy(w->label.label, cfg["label"] | "", sizeof(w->label.label));
-            w->label.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+            parseLabelParams(cfg, &w->label, readAlertThreshold(cfg));
             break;
         case WidgetType::WARNING:
-            w->warning.invertLogic = cfg["invertLogic"] | false;
-            w->warning.threshold = cfg["threshold"] | 0.5f;
-            strlcpy(w->warning.iconName, cfg["iconName"] | "", sizeof(w->warning.iconName));
-            strlcpy(w->warning.label, cfg["label"] | "", sizeof(w->warning.label));
-            w->warning.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+            parseWarningWidget(cfg, &w->warning);
             break;
         case WidgetType::BAR:
-            // Direct "type": "bar" — BarWidgetConfig schema (always horizontal)
-            w->bar.minValue = cfg["minValue"] | 0.0f;
-            w->bar.maxValue = cfg["maxValue"] | 100.0f;
-            w->bar.warningLevel = cfg["warningLevel"] | NAN;
-            w->bar.dangerLevel = cfg["dangerLevel"] | NAN;
-            w->bar.alertThreshold =
-                cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
-            w->bar.isVertical = false;
-            w->bar.decimalPlaces = cfg["decimalPlaces"] | 0;
-            strlcpy(w->bar.prefix, cfg["prefix"] | "", sizeof(w->bar.prefix));
-            strlcpy(w->bar.suffix, cfg["suffix"] | "", sizeof(w->bar.suffix));
-            strlcpy(w->bar.label, cfg["label"] | "", sizeof(w->bar.label));
-            w->bar.labelPosition = parseLabelPos(cfg["labelPosition"] | "bottom-center");
-            strlcpy(w->bar.iconName, cfg["iconName"] | "", sizeof(w->bar.iconName));
+            parseBarWidget(cfg, &w->bar);
             break;
-        case WidgetType::BUTTON: {
-            strlcpy(w->button.label, cfg["label"] | "", CFG_MAX_NAME_LEN);
-            strlcpy(w->button.iconPath, cfg["iconPath"] | "", CFG_MAX_PATH_LEN);
-            strlcpy(w->button.iconName, cfg["iconName"] | "", sizeof(w->button.iconName));
-            w->button.isToggle = cfg["isToggle"] | false;
-            w->button.showIcon = cfg["showIcon"] | true;
-            w->button.showLabel = cfg["showLabel"] | true;
-            JsonObjectConst colors = cfg["colors"];
-            w->button.hasColors = !colors.isNull();
-            if (w->button.hasColors) {
-                parseColor(colors["normal"] | "#FFFFFF", &w->button.colorNormal);
-                parseColor(colors["active"] | "#FFFFFF", &w->button.colorActive);
-            } else {
-                w->button.colorNormal.rgb = 0x000000;
-                w->button.colorActive.rgb = 0x000000;
-            }
-
-            // Parse actions[]; fall back to legacy targetPageId when absent/empty.
-            w->button.actionsCount = 0;
-            JsonArrayConst actionsArr = cfg["actions"];
-            if (!actionsArr.isNull()) {
-                const size_t total = actionsArr.size();
-                if (total > CFG_MAX_BUTTON_ACTIONS) {
-                    LOG_WARN(
-                        "BTN",
-                        "button '%s': %u actions exceed CFG_MAX_BUTTON_ACTIONS=%u — extras ignored",
-                        w->id, static_cast<unsigned>(total),
-                        static_cast<unsigned>(CFG_MAX_BUTTON_ACTIONS));
-                }
-                for (JsonObjectConst a : actionsArr) {
-                    if (w->button.actionsCount >= CFG_MAX_BUTTON_ACTIONS)
-                        break;
-                    CfgButtonAction parsed;
-                    parseButtonAction(a, &parsed);
-                    if (parsed.type == CfgButtonActionType::UNKNOWN) {
-                        const char *type = a["type"] | "";
-                        LOG_WARN("BTN", "button '%s': unknown action type '%s' — skipped", w->id,
-                                 type);
-                        continue;
-                    }
-                    w->button.actions[w->button.actionsCount++] = parsed;
-                }
-            }
-            if (w->button.actionsCount == 0) {
-                const char *legacy = cfg["targetPageId"] | "";
-                if (legacy[0] != '\0') {
-                    CfgButtonAction &a = w->button.actions[0];
-                    a.type = CfgButtonActionType::NAV_PAGE;
-                    strlcpy(a.pageId, legacy, sizeof(a.pageId));
-                    a.mapIndex = 0;
-                    a.canFrameId = 0;
-                    a.canDataLen = 0;
-                    a.canExtended = false;
-                    memset(a.canData, 0, sizeof(a.canData));
-                    w->button.actionsCount = 1;
-                }
-            }
+        case WidgetType::BUTTON:
+            parseButtonWidget(cfg, w->id, &w->button);
             break;
-        }
         case WidgetType::TIMER:
-            w->timer.autoStart = cfg["autoStart"] | false;
-            w->timer.formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
-            strlcpy(w->timer.label, cfg["label"] | "", sizeof(w->timer.label));
-            w->timer.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+            parseTimerWidget(cfg, &w->timer);
             break;
         case WidgetType::IMAGE:
-            strlcpy(w->image.imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
-            strlcpy(w->image.label, cfg["label"] | "", sizeof(w->image.label));
-            w->image.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+            parseImageWidget(cfg, &w->image);
             break;
         case WidgetType::GEAR_IND:
-            // Gear indicator reuses label params for prefix/suffix/hideWhenInvalid
-            w->label.decimalPlaces = 0;
-            strlcpy(w->label.prefix, cfg["prefix"] | "", sizeof(w->label.prefix));
-            strlcpy(w->label.suffix, cfg["suffix"] | "", sizeof(w->label.suffix));
-            w->label.hideWhenInvalid = cfg["hideWhenInvalid"] | false;
-            strlcpy(w->label.label, cfg["label"] | "", sizeof(w->label.label));
-            w->label.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
+            parseGearWidget(cfg, &w->label);
             break;
+        case WidgetType::UNKNOWN:
         default:
             break;
     }
