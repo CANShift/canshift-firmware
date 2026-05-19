@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "ota-hmac",
+]
+
+# Workspace-shared profile knobs — Phase 1 host build only. ESP32 target
+# integration (espup, xtensa-esp32-none-elf) lands in Phase 2 with the
+# PlatformIO pre-build script.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
