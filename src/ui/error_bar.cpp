@@ -1,12 +1,29 @@
 // error_bar.cpp — Persistent bottom error overlay (lv_layer_top).
 
 #include "error_bar.h"
-#include "ui/font_manager.h"
+#include "app_config.h"
 #include "diag/error_store.h"
+#include "diag/logger.h"
+#include "ui/font_manager.h"
 
+#include <esp_heap_caps.h>
 #include <lvgl.h>
 #include <stdio.h>
 #include <string.h>
+
+// Minimum largest-free-block needed before we let an LVGL-touching dismiss
+// handler run. The dismiss path eventually rehides `s_container`, which
+// triggers LVGL invalidate + layout reflow; both allocate from the LVGL
+// pool. Under the heap fragmentation that follows a theme toggle / page
+// rebuild (issue #973), those allocations fail and the assert handler
+// resets the ESP. Below this floor we bail the visual update and only
+// clear the store — `ErrorBar::update()` will retry the visual on the
+// next tick once the heap has recovered.
+static constexpr size_t DISMISS_MIN_HEAP_BYTES = 1024;
+
+static inline bool heapHealthyForLvglUpdate() {
+    return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= DISMISS_MIN_HEAP_BYTES;
+}
 
 // ---------------------------------------------------------------------------
 // Layout constants
@@ -202,11 +219,19 @@ void ErrorBar::init() {
     lv_obj_set_width(s_countLabel, LV_SIZE_CONTENT);
 
     s_dismissBtn = makeDismissBtn(s_headerRow);
-    // Dismiss button: clear all errors and stop propagation (don't toggle expand)
+    // Dismiss button: clear all errors and stop propagation (don't toggle expand).
+    // Heap-guarded so a tap doesn't reboot the ESP when the post-rebuild pool
+    // is too fragmented for LVGL's cascaded invalidate to allocate (#973).
     lv_obj_add_event_cb(
         s_dismissBtn,
         [](lv_event_t *e) {
             lv_event_stop_bubbling(e);
+            if (!heapHealthyForLvglUpdate()) {
+                LOG_WARN("ERRBAR", "dismiss deferred — heap.largest=%u below floor",
+                         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+                ErrorStore::clear(); // State-only; ErrorBar::update retries on next tick.
+                return;
+            }
             ErrorStore::clear();
             setExpanded(false);
         },
@@ -258,13 +283,21 @@ void ErrorBar::init() {
 
     // Per-row dismiss buttons. `getAll` returns newest-first into the same
     // row slots, so the `i` index baked into the lambda's user_data maps
-    // directly to ErrorStore's newest-first row index (issue #898).
+    // directly to ErrorStore's newest-first row index (issue #898). Same
+    // heap guard as the header dismiss (#973).
     for (uint8_t i = 0; i < MAX_ROWS; i++) {
         lv_obj_add_event_cb(
             s_detailDism[i],
             [](lv_event_t *e) {
                 lv_event_stop_bubbling(e);
                 const uintptr_t row = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+                if (!heapHealthyForLvglUpdate()) {
+                    LOG_WARN(
+                        "ERRBAR", "row dismiss deferred — heap.largest=%u below floor",
+                        static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+                    ErrorStore::dismissAt(static_cast<uint8_t>(row));
+                    return;
+                }
                 ErrorStore::dismissAt(static_cast<uint8_t>(row));
                 if (ErrorStore::getCount() == 0)
                     setExpanded(false);
@@ -280,6 +313,14 @@ void ErrorBar::update() {
     const uint32_t version = ErrorStore::getVersion();
     if (version == s_lastVersion)
         return; // Nothing changed
+
+    // Defer the visual sync when the LVGL pool is too fragmented to safely
+    // reflow (#973). Leave `s_lastVersion` untouched so the next tick (or
+    // the one after, once the heap has coalesced enough) picks the new
+    // version up and finishes the visual update.
+    if (!heapHealthyForLvglUpdate())
+        return;
+
     s_lastVersion = version;
 
     const uint8_t count = ErrorStore::getCount();
