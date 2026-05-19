@@ -10,6 +10,7 @@
 
 #include "can/signal_map.h"
 #include "diag/error_store.h"
+#include "diag/logger.h"
 #include "runtime/signal_store.h"
 #include "ui/font_manager.h"
 #include "ui/gesture_controller.h"
@@ -162,7 +163,12 @@ void buildFlagsSection(lv_obj_t *parent) {
         lv_obj_set_style_pad_column(row, 6, LV_PART_MAIN);
 
         lv_obj_t *badge = lv_obj_create(row);
-        lv_obj_set_size(badge, 8, 8);
+        // 12×12 (was 8×8) — at 8 px the rounded-corner mask was too tight for
+        // LVGL's draw-mask resolver to render a visible circle, so the badge
+        // looked like a small coloured square. 12 px is large enough that
+        // LV_RADIUS_CIRCLE produces a clearly circular dot at the same row
+        // height (ROW_H=18).
+        lv_obj_set_size(badge, 12, 12);
         lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         lv_obj_set_style_bg_color(badge, lv_color_hex(COL_FLAG_INACTIVE), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
@@ -312,6 +318,14 @@ void init() {
     lv_obj_set_style_radius(s_panel, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(s_panel, 2, LV_PART_MAIN);
     lv_obj_set_scroll_dir(s_panel, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(s_panel, LV_SCROLLBAR_MODE_AUTO);
+    // FLAG_SCROLLABLE is default-on for `lv_obj_create`, but other code in
+    // PR #952 cleared it on row containers via `applyRowReset`; keep it
+    // explicit here so a future copy-paste from the row helper doesn't
+    // disable it on the panel itself. Without this flag the section list
+    // (flags + scalars + errors) overflows past PANEL_H and the user can't
+    // reach the bottom rows.
+    lv_obj_add_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(s_panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(s_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -352,6 +366,10 @@ void init() {
     lv_obj_center(closeLabel);
 
     s_initDone = true;
+    // Diagnostic stamp — bumped each time this PR's bug-batch lands so the
+    // user can confirm at boot that the device is actually running the new
+    // build (vs. a stale upload). Grep the serial log for "DIAG_DRAWER".
+    LOG_INFO("DIAG_DRAWER", "init done — z-reaffirm + scroll + 12px badges + frac digits build");
 }
 
 void open() {
@@ -383,6 +401,12 @@ void close() {
 void update() {
     if (!s_panel || !s_open)
         return;
+
+    // Reaffirm z-top every tick while the drawer is open. open() alone is not
+    // enough — any subsequent z-touching operation on a same-layer sibling
+    // (top bar item rebuild, settings panel show/hide, …) can leave the panel
+    // below the top bar visually, making the X tap target unreachable.
+    lv_obj_move_foreground(s_panel);
 
     // Flags
     for (uint8_t i = 0; i < FLAGS_COUNT; ++i) {

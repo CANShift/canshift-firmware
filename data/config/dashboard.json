@@ -88,19 +88,29 @@
           }
         },
         {
-          "id": "gear_l",
-          "type": "gear",
-          "signal": "gear",
+          "id": "iat_overview_l",
+          "type": "gauge",
+          "signal": "iat_c",
           "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
-            "primaryColor": "#FF4444",
+            "primaryColor": "#4FC3F7",
             "secondaryColor": "#2A2A2A",
             "warningColor": "#FF8800",
             "criticalColor": "#FF4444",
             "textColor": "#FFFFFF",
-            "fontSize": 36
+            "fontSize": 22
           },
-          "config": { "type": "gear", "decimalPlaces": 0, "label": "Gear", "labelPosition": "bottom-left" }
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "iat",
+            "minValue": -20,
+            "maxValue": 80,
+            "dangerLevel": 60,
+            "decimalPlaces": 0,
+            "label": "IAT",
+            "labelPosition": "bottom-left"
+          }
         },
         {
           "id": "oil_press_l",
@@ -186,29 +196,19 @@
           }
         },
         {
-          "id": "iat_xl",
-          "type": "gauge",
-          "signal": "iat_c",
+          "id": "gear_xl",
+          "type": "gear",
+          "signal": "gear",
           "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
-            "primaryColor": "#FFFFFF",
+            "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
             "warningColor": "#FF8800",
             "criticalColor": "#FF4444",
             "textColor": "#FFFFFF",
-            "fontSize": 40
+            "fontSize": 48
           },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "iconName": "iat",
-            "minValue": -20,
-            "maxValue": 80,
-            "dangerLevel": 60,
-            "decimalPlaces": 0,
-            "label": "IAT",
-            "labelPosition": "bottom-left"
-          }
+          "config": { "type": "gear", "decimalPlaces": 0, "label": "Gear", "labelPosition": "bottom-left" }
         },
         {
           "id": "lambda_l",
@@ -261,29 +261,53 @@
           }
         },
         {
-          "id": "tps_bar",
+          "id": "tps_l",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 0, "y": 168, "w": 320, "h": 56, "zOrder": 0 },
+          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
-            "primaryColor": "#FF4444",
+            "primaryColor": "#FB8C00",
             "secondaryColor": "#2A2A2A",
             "warningColor": "#FF8800",
             "criticalColor": "#FF4444",
             "textColor": "#FFFFFF",
-            "fontSize": 16
+            "fontSize": 22
           },
           "config": {
             "type": "gauge",
-            "displayStyle": "bar",
+            "displayStyle": "numeric",
             "iconName": "throttle",
-            "barOrientation": "horizontal",
             "minValue": 0,
             "maxValue": 100,
             "dangerLevel": 95,
             "decimalPlaces": 0,
             "label": "TPS",
-            "labelPosition": "bottom-center"
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "battery_engine_l",
+          "type": "gauge",
+          "signal": "battery_volts",
+          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FBC02D",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "battery",
+            "minValue": 10,
+            "maxValue": 15,
+            "dangerLevel": 11,
+            "decimalPlaces": 1,
+            "label": "Battery",
+            "labelPosition": "bottom-left"
           }
         }
       ]

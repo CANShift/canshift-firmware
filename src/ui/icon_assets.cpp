@@ -104,8 +104,13 @@ namespace {
 // Heap guard mirrors lvgl_fs_driver.cpp: if the largest free block is below
 // the FS-open threshold, decoding will fail anyway and may trip the newlib
 // __sfp() abort. Skip the preload in that case — the asset will be retried
-// on demand by the widget layer.
-constexpr size_t PRELOAD_MIN_HEAP_BYTES = 1024;
+// on demand by the widget layer. Lowered from 1024 → 512 after observing
+// the post-rebuild heap dropping to ~380 B and the theme-icon preload then
+// skipping — leaving the cache cold and the day/night toggle blank.
+// 512 is the smallest contiguous block that reliably holds an
+// `_lv_img_cache_entry_t` + a small decoder dsc; if even that fails the
+// caller bails gracefully (LVGL returns nullptr from cache_open).
+constexpr size_t PRELOAD_MIN_HEAP_BYTES = 512;
 
 // In-place "have we seen this name" tracker — avoids preloading the same
 // asset twice when several widgets reference it. Sized to the IconAssets

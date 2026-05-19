@@ -263,7 +263,7 @@
          * reload that fails under heap fragmentation (#956). Sized to cover
          * the day/night theme icons + a typical dashboard's sensor icons;
          * ~1.2 KB per cached 24×24 RGB565 entry. */
-        #define LV_IMG_CACHE_DEF_SIZE 12
+        #define LV_IMG_CACHE_DEF_SIZE 24
         #define LV_USE_LABEL 1 /* Text labels */
         #define LV_USE_LINE 0     /* Unused — drop class to save flash */
         #define LV_USE_ROLLER 0

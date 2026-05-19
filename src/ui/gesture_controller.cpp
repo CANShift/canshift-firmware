@@ -115,8 +115,18 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
     lv_indev_get_point(indev, &p);
 
     if (state == LV_INDEV_STATE_RELEASED) {
-        if (s_drag.active)
+        if (s_drag.active) {
+            const bool wasTracking = s_drag.tracking;
             onDragRelease();
+            // Settings swipe just released — clear the indev so LVGL's velocity-
+            // based gesture latch doesn't fire LV_DIR_TOP/BOTTOM on the next
+            // checkGestures tick. Without this, a swipe-up that closes settings
+            // also opens the diag drawer because both react to LV_DIR_TOP.
+            if (wasTracking) {
+                lv_indev_reset_long_press(indev);
+                lv_indev_reset(indev, nullptr);
+            }
+        }
         return;
     }
 

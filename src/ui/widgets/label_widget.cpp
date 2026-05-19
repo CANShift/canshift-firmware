@@ -53,9 +53,11 @@ const lv_font_t *valueFontFor(uint8_t size) {
 }
 
 struct LabelTag {
-    lv_obj_t *valueLabel;
-    lv_obj_t *unitLabel;  // Optional small grey suffix anchored bottom-right.
-                          // nullptr when no suffix configured.
+    lv_obj_t *valueLabel; // Integer-part label (left of decimal point).
+    lv_obj_t *fracLabel;  // Fractional-part label ".X" at ~70 % of the
+                          // integer font. nullptr when decimalPlaces==0.
+    lv_obj_t *unitLabel;  // Optional small grey suffix anchored to the
+                          // value baseline. nullptr when no suffix.
     float alertThreshold; // NaN = disabled (issue #133)
     AlertFlash::State alert;
     // Cached numeric value & validity — short-circuits the per-tick snprintf
@@ -98,7 +100,41 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
     }
 
-    lv_obj_t *label = lv_label_create(cont);
+    // Layout strategy: a flex row centered horizontally holds [int][frac][unit]
+    // so the three labels stay baseline-aligned with a tight gap and the whole
+    // group remains centered regardless of the integer / fractional widths.
+    // Before this refactor the value was a single label and decimals rendered
+    // at the same font size as the integer part; users wanted AFR / voltage /
+    // lambda / pressure decimals to read clearly subordinate to the headline
+    // number (matches the studio preview after PR #967).
+    lv_obj_t *valueRow = lv_obj_create(cont);
+    if (!valueRow) {
+        LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
+        lv_obj_del(cont);
+        return nullptr;
+    }
+    // Width = full widget so the flex row can centre its children
+    // horizontally; height = SIZE_CONTENT so the row shrinks to the tallest
+    // label and we can centre the whole row vertically inside the widget.
+    lv_obj_set_size(valueRow, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(valueRow, 3, LV_PART_MAIN);
+    lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
+    // END on the cross axis keeps int / frac / unit baseline-aligned at the
+    // bottom of the row — matches the visual baseline of the integer text.
+    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    // Centre the row vertically in the widget. When there's an auto signal
+    // header (sigHeaderH > 0) bias the row downward by half the header so
+    // the value text sits at the visual centre of the FREE space below the
+    // header, not the centre of the whole widget (which would clip into the
+    // header). Matches the original layout users expect from before the
+    // flex-row refactor.
+    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, static_cast<int16_t>(sigHeaderH / 2));
+
+    lv_obj_t *label = lv_label_create(valueRow);
     if (!label) {
         LOG_ERROR("WF", "lv_label_create failed for '%s' — LVGL pool OOM", cfg.id);
         lv_obj_del(cont);
@@ -108,53 +144,53 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
-
-    // Suffix is rendered inline with the value when shown ("78°C"), but is
-    // dropped entirely when a user label is set — the label already conveys
-    // the unit (e.g. "COOLANT" → °C is implicit). Frees screen real estate.
-    const int16_t valueYOffset = static_cast<int16_t>(sigHeaderH / 2);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, valueYOffset);
-
     {
-        // Numeric widgets render the value bare ("78", "195"). The unit
-        // (°C, km/h, …) is conveyed by the label itself — repeating it on
-        // the value just clips wide numbers ("195km/h" → "195k") and adds
-        // visual noise. Arc and bar widgets keep their suffix.
         char buf[40];
-        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
-                                   0.0f, nullptr);
+        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, 0, 0.0f, nullptr);
         lv_label_set_text(label, buf);
+    }
+
+    // Fractional-part label (".X", ".XX", …). Created only when the widget
+    // actually has decimals; for integer-only signals (RPM, speed) the label
+    // is omitted so we don't burn an LVGL obj on a permanently empty slot.
+    lv_obj_t *fracLabel = nullptr;
+    if (cfg.label.decimalPlaces > 0) {
+        fracLabel = lv_label_create(valueRow);
+        if (fracLabel) {
+            const uint8_t intSize = pickValueFontSize(valueLineH, cfg.layout.w);
+            // ~70 % of the integer font, mirroring the studio FRAC_FONT_SCALE.
+            // Clamped low so the smallest cells still get a readable size.
+            uint8_t fracSize = static_cast<uint8_t>((intSize * 7) / 10);
+            if (fracSize < 12)
+                fracSize = 12;
+            lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
+            lv_obj_set_style_text_font(fracLabel, valueFontFor(fracSize), 0);
+            lv_label_set_text(fracLabel, "");
+        }
     }
 
     if (hasUserLabel) {
         WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
     }
 
-    // Unit label — small grey, anchored just to the right of the value with
-    // a small gap so the read feels like a single "value + unit" pair (e.g.
-    // "195 km/h", "13.3 V") rather than two scattered elements. Earlier
-    // attempts anchored this at LV_ALIGN_BOTTOM_RIGHT of the widget, which
-    // visually disconnected the unit from the number it qualifies. Resolved
-    // from the bound signal's `unit` field (signals.json) so the dashboard
-    // config doesn't need to repeat it per widget; an explicit
-    // `cfg.label.suffix` still wins as a manual override.
+    // Unit label — small grey, sits to the right of the value (frac) in the
+    // same flex row so the row stays centered as the unit string changes.
+    // Resolved from the bound signal's `unit` (signals.json) by default;
+    // explicit `cfg.label.suffix` wins as a manual override.
     lv_obj_t *unitLabel = nullptr;
     const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
     if (unit[0] != '\0') {
-        unitLabel = lv_label_create(cont);
+        unitLabel = lv_label_create(valueRow);
         if (unitLabel) {
             lv_obj_set_style_text_color(unitLabel, lv_color_hex(0x888888), 0);
             lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
             lv_label_set_text(unitLabel, unit);
-            // Align bottom-aligned to the value label so the unit baseline
-            // sits at the value baseline — matches the studio numeric
-            // renderer's `alignItems: baseline` row.
-            lv_obj_align_to(unitLabel, label, LV_ALIGN_OUT_RIGHT_BOTTOM, 4, -2);
         }
     }
 
     auto *tag = new LabelTag{};
     tag->valueLabel = label;
+    tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
     tag->alertThreshold = cfg.label.alertThreshold;
     tag->lastValue = NAN;
@@ -165,10 +201,34 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
+    if (fracLabel)
+        AlertFlash::watchLabel(tag->alert, fracLabel, textRgb);
 
     WidgetHelpers::attachTagDeleter(cont, tag);
 
     return cont;
+}
+
+// Split a formatted value buffer at the first '.' into integer and
+// fractional substrings. The fractional output includes the dot itself
+// (".3", ".09") so the value reads naturally when the two labels are
+// concatenated visually. Either output may be empty (no fraction → frac
+// is "", no integer-before-dot is impossible by construction of
+// `formatValue`). Sized to the same 40-char buffers used upstream.
+static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
+                         size_t fracCap) {
+    const char *dot = strchr(in, '.');
+    if (!dot) {
+        strlcpy(intOut, in, intCap);
+        if (fracCap > 0)
+            fracOut[0] = '\0';
+        return;
+    }
+    const size_t intLen = static_cast<size_t>(dot - in);
+    const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
+    memcpy(intOut, in, copyInt);
+    intOut[copyInt] = '\0';
+    strlcpy(fracOut, dot, fracCap);
 }
 
 void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -183,6 +243,8 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         // reallocates and invalidates the label area (issue #236).
         if (tag->lastValid || !std::isnan(tag->lastValue)) {
             lv_label_set_text(tag->valueLabel, "");
+            if (tag->fracLabel)
+                lv_label_set_text(tag->fracLabel, "");
             tag->lastValid = false;
             tag->lastValue = NAN;
         }
@@ -200,13 +262,18 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const bool unchanged =
         tag->lastValid == valid && !std::isnan(tag->lastValue) && displayValue == tag->lastValue;
     if (!unchanged) {
-        // Suffix dropped unconditionally — the label conveys the unit. Wide
-        // numeric values ("195km/h" → "195k") were getting clipped on the right
-        // edge of 80-px-wide widgets. See create() for full rationale.
         char buf[40];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
                                    displayValue, nullptr);
-        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+        if (tag->fracLabel) {
+            char intPart[24];
+            char fracPart[16];
+            splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
+            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
+            WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
+        } else {
+            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+        }
         tag->lastValue = displayValue;
         tag->lastValid = valid;
     }
@@ -216,6 +283,11 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (tag->ramp && !tag->alert.active) {
         const uint32_t tint = valid ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tint);
+        if (tag->fracLabel) {
+            // Re-use the same cached tint so both labels track in lockstep.
+            uint32_t fracLast = tag->lastTintRgb;
+            WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, tint);
+        }
     }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).

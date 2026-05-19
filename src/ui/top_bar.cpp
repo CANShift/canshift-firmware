@@ -239,7 +239,13 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             break;
         }
         case TopBarItemKind::SIGNAL: {
-            obj = makeBarLabel(s_bar, "--.-", COLOR_LABEL);
+            // Start hidden — `updateDynSignal` reveals the item the first time
+            // the bound signal goes valid. Without this hide-by-default, the
+            // top bar shows a misleading `--.-` placeholder for any signal
+            // that's never been received this boot (CAN bus disconnected,
+            // wrong frame id, …) and clutters the bar permanently.
+            obj = makeBarLabel(s_bar, "", COLOR_LABEL);
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
         }
@@ -487,24 +493,31 @@ static void updateDynStatusDot(uint8_t idx, DynItem &d) {
 
 static void updateDynSignalLabel(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
+    const bool valid = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid);
+
+    // Hide entirely when the bound signal hasn't arrived (CAN disconnected,
+    // wrong frame id, …). A visible `--.-` placeholder on the top bar is
+    // worse than the slot disappearing — it implies a real reading is
+    // imminent when the bus is dead.
+    if (!valid) {
+        if (!lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
+            lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    if (lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
+        lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+
     const char *fmt = d.format[0] ? d.format : "%.1f";
     char buf[16];
-    uint32_t targetColor;
-    if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
-        const float v = SignalStore::read(sid, 0.0f);
-        FloatFormat::formatFromSpec(buf, sizeof(buf), v, fmt);
-        targetColor = COLOR_LABEL;
-    } else {
-        strlcpy(buf, "--.-", sizeof(buf));
-        targetColor = COLOR_MUTED;
-    }
+    const float v = SignalStore::read(sid, 0.0f);
+    FloatFormat::formatFromSpec(buf, sizeof(buf), v, fmt);
     if (strcmp(buf, d.lastText) != 0) {
         lv_label_set_text(d.obj, buf);
         strlcpy(d.lastText, buf, sizeof(d.lastText));
     }
-    if (targetColor != d.lastColor) {
-        lv_obj_set_style_text_color(d.obj, lv_color_hex(targetColor), 0);
-        d.lastColor = targetColor;
+    if (COLOR_LABEL != d.lastColor) {
+        lv_obj_set_style_text_color(d.obj, lv_color_hex(COLOR_LABEL), 0);
+        d.lastColor = COLOR_LABEL;
     }
 }
 

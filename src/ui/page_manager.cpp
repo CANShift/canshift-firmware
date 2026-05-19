@@ -7,6 +7,7 @@
 #include "diag_drawer.h"
 #include "error_bar.h"
 #include "gesture_controller.h"
+#include "icon_assets.h"
 #include "setup_screen.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
@@ -128,6 +129,15 @@ void rebuildAllPages() {
     if (!dash.loaded || s_pageCount == 0)
         return;
 
+    // Pre-warm the image cache BEFORE the destructive teardown below. At this
+    // point the heap is still in its "between-rebuilds" state and any LVGL
+    // image cache entries that survived from the previous boot are still
+    // valid. Warming both theme icons + the dashboard asset set here means
+    // the rebuild's subsequent `lv_img_set_src` calls hit the cache rather
+    // than triggering an FS open that would fail under the fragmented heap
+    // we'll have AFTER the rebuild completes.
+    IconAssets::preloadDashboardAssets();
+
     uint8_t savedIdx = s_currentIdx;
 
     // Load a blank screen so we can safely delete all page screens
@@ -161,6 +171,15 @@ void rebuildAllPages() {
     }
 
     lv_obj_del(dummy);
+
+    // Re-warm the LVGL image cache BEFORE swapping the top bar icon. The
+    // theme-toggle rebuild has just thrashed the image cache (each new
+    // sensor icon evicts an older one), and the top bar's icon swap below
+    // will trigger an FS open for the new day/night icon — which fails
+    // under the heap fragmentation that follows the rebuild (#973). Re-
+    // warming here uses the same heap-guarded preload path as boot, so it
+    // bails gracefully when the pool is too starved instead of crashing.
+    IconAssets::preloadDashboardAssets();
 
     // Update top bar colors for the new theme
     TopBar::reapplyTheme();

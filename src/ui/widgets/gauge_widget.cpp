@@ -135,9 +135,32 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
     return arc;
 }
 
+// Split a formatted numeric string at the first '.' into integer and
+// fractional parts. The fractional buffer includes the dot itself (".3",
+// ".09") so concatenating int+frac visually reads as the original value.
+// Either output can be empty (no '.' → frac is ""). Mirrors the helper
+// in label_widget.cpp.
+static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
+                         size_t fracCap) {
+    const char *dot = strchr(in, '.');
+    if (!dot) {
+        strlcpy(intOut, in, intCap);
+        if (fracCap > 0)
+            fracOut[0] = '\0';
+        return;
+    }
+    const size_t intLen = static_cast<size_t>(dot - in);
+    const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
+    memcpy(intOut, in, copyInt);
+    intOut[copyInt] = '\0';
+    strlcpy(fracOut, dot, fracCap);
+}
+
 // Tag structure stored in LVGL user data
 struct GaugeTag {
     lv_obj_t *valueLabel;
+    lv_obj_t *fracLabel; // Fractional-part label rendered at ~70 % of the
+                         // integer font. nullptr when decimalPlaces == 0.
     lv_obj_t *unitLabel;
     lv_obj_t *fillArc; // Gradient mode only — value arc whose colour is
                        // recomputed each tick. nullptr in zones mode.
@@ -274,23 +297,60 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const bool hasUnit = unitText[0] != '\0';
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    lv_obj_t *label = lv_label_create(cont);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
+    // Resolve the integer-tier font once; the fractional label below picks a
+    // smaller font from the same tier.
     const lv_font_t *font = FontManager::secondary(20);
-    if (cfg.layout.h >= 80)
+    uint8_t intFontSize = 20;
+    if (cfg.layout.h >= 80) {
         font = FontManager::secondary(24);
-    if (cfg.layout.h >= 110)
+        intFontSize = 24;
+    }
+    if (cfg.layout.h >= 110) {
         font = FontManager::primary(32);
+        intFontSize = 32;
+    }
+
+    // Value row — flex container holding [int][frac] baseline-aligned, so
+    // gauges with decimals (oil pressure, lambda, fuel pressure) render the
+    // fractional digits at ~70 % of the integer font. Matches the numeric
+    // widget treatment from PR #975 and the studio preview.
+    lv_obj_t *valueRow = lv_obj_create(cont);
+    lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
+    lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(valueRow, 2, LV_PART_MAIN);
+    lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+
+    lv_obj_t *label = lv_label_create(valueRow);
+    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, font, 0);
     {
-        // Initial readout: 0, formatted to the configured decimalPlaces with
-        // optional prefix — matches the "no signal yet → show 0" rule.
         char initBuf[24];
-        WidgetHelpers::formatValue(initBuf, sizeof(initBuf), cfg.gauge.prefix,
-                                   cfg.gauge.decimalPlaces, 0.0f, nullptr);
+        WidgetHelpers::formatValue(initBuf, sizeof(initBuf), cfg.gauge.prefix, 0, 0.0f, nullptr);
         lv_label_set_text(label, initBuf);
+    }
+
+    // Fractional-part label — created only when the gauge actually has
+    // decimals. For integer-only readouts (speed, RPM, coolant, boost in
+    // the current demo) the slot is skipped so we don't burn an LVGL obj.
+    lv_obj_t *fracLabel = nullptr;
+    if (cfg.gauge.decimalPlaces > 0) {
+        fracLabel = lv_label_create(valueRow);
+        if (fracLabel) {
+            uint8_t fracSize = static_cast<uint8_t>((intFontSize * 7) / 10);
+            if (fracSize < 12)
+                fracSize = 12;
+            const lv_font_t *fracFont =
+                (fracSize >= 20) ? FontManager::secondary(fracSize) : FontManager::label(fracSize);
+            lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
+            lv_obj_set_style_text_font(fracLabel, fracFont, 0);
+            lv_label_set_text(fracLabel, "");
+        }
     }
 
     // Unit label below value (optional)
@@ -309,6 +369,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Allocate and attach tag
     GaugeTag *tag = new GaugeTag{};
     tag->valueLabel = label;
+    tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
     tag->fillArc = fillArc;
     tag->minValue = minV;
@@ -348,6 +409,9 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Mount the alert overlay last so it sits on top of arcs and labels.
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
+    if (fracLabel) {
+        AlertFlash::watchLabel(tag->alert, fracLabel, textRgb);
+    }
     if (unitLabel) {
         AlertFlash::watchLabel(tag->alert, unitLabel, textRgb & 0x888888);
     }
@@ -375,7 +439,15 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             char buf[24];
             WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
                                        0.0f, nullptr);
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+            if (tag->fracLabel) {
+                char intPart[16];
+                char fracPart[12];
+                splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
+                WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
+                WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
+            } else {
+                WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+            }
             tag->lastValue = 0.0f;
             tag->lastValid = false;
         }
@@ -416,6 +488,10 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             labelColor = WidgetHelpers::kZoneDangerRgb;
         }
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
+        if (tag->fracLabel) {
+            uint32_t fracLast = tag->lastLabelRgb;
+            WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, labelColor);
+        }
     }
 
     // Update fill arc angle and colour. Order: palette > ramp > gradient >
@@ -449,7 +525,15 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     char buf[24];
     WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces, value,
                                nullptr);
-    WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+    if (tag->fracLabel) {
+        char intPart[16];
+        char fracPart[12];
+        splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
+        WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
+    } else {
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+    }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).
     // The effective threshold merges alertThreshold (#133) with revFlash (#263);
