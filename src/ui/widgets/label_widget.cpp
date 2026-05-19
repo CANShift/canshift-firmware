@@ -130,10 +130,14 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
     }
 
-    // Unit label — small grey, anchored bottom-right, mirroring the arc
-    // gauge's unit overlay. Resolved from the bound signal's `unit` field
-    // (signals.json) so the dashboard config doesn't need to repeat it per
-    // widget; an explicit `cfg.label.suffix` still wins as a manual override.
+    // Unit label — small grey, anchored just to the right of the value with
+    // a small gap so the read feels like a single "value + unit" pair (e.g.
+    // "195 km/h", "13.3 V") rather than two scattered elements. Earlier
+    // attempts anchored this at LV_ALIGN_BOTTOM_RIGHT of the widget, which
+    // visually disconnected the unit from the number it qualifies. Resolved
+    // from the bound signal's `unit` field (signals.json) so the dashboard
+    // config doesn't need to repeat it per widget; an explicit
+    // `cfg.label.suffix` still wins as a manual override.
     lv_obj_t *unitLabel = nullptr;
     const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
     if (unit[0] != '\0') {
@@ -142,7 +146,10 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
             lv_obj_set_style_text_color(unitLabel, lv_color_hex(0x888888), 0);
             lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
             lv_label_set_text(unitLabel, unit);
-            lv_obj_align(unitLabel, LV_ALIGN_BOTTOM_RIGHT, -3, -2);
+            // Align bottom-aligned to the value label so the unit baseline
+            // sits at the value baseline — matches the studio numeric
+            // renderer's `alignItems: baseline` row.
+            lv_obj_align_to(unitLabel, label, LV_ALIGN_OUT_RIGHT_BOTTOM, 4, -2);
         }
     }
 
