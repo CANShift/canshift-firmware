@@ -17,6 +17,9 @@
 #include <lvgl.h>
 #include <string.h>
 
+#include <atomic>
+#include <cstddef>
+
 namespace ActionDispatcher {
 
 namespace {
@@ -46,6 +49,24 @@ const char *cruiseOpName(CfgCruiseOp op) {
     }
 }
 
+// Pending-nav ring (issue #876). dispatchNavPage can be invoked concurrently
+// from two tasks: the UI task (on-screen button click, holds LVGL mutex) and
+// the input task (physical GPIO press in input_buttons.cpp, no LVGL mutex). A
+// single static buffer would race — both callers strlcpy into the same memory
+// before the lv_async_call payload pointer is dereferenced, and the async
+// would navigate to whichever pageId arrived second.
+//
+// Each dispatch claims its own slot via atomic head increment. NAV_RING_SIZE
+// matches LVGL's default async-queue depth (LV_ASYNC_CALL_SIZE = 8), so the
+// async callback always runs before the ring index wraps back to the same
+// slot under realistic press cadence.
+constexpr size_t NAV_RING_SIZE = 8;
+struct NavSlot {
+    char pageId[CFG_MAX_ID_LEN];
+};
+NavSlot s_navRing[NAV_RING_SIZE];
+std::atomic<size_t> s_navHead{0};
+
 void dispatchNavPage(const CfgButtonAction &a) {
     if (a.pageId[0] == '\0')
         return;
@@ -53,14 +74,15 @@ void dispatchNavPage(const CfgButtonAction &a) {
     // screen this button lives on (lazy-build path releases the departing
     // page), and the event loop would otherwise return into freed memory.
     // Closes the re-entrant navigation path in #717.
-    static char s_pendingNavId[CFG_MAX_ID_LEN];
-    strlcpy(s_pendingNavId, a.pageId, sizeof(s_pendingNavId));
+    const size_t idx = s_navHead.fetch_add(1, std::memory_order_relaxed) % NAV_RING_SIZE;
+    char *slot = s_navRing[idx].pageId;
+    strlcpy(slot, a.pageId, CFG_MAX_ID_LEN);
     lv_async_call(
         [](void *p) {
             const char *id = static_cast<const char *>(p);
             PageManager::navigateTo(id);
         },
-        s_pendingNavId);
+        slot);
 }
 
 void dispatchMapSwitch(const CfgButtonAction &a) {
