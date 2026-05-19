@@ -58,6 +58,11 @@ cmd = [
     TARGET_TRIPLE,
     "-Z",
     "build-std=core,alloc",
+    # `build-std-features = []` is set in rust/.cargo/config.toml so the
+    # default `compiler-builtins-mem` doesn't expose weak C-ABI memcpy /
+    # memmove / memset / memcmp from the staticlib — those collide with
+    # ESP-IDF's IRAM-resident versions and crash the device before flash
+    # cache is enabled (see config comment for the gory detail).
 ]
 
 print(f"[rust] {' '.join(cmd)}")
@@ -68,8 +73,37 @@ if res.returncode != 0:
 if not os.path.exists(LIB_PATH):
     fail(f"expected staticlib not found at {LIB_PATH}")
 
+# Localize weak `memcpy / memmove / memset / memcmp / bcmp` so the static
+# lib doesn't override ESP-IDF's IRAM-resident copies. Without this, the
+# device crashes in `read_id_core` before flash cache is enabled (the
+# linker picks Rust's flash-resident weak symbols over ESP-IDF's IRAM
+# strong ones — exact symptom is EXCCAUSE 7 "Cache disabled but cached
+# memory region accessed" in an infinite reboot loop). `compiler_builtins`
+# still provides the mangled internal versions, so Rust's own slice copy
+# / ptr::copy_nonoverlapping continue to work.
+OBJCOPY = os.path.join(
+    os.path.expanduser("~"),
+    ".rustup/toolchains/esp/xtensa-esp-elf/esp-15.2.0_20250920/xtensa-esp-elf/bin/xtensa-esp32-elf-objcopy",
+)
+if not os.path.exists(OBJCOPY):
+    # Fall back to PATH search — toolchain location can drift between
+    # espup releases.
+    OBJCOPY = shutil.which("xtensa-esp32-elf-objcopy") or ""
+if not OBJCOPY:
+    fail(
+        "xtensa-esp32-elf-objcopy not found — re-run `espup install` or "
+        "add the esp toolchain bin dir to PATH"
+    )
+localize_cmd = [OBJCOPY]
+for sym in ("memcpy", "memmove", "memset", "memcmp", "bcmp"):
+    localize_cmd.extend(["--localize-symbol", sym])
+localize_cmd.append(LIB_PATH)
+res = subprocess.run(localize_cmd)
+if res.returncode != 0:
+    fail(f"objcopy --localize-symbol returned {res.returncode}")
+
 lib_size_kb = os.path.getsize(LIB_PATH) // 1024
-print(f"[rust] staticlib OK — {LIB_PATH} ({lib_size_kb} KB)")
+print(f"[rust] staticlib OK — {LIB_PATH} ({lib_size_kb} KB), mem symbols localized")
 
 # Add the staticlib to the linker inputs and expose the C header so
 # `ota_hmac_bridge.cpp` can #include "ota_hmac_rs.h".
