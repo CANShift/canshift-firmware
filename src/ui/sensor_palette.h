@@ -4,7 +4,7 @@
 // Mirrors `SENSOR_PALETTE` in canshift-core/src/sensor-palette.ts. Each
 // `SensorIconName` resolves to an "OK zone" colour matching the metric (water
 // blue for coolant, violet for boost, ...) plus an optional warning colour
-// used above `warningLevel`. Gauges and bars look up by the string iconName
+// used above `dangerLevel`. Gauges and bars look up by the string iconName
 // stored in `CfgGaugeParams::iconName` / `CfgBarParams::iconName`.
 //
 // Drift against the TS source is caught at native-test time by
@@ -15,8 +15,8 @@
 
 struct SensorPaletteEntry {
     const char *iconName;  // matches a SensorIconName string in canshift-core
-    uint32_t okColor;      // opaque fill below warningLevel (0xRRGGBB)
-    uint32_t warningColor; // fill above warningLevel; 0 = no semantic warning
+    uint32_t okColor;      // opaque fill below dangerLevel (0xRRGGBB)
+    uint32_t warningColor; // fill above dangerLevel; 0 = no semantic warning
 };
 
 namespace SensorPalette {
@@ -32,13 +32,13 @@ constexpr uint32_t kSentinelNoWarning = 0u;
 // Zod enum so the casing is fixed.
 const SensorPaletteEntry *lookup(const char *iconName);
 
-// Resolve the fill colour for a value relative to a warning threshold. When
+// Resolve the fill colour for a value relative to the danger threshold. When
 // no palette entry matches, returns 0 — callers fall back to their existing
 // per-widget colour path (style.primaryColor or legacy zone tints).
 //
-// Caller-supplied semantics: `value` and `warningLevel` are in the same
-// native unit. NaN `warningLevel` is treated as "no threshold" so the OK
+// Caller-supplied semantics: `value` and `dangerLevel` are in the same
+// native unit. NaN `dangerLevel` is treated as "no threshold" so the OK
 // colour fills the entire range.
-uint32_t fillColor(const char *iconName, float value, float warningLevel);
+uint32_t fillColor(const char *iconName, float value, float dangerLevel);
 
 } // namespace SensorPalette

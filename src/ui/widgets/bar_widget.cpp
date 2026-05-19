@@ -30,7 +30,6 @@ constexpr int16_t MIN_TRACK_DIM = 4;
 
 struct BarTag {
     lv_obj_t *track;
-    lv_obj_t *warnZone;   // nullable — only when warning..danger range exists
     lv_obj_t *dangerZone; // nullable — only when dangerLevel < maxValue
     lv_obj_t *dangerTick; // nullable
     lv_obj_t *fill;
@@ -42,7 +41,7 @@ struct BarTag {
     bool isVertical;
     int16_t trackX, trackY, trackW, trackH;
     float minValue, maxValue;
-    float warningLevel, dangerLevel;
+    float dangerLevel;    // Single threshold (issue #965). NaN = no threshold.
     float alertThreshold; // NaN = disabled (issue #133)
     uint32_t primaryRgb, warningRgb, criticalRgb;
     uint8_t decimalPlaces;
@@ -92,7 +91,6 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     t->isVertical = isVertical;
     t->minValue = cfg.bar.minValue;
     t->maxValue = cfg.bar.maxValue;
-    t->warningLevel = cfg.bar.warningLevel;
     t->dangerLevel = cfg.bar.dangerLevel;
     t->alertThreshold = cfg.bar.alertThreshold;
     t->primaryRgb = cfg.style.primaryColor.rgb;
@@ -121,14 +119,12 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     // sensor-name heuristic next, nullptr → legacy zone-based tinting.
     t->ramp = t->palette ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
-    const WidgetHelpers::ThresholdZones zones =
-        WidgetHelpers::resolveZones(t->warningLevel, t->dangerLevel, t->minValue, t->maxValue);
-    // Palette mode (#954) replaces the translucent zone bands with a single
-    // opaque per-sensor fill, so suppress the band geometry here.
-    const bool hasWarn = zones.hasWarn && t->palette == nullptr;
-    const bool hasDanger = zones.hasDanger && t->palette == nullptr;
-    const float warnPct = zones.warnPct;
-    const float dangerPct = zones.dangerPct;
+    // Single-threshold zone math (issue #965). Palette mode (#954) replaces
+    // the translucent danger band with a solid per-sensor fill, so suppress
+    // the band geometry when a palette is pinned.
+    const bool hasDanger = !std::isnan(t->dangerLevel) && t->palette == nullptr;
+    const float dangerPct =
+        hasDanger ? WidgetHelpers::clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.0f;
 
     char sigBuf[CFG_MAX_SIGNAL_LEN + 4];
     WidgetHelpers::formatSignalLabel(cfg.signalId, sigBuf, sizeof(sigBuf));
@@ -175,19 +171,7 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
         t->track = track;
 
-        // Warning zone (warning..danger band)
-        if (hasWarn && hasDanger && dangerPct > warnPct) {
-            int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * warnPct);
-            int16_t zW = static_cast<int16_t>(trackW * (dangerPct - warnPct));
-            lv_obj_t *zone = lv_obj_create(cont);
-            WidgetHelpers::disableInteract(zone);
-            lv_obj_set_pos(zone, zX, trackY);
-            lv_obj_set_size(zone, zW, barH);
-            WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneWarningRgb, ZONE_OPA);
-            t->warnZone = zone;
-        }
-
-        // Danger zone (danger..max band)
+        // Danger zone (danger..max band) — single zone (issue #965).
         if (hasDanger && dangerPct < 1.0f) {
             int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * dangerPct);
             int16_t zW = static_cast<int16_t>(trackW * (1.0f - dangerPct));
@@ -309,19 +293,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
         lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
         t->track = track;
 
-        // Warning zone — drawn from warningLevel up to dangerLevel (top down).
-        if (hasWarn && hasDanger && dangerPct > warnPct) {
-            int16_t zY = padTop + static_cast<int16_t>(trackH * (1.0f - dangerPct));
-            int16_t zH = static_cast<int16_t>(trackH * (dangerPct - warnPct));
-            lv_obj_t *zone = lv_obj_create(cont);
-            WidgetHelpers::disableInteract(zone);
-            lv_obj_set_pos(zone, padX, zY);
-            lv_obj_set_size(zone, barW, zH);
-            WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneWarningRgb, ZONE_OPA);
-            t->warnZone = zone;
-        }
-
-        // Danger zone — band from the top of the track down to dangerLevel.
+        // Danger zone — band from the top of the track down to dangerLevel
+        // (single zone, issue #965).
         if (hasDanger && dangerPct < 1.0f) {
             int16_t topZH = static_cast<int16_t>(trackH * (1.0f - dangerPct));
             if (topZH > 0) {
@@ -407,21 +380,19 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
     t->wasValid = valid;
 
     const float pct = WidgetHelpers::clampPct(displayValue, t->minValue, t->maxValue);
-    const float warnPct = !std::isnan(t->warningLevel)
-                              ? WidgetHelpers::clampPct(t->warningLevel, t->minValue, t->maxValue)
-                              : 1.1f;
-    const float dangerPct = !std::isnan(t->dangerLevel)
-                                ? WidgetHelpers::clampPct(t->dangerLevel, t->minValue, t->maxValue)
-                                : 1.1f;
 
-    // Fill colour priority: palette (#954) → ramp (#430) → legacy zones.
+    // Fill colour priority: palette (#954) → ramp (#430) → two-zone danger
+    // (issue #965). Without a configured threshold the fill stays in the
+    // OK colour across the entire range.
     uint32_t fillRgb;
     if (t->palette) {
-        fillRgb = SensorPalette::fillColor(t->iconName, displayValue, t->warningLevel);
+        fillRgb = SensorPalette::fillColor(t->iconName, displayValue, t->dangerLevel);
     } else if (t->ramp) {
         fillRgb = colorAtValue(*t->ramp, displayValue);
+    } else if (!std::isnan(t->dangerLevel) && displayValue >= t->dangerLevel) {
+        fillRgb = WidgetHelpers::kZoneDangerRgb;
     } else {
-        fillRgb = WidgetHelpers::zoneFillColorSmooth(pct, warnPct, dangerPct);
+        fillRgb = WidgetHelpers::kZoneNormalRgb;
     }
     WidgetStyles::setBgColorIfChanged(t->fill, t->lastFillRgb, fillRgb);
 

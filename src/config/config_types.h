@@ -109,7 +109,9 @@ enum class CfgArcFillStyle : uint8_t {
 struct CfgGaugeParams {
     float minValue;
     float maxValue;
-    float warningLevel;
+    // Single threshold above which the gauge turns red / palette-warning
+    // colour (issue #965). The legacy `warningLevel` was removed when the
+    // two-zone palette (#954) made it redundant.
     float dangerLevel;
     float alertThreshold; // NaN = disabled (issue #133)
     bool showArc;
@@ -129,8 +131,9 @@ struct CfgGaugeParams {
 struct CfgBarParams {
     float minValue;
     float maxValue;
-    float warningLevel;   // Value at which indicator turns warning color
-    float dangerLevel;    // Value at which indicator turns critical color
+    // Single threshold above which the indicator turns critical / palette
+    // warning colour (issue #965). NaN = no threshold.
+    float dangerLevel;
     float alertThreshold; // NaN = disabled (issue #133)
     bool isVertical;      // true = bottom-up fill, false = left-to-right
     uint8_t decimalPlaces;

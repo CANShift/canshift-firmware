@@ -22,28 +22,9 @@ constexpr uint32_t kZoneNormalRgb = 0x00CC44;  // green
 constexpr uint32_t kZoneWarningRgb = 0xFF8800; // orange
 constexpr uint32_t kZoneDangerRgb = 0xFF4444;  // red
 
-struct ThresholdZones {
-    bool hasWarn;
-    bool hasDanger;
-    float warnPct;
-    float dangerPct;
-};
-
 // Map `value` into [0,1] via (value-min)/(max-min). Returns 0 when the range
 // is degenerate (max <= min).
 float clampPct(float value, float minValue, float maxValue);
-
-// Resolve warning/danger band positions in pct domain. The bar widget feeds
-// these straight into the track; the gauge maps pct → arc angle locally.
-ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValue, float maxValue);
-
-// Map a [0,1] pct + warn/danger pcts to the green/orange/red zone fill colour.
-uint32_t zoneFillColor(float pct, float warnPct, float dangerPct);
-
-// Smooth version: interpolates between zone colours instead of hard-stepping.
-// Below warnPct → green. warnPct..dangerPct → green→orange lerp.
-// Above dangerPct → orange→red lerp. Returns green when no thresholds set.
-uint32_t zoneFillColorSmooth(float pct, float warnPct, float dangerPct);
 
 // Convert "coolant_temp_c" → "COOLANT TEMP C". Empty src → "-".
 void formatSignalLabel(const char *src, char *out, size_t outLen);

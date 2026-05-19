@@ -149,10 +149,8 @@ struct GaugeTag {
                              // Stored as `revLimitRpm - 1.0f` so AlertFlash's
                              // strict `value > threshold` test triggers at the
                              // first RPM sample that reaches the limit.
-    // Threshold angles (0 = not set)
-    uint16_t warnAngle;
+    // Single threshold (issue #965). 0 = no threshold configured.
     uint16_t dangerAngle;
-    bool hasWarning;
     bool hasDanger;
     bool gradientMode;        // True when arcFillStyle == GRADIENT (issue #175)
     bool lastValid;           // Tracks the last (value, valid) pair so the invalid
@@ -162,8 +160,8 @@ struct GaugeTag {
     // Issue #954: semantic two-zone palette resolved from `gauge.iconName`.
     // Wins over `ramp` and the legacy zone path; nullptr → palette disabled.
     const SensorPaletteEntry *palette;
-    float warningLevel; // Mirrored from `cfg.gauge.warningLevel` for the palette
-                        // threshold test on each update() tick.
+    float dangerLevel; // Mirrored from `cfg.gauge.dangerLevel` for the palette
+                       // threshold test on each update() tick.
     AlertFlash::State alert;
     // Last colours pushed to LVGL — used by the per-frame write guards. Init
     // to 0xFFFFFFFFu so the first update() always paints (alpha bits never
@@ -205,20 +203,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (diam < 40)
         diam = 40;
 
-    // Determine which threshold zones apply. The shared helper resolves the
-    // band positions in pct-domain; the gauge maps them to arc angles below.
-    // Convention: warningLevel > minValue means a real threshold is configured.
+    // Single danger threshold (issue #965). A real threshold is configured
+    // when dangerLevel sits strictly inside (minValue, maxValue); the helper
+    // clamps the pct calculation so the OK/danger arc split stays sane even
+    // when the bound is right at the rails.
     const float minV = cfg.gauge.minValue;
     const float maxV = cfg.gauge.maxValue;
-    const WidgetHelpers::ThresholdZones zones =
-        WidgetHelpers::resolveZones(cfg.gauge.warningLevel, cfg.gauge.dangerLevel, minV, maxV);
-    // The gauge applies an extra "warning < max" guard the shared helper does
-    // not — preserve that here so behaviour is byte-identical.
-    const bool hasWarning = zones.hasWarn && cfg.gauge.warningLevel < maxV;
-    const bool hasDanger =
-        hasWarning && zones.hasDanger && cfg.gauge.dangerLevel > cfg.gauge.warningLevel;
-
-    const uint16_t warnAngle = hasWarning ? valueToAngle(cfg.gauge.warningLevel, minV, maxV) : 0;
+    const bool hasDanger = !std::isnan(cfg.gauge.dangerLevel) && cfg.gauge.dangerLevel > minV &&
+                           cfg.gauge.dangerLevel < maxV;
     const uint16_t dangerAngle = hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
 
     // Arc line widths — thick enough to read on the now-smaller (h=80)
@@ -241,23 +233,15 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const bool paletteMode = paletteEntry != nullptr;
     lv_obj_t *fillArc = nullptr;
 
-    if (paletteMode) {
+    if (paletteMode || gradientMode) {
+        // Single mid-grey base track — the value arc tints over it.
         createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
-    } else if (gradientMode) {
-        // Gray base track over the full sweep — the value arc tints over it.
-        createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
-    } else if (!hasWarning) {
-        // No thresholds — single dimmed background track (old behavior)
-        createSectorArc(cont, diam, 0, 280, kColorBgDim, kBgWidth);
     } else if (!hasDanger) {
-        // Two zones: green (0→warn) + orange (warn→280)
-        createSectorArc(cont, diam, 0, warnAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
-        createSectorArc(cont, diam, warnAngle, 280, WidgetHelpers::kZoneWarningRgb, kBgWidth);
+        // No threshold — single dimmed background track (old behavior).
+        createSectorArc(cont, diam, 0, 280, kColorBgDim, kBgWidth);
     } else {
-        // Three zones: green (0→warn), orange (warn→danger), red (danger→280)
-        createSectorArc(cont, diam, 0, warnAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
-        createSectorArc(cont, diam, warnAngle, dangerAngle, WidgetHelpers::kZoneWarningRgb,
-                        kBgWidth);
+        // Two zones (issue #965): green (0→danger), red (danger→280).
+        createSectorArc(cont, diam, 0, dangerAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
         createSectorArc(cont, diam, dangerAngle, 280, WidgetHelpers::kZoneDangerRgb, kBgWidth);
     }
 
@@ -270,9 +254,9 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         fillArc = createValueArc(cont, diam, fillW);
         lv_arc_set_angles(fillArc, 0, 0);
         const uint32_t startColor =
-            paletteMode ? paletteEntry->okColor
-                        : ((hasWarning || hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb
-                                                                     : kColorValue);
+            paletteMode
+                ? paletteEntry->okColor
+                : ((hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb : kColorValue);
         lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
     }
 
@@ -333,16 +317,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // path even when the live value happens to be 0.0 (matches bar_widget).
     tag->lastValue = NAN;
     tag->alertThreshold = cfg.gauge.alertThreshold;
-    tag->warnAngle = warnAngle;
     tag->dangerAngle = dangerAngle;
-    tag->hasWarning = hasWarning;
     tag->hasDanger = hasDanger;
     tag->gradientMode = gradientMode;
     tag->lastValid = true;
     tag->lastLabelRgb = 0xFFFFFFFFu;
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->palette = paletteEntry;
-    tag->warningLevel = cfg.gauge.warningLevel;
+    tag->dangerLevel = cfg.gauge.dangerLevel;
 
     // Resolve the active color ramp once (issue #430). Prefer the per-signal
     // ramp from signals.json; fall back to the sensor-name heuristic; null
@@ -427,41 +409,35 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         uint32_t labelColor =
             ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
         if (tag->palette) {
-            labelColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->warningLevel);
+            labelColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->dangerLevel);
         } else if (tag->ramp) {
             labelColor = colorAtValue(*tag->ramp, value);
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
             labelColor = WidgetHelpers::kZoneDangerRgb;
-        } else if (tag->hasWarning && value >= cfg.gauge.warningLevel) {
-            labelColor = WidgetHelpers::kZoneWarningRgb;
         }
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
     }
 
     // Update fill arc angle and colour. Order: palette > ramp > gradient >
-    // zones > white fallback.
+    // two-zone (danger) > white fallback (issue #965).
     if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
         lv_arc_set_angles(tag->fillArc, 0, angle);
 
         uint32_t fillColor;
         if (tag->palette) {
-            fillColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->warningLevel);
+            fillColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->dangerLevel);
         } else if (tag->ramp) {
             fillColor = colorAtValue(*tag->ramp, value);
         } else if (tag->gradientMode) {
             const float range = tag->maxValue - tag->minValue;
             const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
             fillColor = interpolateGreenOrangeRed(pct);
-        } else if (tag->hasWarning || tag->hasDanger) {
-            if (tag->hasDanger && value >= cfg.gauge.dangerLevel)
-                fillColor = WidgetHelpers::kZoneDangerRgb;
-            else if (tag->hasWarning && value >= cfg.gauge.warningLevel)
-                fillColor = WidgetHelpers::kZoneWarningRgb;
-            else
-                fillColor = WidgetHelpers::kZoneNormalRgb;
+        } else if (tag->hasDanger) {
+            fillColor = value >= cfg.gauge.dangerLevel ? WidgetHelpers::kZoneDangerRgb
+                                                       : WidgetHelpers::kZoneNormalRgb;
         } else {
-            fillColor = kColorValue; // white — no thresholds, no ramp
+            fillColor = kColorValue; // white — no threshold, no ramp
         }
         WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
                                            LV_PART_INDICATOR);

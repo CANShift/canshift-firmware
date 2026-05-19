@@ -502,7 +502,6 @@ void parseWidgetStyle(JsonObjectConst style, CfgStyle *out) {
 void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
-    out->warningLevel = cfg["warningLevel"] | 80.0f;
     out->dangerLevel = cfg["dangerLevel"] | 95.0f;
     out->alertThreshold = readAlertThreshold(cfg);
     out->showArc = cfg["showArc"] | true;
@@ -518,12 +517,11 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
 
 // Bar parameters reached via the legacy `gauge` widget with displayStyle=bar.
 // Behaviour identical to the old monolith — kept separate from the direct
-// "type":"bar" parser because the defaults differ (warning/danger here are
-// hardcoded 80/95 vs. NaN for the standalone BarWidgetConfig).
+// "type":"bar" parser because the default `dangerLevel` differs (hardcoded 95
+// vs. NaN for the standalone BarWidgetConfig).
 void parseGaugeBarParams(JsonObjectConst cfg, CfgBarParams *out, float alertThreshold) {
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
-    out->warningLevel = cfg["warningLevel"] | 80.0f;
     out->dangerLevel = cfg["dangerLevel"] | 95.0f;
     out->alertThreshold = alertThreshold;
     const char *orient = cfg["barOrientation"] | "horizontal";
@@ -573,12 +571,11 @@ void parseWarningWidget(JsonObjectConst cfg, CfgWarningParams *out) {
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
-// Direct "type":"bar" — BarWidgetConfig schema (always horizontal, warning /
-// danger default to NaN unlike the legacy gauge-bar reclassification path).
+// Direct "type":"bar" — BarWidgetConfig schema (always horizontal, dangerLevel
+// defaults to NaN unlike the legacy gauge-bar reclassification path).
 void parseBarWidget(JsonObjectConst cfg, CfgBarParams *out) {
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
-    out->warningLevel = cfg["warningLevel"] | NAN;
     out->dangerLevel = cfg["dangerLevel"] | NAN;
     out->alertThreshold = readAlertThreshold(cfg);
     out->isVertical = false;

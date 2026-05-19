@@ -55,13 +55,13 @@ const SensorPaletteEntry *SensorPalette::lookup(const char *iconName) {
     return nullptr;
 }
 
-uint32_t SensorPalette::fillColor(const char *iconName, float value, float warningLevel) {
+uint32_t SensorPalette::fillColor(const char *iconName, float value, float dangerLevel) {
     const SensorPaletteEntry *entry = lookup(iconName);
     if (!entry)
         return 0u;
     if (entry->warningColor == kSentinelNoWarning)
         return entry->okColor;
-    if (std::isnan(warningLevel) || value < warningLevel)
+    if (std::isnan(dangerLevel) || value < dangerLevel)
         return entry->okColor;
     return entry->warningColor;
 }

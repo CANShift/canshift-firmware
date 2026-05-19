@@ -9,7 +9,6 @@
 #include "config/config_loader.h"
 #include "util/format_float.h"
 
-#include <cmath>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,56 +24,6 @@ float clampPct(float value, float minValue, float maxValue) {
     if (pct > 1.0f)
         return 1.0f;
     return pct;
-}
-
-ThresholdZones resolveZones(float warningLevel, float dangerLevel, float minValue, float maxValue) {
-    ThresholdZones z{};
-    z.hasWarn = !std::isnan(warningLevel) && warningLevel > minValue;
-    z.hasDanger = !std::isnan(dangerLevel) && dangerLevel > minValue && dangerLevel <= maxValue;
-    z.warnPct = z.hasWarn ? clampPct(warningLevel, minValue, maxValue) : 1.0f;
-    z.dangerPct = z.hasDanger ? clampPct(dangerLevel, minValue, maxValue) : 1.0f;
-    return z;
-}
-
-static uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
-    if (t <= 0.0f)
-        return a;
-    if (t >= 1.0f)
-        return b;
-    auto ch = [](uint32_t c, int s) { return static_cast<int>((c >> s) & 0xFFu); };
-    auto mix = [t](int x, int y) {
-        return static_cast<uint32_t>(static_cast<float>(x) +
-                                     (static_cast<float>(y) - static_cast<float>(x)) * t);
-    };
-    return (mix(ch(a, 16), ch(b, 16)) << 16) | (mix(ch(a, 8), ch(b, 8)) << 8) |
-           mix(ch(a, 0), ch(b, 0));
-}
-
-uint32_t zoneFillColor(float pct, float warnPct, float dangerPct) {
-    if (pct >= dangerPct)
-        return kZoneDangerRgb;
-    if (pct >= warnPct)
-        return kZoneWarningRgb;
-    return kZoneNormalRgb;
-}
-
-uint32_t zoneFillColorSmooth(float pct, float warnPct, float dangerPct) {
-    if (warnPct > 1.0f)
-        return kZoneNormalRgb;
-    if (pct < warnPct)
-        return kZoneNormalRgb;
-    if (dangerPct <= 1.0f) {
-        if (pct >= dangerPct) {
-            const float range = 1.0f - dangerPct;
-            return lerpRgb(kZoneWarningRgb, kZoneDangerRgb,
-                           range > 0.0f ? (pct - dangerPct) / range : 1.0f);
-        }
-        const float range = dangerPct - warnPct;
-        return lerpRgb(kZoneNormalRgb, kZoneWarningRgb,
-                       range > 0.0f ? (pct - warnPct) / range : 1.0f);
-    }
-    const float range = 1.0f - warnPct;
-    return lerpRgb(kZoneNormalRgb, kZoneWarningRgb, range > 0.0f ? (pct - warnPct) / range : 1.0f);
 }
 
 void formatSignalLabel(const char *src, char *out, size_t outLen) {
