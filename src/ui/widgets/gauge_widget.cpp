@@ -4,6 +4,7 @@
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
 #include "ui/sensor_color_ramp.h"
+#include "ui/sensor_palette.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -158,6 +159,11 @@ struct GaugeTag {
                               // branch can skip its lv_label_set_text reallocation
                               // when state hasn't flipped (issue #236).
     const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → static path.
+    // Issue #954: semantic two-zone palette resolved from `gauge.iconName`.
+    // Wins over `ramp` and the legacy zone path; nullptr → palette disabled.
+    const SensorPaletteEntry *palette;
+    float warningLevel; // Mirrored from `cfg.gauge.warningLevel` for the palette
+                        // threshold test on each update() tick.
     AlertFlash::State alert;
     // Last colours pushed to LVGL — used by the per-frame write guards. Init
     // to 0xFFFFFFFFu so the first update() always paints (alpha bits never
@@ -228,9 +234,16 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // ---------------------------------------------------------------------------
 
     const bool gradientMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::GRADIENT);
+    // Issue #954 — palette mode wins over zone tinting when the gauge pins a
+    // known SensorIconName. The background track is a flat dark grey so the
+    // opaque palette fill carries the read on its own.
+    const SensorPaletteEntry *paletteEntry = SensorPalette::lookup(cfg.gauge.iconName);
+    const bool paletteMode = paletteEntry != nullptr;
     lv_obj_t *fillArc = nullptr;
 
-    if (gradientMode) {
+    if (paletteMode) {
+        createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
+    } else if (gradientMode) {
         // Gray base track over the full sweep — the value arc tints over it.
         createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
     } else if (!hasWarning) {
@@ -249,14 +262,17 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     // Value fill arc — always created, renders on top of the sector/base tracks.
-    // Gradient mode: full kBgWidth, colour interpolated each tick.
-    // Zones mode: kIndWidth (thinner so sector zones remain visible around it).
+    // Palette + gradient modes: full kBgWidth so the value arc fully covers the
+    // base track.  Zones mode: kIndWidth (thinner so sector zones remain visible
+    // around it).
     {
-        const uint8_t fillW = gradientMode ? kBgWidth : kIndWidth;
+        const uint8_t fillW = (gradientMode || paletteMode) ? kBgWidth : kIndWidth;
         fillArc = createValueArc(cont, diam, fillW);
         lv_arc_set_angles(fillArc, 0, 0);
         const uint32_t startColor =
-            (hasWarning || hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb : kColorValue;
+            paletteMode ? paletteEntry->okColor
+                        : ((hasWarning || hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb
+                                                                     : kColorValue);
         lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
     }
 
@@ -321,11 +337,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->lastValid = true;
     tag->lastLabelRgb = 0xFFFFFFFFu;
     tag->lastFillRgb = 0xFFFFFFFFu;
+    tag->palette = paletteEntry;
+    tag->warningLevel = cfg.gauge.warningLevel;
 
     // Resolve the active color ramp once (issue #430). Prefer the per-signal
     // ramp from signals.json; fall back to the sensor-name heuristic; null
     // means the legacy threshold-driven static colors are used unchanged.
-    tag->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
+    // Palette mode (#954) takes precedence over the ramp.
+    tag->ramp = paletteEntry ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
     // revFlash (issue #263): when enabled, pulse the gauge red as soon as the
     // signal reaches the dashboard's rev-limit RPM. We snapshot the threshold
@@ -397,13 +416,15 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValue = value;
     tag->lastValid = true;
 
-    // Tint the value label — skip when AlertFlash owns the colour. When a
-    // ramp is configured (issue #430), the ramp drives the colour at the
-    // live value. Otherwise fall back to the legacy warn/danger zone tints.
+    // Tint the value label — skip when AlertFlash owns the colour. Palette
+    // mode (#954) drives both fill AND label colour so the read matches. The
+    // legacy ramp path (issue #430) still applies when no palette is pinned.
     if (!tag->alert.active) {
         uint32_t labelColor =
             ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-        if (tag->ramp) {
+        if (tag->palette) {
+            labelColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->warningLevel);
+        } else if (tag->ramp) {
             labelColor = colorAtValue(*tag->ramp, value);
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
             labelColor = WidgetHelpers::kZoneDangerRgb;
@@ -413,13 +434,16 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
     }
 
-    // Update fill arc angle and colour for both gradient and zones modes.
+    // Update fill arc angle and colour. Order: palette > ramp > gradient >
+    // zones > white fallback.
     if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
         lv_arc_set_angles(tag->fillArc, 0, angle);
 
         uint32_t fillColor;
-        if (tag->ramp) {
+        if (tag->palette) {
+            fillColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->warningLevel);
+        } else if (tag->ramp) {
             fillColor = colorAtValue(*tag->ramp, value);
         } else if (tag->gradientMode) {
             const float range = tag->maxValue - tag->minValue;

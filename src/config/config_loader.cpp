@@ -544,6 +544,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
                 strlcpy(w->gauge.label, cfg["label"] | "", sizeof(w->gauge.label));
                 w->gauge.labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
                 w->gauge.arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "zones");
+                strlcpy(w->gauge.iconName, cfg["iconName"] | "", sizeof(w->gauge.iconName));
             }
             break;
         }

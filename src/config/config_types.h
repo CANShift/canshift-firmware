@@ -120,6 +120,10 @@ struct CfgGaugeParams {
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;
     CfgArcFillStyle arcFillStyle; // Arc style only — ignored otherwise (issue #175)
+    // SensorIconName key driving the two-zone semantic palette (issue #954).
+    // "" = no palette; widgets fall back to the legacy `style.primaryColor`
+    // and zone tints.
+    char iconName[16];
 };
 
 struct CfgBarParams {

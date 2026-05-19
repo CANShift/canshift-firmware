@@ -8,6 +8,7 @@
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
 #include "ui/sensor_color_ramp.h"
+#include "ui/sensor_palette.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -50,6 +51,8 @@ struct BarTag {
     float lastValue;
     bool wasValid;
     const CfgColorRamp *ramp; // Active color ramp (issue #430). nullptr → legacy zone tints.
+    const SensorPaletteEntry *palette; // Two-zone palette (issue #954). Wins over ramp+zones.
+    char iconName[16];                 // Snapshot for the palette lookup on each tick.
     AlertFlash::State alert;
     // Cached fill colour pushed to LVGL — guards skip the redundant style
     // write when the zone-driven colour hasn't changed since last frame.
@@ -104,14 +107,21 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     t->wasValid = false;
     t->lastFillRgb = 0xFFFFFFFFu;
 
+    // Two-zone palette (#954) takes precedence over the ramp path when the
+    // widget pins a known SensorIconName.
+    strlcpy(t->iconName, cfg.bar.iconName, sizeof(t->iconName));
+    t->palette = SensorPalette::lookup(t->iconName);
+
     // Resolve the active color ramp once (issue #430). Per-signal ramp wins,
     // sensor-name heuristic next, nullptr → legacy zone-based tinting.
-    t->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
+    t->ramp = t->palette ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
     const WidgetHelpers::ThresholdZones zones =
         WidgetHelpers::resolveZones(t->warningLevel, t->dangerLevel, t->minValue, t->maxValue);
-    const bool hasWarn = zones.hasWarn;
-    const bool hasDanger = zones.hasDanger;
+    // Palette mode (#954) replaces the translucent zone bands with a single
+    // opaque per-sensor fill, so suppress the band geometry here.
+    const bool hasWarn = zones.hasWarn && t->palette == nullptr;
+    const bool hasDanger = zones.hasDanger && t->palette == nullptr;
     const float warnPct = zones.warnPct;
     const float dangerPct = zones.dangerPct;
 
@@ -399,12 +409,15 @@ void BarWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &
                                 ? WidgetHelpers::clampPct(t->dangerLevel, t->minValue, t->maxValue)
                                 : 1.1f;
 
-    // Issue #430: when a ramp is configured the fill colour comes from the
-    // ramp at the live value. Without a ramp the legacy three-zone palette
-    // (green/orange/red) drives the fill — preserves backward compatibility
-    // for configs that haven't opted in.
-    const uint32_t fillRgb = t->ramp ? colorAtValue(*t->ramp, displayValue)
-                                     : WidgetHelpers::zoneFillColorSmooth(pct, warnPct, dangerPct);
+    // Fill colour priority: palette (#954) → ramp (#430) → legacy zones.
+    uint32_t fillRgb;
+    if (t->palette) {
+        fillRgb = SensorPalette::fillColor(t->iconName, displayValue, t->warningLevel);
+    } else if (t->ramp) {
+        fillRgb = colorAtValue(*t->ramp, displayValue);
+    } else {
+        fillRgb = WidgetHelpers::zoneFillColorSmooth(pct, warnPct, dangerPct);
+    }
     WidgetStyles::setBgColorIfChanged(t->fill, t->lastFillRgb, fillRgb);
 
     if (!t->isVertical) {
