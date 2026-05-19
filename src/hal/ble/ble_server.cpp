@@ -95,7 +95,15 @@ void updateStatus() {
         doc["ap_password"] = WifiAp::getPassword();
     }
     char buf[128];
-    serializeJson(doc, buf, sizeof(buf));
+    // ArduinoJson silently truncates when the output buffer is too small;
+    // a truncated STATUS payload is invalid JSON and crashes the mobile
+    // parser. Detect and skip rather than push junk over the wire (#936).
+    const size_t len = serializeJson(doc, buf, sizeof(buf));
+    if (len == 0 || len >= sizeof(buf)) {
+        LOG_WARN("BLE", "STATUS payload truncated (len=%u, cap=%u) — skipping notify",
+                 static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
+        return;
+    }
     s_pStatus->setValue(buf);
 }
 
@@ -159,7 +167,15 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonDocument doc;
         doc["brightness"] = SettingsPage::getBrightness();
         char buf[64];
-        serializeJson(doc, buf, sizeof(buf));
+        // Same truncation guard as updateStatus(): never push a half-serialised
+        // payload to a subscriber — leave the prior value visible (#936).
+        const size_t len = serializeJson(doc, buf, sizeof(buf));
+        if (len == 0 || len >= sizeof(buf)) {
+            LOG_WARN("BLE",
+                     "SETTINGS read payload truncated (len=%u, cap=%u) — keeping prior value",
+                     static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
+            return;
+        }
         pChar->setValue(buf);
     }
 };
@@ -449,9 +465,18 @@ void BleServer::tick() {
     addSignalIfValid(doc, "bat", SignalIds::BATTERY_VOLTS);
 
     char buf[512];
-    size_t len = serializeJson(doc, buf, sizeof(buf));
-    s_pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
-    s_pTele->notify();
+    // ArduinoJson silently truncates on overflow; pushing a half-serialised
+    // payload at 10 Hz over BLE would feed the mobile parser garbage. Skip
+    // the notify if the cap is hit so the prior good frame stays visible.
+    // STATUS refresh below is independent and must still run (#936).
+    const size_t len = serializeJson(doc, buf, sizeof(buf));
+    if (len == 0 || len >= sizeof(buf)) {
+        LOG_WARN("BLE", "TELE payload truncated (len=%u, cap=%u) — skipping notify",
+                 static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
+    } else {
+        s_pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
+        s_pTele->notify();
+    }
 
     // Refresh STATUS every 2s; notify if AP state changed (e.g. timeout)
     static uint8_t s_statusDiv = 0;
