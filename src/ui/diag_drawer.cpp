@@ -324,19 +324,23 @@ void init() {
     buildErrorsSection(s_panel);
 
     // -------- Close button -------------------------------------------------
-    // Built on lv_layer_top() directly (not as a child of s_panel) so the
-    // panel's vertical flex layout doesn't stack it among the rows. Placed
-    // last so it draws over the panel content. Hidden until the panel opens.
-    s_closeBtn = lv_btn_create(lv_layer_top());
+    // Child of s_panel (not lv_layer_top()) so the panel intercepts every
+    // touch in its area and the topbar (sibling on lv_layer_top, lower in z)
+    // can never receive a click while the drawer is open. Earlier the close
+    // btn lived on lv_layer_top at TOP_RIGHT and shared coordinates with the
+    // top bar's day/night toggle — a slightly off-target tap would close the
+    // drawer AND flip the theme. FLOATING keeps the btn out of the panel's
+    // flex-column layout so it doesn't stack between sections.
+    s_closeBtn = lv_btn_create(s_panel);
+    lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_FLOATING);
     lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
-    lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, -4, 4);
+    lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, 0, 0);
     lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(COL_HANDLE_BG), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_closeBtn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_closeBtn, 1, LV_PART_MAIN);
     lv_obj_set_style_border_color(s_closeBtn, lv_color_hex(COL_PANEL_BORDER), LV_PART_MAIN);
     lv_obj_set_style_radius(s_closeBtn, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_closeBtn, 0, LV_PART_MAIN);
-    lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(s_closeBtn, onCloseClicked, LV_EVENT_CLICKED, nullptr);
 
     lv_obj_t *closeLabel = lv_label_create(s_closeBtn);
@@ -354,10 +358,8 @@ void open() {
     if (!s_panel)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    if (s_closeBtn) {
-        lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(s_closeBtn);
-    }
+    // Close btn is a child of s_panel — hidden flag on the parent already
+    // propagates, no separate show/hide call needed.
     s_open = true;
     // Force the next update() to refresh the error rows even if the version
     // hasn't moved since the last open.
@@ -369,8 +371,6 @@ void close() {
     if (!s_panel)
         return;
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    if (s_closeBtn)
-        lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_HIDDEN);
     s_open = false;
 }
 
