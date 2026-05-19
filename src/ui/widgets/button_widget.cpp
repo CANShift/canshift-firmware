@@ -140,6 +140,21 @@ void btnClickHandler(lv_event_t *e) {
         tag->toggleActive = !tag->toggleActive;
         applyToggleVisualState(btn, *tag);
         tag->signalSyncIgnoreUntilMs = millis() + BUTTON_SIGNAL_SYNC_GRACE_MS;
+
+        // Optimistic SignalStore write — mirror the new local latch into the
+        // signal the button is bound to so any other widget reading that
+        // signal (DiagDrawer ECU FLAGS row, status indicators, etc.) reflects
+        // the press immediately instead of waiting for the ECU to echo back
+        // through CAN. When CAN feedback arrives, `SignalStore::update`
+        // overrides this value with the ground truth — no flicker because
+        // the values match. With CAN unavailable (bench testing, bus off)
+        // the local value is the only feedback the user gets.
+        if (tag->signalId[0] != '\0') {
+            const SignalId sid = signalIdFromName(tag->signalId);
+            if (sid < SignalIds::SIGNAL_COUNT) {
+                SignalStore::update(sid, tag->toggleActive ? 1.0f : 0.0f);
+            }
+        }
     }
 
     for (uint8_t i = 0; i < tag->params->actionsCount; ++i) {
