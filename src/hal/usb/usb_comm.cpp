@@ -96,6 +96,10 @@ static constexpr uint8_t TELE_PERIOD_TICKS = 10;
 // When scan mode is active, raw CAN frames are queued here by the CAN task
 // (core 0) and drained by the USB task (core 1) in tick().
 // Queue depth: 64 frames — sufficient for ~1s of bus traffic before dropping.
+//
+// Allocated lazily on CMD_CAN_SCAN_START, freed on CMD_CAN_SCAN_STOP. Boot
+// init() leaves it null so we don't permanently hold ~1 KB DRAM for a feature
+// that's rarely used (#976). All consumers null-check before touching.
 static constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
 static QueueHandle_t s_canScanQueue = nullptr;
 static volatile bool s_canScanMode = false;
@@ -649,16 +653,32 @@ void handleCommand(const char *jsonLine) {
             break;
         case UsbComm::CMD_CAN_SCAN_START:
             s_scanDrops = 0;
+            // Lazily allocate the scan queue. Boot-time allocation cost a
+            // permanent ~1 KB even when scan mode was never used, and could
+            // fail under heap fragmentation, leaving the USB task in a
+            // degraded state for the whole session (#976).
+            if (!s_canScanQueue) {
+                s_canScanQueue = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
+            }
+            if (!s_canScanQueue) {
+                LOG_ERROR("USB", "CAN scan start: queue alloc failed");
+                UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
+                break;
+            }
+            xQueueReset(s_canScanQueue);
             s_canScanMode = true;
-            if (s_canScanQueue)
-                xQueueReset(s_canScanQueue);
             LOG_INFO("USB", "CAN scan started");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
-            if (s_canScanQueue)
-                xQueueReset(s_canScanQueue);
+            // Free the queue back to the heap — scan mode is opt-in, the
+            // expected steady state is no queue at all. Keeps ~1 KB
+            // contiguous DRAM available for icon decodes / page rebuilds.
+            if (s_canScanQueue) {
+                vQueueDelete(s_canScanQueue);
+                s_canScanQueue = nullptr;
+            }
             LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
             char stopResp[64];
             const int stopN =
@@ -729,10 +749,8 @@ void UsbComm::init() {
     s_rxPos = 0;
     s_tickCount = 0;
     memset(s_rxBuf, 0, sizeof(s_rxBuf));
-    s_canScanQueue = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(CanScanFrame));
-    if (!s_canScanQueue) {
-        LOG_ERROR("USB", "Failed to create CAN scan queue");
-    }
+    // s_canScanQueue is allocated lazily on first CMD_CAN_SCAN_START so we
+    // don't carry ~1 KB of DRAM for a feature that's rarely used (#976).
     LOG_INFO("USB", "USB comm initialized");
 }
 
