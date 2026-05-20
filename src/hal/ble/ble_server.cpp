@@ -14,6 +14,7 @@
     #include "diag/logger.h"
     #include "diag/lvgl_lock_guard.h"
     #include "runtime/track_store.h"
+    #include "runtime/pending_actions.h"
     #include "app_config.h"
 
     #include <NimBLEDevice.h>
@@ -68,18 +69,10 @@ static NimBLECharacteristic *s_pStatus = nullptr;
 static bool s_connected = false;
 static bool s_enabled = false;
 
-// Deferred command flags — set by BLE callbacks, consumed by UI task
-static std::atomic<bool> s_pendingDayNightToggle{false};
-static std::atomic<bool> s_pendingCalibration{false};
-static std::atomic<bool> s_pendingCalibrationReset{false};
-
-// Pending explicit day/night set: -1 = none, 0 = night, 1 = day.
-// Separate from the toggle flag so old clients (sending toggle_day_night)
-// keep working while new clients (sending set_day_night) get idempotent
-// behaviour. The UI task prefers the explicit set when both are pending.
-static std::atomic<int8_t> s_pendingDayNightSet{-1};
-
 // Pending BLE enable/disable from the settings page: -1 = none, 0 = disable, 1 = enable.
+// Stays local to ble_server — it's BLE-stack lifecycle state, not a user
+// command channelable through other transports. Day/night + calibration
+// pending flags live in `runtime/pending_actions.h` (shared with USB).
 static std::atomic<int8_t> s_pendingEnabled{-1};
 
 // ---------------------------------------------------------------------------
@@ -231,7 +224,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
                 s_pStatus->notify();
         } else if (strcmp(cmd, "toggle_day_night") == 0) {
             // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
-            s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
+            PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: day/night toggle queued");
         } else if (strcmp(cmd, "set_day_night") == 0) {
             // Explicit, idempotent variant. Payload: {"cmd":"set_day_night","day":<bool>}.
@@ -241,18 +234,18 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
                 LOG_WARN("BLE", "set_day_night missing 'day' bool — ignoring");
             } else {
                 const bool day = dayVar.as<bool>();
-                s_pendingDayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
+                PendingActions::dayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
                 LOG_INFO("BLE", "CMD: day/night set queued — %s", day ? "day" : "night");
             }
         } else if (strcmp(cmd, "start_calibration") == 0) {
             // Deferred to UI task — calibrate() is blocking (user taps crosshairs)
-            s_pendingCalibration.store(true, std::memory_order_relaxed);
+            PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration queued");
         } else if (strcmp(cmd, "reset_calibration") == 0) {
             // Deferred to UI task — keeps NVS access on a single task thread,
             // matching the calibrate path. Reset wipes the persisted offsets;
             // next boot falls back to board defaults + first-boot calibration.
-            s_pendingCalibrationReset.store(true, std::memory_order_relaxed);
+            PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration reset queued");
         } else if (strcmp(cmd, "track_state") == 0) {
             // Track-mode telemetry pushed by canshift-mobile. Mirrors the
@@ -522,22 +515,6 @@ void BleServer::pushStatusNotify() {
     updateStatus();
     if (s_pStatus && s_pStatus->getSubscribedCount() > 0)
         s_pStatus->notify();
-}
-
-bool BleServer::takePendingDayNightToggle() {
-    return s_pendingDayNightToggle.exchange(false, std::memory_order_relaxed);
-}
-
-int8_t BleServer::takePendingDayNightSet() {
-    return s_pendingDayNightSet.exchange(-1, std::memory_order_relaxed);
-}
-
-bool BleServer::takePendingCalibration() {
-    return s_pendingCalibration.exchange(false, std::memory_order_relaxed);
-}
-
-bool BleServer::takePendingCalibrationReset() {
-    return s_pendingCalibrationReset.exchange(false, std::memory_order_relaxed);
 }
 
 #endif // APP_BLE_ENABLED

@@ -25,6 +25,7 @@
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 #include "runtime/signal_store.h"
+#include "runtime/pending_actions.h"
 #include "can/signal_map.h"
 #include "util/format_float.h"
 
@@ -516,17 +517,8 @@ void handleScreenSettings(const JsonObjectConst &obj) {
 // fine — single writer, single reader, atomic on 32-bit ESP32).
 static volatile uint32_t s_lastHostCmdMs = 0;
 
-// Deferred-action flags — set by command handlers, consumed by the UI task in
-// main.cpp. Mirrors the pattern used by ble_server.cpp for the same actions.
-static std::atomic<bool> s_pendingDayNightToggle{false};
-static std::atomic<bool> s_pendingCalibration{false};
-static std::atomic<bool> s_pendingCalibrationReset{false};
-
-// Pending explicit day/night set: -1 = none, 0 = night, 1 = day.
-// Separate from the toggle flag so old hosts (sending CMD_TOGGLE_DAY_NIGHT)
-// keep working while new hosts (sending CMD_SET_DAY_NIGHT) get idempotent
-// behaviour. The UI task prefers the explicit set when both are pending.
-static std::atomic<int8_t> s_pendingDayNightSet{-1};
+// Deferred-action flags live in `runtime/pending_actions.h` — shared with
+// ble_server.cpp so the UI task drains both transports in one place (#893).
 
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
@@ -624,7 +616,7 @@ void handleCommand(const char *jsonLine) {
             handleScreenSettings(doc.as<JsonObjectConst>());
             break;
         case UsbComm::CMD_TOGGLE_DAY_NIGHT:
-            s_pendingDayNightToggle.store(true, std::memory_order_relaxed);
+            PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: day/night toggle queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
@@ -636,18 +628,18 @@ void handleCommand(const char *jsonLine) {
                 break;
             }
             const bool day = dayVar.as<bool>();
-            s_pendingDayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
+            PendingActions::dayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: day/night set queued — %s", day ? "day" : "night");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
         }
         case UsbComm::CMD_CALIBRATE_TOUCH:
-            s_pendingCalibration.store(true, std::memory_order_relaxed);
+            PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
         case UsbComm::CMD_RESET_TOUCH_CAL:
-            s_pendingCalibrationReset.store(true, std::memory_order_relaxed);
+            PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration reset queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
@@ -770,22 +762,6 @@ void UsbComm::sendLine(const char *line) {
         Serial.write('\n');
     if (locked)
         Logger::unlockUart();
-}
-
-bool UsbComm::takePendingDayNightToggle() {
-    return s_pendingDayNightToggle.exchange(false, std::memory_order_relaxed);
-}
-
-int8_t UsbComm::takePendingDayNightSet() {
-    return s_pendingDayNightSet.exchange(-1, std::memory_order_relaxed);
-}
-
-bool UsbComm::takePendingCalibration() {
-    return s_pendingCalibration.exchange(false, std::memory_order_relaxed);
-}
-
-bool UsbComm::takePendingCalibrationReset() {
-    return s_pendingCalibrationReset.exchange(false, std::memory_order_relaxed);
 }
 
 bool UsbComm::isHostActive() {

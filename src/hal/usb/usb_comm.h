@@ -117,35 +117,9 @@ void updateCanStats(uint32_t fpsX10, uint32_t errors);
  */
 bool isHostActive();
 
-/**
- * Take-and-clear the pending day/night-toggle flag set by CMD_TOGGLE_DAY_NIGHT.
- * Returns true exactly once per command. Consumed by the UI task in main.cpp
- * while holding g_lvglMutex.
- */
-bool takePendingDayNightToggle();
-
-/**
- * Take-and-clear the pending explicit day/night set request set by CMD_SET_DAY_NIGHT.
- * Returns 1 (day), 0 (night) or -1 (no pending request). Consumed by the UI task
- * in main.cpp while holding g_lvglMutex. Prefer this over the toggle path when
- * both are pending — explicit intent wins.
- */
-int8_t takePendingDayNightSet();
-
-/**
- * Take-and-clear the pending touch-calibration flag set by CMD_CALIBRATE_TOUCH.
- * Returns true exactly once per command. Consumed by the UI task in main.cpp
- * WITHOUT holding g_lvglMutex (calibrate() draws via TFT_eSPI directly and
- * blocks on user input).
- */
-bool takePendingCalibration();
-
-/**
- * Take-and-clear the pending calibration-reset flag set by CMD_RESET_TOUCH_CAL.
- * Returns true exactly once per command. Consumed by the UI task in main.cpp.
- * The reset itself is a synchronous NVS write so no mutex is required.
- */
-bool takePendingCalibrationReset();
+// Day/night + touch-calibration pending flags moved to
+// `runtime/pending_actions.h` (#893) — drained by main.cpp from one shared
+// location regardless of which transport queued the command.
 
 /**
  * Write a single wire-protocol line to UART0 under the logger mutex.

@@ -80,34 +80,9 @@ bool isConnected();
  */
 void pushStatusNotify();
 
-/**
- * Atomically consume the pending day/night toggle request.
- * Returns true (and clears the flag) if a toggle was requested.
- * Call from the UI task, inside the LVGL mutex.
- */
-bool takePendingDayNightToggle();
-
-/**
- * Atomically consume the pending explicit day/night set request.
- * Returns 1 (day), 0 (night) or -1 (no pending request) and clears the flag.
- * Call from the UI task, inside the LVGL mutex. Prefer this over the
- * toggle path when both are pending — explicit intent wins.
- */
-int8_t takePendingDayNightSet();
-
-/**
- * Atomically consume the pending calibration request.
- * Returns true (and clears the flag) if calibration was requested.
- * Call from the UI task WITHOUT the LVGL mutex — calibrate() is blocking.
- */
-bool takePendingCalibration();
-
-/**
- * Atomically consume the pending calibration-reset request.
- * Returns true (and clears the flag) if a reset was requested.
- * Call from the UI task. The reset only touches NVS so no mutex is required.
- */
-bool takePendingCalibrationReset();
+// Day/night + touch-calibration command flags moved to
+// `runtime/pending_actions.h` (issue #893). main.cpp drains them once per
+// tick regardless of which channel queued the request.
 
 } // namespace BleServer
 

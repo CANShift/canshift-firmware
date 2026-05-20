@@ -27,6 +27,7 @@
 #include "hal/usb/usb_comm.h"
 #include "runtime/alert_engine.h"
 #include "runtime/input_buttons.h"
+#include "runtime/pending_actions.h"
 #include "ui/page_manager.h"
 #include "ui/theme_manager.h"
 #if APP_BLE_ENABLED
@@ -256,24 +257,20 @@ void taskUI(void *pvParameters) {
 
         // Calibration runs WITHOUT the LVGL mutex — it blocks while the user taps
         // crosshairs on screen and draws directly via TFT_eSPI (not through LVGL).
+        // Both BLE and USB queue the same flag now (#893); main.cpp drains it once.
         bool calibratedThisTick = false;
-#if APP_BLE_ENABLED
-        if (BleServer::takePendingCalibration()) {
+        if (PendingActions::takeTouchCalibrate()) {
             TouchDriver::calibrate();
+#if APP_BLE_ENABLED
+            // Push a STATUS notify so a connected BLE client sees the result —
+            // matters even when the trigger came over USB.
             BleServer::pushStatusNotify();
+#endif
             calibratedThisTick = true;
         }
         // Reset-calibration only touches NVS — no LVGL mutex needed, but
         // running it on the UI task keeps all NVS writes on a single thread.
-        if (BleServer::takePendingCalibrationReset()) {
-            TouchDriver::resetCalibration();
-        }
-#endif
-        if (UsbComm::takePendingCalibration()) {
-            TouchDriver::calibrate();
-            calibratedThisTick = true;
-        }
-        if (UsbComm::takePendingCalibrationReset()) {
+        if (PendingActions::takeTouchCalibrationReset()) {
             TouchDriver::resetCalibration();
         }
         (void)calibratedThisTick;
@@ -298,25 +295,16 @@ void taskUI(void *pvParameters) {
             TouchDriver::poll();
 
             // Explicit set wins over toggle when both are pending in the same
-            // tick — the explicit command carries the user's literal intent.
+            // tick — the explicit command carries the user's literal intent
+            // (#893: same precedence as before, just from one shared source).
             const bool prevIsDay = ThemeManager::isDayMode();
 
-#if APP_BLE_ENABLED
-            const int8_t bleSet = BleServer::takePendingDayNightSet();
-            if (bleSet >= 0) {
-                ThemeManager::setDayMode(bleSet == 1);
-                // Drop any stale toggle from the same client to avoid undoing
-                // the explicit set immediately after.
-                (void)BleServer::takePendingDayNightToggle();
-            } else if (BleServer::takePendingDayNightToggle()) {
-                ThemeManager::toggleDayMode();
-            }
-#endif
-            const int8_t usbSet = UsbComm::takePendingDayNightSet();
-            if (usbSet >= 0) {
-                ThemeManager::setDayMode(usbSet == 1);
-                (void)UsbComm::takePendingDayNightToggle();
-            } else if (UsbComm::takePendingDayNightToggle()) {
+            const int8_t dnSet = PendingActions::takeDayNightSet();
+            if (dnSet >= 0) {
+                ThemeManager::setDayMode(dnSet == 1);
+                // Drop any stale toggle to avoid undoing the explicit set.
+                (void)PendingActions::takeDayNightToggle();
+            } else if (PendingActions::takeDayNightToggle()) {
                 ThemeManager::toggleDayMode();
             }
 
