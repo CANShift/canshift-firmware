@@ -36,13 +36,18 @@ static TaskHandle_t s_taskHandle = nullptr;
 static volatile bool s_active = false;
 static char s_ssid[20] = {};
 
-// Per-device AP password — 16 hex chars + null terminator. Generated on first
-// boot via esp_random() (64 bits entropy) and persisted in NVS.
-static char s_password[17] = {};
+// Per-device AP password — 32 hex chars + null terminator. Generated on first
+// boot via esp_fill_random() (128 bits entropy) and persisted in NVS. Issue
+// #910 raised this from the previous 64-bit (16-char) password: WPA2 4-way
+// handshake capture within the 5-minute AP window followed by offline brute
+// force at ~10^10 H/s is plausible against 64 bits; 128 bits keeps brute
+// force infeasible at any realistic hardware budget.
+static constexpr size_t AP_PASSWORD_LEN = 32;
+static constexpr size_t AP_PASSWORD_ENTROPY_BYTES = 16; // 128 bits, hex-encoded
+static char s_password[AP_PASSWORD_LEN + 1] = {};
 
 static constexpr char NVS_NS_WIFI_AP[] = "wifi_ap";
 static constexpr char NVS_KEY_PWD[] = "pwd";
-static constexpr size_t AP_PASSWORD_LEN = 16;
 
 // Per-request bearer token gating the /ota endpoint (issue #667).
 //
@@ -336,10 +341,15 @@ void ensurePassword() {
             return; // valid persisted value
     }
 
-    // Missing, empty, or wrong length — generate a fresh 64-bit random password.
-    const uint32_t a = esp_random();
-    const uint32_t b = esp_random();
-    snprintf(s_password, sizeof(s_password), "%08x%08x", a, b);
+    // Missing, empty, or wrong length — generate a fresh 128-bit random
+    // password. `esp_fill_random` populates the buffer from the hardware
+    // RNG in a single call (cheaper than two `esp_random()` calls and avoids
+    // the per-word join). Hex-encoded for a 32-char ASCII string.
+    uint8_t entropy[AP_PASSWORD_ENTROPY_BYTES];
+    esp_fill_random(entropy, sizeof(entropy));
+    for (size_t i = 0; i < AP_PASSWORD_ENTROPY_BYTES; ++i) {
+        snprintf(&s_password[i * 2], 3, "%02x", entropy[i]);
+    }
 
     Preferences pw;
     if (pw.begin(NVS_NS_WIFI_AP, /*readOnly=*/false)) {

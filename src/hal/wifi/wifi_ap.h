@@ -5,9 +5,11 @@
 // Auto-stops after BLE_WIFI_AP_TIMEOUT_MS (5 minutes) or after a successful OTA.
 //
 // SSID:     CANShift-XXXX (last 2 bytes of MAC, uppercase hex)
-// Password: per-device, 16 hex chars (64 bits entropy from esp_random()),
+// Password: per-device, 32 hex chars (128 bits entropy from esp_fill_random()),
 //           generated on first boot and persisted in NVS namespace "wifi_ap",
 //           key "pwd". Surfaced to clients via BLE STATUS field "ap_password".
+//           Raised from 64 bits (16 chars) in #910 — WPA2 handshake capture
+//           within the 5-minute AP window can brute-force 64 bits offline.
 // IP:       192.168.4.1 (ESP32 softAP default)
 //
 // HTTP endpoints:
@@ -34,7 +36,7 @@ bool isActive();
 /** Returns the AP SSID (valid after start(), empty string before). */
 const char *getSsid();
 
-/** Returns the AP password (16 hex chars). Lazy-generates and persists on first call. */
+/** Returns the AP password (32 hex chars). Lazy-generates and persists on first call. */
 const char *getPassword();
 
 } // namespace WifiAp

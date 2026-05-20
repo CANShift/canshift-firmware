@@ -77,12 +77,13 @@ PLACEHOLDER_SECRET = "DEV_INSECURE_REPLACE_BEFORE_PROD"
 # Example string shipped in secrets.ini.example. Treated as "not configured".
 EXAMPLE_SECRET = "REPLACE_WITH_OUTPUT_OF_openssl_rand_hex_32"
 
-# Build flavours that may use the placeholder secret. Any pio env whose name
-# contains one of these tokens is treated as a development build; everything
-# else (crowpanel_28, debug-perf, secure, …) is a production build and the
-# placeholder is a hard error. Keep this list short and explicit so a typo'd
-# env name fails closed.
-DEV_ENV_TOKENS = ("sim", "debug", "native")
+# Build flavours that may use the placeholder secret. Issue #910 — moved from
+# substring matching (`"debug" in "crowpanel_28_debug_perf"` was true) to an
+# exact-match set. A maintainer accidentally tagging a release built from
+# `crowpanel_28_debug_…` no longer slips a placeholder OTA secret into a
+# production artifact. Add new dev envs explicitly — fail-closed wins over
+# fail-open every time.
+DEV_ENV_NAMES = frozenset(("sim", "debug", "native"))
 
 
 def is_dev_build():
@@ -93,22 +94,14 @@ def is_dev_build():
     existing envs are already split (production = crowpanel_28 / debug-perf /
     secure; dev = sim / debug / native).
 
-    Also returns True for GitHub Actions pull_request CI runs: those exercise
-    the prod env (crowpanel_28) as a compile check on every PR but the binary
-    is never published, so the placeholder secret is acceptable there. The
-    release workflow runs on tag push (GITHUB_EVENT_NAME=push) and stays
-    subject to the prod gate — release artifacts MUST be built with a real
-    secret from gh-secrets."""
+    GitHub Actions pull_request CI is NO LONGER auto-allowed (#910). The PR
+    workflow must set OTA_HMAC_SECRET to the same value as the release
+    workflow (or to a deliberate test value) — that way the PR build either
+    produces a binary safe to flash, or fails loud. Auto-accepting the
+    placeholder on PR CI meant a malicious PR could land a binary built with
+    a known secret on every reviewer's machine."""
     pio_env = env.get("PIOENV", "") or ""
-    lowered = pio_env.lower()
-    if any(token in lowered for token in DEV_ENV_TOKENS):
-        return True
-    if (
-        os.environ.get("CI") == "true"
-        and os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
-    ):
-        return True
-    return False
+    return pio_env.lower() in DEV_ENV_NAMES
 
 
 def read_ota_hmac_secret():
