@@ -15,6 +15,7 @@
     #include "diag/lvgl_lock_guard.h"
     #include "runtime/track_store.h"
     #include "runtime/pending_actions.h"
+    #include "util/format_float.h"
     #include "app_config.h"
 
     #include <NimBLEDevice.h>
@@ -81,9 +82,89 @@ static std::atomic<int8_t> s_pendingEnabled{-1};
 
 namespace {
 
-void addSignalIfValid(JsonDocument &doc, const char *key, SignalId id) {
-    if (SignalStore::isValid(id))
-        doc[key] = roundf(SignalStore::read(id) * 10.0f) / 10.0f; // 1 decimal place
+// ---------------------------------------------------------------------------
+// Stack-only telemetry serializer (issue #891)
+// ---------------------------------------------------------------------------
+//
+// The previous code built a JsonDocument every 100 ms then serialized to a
+// stack buffer. ArduinoJson v7's JsonDocument is heap-backed despite the name,
+// so the BLE task was running a small malloc/free cycle 10× per second
+// against the same post-LVGL heap that #555/#576/#664 work so hard to keep
+// unfragmented. Mirrors the heap-free pattern already in use by USB's
+// `sendTelemetry()` (`usb_comm.cpp::sendTelemetry`).
+
+struct BleTeleEntry {
+    SignalId id;
+    const char *key;
+};
+
+constexpr BleTeleEntry BLE_TELE_SIGNALS[] = {
+    {SignalIds::RPM, "r"},
+    {SignalIds::THROTTLE_POS, "tps"},
+    {SignalIds::MAP_KPA, "map"},
+    {SignalIds::MAP_NUMBER, "mi"},
+    {SignalIds::BOOST_BAR, "bst"},
+    {SignalIds::IAT_C, "iat"},
+    {SignalIds::COOLANT_TEMP_C, "ct"},
+    {SignalIds::OIL_TEMP_C, "ot"},
+    {SignalIds::OIL_PRESS_BAR, "op"},
+    {SignalIds::FUEL_PRESS_BAR, "fp"},
+    {SignalIds::LAMBDA_1, "lam"},
+    {SignalIds::SPEED_KPH, "s"},
+    {SignalIds::GEAR, "g"},
+    {SignalIds::BATTERY_VOLTS, "bat"},
+};
+
+constexpr size_t BLE_TELE_SIGNAL_COUNT = sizeof(BLE_TELE_SIGNALS) / sizeof(BLE_TELE_SIGNALS[0]);
+
+// 4 significant digits keeps every BLE-emitted signal (max range ~9000 for
+// RPM, 1 decimal of precision elsewhere) representable without loss while
+// stripping trailing zeros on whole values. Matches the JSON contract the
+// mobile parser already accepts — only the trailing-zero behaviour changes
+// (12.0 stays "12" instead of becoming "12.0").
+constexpr int BLE_TELE_SIG_DIGITS = 4;
+
+// Returns the number of bytes written to `buf` (excluding the null
+// terminator). Returns 0 on overflow.
+size_t buildTelemetryPayload(char *buf, size_t bufSize) {
+    if (bufSize < 4)
+        return 0;
+    char *p = buf;
+    char *const end = buf + bufSize - 1; // reserve \0
+
+    *p++ = '{';
+    bool first = true;
+    for (size_t i = 0; i < BLE_TELE_SIGNAL_COUNT; i++) {
+        if (!SignalStore::isValid(BLE_TELE_SIGNALS[i].id))
+            continue;
+        const float val = SignalStore::read(BLE_TELE_SIGNALS[i].id);
+
+        if (!first) {
+            if (p >= end)
+                return 0;
+            *p++ = ',';
+        }
+        first = false;
+
+        const int keyN =
+            snprintf(p, static_cast<size_t>(end - p), "\"%s\":", BLE_TELE_SIGNALS[i].key);
+        if (keyN <= 0 || p + keyN >= end)
+            return 0;
+        p += keyN;
+
+        char numBuf[16];
+        const size_t numLen =
+            FloatFormat::formatGeneral(numBuf, sizeof(numBuf), val, BLE_TELE_SIG_DIGITS);
+        if (numLen == 0 || p + numLen >= end)
+            return 0;
+        memcpy(p, numBuf, numLen);
+        p += numLen;
+    }
+    if (p >= end)
+        return 0;
+    *p++ = '}';
+    *p = '\0';
+    return static_cast<size_t>(p - buf);
 }
 
 void updateStatus() {
@@ -462,31 +543,15 @@ void BleServer::tick() {
     if (!s_pTele->getSubscribedCount())
         return;
 
-    JsonDocument doc;
-    addSignalIfValid(doc, "r", SignalIds::RPM);
-    addSignalIfValid(doc, "tps", SignalIds::THROTTLE_POS);
-    addSignalIfValid(doc, "map", SignalIds::MAP_KPA);
-    addSignalIfValid(doc, "mi", SignalIds::MAP_NUMBER);
-    addSignalIfValid(doc, "bst", SignalIds::BOOST_BAR);
-    addSignalIfValid(doc, "iat", SignalIds::IAT_C);
-    addSignalIfValid(doc, "ct", SignalIds::COOLANT_TEMP_C);
-    addSignalIfValid(doc, "ot", SignalIds::OIL_TEMP_C);
-    addSignalIfValid(doc, "op", SignalIds::OIL_PRESS_BAR);
-    addSignalIfValid(doc, "fp", SignalIds::FUEL_PRESS_BAR);
-    addSignalIfValid(doc, "lam", SignalIds::LAMBDA_1);
-    addSignalIfValid(doc, "s", SignalIds::SPEED_KPH);
-    addSignalIfValid(doc, "g", SignalIds::GEAR);
-    addSignalIfValid(doc, "bat", SignalIds::BATTERY_VOLTS);
-
+    // Heap-free telemetry — `buildTelemetryPayload` writes directly to a
+    // stack buffer using `snprintf` + `FloatFormat::formatGeneral`, avoiding
+    // the per-tick JsonDocument malloc/free that previously hammered the
+    // post-LVGL heap at 10 Hz (#891).
     char buf[512];
-    // ArduinoJson silently truncates on overflow; pushing a half-serialised
-    // payload at 10 Hz over BLE would feed the mobile parser garbage. Skip
-    // the notify if the cap is hit so the prior good frame stays visible.
-    // STATUS refresh below is independent and must still run (#936).
-    const size_t len = serializeJson(doc, buf, sizeof(buf));
-    if (len == 0 || len >= sizeof(buf)) {
-        LOG_WARN("BLE", "TELE payload truncated (len=%u, cap=%u) — skipping notify",
-                 static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
+    const size_t len = buildTelemetryPayload(buf, sizeof(buf));
+    if (len == 0) {
+        LOG_WARN("BLE", "TELE payload would overflow %u B buffer — skipping notify",
+                 static_cast<unsigned>(sizeof(buf)));
     } else {
         s_pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
         s_pTele->notify();
