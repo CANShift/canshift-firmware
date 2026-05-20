@@ -354,13 +354,15 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             WifiAp::start();
             LOG_INFO("BLE", "CMD: starting WiFi AP — SSID: %s", WifiAp::getSsid());
             updateStatus();
-            if (s_pStatus->getSubscribedCount() > 0)
+            // s_pStatus is null when GATT setup failed (heap-too-low) or after
+            // a runtime BleServer::stop() — guard before notifying (#1007).
+            if (s_pStatus && s_pStatus->getSubscribedCount() > 0)
                 s_pStatus->notify();
         } else if (strcmp(cmd, "stop_wifi_ap") == 0) {
             LOG_INFO("BLE", "CMD: stopping WiFi AP");
             WifiAp::stop();
             updateStatus();
-            if (s_pStatus->getSubscribedCount() > 0)
+            if (s_pStatus && s_pStatus->getSubscribedCount() > 0)
                 s_pStatus->notify();
         } else if (strcmp(cmd, "toggle_day_night") == 0) {
             // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
@@ -659,7 +661,7 @@ void BleServer::tick() {
         bool apNow = WifiAp::isActive();
         if (apNow != s_prevApActive) {
             s_prevApActive = apNow;
-            if (s_pStatus->getSubscribedCount() > 0)
+            if (s_pStatus && s_pStatus->getSubscribedCount() > 0)
                 s_pStatus->notify();
         }
     }
