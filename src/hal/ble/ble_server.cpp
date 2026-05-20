@@ -24,6 +24,7 @@
     #include <Arduino.h>
     #include <Preferences.h>
     #include <esp_heap_caps.h>
+    #include <esp_random.h>
     #include <atomic>
     #include <string.h>
 
@@ -42,6 +43,10 @@ static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
 static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
 static constexpr char SETTINGS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000004";
 static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
+// AP password lives on a dedicated, encryption-gated characteristic instead
+// of riding the STATUS notification. Without this split, the WiFi AP password
+// was broadcast over BLE in cleartext to any subscriber within ~30 m (#873).
+static constexpr char AP_PWD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000006";
 
 // ---------------------------------------------------------------------------
 // State
@@ -176,7 +181,10 @@ void updateStatus() {
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     if (WifiAp::isActive()) {
         doc["ap_ssid"] = WifiAp::getSsid();
-        doc["ap_password"] = WifiAp::getPassword();
+        // ap_password intentionally NOT included here — STATUS notifies are
+        // visible to every subscriber, and the password used to ride that
+        // stream in cleartext (#873). Paired+encrypted mobile clients read
+        // the password by GATTing the dedicated AP_PWD characteristic.
     }
     char buf[128];
     // ArduinoJson silently truncates when the output buffer is too small;
@@ -206,7 +214,38 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer *pServer) override {
         s_connected = false;
         LOG_INFO("BLE", "Client disconnected — restarting advertising");
+        // Tear down any lingering passkey overlay so the dashboard returns
+        // immediately if pairing was abandoned mid-flow.
+        PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
         NimBLEDevice::startAdvertising();
+    }
+
+    // Called by NimBLE when a central initiates pairing and we are configured
+    // with IOCap DISPLAY_ONLY. We mint a fresh 6-digit code per pairing
+    // attempt, hand it to the UI task for on-screen display, and return it to
+    // NimBLE so the central can match the value the user types in the mobile
+    // app (issue #873).
+    uint32_t onPassKeyRequest() override {
+        const uint32_t passkey = esp_random() % 1000000u;
+        LOG_INFO("BLE", "Pairing requested — passkey %06u", static_cast<unsigned>(passkey));
+        // The atomic carries the passkey itself; 0 is reserved as "nothing
+        // pending", so on the rare 0 draw we bump to a non-zero value rather
+        // than swallow the show request. The user-visible passkey from
+        // `PasskeyOverlay::show()` is taken modulo 1_000_000 so the bump
+        // never lifts us into a 7-digit code.
+        const uint32_t carrier = (passkey == 0u) ? 1u : passkey;
+        PendingActions::blePasskeyShow.store(carrier, std::memory_order_relaxed);
+        return passkey;
+    }
+
+    void onAuthenticationComplete(ble_gap_conn_desc *desc) override {
+        const bool encrypted = (desc != nullptr) && desc->sec_state.encrypted;
+        if (encrypted) {
+            LOG_INFO("BLE", "Pairing complete — link encrypted");
+        } else {
+            LOG_WARN("BLE", "Pairing did not produce an encrypted link");
+        }
+        PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
     }
 };
 
@@ -266,6 +305,26 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
             return;
         }
         pChar->setValue(buf);
+    }
+};
+
+// ---------------------------------------------------------------------------
+// AP_PWD read callback
+// Returns the current WiFi AP password on demand. The characteristic is
+// declared `READ_ENC`, so NimBLE refuses unencrypted reads at the stack
+// level — only a paired+bonded mobile client can resolve this read.
+// Returns an empty string when the AP is not currently active so a paired
+// client can poll the characteristic without having to subscribe to STATUS.
+// (#873)
+// ---------------------------------------------------------------------------
+
+class ApPasswordCallbacks : public NimBLECharacteristicCallbacks {
+    void onRead(NimBLECharacteristic *pChar) override {
+        if (WifiAp::isActive()) {
+            pChar->setValue(WifiAp::getPassword());
+        } else {
+            pChar->setValue("");
+        }
     }
 };
 
@@ -369,29 +428,49 @@ static void setupGatt() {
     static ServerCallbacks s_serverCb;
     static SettingsCallbacks s_settingsCb;
     static CmdCallbacks s_cmdCb;
+    static ApPasswordCallbacks s_apPwdCb;
 
     NimBLEServer *pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(&s_serverCb);
 
     NimBLEService *pSvc = pServer->createService(SVC_UUID);
 
+    // All characteristics require an encrypted link for reads/writes. Pre-#873
+    // the GATT surface was wide-open: any BLE-capable device within range
+    // could subscribe to telemetry, read the WiFi AP password, and write
+    // arbitrary commands. The `_ENC` permissions push that gate into the
+    // NimBLE stack itself so callbacks never fire on unauthenticated peers.
+    //
+    // NOTIFY is intentionally NOT paired with `_ENC` — the encryption check
+    // happens when the peer writes the CCCD to subscribe (CCCD inherits the
+    // characteristic's permissions), so the notification stream is gated at
+    // subscribe time without needing a non-standard flag here.
     s_pTele =
-        pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+        pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
     s_pTele->setValue("{}");
 
-    s_pStatus =
-        pSvc->createCharacteristic(STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+    s_pStatus = pSvc->createCharacteristic(STATUS_UUID,
+                                           NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
     // Real values not available yet at earlyInit() call site — set minimal placeholder.
     // BleServer::init() calls updateStatus() once all subsystems are up.
     s_pStatus->setValue("{\"ver\":\"" APP_VERSION_STR "\",\"can\":0,\"is_day\":0}");
 
-    NimBLECharacteristic *pSettings =
-        pSvc->createCharacteristic(SETTINGS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+    NimBLECharacteristic *pSettings = pSvc->createCharacteristic(
+        SETTINGS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
     pSettings->setCallbacks(&s_settingsCb);
 
-    NimBLECharacteristic *pCmd =
-        pSvc->createCharacteristic(CMD_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    // WRITE_NR (write-without-response) is kept for low-latency commands
+    // (e.g. `track_state` from canshift-mobile) but the matching `_ENC`
+    // permission applies to both response and no-response paths because the
+    // permission lives on the attribute, not the GATT op.
+    NimBLECharacteristic *pCmd = pSvc->createCharacteristic(
+        CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
     pCmd->setCallbacks(&s_cmdCb);
+
+    NimBLECharacteristic *pApPwd =
+        pSvc->createCharacteristic(AP_PWD_UUID, NIMBLE_PROPERTY::READ_ENC);
+    pApPwd->setCallbacks(&s_apPwdCb);
+    pApPwd->setValue("");
 
     pSvc->start();
 
@@ -430,6 +509,13 @@ bool startStack() {
         }
         NimBLEDevice::init("CANShift");
         NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+        // bond=true: persist the LTK across reboots so a paired phone
+        // reconnects without re-prompting.
+        // mitm=true + sc=true: require Secure Connections with man-in-the-middle
+        // protection (passkey entry), defeating the "open GATT to anyone in
+        // range" surface that #873 documents.
+        NimBLEDevice::setSecurityAuth(true, true, true);
+        NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
         s_stackInited = true;
     }
 
@@ -478,6 +564,11 @@ void BleServer::earlyInit() {
 
     NimBLEDevice::init("CANShift");
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+    // Same Secure-Connections + bonding + MITM (passkey entry) configuration
+    // as the runtime-init path in startStack() — see that branch for rationale
+    // (issue #873).
+    NimBLEDevice::setSecurityAuth(true, true, true);
+    NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
     s_stackInited = true;
     LOG_INFO("BLE", "BLE stack initialized (%u B available) — building GATT tree",
              static_cast<unsigned>(avail));

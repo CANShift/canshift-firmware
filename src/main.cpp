@@ -29,6 +29,7 @@
 #include "runtime/input_buttons.h"
 #include "runtime/pending_actions.h"
 #include "ui/page_manager.h"
+#include "ui/passkey_overlay.h"
 #include "ui/theme_manager.h"
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
@@ -309,6 +310,18 @@ void taskUI(void *pvParameters) {
             }
 
             didDayNightChange = (ThemeManager::isDayMode() != prevIsDay);
+
+            // Drain BLE pairing-passkey events queued by the BLE callbacks.
+            // Hide first so a quick disconnect-then-reconnect within one tick
+            // ends up showing the *new* code rather than tearing down the
+            // overlay the BLE task just asked us to put up (issue #873).
+            if (PendingActions::takeBlePasskeyHide()) {
+                PasskeyOverlay::hide();
+            }
+            const uint32_t passkey = PendingActions::takeBlePasskeyShow();
+            if (passkey != 0u) {
+                PasskeyOverlay::show(passkey);
+            }
 
             PageManager::updateWidgets();
             {
