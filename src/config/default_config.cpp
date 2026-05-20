@@ -26,7 +26,7 @@
 // Mirrored from config_loader.cpp's kBakSuffix — kept local here to avoid
 // a cross-translation-unit include for a 4-byte constant.
 static constexpr const char *kBakSuffix = ".bak";
-// CFG_MAX_PATH_LEN (48) + ".bak" (4) + null terminator (1).
+// CFG_MAX_PATH_LEN + ".bak" (4) + null terminator (1).
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 extern "C" {

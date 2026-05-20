@@ -30,7 +30,12 @@
 #define CFG_MAX_ID_LEN 32
 #define CFG_MAX_NAME_LEN 32
 #define CFG_MAX_SIGNAL_LEN 32
-#define CFG_MAX_PATH_LEN 48
+// Asset / config file paths. 48 was tight — `/assets/sensor_oil_pressure.bin`
+// already takes 30 chars and any moderately-named user icon (e.g.
+// `/assets/longish-icon-name.bin`, 35 chars) would graze the cap. 64 gives
+// comfortable headroom at a cost of ~16 extra bytes per widget/page path
+// field — negligible vs. the 1.5 MB flash budget. Issue #909.
+#define CFG_MAX_PATH_LEN 64
 #define CFG_MAX_COLOR_LEN 8 // "#RRGGBB\0"
 
 // ---------------------------------------------------------------------------

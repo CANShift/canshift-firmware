@@ -56,7 +56,7 @@ static CfgInputBindings s_inputs = {};
 
 // Suffix for the boot-time fallback copy written by atomic saves.
 static constexpr const char *kBakSuffix = ".bak";
-// CFG_MAX_PATH_LEN (48) + ".bak" + null terminator.
+// CFG_MAX_PATH_LEN + ".bak" + null terminator.
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 namespace {

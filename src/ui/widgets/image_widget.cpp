@@ -24,7 +24,7 @@
 namespace {
 
 // Maximum LVGL path length including "S:" prefix
-static constexpr size_t LVGL_PATH_LEN = 68; // 2 + CFG_MAX_PATH_LEN
+static constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
 struct ImageTag {
     char lvglPath[LVGL_PATH_LEN]; // e.g. "S:/images/bg.bmp"
