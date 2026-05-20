@@ -118,6 +118,13 @@ static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 // scripts/png_to_lvgl_bin.py. We can't use the Unicode sun/moon glyphs
 // because the Latin-only Orbitron fonts don't include them.
 
+// ---------------------------------------------------------------------------
+// TopBar status colours — MIRROR OF canshift-core/src/topbar-colors.ts
+//
+// Studio preview and this renderer read the same palette so the two stay
+// pixel-faithful. The TS file is the canonical source of truth — if you edit
+// a value here, edit it there too (and bump the canshift-core unit test).
+// ---------------------------------------------------------------------------
 static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;      // green — connected, fresh data
 static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800;   // orange — was connected but timing out
 static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;    // red — never connected since boot
