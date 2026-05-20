@@ -91,6 +91,43 @@
 #define TASK_WDT_TIMEOUT_MS 8000U
 
 // ---------------------------------------------------------------------------
+// USB task tracing (issue #976)
+// ---------------------------------------------------------------------------
+//
+// Lightweight instrumentation around the USB task tick to localise the WDT
+// timeout reported in #976. Off by default — flip via `-D APP_USB_TICK_TRACE=1`
+// in platformio.ini (or `build_flags` on a custom env) when reproducing.
+//
+// When enabled, the task loop logs:
+//   - the interval between two consecutive `UsbComm::tick()` calls (gap),
+//   - the body duration of each tick,
+// each gated by a threshold so the log surface stays quiet under steady state.
+
+#ifndef APP_USB_TICK_TRACE
+    #define APP_USB_TICK_TRACE 0
+#endif
+
+// Warn when `UsbComm::tick()` body takes longer than this (µs). 1 s leaves
+// 7 s of WDT headroom — plenty of margin to surface a hang before the
+// watchdog actually fires.
+#define USB_TICK_DURATION_WARN_US 1000000UL
+
+// Warn when the gap between two USB-tick entries exceeds this (µs). The
+// nominal cadence is 20 ms (`vTaskDelay(pdMS_TO_TICKS(20))`); 200 ms = 10×
+// nominal, which is well below the watchdog threshold but high enough to
+// flag genuine starvation rather than scheduler jitter.
+#define USB_TICK_INTERVAL_WARN_US 200000UL
+
+// Abort the firmware when CAN-scan queue allocation fails so the failure
+// surfaces as an explicit panic instead of a silent degraded state where
+// `s_canScanQueue` stays nullptr (issue #976 smoking gun #1). Off by default
+// — only enable during repro runs because every queue alloc failure now
+// crashes the device.
+#ifndef APP_USB_CAN_SCAN_FAIL_LOUD
+    #define APP_USB_CAN_SCAN_FAIL_LOUD 0
+#endif
+
+// ---------------------------------------------------------------------------
 // LVGL timing
 // ---------------------------------------------------------------------------
 

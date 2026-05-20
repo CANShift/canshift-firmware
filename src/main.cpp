@@ -411,8 +411,37 @@ void taskCAN(void *pvParameters) {
 void taskUSBComm(void *pvParameters) {
     UsbComm::init();
 
+#if APP_USB_TICK_TRACE
+    // Per-iteration timestamps for the #976 trace: previous tick entry time
+    // (for the inter-tick gap) and an iteration counter so log lines can be
+    // correlated with the serial timeline.
+    int64_t prevEntryUs = esp_timer_get_time();
+    uint32_t tickCount = 0;
+#endif
+
     while (true) {
+#if APP_USB_TICK_TRACE
+        const int64_t entryUs = esp_timer_get_time();
+        const int64_t gapUs = entryUs - prevEntryUs;
+        if (gapUs > static_cast<int64_t>(USB_TICK_INTERVAL_WARN_US)) {
+            LOG_WARN("USB_TRACE", "tick gap %lld us (count=%lu) — USB task starved",
+                     static_cast<long long>(gapUs), static_cast<unsigned long>(tickCount));
+        }
+        prevEntryUs = entryUs;
+        const int64_t bodyStartUs = entryUs;
+#endif
+
         UsbComm::tick();
+
+#if APP_USB_TICK_TRACE
+        const int64_t bodyDurUs = esp_timer_get_time() - bodyStartUs;
+        if (bodyDurUs > static_cast<int64_t>(USB_TICK_DURATION_WARN_US)) {
+            LOG_WARN("USB_TRACE", "tick body %lld us (count=%lu) — slow path inside tick()",
+                     static_cast<long long>(bodyDurUs), static_cast<unsigned long>(tickCount));
+        }
+        ++tickCount;
+#endif
+
 #if !APP_SIMULATION_MODE
         // Issue #666 — USB task WDT feed. Default tick cadence is 20 ms,
         // worst case (CMD_PUT_CONFIG burn under LVGL mutex) ~200 ms, both

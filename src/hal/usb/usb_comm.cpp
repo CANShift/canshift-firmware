@@ -654,6 +654,12 @@ void handleCommand(const char *jsonLine) {
             }
             if (!s_canScanQueue) {
                 LOG_ERROR("USB", "CAN scan start: queue alloc failed");
+#if APP_USB_CAN_SCAN_FAIL_LOUD
+                // #976 reproducer hook — abort here so a fresh boot with the
+                // queue present is easy to distinguish from one that already
+                // started in a degraded state. Off in release.
+                abort();
+#endif
                 UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
                 break;
             }
