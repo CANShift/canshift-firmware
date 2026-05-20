@@ -256,6 +256,16 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
     #define APP_BLE_ENABLED 1
 #endif
 
+// Runtime default for the BLE-enabled NVS preference (`screen_cfg/ble_en`).
+// Off by default — pairing is opt-in. Until #873 lands, the GATT surface is
+// unauthenticated and the STATUS characteristic notifies the WiFi AP password
+// in cleartext, so an open BLE advertisement is effectively an open WiFi+OTA
+// surface to anyone within ~30 m. Default-off forces a deliberate user
+// action through the Settings page (issue #878).
+#ifndef BLE_DEFAULT_ENABLED
+    #define BLE_DEFAULT_ENABLED 0
+#endif
+
 // WiFi-AP-based OTA flow (started on demand from BLE). Phase 1 ships firmware
 // over USB (esptool) so we don't need the AP / HTTP / Update.h infrastructure.
 // When 0, wifi_ap.cpp ships only stubs and the WiFi / WebServer / Update Arduino

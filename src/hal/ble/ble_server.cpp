@@ -456,10 +456,12 @@ bool startStack() {
 
 void BleServer::earlyInit() {
     // Read the BLE-enabled preference directly from NVS — SettingsPage (and
-    // LVGL) are not yet initialized at this call site.
+    // LVGL) are not yet initialized at this call site. Default tracks
+    // `BLE_DEFAULT_ENABLED` (app_config.h) — off by default so a fresh device
+    // doesn't advertise an unauthenticated GATT surface (issue #878).
     Preferences p;
     p.begin("screen_cfg", /*readOnly=*/true);
-    const bool enabled = p.getUChar("ble_en", 1) != 0;
+    const bool enabled = p.getUChar("ble_en", BLE_DEFAULT_ENABLED) != 0;
     p.end();
 
     if (!enabled) {

@@ -1,6 +1,7 @@
 // settings_page.cpp — On-device LVGL screen settings page
 
 #include "settings_page.h"
+#include "app_config.h"
 #include "ui/font_manager.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
@@ -27,7 +28,9 @@ static constexpr char KEY_BLE_ENABLED[] = "ble_en";    // uint8  (0/1)
 // ---------------------------------------------------------------------------
 
 static constexpr uint8_t DEFAULT_BRIGHTNESS = 80;
-static constexpr bool DEFAULT_BLE_ENABLED = true;
+// Tracks `BLE_DEFAULT_ENABLED` in app_config.h — keep both in sync so the
+// Settings page reset button and the NVS-load fallback agree (issue #878).
+static constexpr bool DEFAULT_BLE_ENABLED = (BLE_DEFAULT_ENABLED != 0);
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -323,10 +326,13 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     }
 
     // ---- Bluetooth ----
+    // Labeled "MOBILE PAIRING" so a user lands here understands the toggle
+    // gates the canshift-mobile companion app, not generic Bluetooth audio
+    // or arbitrary BLE peripherals (#878).
     y += gapRow;
     {
         lv_obj_t *lbl = lv_label_create(s_panel);
-        lv_label_set_text(lbl, "BLUETOOTH");
+        lv_label_set_text(lbl, "MOBILE PAIRING");
         lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
         lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
         lv_obj_set_pos(lbl, PAD_H, y);
