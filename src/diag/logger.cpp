@@ -5,6 +5,11 @@
 // FreeRTOS mutex shared with the wire-protocol producer (UsbComm). This keeps
 // log lines from interleaving with telemetry / can / ack frames on UART0.
 //
+// The mutex is recursive so re-entrant logger calls from the same task — e.g.
+// an assert / panic handler invoking LOG_ERROR while the task already holds
+// the lock via UsbComm::lockUart() — cannot deadlock and silently drop the
+// line that triggered the assert (F-HI-6, umbrella #1014).
+//
 // Pre-init boot text from the Arduino core / ESP-IDF can still land on UART0
 // before Logger::init() runs — the studio drops malformed JSON silently, so
 // this is non-fatal and intentionally not addressed here.
@@ -18,7 +23,9 @@
 
 namespace {
 
-// One mutex shared with all UART0 writers. Created in Logger::init().
+// One recursive mutex shared with all UART0 writers. Created in Logger::init().
+// Recursive so a task already holding the lock (e.g. UsbComm streaming a
+// multi-call frame) can still log from a nested call site without deadlocking.
 SemaphoreHandle_t s_uartMutex = nullptr;
 
 // Stack-allocated buffers in emit() are sized for the worst case:
@@ -95,36 +102,37 @@ void escapeJson(const char *src, char *dst, size_t dstCap) {
 void Logger::init() {
     // Serial is already initialized in main.cpp setup() before this runs.
     if (!s_uartMutex) {
-        s_uartMutex = xSemaphoreCreateMutex();
+        s_uartMutex = xSemaphoreCreateRecursiveMutex();
     }
 }
 
 bool Logger::lockUart(TickType_t timeout) {
     if (!s_uartMutex)
         return false;
-    return xSemaphoreTake(s_uartMutex, timeout) == pdTRUE;
+    return xSemaphoreTakeRecursive(s_uartMutex, timeout) == pdTRUE;
 }
 
 void Logger::unlockUart() {
     if (!s_uartMutex)
         return;
-    xSemaphoreGive(s_uartMutex);
+    xSemaphoreGiveRecursive(s_uartMutex);
 }
 
 void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     // If init() hasn't run yet (very early boot), fall through and write
     // unprotected — the only writer at that point is the boot path itself.
     const bool locked =
-        s_uartMutex ? (xSemaphoreTake(s_uartMutex, pdMS_TO_TICKS(50)) == pdTRUE) : false;
+        s_uartMutex ? (xSemaphoreTakeRecursive(s_uartMutex, pdMS_TO_TICKS(50)) == pdTRUE) : false;
     if (s_uartMutex && !locked) {
         // Drop the line on contention rather than risk reordering or stalls.
         return;
     }
 
-    // Static buffers — burning ~800 bytes on every emit() call would overflow
-    // loopTask's 8K stack during the boot sequence (Arduino's
-    // CONFIG_ARDUINO_LOOP_STACK_SIZE is fixed by sdkconfig.h, not overridable
-    // via build flags). The s_uartMutex above already serializes access.
+    // Static buffers protected by s_uartMutex (recursive, so a re-entrant
+    // emit() from the same task — e.g. inside an assert handler — re-enters
+    // safely instead of timing out and dropping the line). Keeping them
+    // static avoids ~1.4 KB of stack on every call, which would be brutal
+    // on the 2 KB sim / input task stacks.
     static char msg[MSG_BUF_SIZE];
     va_list ap;
     va_start(ap, fmt);
@@ -176,6 +184,6 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     }
 
     if (locked) {
-        xSemaphoreGive(s_uartMutex);
+        xSemaphoreGiveRecursive(s_uartMutex);
     }
 }

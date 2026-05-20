@@ -14,6 +14,10 @@
 // serialized via Logger::lockUart()/unlockUart() so log lines can never
 // fragment a JSON frame mid-emission. Both ends of the pair are required
 // because logger emit() and the USB writer can run on different cores.
+//
+// The underlying mutex is recursive: a task that already holds it via
+// lockUart() may still call LOG_* without deadlocking. Each lockUart() must
+// be balanced by exactly one unlockUart() on the same task.
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
@@ -29,7 +33,10 @@ void emit(char level, const char *tag, const char *fmt, ...) __attribute__((form
 
 // Acquire / release the UART0 serialization mutex. Wire-protocol producers
 // (e.g. UsbComm) must bracket multi-call frames with these so a logger emit()
-// from another task can't slip in the middle of a JSON line.
+// from another task can't slip in the middle of a JSON line. The mutex is
+// recursive — re-entering from the same task (e.g. LOG_ERROR from an assert
+// handler nested inside a streamFileTo block) is safe; calls must still be
+// balanced 1:1.
 //
 // NOTE: pre-Logger::init() boot text from the Arduino core / ESP-IDF can still
 // land on UART0 — the studio's safeJsonParse + isRecord guards drop those
