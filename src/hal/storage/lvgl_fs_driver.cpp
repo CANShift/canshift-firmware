@@ -15,14 +15,30 @@
 
 #include <lvgl.h>
 #include <SPIFFS.h>
+#include <cstddef>
 #include <esp_heap_caps.h>
 
 // ---------------------------------------------------------------------------
-// FS callbacks (static — no state other than the open File object)
+// FS callbacks (static pool — no heap alloc on the LVGL load path)
 // ---------------------------------------------------------------------------
 
 namespace {
 
+// Fixed pool of Arduino `File` slots used as the LVGL handle storage. Sized
+// for the worst observed concurrent open count (font + bg image + widget icon
+// during a page rebuild) with one slot of headroom. Sized small because
+// each `File` only carries an internal ref-counted descriptor pointer; the
+// SPIFFS-side state is allocated by `SPIFFS.open()` on demand and freed by
+// `f.close()`. Eliminating the per-open `new File(...)` / `delete f` pair
+// is what closes #895 — the underlying SPIFFS fopen still allocates, but
+// the wrapper-object churn that fragments the heap on the render path is
+// gone.
+constexpr size_t kFsPoolSize = 4;
+File s_filePool[kFsPoolSize];
+bool s_slotBusy[kFsPoolSize] = {false, false, false, false};
+
+// Always called under the LVGL mutex (UI task) — no extra synchronisation
+// needed for the pool bookkeeping.
 void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
     // Heap guard: under fragmentation, newlib's __sfp() can abort() inside
     // fopen() when extending _iob[]. Refuse the open early — LVGL treats
@@ -32,20 +48,39 @@ void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
         LOG_WARN("FS", "Refused open of %s (largest=%u) — heap too low", path, (unsigned)largest);
         return nullptr;
     }
+
+    size_t slot = kFsPoolSize;
+    for (size_t i = 0; i < kFsPoolSize; ++i) {
+        if (!s_slotBusy[i]) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == kFsPoolSize) {
+        LOG_WARN("FS", "Open pool exhausted for %s (all %u slots busy)", path,
+                 static_cast<unsigned>(kFsPoolSize));
+        return nullptr;
+    }
+
     const char *modeStr = (mode == LV_FS_MODE_WR) ? "w" : "r";
-    File *f = new File(SPIFFS.open(path, modeStr));
-    if (!*f) {
-        delete f;
+    s_filePool[slot] = SPIFFS.open(path, modeStr);
+    if (!s_filePool[slot]) {
         LOG_WARN("FS", "Cannot open: %s", path);
         return nullptr;
     }
-    return f;
+    s_slotBusy[slot] = true;
+    return &s_filePool[slot];
 }
 
 lv_fs_res_t fs_close(lv_fs_drv_t * /*drv*/, void *file_p) {
     File *f = static_cast<File *>(file_p);
     f->close();
-    delete f;
+    for (size_t i = 0; i < kFsPoolSize; ++i) {
+        if (&s_filePool[i] == f) {
+            s_slotBusy[i] = false;
+            break;
+        }
+    }
     return LV_FS_RES_OK;
 }
 
