@@ -74,28 +74,19 @@ void SignalStore::update(SignalId id, float value) {
 
     uint32_t now = millis();
 
-    // Snapshot prior state under the lock so the EMA float-math runs outside
-    // the portMUX critical section (which is an IRQ-disabling spinlock on
-    // ESP32 — keeping FP work out of it avoids tens of µs of IRQ latency
-    // per CAN frame). The s_signals slot is a fixed-array entry indexed by
-    // id, so the reference stays valid between the two sections.
+    // Hold the lock across the entire read-modify-write so concurrent writers
+    // to the same SignalId (CAN task on core 0 + optimistic UI write from a
+    // button widget on core 1, sim engine, etc.) cannot clobber each other's
+    // EMA result with a stale prevSmoothed snapshot. See #1008. FP math under
+    // the spinlock is precedented by setTimeout / checkTimeouts below.
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
-
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
-    portENTER_CRITICAL(&s_signalsMux);
-    const bool wasValid = sig.valid;
-    const float prevSmoothed = sig.smoothed;
-    portEXIT_CRITICAL(&s_signalsMux);
-
-    // Apply EMA smoothing: smoothed = α * raw + (1-α) * smoothed
-    const float newSmoothed =
-        wasValid ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * prevSmoothed)
-                 : value; // First value — initialize smoothed to raw value
-
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
-    portENTER_CRITICAL(&s_signalsMux);
+    const float new_smoothed =
+        sig.valid ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * sig.smoothed)
+                  : value; // First value — initialize smoothed to raw value
     sig.raw = value;
-    sig.smoothed = newSmoothed;
+    sig.smoothed = new_smoothed;
     sig.lastUpdateMs = now;
     sig.valid = true;
     portEXIT_CRITICAL(&s_signalsMux);
