@@ -392,7 +392,18 @@ void taskUI(void *pvParameters) {
         }
 #endif
 
-        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS));
+        // Sustained LVGL frame overruns (e.g. heavy page rebuild, icon
+        // decode) would otherwise pin the UI task to CPU 1: vTaskDelayUntil
+        // returns immediately once the next wake-up is already past, the UI
+        // task (prio 10) keeps running, and lower-priority tasks on the same
+        // core (USB prio 8, BLE prio 6, Sim prio 5) never get scheduled —
+        // the USB task then misses its WDT feed and the panic handler reboots
+        // the device with "usb (CPU 1)". Force a 1-tick yield when we'd have
+        // returned immediately (issue #976).
+        if (xTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS)) == pdFALSE) {
+            vTaskDelay(1);
+            lastWake = xTaskGetTickCount();
+        }
     }
 }
 
