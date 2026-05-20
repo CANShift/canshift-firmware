@@ -101,6 +101,11 @@ static constexpr uint8_t TELE_PERIOD_TICKS = 10;
 // Allocated lazily on CMD_CAN_SCAN_START, freed on CMD_CAN_SCAN_STOP. Boot
 // init() leaves it null so we don't permanently hold ~1 KB DRAM for a feature
 // that's rarely used (#976). All consumers null-check before touching.
+//
+// Teardown ordering (#1009): on STOP we clear s_canScanMode, yield one tick
+// so any pushCanFrame() already past the mode check on the CAN task can
+// finish its xQueueSend, then vQueueDelete + null the handle. Without the
+// yield the CAN task can race into a freed queue control block.
 static constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
 static QueueHandle_t s_canScanQueue = nullptr;
 static volatile bool s_canScanMode = false;
@@ -670,6 +675,11 @@ void handleCommand(const char *jsonLine) {
             break;
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
+            // Yield one scheduler tick so any CAN-task pushCanFrame() that
+            // already passed the s_canScanMode check can complete its
+            // xQueueSend before we free the queue control block (#1009).
+            constexpr TickType_t CAN_SCAN_STOP_DRAIN_TICKS = 1;
+            vTaskDelay(CAN_SCAN_STOP_DRAIN_TICKS);
             // Free the queue back to the heap — scan mode is opt-in, the
             // expected steady state is no queue at all. Keeps ~1 KB
             // contiguous DRAM available for icon decodes / page rebuilds.
