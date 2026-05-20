@@ -102,12 +102,17 @@ static constexpr uint8_t TELE_PERIOD_TICKS = 10;
 // init() leaves it null so we don't permanently hold ~1 KB DRAM for a feature
 // that's rarely used (#976). All consumers null-check before touching.
 //
-// Teardown ordering (#1009): on STOP we clear s_canScanMode, yield one tick
-// so any pushCanFrame() already past the mode check on the CAN task can
-// finish its xQueueSend, then vQueueDelete + null the handle. Without the
-// yield the CAN task can race into a freed queue control block.
+// Teardown ordering (#1009): the CAN task on core 0 reads the handle and
+// calls xQueueSend; the USB task on core 1 may concurrently free that handle
+// on CMD_CAN_SCAN_STOP. A portMUX spinlock serialises every load/store of
+// the handle so the swap to nullptr by the USB task and the load by the CAN
+// task linearise — the CAN task either captures the live handle or sees
+// nullptr and bails. The previous yield-and-hope patch in PR #1022 used
+// vTaskDelay(1) which is only probabilistic under bus load; the lock makes
+// the handle-access invariant deterministic.
 static constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
 static QueueHandle_t s_canScanQueue = nullptr;
+static portMUX_TYPE s_canScanQueueMux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool s_canScanMode = false;
 
 // Count of frames dropped due to a full scan queue since the last scan start.
@@ -648,44 +653,61 @@ void handleCommand(const char *jsonLine) {
             LOG_INFO("USB", "CMD: calibration reset queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
-        case UsbComm::CMD_CAN_SCAN_START:
+        case UsbComm::CMD_CAN_SCAN_START: {
             s_scanDrops = 0;
-            // Lazily allocate the scan queue. Boot-time allocation cost a
-            // permanent ~1 KB even when scan mode was never used, and could
-            // fail under heap fragmentation, leaving the USB task in a
-            // degraded state for the whole session (#976).
+            // Allocate outside the critical section — xQueueCreate may take
+            // the heap mutex and must never run with interrupts disabled.
+            QueueHandle_t fresh = nullptr;
             if (!s_canScanQueue) {
-                s_canScanQueue = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
-            }
-            if (!s_canScanQueue) {
-                LOG_ERROR("USB", "CAN scan start: queue alloc failed");
+                fresh = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
+                if (!fresh) {
+                    LOG_ERROR("USB", "CAN scan start: queue alloc failed");
 #if APP_USB_CAN_SCAN_FAIL_LOUD
-                // #976 reproducer hook — abort here so a fresh boot with the
-                // queue present is easy to distinguish from one that already
-                // started in a degraded state. Off in release.
-                abort();
+                    // #976 reproducer hook — abort here so a fresh boot with
+                    // the queue present is easy to distinguish from one that
+                    // already started in a degraded state. Off in release.
+                    abort();
 #endif
-                UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
-                break;
+                    UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
+                    break;
+                }
             }
-            xQueueReset(s_canScanQueue);
+            // Publish the new handle under the spinlock so the CAN task sees
+            // a fully constructed queue before s_canScanMode flips true. Kept
+            // symmetric with the STOP path even though the mode-gate dominates
+            // here, so the invariant "handle access is always serialised" is
+            // visibly upheld at every site.
+            portENTER_CRITICAL(&s_canScanQueueMux);
+            if (fresh) {
+                s_canScanQueue = fresh;
+            }
+            QueueHandle_t toReset = s_canScanQueue;
+            portEXIT_CRITICAL(&s_canScanQueueMux);
+            xQueueReset(toReset);
             s_canScanMode = true;
             LOG_INFO("USB", "CAN scan started");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
+        }
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
-            // Yield one scheduler tick so any CAN-task pushCanFrame() that
-            // already passed the s_canScanMode check can complete its
-            // xQueueSend before we free the queue control block (#1009).
-            constexpr TickType_t CAN_SCAN_STOP_DRAIN_TICKS = 1;
-            vTaskDelay(CAN_SCAN_STOP_DRAIN_TICKS);
+            // Atomically detach the queue handle so the CAN task either sees
+            // it (and finishes xQueueSend on a still-valid queue before we
+            // can re-enter and free it) or sees nullptr (and bails). The
+            // critical section disables interrupts on this core and prevents
+            // the other core from entering its matching section, giving us
+            // the deterministic ordering PR #1022's vTaskDelay only
+            // approximated (#1009).
+            QueueHandle_t toDelete;
+            portENTER_CRITICAL(&s_canScanQueueMux);
+            toDelete = s_canScanQueue;
+            s_canScanQueue = nullptr;
+            portEXIT_CRITICAL(&s_canScanQueueMux);
             // Free the queue back to the heap — scan mode is opt-in, the
             // expected steady state is no queue at all. Keeps ~1 KB
             // contiguous DRAM available for icon decodes / page rebuilds.
-            if (s_canScanQueue) {
-                vQueueDelete(s_canScanQueue);
-                s_canScanQueue = nullptr;
+            if (toDelete) {
+                vQueueDelete(toDelete);
             }
             LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
             char stopResp[64];
@@ -794,10 +816,20 @@ void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
 }
 
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
-    if (!s_canScanMode || !s_canScanQueue)
+    if (!s_canScanMode)
+        return false;
+    // Capture the queue handle under the spinlock so a concurrent
+    // CMD_CAN_SCAN_STOP on the USB task cannot vQueueDelete it between our
+    // read and our xQueueSend (#1009). The MUX section is tiny — one pointer
+    // load with interrupts disabled on the current core.
+    QueueHandle_t q;
+    portENTER_CRITICAL(&s_canScanQueueMux);
+    q = s_canScanQueue;
+    portEXIT_CRITICAL(&s_canScanQueueMux);
+    if (!q)
         return false;
     // Non-blocking: drop frame and count it if queue is full
-    if (xQueueSend(s_canScanQueue, &frame, 0) != pdTRUE) {
+    if (xQueueSend(q, &frame, 0) != pdTRUE) {
         s_scanDrops++;
         return false;
     }
