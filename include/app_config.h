@@ -117,6 +117,12 @@
 // arrive without flickering or re-arming on re-tap. See issue #658.
 #define BUTTON_SIGNAL_SYNC_GRACE_MS 500
 
+// Suppression window (ms) after Settings opens during which a click on the
+// top bar must NOT close it. A swipe-down that opens Settings is followed by
+// LVGL's click event for the same touch — without this guard the panel
+// opens and immediately closes again (issue #909).
+#define SETTINGS_OPEN_TAP_GUARD_MS 300
+
 // ---------------------------------------------------------------------------
 // LVGL display buffers
 // Two draw buffers allow double-buffered rendering.
@@ -274,6 +280,14 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
 
 // BLE telemetry notify interval
 #define BLE_TELE_INTERVAL_MS 100 // 10Hz
+
+// BLE heap thresholds — empirically tuned for the CrowPanel 2.8" reference
+// board. Pre-init guard ensures NimBLE has room for the stack + advertising
+// state; GATT-setup guard covers createServer + 4 characteristics + start().
+// Promoted from `ble_server.cpp` so a board profile with a different DRAM
+// budget can override per-env via build_flags (issue #909).
+#define BLE_MIN_HEAP_BYTES (50U * 1024U)
+#define BLE_GATT_MIN_HEAP_BYTES (24U * 1024U)
 
 // WiFi AP configuration
 // Password is per-device, generated on first boot and persisted in NVS

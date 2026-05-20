@@ -12,6 +12,7 @@
 //   USB:     green when UsbComm reports a recent host command (studio attached)
 
 #include "top_bar.h"
+#include "app_config.h"
 #include "ui/font_manager.h"
 #include "settings_page.h"
 #include "theme_manager.h"
@@ -432,9 +433,9 @@ void TopBar::init() {
             // A tap on the top bar can be flagged by LVGL as a tiny down-swipe,
             // which opens Settings, immediately followed by the click event
             // that would close it again — net effect is a flicker. Skip the
-            // close if Settings was opened in the last ~300 ms (i.e. opened
-            // by the same touch event).
-            if (millis() - SettingsPage::lastOpenMs() < 300)
+            // close if Settings was opened in the last SETTINGS_OPEN_TAP_GUARD_MS
+            // (i.e. opened by the same touch event).
+            if (millis() - SettingsPage::lastOpenMs() < SETTINGS_OPEN_TAP_GUARD_MS)
                 return;
             LOG_INFO("UI", "Top bar tapped — closing Settings");
             SettingsPage::close();

@@ -45,7 +45,8 @@ static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
 // State
 // ---------------------------------------------------------------------------
 
-static constexpr size_t BLE_MIN_HEAP = 50U * 1024U;
+// Pre-init heap floor — promoted to app_config.h so board profiles can override.
+static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
 // Hard cap on BLE write payloads parsed as JSON (issue #897). Both the
 // SETTINGS and CMD characteristics carry tiny control objects — the largest
@@ -359,12 +360,13 @@ bool startStack() {
     }
 
     // GATT setup on fragmented post-boot heap — guard against bad_alloc.
-    // 24 KB empirical minimum covers createServer + 4 characteristics + start().
-    constexpr size_t kGattMinHeap = 24U * 1024U;
+    // BLE_GATT_MIN_HEAP_BYTES is the empirical minimum that covers
+    // createServer + 4 characteristics + start() (promoted to app_config.h
+    // so board profiles can override).
     const size_t heapFree = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    if (heapFree < kGattMinHeap) {
+    if (heapFree < BLE_GATT_MIN_HEAP_BYTES) {
         LOG_WARN("BLE", "Heap too low for GATT setup (%u B < %u B) — BLE disabled",
-                 static_cast<unsigned>(heapFree), static_cast<unsigned>(kGattMinHeap));
+                 static_cast<unsigned>(heapFree), static_cast<unsigned>(BLE_GATT_MIN_HEAP_BYTES));
         return false;
     }
 
