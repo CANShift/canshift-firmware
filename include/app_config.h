@@ -353,11 +353,18 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
 // ---------------------------------------------------------------------------
 
 // Log level: 0=none, 1=error, 2=warn, 3=info, 4=debug, 5=verbose
+// Release default is 1 (error) — the firmware CLAUDE.md mandates zero
+// serial output in release builds, and the previous default of 3 (info)
+// streamed signal lifecycle / status lines over UART0 / USB-CDC that a
+// race team would consider PII (rpm, throttle, gear, lambda, …). Bumping
+// to error means the device only speaks when something actually broke.
+// Issue #899. Debug builds keep `debug` so developer instrumentation
+// stays visible without editing build flags.
 #ifndef APP_LOG_LEVEL
     #if APP_DEBUG_BUILD
         #define APP_LOG_LEVEL 4
     #else
-        #define APP_LOG_LEVEL 3
+        #define APP_LOG_LEVEL 1
     #endif
 #endif
 
