@@ -9,6 +9,7 @@
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -27,6 +28,9 @@ struct WarningTag {
     bool wasActive;
     uint32_t bgColor; // criticalColor (RGB)
 };
+
+// WarningTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 void blinkAnimCb(void *target, int32_t v) {
     auto *root = static_cast<lv_obj_t *>(target);
@@ -102,7 +106,18 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
     }
 
-    auto *tag = new WarningTag{root, iconImg, signalLabel, lv_anim_t{}, false, critRgb};
+    WarningTag *tag = WidgetTagPool::alloc<WarningTag>();
+    if (!tag) {
+        LOG_WARN("WARN", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(root);
+        return nullptr;
+    }
+    tag->root = root;
+    tag->iconImg = iconImg;
+    tag->signalLabel = signalLabel;
+    tag->wasActive = false;
+    tag->bgColor = critRgb;
     lv_obj_set_user_data(root, tag);
     lv_obj_add_event_cb(
         root,
@@ -110,13 +125,13 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
             auto *t = static_cast<WarningTag *>(lv_event_get_user_data(e));
             if (t) {
                 // Nuke ALL animations bound to this object (not just blinkAnimCb)
-                // before freeing the tag. lv_anim_del is synchronous in LVGL 8.3
-                // but does not flush an exec_cb that's already in-flight on the
-                // current animation tick — by clearing every anim slot on this
-                // var we close any window where a queued callback could fire
-                // against root after delete t. Issue #886.
+                // before releasing the slot. lv_anim_del is synchronous in LVGL
+                // 8.3 but does not flush an exec_cb that's already in-flight on
+                // the current animation tick — by clearing every anim slot on
+                // this var we close any window where a queued callback could
+                // fire against root after the tag is reused. Issue #886.
                 lv_anim_del(t->root, nullptr);
-                delete t;
+                WidgetTagPool::release(t);
             }
         },
         LV_EVENT_DELETE, tag);

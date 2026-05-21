@@ -1,13 +1,13 @@
 // button_widget.cpp — Tap-action button (page nav, ECU map switch, raw CAN, …)
 
 #include "button_widget.h"
-#include "app_config.h"
 #include "config/config_loader.h"
 #include "runtime/action_dispatcher.h"
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 #include <Arduino.h>
 #include <esp_heap_caps.h>
@@ -162,10 +162,8 @@ void btnClickHandler(lv_event_t *e) {
     }
 }
 
-void btnDeleteHandler(lv_event_t *e) {
-    auto *tag = static_cast<ButtonTag *>(lv_event_get_user_data(e));
-    delete tag;
-}
+// ButtonTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 } // namespace
 
@@ -200,7 +198,13 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_set_style_pad_column(btn, 4, LV_PART_MAIN);
     }
 
-    auto *tag = new ButtonTag{};
+    ButtonTag *tag = WidgetTagPool::alloc<ButtonTag>();
+    if (!tag) {
+        LOG_WARN("BTN", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(btn);
+        return nullptr;
+    }
     LOG_DEBUG("BTN", "create %s heap.largest=%u", cfg.id,
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     tag->cfg = &cfg;
@@ -273,7 +277,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     lv_obj_set_user_data(btn, tag);
     lv_obj_add_event_cb(btn, btnClickHandler, LV_EVENT_CLICKED, nullptr);
-    lv_obj_add_event_cb(btn, btnDeleteHandler, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(btn, WidgetTagPool::deleteHandler<ButtonTag>, LV_EVENT_DELETE, tag);
 
     return btn;
 }

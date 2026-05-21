@@ -11,6 +11,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -29,6 +30,9 @@ static constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 struct ImageTag {
     char lvglPath[LVGL_PATH_LEN]; // e.g. "S:/images/bg.bmp"
 };
+
+// ImageTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 } // namespace
 
@@ -50,7 +54,12 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     // Build LVGL FS path: "S:" + SPIFFS path
     // SPIFFS path already has leading slash (e.g. "/images/bg.bmp")
-    ImageTag *tag = new ImageTag{};
+    ImageTag *tag = WidgetTagPool::alloc<ImageTag>();
+    if (!tag) {
+        LOG_WARN("IMG", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        return cont;
+    }
     snprintf(tag->lvglPath, sizeof(tag->lvglPath), "S:%s", cfg.image.imagePath);
 
     lv_obj_t *img = lv_img_create(cont);
@@ -59,7 +68,8 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     // Scale image to fit widget dimensions (LVGL 8.3 integer scale factor)
     // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
-    WidgetHelpers::attachTagDeleter(cont, tag);
+    lv_obj_set_user_data(cont, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<ImageTag>, LV_EVENT_DELETE, tag);
 
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(

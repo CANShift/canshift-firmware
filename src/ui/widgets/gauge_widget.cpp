@@ -9,6 +9,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "config/config_loader.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
@@ -193,6 +194,9 @@ struct GaugeTag {
     uint32_t lastFillRgb;
 };
 
+// GaugeTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
+
 // Combine the per-signal alertThreshold (issue #133) with the revFlash trigger
 // (issue #263) into a single value that AlertFlash::update() can consume. The
 // lower of the two thresholds wins so either condition pulses the overlay.
@@ -366,8 +370,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition, textRgb);
 
-    // Allocate and attach tag
-    GaugeTag *tag = new GaugeTag{};
+    // Allocate and attach tag from the fixed pool (F-HI-2).
+    GaugeTag *tag = WidgetTagPool::alloc<GaugeTag>();
+    if (!tag) {
+        LOG_WARN("GAUGE", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(cont);
+        return nullptr;
+    }
     tag->valueLabel = label;
     tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
@@ -416,7 +426,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         AlertFlash::watchLabel(tag->alert, unitLabel, textRgb & 0x888888);
     }
 
-    WidgetHelpers::attachTagDeleter(cont, tag);
+    lv_obj_set_user_data(cont, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE, tag);
 
     return cont;
 }

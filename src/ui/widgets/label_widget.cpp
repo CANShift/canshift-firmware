@@ -20,6 +20,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
@@ -74,6 +75,9 @@ struct LabelTag {
     // 0xFFFFFFFFu so the first update() always paints.
     uint32_t lastTintRgb;
 };
+
+// LabelTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 } // namespace
 
@@ -188,7 +192,13 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         }
     }
 
-    auto *tag = new LabelTag{};
+    LabelTag *tag = WidgetTagPool::alloc<LabelTag>();
+    if (!tag) {
+        LOG_WARN("WF", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(cont);
+        return nullptr;
+    }
     tag->valueLabel = label;
     tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
@@ -204,7 +214,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (fracLabel)
         AlertFlash::watchLabel(tag->alert, fracLabel, textRgb);
 
-    WidgetHelpers::attachTagDeleter(cont, tag);
+    lv_obj_set_user_data(cont, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<LabelTag>, LV_EVENT_DELETE, tag);
 
     return cont;
 }

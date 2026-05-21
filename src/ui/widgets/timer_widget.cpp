@@ -22,6 +22,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 
 #include <esp_timer.h>
@@ -46,6 +47,9 @@ struct TimerTag {
     uint32_t textRgb;              // Cached effective text color for current theme
     char lastText[12];             // #236 cache — skips lv_label_set_text re-allocs
 };
+
+// TimerTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 constexpr uint32_t LONG_PRESS_MS = 600;
 constexpr uint32_t BLINK_PERIOD_MS = 1000; // Half-on, half-off → 500 ms each phase.
@@ -169,8 +173,14 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
-    // Allocate tag.
-    auto *tag = new TimerTag{};
+    // Allocate tag from the fixed pool (F-HI-2).
+    TimerTag *tag = WidgetTagPool::alloc<TimerTag>();
+    if (!tag) {
+        LOG_WARN("TMR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(cont);
+        return nullptr;
+    }
     tag->cont = cont;
     tag->timeLabel = label;
     tag->formatMsec = cfg.timer.formatMsec;
@@ -192,7 +202,8 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         (void)TimerService::start();
     }
 
-    WidgetHelpers::attachTagDeleter(cont, tag);
+    lv_obj_set_user_data(cont, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE, tag);
 
     // Register touch events for start / pause / resume / reset.
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);

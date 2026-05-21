@@ -13,6 +13,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 
 #include <cmath>
@@ -59,6 +60,9 @@ struct BarTag {
     uint32_t lastFillRgb;
 };
 
+// BarTag storage comes from the shared WidgetTagPool slab (#1031 F-HI-2
+// follow-up). See ui/widgets/widget_tag_pool.h.
+
 // Studio uses a faint grey for label text when dimmed. We use the same fixed
 // tone so the bar reads identically across themes.
 constexpr uint32_t SIGNAL_LABEL_RGB = 0x888888;
@@ -87,7 +91,13 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    auto *t = new BarTag{};
+    BarTag *t = WidgetTagPool::alloc<BarTag>();
+    if (!t) {
+        LOG_WARN("BAR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(cont);
+        return nullptr;
+    }
     t->isVertical = isVertical;
     t->minValue = cfg.bar.minValue;
     t->maxValue = cfg.bar.maxValue;
@@ -350,7 +360,8 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     if (t->valueLabel)
         AlertFlash::watchLabel(t->alert, t->valueLabel, VALUE_TEXT_RGB);
 
-    WidgetHelpers::attachTagDeleter(cont, t);
+    lv_obj_set_user_data(cont, t);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<BarTag>, LV_EVENT_DELETE, t);
 
     // Initial paint: invalid → 0 (per design).
     BarWidget::update(cont, cfg.bar.minValue, false, cfg);

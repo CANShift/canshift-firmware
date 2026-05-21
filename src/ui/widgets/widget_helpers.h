@@ -69,19 +69,4 @@ inline void disableInteract(lv_obj_t *obj) {
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 }
 
-// Attach a heap-allocated tag to `obj` and register an LV_EVENT_DELETE
-// handler that `delete`s it when the widget is destroyed. Mirrors the
-// boilerplate every widget create() ran inline.
-template <typename TagT>
-void attachTagDeleter(lv_obj_t *obj, TagT *tag) {
-    lv_obj_set_user_data(obj, tag);
-    lv_obj_add_event_cb(
-        obj,
-        [](lv_event_t *e) {
-            auto *t = static_cast<TagT *>(lv_event_get_user_data(e));
-            delete t;
-        },
-        LV_EVENT_DELETE, tag);
-}
-
 } // namespace WidgetHelpers

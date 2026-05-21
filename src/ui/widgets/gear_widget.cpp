@@ -14,6 +14,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -31,6 +32,9 @@ struct GearTag {
     lv_obj_t *label;
     uint32_t lastColorRgb; // 0xFFFFFFFFu sentinel forces the first paint.
 };
+
+// GearTag storage comes from the shared WidgetTagPool slab (#1031
+// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 // Same proportional formula as label_widget so a gear and a numeric widget
 // at the same size render at identical font sizes.
@@ -69,10 +73,17 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_obj_set_style_text_font(label, selectFont(cfg.layout.h, cfg.layout.w), 0);
     lv_label_set_text(label, "N");
 
-    auto *tag = new GearTag{};
+    GearTag *tag = WidgetTagPool::alloc<GearTag>();
+    if (!tag) {
+        LOG_WARN("GEAR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        lv_obj_del(cont);
+        return nullptr;
+    }
     tag->label = label;
     tag->lastColorRgb = textRgb; // First paint above already pushed textRgb.
-    WidgetHelpers::attachTagDeleter(cont, tag);
+    lv_obj_set_user_data(cont, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GearTag>, LV_EVENT_DELETE, tag);
 
     // Optional widget label (gear shares CfgLabelParams in the union).
     WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
