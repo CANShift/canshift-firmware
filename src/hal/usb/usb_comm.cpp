@@ -818,18 +818,25 @@ void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
     if (!s_canScanMode)
         return false;
-    // Capture the queue handle under the spinlock so a concurrent
-    // CMD_CAN_SCAN_STOP on the USB task cannot vQueueDelete it between our
-    // read and our xQueueSend (#1009). The MUX section is tiny — one pointer
-    // load with interrupts disabled on the current core.
-    QueueHandle_t q;
+    // Hold the spinlock across xQueueSend so CMD_CAN_SCAN_STOP on the USB task
+    // cannot vQueueDelete the handle between our null-check and our send
+    // (#1042 — closes the residual µs window #1041 left). Safe because
+    // xQueueSend with timeout=0 never yields, and ESP-IDF's queue internal
+    // spinlock is acquired strictly *after* this outer MUX in both paths
+    // (here and in CMD_CAN_SCAN_STOP's vQueueDelete) — same nesting order,
+    // no AB-BA. drainCanScanQueue's xQueueReceive only takes the inner queue
+    // spinlock, so it can never block while holding a lock we also need.
+    BaseType_t sent = pdFAIL;
     portENTER_CRITICAL(&s_canScanQueueMux);
-    q = s_canScanQueue;
+    const bool hasQueue = (s_canScanQueue != nullptr);
+    if (hasQueue) {
+        sent = xQueueSend(s_canScanQueue, &frame, 0);
+    }
     portEXIT_CRITICAL(&s_canScanQueueMux);
-    if (!q)
+    if (!hasQueue)
         return false;
     // Non-blocking: drop frame and count it if queue is full
-    if (xQueueSend(q, &frame, 0) != pdTRUE) {
+    if (sent != pdTRUE) {
         s_scanDrops++;
         return false;
     }
