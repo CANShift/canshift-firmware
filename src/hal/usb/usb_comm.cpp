@@ -12,6 +12,7 @@
 //   ArduinoJson 7 copies all values into the JsonDocument during parsing.
 
 #include "usb_comm.h"
+#include "usb_envelope.h"
 #include "board_config.h"
 #include "app_config.h"
 #include "diag/logger.h"
@@ -193,94 +194,10 @@ void sendTelemetry() {
 // Command handlers
 // ---------------------------------------------------------------------------
 
-// Locate the value substring of the "payload" key inside a top-level JSON
-// object. Returns a pointer to the first byte of the value (an opening '{')
-// and writes the value length (including the closing '}') into outLen.
-// Returns nullptr when the envelope is malformed or the key is missing.
-//
-// Why this lives here instead of using ArduinoJson: parsing a 12 KB envelope
-// into a JsonDocument grew the pool to ~21 KB, which couldn't be satisfied
-// after the LV_MEM_SIZE bump in #555 (issue #576). Skipping the full parse
-// keeps the PUT_CONFIG path heap-allocation-free.
-// Length-bounded substring search. Used in place of strstr() so an embedded
-// NUL in the JSON line (corrupted USB stream, malformed input) cannot
-// short-circuit the search before reaching the needle. Issue #884.
-const char *findNeedle(const char *haystack, size_t haystackLen, const char *needle,
-                       size_t needleLen) {
-    if (needleLen == 0 || haystackLen < needleLen)
-        return nullptr;
-    const size_t lastStart = haystackLen - needleLen;
-    for (size_t i = 0; i <= lastStart; ++i) {
-        if (memcmp(haystack + i, needle, needleLen) == 0)
-            return haystack + i;
-    }
-    return nullptr;
-}
-
-const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLen) {
-    if (!jsonLine || !outLen)
-        return nullptr;
-    *outLen = 0;
-
-    // Plain-text needle is acceptable here: the studio always emits the
-    // envelope with the literal key `"payload"` and never inside a nested
-    // string by accident — the surrounding `{"cmd":2,...}` frame is fixed.
-    static constexpr char kNeedle[] = "\"payload\"";
-    static constexpr size_t kNeedleLen = sizeof(kNeedle) - 1;
-    const char *needle = findNeedle(jsonLine, lineLen, kNeedle, kNeedleLen);
-    if (!needle)
-        return nullptr;
-
-    // Skip past `"payload"` then optional whitespace then the `:` separator.
-    const char *cursor = needle + kNeedleLen;
-    const char *end = jsonLine + lineLen;
-    while (cursor < end &&
-           (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r'))
-        ++cursor;
-    if (cursor >= end || *cursor != ':')
-        return nullptr;
-    ++cursor;
-    while (cursor < end &&
-           (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r'))
-        ++cursor;
-    if (cursor >= end || *cursor != '{')
-        return nullptr;
-
-    // Brace-balance walk. Strings are honoured so we don't count `{` / `}`
-    // inside JSON string values. Escapes inside strings are skipped.
-    const char *valueStart = cursor;
-    int depth = 0;
-    bool inString = false;
-    while (cursor < end) {
-        const char c = *cursor;
-        if (inString) {
-            if (c == '\\') {
-                ++cursor; // skip the escaped byte verbatim
-                if (cursor < end)
-                    ++cursor;
-                continue;
-            }
-            if (c == '"')
-                inString = false;
-            ++cursor;
-            continue;
-        }
-        if (c == '"') {
-            inString = true;
-        } else if (c == '{') {
-            ++depth;
-        } else if (c == '}') {
-            --depth;
-            if (depth == 0) {
-                ++cursor;
-                *outLen = static_cast<size_t>(cursor - valueStart);
-                return valueStart;
-            }
-        }
-        ++cursor;
-    }
-    return nullptr;
-}
+// PUT_CONFIG payload locator lives in usb_envelope.{h,cpp} so the host test
+// suite can exercise it without pulling the rest of the USB stack into the
+// native build (#912). See those files for the design rationale (issues
+// #576 and #884).
 
 // Handle CMD_PUT_CONFIG (0x02): write new dashboard.json to storage, then
 // reboot via esp_restart(). Hot reload (PageManager::requestReload) is not
@@ -314,7 +231,7 @@ void handlePutConfig(const char *jsonLine) {
 
     const size_t lineLen = strlen(jsonLine);
     size_t written = 0;
-    const char *payloadStart = findPayloadSlice(jsonLine, lineLen, &written);
+    const char *payloadStart = UsbEnvelope::findPayloadSlice(jsonLine, lineLen, &written);
     if (!payloadStart || written == 0) {
         LOG_WARN("USB", "PUT_CONFIG: missing or malformed payload field");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_payload\"}");
