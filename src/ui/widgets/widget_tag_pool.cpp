@@ -25,15 +25,21 @@ alignas(
 bool s_busy[WidgetTagPool::kPoolSlots] = {};
 
 // Pool bookkeeping is non-atomic (linear scan + mark/clear). The header
-// documents that every caller must run on the UI task with g_lvglMutex held,
-// but until #1039 nothing enforced it — a stray BLE/USB/sim caller would
-// silently corrupt s_busy with no visible failure until the next page rebuild.
-// configASSERT panics with file:line so the wrong-thread caller surfaces
-// immediately under test (and on-device, which is where the real risk lives).
+// documents that every caller must run on the UI task with g_lvglMutex held;
+// the assertion catches a stray BLE/USB/sim caller before the silent
+// corruption fires (#1039).
+//
+// The "holder is null" branch exists for the boot phase: BootSequence::run
+// (and the PageManager::init() it calls) run synchronously from the Arduino
+// loopTask BEFORE the UI task — and therefore before anyone takes the LVGL
+// mutex. No concurrent task is running yet so the pool ops are safe even
+// though no one is recorded as the holder (#1061, regression from the
+// strict assertion in #1058).
 inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(xPortGetCoreID() == TASK_CORE_UI);
     configASSERT(g_lvglMutex != nullptr);
-    configASSERT(xSemaphoreGetMutexHolder(g_lvglMutex) == xTaskGetCurrentTaskHandle());
+    const TaskHandle_t holder = xSemaphoreGetMutexHolder(g_lvglMutex);
+    configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());
 }
 
 } // namespace
