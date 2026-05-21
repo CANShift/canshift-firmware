@@ -133,11 +133,19 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     // safely instead of timing out and dropping the line). Keeping them
     // static avoids ~1.4 KB of stack on every call, which would be brutal
     // on the 2 KB sim / input task stacks.
+    // The Logger macros always pass a non-null format literal, but callers
+    // could conceivably hand `emit()` a runtime-built fmt; treat null as an
+    // empty message rather than relying on vsnprintf with an empty format
+    // (which the native env's -Wformat-zero-length flags as an error).
     static char msg[MSG_BUF_SIZE];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(msg, sizeof(msg), fmt ? fmt : "", ap);
-    va_end(ap);
+    if (fmt) {
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(msg, sizeof(msg), fmt, ap);
+        va_end(ap);
+    } else {
+        msg[0] = '\0';
+    }
     msg[sizeof(msg) - 1] = '\0';
 
     static char escaped[ESC_BUF_SIZE];
