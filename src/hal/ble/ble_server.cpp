@@ -173,7 +173,13 @@ size_t buildTelemetryPayload(char *buf, size_t bufSize) {
 }
 
 void updateStatus() {
-    if (!s_pStatus)
+    // Snapshot the file-scope pointer to a local — BleServer::stop() can null
+    // s_pStatus on a different task between the entry check and the setValue
+    // call below. The earlyInit() GATT-preserved path keeps the underlying
+    // characteristic object alive for the lifetime of the process, so the
+    // snapshot remains valid even if the global is cleared mid-call (#1035).
+    auto *pStatus = s_pStatus;
+    if (!pStatus)
         return;
     JsonDocument doc;
     doc["ver"] = APP_VERSION_STR;
@@ -196,7 +202,7 @@ void updateStatus() {
                  static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
         return;
     }
-    s_pStatus->setValue(buf);
+    pStatus->setValue(buf);
 }
 
 // ---------------------------------------------------------------------------
