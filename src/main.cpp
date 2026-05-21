@@ -137,12 +137,14 @@ static void preallocateTaskStacks() {
 // xTaskCreateStaticPinnedToCore never allocates from the heap, so it always
 // succeeds here even with the fragmented post-lv_init() heap.
 //
-// Each "hot loop" task (UI/CAN/USB) is also subscribed to the Task Watchdog
-// Timer that was armed in BootSequence::run(). Its tick body calls
+// Each "hot loop" task (UI/CAN/USB/BLE) is also subscribed to the Task
+// Watchdog Timer that was armed in BootSequence::run(). Its tick body calls
 // esp_task_wdt_reset() once per iteration — a hang in any of those loops
 // longer than TASK_WDT_TIMEOUT_MS fires the panic handler and the device
-// auto-resets (issue #666). BLE / Sim / WiFi-AP are intentionally NOT
-// registered.
+// auto-resets (issue #666, BLE added in #1006). The WiFi AP task is created
+// on-demand from WifiAp::start() and self-registers from inside its task
+// body — see hal/wifi/wifi_ap.cpp. Sim is intentionally NOT registered: it
+// runs only in QEMU smoke builds, where the WDT is itself disabled.
 // ---------------------------------------------------------------------------
 static void createAllTasks() {
     TaskHandle_t uiHandle = xTaskCreateStaticPinnedToCore(
@@ -162,8 +164,9 @@ static void createAllTasks() {
                                       s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
 
 #if APP_BLE_ENABLED
-    xTaskCreateStaticPinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE,
-                                  s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
+    TaskHandle_t bleHandle =
+        xTaskCreateStaticPinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE,
+                                      s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
 #endif
 
 #if !APP_SIMULATION_MODE
@@ -182,9 +185,24 @@ static void createAllTasks() {
         if (err != ESP_OK)
             LOG_WARN("BOOT", "WDT add(usb) failed: %d", static_cast<int>(err));
     }
+    #if APP_BLE_ENABLED
+    // Issue #1006 — subscribe taskBLE to the WDT. The task loops every
+    // BLE_TELE_INTERVAL_MS (100 ms) and its body is non-blocking: pairing
+    // crypto and GATT discovery run on NimBLE's own host task, not here.
+    // Worst case in this task is BleServer::stop() → NimBLEDevice::deinit(),
+    // bounded well under TASK_WDT_TIMEOUT_MS (8 s).
+    if (bleHandle) {
+        const esp_err_t err = esp_task_wdt_add(bleHandle);
+        if (err != ESP_OK)
+            LOG_WARN("BOOT", "WDT add(ble) failed: %d", static_cast<int>(err));
+    }
+    #endif
 #else
     (void)uiHandle;
     (void)usbHandle;
+    #if APP_BLE_ENABLED
+    (void)bleHandle;
+    #endif
 #endif
 }
 
@@ -493,6 +511,14 @@ void taskBLE(void *pvParameters) {
             BleServer::start();
         }
         BleServer::tick();
+
+    #if !APP_SIMULATION_MODE
+        // Issue #1006 — BLE task WDT feed. Placed AFTER tick() (and any
+        // start/stop transition) so a real hang inside NimBLE's tick path
+        // still trips the watchdog. The 100 ms cadence + non-blocking tick
+        // body leaves ~80x headroom against TASK_WDT_TIMEOUT_MS.
+        esp_task_wdt_reset();
+    #endif
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(BLE_TELE_INTERVAL_MS));
     }
 }
