@@ -9,7 +9,7 @@ ESP32 firmware for the CANShift configurable automotive dashboard.
 - **Platform:** Elecrow CrowPanel 2.8" (ESP32-WROOM-32, 320×240 ILI9341 + XPT2046 touch)
 - **Framework:** PlatformIO + Arduino + C++17
 - **UI:** LVGL 8.3 (`lvgl/lvgl @ ^8.3.11`)
-- **CAN:** ESP32 TWAI + Adafruit CAN Pal (TJA1051T/3)
+- **CAN:** ESP32 TWAI + [Adafruit CAN Pal (TJA1051T/3)](https://www.digikey.ch/fr/products/detail/adafruit-industries-llc/5708/18716420)
 - **Wireless:** NimBLE GATT (`h2zero/NimBLE-Arduino @ ^1.4.3`) + optional WiFi softAP for OTA
 
 Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–119).
@@ -21,7 +21,7 @@ Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–1
 - **MCU** — ESP32-WROOM-32 mounted on the Elecrow CrowPanel 2.8" ESP32 HMI (SKU `DIS05028H`).
 - **Display** — ILI9341, 320×240, SPI bus, backlight on GPIO 27 (PWM channel 0, 5 kHz, 8-bit).
 - **Touch** — XPT2046 resistive controller, sharing the display's HSPI bus, polled (no IRQ).
-- **CAN** — ESP32 TWAI controller fed through an Adafruit CAN Pal (TJA1051T/3) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → ECU CAN H/L`, `VCC → 5 V`, `GND → GND`. CANShift is ECU-agnostic — MaxxECU is the example used during development, but `signals.json` accepts any passively-broadcast frame layout (see #556).
+- **CAN** — ESP32 TWAI controller fed through an [Adafruit CAN Pal (TJA1051T/3)](https://www.digikey.ch/fr/products/detail/adafruit-industries-llc/5708/18716420) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → ECU CAN H/L`, `VCC → 5 V`, `GND → GND`. CANShift is ECU-agnostic — MaxxECU is the example used during development, but `signals.json` accepts any passively-broadcast frame layout (see #556).
 
 All pin assignments live in [`include/board_config.h`](include/board_config.h) and are still flagged as assumptions until they're verified on the actual board.
 
