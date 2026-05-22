@@ -126,7 +126,53 @@ bool isHostActive();
  * `line` must be a complete JSON object terminated with '\n'.
  * Used internally by every ack / telemetry / can / can_stat write so logger
  * emits from other tasks can never fragment the line.
+ *
+ * Implementation note: writes through the currently active sink — by default
+ * Serial/UART0, but transports such as WiFi TCP can temporarily redirect the
+ * sink via handleLine() for the duration of one command dispatch.
  */
 void sendLine(const char *line);
+
+/**
+ * Sink signature used by handleLine() to retarget command-response and
+ * telemetry output to a non-Serial transport (e.g. a TCP socket on WiFi).
+ * `data` is a NUL-terminated byte sequence already shaped as a complete
+ * wire-protocol line; the implementation must write the full `len` bytes
+ * and append '\n' iff `data[len-1] != '\n'`.
+ */
+using SendSink = void (*)(const char *data, size_t len);
+
+/**
+ * Dispatch a single, already-buffered, NUL-terminated JSON line through the
+ * USB command handler with `sink` temporarily installed as the active output
+ * sink. Used by alternate transports (WiFi TCP) so a single dispatcher
+ * implementation drives every reply / ack / telemetry write.
+ *
+ * Thread-safety: a single internal mutex serialises competing callers, so
+ * a USB-task tick() will not race with a WiFi-task TCP write — but TCP
+ * callers should still drive the dispatch from a single task to keep
+ * line-ordering deterministic on the wire.
+ *
+ * `line` must be NUL-terminated. `len` is `strlen(line)` and is accepted as
+ * a parameter so the caller can pass it along when already known.
+ */
+void handleLine(const char *line, size_t len, SendSink sink);
+
+/**
+ * True iff sendTelemetry should be mirrored to an alternate transport
+ * in addition to UART0. Used by the TCP server module to register itself
+ * as a secondary output for the proactive telemetry stream.
+ */
+bool hasAuxSink();
+
+/**
+ * Register/clear the auxiliary output sink. When non-null, every sendLine
+ * write fans out to BOTH the default Serial sink and the auxiliary sink,
+ * so a TCP-connected Studio sees the same telemetry / can_stat / ack
+ * stream as a USB-connected one. nullptr clears it.
+ *
+ * Thread-safety: protected by the same mutex as handleLine().
+ */
+void setAuxSink(SendSink sink);
 
 } // namespace UsbComm

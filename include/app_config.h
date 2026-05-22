@@ -343,6 +343,17 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
 #define TASK_PRIO_WIFI 5
 #define TASK_CORE_WIFI 1
 
+// WiFi TCP server task (started/stopped alongside the AP via WifiAp::start/stop).
+// Lives on core 1 alongside the AP HTTP server task; both share the same
+// Arduino-WiFi stack. 4 KB stack matches the AP task — single-client polling
+// loop with a USB_RX_BUF_SIZE line buffer in BSS, so the stack only carries
+// FreeRTOS overhead + a handful of locals. Issue #1071.
+#ifndef TASK_STACK_WIFI_TCP
+    #define TASK_STACK_WIFI_TCP 4096
+#endif
+#define TASK_PRIO_WIFI_TCP 5
+#define TASK_CORE_WIFI_TCP 1
+
 // BLE telemetry notify interval
 #define BLE_TELE_INTERVAL_MS 100 // 10Hz
 

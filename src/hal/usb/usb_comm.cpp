@@ -81,6 +81,63 @@ static constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_S
 // Receive state machine
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Output sink — abstracts UART0 vs. an alternate transport (WiFi TCP).
+//
+// `s_sink` defaults to the Serial sink and is temporarily swapped by
+// handleLine() while a non-USB transport dispatches one command. The aux
+// sink, when non-null, receives a parallel copy of every sendLine() write so
+// telemetry / acks reach both transports concurrently — used by the WiFi TCP
+// server to mirror the proactive telemetry stream out to a connected Studio.
+//
+// A single mutex serialises every sink read/write. Held only across the brief
+// pointer swap or the synchronous sendLine() write, never across user-supplied
+// I/O that may block (no nested logger locks inside the critical section).
+// ---------------------------------------------------------------------------
+
+#ifdef ARDUINO
+static void serialSink(const char *data, size_t len) {
+    if (!data || len == 0)
+        return;
+    const bool needsNewline = data[len - 1] != '\n';
+    // Logger mutex protects against interleaving with LOG_* from other tasks;
+    // dropping it through on failure keeps a command ack from being silently
+    // lost when the logger is busy (same trade-off the pre-sink sendLine made).
+    const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
+    Serial.write(reinterpret_cast<const uint8_t *>(data), len);
+    if (needsNewline)
+        Serial.write('\n');
+    if (locked)
+        Logger::unlockUart();
+}
+#else
+static void serialSink(const char *, size_t) {
+    // Native test build — no Serial. Tests exercise handlers via injected sinks.
+}
+#endif
+
+// Recursive — handleLine() locks for the duration of one command dispatch,
+// and the handlers it invokes call sendLine() which re-locks to snapshot the
+// sink pointers. Recursive ownership avoids the obvious self-deadlock while
+// still serialising competing TASKS (e.g. USB tick vs WiFi TCP task).
+static SemaphoreHandle_t s_sinkMutex = nullptr;
+static UsbComm::SendSink s_sink = &serialSink;
+static UsbComm::SendSink s_auxSink = nullptr;
+
+// Acquire / release the sink mutex with a bounded timeout. Returns true on
+// success; callers fall through unprotected on timeout to mirror the
+// degrade-don't-drop policy of the legacy Logger::lockUart path.
+static bool lockSink() {
+    if (!s_sinkMutex)
+        return false;
+    return xSemaphoreTakeRecursive(s_sinkMutex, pdMS_TO_TICKS(50)) == pdTRUE;
+}
+
+static void unlockSink() {
+    if (s_sinkMutex)
+        xSemaphoreGiveRecursive(s_sinkMutex);
+}
+
 // Single RX buffer — also reused as TX buffer in handlePutConfig after parsing.
 // Size defined in app_config.h: CONFIG_JSON_DOC_DASHBOARD + 256.
 //
@@ -92,7 +149,15 @@ static constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_S
 // the dashboard JSON before sending it down the wire.
 static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
               "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
-static char s_rxBuf[USB_RX_BUF_SIZE];
+// Heap-allocated in UsbComm::init() (was BSS pre-#1071) so the ~16 KB lives
+// outside the dram0_0_seg budget; flipping APP_WIFI_OTA_ENABLED=1 to bring
+// the WiFi / WebServer / ESPmDNS stack online ate the BSS headroom that
+// previously hosted this buffer. Sized at USB_RX_BUF_SIZE bytes and pinned
+// to internal DRAM (PSRAM caches add a 2-cycle penalty per byte that the
+// per-byte Serial.read() loop in tick() would feel on every burn). Cleared
+// to zero on alloc so the existing handlers can treat it as "valid NUL-
+// terminated empty line" while no command is in flight.
+static char *s_rxBuf = nullptr;
 static size_t s_rxPos = 0;
 
 // Tick counter for telemetry scheduling (tick() runs every 20ms)
@@ -385,7 +450,7 @@ void handlePutFile(const JsonObjectConst &obj) {
     // path/data into the JsonDocument's pool, so the source line is free.
     size_t decoded = 0;
     const int rc =
-        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(s_rxBuf), sizeof(s_rxBuf), &decoded,
+        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(s_rxBuf), USB_RX_BUF_SIZE, &decoded,
                               reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     if (rc != 0) {
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
@@ -708,7 +773,36 @@ void drainCanScanQueue() {
 void UsbComm::init() {
     s_rxPos = 0;
     s_tickCount = 0;
-    memset(s_rxBuf, 0, sizeof(s_rxBuf));
+    if (!s_rxBuf) {
+        // Prefer PSRAM (16 KB is cheap there) so internal DRAM stays
+        // available for the WiFi / NimBLE stacks. Fall back to internal DRAM
+        // on no-PSRAM boards — the per-byte Serial.read() in tick() can
+        // absorb the small PSRAM cache penalty. Halt on alloc failure: USB
+        // is a hard dependency for provisioning and silently degrading
+        // would lock the user out.
+        s_rxBuf = static_cast<char *>(heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_SPIRAM));
+        if (!s_rxBuf) {
+            s_rxBuf = static_cast<char *>(
+                heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+        }
+        if (!s_rxBuf) {
+            LOG_ERROR("USB", "rxBuf alloc (%u B) failed — halting", USB_RX_BUF_SIZE);
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+        }
+    }
+    memset(s_rxBuf, 0, USB_RX_BUF_SIZE);
+    if (!s_sinkMutex) {
+        s_sinkMutex = xSemaphoreCreateRecursiveMutex();
+        if (!s_sinkMutex) {
+            // No fatal halt — sendLine() falls back to the unprotected sink
+            // call on lock failure, so a missing mutex degrades to "no
+            // serialisation against handleLine()" which is still correct as
+            // long as TCP and USB never dispatch concurrently.
+            LOG_WARN("USB", "Sink mutex alloc failed — TCP/USB will not serialise");
+        }
+    }
     // s_canScanQueue is allocated lazily on first CMD_CAN_SCAN_START so we
     // don't carry ~1 KB of DRAM for a feature that's rarely used (#976).
     LOG_INFO("USB", "USB comm initialized");
@@ -718,18 +812,62 @@ void UsbComm::sendLine(const char *line) {
     if (!line)
         return;
     const size_t len = strlen(line);
-    const bool needsNewline = len == 0 || line[len - 1] != '\n';
 
-    // The mutex serializes wire-protocol writers (this function) against
-    // logger emit() calls from any other task. Lock failure falls through
-    // unprotected — better to risk one fragmented line than to silently drop
-    // a command ack the studio is waiting on.
-    const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
-    Serial.write(reinterpret_cast<const uint8_t *>(line), len);
-    if (needsNewline)
-        Serial.write('\n');
+    // Snapshot the sink pointers under the sink mutex so a concurrent
+    // handleLine() / setAuxSink() never observes a half-written value.
+    // The actual sink invocations run AFTER releasing the mutex so a slow
+    // sink (e.g. a TCP write to a saturated client) cannot block another
+    // task's logger output behind us.
+    SendSink primary = &serialSink;
+    SendSink aux = nullptr;
+    const bool locked = lockSink();
+    primary = s_sink;
+    aux = s_auxSink;
     if (locked)
-        Logger::unlockUart();
+        unlockSink();
+
+    if (primary)
+        primary(line, len);
+    if (aux && aux != primary)
+        aux(line, len);
+}
+
+void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
+    if (!line || len == 0 || !sink)
+        return;
+
+    // Swap the sink under the mutex so sendLine() snapshots a consistent
+    // (line-scoped) target. We DO hold the mutex across handleCommand() —
+    // that means a concurrent USB tick blocks for the duration of one TCP
+    // command. Acceptable: dispatching a command is bounded (<200 ms even
+    // for PUT_CONFIG burns, well under the WDT) and the issue's contract
+    // is single-client, single-transport-at-a-time anyway.
+    const bool locked = lockSink();
+    SendSink saved = s_sink;
+    s_sink = sink;
+
+    handleCommand(line);
+
+    s_sink = saved;
+    if (locked)
+        unlockSink();
+
+    (void)len; // reserved for future length-aware dispatch paths
+}
+
+bool UsbComm::hasAuxSink() {
+    const bool locked = lockSink();
+    const bool hasIt = (s_auxSink != nullptr);
+    if (locked)
+        unlockSink();
+    return hasIt;
+}
+
+void UsbComm::setAuxSink(SendSink sink) {
+    const bool locked = lockSink();
+    s_auxSink = sink;
+    if (locked)
+        unlockSink();
 }
 
 bool UsbComm::isHostActive() {

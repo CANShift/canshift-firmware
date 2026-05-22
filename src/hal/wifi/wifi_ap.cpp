@@ -13,11 +13,13 @@
     #if APP_WIFI_OTA_ENABLED
 
         #include "hal/wifi/ota_hmac.h"
+        #include "hal/wifi/wifi_tcp.h"
 
         #include <WiFi.h>
         #include <WebServer.h>
         #include <Update.h>
         #include <Arduino.h>
+        #include <ESPmDNS.h>
         #include <Preferences.h>
         #include <esp_system.h>
         #include <esp_task_wdt.h>
@@ -381,6 +383,21 @@ void apTaskFn(void *) {
     WiFi.softAP(s_ssid, s_password);
     LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid, WiFi.softAPIP().toString().c_str());
 
+    // mDNS responder — exposes the dash as `canshift.local` and advertises
+    // the JSON-lines TCP server as `_canshift._tcp` so Studio can discover
+    // and connect without a manual IP. Failure is non-fatal: the AP keeps
+    // serving and a manual IP fallback still works. Issue #1071.
+    if (MDNS.begin("canshift")) {
+        MDNS.addService("canshift", "tcp", 5050);
+        LOG_INFO("WiFi", "mDNS up: canshift.local  service: _canshift._tcp:5050");
+    } else {
+        LOG_WARN("WiFi", "mDNS.begin() failed — Studio discovery disabled, manual IP only");
+    }
+
+    // TCP server for Studio JSON-lines transport (issue #1071). Starts after
+    // the AP is live so the listening socket binds to the softAP interface.
+    WifiTcpServer::start();
+
     // Derive the per-device OTA bearer token once per AP session. Cheap
     // (one SHA-256) and deterministic, so the token stays stable across
     // reboots as long as the AP password in NVS doesn't rotate.
@@ -420,6 +437,12 @@ void apTaskFn(void *) {
         #endif
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+
+    // Tear down the JSON-lines TCP server before dropping the AP so the
+    // listener socket releases its port and any connected Studio sees a
+    // clean FIN rather than a half-open connection. Issue #1071.
+    WifiTcpServer::stop();
+    MDNS.end();
 
     s_server.stop();
     WiFi.softAPdisconnect(true);
