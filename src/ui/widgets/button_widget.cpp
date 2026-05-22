@@ -7,6 +7,7 @@
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
 #include <Arduino.h>
@@ -277,7 +278,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     lv_obj_set_user_data(btn, tag);
     lv_obj_add_event_cb(btn, btnClickHandler, LV_EVENT_CLICKED, nullptr);
-    lv_obj_add_event_cb(btn, WidgetTagPool::deleteHandler<ButtonTag>, LV_EVENT_DELETE, tag);
+    WidgetHelpers::attachTagDeleter(btn, tag);
 
     return btn;
 }

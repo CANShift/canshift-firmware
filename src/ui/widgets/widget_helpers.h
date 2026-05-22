@@ -9,6 +9,7 @@
 #include "config/config_types.h"
 #include "ui/sensor_color_ramp.h"
 #include "ui/widget_styles.h"
+#include "ui/widgets/widget_tag_pool.h"
 
 #include <lvgl.h>
 #include <stddef.h>
@@ -67,6 +68,32 @@ inline void disableInteract(lv_obj_t *obj) {
     if (!obj)
         return;
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+}
+
+// Register the canonical LV_EVENT_DELETE callback for a widget whose Tag
+// lives in WidgetTagPool. Wipes every animation bound to the object before
+// releasing the slot, so any queued exec_cb on the next LVGL tick cannot
+// fire against memory the pool may have already handed to a different
+// widget (issue #886). Safe to use on widgets that never register
+// animations — lv_anim_del is a no-op there. Promoted from the per-widget
+// callbacks in button + warning so every site shares one delete path
+// (F-LO-5).
+template <typename T>
+inline void attachTagDeleter(lv_obj_t *obj, T *tag) {
+    if (!obj || !tag)
+        return;
+    lv_obj_add_event_cb(
+        obj,
+        [](lv_event_t *e) {
+            auto *t = static_cast<T *>(lv_event_get_user_data(e));
+            if (!t)
+                return;
+            auto *target = static_cast<lv_obj_t *>(lv_event_get_current_target(e));
+            if (target)
+                lv_anim_del(target, nullptr);
+            WidgetTagPool::release(t);
+        },
+        LV_EVENT_DELETE, tag);
 }
 
 } // namespace WidgetHelpers

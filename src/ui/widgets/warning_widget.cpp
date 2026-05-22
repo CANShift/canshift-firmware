@@ -119,22 +119,11 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     tag->wasActive = false;
     tag->bgColor = critRgb;
     lv_obj_set_user_data(root, tag);
-    lv_obj_add_event_cb(
-        root,
-        [](lv_event_t *e) {
-            auto *t = static_cast<WarningTag *>(lv_event_get_user_data(e));
-            if (t) {
-                // Nuke ALL animations bound to this object (not just blinkAnimCb)
-                // before releasing the slot. lv_anim_del is synchronous in LVGL
-                // 8.3 but does not flush an exec_cb that's already in-flight on
-                // the current animation tick — by clearing every anim slot on
-                // this var we close any window where a queued callback could
-                // fire against root after the tag is reused. Issue #886.
-                lv_anim_del(t->root, nullptr);
-                WidgetTagPool::release(t);
-            }
-        },
-        LV_EVENT_DELETE, tag);
+    // attachTagDeleter wipes every animation bound to the object before
+    // releasing the slot — closes the queued-anim-after-tag-release race
+    // (issue #886) and keeps button + warning on the same delete path
+    // (F-LO-5).
+    WidgetHelpers::attachTagDeleter(root, tag);
 
     // Optional widget label drawn at the configured corner.
     WidgetLabelOverlay::apply(

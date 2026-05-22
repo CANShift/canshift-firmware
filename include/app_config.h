@@ -213,6 +213,17 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
 // CAN / TWAI
 // ---------------------------------------------------------------------------
 
+// CAN classic frame payload cap (bytes). Used by the parser, manager TX
+// path, and signals.json validation to clamp/reject out-of-range byte
+// offsets. CAN FD would lift this to 64 — also fits in uint8_t.
+// Promoted from three local copies (one of which was uint16_t) so every
+// site shares a single source of truth (F-LO-3).
+#ifdef __cplusplus
+static constexpr uint8_t kCanFrameMaxBytes = 8;
+#else
+    #define CAN_FRAME_MAX_BYTES 8U
+#endif
+
 // CAN receive queue depth (frames)
 #define CAN_RX_QUEUE_DEPTH 32
 

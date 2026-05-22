@@ -1,6 +1,7 @@
 // config_loader.cpp — Config JSON parsing implementation
 
 #include "config_loader.h"
+#include "app_config.h"
 #include "board_config.h"
 #include "hal/storage/storage_driver.h"
 #include "config/json_reader.h"
@@ -946,7 +947,7 @@ bool loadSignals() {
         // ----- Validate decoder-critical fields (issues #197 / #198) -----
         // CAN classic frames are 8 bytes; byteLength must be 1, 2, or 4 to
         // produce a well-defined sign-extend and a bounded read.
-        static constexpr uint8_t kCanFrameMaxBytes = 8;
+        // kCanFrameMaxBytes lives in app_config.h (F-LO-3).
         const bool byteLenValid = (s.byteLength == 1 || s.byteLength == 2 || s.byteLength == 4);
         const bool startInRange = (s.startByte < kCanFrameMaxBytes);
         const bool fitsInFrame =

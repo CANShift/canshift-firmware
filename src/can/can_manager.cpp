@@ -274,7 +274,7 @@ uint32_t CanManager::getErrorCount() {
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
     // CAN classic frames carry at most 8 payload bytes — silently clamp to
     // protect callers from transmitting garbage past the end of `data`.
-    static constexpr uint8_t kCanFrameMaxBytes = 8;
+    // kCanFrameMaxBytes lives in app_config.h (F-LO-3).
     if (len > kCanFrameMaxBytes)
         len = kCanFrameMaxBytes;
 

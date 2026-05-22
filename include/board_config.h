@@ -115,8 +115,8 @@
 // On ESP32, USB serial is via the UART0 bridge (GPIO 1 = TX, GPIO 3 = RX).
 // This is the same UART used for flashing and Serial monitor.
 // In Phase 1, config sync uses UART0 at a distinct baud rate.
-//
-// TODO: Consider using UART2 on different pins if UART0 conflict is an issue.
+// UART2 (GPIO 16/17) is documented as a free expansion path at the top of
+// this file — nothing to follow up on here.
 // ---------------------------------------------------------------------------
 #define USB_SERIAL_BAUD 115200
 
