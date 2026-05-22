@@ -30,22 +30,22 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 ## What is working
 
 - LVGL 8.3 rendering with widgets for `bar`, `button`, `gauge`, `gear`, `image`, `label`, `timer`, and `warning` (`src/ui/widgets/`).
-- Gauge `revFlash` pulse triggered at the configured `revLimitRpm` (`src/ui/widgets/gauge_widget.cpp:261-270`, issue #263).
+- Gauge `revFlash` pulse triggered at the configured `revLimitRpm` (see `GaugeWidget::create` in `src/ui/widgets/gauge_widget.cpp`, issue #263).
 - Button widgets with toggle latch, optional icon, and idle/active color tints (`src/ui/widgets/button_widget.cpp`).
 - ESP32 TWAI CAN reception at 500 kbps, runtime-overridable via `device.json`.
 - CAN frame parsing — RPM, throttle, MAP, boost, IAT, coolant, oil temp/pressure, fuel pressure, lambda, AFR, road speed, gear, battery, MIL/launch flags, map number. The shipped default `signals.json` is tuned for MaxxECU but `signals.json` is fully generic; swap it for any passive-broadcast ECU.
 - Dynamic CAN signal table built from `signals.json` at boot — runtime dispatch with bitmask support and per-signal timeout.
-- Touch calibration via TFT_eSPI's 4-point crosshair routine; result stored in NVS (`namespace="touch"`, `key="cal"`).
+- Touch calibration via LovyanGFX `calibrateTouch()` (4-point crosshair sequence); result stored in NVS (`namespace="touch"`, `key="cal"`).
 - Day/night theme toggle that rebuilds all LVGL pages.
 - USB JSON-line protocol over UART0 (115200 baud) — see [USB protocol](#usb-protocol).
 - BLE GATT server for the mobile app (`src/hal/ble/ble_server.cpp`) — TELE notify, STATUS read+notify, SETTINGS read+write, CMD channel.
 - WiFi softAP started on demand from BLE for future OTA flashing (`src/hal/wifi/wifi_ap.h`); compile-gated by `APP_WIFI_OTA_ENABLED` in `app_config.h`.
 - Default-config provisioning — embedded `dashboard.json` / `signals.json` / `theme.json` are written to fresh SPIFFS on first boot. User data is never overwritten (`src/config/default_config.h`, `src/boot/boot_sequence.cpp`).
-- Atomic config writes via `StorageDriver::writeFileAtomic` with a `.bak` fallback (`src/config/config_loader.cpp:48-99`).
+- Atomic config writes via `StorageDriver::writeFileAtomic` with a `.bak` fallback (see `readAndParseWithBak` in `src/config/config_loader.cpp`).
 - Burn overlay — full-screen "Saving config…" feedback with auto error state on storage write failure (`src/ui/burn_overlay.h`).
-- Runtime device config (`device.json`) overrides TWAI pins and CAN bus speed without recompiling (`src/can/can_manager.cpp:58-69`).
-- CAN-task IDLE0 yield fix — `vTaskDelay(CAN_TASK_YIELD_TICKS)` keeps the Task Watchdog Timer happy on a busy bus (`src/main.cpp:248`, issue #200).
-- Splash screen with progress bar and a 2 s minimum hold (`src/boot/boot_sequence.cpp:85-112,222-330`).
+- Runtime device config (`device.json`) overrides TWAI pins and CAN bus speed without recompiling (see `CanManager::begin` in `src/can/can_manager.cpp`).
+- CAN-task IDLE0 yield fix — `vTaskDelay(CAN_TASK_YIELD_TICKS)` keeps the Task Watchdog Timer happy on a busy bus (see `taskCAN` in `src/main.cpp`, issue #200).
+- Splash screen with progress bar and a 2 s minimum hold (see `BootSequence::run` in `src/boot/boot_sequence.cpp`).
 - CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains them to USB at ≤32 frames per tick.
 - CAN health stats emitted as `{"can_stat":1,"fps":X.X,"errors":N}` every 2 s.
 - Telemetry push — `{"tele":1,"v":{...}}` every ~200 ms over USB; same payload at 10 Hz over BLE TELE.
@@ -162,66 +162,92 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
 
 ```
 canshift-firmware/
-├── platformio.ini                  # Build envs (crowpanel_28, sim, debug)
+├── platformio.ini                  # Build envs (crowpanel_28, sim, native, …)
 ├── include/
-│   ├── board_config.h              # !! All GPIO assignments — verify before flash
 │   ├── app_config.h                # Feature flags, task sizes, thresholds
-│   ├── hardware_profile.h          # Board capability flags
+│   ├── board.h                     # Compile-time board selector (#831)
+│   ├── board_config.h              # !! All GPIO assignments — verify before flash
+│   ├── board_profile.h             # Per-board capability flags
+│   ├── boards/                     # Per-board pin/feature tables
+│   ├── can_signals_out.h           # SignalId-anchored telemetry export table
+│   ├── hardware_profile.h          # Hardware feature-flag mirror
 │   ├── lgfx_panel.h                # LovyanGFX panel + bus + touch + backlight
 │   └── lv_conf.h                   # LVGL 8.3 compile-time config
 ├── src/
 │   ├── main.cpp                    # Entry point — FreeRTOS task creation
 │   ├── boot/
-│   │   └── boot_sequence.{cpp,h}   # Power-on init: HAL → LVGL → config → UI
+│   │   ├── boot_sequence.{cpp,h}   # Power-on init: HAL → LVGL → config → UI
+│   │   └── default_fonts.{cpp,h}   # LVGL default-font embed
 │   ├── hal/
+│   │   ├── ble/ble_server.{cpp,h}  # NimBLE GATT — TELE/STATUS/SETTINGS/CMD/AP_PWD (#873)
 │   │   ├── display/                # LovyanGFX wrapper (ILI9341, DMA flush)
-│   │   ├── touch/                  # XPT2046 — calibrate() + setTouch()
+│   │   ├── memory/psram.{cpp,h}    # PSRAM probe + allocator helpers
 │   │   ├── storage/                # SPIFFS read/write + LVGL FS driver
+│   │   ├── touch/                  # XPT2046 — calibrate() + setTouch()
 │   │   ├── usb/usb_comm.{cpp,h}    # JSON line parser, command dispatch, scans
-│   │   ├── ble/ble_server.{cpp,h}  # NimBLE GATT — TELE / STATUS / SETTINGS / CMD
-│   │   └── wifi/wifi_ap.{cpp,h}    # On-demand softAP for OTA (compile-gated)
+│   │   └── wifi/                   # wifi_ap, ota_hmac, ota_hmac_bridge (#667, #827)
 │   ├── can/
 │   │   ├── can_manager.{cpp,h}     # TWAI receive loop, CAN health stats
 │   │   ├── can_parser.{cpp,h}      # Runtime signal table from signals.json + fallback
-│   │   ├── signal_map.{cpp,h}      # Canonical SignalId enum + name table (#279)
+│   │   └── signal_map.{cpp,h}      # Canonical SignalId enum + name table (#279)
 │   ├── config/
 │   │   ├── config_loader.{cpp,h}   # JSON → domain structs, atomic writes + .bak
 │   │   ├── config_types.h          # Mirrors canshift-core schema (C++ structs)
 │   │   ├── default_config.{cpp,h}  # First-boot SPIFFS provisioning (embedded JSON)
 │   │   └── rotation_config.{cpp,h} # 0°/180° mounting rotation persistence
 │   ├── runtime/
+│   │   ├── action_dispatcher.{cpp,h} # Button-action → side-effect router (#833)
+│   │   ├── alert_engine.{cpp,h}    # Rev-limiter flash, warning state machine
+│   │   ├── input_buttons.{cpp,h}   # Physical GPIO button polling (Input task, #833)
+│   │   ├── pending_actions.h       # Deferred-action queue used by the dispatcher
 │   │   ├── signal_store.{cpp,h}    # Thread-safe live signal store with timeout
-│   │   └── alert_engine.{cpp,h}    # Rev-limiter flash, warning state machine
+│   │   ├── timer_service.{cpp,h}   # Shared monotonic timer abstraction
+│   │   └── track_store.{cpp,h}     # Lap/session telemetry buffer (#815)
 │   ├── ui/
-│   │   ├── page_manager.{cpp,h}    # Page navigation, theme rebuild
-│   │   ├── theme_manager.{cpp,h}   # Day/night colour scheme
-│   │   ├── widget_factory.{cpp,h}  # Instantiate widgets from config
-│   │   ├── top_bar.{cpp,h}         # Status bar — page map, MIL, day/night
-│   │   ├── settings_page.{cpp,h}   # Brightness + sleep + rotation panel
-│   │   ├── burn_overlay.{cpp,h}    # "Saving config…" full-screen overlay
 │   │   ├── alert_flash.{cpp,h}     # Rev-limit screen flash effect
+│   │   ├── burn_overlay.{cpp,h}    # "Saving config…" full-screen overlay
+│   │   ├── diag_drawer.{cpp,h}     # On-device diagnostics drawer
 │   │   ├── error_bar.{cpp,h}       # Config error badge on lv_layer_top
 │   │   ├── font_manager.{cpp,h}    # LVGL font registration
+│   │   ├── gesture_controller.{cpp,h} # Swipe / multi-tap recognizer
 │   │   ├── icon_assets.{cpp,h}     # LVGL icon binary loaders
-│   │   ├── widget_label.h          # Shared widget label primitive
+│   │   ├── page_manager.{cpp,h}    # Page navigation, theme rebuild
+│   │   ├── passkey_overlay.{cpp,h} # BLE Secure-Connections passkey display (#873)
+│   │   ├── sensor_color_ramp.{cpp,h} # Sensor → ramp resolver (#430)
+│   │   ├── sensor_palette.{cpp,h}  # Two-zone sensor palette (#954)
+│   │   ├── settings_page.{cpp,h}   # Brightness + sleep + rotation panel
+│   │   ├── setup_screen.{cpp,h}    # First-boot setup wizard
+│   │   ├── theme_manager.{cpp,h}   # Day/night colour scheme
+│   │   ├── top_bar.{cpp,h}         # Status bar — page map, MIL, day/night
+│   │   ├── widget_factory.{cpp,h}  # Instantiate widgets from config
+│   │   ├── widget_label.{cpp,h}    # Shared widget label primitive
+│   │   ├── widget_styles.{cpp,h}   # Reusable lv_style_t bank
 │   │   └── widgets/                # bar, button, gauge, gear, image, label,
 │   │                               # timer, warning
 │   ├── sim/sim_engine.{cpp,h}      # Triangle-wave RPM + slow temp ramp
+│   ├── util/                       # format_float, no_float_printf — host-portable helpers
 │   └── diag/
+│       ├── error_store.{cpp,h}     # Persistent error state for the badge
 │       ├── logger.{cpp,h}          # LOG_INFO / LOG_WARN / LOG_ERROR macros
-│       └── error_store.{cpp,h}     # Persistent error state for the badge
+│       ├── lvgl_assert.{cpp,h}     # LVGL invariant asserts
+│       ├── lvgl_lock_guard.h       # RAII wrapper around g_lvglMutex
+│       └── perf_counters.{cpp,h}   # UI / CAN / heap counters (#1006)
 ├── data/                           # SPIFFS image — uploaded via `pio run -t uploadfs`
 │   ├── config/
 │   │   ├── dashboard.json          # Default dashboard layout (also embedded)
 │   │   ├── signals.json            # Default CAN signal mapping (MaxxECU example, UNVERIFIED, also embedded)
-│   │   ├── theme.json              # Default theme overrides (also embedded)
 │   │   └── device.json             # Runtime hardware overrides
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
 │   └── fonts/                      # LVGL .bin fonts (orbitron_<weight>_<size>.bin)
 └── scripts/
-    ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION
+    ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION + OTA_HMAC_SECRET
+    ├── build_rust.py               # Optional Rust HMAC bridge (#827)
+    ├── build_sensor_icons.py       # Bulk sensor-icon build
+    ├── build_ui_icons.py           # Generic UI-icon build
+    ├── generate_keys.sh            # Generate OTA / secure-boot keys
     ├── png_to_lvgl_bin.py          # PNG → LVGL .bin converter
-    └── build_sensor_icons.py       # Bulk sensor-icon build
+    ├── regen_orbitron_fonts.py     # Rebuild bundled fonts from sources
+    └── secure_boot_first_flash.sh  # First-flash secure-boot helper
 ```
 
 ---
@@ -230,18 +256,21 @@ canshift-firmware/
 
 | Task | Core | Priority | Stack | Period | Source |
 |------|------|----------|-------|--------|--------|
-| UI | 1 | 10 | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`) | `taskUI` — `src/main.cpp:163` |
-| CAN | 0 | 15 | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp:241` |
-| USB | 1 | 8 | 4096 B | 20 ms | `taskUSBComm` — `src/main.cpp:257` |
-| BLE | 1 | 6 | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz) | `taskBLE` — `src/main.cpp:272` |
-| Sim *(sim mode only)* | 1 | 5 | 2048 B | 50 ms (`SIM_UPDATE_MS`) | `taskSim` — `src/main.cpp:289` |
+| UI | 1 | 10 | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`) | `taskUI` — `src/main.cpp` |
+| CAN | 0 | 15 | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp` |
+| USB | 1 | 8 | 4096 B | 20 ms | `taskUSBComm` — `src/main.cpp` |
+| Input | 0 | 7 | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS` | `taskInput` — `src/runtime/input_buttons.cpp` |
+| BLE | 1 | 6 | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz) | `taskBLE` — `src/main.cpp` |
+| Sim *(sim mode only)* | 1 | 5 | 2048 B | 50 ms (`SIM_UPDATE_MS`) | `taskSim` — `src/main.cpp` |
+| WiFi AP *(OTA on demand)* | 1 | 5 | 4096 B | event-driven | `src/hal/wifi/wifi_ap.cpp` |
 
-Priorities and stack sizes come from `include/app_config.h` (lines 38–69 and
-186–197). The LVGL tick is **not** driven by the UI task — `setup()` installs a
-periodic `esp_timer` that calls `lv_tick_inc(LVGL_TICK_MS)` every 5 ms so
-animations stay wall-clock accurate even when the UI task overruns
-(`src/main.cpp:46-61`). `lv_tick_inc()` is the only LVGL API documented as
-mutex-free.
+Priorities and stack sizes are defined in `include/app_config.h`
+(`TASK_PRIO_*` / `TASK_STACK_*` / `TASK_CORE_*` macros — that file is the
+canonical source). The LVGL tick is **not** driven by the UI task —
+`setup()` installs a periodic `esp_timer` that calls
+`lv_tick_inc(LVGL_TICK_MS)` every 5 ms so animations stay wall-clock
+accurate even when the UI task overruns. `lv_tick_inc()` is the only LVGL
+API documented as mutex-free.
 
 All other LVGL calls require the global `g_lvglMutex` (declared in
 `src/main.cpp`). The CAN task writes to `SignalStore`; the UI task reads from
@@ -253,34 +282,39 @@ rate.
 ## USB protocol
 
 JSON lines at 115200 baud over UART0. Each message is one JSON object followed
-by `\n`. `USB_PROTOCOL_VERSION = 2` (`include/app_config.h:219`). Under
+by `\n`. `USB_PROTOCOL_VERSION = 2` (defined in `include/app_config.h`). Under
 protocol v2, log entries are emitted as `{"log":1,...}` JSON envelopes
 (instead of plain `[I][TAG]` text), and all writes are serialized under a
 shared UART mutex with command acks.
 
 ### Commands (host → device)
 
+Opcodes are defined in `src/hal/usb/usb_comm.h` as `CMD_*` constants.
+
 | Cmd | Name | Payload | Behaviour |
 |-----|------|---------|-----------|
-| `0x01` | `CMD_GET_CONFIG` | `{"cmd":1}` | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped). `src/hal/usb/usb_comm.cpp:435-459` |
-| `0x02` | `CMD_PUT_CONFIG` | `{"cmd":2,"payload":{...}}` | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state. `usb_comm.cpp:172-227` |
-| `0x03` | `CMD_PUT_SIGNALS` | reserved | Falls through to the default handler (acks `ok`); no dedicated handler yet. |
-| `0x04` | `CMD_PUT_THEME` | reserved | Same as above. |
-| `0x05` | `CMD_SCREEN_SETTINGS` | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}` | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot. `usb_comm.cpp:331-358` |
-| `0x06` | `CMD_PUT_FILE` | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write. `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. `usb_comm.cpp:264-329` |
-| `0x07` | `CMD_TOGGLE_DAY_NIGHT` | `{"cmd":7}` | Flip the day/night theme on the next UI tick. `usb_comm.cpp:463-467` |
-| `0x08` | `CMD_CALIBRATE_TOUCH` | `{"cmd":8}` | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input). `usb_comm.cpp:481-485` |
-| `0x09` | `CMD_SET_DAY_NIGHT` | `{"cmd":9,"day":true\|false}` | Idempotent variant of `0x07` (issue #225). `usb_comm.cpp:468-480` |
-| `0x10` | `CMD_GET_STATUS` | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`. `usb_comm.cpp:417-433` |
-| `0x20` | `CMD_CAN_SCAN_START` | `{"cmd":32}` | Begin forwarding raw CAN frames; resets the drop counter. `usb_comm.cpp:486-493` |
-| `0x21` | `CMD_CAN_SCAN_STOP` | `{"cmd":33}` | Stop forwarding; ack includes `drops`. `usb_comm.cpp:494-504` |
-| `0xF0` | `CMD_REBOOT` | `{"cmd":240}` | `esp_restart()` after the default ack. |
+| `0x01` | `CMD_GET_CONFIG` | `{"cmd":1}` | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped). |
+| `0x02` | `CMD_PUT_CONFIG` | `{"cmd":2,"payload":{...}}` | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state. |
+| `0x05` | `CMD_SCREEN_SETTINGS` | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}` | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot. |
+| `0x06` | `CMD_PUT_FILE` | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write to an allowlisted path prefix (see `kAllowedPutFilePrefixes` in `usb_comm.cpp`). `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. |
+| `0x07` | `CMD_TOGGLE_DAY_NIGHT` | `{"cmd":7}` | Flip the day/night theme on the next UI tick. |
+| `0x08` | `CMD_CALIBRATE_TOUCH` | `{"cmd":8}` | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input). |
+| `0x09` | `CMD_SET_DAY_NIGHT` | `{"cmd":9,"day":true\|false}` | Idempotent variant of `0x07` (issue #225). |
+| `0x0A` | `CMD_RESET_TOUCH_CAL` | `{"cmd":10}` | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot. |
+| `0x10` | `CMD_GET_STATUS` | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`. |
+| `0x20` | `CMD_CAN_SCAN_START` | `{"cmd":32}` | Begin forwarding raw CAN frames; resets the drop counter. |
+| `0x21` | `CMD_CAN_SCAN_STOP` | `{"cmd":33}` | Stop forwarding; ack includes `drops`. |
+
+There is no `CMD_REBOOT`, `CMD_PUT_SIGNALS`, or `CMD_PUT_THEME` — older drafts
+of this doc listed them. Theme is folded into `dashboard.json` (#901), signals
+are pushed via `CMD_PUT_CONFIG` (the firmware re-reads both files atomically),
+and reboot is implicit on `CMD_PUT_CONFIG`.
 
 ### Proactive output (device → host)
 
 | Packet | Cadence | Format |
 |--------|---------|--------|
-| Telemetry | 200 ms | `{"tele":1,"v":{"rpm":3500,"coolant_temp_c":89.2,...}}` — only valid (non-stale) signals; full signal name list in `TELE_SIGNALS[]` (`usb_comm.cpp:51-69`) |
+| Telemetry | 200 ms | `{"tele":1,"v":{"rpm":3500,"coolant_temp_c":89.2,...}}` — only valid (non-stale) signals; full signal name list in `TELE_SIGNALS[]` (`src/hal/usb/usb_comm.cpp`) |
 | CAN frame *(scan mode)* | per frame, drained ≤32/tick | `{"can":1,"id":888,"len":8,"d":[0,1,2,3,4,5,6,7]}` |
 | CAN health | 2 s | `{"can_stat":1,"fps":125.0,"errors":0}` |
 | Log entry *(protocol v2)* | event-driven | `{"log":1,"lvl":"info","tag":"USB","msg":"..."}` |
@@ -297,7 +331,8 @@ roles disabled in `platformio.ini:97-104` to keep flash + DRAM in budget).
 - **Device name:** `CANShift`
 - **TX power:** `ESP_PWR_LVL_P9` (max)
 - **Connection params:** server requests `min=15 ms`, `max=30 ms`,
-  `supervision timeout=4 s` on connect (`src/hal/ble/ble_server.cpp:88`)
+  `supervision timeout=4 s` on connect (see `BleServer::onConnect` in
+  `src/hal/ble/ble_server.cpp`)
 
 ### Characteristics
 
@@ -327,8 +362,8 @@ roles disabled in `platformio.ini:97-104` to keep flash + DRAM in budget).
 | `bat` | battery | V |
 
 Only valid (non-stale) signals are included. Values are rounded server-side to
-1 decimal place (`ble_server.cpp:64-66`). Notifications fire only when at
-least one client is subscribed.
+1 decimal place (see `addSignalIfValid` in `src/hal/ble/ble_server.cpp`).
+Notifications fire only when at least one client is subscribed.
 
 ### STATUS payload
 
@@ -337,8 +372,8 @@ least one client is subscribed.
 ```
 
 `ap_ssid` is omitted when the AP is inactive. STATUS is refreshed every 2 s
-and re-notified on AP-state changes or theme changes (`ble_server.cpp:68-78,
-270-281`).
+and re-notified on AP-state changes or theme changes (see
+`BleServer::publishStatusSnapshot` in `src/hal/ble/ble_server.cpp`).
 
 ### SETTINGS payload
 
@@ -362,9 +397,86 @@ because applying it triggers a reboot.
 | `start_calibration` | — | Run on-device touch calibration |
 | `reboot` | — | `esp_restart()` after 100 ms |
 
-BLE is gated by `APP_BLE_ENABLED` (default `1`, force `0` in `[env:sim]` —
-see `platformio.ini:133`). NimBLE adds ~30 KB DRAM; the build flags trim
-the stack to peripheral-only.
+BLE is compiled in for the production build (`APP_BLE_ENABLED=1`) but stays
+**off at runtime by default** — `BLE_DEFAULT_ENABLED=0` since #873 so a
+freshly-flashed device does not advertise until the user turns BLE on from
+the on-device Settings page. The `[env:sim]` build sets `APP_BLE_ENABLED=0`
+to keep simulator boots silent. NimBLE adds ~30 KB DRAM; the build flags
+trim the stack to peripheral-only.
+
+### Pairing & security (issue #873)
+
+- **Encrypted access control.** All sensitive characteristics (SETTINGS, CMD,
+  the AP-password helper) are declared `READ_ENC` / `WRITE_ENC` so NimBLE
+  refuses I/O on an unbonded link.
+- **Passkey display.** First-time pairing draws a 6-digit passkey on screen
+  (see `src/ui/passkey_overlay.cpp`); the phone is prompted to type the same
+  digits — MITM-resistant Secure Connections.
+- **AP-password characteristic.** The Wi-Fi softAP password is **not**
+  embedded in the firmware. The device generates a fresh password at boot
+  (or on AP-up), stores it in NVS, and exposes it on a dedicated
+  encrypted-read characteristic (`AP_PWD`). Mobile reads it once after
+  pairing and stores it via `expo-secure-store`.
+- **BLE off by default.** Devices ship with `BLE_DEFAULT_ENABLED=0`; the
+  user enables BLE from the on-device Settings page so an unconfigured
+  device does not advertise.
+
+---
+
+## Wi-Fi OTA (issue #667)
+
+The firmware exposes an HTTP `/ota` endpoint on its softAP for over-the-air
+firmware updates from the mobile app. The flow is intentionally minimal —
+no TLS (the AP has no cert), but every write is HMAC-authenticated against
+a per-device bearer token and an HMAC trailer on the binary itself.
+
+### Per-device bearer token
+
+On AP-up the firmware computes:
+
+```
+ota_token = first 16 bytes of SHA-256(ap_password || "ota-bearer-v1")
+```
+
+(`OTA_TOKEN_SALT` is defined in `src/hal/wifi/wifi_ap.cpp`; the constant-time
+compare lives in `hasValidBearerToken()` in the same file.) The mobile app
+reads `ap_password` once over the encrypted BLE `AP_PWD` characteristic and
+derives the same token locally; both sides keep it in their respective
+secrets stores (NVS on device, `expo-secure-store` on iOS / Android Keystore
+on Android). `/ota` rejects every request without a valid bearer.
+
+### HMAC trailer on the binary
+
+The release binary is built with a SHA-256 HMAC trailer appended to the
+flash image:
+
+```
+[ firmware bytes ........... ][ 32-byte HMAC ]
+```
+
+The HMAC is computed over the firmware bytes using `OTA_HMAC_SECRET` (a
+shared release-line secret, **not** the per-device bearer above). On
+upload the firmware streams the body straight to the OTA flash region,
+recomputes the HMAC over the bytes it just wrote, and aborts the swap if
+the trailing 32 bytes don't match — preventing accidental flash of an
+unsigned or corrupted binary.
+
+### `secrets.ini` build pipeline
+
+`OTA_HMAC_SECRET` is injected at build time by
+`scripts/extra_targets.py`. Pipeline:
+
+1. Maintainer creates `canshift-firmware/secrets.ini` (gitignored —
+   `secrets.ini.example` is the template) with a real secret.
+2. `extra_targets.py` reads it and exposes the value as a build flag.
+3. Production build environments (`crowpanel_28_ota`, release) refuse to
+   compile if the file is missing or still holds the placeholder string.
+4. The CI release workflow passes the same secret via the
+   `OTA_HMAC_SECRET` env var so the published binary's trailer matches
+   what devices in the wild compiled.
+
+Rotating the secret is therefore a release-line break: pre-rotation
+devices reject the new binaries until they're flashed via USB.
 
 ---
 
@@ -385,31 +497,33 @@ to a `SignalId` with scale, offset, endianness, sign, and optional bit mask.
   and the BLE / USB telemetry tables. Names in `signals.json` must match the
   single source of truth (issue #279).
 - Per-signal `timeoutMs` controls `SignalStore::isValid()`. The fallback is
-  `SIGNAL_DEFAULT_TIMEOUT_MS = 1000` ms (`include/app_config.h:106`).
+  `SIGNAL_DEFAULT_TIMEOUT_MS = 1000` ms (defined in `include/app_config.h`).
 
 ---
 
 ## Touch calibration
 
-`TouchDriver::calibrate()` runs TFT_eSPI's built-in `calibrateTouch()` (4-point
-crosshair sequence), stores the 10-byte result in NVS, and applies it via
-`setTouch()`. On boot, `init()` loads the stored calibration if present;
-otherwise it falls back to the `TOUCH_CAL_*` constants in `board_config.h`.
+`TouchDriver::calibrate()` runs LovyanGFX's built-in `calibrateTouch()`
+(4-point crosshair sequence), stores the 10-byte result in NVS, and applies
+it via `setTouch()`. On boot, `init()` loads the stored calibration if
+present; otherwise it falls back to the `TOUCH_CAL_*` constants in
+`board_config.h`.
 
 Calibration can also be triggered remotely:
 
-- USB — `CMD_CALIBRATE_TOUCH` (`0x08`).
+- USB — `CMD_CALIBRATE_TOUCH` (`0x08`); `CMD_RESET_TOUCH_CAL` (`0x0A`) wipes
+  the saved values so the next boot re-calibrates against the defaults.
 - BLE — `{"cmd":"start_calibration"}` on the CMD characteristic.
 
 Both run inside the UI task **without** holding `g_lvglMutex` because
-`calibrateTouch()` draws via TFT_eSPI directly (not LVGL) and blocks on user
-input (`src/main.cpp:170-181`).
+`calibrateTouch()` draws via LovyanGFX directly (not LVGL) and blocks on
+user input.
 
 ---
 
 ## Simulation mode
 
-Build with `[env:sim]` (`platformio.ini:127-134`) or set `APP_SIMULATION_MODE=1`
+Build with `[env:sim]` (see `platformio.ini`) or set `APP_SIMULATION_MODE=1`
 in your build flags. In sim mode:
 
 - TWAI hardware is not initialized.
@@ -439,8 +553,8 @@ in your build flags. In sim mode:
 | TWAI TX | **25** | → CAN Pal CTX |
 | TWAI RX | **32** | ← CAN Pal CRX |
 
-CAN speed: 500 kbps default (`board_config.h:89`); runtime override via
-`device.json`. The default `signals.json` shipped with the firmware is a
+CAN speed: 500 kbps default (defined in `board_config.h`); runtime override
+via `device.json`. The default `signals.json` shipped with the firmware is a
 MaxxECU layout and the frame IDs in it are **unverified** — confirm them
 against your ECU's CAN protocol document (the MaxxECU PC software for that
 default, or your ECU vendor's docs for any other layout) before relying on
@@ -455,17 +569,23 @@ Each canonical config lives at `/config/` on the SPIFFS partition (paths from
 
 | File | Purpose | Required? |
 |------|---------|-----------|
-| `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot (`platformio.ini`) |
+| `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot |
 | `signals.json` | CAN signal mapping (default: MaxxECU example) | Same — provisioned on first boot |
-| `theme.json` | Default theme overrides | Optional; provisioned with the embed defaults |
 | `device.json` | Runtime hardware overrides (TWAI pins, CAN speed) | Optional — falls back to `board_config.h` |
+| `input_bindings.json` | Physical GPIO button → action map (#833) | Optional — falls back to no bindings |
+
+The standalone `theme.json` file was removed in schema 1.13 → 1.14 (#901);
+day-theme palette lives under `dashboard.json.dayTheme`. Older firmware
+images that still wrote `theme.json` are migrated automatically the next
+time Studio pushes a config.
 
 In addition, `/assets/*.bin` holds icon images in LVGL binary format,
 generated by `scripts/png_to_lvgl_bin.py`.
 
 Every canonical config is written via `StorageDriver::writeFileAtomic`, which
 keeps a `<file>.bak` companion. On boot, the loader falls back to `.bak` if
-the primary file is missing or corrupt (`src/config/config_loader.cpp:48-99`).
+the primary file is missing or corrupt (see `readAndParseWithBak` in
+`src/config/config_loader.cpp`).
 
 ---
 
@@ -500,9 +620,12 @@ line at the end of `BootSequence::run()` in `src/boot/boot_sequence.cpp`
 Bug reports, feature requests, and hardware-verification PRs are welcome at
 [`github.com/tburkhalterr/CANShift`](https://github.com/tburkhalterr/CANShift).
 Commit messages follow Conventional Commits — see the project root
-[`CLAUDE.md`](../CLAUDE.md). `pio check` and `clang-format` are not enforced
-in CI but are reasonable local hygiene steps. The pin assignments in
-`board_config.h` are still flagged "verify before flash"; please file an
+[`CLAUDE.md`](../CLAUDE.md). `clang-format` **is** enforced by CI
+(`.github/workflows/ci.yml` — `firmware — clang-format check`), and the
+host-side Unity native test suite runs on every firmware PR via the
+`firmware — native tests` job. Run `pio run -t format` (or the local
+`clang-format -i` invocation it wraps) before pushing. The pin assignments
+in `board_config.h` are still flagged "verify before flash"; please file an
 issue with any board-level discoveries.
 
 ---
