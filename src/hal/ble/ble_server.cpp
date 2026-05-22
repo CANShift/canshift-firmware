@@ -413,7 +413,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             TrackStore::setTelemetry(next);
         } else if (strcmp(cmd, "reboot") == 0) {
             LOG_INFO("BLE", "CMD: reboot");
-            delay(100);
+            delay(PRE_RESTART_FLUSH_DELAY_MS);
             esp_restart();
         } else {
             LOG_WARN("BLE", "Unknown CMD: %s", cmd);

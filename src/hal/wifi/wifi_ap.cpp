@@ -229,7 +229,7 @@ void handleOtaComplete() {
 
     if (ok) {
         LOG_INFO("WiFi", "OTA complete — rebooting");
-        delay(200);
+        delay(PRE_RESTART_FLUSH_DELAY_MS);
         esp_restart();
     } else if (!hmacOk) {
         LOG_ERROR("WiFi", "OTA rejected: HMAC verification failed");

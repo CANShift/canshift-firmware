@@ -13,6 +13,8 @@
 
 #include "error_store.h"
 
+#include "app_config.h"
+
 #include <string.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
@@ -21,7 +23,10 @@
 // Internal state
 // ---------------------------------------------------------------------------
 
-static constexpr uint8_t RING_SIZE = 6;
+// Ring depth promoted to app_config.h::ERROR_STORE_RING_SIZE so the Studio
+// Error Bar UI and any other cross-package consumer can stay in sync with a
+// single source of truth (F-ME-12).
+static constexpr uint8_t RING_SIZE = ERROR_STORE_RING_SIZE;
 
 static FwError s_ring[RING_SIZE];
 static uint8_t s_head = 0; // Index of the oldest error

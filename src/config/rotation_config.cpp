@@ -1,6 +1,7 @@
 // rotation_config.cpp — NVS-backed rotation override implementation.
 
 #include "rotation_config.h"
+#include "app_config.h"
 #include "hardware_profile.h"
 #include "diag/logger.h"
 
@@ -47,7 +48,7 @@ void applyAndReboot(uint16_t offsetDeg) {
     cal.end();
 
     LOG_INFO("Rotation", "Saved offset=%u° — invalidated touch cal — rebooting", normalized);
-    delay(150);
+    delay(PRE_RESTART_FLUSH_DELAY_MS);
     esp_restart();
 }
 

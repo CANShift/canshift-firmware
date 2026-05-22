@@ -15,6 +15,7 @@
 #include "usb_envelope.h"
 #include "board_config.h"
 #include "app_config.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_lock_guard.h"
 #include "hal/storage/storage_driver.h"
@@ -82,6 +83,15 @@ static constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_S
 
 // Single RX buffer — also reused as TX buffer in handlePutConfig after parsing.
 // Size defined in app_config.h: CONFIG_JSON_DOC_DASHBOARD + 256.
+//
+// F-LO-2: pin the sizing contract at compile time so a future raise of
+// CONFIG_JSON_DOC_DASHBOARD (the worst-case payload that streams in-place
+// out of this buffer on the TX path) without a matching bump of
+// USB_RX_BUF_SIZE is caught at build instead of at runtime. The +256 is the
+// envelope overhead `{"cmd":2,"payload":...}` that the host wraps around
+// the dashboard JSON before sending it down the wire.
+static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
+              "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
 static char s_rxBuf[USB_RX_BUF_SIZE];
 static size_t s_rxPos = 0;
 
@@ -476,7 +486,7 @@ void handleCommand(const char *jsonLine) {
         DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
         if (err) {
             LOG_WARN("USB", "PUT_FILE parse error: %s", err.c_str());
-            Serial.println("{\"status\":\"error\",\"message\":\"parse_error\"}");
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
             abortChunkTransfer("parse_error");
             return;
         }
@@ -585,6 +595,9 @@ void handleCommand(const char *jsonLine) {
                     // already started in a degraded state. Off in release.
                     abort();
 #endif
+                    // Surface to the on-screen error badge so a failed scan
+                    // start is not silent past the USB reply (F-HI-7).
+                    ErrorStore::push(ERROR_SRC_SYSTEM, "SCAN_QUEUE", "CAN scan queue alloc failed");
                     UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
                     break;
                 }

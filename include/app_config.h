@@ -90,6 +90,13 @@
 // SPIFFS-backed font load (~600ms each, 6 fonts).
 #define TASK_WDT_TIMEOUT_MS 8000U
 
+// Pre-`esp_restart()` flush delay. Gives the UART TX FIFO / NimBLE notify
+// queue / WiFi OTA response a deterministic window to drain before the
+// MCU resets. 200 ms is the largest historical value across the three
+// reboot sites (rotation save, BLE reboot cmd, OTA finalize) and is now
+// the single source of truth (F-ME-10).
+#define PRE_RESTART_FLUSH_DELAY_MS 200U
+
 // ---------------------------------------------------------------------------
 // USB task tracing (issue #976)
 // ---------------------------------------------------------------------------
@@ -262,6 +269,17 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
 #ifndef DEFAULT_CONFIG_PROVISION_ENABLED
     #define DEFAULT_CONFIG_PROVISION_ENABLED 1
 #endif
+
+// ---------------------------------------------------------------------------
+// Error store
+// ---------------------------------------------------------------------------
+
+// Depth of the firmware-side error ring buffer (diag/error_store.cpp).
+// Promoted from a local constexpr so the Studio Error Bar UI and any other
+// cross-package consumer can stay in sync with a single source of truth
+// (F-ME-12). Raising this also widens FwError[] copies inside critical
+// sections — keep small (≤16).
+#define ERROR_STORE_RING_SIZE 6U
 
 // ---------------------------------------------------------------------------
 // Alert engine
