@@ -168,7 +168,13 @@ bool hasValidBearerToken() {
     if (len < kPrefixLen + OTA_TOKEN_HEX_LEN) {
         return false;
     }
-    if (strncmp(buf, kPrefix, kPrefixLen) != 0) {
+    // Issue #1018 (SEC-M-4) — constant-time prefix compare. strncmp would
+    // short-circuit on the first mismatching byte and leak (via timing) which
+    // byte of the "Bearer " literal first diverged. The prefix is fixed-length
+    // and known, so reuse the same accumulator-OR helper used for the token
+    // compare below.
+    if (OtaHmac::constantTimeMemcmp(reinterpret_cast<const uint8_t *>(buf),
+                                    reinterpret_cast<const uint8_t *>(kPrefix), kPrefixLen) != 0) {
         return false;
     }
     return tokenMatches(buf + kPrefixLen);
