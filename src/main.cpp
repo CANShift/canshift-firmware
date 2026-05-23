@@ -266,8 +266,24 @@ static uint32_t s_lvSumUs = 0, s_lvMaxUs = 0, s_lvCount = 0;
 static int64_t s_lvLastFlushUs = 0;
 #endif
 
+// Number of consecutive successful UI frames (mutex acquired + LVGL handler
+// returned) before the OTA slot is marked valid. The mark cancels the
+// bootloader's pending rollback, so deferring it until paint has actually
+// succeeded N times catches first-frame failures (font decode panic, theme
+// apply, page rebuild) that the old "fire from BootSequence" placement
+// missed. 30 frames at LVGL_HANDLER_PERIOD_MS=10 (target 100 Hz) is ~300 ms
+// in steady state, and ~3 s even under sustained 10 FPS load — comfortably
+// inside the bootloader's rollback window yet wide enough that a transient
+// first-paint glitch still trips it. F-ME-8 / issue #1014.
+static constexpr int UI_OTA_VALID_FRAMES = 30;
+
 void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
+    // Counts UI frames that completed under g_lvglMutex. Latched to true
+    // once the OTA slot has been marked so the call fires exactly once
+    // per boot regardless of how the partition transitions afterwards.
+    int s_uiSuccessfulFrames = 0;
+    bool s_otaSlotMarked = false;
 
     while (true) {
 #if APP_PROFILE_UI
@@ -358,6 +374,21 @@ void taskUI(void *pvParameters) {
             }
 
             xSemaphoreGive(g_lvglMutex);
+
+            // Count a successful frame only after lv_task_handler() returned
+            // and the mutex was released cleanly. Saturate at the threshold
+            // so the counter does not wrap on a long-lived device.
+            if (s_uiSuccessfulFrames < UI_OTA_VALID_FRAMES) {
+                ++s_uiSuccessfulFrames;
+            }
+        }
+
+        // OTA rollback cancel — fires exactly once per boot, after
+        // UI_OTA_VALID_FRAMES healthy frames. Compile-time no-op in sim
+        // builds. F-ME-8 / issue #674 / #1014.
+        if (!s_otaSlotMarked && s_uiSuccessfulFrames >= UI_OTA_VALID_FRAMES) {
+            BootSequence::markOtaSlotValidIfPending();
+            s_otaSlotMarked = true;
         }
 
 #if !APP_SIMULATION_MODE

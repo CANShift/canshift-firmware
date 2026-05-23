@@ -4,11 +4,29 @@
 #include "app_config.h"
 #include "ui/font_manager.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
+
+extern SemaphoreHandle_t g_lvglMutex;
+
 namespace {
 
 lv_obj_t *s_overlay = nullptr;
 lv_obj_t *s_arc = nullptr;
 lv_timer_t *s_errorTimer = nullptr;
+
+// Debug-only invariant — show() builds LVGL objects on lv_layer_top, which
+// the UI task touches every tick. Caller MUST be on the UI core and MUST
+// either hold g_lvglMutex or be running before the mutex exists (boot
+// phase). Same pattern as WidgetTagPool::assertUiThreadHoldsLvglMutex
+// (#1058 / #1061). F-LO-6 / issue #1014.
+inline void assertUiThreadHoldsLvglMutex() {
+    configASSERT(xPortGetCoreID() == TASK_CORE_UI);
+    configASSERT(g_lvglMutex != nullptr);
+    const TaskHandle_t holder = xSemaphoreGetMutexHolder(g_lvglMutex);
+    configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());
+}
 
 // Drive the indicator's start angle; the bg-angle window keeps the same span
 // (kArcSpan), so changing only the start makes the segment chase its tail
@@ -90,6 +108,7 @@ void errorHoldExpiredCb(lv_timer_t *timer) {
 } // namespace
 
 void BurnOverlay::show() {
+    assertUiThreadHoldsLvglMutex();
     // Re-show is allowed — tear down any previous instance first.
     teardownOverlay();
 

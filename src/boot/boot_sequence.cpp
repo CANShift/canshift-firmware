@@ -235,15 +235,18 @@ static void buildUI() {
 
 // Mark the running OTA slot as valid so the bootloader cancels its pending
 // rollback. No-op when the running partition is not in PENDING_VERIFY state
-// (e.g. factory boot, or already-marked slot from an earlier boot). Called
-// once after [BOOT] Ready — the simpler "immediate" criterion: if execution
-// reaches this point the UI is built and the splash has rendered, which is a
-// strong signal of a healthy image. Tradeoff: a crash within the first few
-// hundred ms after this call will NOT trigger rollback. A delayed mark (e.g.
-// 10 s into the UI loop) would catch that class of bug at the cost of a
-// longer rollback window — out of scope here. Issue #674.
+// (factory boot, or already-marked slot from an earlier boot). Compiled out
+// entirely on `APP_SIMULATION_MODE` builds — sim has no OTA partitions.
+//
+// Originally fired once from BootSequence::run() right after [BOOT] Ready —
+// "if we reached this point the UI is built, so the image is healthy". That
+// criterion was too optimistic: a crash inside the first lv_task_handler()
+// call (font decode, page rebuild, theme apply) happens AFTER the mark and
+// therefore never triggers rollback. F-ME-8 (#1014) moved the call into
+// taskUI, gated on N successfully rendered frames (see UI_OTA_VALID_FRAMES
+// in main.cpp). Issue #674.
+void BootSequence::markOtaSlotValidIfPending() {
 #if !APP_SIMULATION_MODE
-static void markOtaSlotValidIfPending() {
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
         return;
@@ -261,8 +264,8 @@ static void markOtaSlotValidIfPending() {
     } else {
         LOG_WARN("OTA", "esp_ota_mark_app_valid_cancel_rollback returned %s", esp_err_to_name(err));
     }
-}
 #endif
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -471,10 +474,8 @@ void BootSequence::run() {
     // .github/workflows/firmware-boot-smoke.yml (issue #486).
     LOG_INFO("BOOT", "[BOOT] Ready");
 
-    // OTA rollback handshake — confirm this image is healthy so the
-    // bootloader cancels its pending rollback. Sim builds have no OTA
-    // partitions, so the call is compiled out. Issue #674.
-#if !APP_SIMULATION_MODE
-    markOtaSlotValidIfPending();
-#endif
+    // OTA rollback handshake moved out of boot — taskUI now calls
+    // BootSequence::markOtaSlotValidIfPending() after UI_OTA_VALID_FRAMES
+    // successful frames so a first-paint crash still triggers rollback
+    // (F-ME-8, #1014).
 }

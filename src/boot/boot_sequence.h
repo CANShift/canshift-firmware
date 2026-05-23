@@ -26,4 +26,16 @@ namespace BootSequence {
  */
 void run();
 
+/**
+ * Mark the running OTA slot as valid so the bootloader cancels its pending
+ * rollback. No-op when the running partition is not in PENDING_VERIFY state
+ * (factory boot, or already-marked from an earlier boot), and a compile-time
+ * no-op in `APP_SIMULATION_MODE` builds (sim has no OTA partitions).
+ *
+ * Idempotent — safe to call more than once. Designed to fire from taskUI
+ * after the UI loop has rendered N healthy frames (F-ME-8), so a UI-layer
+ * crash during early paint still triggers rollback. Issue #674.
+ */
+void markOtaSlotValidIfPending();
+
 } // namespace BootSequence
