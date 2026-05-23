@@ -79,6 +79,25 @@ First boot provisions the embedded default config files automatically — no
 manual asset copy step is required. Fonts and icons under `data/assets/` and
 `data/fonts/` ship to the device via `pio run -t uploadfs`.
 
+### Logging knobs
+
+Two independent log levels gate what reaches UART0 / USB-CDC. They are easy to
+confuse because both names contain "level" and both end up on the same wire.
+
+| Knob | Gates | Format | Default in `[env:crowpanel_28]` |
+|------|-------|--------|---------------------------------|
+| `APP_LOG_LEVEL` | Project `LOG_ERROR` / `LOG_WARN` / `LOG_INFO` / `LOG_DEBUG` / `LOG_VDEBUG` macros (`src/diag/logger.h`) | JSON-line envelope `{"log":1,"lvl":"...","tag":"...","msg":"..."}` (USB protocol v2) | `1` (error only) — release contract from `include/app_config.h` (#899) |
+| `CORE_DEBUG_LEVEL` | Arduino-framework `log_e` / `log_w` / `log_i` / `log_d` / `log_v` calls inside arduino-esp32, LovyanGFX, NimBLE, etc. | Plain-text `[E][TAG]…` lines emitted directly by the framework | `1` (errors only) — saves ~4-7 KB flash by stripping framework format strings (#408) |
+
+Levels: `0`=none, `1`=error, `2`=warn, `3`=info, `4`=debug, `5`=verbose. The two
+scales line up, but the knobs are otherwise orthogonal — raising one does not
+affect the other.
+
+To get full chatter (both framework + app logs at verbose) when debugging,
+build `[env:debug]` instead of overriding flags by hand. `[env:sim]` keeps
+`APP_LOG_LEVEL=3` + `CORE_DEBUG_LEVEL=4` so the QEMU boot smoke harness sees
+the expected info-level boot markers.
+
 ### Flashing a release
 
 There are two supported paths:
