@@ -540,6 +540,86 @@ user input.
 
 ---
 
+## Physical buttons (issue #833)
+
+The dash can be driven by physical GPIO buttons in addition to the touchscreen.
+The runtime polls every configured pin at 1 kHz on a dedicated Input task
+(core 0, priority 7, 2 KB stack — see `app_config.h`), debounces in software,
+classifies presses as **short** / **long** / **double**, then dispatches the
+resulting event through the same `ActionDispatcher` that touch buttons feed.
+
+### Config — `input_bindings.json`
+
+Optional file at `/config/input_bindings.json` (SPIFFS). When absent, no
+bindings are active. Maximum of `MAX_INPUT_BINDINGS` entries (cap defined in
+`canshift-core/src/constants/firmware-caps.ts`).
+
+```json
+{
+  "input_bindings": [
+    {
+      "id": "btn_cruise_set",
+      "pin": 34,
+      "active": "low",
+      "pullup": true,
+      "debounce_ms": 25,
+      "kind": "short",
+      "action": { "type": "cruise_control", "op": "set" }
+    },
+    {
+      "id": "btn_map_cycle",
+      "pin": 35,
+      "active": "low",
+      "pullup": true,
+      "debounce_ms": 25,
+      "kind": "short",
+      "action": { "type": "map_switch", "delta": 1 },
+      "signal": "map_number"
+    }
+  ]
+}
+```
+
+Fields:
+- **`pin`** — ESP32 GPIO number. Allowlist enforced by
+  `Esp32InputGpioSchema` (`canshift-core/src/schemas/device.ts`): all
+  output-safe pins **plus** 34-39 (input-only). Pins 6-11 (SPI flash) are
+  rejected — they'd brick the device.
+- **`active`** — `"low"` (default, button to GND + internal pullup) or
+  `"high"` (external pulldown, button to 3.3 V).
+- **`pullup`** — `true` enables the ESP32's internal pull-up resistor.
+  Required when `active: "low"` unless an external pull-up is fitted.
+  **Pins 34-39 have no internal pull-up** — they need an external resistor.
+- **`debounce_ms`** — software debounce, bounded by
+  `DEBOUNCE_MIN_MS` / `DEBOUNCE_MAX_MS` in core. 20-50 ms covers most
+  mechanical buttons.
+- **`kind`** — `"short"` (release within ~600 ms), `"long"` (held past
+  ~600 ms), or `"double"` (two short presses within ~400 ms).
+- **`action`** — same shape as a dashboard button widget's `action` field.
+  Supported types: `navigate_page`, `map_switch`, `can_raw`, `cruise_control`.
+  Adding a new action type only requires extending `ButtonActionSchema` in
+  `canshift-core`; the firmware dispatcher picks it up automatically.
+- **`signal`** *(optional)* — when set, the physical button shares its visual
+  toggle state with every on-screen button widget bound to the same signal
+  name. Pressing a physical "ALS arm" button flips the on-screen ALS button's
+  active tint without waiting for the ECU echo. Either side can disarm.
+
+### Wiring
+
+Default pattern: button between GPIO and **GND**, internal pull-up enabled.
+Released = `HIGH`, pressed = `LOW` → `active: "low"`.
+
+For input-only pins (34-39) the internal pull-up doesn't exist; wire an
+external 10 kΩ pull-up to 3.3 V and use `pullup: false`.
+
+### Editing in Studio
+
+Studio's `InputBindingsSection` lets you add / edit / remove bindings; pin
+pickers consume `SAFE_INPUT_PINS_WROOM32` from `canshift-core` so an invalid
+pin is rejected before the push to the dash.
+
+---
+
 ## Simulation mode
 
 Build with `[env:sim]` (see `platformio.ini`) or set `APP_SIMULATION_MODE=1`
@@ -578,6 +658,21 @@ MaxxECU layout and the frame IDs in it are **unverified** — confirm them
 against your ECU's CAN protocol document (the MaxxECU PC software for that
 default, or your ECU vendor's docs for any other layout) before relying on
 the readings.
+
+### Powering an external CAN transceiver
+
+GPIO 25 and GPIO 32 sit on the CrowPanel 2.8" expansion header but the
+header itself does **not** expose a dedicated 3.3 V rail next to them. The
+SN65HVD230 / TJA1051 / MCP2562 module needs power — source it from the
+expansion-header pin labelled `GPIO_D` on the silkscreen, which is wired to
+the board's 3.3 V regulator output (observed on the dash revision shipped in
+2026-05). A 100 nF decoupling cap right at the transceiver's VCC pin is
+recommended.
+
+Footprints `R35` and `C21` (silkscreen) are present on the board for
+pull-up / decoupling on the CAN pair; verify they match your transceiver
+module's terminator + decoupling before final assembly — board revisions may
+ship them unpopulated.
 
 ---
 
