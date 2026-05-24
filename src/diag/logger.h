@@ -18,6 +18,16 @@
 // The underlying mutex is recursive: a task that already holds it via
 // lockUart() may still call LOG_* without deadlocking. Each lockUart() must
 // be balanced by exactly one unlockUart() on the same task.
+//
+// Reentry safety has two regimes (F-HI-6 / F-ME-9, umbrella #1014):
+//   - After Logger::init() has run, the recursive mutex serializes every
+//     writer and lets a task re-enter emit() from a nested call site.
+//   - Before Logger::init() runs (pre-init window in setup() between
+//     Serial.begin and Logger::init), the mutex is null and the internal
+//     static buffers are unprotected. The only writer allowed in that
+//     window is the Arduino loopTask on TASK_CORE_UI — emit() asserts this
+//     at runtime so a stray pre-init caller from another task surfaces
+//     immediately instead of silently corrupting the buffers.
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>

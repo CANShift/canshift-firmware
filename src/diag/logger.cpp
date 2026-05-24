@@ -10,6 +10,13 @@
 // the lock via UsbComm::lockUart() — cannot deadlock and silently drop the
 // line that triggered the assert (F-HI-6, umbrella #1014).
 //
+// Pre-init window: between Serial.begin() and Logger::init() — both in
+// setup() on the Arduino loopTask — s_uartMutex is still null. The static
+// buffers below are then unprotected; we rely on the invariant that no other
+// task exists yet and assert it via configASSERT(xPortGetCoreID() ==
+// TASK_CORE_UI) so a future caller from a second task surfaces immediately
+// instead of silently corrupting the buffers (F-HI-6).
+//
 // Pre-init boot text from the Arduino core / ESP-IDF can still land on UART0
 // before Logger::init() runs — the studio drops malformed JSON silently, so
 // this is non-fatal and intentionally not addressed here.
@@ -20,6 +27,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+
+// freertos/task.h supplies xPortGetCoreID() for the pre-init assert below.
+// Native unit tests do not shim it (host is single-threaded so the assert is
+// gated out there entirely — see emit()).
+#ifndef UNIT_TEST
+    #include <freertos/task.h>
+#endif
 
 namespace {
 
@@ -119,11 +133,18 @@ void Logger::unlockUart() {
 }
 
 void Logger::emit(char level, const char *tag, const char *fmt, ...) {
-    // If init() hasn't run yet (very early boot), fall through and write
-    // unprotected — the only writer at that point is the boot path itself.
-    const bool locked =
-        s_uartMutex ? (xSemaphoreTakeRecursive(s_uartMutex, pdMS_TO_TICKS(50)) == pdTRUE) : false;
-    if (s_uartMutex && !locked) {
+    // Pre-init window: between Serial.begin() and Logger::init() in setup(),
+    // s_uartMutex is still null. The static buffers below have no lock to
+    // protect them, so we assert the only-the-boot-task invariant rather
+    // than trust callers to honor it implicitly. On native unit tests the
+    // FreeRTOS port macros are not shimmed, so gate the assert out there —
+    // the host runner is single-threaded and the buffers cannot race
+    // (F-HI-6, umbrella #1014).
+    if (!s_uartMutex) {
+#ifndef UNIT_TEST
+        configASSERT(xPortGetCoreID() == TASK_CORE_UI);
+#endif
+    } else if (xSemaphoreTakeRecursive(s_uartMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
         // Drop the line on contention rather than risk reordering or stalls.
         return;
     }
@@ -191,7 +212,7 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
         Serial.write(reinterpret_cast<const uint8_t *>(line), toWrite);
     }
 
-    if (locked) {
+    if (s_uartMutex) {
         xSemaphoreGiveRecursive(s_uartMutex);
     }
 }
