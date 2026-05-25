@@ -36,6 +36,16 @@ static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 // Arc sweep constants (matches rotation=140, bg_angles=0..280)
 static constexpr float kArcSweep = 280.0f;
 
+// Arc line widths — thick enough to read on the now-smaller (h=80)
+// dashboard arcs without overwhelming the value text in the centre.
+static constexpr uint8_t kBgWidth = 14; // Sector track width
+static constexpr uint8_t kIndWidth = 7; // Value indicator (thinner, sits inside)
+
+// Minimum arc diameter clamp — protects against degenerate gauge configs.
+static constexpr int32_t kMinArcDiam = 40;
+// Padding subtracted from min(w, h) when sizing the arc inside its container.
+static constexpr int32_t kArcContainerPadding = 8;
+
 // Linear interpolation between two RGB colours, channel-wise.
 // Returns a 0x00RRGGBB integer suitable for lv_color_hex.
 static uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
@@ -213,53 +223,25 @@ inline float effectiveAlertThreshold(const GaugeTag &tag) {
     return NAN;
 }
 
-} // namespace
-
 // ---------------------------------------------------------------------------
-// Public API
+// create() phase helpers
 // ---------------------------------------------------------------------------
 
-lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    // Container
-    lv_obj_t *cont = lv_obj_create(parent);
-    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
-                                 cfg.style.borderColor.rgb);
+// Arc diameter: smallest of w/h, minus padding, floored to kMinArcDiam.
+static int32_t computeArcDiameter(const CfgWidget &cfg) {
+    int32_t diam =
+        (cfg.layout.w < cfg.layout.h ? cfg.layout.w : cfg.layout.h) - kArcContainerPadding;
+    if (diam < kMinArcDiam)
+        diam = kMinArcDiam;
+    return diam;
+}
 
-    // Arc diameter: smallest of w/h, minus padding
-    int32_t diam = (cfg.layout.w < cfg.layout.h ? cfg.layout.w : cfg.layout.h) - 8;
-    if (diam < 40)
-        diam = 40;
-
-    // Single danger threshold (issue #965). A real threshold is configured
-    // when dangerLevel sits strictly inside (minValue, maxValue); the helper
-    // clamps the pct calculation so the OK/danger arc split stays sane even
-    // when the bound is right at the rails.
-    const float minV = cfg.gauge.minValue;
-    const float maxV = cfg.gauge.maxValue;
-    const bool hasDanger = !std::isnan(cfg.gauge.dangerLevel) && cfg.gauge.dangerLevel > minV &&
-                           cfg.gauge.dangerLevel < maxV;
-    const uint16_t dangerAngle = hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
-
-    // Arc line widths — thick enough to read on the now-smaller (h=80)
-    // dashboard arcs without overwhelming the value text in the centre.
-    constexpr uint8_t kBgWidth = 14; // Sector track width
-    constexpr uint8_t kIndWidth = 7; // Value indicator (thinner, sits inside)
-
-    // ---------------------------------------------------------------------------
-    // Layer 1-3: Static sector arcs (background track, colored zones)
-    // Render order: first created = bottom, last created = top.
-    // Gradient mode (issue #175) skips the zone tinting entirely — it draws a
-    // single mid-grey base track and a coloured value arc on top.
-    // ---------------------------------------------------------------------------
-
-    const bool gradientMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::GRADIENT);
-    // Issue #954 — palette mode wins over zone tinting when the gauge pins a
-    // known SensorIconName. The background track is a flat dark grey so the
-    // opaque palette fill carries the read on its own.
-    const SensorPaletteEntry *paletteEntry = SensorPalette::lookup(cfg.gauge.iconName);
-    const bool paletteMode = paletteEntry != nullptr;
-    lv_obj_t *fillArc = nullptr;
-
+// Lay down the static background tracks (sector arcs). Render order: first
+// created = bottom, last created = top. Palette + gradient modes share the
+// same single mid-grey base track; zones mode emits two coloured halves
+// split at `dangerAngle`; no-threshold mode falls back to a dim full ring.
+static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, bool paletteMode, bool gradientMode,
+                                  bool hasDanger, uint16_t dangerAngle) {
     if (paletteMode || gradientMode) {
         // Single mid-grey base track — the value arc tints over it.
         createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
@@ -271,54 +253,46 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         createSectorArc(cont, diam, 0, dangerAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
         createSectorArc(cont, diam, dangerAngle, 280, WidgetHelpers::kZoneDangerRgb, kBgWidth);
     }
+}
 
-    // Value fill arc — always created, renders on top of the sector/base tracks.
-    // Palette + gradient modes: full kBgWidth so the value arc fully covers the
-    // base track.  Zones mode: kIndWidth (thinner so sector zones remain visible
-    // around it).
-    {
-        const uint8_t fillW = (gradientMode || paletteMode) ? kBgWidth : kIndWidth;
-        fillArc = createValueArc(cont, diam, fillW);
-        lv_arc_set_angles(fillArc, 0, 0);
-        const uint32_t startColor =
-            paletteMode
-                ? paletteEntry->okColor
-                : ((hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb : kColorValue);
-        lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
-    }
+// Build the value fill arc that renders on top of the sector/base tracks.
+// Palette + gradient modes paint at full kBgWidth so the value arc fully
+// covers the base track; zones mode uses the thinner kIndWidth so sector
+// zones remain visible around it.
+static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
+                                   const SensorPaletteEntry *paletteEntry, bool paletteMode,
+                                   bool gradientMode, bool hasDanger) {
+    const uint8_t fillW = (gradientMode || paletteMode) ? kBgWidth : kIndWidth;
+    lv_obj_t *fillArc = createValueArc(cont, diam, fillW);
+    lv_arc_set_angles(fillArc, 0, 0);
+    const uint32_t startColor =
+        paletteMode ? paletteEntry->okColor
+                    : ((hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb : kColorValue);
+    lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
+    return fillArc;
+}
 
-    // The white indicator needle was dropped per user spec — the coloured
-    // sector arcs + the centred numeric value carry the read on their own.
-
-    // ---------------------------------------------------------------------------
-    // Value label (centered inside the arc)
-    // ---------------------------------------------------------------------------
-
-    // Auto-default unit from signal definition (signals.json). Keeps the unit
-    // visible without requiring the dashboard config to carry it on every
-    // gauge — explicit `cfg.gauge.suffix` still wins for legacy overrides.
-    const char *unitText = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix);
-    const bool hasUnit = unitText[0] != '\0';
-    const uint32_t textRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-
-    // Resolve the integer-tier font once; the fractional label below picks a
-    // smaller font from the same tier.
+// Pick the integer-tier font size by container height, mirroring the
+// original three-tier ladder (20 / 24 / 32). The fractional label picks
+// a smaller font derived from this size.
+static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
     const lv_font_t *font = FontManager::secondary(20);
-    uint8_t intFontSize = 20;
+    intFontSizeOut = 20;
     if (cfg.layout.h >= 80) {
         font = FontManager::secondary(24);
-        intFontSize = 24;
+        intFontSizeOut = 24;
     }
     if (cfg.layout.h >= 110) {
         font = FontManager::primary(32);
-        intFontSize = 32;
+        intFontSizeOut = 32;
     }
+    return font;
+}
 
-    // Value row — flex container holding [int][frac] baseline-aligned, so
-    // gauges with decimals (oil pressure, lambda, fuel pressure) render the
-    // fractional digits at ~70 % of the integer font. Matches the numeric
-    // widget treatment from PR #975 and the studio preview.
+// Build the value row — flex container holding [int][frac] baseline-aligned
+// so gauges with decimals render the fractional digits at ~70 % of the
+// integer font. Matches the numeric widget treatment from PR #975.
+static lv_obj_t *buildValueRow(lv_obj_t *cont, bool hasUnit) {
     lv_obj_t *valueRow = lv_obj_create(cont);
     lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
@@ -329,48 +303,193 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    return valueRow;
+}
 
+// Create the integer value label and seed it with the formatted zero so the
+// first frame paints something readable before update() runs.
+static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint32_t textRgb,
+                                 const CfgWidget &cfg) {
     lv_obj_t *label = lv_label_create(valueRow);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, font, 0);
-    {
-        char initBuf[24];
-        WidgetHelpers::formatValue(initBuf, sizeof(initBuf), cfg.gauge.prefix, 0, 0.0f, nullptr);
-        lv_label_set_text(label, initBuf);
-    }
+    char initBuf[24];
+    WidgetHelpers::formatValue(initBuf, sizeof(initBuf), cfg.gauge.prefix, 0, 0.0f, nullptr);
+    lv_label_set_text(label, initBuf);
+    return label;
+}
 
-    // Fractional-part label — created only when the gauge actually has
-    // decimals. For integer-only readouts (speed, RPM, coolant, boost in
-    // the current demo) the slot is skipped so we don't burn an LVGL obj.
-    lv_obj_t *fracLabel = nullptr;
-    if (cfg.gauge.decimalPlaces > 0) {
-        fracLabel = lv_label_create(valueRow);
-        if (fracLabel) {
-            uint8_t fracSize = static_cast<uint8_t>((intFontSize * 7) / 10);
-            if (fracSize < 12)
-                fracSize = 12;
-            const lv_font_t *fracFont =
-                (fracSize >= 20) ? FontManager::secondary(fracSize) : FontManager::label(fracSize);
-            lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
-            lv_obj_set_style_text_font(fracLabel, fracFont, 0);
-            lv_label_set_text(fracLabel, "");
-        }
-    }
+// Fractional-part label — created only when the gauge actually has decimals.
+// For integer-only readouts (speed, RPM, coolant, boost) the slot is skipped
+// so we don't burn an LVGL obj. Returns nullptr when not needed.
+static lv_obj_t *buildFracLabel(lv_obj_t *valueRow, const CfgWidget &cfg, uint8_t intFontSize,
+                                uint32_t textRgb) {
+    if (cfg.gauge.decimalPlaces == 0)
+        return nullptr;
+    lv_obj_t *fracLabel = lv_label_create(valueRow);
+    if (!fracLabel)
+        return nullptr;
+    uint8_t fracSize = static_cast<uint8_t>((intFontSize * 7) / 10);
+    if (fracSize < 12)
+        fracSize = 12;
+    const lv_font_t *fracFont =
+        (fracSize >= 20) ? FontManager::secondary(fracSize) : FontManager::label(fracSize);
+    lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
+    lv_obj_set_style_text_font(fracLabel, fracFont, 0);
+    lv_label_set_text(fracLabel, "");
+    return fracLabel;
+}
 
-    // Unit label below value (optional)
-    lv_obj_t *unitLabel = nullptr;
-    if (hasUnit) {
-        unitLabel = lv_label_create(cont);
-        lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
-        lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
-        lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
-        lv_label_set_text(unitLabel, unitText);
-    }
+// Optional unit label below the value. Returns nullptr when the resolved
+// unit string is empty.
+static lv_obj_t *buildUnitLabel(lv_obj_t *cont, const char *unitText, uint32_t textRgb) {
+    if (unitText[0] == '\0')
+        return nullptr;
+    lv_obj_t *unitLabel = lv_label_create(cont);
+    lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
+    lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
+    lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
+    lv_label_set_text(unitLabel, unitText);
+    return unitLabel;
+}
 
-    // Optional widget label drawn at the configured corner.
+// Snapshot the revFlash trigger (issue #263) so update() doesn't have to
+// consult ConfigLoader on every tick. The `- 1.0f` offset turns
+// AlertFlash's strict `>` test into a `>=` for the integer-stepped RPM
+// signal. Returns NaN when revFlash is disabled or the dashboard config
+// has no rev-limit RPM.
+static float resolveRevFlashThreshold(const CfgWidget &cfg) {
+    if (!cfg.gauge.revFlash)
+        return NAN;
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (!dash.loaded || dash.revLimitRpm <= 0.0f)
+        return NAN;
+    return dash.revLimitRpm - 1.0f;
+}
+
+// Resolved arc-mode flags consumed by every downstream helper. Centralising
+// these keeps create() free of the threshold/palette/gradient branch noise.
+struct GaugeArcModes {
+    const SensorPaletteEntry *paletteEntry;
+    uint16_t dangerAngle;
+    bool hasDanger;
+    bool gradientMode;
+    bool paletteMode;
+};
+
+static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
+    GaugeArcModes m{};
+    const float minV = cfg.gauge.minValue;
+    const float maxV = cfg.gauge.maxValue;
+    // Single danger threshold (issue #965). A real threshold is configured
+    // when dangerLevel sits strictly inside (minValue, maxValue).
+    m.hasDanger = !std::isnan(cfg.gauge.dangerLevel) && cfg.gauge.dangerLevel > minV &&
+                  cfg.gauge.dangerLevel < maxV;
+    m.dangerAngle = m.hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
+    // Issue #954 — palette mode wins over zone tinting when the gauge pins
+    // a known SensorIconName.
+    m.paletteEntry = SensorPalette::lookup(cfg.gauge.iconName);
+    m.paletteMode = m.paletteEntry != nullptr;
+    m.gradientMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::GRADIENT);
+    return m;
+}
+
+// Bundle of phase outputs threaded into initGaugeTag() — keeps the helper
+// signature readable while still passing every constructed widget pointer.
+struct GaugeBuildState {
+    lv_obj_t *label;
+    lv_obj_t *fracLabel;
+    lv_obj_t *unitLabel;
+    lv_obj_t *fillArc;
+    const SensorPaletteEntry *paletteEntry;
+    uint16_t dangerAngle;
+    bool hasDanger;
+    bool gradientMode;
+};
+
+// Build the entire centred value cluster — value row, integer label,
+// optional fractional label, optional unit label, and the corner overlay
+// label. Populates `outLabel`/`outFrac`/`outUnit` so the caller can hand
+// them straight to initGaugeTag().
+static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
+                              lv_obj_t *&outLabel, lv_obj_t *&outFrac, lv_obj_t *&outUnit) {
+    const char *unitText = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix);
+    const bool hasUnit = unitText[0] != '\0';
+    uint8_t intFontSize = 20;
+    const lv_font_t *font = resolveValueFont(cfg, intFontSize);
+    lv_obj_t *valueRow = buildValueRow(cont, hasUnit);
+    outLabel = buildValueLabel(valueRow, font, textRgb, cfg);
+    outFrac = buildFracLabel(valueRow, cfg, intFontSize, textRgb);
+    outUnit = buildUnitLabel(cont, unitText, textRgb);
     WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition, textRgb);
+}
 
-    // Allocate and attach tag from the fixed pool (F-HI-2).
+// Populate the Tag struct from the widget config + the just-built widget
+// pointers. The color-ramp resolution sits here (issue #430) — palette
+// mode wins, otherwise we consult the per-signal ramp; null means the
+// legacy threshold-driven static colors are used unchanged.
+static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built) {
+    tag->valueLabel = built.label;
+    tag->fracLabel = built.fracLabel;
+    tag->unitLabel = built.unitLabel;
+    tag->fillArc = built.fillArc;
+    tag->minValue = cfg.gauge.minValue;
+    tag->maxValue = cfg.gauge.maxValue;
+    // NaN sentinel — guarantees the first update() runs through the paint
+    // path even when the live value happens to be 0.0 (matches bar_widget).
+    tag->lastValue = NAN;
+    tag->alertThreshold = cfg.gauge.alertThreshold;
+    tag->dangerAngle = built.dangerAngle;
+    tag->hasDanger = built.hasDanger;
+    tag->gradientMode = built.gradientMode;
+    tag->lastValid = true;
+    tag->lastLabelRgb = 0xFFFFFFFFu;
+    tag->lastFillRgb = 0xFFFFFFFFu;
+    tag->palette = built.paletteEntry;
+    tag->dangerLevel = cfg.gauge.dangerLevel;
+    tag->ramp = built.paletteEntry ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
+    tag->revFlashThreshold = resolveRevFlashThreshold(cfg);
+}
+
+// Mount the alert overlay last so it sits on top of arcs and labels, and
+// register each text label so AlertFlash can repaint them in lockstep.
+static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, uint32_t textRgb) {
+    AlertFlash::attach(tag->alert, cont);
+    AlertFlash::watchLabel(tag->alert, tag->valueLabel, textRgb);
+    if (tag->fracLabel) {
+        AlertFlash::watchLabel(tag->alert, tag->fracLabel, textRgb);
+    }
+    if (tag->unitLabel) {
+        AlertFlash::watchLabel(tag->alert, tag->unitLabel, textRgb & 0x888888);
+    }
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    lv_obj_t *cont = lv_obj_create(parent);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
+
+    const int32_t diam = computeArcDiameter(cfg);
+    const GaugeArcModes modes = resolveArcModes(cfg);
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+
+    buildBackgroundTracks(cont, diam, modes.paletteMode, modes.gradientMode, modes.hasDanger,
+                          modes.dangerAngle);
+    lv_obj_t *fillArc = buildValueFillArc(cont, diam, modes.paletteEntry, modes.paletteMode,
+                                          modes.gradientMode, modes.hasDanger);
+
+    lv_obj_t *label = nullptr;
+    lv_obj_t *fracLabel = nullptr;
+    lv_obj_t *unitLabel = nullptr;
+    buildValueCluster(cont, cfg, textRgb, label, fracLabel, unitLabel);
+
     GaugeTag *tag = WidgetTagPool::alloc<GaugeTag>();
     if (!tag) {
         LOG_WARN("GAUGE", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
@@ -378,53 +497,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    tag->valueLabel = label;
-    tag->fracLabel = fracLabel;
-    tag->unitLabel = unitLabel;
-    tag->fillArc = fillArc;
-    tag->minValue = minV;
-    tag->maxValue = maxV;
-    // NaN sentinel — guarantees the first update() runs through the paint
-    // path even when the live value happens to be 0.0 (matches bar_widget).
-    tag->lastValue = NAN;
-    tag->alertThreshold = cfg.gauge.alertThreshold;
-    tag->dangerAngle = dangerAngle;
-    tag->hasDanger = hasDanger;
-    tag->gradientMode = gradientMode;
-    tag->lastValid = true;
-    tag->lastLabelRgb = 0xFFFFFFFFu;
-    tag->lastFillRgb = 0xFFFFFFFFu;
-    tag->palette = paletteEntry;
-    tag->dangerLevel = cfg.gauge.dangerLevel;
-
-    // Resolve the active color ramp once (issue #430). Prefer the per-signal
-    // ramp from signals.json; fall back to the sensor-name heuristic; null
-    // means the legacy threshold-driven static colors are used unchanged.
-    // Palette mode (#954) takes precedence over the ramp.
-    tag->ramp = paletteEntry ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
-
-    // revFlash (issue #263): when enabled, pulse the gauge red as soon as the
-    // signal reaches the dashboard's rev-limit RPM. We snapshot the threshold
-    // here so update() doesn't have to consult ConfigLoader on every tick. The
-    // `- 1.0f` offset turns AlertFlash's strict `>` test into a `>=` for the
-    // integer-stepped RPM signal.
-    tag->revFlashThreshold = NAN;
-    if (cfg.gauge.revFlash) {
-        const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-        if (dash.loaded && dash.revLimitRpm > 0.0f) {
-            tag->revFlashThreshold = dash.revLimitRpm - 1.0f;
-        }
-    }
-
-    // Mount the alert overlay last so it sits on top of arcs and labels.
-    AlertFlash::attach(tag->alert, cont);
-    AlertFlash::watchLabel(tag->alert, label, textRgb);
-    if (fracLabel) {
-        AlertFlash::watchLabel(tag->alert, fracLabel, textRgb);
-    }
-    if (unitLabel) {
-        AlertFlash::watchLabel(tag->alert, unitLabel, textRgb & 0x888888);
-    }
+    const GaugeBuildState built = {label,           fracLabel,          unitLabel,
+                                   fillArc,         modes.paletteEntry, modes.dangerAngle,
+                                   modes.hasDanger, modes.gradientMode};
+    initGaugeTag(tag, cfg, built);
+    attachAlertFlash(tag, cont, textRgb);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE, tag);
