@@ -268,43 +268,40 @@ void BootSequence::markOtaSlotValidIfPending() {
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Phase helpers — one per logical boot stage. BootSequence::run() below is the
+// orchestrator that calls these in fixed order. Each helper preserves its
+// stage's original LOG_INFO traces verbatim so QEMU smoke-test markers and the
+// pre-existing field-debug log layout are unchanged (issue #1014 — function
+// length cap split).
 // ---------------------------------------------------------------------------
 
-// Minimum splash visibility — boot tends to finish in < 1 s, which feels
-// twitchy and gives the user no time to read the version. Hold at least this
-// long before handing the screen over to the dashboard.
-static constexpr uint32_t SPLASH_MIN_MS = 2000;
-
-void BootSequence::run() {
-    // Boot is single-threaded — taskUI is created in main.cpp after this
-    // returns, so LVGL calls below do not need g_lvglMutex.
-
-    // Silence ESP-IDF NVS error logs on first boot. Preferences::begin(ns,
-    // /*readOnly=*/true) on a namespace that doesn't yet exist (touch cal,
-    // settings) emits "[E] nvs_open failed: NOT_FOUND" via ESP-IDF's NVS log
-    // tag. The read-fail is expected and the caller already handles it with a
-    // sensible default — the ERROR-level log is just noise. Demoting the tag
-    // to WARN keeps real NVS errors visible (#42).
+// Silence ESP-IDF NVS error logs on first boot. Preferences::begin(ns,
+// /*readOnly=*/true) on a namespace that doesn't yet exist (touch cal,
+// settings) emits "[E] nvs_open failed: NOT_FOUND" via ESP-IDF's NVS log
+// tag. The read-fail is expected and the caller already handles it with a
+// sensible default — the ERROR-level log is just noise. Demoting the tag
+// to WARN keeps real NVS errors visible (#42).
+static void silenceNvsLogNoise() {
     esp_log_level_set("nvs", ESP_LOG_WARN);
+}
 
-    const uint32_t bootStartMs = millis();
-
-    // Detect PSRAM before any allocation so the display driver can offload
-    // its LVGL draw buffers to SPIRAM when the chip is a WROVER (issue #563).
+// Detect PSRAM before any allocation so the display driver can offload
+// its LVGL draw buffers to SPIRAM when the chip is a WROVER (issue #563).
+static void initPsramAndLogEntry() {
     canshift::hal::memory::initPsram();
-
     logHeap("entry");
+}
 
-    // Task Watchdog Timer — initialised here, before any task is spawned in
-    // main.cpp::createAllTasks(). Registered tasks (UI/CAN/USB) must call
-    // esp_task_wdt_reset() each loop iteration or the panic handler resets
-    // the device. Skipped in simulation builds because QEMU has no real WDT
-    // and the boot smoke test would otherwise reset before reaching
-    // "[BOOT] Ready". Issue #666.
-    //
-    // The arduino-esp32 SDK pinned here ships the IDF v4 TWDT API
-    // (seconds + bool, idempotent — re-init updates the existing config).
+// Task Watchdog Timer — initialised here, before any task is spawned in
+// main.cpp::createAllTasks(). Registered tasks (UI/CAN/USB) must call
+// esp_task_wdt_reset() each loop iteration or the panic handler resets
+// the device. Skipped in simulation builds because QEMU has no real WDT
+// and the boot smoke test would otherwise reset before reaching
+// "[BOOT] Ready". Issue #666.
+//
+// The arduino-esp32 SDK pinned here ships the IDF v4 TWDT API
+// (seconds + bool, idempotent — re-init updates the existing config).
+static void initTaskWatchdog() {
 #if !APP_SIMULATION_MODE
     constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
     const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, /*panic=*/true);
@@ -315,19 +312,24 @@ void BootSequence::run() {
         LOG_INFO("BOOT", "Task WDT armed (%u s)", static_cast<unsigned>(WDT_TIMEOUT_S));
     }
 #endif
+}
 
-// 0. BLE early init — NimBLE needs ~50 KB contiguous DRAM. After LovyanGFX
-//    init the largest free block shrinks to ~16 KB, making BLE impossible.
-//    Initializing the stack here, before the display, guarantees the
-//    allocation succeeds while the heap is still large and unfragmented.
+// BLE early init — NimBLE needs ~50 KB contiguous DRAM. After LovyanGFX
+// init the largest free block shrinks to ~16 KB, making BLE impossible.
+// Initializing the stack here, before the display, guarantees the
+// allocation succeeds while the heap is still large and unfragmented.
+static void initBleEarlyIfEnabled() {
 #if APP_BLE_ENABLED
     BleServer::earlyInit();
     logHeap("after BLE early init");
 #endif
+}
 
-    // 1. Storage mount — no LVGL dependency; runs before lv_init() so config
-    //    can be parsed while the heap still has a large contiguous block.
-    //    LvglFsDriver::init() is intentionally deferred until after lv_init().
+// Storage mount — no LVGL dependency; runs before lv_init() so config
+// can be parsed while the heap still has a large contiguous block.
+// LvglFsDriver::init() is intentionally deferred until after lv_init().
+// Returns true if SPIFFS mounted successfully.
+static bool mountStorageOrLogError() {
     const bool storageOk = initStorage();
     if (storageOk) {
         LOG_INFO("BOOT", "Storage mounted");
@@ -336,50 +338,58 @@ void BootSequence::run() {
         ErrorStore::push(ERROR_SRC_SYSTEM, "MOUNT_FAIL", "Storage offline — config not persisted");
     }
     logHeap("after storage");
+    return storageOk;
+}
 
-    // 2. Provision default configs on a fresh / empty SPIFFS before
-    //    loadConfig reads. Writes only when target is missing AND no .bak
-    //    exists, or when target is empty. Never overwrites user data.
+// Provision default configs on a fresh / empty SPIFFS before
+// loadConfig reads. Writes only when target is missing AND no .bak
+// exists, or when target is empty. Never overwrites user data.
+static void provisionDefaultConfigsIfNeeded(bool storageOk) {
 #if DEFAULT_CONFIG_PROVISION_ENABLED
-    if (storageOk) {
-        LOG_INFO("BOOT", "Provisioning default configs (if needed)...");
-        const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
-        if (pr.written > 0)
-            LOG_INFO("BOOT", "Provisioned %u default config file(s)",
-                     static_cast<unsigned>(pr.written));
-        if (pr.failed > 0)
-            LOG_WARN("BOOT",
-                     "Default-config provision failed for %u file(s) — "
-                     "continuing with whatever is on storage",
-                     static_cast<unsigned>(pr.failed));
-    }
+    if (!storageOk)
+        return;
+    LOG_INFO("BOOT", "Provisioning default configs (if needed)...");
+    const DefaultConfig::ProvisionResult pr = DefaultConfig::provisionMissingFiles();
+    if (pr.written > 0)
+        LOG_INFO("BOOT", "Provisioned %u default config file(s)",
+                 static_cast<unsigned>(pr.written));
+    if (pr.failed > 0)
+        LOG_WARN("BOOT",
+                 "Default-config provision failed for %u file(s) — "
+                 "continuing with whatever is on storage",
+                 static_cast<unsigned>(pr.failed));
+#else
+    (void)storageOk;
 #endif
+}
 
-    // 3. Config — must run BEFORE lv_init() because ArduinoJSON's stream
-    //    parser needs ~20 KB contiguous heap. After lv_init() takes its 80 KB
-    //    pool the largest free block drops to ~15 KB causing NoMemory parse
-    //    failures. At this point the heap has ~120 KB contiguous — ample.
+// Config — must run BEFORE lv_init() because ArduinoJSON's stream
+// parser needs ~20 KB contiguous heap. After lv_init() takes its 80 KB
+// pool the largest free block drops to ~15 KB causing NoMemory parse
+// failures. At this point the heap has ~120 KB contiguous — ample.
+static void loadConfigWithHeapBracket() {
     logHeap("before loadConfig");
     loadConfig();
     logHeap("after loadConfig");
+}
 
-    // 4. Display + LVGL — lv_init() malloc(80 KB) runs here, after config is
-    //    parsed and ArduinoJSON scratch freed, so the pool allocation succeeds.
-    initDisplayAndLVGL();
-
-    // 5. Touch controller
+static void initTouchHardware() {
     LOG_INFO("BOOT", "Initializing touch...");
     TouchDriver::init();
     LOG_INFO("BOOT", "Touch ready");
+}
 
-    // 6. LVGL filesystem driver — needs lv_init() (calls lv_fs_drv_register).
+// LVGL filesystem driver — needs lv_init() (calls lv_fs_drv_register).
+static void initLvglFsIfStorageOk(bool storageOk) {
     if (storageOk) {
         LvglFsDriver::init();
     }
+}
 
-    // 7. Provision the 8 Orbitron .bin fonts on a fresh / empty SPIFFS
-    //    BEFORE FontManager::init() so lv_font_load() finds them. Writes
-    //    only when target is missing — never overwrites existing files.
+// Provision the 8 Orbitron .bin fonts on a fresh / empty SPIFFS
+// BEFORE FontManager::init() so lv_font_load() finds them. Writes
+// only when target is missing — never overwrites existing files.
+static void provisionDefaultFontsIfNeeded(bool storageOk) {
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default fonts (if needed)...");
         const DefaultFonts::ProvisionResult fr = DefaultFonts::provisionMissingFiles();
@@ -393,26 +403,32 @@ void BootSequence::run() {
                      static_cast<unsigned>(fr.failed));
     }
     logHeap("before FontManager");
+}
 
-    // 8. Load SPIFFS-backed fonts before showSplash() so the logo renders at
-    //    Orbitron Black 32 from the very first frame — no two-phase appearance.
+// Load SPIFFS-backed fonts before showSplash() so the logo renders at
+// Orbitron Black 32 from the very first frame — no two-phase appearance.
+static void initFontManagerWithHeapLog() {
     LOG_INFO("BOOT", "Initializing FontManager...");
     FontManager::init();
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
+}
 
-    // 8b. Preload dashboard icons + theme icons while the heap still has a
-    //     contiguous block large enough for the SPIFFS reads. Once page
-    //     widgets start allocating against the same pool the largest free
-    //     block drops below the FS-open threshold and on-demand icon
-    //     loads fail (#956). Preloaded entries live in the LVGL image
-    //     cache (LV_IMG_CACHE_DEF_SIZE) and survive page rebuilds + theme
-    //     toggles without re-touching SPIFFS.
+// Preload dashboard icons + theme icons while the heap still has a
+// contiguous block large enough for the SPIFFS reads. Once page
+// widgets start allocating against the same pool the largest free
+// block drops below the FS-open threshold and on-demand icon
+// loads fail (#956). Preloaded entries live in the LVGL image
+// cache (LV_IMG_CACHE_DEF_SIZE) and survive page rebuilds + theme
+// toggles without re-touching SPIFFS.
+static void preloadIconsWithHeapLog() {
     LOG_INFO("BOOT", "Preloading dashboard icons...");
     IconAssets::preloadDashboardAssets();
     logHeap("after icon preload");
+}
 
-    // 9. Show splash — fonts loaded, logo at full size from first frame.
+// Show splash — fonts loaded, logo at full size from first frame.
+static void showSplashWithInitialUpdates() {
     LOG_INFO("BOOT", "Showing splash...");
     showSplash();
     LOG_INFO("BOOT", "Splash visible");
@@ -420,8 +436,9 @@ void BootSequence::run() {
 
     updateSplash("Config loaded", 10);
     updateSplash("Applying config...", 40);
+}
 
-    // 10. Runtime
+static void initRuntimeServices() {
     LOG_INFO("BOOT", "Initializing TimerService...");
     TimerService::init();
     LOG_INFO("BOOT", "Initializing SignalStore...");
@@ -432,8 +449,10 @@ void BootSequence::run() {
     AlertEngine::init();
     LOG_INFO("BOOT", "Runtime ready");
     updateSplash("Starting runtime...", 60);
+}
 
-    // 11. CAN hardware (skip in simulation mode)
+// CAN hardware (skip in simulation mode).
+static void initCanOrSplashSimNotice() {
 #if !APP_SIMULATION_MODE
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
     CanManager::initHardware();
@@ -442,40 +461,85 @@ void BootSequence::run() {
     LOG_INFO("BOOT", "Simulation mode — skipping CAN init");
     updateSplash("Simulation mode", 78);
 #endif
+}
 
-    // 12. USB comm
+static void initUsbCommPhase() {
     LOG_INFO("BOOT", "Initializing USB comm...");
     UsbComm::init();
     updateSplash("USB ready", 90);
+}
 
-    // 13. Build the UI from config.
-    // updateSplash("Ready") must happen BEFORE buildUI() because
-    // PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
-    // splash objects from the LVGL pool before building page widgets.
-    // Any call to updateSplash after that point would dereference freed objects.
+// Build the UI from config.
+// updateSplash("Ready") must happen BEFORE buildUI() because
+// PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
+// splash objects from the LVGL pool before building page widgets.
+// Any call to updateSplash after that point would dereference freed objects.
+static void buildUiWithHeapBracket() {
     updateSplash("Ready", 100);
     logHeap("before buildUI");
     buildUI();
     logHeap("dashboard ready");
+}
 
-    // Hold the splash for at least SPLASH_MIN_MS so the user can read the
-    // version + final progress state before the dashboard takes over.
+// Minimum splash visibility — boot tends to finish in < 1 s, which feels
+// twitchy and gives the user no time to read the version. Hold at least this
+// long before handing the screen over to the dashboard.
+static constexpr uint32_t SPLASH_MIN_MS = 2000;
+
+// Hold the splash for at least SPLASH_MIN_MS so the user can read the
+// version + final progress state before the dashboard takes over.
+static void holdSplashUntilMin(uint32_t bootStartMs) {
     const uint32_t bootElapsed = millis() - bootStartMs;
     if (bootElapsed < SPLASH_MIN_MS) {
         delay(SPLASH_MIN_MS - bootElapsed);
     }
+}
 
+// Final boot logs + CI smoke-test marker.
+// The "[BOOT] Ready" line is asserted by .github/workflows/firmware-boot-smoke.yml
+// (issue #486) — it must appear exactly once at the end of a successful boot.
+static void logBootCompleteAndReady(uint32_t bootStartMs) {
     logHeap("boot complete");
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",
              static_cast<unsigned long>(millis() - bootStartMs));
-
-    // CI smoke-test marker — QEMU boot smoke-test gate asserts this exact line
-    // appears once within 30 s. Do not remove. See
-    // .github/workflows/firmware-boot-smoke.yml (issue #486).
     LOG_INFO("BOOT", "[BOOT] Ready");
+}
 
-    // OTA rollback handshake moved out of boot — taskUI now calls
-    // BootSequence::markOtaSlotValidIfPending() after UI_OTA_VALID_FRAMES
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+void BootSequence::run() {
+    // Boot is single-threaded — taskUI is created in main.cpp after this
+    // returns, so LVGL calls below do not need g_lvglMutex.
+    //
+    // OTA rollback handshake (markOtaSlotValidIfPending) is no longer fired
+    // from this orchestrator — taskUI calls it after UI_OTA_VALID_FRAMES
     // successful frames so a first-paint crash still triggers rollback
     // (F-ME-8, #1014).
+    silenceNvsLogNoise();
+    const uint32_t bootStartMs = millis();
+    initPsramAndLogEntry();
+    initTaskWatchdog();
+    initBleEarlyIfEnabled();
+
+    const bool storageOk = mountStorageOrLogError();
+    provisionDefaultConfigsIfNeeded(storageOk);
+    loadConfigWithHeapBracket();
+
+    initDisplayAndLVGL();
+    initTouchHardware();
+    initLvglFsIfStorageOk(storageOk);
+    provisionDefaultFontsIfNeeded(storageOk);
+    initFontManagerWithHeapLog();
+    preloadIconsWithHeapLog();
+
+    showSplashWithInitialUpdates();
+    initRuntimeServices();
+    initCanOrSplashSimNotice();
+    initUsbCommPhase();
+    buildUiWithHeapBracket();
+
+    holdSplashUntilMin(bootStartMs);
+    logBootCompleteAndReady(bootStartMs);
 }
