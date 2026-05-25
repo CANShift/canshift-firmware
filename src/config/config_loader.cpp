@@ -17,6 +17,7 @@
 
 #ifdef ARDUINO
     #include <esp_heap_caps.h>
+    #include "hal/memory/psram.h"
 #endif
 
 namespace {
@@ -47,18 +48,68 @@ static CfgInputBindings s_inputs = {};
 // Previously these snapshots were heap-allocated on each load* entry and freed
 // on exit (~22 KB + ~5 KB of malloc/free churn per reload), which fragmented
 // the LVGL pool when fonts/SPIFFS loaded right after boot (related to #895 /
-// #976). Now BSS-resident so load*() never touches the heap.
+// #976). They were then moved to a single BSS-resident buffer so load*() never
+// touches the heap.
 //
 // loadDashboard() and loadSignals() run sequentially on the same task
 // (ConfigLoader::loadAll drives them in order) and each completes before the
 // next begins, so a single shared buffer sized to the larger of the two types
-// is enough. Two separate buffers cost ~5 KB extra BSS and pushed the
-// production crowpanel_28 image past the DRAM ceiling (umbrella #1014).
-// The static_assert pins the invariant so a future struct growth on the
-// other type can't silently underflow this buffer.
+// is enough. The static_assert pins the invariant so a future struct growth
+// on the other type can't silently underflow this buffer.
+//
+// Storage selection (issue #1073):
+//   - BOARD_HAS_PSRAM builds (crowpanel_28 / crowpanel_28_wifi) prefer a
+//     one-shot PSRAM allocation. On a WROVER module this reclaims ~5 KB of
+//     `dram0_0_seg` — exactly the room `crowpanel_28_wifi` needs to fit the
+//     WiFi / mDNS / lwip BSS that the dash-hosted Studio WS bridge brings in
+//     (issues #1073, #1108; the env link-overflowed by ~1.7 KB before this
+//     change). On a WROOM module the runtime PSRAM probe in
+//     `hal/memory/psram.cpp` reports 0 bytes, the alloc returns null, and
+//     the rollback feature degrades to a no-op (parse failures no longer
+//     restore the prior in-memory state — same risk profile as the pre-#458
+//     single-buffer path, documented in the #1073 PR body).
+//   - Non-PSRAM builds (host / native test, `[env:native]`) keep the BSS
+//     buffer so unit tests still exercise the rollback path byte-for-byte.
 static_assert(sizeof(CfgDashboard) >= sizeof(CfgSignalConfig),
               "rollback snapshot buffer must fit CfgDashboard (the larger of the two)");
-alignas(CfgDashboard) static uint8_t s_rollback_snapshot[sizeof(CfgDashboard)];
+static constexpr size_t kRollbackSnapshotSize = sizeof(CfgDashboard);
+
+#ifndef BOARD_HAS_PSRAM
+alignas(CfgDashboard) static uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
+#endif
+
+// Returns the snapshot buffer or nullptr when no backing storage is available.
+//   - BOARD_HAS_PSRAM: lazy-allocate from PSRAM on first call; nullptr on the
+//     WROOM no-PSRAM runtime path so callers skip the snapshot step.
+//   - Otherwise: returns the BSS reservation (cannot fail).
+uint8_t *acquireRollbackSnapshot() {
+#ifdef BOARD_HAS_PSRAM
+    static uint8_t *s_rollback_snapshot_psram = nullptr;
+    static bool s_psram_alloc_attempted = false;
+    if (!s_psram_alloc_attempted) {
+        s_psram_alloc_attempted = true;
+    #ifdef ARDUINO
+        if (canshift::hal::memory::isPsramAvailable()) {
+            s_rollback_snapshot_psram =
+                static_cast<uint8_t *>(heap_caps_malloc(kRollbackSnapshotSize, MALLOC_CAP_SPIRAM));
+            if (s_rollback_snapshot_psram) {
+                LOG_INFO("CFG", "rollback snapshot (%u B) allocated in PSRAM",
+                         static_cast<unsigned>(kRollbackSnapshotSize));
+            } else {
+                LOG_WARN("CFG", "rollback snapshot PSRAM alloc (%u B) failed — rollback disabled",
+                         static_cast<unsigned>(kRollbackSnapshotSize));
+            }
+        } else {
+            LOG_WARN("CFG", "no PSRAM detected — rollback snapshot disabled (WROOM variant; "
+                            "parse-failure restore will no-op)");
+        }
+    #endif
+    }
+    return s_rollback_snapshot_psram;
+#else
+    return s_rollback_snapshot_bss;
+#endif
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -733,20 +784,32 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
 }
 
 bool loadDashboard() {
-    // Snapshot the previous in-memory state into the BSS-resident buffer
-    // before touching s_dashboard so we can roll back atomically on any parse
-    // failure (issue #458, audit F-HI-3 / umbrella #1014). All subsequent
-    // mutations write directly into s_dashboard; on failure the snapshot is
-    // copied back, leaving observable state byte-identical to the pre-call
-    // value. BSS storage cannot fail, so the previous "fall through without
-    // rollback on alloc failure" branch is gone.
-    memcpy(s_rollback_snapshot, &s_dashboard, sizeof(CfgDashboard));
+    // Snapshot the previous in-memory state into the rollback buffer before
+    // touching s_dashboard so we can roll back atomically on any parse failure
+    // (issue #458, audit F-HI-3 / umbrella #1014). All subsequent mutations
+    // write directly into s_dashboard; on failure the snapshot is copied back,
+    // leaving observable state byte-identical to the pre-call value.
+    //
+    // acquireRollbackSnapshot() can return nullptr once PSRAM-backed storage
+    // lands (issue #1073) and the PSRAM alloc fails on a no-PSRAM WROOM
+    // module. Today the BSS-only backend cannot fail; the null guard is the
+    // forward-compatibility hook so the follow-up doesn't need to touch this
+    // function. When snapshot storage is unavailable, parse failures bypass
+    // the memcpy-restore step — the load proceeds with whatever fields got
+    // written, which is the same risk profile as the pre-#458 single-buffer
+    // path (issue #1073 PR body documents the trade-off).
+    uint8_t *snapshot = acquireRollbackSnapshot();
+    if (snapshot) {
+        memcpy(snapshot, &s_dashboard, sizeof(CfgDashboard));
+    }
 
     JsonDocument doc; // ArduinoJson v7 — dynamic, no capacity() needed
     if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
         LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json unreadable");
-        memcpy(&s_dashboard, s_rollback_snapshot, sizeof(CfgDashboard));
+        if (snapshot) {
+            memcpy(&s_dashboard, snapshot, sizeof(CfgDashboard));
+        }
         return false;
     }
 
@@ -859,17 +922,23 @@ bool loadDashboard() {
 }
 
 bool loadSignals() {
-    // Snapshot prior state into the BSS-resident buffer for rollback on parse
+    // Snapshot prior state into the rollback buffer for rollback on parse
     // failure (issue #458, audit F-HI-3 / umbrella #1014) — same pattern as
     // loadDashboard(). Boot-time config load is serial and loadDashboard has
     // already returned, so the shared rollback buffer is free to reuse here.
-    memcpy(s_rollback_snapshot, &s_signals, sizeof(CfgSignalConfig));
+    // See loadDashboard() for the null-snapshot rationale (issue #1073).
+    uint8_t *snapshot = acquireRollbackSnapshot();
+    if (snapshot) {
+        memcpy(snapshot, &s_signals, sizeof(CfgSignalConfig));
+    }
 
     JsonDocument doc; // ArduinoJson v7 — dynamic
     if (!readAndParseWithBak(CONFIG_PATH_SIGNALS, doc)) {
         LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
-        memcpy(&s_signals, s_rollback_snapshot, sizeof(CfgSignalConfig));
+        if (snapshot) {
+            memcpy(&s_signals, snapshot, sizeof(CfgSignalConfig));
+        }
         return false;
     }
 

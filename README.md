@@ -210,7 +210,7 @@ canshift-firmware/
 │   │   ├── can_parser.{cpp,h}      # Runtime signal table from signals.json + fallback
 │   │   └── signal_map.{cpp,h}      # Canonical SignalId enum + name table (#279)
 │   ├── config/
-│   │   ├── config_loader.{cpp,h}   # JSON → domain structs, atomic writes + .bak
+│   │   ├── config_loader.{cpp,h}   # JSON → domain structs, atomic writes + .bak, PSRAM-backed rollback snapshot (#1073)
 │   │   ├── config_types.h          # Mirrors canshift-core schema (C++ structs)
 │   │   ├── default_config.{cpp,h}  # First-boot SPIFFS provisioning (embedded JSON)
 │   │   └── rotation_config.{cpp,h} # 0°/180° mounting rotation persistence
@@ -510,6 +510,21 @@ edge cases or duplicate ~1 KB of code we'd have to maintain. The
 library adds ~10 KB Flash + ~768 B BSS at the trimmed
 `WEBSOCKETS_SERVER_CLIENT_MAX=2` setting — well under the 8 KB
 Flash / 2 KB BSS budget from the #1105 brief.
+
+### DRAM budget — rollback snapshot in PSRAM (#1073)
+
+WiFi + mDNS + lwip + WS pull in ~18 KB of `dram0_0_seg` BSS that the WROOM
+DRAM ceiling cannot absorb on top of the LVGL + NimBLE baseline. The
+`crowpanel_28_wifi` env reclaims room by allocating
+`config_loader`'s ~25 KB transactional rollback snapshot from PSRAM
+(via `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`) instead of holding it in
+BSS. The allocation is gated on `BOARD_HAS_PSRAM` and the runtime PSRAM
+probe in `src/hal/memory/psram.cpp`. On a WROOM module the probe reports 0
+bytes, the alloc returns null, and rollback degrades to a no-op (parse
+failures no longer restore prior in-memory state — matches the pre-#458
+risk profile, acceptable for the WROOM-only no-WiFi image). Native
+unit tests keep the BSS buffer so `pio test -e native` still exercises the
+rollback path byte-for-byte.
 
 ---
 
