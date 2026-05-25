@@ -10,7 +10,7 @@ ESP32 firmware for the CANShift configurable automotive dashboard.
 - **Framework:** PlatformIO + Arduino + C++17
 - **UI:** LVGL 8.3 (`lvgl/lvgl @ ^8.3.11`)
 - **CAN:** ESP32 TWAI + [Adafruit CAN Pal (TJA1051T/3)](https://www.digikey.ch/fr/products/detail/adafruit-industries-llc/5708/18716420)
-- **Wireless:** NimBLE GATT (`h2zero/NimBLE-Arduino @ ^1.4.3`) + optional WiFi softAP for OTA
+- **Wireless:** NimBLE GATT (`h2zero/NimBLE-Arduino @ ^1.4.3`) + optional WiFi softAP for OTA and Studio transport (`links2004/WebSockets @ ^2.7.3` for the WS bridge — #1105)
 
 Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–119).
 
@@ -204,7 +204,7 @@ canshift-firmware/
 │   │   ├── storage/                # SPIFFS read/write + LVGL FS driver
 │   │   ├── touch/                  # XPT2046 — calibrate() + setTouch()
 │   │   ├── usb/usb_comm.{cpp,h}    # JSON line parser, command dispatch, scans
-│   │   └── wifi/                   # wifi_ap, ota_hmac, ota_hmac_bridge (#667, #827)
+│   │   └── wifi/                   # wifi_ap, wifi_tcp, wifi_ws, ota_hmac, ota_hmac_bridge (#667, #827, #1071, #1105)
 │   ├── can/
 │   │   ├── can_manager.{cpp,h}     # TWAI receive loop, CAN health stats
 │   │   ├── can_parser.{cpp,h}      # Runtime signal table from signals.json + fallback
@@ -282,6 +282,8 @@ canshift-firmware/
 | BLE | 1 | 6 | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz) | `taskBLE` — `src/main.cpp` |
 | Sim *(sim mode only)* | 1 | 5 | 2048 B | 50 ms (`SIM_UPDATE_MS`) | `taskSim` — `src/main.cpp` |
 | WiFi AP *(OTA on demand)* | 1 | 5 | 4096 B | event-driven | `src/hal/wifi/wifi_ap.cpp` |
+| WiFi TCP *(Studio JSON-lines, AP-gated, #1071)* | 1 | 5 | 4096 B | 10 ms | `src/hal/wifi/wifi_tcp.cpp` |
+| WiFi WS *(dash-hosted Studio, AP-gated, #1105)* | 1 | 5 | 4096 B | 10 ms | `src/hal/wifi/wifi_ws.cpp` |
 
 Priorities and stack sizes are defined in `include/app_config.h`
 (`TASK_PRIO_*` / `TASK_STACK_*` / `TASK_CORE_*` macros — that file is the
@@ -439,6 +441,75 @@ trim the stack to peripheral-only.
 - **BLE off by default.** Devices ship with `BLE_DEFAULT_ENABLED=0`; the
   user enables BLE from the on-device Settings page so an unconfigured
   device does not advertise.
+
+---
+
+## Wi-Fi Studio transports (issues #1071, #1105)
+
+When the softAP is up (`APP_WIFI_OTA_ENABLED=1` build, AP started on demand
+from BLE) the firmware exposes the USB JSON-lines protocol over two
+parallel transports so Studio can connect over the air from either a
+native client or a browser. Both share the same `UsbComm::handleLine()`
+dispatcher and the same proactive-telemetry stream — only the framing
+differs.
+
+### Discovery (mDNS)
+
+`canshift.local` resolves to the softAP IP. Two services are advertised:
+
+| Service              | Port | Path | Transport | Source |
+|----------------------|------|------|-----------|--------|
+| `_canshift._tcp`     | 5050 | —    | Raw TCP, line-terminated JSON | #1071 (`wifi_tcp.cpp`) |
+| `_canshift_ws._tcp`  | 81   | `/`  | WebSocket, one JSON object per text frame | #1105 (`wifi_ws.cpp`) |
+
+The WS service carries a `path=/` TXT record so a discovery client that
+sees both can pick the transport it actually supports (browsers can only
+use WS).
+
+### Wire protocol
+
+Both transports carry the **same JSON content** as USB. The only
+difference is the framing:
+
+| Transport | Framing | Trailing `\n` |
+|-----------|---------|----------------|
+| USB / TCP | One JSON object per line | Required |
+| WS        | One JSON object per **text frame** | None — the WS frame boundary replaces it |
+
+The WS write sink strips the `\n` that USB / TCP responses carry before
+calling `sendTXT()`, so a single command-dispatcher implementation drives
+all three transports.
+
+### Concurrency & coexistence
+
+- **Single client per transport.** A second TCP connect is rejected at
+  `accept()`; a second WS connect is accepted then immediately
+  `disconnect()`ed with a `single-client only` reason frame so the peer
+  sees a parseable error.
+- **TCP and WS coexist.** Both servers run concurrently when the AP is
+  up. Telemetry fans out via `UsbComm::setAuxSink` to whichever transport
+  connected first (TCP gets priority in the typical "Electron Studio
+  joined first, browser tab opened second" case). The second transport
+  still receives command responses but not proactive telemetry; defining
+  a multi-aux-sink fan-out is a follow-up.
+- **Endpoint:** `ws://canshift.local:81/` (or `ws://<dash-ip>:81/`).
+  Port 81 instead of 80 because the chosen library
+  (`Links2004/arduinoWebSockets`) opens its own listening socket — it
+  cannot share port 80 with the OTA HTTP `WebServer` instance. The TCP
+  bridge stays at 5050 unchanged.
+- **Auth:** WPA2 password on the AP gates both transports. No per-frame
+  auth.
+
+### Why a library and not roll-your-own
+
+`Links2004/arduinoWebSockets @ ^2.7.3` is the actively maintained
+Arduino-ESP32 WS server (release Jan 2026). The full handshake +
+masking + close-frame state machine + ping/pong keepalive is roughly
+2 KB of source, and a minimal rewrite would either skip RFC 6455
+edge cases or duplicate ~1 KB of code we'd have to maintain. The
+library adds ~10 KB Flash + ~768 B BSS at the trimmed
+`WEBSOCKETS_SERVER_CLIENT_MAX=2` setting — well under the 8 KB
+Flash / 2 KB BSS budget from the #1105 brief.
 
 ---
 

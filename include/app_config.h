@@ -365,6 +365,17 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define TASK_PRIO_WIFI_TCP 5
 #define TASK_CORE_WIFI_TCP 1
 
+// WiFi WebSocket server task (started/stopped alongside the AP via
+// WifiAp::start/stop). Mirrors the TCP server's footprint — single-client
+// polling loop driven by WebSocketsServer::loop(); the library carries its
+// own per-client buffers in BSS, so the FreeRTOS stack only needs room for
+// the event dispatcher + Arduino String header parsing. Issue #1105.
+#ifndef TASK_STACK_WIFI_WS
+    #define TASK_STACK_WIFI_WS 4096
+#endif
+#define TASK_PRIO_WIFI_WS 5
+#define TASK_CORE_WIFI_WS 1
+
 // BLE telemetry notify interval
 #define BLE_TELE_INTERVAL_MS 100 // 10Hz
 

@@ -14,6 +14,7 @@
 
         #include "hal/wifi/ota_hmac.h"
         #include "hal/wifi/wifi_tcp.h"
+        #include "hal/wifi/wifi_ws.h"
 
         #include <WiFi.h>
         #include <WebServer.h>
@@ -393,9 +394,18 @@ void apTaskFn(void *) {
     // the JSON-lines TCP server as `_canshift._tcp` so Studio can discover
     // and connect without a manual IP. Failure is non-fatal: the AP keeps
     // serving and a manual IP fallback still works. Issue #1071.
+    //
+    // The WebSocket transport (#1105) ships as a sibling `_canshift_ws._tcp`
+    // service on port 81 because the chosen WS library opens its own
+    // listening socket rather than sharing port 80 with the OTA WebServer.
+    // The `path=/` TXT record disambiguates from the TCP service for
+    // dash-hosted Studio which selects on path.
     if (MDNS.begin("canshift")) {
         MDNS.addService("canshift", "tcp", 5050);
-        LOG_INFO("WiFi", "mDNS up: canshift.local  service: _canshift._tcp:5050");
+        MDNS.addService("canshift_ws", "tcp", 81);
+        MDNS.addServiceTxt("canshift_ws", "tcp", "path", "/");
+        LOG_INFO("WiFi", "mDNS up: canshift.local  services: _canshift._tcp:5050 "
+                         "_canshift_ws._tcp:81");
     } else {
         LOG_WARN("WiFi", "mDNS.begin() failed — Studio discovery disabled, manual IP only");
     }
@@ -403,6 +413,12 @@ void apTaskFn(void *) {
     // TCP server for Studio JSON-lines transport (issue #1071). Starts after
     // the AP is live so the listening socket binds to the softAP interface.
     WifiTcpServer::start();
+
+    // WebSocket server for browser-based dash-hosted Studio (issue #1105).
+    // Mirrors the JSON-lines protocol over WS text frames on port 81. Single
+    // client; coexists with the TCP server above (last-connect wins the aux
+    // sink slot for telemetry fan-out).
+    WifiWsServer::start();
 
     // Derive the per-device OTA bearer token once per AP session. Cheap
     // (one SHA-256) and deterministic, so the token stays stable across
@@ -444,9 +460,13 @@ void apTaskFn(void *) {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-    // Tear down the JSON-lines TCP server before dropping the AP so the
-    // listener socket releases its port and any connected Studio sees a
-    // clean FIN rather than a half-open connection. Issue #1071.
+    // Tear down the WS server first (issue #1105) and then the TCP server
+    // (issue #1071) before dropping the AP so each listener socket releases
+    // its port and any connected Studio sees a clean CLOSE / FIN rather than
+    // a half-open connection. WS goes first because it shares the same
+    // Arduino-WiFi stack as TCP and its teardown is slightly slower (the
+    // library walks WEBSOCKETS_SERVER_CLIENT_MAX slots).
+    WifiWsServer::stop();
     WifiTcpServer::stop();
     MDNS.end();
 
