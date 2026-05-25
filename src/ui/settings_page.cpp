@@ -75,6 +75,21 @@ static int16_t s_panelHeight = 0;
 static constexpr uint32_t SNAP_ANIM_MS = 180;
 
 // -----------------------------------------------------------------------
+// Layout constants — shared across init() helpers
+// -----------------------------------------------------------------------
+
+static constexpr int16_t PAD_H = 8;
+static constexpr int16_t SLIDER_H = 16;
+static constexpr int16_t LABEL_H = 14;
+// 56-px touch targets — comfortably above Apple HIG / Material 44 px guidance.
+// The page now scrolls vertically, so we are no longer constrained by the
+// 240 px screen height.
+static constexpr int16_t BTN_H = 56;
+static constexpr int16_t GAP_ROW = 10;
+static constexpr int16_t GAP_INNER = 6;
+static constexpr int16_t HEADER_H = 18;
+
+// -----------------------------------------------------------------------
 // NVS helpers
 // -----------------------------------------------------------------------
 
@@ -201,8 +216,6 @@ static inline const lv_font_t *FONT_SM() {
     return FontManager::label(12);
 }
 
-static constexpr int16_t PAD_H = 8;
-
 lv_obj_t *makeSlider(lv_obj_t *parent, int32_t vmin, int32_t vmax, int32_t initial,
                      lv_event_cb_t cb) {
     lv_obj_t *slider = lv_slider_create(parent);
@@ -240,6 +253,155 @@ lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_eve
     return btn;
 }
 
+// Full-width labeled button used for calibrate / reset-touch-cal / reset / save.
+// All four share identical box styling — only colors and the label string differ.
+lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, uint32_t bdrColor,
+                         uint32_t textColor, lv_event_cb_t cb) {
+    lv_obj_t *btn = lv_btn_create(parent);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(bgColor), LV_PART_MAIN);
+    lv_obj_set_style_border_color(btn, lv_color_hex(bdrColor), LV_PART_MAIN);
+    lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(btn, 3, LV_PART_MAIN);
+
+    lv_obj_t *lbl = lv_label_create(btn);
+    lv_label_set_text(lbl, label);
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(textColor), 0);
+    lv_obj_center(lbl);
+
+    lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, nullptr);
+    return btn;
+}
+
+// -----------------------------------------------------------------------
+// Init phase helpers — each builds one logical section of the page.
+// Helpers that flow content vertically take `y` by reference and advance it.
+// -----------------------------------------------------------------------
+
+void computePanelGeometry(int16_t yOffset, int16_t height) {
+    // Panel geometry: visible at yOffset (just below the top bar); hidden by
+    // translating up by its own height so it sits flush with the top bar's
+    // bottom edge but off-screen. Drag tracker interpolates between the two.
+    s_openY = yOffset;
+    s_panelHeight = height;
+    s_closedY = static_cast<int16_t>(yOffset - height);
+}
+
+lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height) {
+    lv_obj_t *panel = lv_obj_create(lv_layer_top());
+    lv_obj_set_pos(panel, 0, yOffset);
+    lv_obj_set_size(panel, panelW, height);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(CLR_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(panel, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(panel, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(panel, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(panel, 8, LV_PART_MAIN);
+    lv_obj_add_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(panel, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(panel, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
+    return panel;
+}
+
+void buildHeader(int16_t &y) {
+    lv_obj_t *title = lv_label_create(s_panel);
+    lv_label_set_text(title, "SCREEN SETTINGS");
+    lv_obj_set_style_text_font(title, FONT_LG(), 0);
+    lv_obj_set_style_text_color(title, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_set_pos(title, PAD_H, y);
+    y += HEADER_H;
+}
+
+void buildBrightnessRow(int16_t &y, int16_t rowW) {
+    lv_obj_t *row = lv_obj_create(s_panel);
+    lv_obj_set_pos(row, PAD_H, y);
+    lv_obj_set_size(row, rowW, LABEL_H);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *lbl = lv_label_create(row);
+    lv_label_set_text(lbl, "BRIGHTNESS");
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+    lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
+
+    s_brValue = lv_label_create(row);
+    lv_obj_set_style_text_font(s_brValue, FONT_SM(), 0);
+    lv_obj_set_style_text_color(s_brValue, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_align(s_brValue, LV_ALIGN_RIGHT_MID, 0, 0);
+    updateBrValue();
+
+    y += LABEL_H + GAP_INNER;
+
+    s_brSlider = makeSlider(s_panel, 10, 100, s_brightness, onBrightnessChanged);
+    lv_obj_set_pos(s_brSlider, PAD_H, y);
+    lv_obj_set_size(s_brSlider, rowW, SLIDER_H);
+    y += SLIDER_H;
+}
+
+// Labeled "MOBILE PAIRING" so a user lands here understands the toggle
+// gates the canshift-mobile companion app, not generic Bluetooth audio
+// or arbitrary BLE peripherals (#878).
+void buildBleRow(int16_t &y, int16_t rowW) {
+    lv_obj_t *lbl = lv_label_create(s_panel);
+    lv_label_set_text(lbl, "MOBILE PAIRING");
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+    lv_obj_set_pos(lbl, PAD_H, y);
+    y += LABEL_H + GAP_INNER;
+
+    const int16_t gap = 4;
+    const int16_t btnW = (rowW - gap) / 2;
+    const char *const bleLabels[2] = {"ON", "OFF"};
+    for (uint8_t i = 0; i < 2; ++i) {
+        bool active = (i == 0) ? s_bleEnabled : !s_bleEnabled;
+        s_bleBtns[i] = makeSegButton(s_panel, bleLabels[i], active, onBleBtn,
+                                     reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+        lv_obj_set_pos(s_bleBtns[i], PAD_H + i * (btnW + gap), y);
+        lv_obj_set_size(s_bleBtns[i], btnW, BTN_H);
+    }
+    y += BTN_H;
+}
+
+void buildCalibrateTouchRow(int16_t &y, int16_t rowW) {
+    lv_obj_t *btn = makeFullButton(s_panel, "CALIBRATE TOUCH", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
+                                   onCalibrateTouch);
+    lv_obj_set_pos(btn, PAD_H, y);
+    lv_obj_set_size(btn, rowW, BTN_H);
+    y += BTN_H;
+}
+
+void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
+    lv_obj_t *btn = makeFullButton(s_panel, "RESET TOUCH CAL", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
+                                   onResetTouchCal);
+    lv_obj_set_pos(btn, PAD_H, y);
+    lv_obj_set_size(btn, rowW, BTN_H);
+    y += BTN_H;
+}
+
+// Actions row — Reset (1/3) + Save (2/3) laid out side-by-side at the
+// end of the scrollable content.
+void buildActionsRow(int16_t y, int16_t rowW) {
+    const int16_t gap = 6;
+    const int16_t resetW = (rowW - gap) / 3;
+    const int16_t saveW = rowW - resetW - gap;
+
+    lv_obj_t *resetBtn =
+        makeFullButton(s_panel, "RESET", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED, onReset);
+    lv_obj_set_pos(resetBtn, PAD_H, y);
+    lv_obj_set_size(resetBtn, resetW, BTN_H);
+
+    lv_obj_t *saveBtn =
+        makeFullButton(s_panel, "SAVE", CLR_SAVE_BG, CLR_SAVE_BDR, CLR_SAVE_TEXT, onSave);
+    lv_obj_set_pos(saveBtn, PAD_H + resetW + gap, y);
+    lv_obj_set_size(saveBtn, saveW, BTN_H);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -250,189 +412,23 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     nvsLoad();
 
     const int16_t panelW = LV_HOR_RES;
-
-    // Panel geometry: visible at yOffset (just below the top bar); hidden by
-    // translating up by its own height so it sits flush with the top bar's
-    // bottom edge but off-screen. Drag tracker interpolates between the two.
-    s_openY = yOffset;
-    s_panelHeight = height;
-    s_closedY = static_cast<int16_t>(yOffset - height);
-
-    s_panel = lv_obj_create(lv_layer_top());
-    lv_obj_set_pos(s_panel, 0, yOffset);
-    lv_obj_set_size(s_panel, panelW, height);
-    lv_obj_set_style_bg_color(s_panel, lv_color_hex(CLR_BG), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_panel, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(s_panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_bottom(s_panel, 8, LV_PART_MAIN);
-    lv_obj_add_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(s_panel, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(s_panel, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-
     const int16_t rowW = panelW - PAD_H * 2;
-    const int16_t sliderH = 16;
-    const int16_t labelH = 14;
-    // 56-px touch targets — comfortably above Apple HIG / Material 44 px guidance.
-    // The page now scrolls vertically, so we are no longer constrained by the
-    // 240 px screen height.
-    const int16_t btnH = 56;
-    const int16_t gapRow = 10;
-    const int16_t gapInner = 6;
+
+    computePanelGeometry(yOffset, height);
+    s_panel = createPanel(yOffset, panelW, height);
 
     int16_t y = 6;
-
-    // ---- Header ----
-    {
-        lv_obj_t *title = lv_label_create(s_panel);
-        lv_label_set_text(title, "SCREEN SETTINGS");
-        lv_obj_set_style_text_font(title, FONT_LG(), 0);
-        lv_obj_set_style_text_color(title, lv_color_hex(CLR_TEXT), 0);
-        lv_obj_set_pos(title, PAD_H, y);
-        y += 18;
-    }
-
-    // ---- Brightness ----
-    y += gapRow;
-    {
-        lv_obj_t *row = lv_obj_create(s_panel);
-        lv_obj_set_pos(row, PAD_H, y);
-        lv_obj_set_size(row, rowW, labelH);
-        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
-        lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
-        lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-
-        lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, "BRIGHTNESS");
-        lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-
-        s_brValue = lv_label_create(row);
-        lv_obj_set_style_text_font(s_brValue, FONT_SM(), 0);
-        lv_obj_set_style_text_color(s_brValue, lv_color_hex(CLR_TEXT), 0);
-        lv_obj_align(s_brValue, LV_ALIGN_RIGHT_MID, 0, 0);
-        updateBrValue();
-
-        y += labelH + gapInner;
-
-        s_brSlider = makeSlider(s_panel, 10, 100, s_brightness, onBrightnessChanged);
-        lv_obj_set_pos(s_brSlider, PAD_H, y);
-        lv_obj_set_size(s_brSlider, rowW, sliderH);
-        y += sliderH;
-    }
-
-    // ---- Bluetooth ----
-    // Labeled "MOBILE PAIRING" so a user lands here understands the toggle
-    // gates the canshift-mobile companion app, not generic Bluetooth audio
-    // or arbitrary BLE peripherals (#878).
-    y += gapRow;
-    {
-        lv_obj_t *lbl = lv_label_create(s_panel);
-        lv_label_set_text(lbl, "MOBILE PAIRING");
-        lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_set_pos(lbl, PAD_H, y);
-        y += labelH + gapInner;
-
-        const int16_t gap = 4;
-        const int16_t btnW = (rowW - gap) / 2;
-        const char *const bleLabels[2] = {"ON", "OFF"};
-        for (uint8_t i = 0; i < 2; ++i) {
-            bool active = (i == 0) ? s_bleEnabled : !s_bleEnabled;
-            s_bleBtns[i] = makeSegButton(s_panel, bleLabels[i], active, onBleBtn,
-                                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-            lv_obj_set_pos(s_bleBtns[i], PAD_H + i * (btnW + gap), y);
-            lv_obj_set_size(s_bleBtns[i], btnW, btnH);
-        }
-        y += btnH;
-    }
-
-    // ---- Touch calibration ----
-    y += gapRow;
-    {
-        lv_obj_t *calBtn = lv_btn_create(s_panel);
-        lv_obj_set_pos(calBtn, PAD_H, y);
-        lv_obj_set_size(calBtn, rowW, btnH);
-        lv_obj_set_style_bg_color(calBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
-        lv_obj_set_style_border_color(calBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_set_style_border_width(calBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(calBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(calBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(calBtn, 3, LV_PART_MAIN);
-        lv_obj_t *calLbl = lv_label_create(calBtn);
-        lv_label_set_text(calLbl, "CALIBRATE TOUCH");
-        lv_obj_set_style_text_font(calLbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(calLbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_center(calLbl);
-        lv_obj_add_event_cb(calBtn, onCalibrateTouch, LV_EVENT_CLICKED, nullptr);
-        y += btnH;
-    }
-
-    // ---- Reset touch calibration (defaults restored on next boot) ----
-    y += gapInner;
-    {
-        lv_obj_t *resetCalBtn = lv_btn_create(s_panel);
-        lv_obj_set_pos(resetCalBtn, PAD_H, y);
-        lv_obj_set_size(resetCalBtn, rowW, btnH);
-        lv_obj_set_style_bg_color(resetCalBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
-        lv_obj_set_style_border_color(resetCalBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_set_style_border_width(resetCalBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(resetCalBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(resetCalBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(resetCalBtn, 3, LV_PART_MAIN);
-        lv_obj_t *resetCalLbl = lv_label_create(resetCalBtn);
-        lv_label_set_text(resetCalLbl, "RESET TOUCH CAL");
-        lv_obj_set_style_text_font(resetCalLbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(resetCalLbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_center(resetCalLbl);
-        lv_obj_add_event_cb(resetCalBtn, onResetTouchCal, LV_EVENT_CLICKED, nullptr);
-        y += btnH;
-    }
-
-    // ---- Actions — flow at end of content (panel scrolls vertically) ----
-    y += gapRow;
-    {
-        const int16_t actionY = y;
-        const int16_t gap = 6;
-        const int16_t resetW = (rowW - gap) / 3;
-        const int16_t saveW = rowW - resetW - gap;
-
-        lv_obj_t *resetBtn = lv_btn_create(s_panel);
-        lv_obj_set_pos(resetBtn, PAD_H, actionY);
-        lv_obj_set_size(resetBtn, resetW, btnH);
-        lv_obj_set_style_bg_color(resetBtn, lv_color_hex(CLR_BTN_BG), LV_PART_MAIN);
-        lv_obj_set_style_border_color(resetBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_set_style_border_width(resetBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(resetBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(resetBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(resetBtn, 3, LV_PART_MAIN);
-        lv_obj_t *resetLbl = lv_label_create(resetBtn);
-        lv_label_set_text(resetLbl, "RESET");
-        lv_obj_set_style_text_font(resetLbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(resetLbl, lv_color_hex(CLR_MUTED), 0);
-        lv_obj_center(resetLbl);
-        lv_obj_add_event_cb(resetBtn, onReset, LV_EVENT_CLICKED, nullptr);
-
-        lv_obj_t *saveBtn = lv_btn_create(s_panel);
-        lv_obj_set_pos(saveBtn, PAD_H + resetW + gap, actionY);
-        lv_obj_set_size(saveBtn, saveW, btnH);
-        lv_obj_set_style_bg_color(saveBtn, lv_color_hex(CLR_SAVE_BG), LV_PART_MAIN);
-        lv_obj_set_style_border_color(saveBtn, lv_color_hex(CLR_SAVE_BDR), LV_PART_MAIN);
-        lv_obj_set_style_border_width(saveBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(saveBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(saveBtn, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(saveBtn, 3, LV_PART_MAIN);
-        lv_obj_t *saveLbl = lv_label_create(saveBtn);
-        lv_label_set_text(saveLbl, "SAVE");
-        lv_obj_set_style_text_font(saveLbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(saveLbl, lv_color_hex(CLR_SAVE_TEXT), 0);
-        lv_obj_center(saveLbl);
-        lv_obj_add_event_cb(saveBtn, onSave, LV_EVENT_CLICKED, nullptr);
-    }
+    buildHeader(y);
+    y += GAP_ROW;
+    buildBrightnessRow(y, rowW);
+    y += GAP_ROW;
+    buildBleRow(y, rowW);
+    y += GAP_ROW;
+    buildCalibrateTouchRow(y, rowW);
+    y += GAP_INNER;
+    buildResetTouchCalRow(y, rowW);
+    y += GAP_ROW;
+    buildActionsRow(y, rowW);
 
     applyBrightness();
     LOG_INFO("Settings", "Settings page initialized");
