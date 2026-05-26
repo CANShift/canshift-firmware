@@ -658,6 +658,98 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
+// ---------------------------------------------------------------------------
+// CMD_GET_CONFIG — assemble {"status":"ok","config":<dashboard.json>} into a
+// single heap buffer and emit through `UsbComm::sendLine`, so every active
+// sink (USB-CDC / TCP / WS) receives the reply (#1123 follow-up).
+//
+// The pre-fix path used three raw `Serial.print` writes, bypassing the sink
+// fan-out added in #1073 — dash-hosted Studio clients on WS therefore saw
+// nothing on CMD_GET_CONFIG. The wire format is unchanged (still
+// `{"status":"ok","config":<json>}`) so the existing USB-CDC Studio (which
+// already parses the same envelope) keeps working.
+//
+// Memory: prefer PSRAM (16 KB is cheap there, keeps internal DRAM available
+// for LVGL / WiFi). Fall back to internal DRAM on no-PSRAM boards; abort
+// with an `oom` error rather than partially streaming and breaking framing.
+// Newlines in the source file are mapped to spaces inline (JSON treats them
+// as whitespace anyway) so the assembled response stays one logical line.
+// ---------------------------------------------------------------------------
+
+// Print adapter that copies bytes into a fixed-capacity heap buffer. Reused by
+// handleGetConfig() so streamFileTo() can fill the envelope's body slot in
+// place without a second stack-staging buffer.
+class BufferPrint : public Print {
+  public:
+    BufferPrint(char *dst, size_t cap) : dst_(dst), cap_(cap), used_(0) {}
+    size_t write(uint8_t b) override {
+        if (used_ >= cap_)
+            return 0;
+        dst_[used_++] = static_cast<char>(b);
+        return 1;
+    }
+    size_t write(const uint8_t *data, size_t len) override {
+        const size_t room = cap_ - used_;
+        const size_t n = len < room ? len : room;
+        memcpy(dst_ + used_, data, n);
+        used_ += n;
+        return n;
+    }
+    size_t used() const {
+        return used_;
+    }
+
+  private:
+    char *dst_;
+    size_t cap_;
+    size_t used_;
+};
+
+void handleGetConfig() {
+    if (!StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+        return;
+    }
+    const size_t fileBytes = StorageDriver::fileSize(CONFIG_PATH_DASHBOARD);
+    if (fileBytes == 0) {
+        LOG_WARN("USB", "GET_CONFIG: empty / unreadable %s", CONFIG_PATH_DASHBOARD);
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+        return;
+    }
+    // Envelope is `{"status":"ok","config":` (24 B) + body + `}` (1 B) + NUL.
+    // Pad a few extra bytes for safety.
+    static constexpr size_t kEnvelopeOverhead = 32;
+    const size_t needed = fileBytes + kEnvelopeOverhead;
+    char *buf = static_cast<char *>(heap_caps_malloc(needed, MALLOC_CAP_SPIRAM));
+    if (!buf) {
+        buf = static_cast<char *>(heap_caps_malloc(needed, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    }
+    if (!buf) {
+        LOG_ERROR("USB", "GET_CONFIG: response buffer alloc (%u B) failed",
+                  static_cast<unsigned>(needed));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+        return;
+    }
+    static const char kPrefix[] = "{\"status\":\"ok\",\"config\":";
+    constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
+    memcpy(buf, kPrefix, kPrefixLen);
+
+    BufferPrint sink(buf + kPrefixLen, needed - kPrefixLen - 2 /* '}' + '\0' */);
+    const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink,
+                                                        true /* replaceNewlinesWithSpaces */);
+    size_t pos = kPrefixLen + sink.used();
+    buf[pos++] = '}';
+    buf[pos] = '\0';
+    UsbComm::sendLine(buf);
+    free(buf);
+
+    if (streamed == 0) {
+        LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s", CONFIG_PATH_DASHBOARD);
+    } else {
+        LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
+    }
+}
+
 // Last time the host sent a command. Used by UsbComm::isHostActive() for the
 // top bar "USB connected" icon. Updated on every received command (volatile is
 // fine — single writer, single reader, atomic on 32-bit ESP32).
@@ -730,34 +822,9 @@ void handleCommand(const char *jsonLine) {
             UsbComm::sendLine(resp);
             break;
         }
-        case UsbComm::CMD_GET_CONFIG: {
-            // Stream the on-disk dashboard.json straight to the host in fixed
-            // 256-byte chunks. Avoids the ~20 KB contiguous malloc the previous
-            // readFile() variant needed (issue #576). Newlines in the file
-            // would break the line-delimited Serial protocol, so they're
-            // mapped to spaces inside streamFileTo (JSON treats \n / \r as
-            // whitespace anyway).
-            if (!StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)) {
-                UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
-                break;
-            }
-            // Bracket the 3-call burst with the logger mutex so a logger emit
-            // from another task can't slip in between the prefix / body / tail.
-            const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
-            Serial.print("{\"status\":\"ok\",\"config\":");
-            const size_t streamed = StorageDriver::streamFileTo(
-                CONFIG_PATH_DASHBOARD, Serial, true /* replaceNewlinesWithSpaces */);
-            Serial.println("}");
-            if (locked)
-                Logger::unlockUart();
-            if (streamed == 0) {
-                LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s",
-                         CONFIG_PATH_DASHBOARD);
-            } else {
-                LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
-            }
+        case UsbComm::CMD_GET_CONFIG:
+            handleGetConfig();
             break;
-        }
         case UsbComm::CMD_GET_DEVICE_CONFIG:
             // device.json on disk is already the flat snake_case shape the
             // wire schema expects — pass it through unwrapped.
