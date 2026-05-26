@@ -384,6 +384,10 @@ Opcodes are defined in `src/hal/usb/usb_comm.h` as `CMD_*` constants.
 | `0x10` | `CMD_GET_STATUS` | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`. |
 | `0x20` | `CMD_CAN_SCAN_START` | `{"cmd":32}` | Begin forwarding raw CAN frames; resets the drop counter. |
 | `0x21` | `CMD_CAN_SCAN_STOP` | `{"cmd":33}` | Stop forwarding; ack includes `drops`. |
+| `0x03` | `CMD_GET_DEVICE_CONFIG` | `{"cmd":3}` | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`. Wired host-side in studio-web #1118; the firmware dispatcher handler lands alongside this wave (until then the `default` branch acks as a no-op, which the IPC surfaces as `config_not_found`). |
+| `0x04` | `CMD_PUT_DEVICE_CONFIG` | `{"cmd":4,"payload":{...}}` | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`. |
+| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}` | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`. |
+| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}` | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`. |
 
 There is no `CMD_REBOOT`, `CMD_PUT_SIGNALS`, or `CMD_PUT_THEME` — older drafts
 of this doc listed them. Theme is folded into `dashboard.json` (#901), signals
@@ -668,9 +672,19 @@ side, and partition-resize PR can land in any order.
 ## Wi-Fi OTA (issue #667)
 
 The firmware exposes an HTTP `/ota` endpoint on its softAP for over-the-air
-firmware updates from the mobile app. The flow is intentionally minimal —
-no TLS (the AP has no cert), but every write is HMAC-authenticated against
-a per-device bearer token and an HMAC trailer on the binary itself.
+firmware updates. The flow is intentionally minimal — no TLS (the AP has no
+cert), but every write is HMAC-authenticated against a per-device bearer
+token and an HMAC trailer on the binary itself.
+
+> **Audience: mobile-only.** Studio no longer drives OTA — the dash-hosted
+> Studio (`canshift-studio-web/`) is served from the same firmware image it
+> would otherwise be updating, and the Electron Studio's flasher is being
+> retired in favour of the browser-based USB flasher at
+> [canshift.tmbk.ch](https://canshift.tmbk.ch) (separate repo
+> [`tburkhalterr/canshift-flasher`](https://github.com/tburkhalterr/canshift-flasher),
+> #1081). The mobile app retains the WiFi-OTA path via
+> `POST http://192.168.4.1/ota` so a user in the car can update without a
+> laptop.
 
 ### Per-device bearer token
 
@@ -928,17 +942,32 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
 
 ## Connections to other workspaces
 
-- **canshift-studio** — pushes `dashboard.json` over USB (`CMD_PUT_CONFIG`),
-  streams asset files (`CMD_PUT_FILE`), runs CAN scans, and flashes firmware
-  through its bundled `esptool` integration.
+- **canshift-studio-web** (dash-hosted Studio) — served straight from this
+  package via `board_build.embed_files` + `kSpaAssets[]` in `wifi_ap.cpp`
+  on port 80; live data + commands flow over the WebSocket transport on
+  port 81 (`wifi_ws.cpp`, #1108). Same `UsbComm::handleLine()` dispatcher
+  as USB.
+- **canshift-studio** (Electron, legacy) — pushes `dashboard.json` over USB
+  (`CMD_PUT_CONFIG`), streams asset files (`CMD_PUT_FILE`), runs CAN scans.
+  Kept until phase 3 of #1077 cuts over to the dash-hosted Studio in
+  production. The bundled Web-Serial flasher path is being retired in
+  favour of the standalone `canshift-flasher` (#1081); update
+  `useFirmwareFlash.ts`'s `0x310000` constant to `0x370000` before it can
+  image a #1117+ build (tracked as a follow-up).
 - **canshift-mobile** — connects over BLE; reads telemetry, writes settings,
-  and can trigger the WiFi softAP for OTA. Pairs with the `ble_server.cpp`
-  characteristics described above.
+  triggers the WiFi softAP for OTA, and uploads firmware via
+  `POST /update` on the AP. Pairs with the `ble_server.cpp` characteristics
+  described above. Independent of both Studio flavours.
+- **canshift-flasher** (separate repo) — browser-based esptool hosted at
+  [canshift.tmbk.ch](https://canshift.tmbk.ch). First-flash, recovery,
+  and pre-#1117 partition-layout migration. Reads the merged firmware +
+  SPIFFS images from the GitHub release feed.
 - **canshift-core** — owns the JSON schema; the firmware mirrors it in
   `src/config/config_types.h`. `CONFIG_SCHEMA_VERSION` is injected at build
   time from `canshift-core/src/index.ts` by `scripts/extra_targets.py`, the
   same script that injects `APP_VERSION_STR` from
-  `canshift-studio/package.json`.
+  `canshift-studio/package.json` (kept as the version source until the
+  Electron package retires).
 
 ---
 
