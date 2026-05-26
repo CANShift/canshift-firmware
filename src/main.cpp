@@ -277,182 +277,254 @@ static int64_t s_lvLastFlushUs = 0;
 // first-paint glitch still trips it. F-ME-8 / issue #1014.
 static constexpr int UI_OTA_VALID_FRAMES = 30;
 
+// ---------------------------------------------------------------------------
+// taskUI per-frame phase helpers
+//
+// Each helper covers one discrete phase of the UI loop iteration. They are
+// kept in an anonymous namespace and inlined-by-default so the resulting
+// binary is byte-identical to the inlined form, and so the orchestrator stays
+// a ≤ 40 line loop body (CLAUDE.md function-length cap, issue #1014).
+//
+// Ordering contract — the orchestrator MUST call them in this order so the
+// behaviour matches the pre-split code:
+//   1. uiDrainPreMutexActions     (touch calibrate / calibration reset)
+//   2. uiAcquireLvglMutex         (timed take + perf sample)
+//   3. uiRunMutexBody             (touch poll → day/night → passkey → LVGL)
+//   4. uiHandleOtaMark            (one-shot OTA slot validation)
+//   5. uiFeedTaskWdt              (#666 — must run every iteration)
+//   6. uiNotifyDayNightChanged    (post-mutex BLE STATUS notify)
+//   7. uiRecordFrameMetrics       (frame total + frame-miss)
+//   8. uiFlushLvTaskLog           (1 Hz LVGL handler stat log)
+//   9. uiThrottle                 (vTaskDelayUntil + #976 yield-guard)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// 1. Pre-mutex action drain. Touch calibrate blocks the screen with crosshairs
+// and draws via TFT_eSPI directly, so it MUST run without g_lvglMutex held.
+// Both calibration entry points (BLE + USB) feed the same flag (#893); we
+// drain it once here. Calibration-reset only touches NVS but stays on the UI
+// task to keep all NVS writes single-threaded.
+inline void uiDrainPreMutexActions() {
+    if (PendingActions::takeTouchCalibrate()) {
+        TouchDriver::calibrate();
+#if APP_BLE_ENABLED
+        // Push a STATUS notify so a connected BLE client sees the result —
+        // matters even when the trigger came over USB.
+        BleServer::pushStatusNotify();
+#endif
+    }
+    if (PendingActions::takeTouchCalibrationReset()) {
+        TouchDriver::resetCalibration();
+    }
+}
+
+// 2. Timed mutex acquire. The 10 ms timeout is the same as pre-split; the
+// MUTEX_WAIT perf sample is recorded for both success and timeout paths so
+// the histogram still captures starvation events.
+inline BaseType_t uiAcquireLvglMutex() {
+#if APP_PROFILE_UI
+    const int64_t lockStartUs = esp_timer_get_time();
+#endif
+    const BaseType_t mutexTaken = xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10));
+#if APP_PROFILE_UI
+    ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
+                                 static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
+#endif
+    return mutexTaken;
+}
+
+// 2a. Day/night theme drain — runs under g_lvglMutex (called from
+// uiRunMutexBody). Explicit set wins over toggle when both are pending in the
+// same tick (#893). Returns true when the resolved mode actually changed so
+// the caller can fire the BLE STATUS notify after the mutex is released.
+inline bool uiDrainDayNightActions() {
+    const bool prevIsDay = ThemeManager::isDayMode();
+
+    const int8_t dnSet = PendingActions::takeDayNightSet();
+    if (dnSet >= 0) {
+        ThemeManager::setDayMode(dnSet == 1);
+        // Drop any stale toggle to avoid undoing the explicit set.
+        (void)PendingActions::takeDayNightToggle();
+    } else if (PendingActions::takeDayNightToggle()) {
+        ThemeManager::toggleDayMode();
+    }
+
+    return ThemeManager::isDayMode() != prevIsDay;
+}
+
+// 2b. BLE passkey overlay drain — runs under g_lvglMutex. Hide is processed
+// first so a quick disconnect-then-reconnect within one tick ends up showing
+// the *new* code rather than tearing down the overlay the BLE task just
+// asked us to put up (issue #873).
+inline void uiDrainPasskeyActions() {
+    if (PendingActions::takeBlePasskeyHide()) {
+        PasskeyOverlay::hide();
+    }
+    const uint32_t passkey = PendingActions::takeBlePasskeyShow();
+    if (passkey != 0u) {
+        PasskeyOverlay::show(passkey);
+    }
+}
+
+// 2c. lv_task_handler() invocation with PERF_SCOPE and the APP_LV_TASK_LOG
+// duration aggregator. Runs under g_lvglMutex.
+inline void uiRunLvTaskHandler() {
+    PERF_SCOPE(::PerfCounters::LV_HANDLER);
+#if APP_LV_TASK_LOG
+    const int64_t _t0 = esp_timer_get_time();
+#endif
+    lv_task_handler();
+#if APP_LV_TASK_LOG
+    const uint32_t _dt = static_cast<uint32_t>(esp_timer_get_time() - _t0);
+    s_lvSumUs += _dt;
+    if (_dt > s_lvMaxUs)
+        s_lvMaxUs = _dt;
+    ++s_lvCount;
+#endif
+}
+
+// 3. Under-mutex body. lv_tick_inc() is driven by the esp_timer set up in
+// setup() — keeping it out of this loop means animations stay wall-clock
+// accurate even when the UI task overruns. The mutex is given back inside
+// this helper so the LVGL_HOLD_GUARD scope ends together with the LVGL work
+// (same lifetime as pre-split). Returns true when the day/night mode flipped
+// so the orchestrator can defer the BLE STATUS notify until after release.
+inline bool uiRunMutexBody() {
+    LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_UI);
+    TouchDriver::poll();
+    const bool didDayNightChange = uiDrainDayNightActions();
+    uiDrainPasskeyActions();
+    PageManager::updateWidgets();
+    uiRunLvTaskHandler();
+    xSemaphoreGive(g_lvglMutex);
+    return didDayNightChange;
+}
+
+// 4. OTA rollback cancel — fires exactly once per boot, after
+// UI_OTA_VALID_FRAMES healthy frames. Compile-time no-op in sim builds.
+// F-ME-8 / issue #674 / #1014. The counter saturates at the threshold so it
+// cannot wrap on a long-lived device, and `otaSlotMarked` latches so the
+// call fires exactly once regardless of partition transitions afterwards.
+inline void uiHandleOtaMark(int &successfulFrames, bool &otaSlotMarked) {
+    if (successfulFrames < UI_OTA_VALID_FRAMES) {
+        ++successfulFrames;
+    }
+    if (!otaSlotMarked && successfulFrames >= UI_OTA_VALID_FRAMES) {
+        BootSequence::markOtaSlotValidIfPending();
+        otaSlotMarked = true;
+    }
+}
+
+// 5. Issue #666 — feed the Task WDT once per UI tick. Placed after
+// lv_task_handler() (the slowest leg of the loop) so genuine LVGL deadlocks
+// deeper in the iteration still trip the watchdog. Compile-time no-op in
+// sim builds where the WDT is disabled.
+inline void uiFeedTaskWdt() {
+#if !APP_SIMULATION_MODE
+    esp_task_wdt_reset();
+#endif
+}
+
+// 6. Post-mutex day/night BLE STATUS notify. Deferred until after the mutex
+// is released so ThemeManager::isDayMode() is stable when the BLE task reads
+// it through the notify pipeline.
+inline void uiNotifyDayNightChanged(bool didDayNightChange) {
+#if APP_BLE_ENABLED
+    if (didDayNightChange) {
+        BleServer::pushStatusNotify();
+    }
+#else
+    (void)didDayNightChange;
+#endif
+}
+
+// 7. Per-frame perf metrics. Frame-total wall time is captured before the
+// delay so the metric measures useful work, not the deliberate sleep. The
+// frame-miss heuristic compares lastWake deltas against the configured
+// period: >2 ms over budget = a missed deadline.
+inline void uiRecordFrameMetrics(int64_t frameStartUs, TickType_t lastWake) {
+#if APP_PROFILE_UI
+    const int64_t frameEndUs = esp_timer_get_time();
+    ::PerfCounters::recordSample(::PerfCounters::FRAME_TOTAL,
+                                 static_cast<uint32_t>(frameEndUs - frameStartUs));
+    const TickType_t nowTicks = xTaskGetTickCount();
+    if ((nowTicks - lastWake) > pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS + 2)) {
+        ::PerfCounters::recordFrameMiss();
+    }
+    ::PerfCounters::tick();
+#else
+    (void)frameStartUs;
+    (void)lastWake;
+#endif
+}
+
+// 8. 1 Hz LVGL handler stat log flush. Aggregates avg/max/count of
+// lv_task_handler() duration over the last second and emits one INFO line.
+inline void uiFlushLvTaskLog() {
+#if APP_LV_TASK_LOG
+    const int64_t _now = esp_timer_get_time();
+    if (s_lvLastFlushUs == 0)
+        s_lvLastFlushUs = _now;
+    if (_now - s_lvLastFlushUs >= 1000000) {
+        const uint32_t avg = s_lvCount ? (s_lvSumUs / s_lvCount) : 0;
+        LOG_INFO("PERF", "lv_task: avg=%uus max=%uus n=%u", avg, static_cast<unsigned>(s_lvMaxUs),
+                 static_cast<unsigned>(s_lvCount));
+        s_lvSumUs = 0;
+        s_lvMaxUs = 0;
+        s_lvCount = 0;
+        s_lvLastFlushUs = _now;
+    }
+#endif
+}
+
+// 9. Frame throttle. Sustained LVGL frame overruns (heavy page rebuild, icon
+// decode) would otherwise pin the UI task to CPU 1: vTaskDelayUntil returns
+// immediately once the next wake-up is already past, the UI task (prio 10)
+// keeps running, and lower-priority tasks on the same core (USB prio 8,
+// BLE prio 6, Sim prio 5) never get scheduled — the USB task then misses
+// its WDT feed and the panic handler reboots the device with "usb (CPU 1)".
+// Force a 1-tick yield when we'd have returned immediately (issue #976).
+inline void uiThrottle(TickType_t &lastWake) {
+    if (xTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS)) == pdFALSE) {
+        vTaskDelay(1);
+        lastWake = xTaskGetTickCount();
+    }
+}
+
+} // namespace
+
 void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
-    // Counts UI frames that completed under g_lvglMutex. Latched to true
-    // once the OTA slot has been marked so the call fires exactly once
-    // per boot regardless of how the partition transitions afterwards.
-    int s_uiSuccessfulFrames = 0;
-    bool s_otaSlotMarked = false;
+    // Counts UI frames that completed under g_lvglMutex. otaSlotMarked latches
+    // once BootSequence::markOtaSlotValidIfPending() has fired so the call
+    // happens exactly once per boot regardless of partition transitions.
+    int successfulFrames = 0;
+    bool otaSlotMarked = false;
 
     while (true) {
 #if APP_PROFILE_UI
         const int64_t frameStartUs = esp_timer_get_time();
+#else
+        const int64_t frameStartUs = 0;
 #endif
+        const TickType_t frameWakeStart = lastWake;
 
-        // Calibration runs WITHOUT the LVGL mutex — it blocks while the user taps
-        // crosshairs on screen and draws directly via TFT_eSPI (not through LVGL).
-        // Both BLE and USB queue the same flag now (#893); main.cpp drains it once.
-        bool calibratedThisTick = false;
-        if (PendingActions::takeTouchCalibrate()) {
-            TouchDriver::calibrate();
-#if APP_BLE_ENABLED
-            // Push a STATUS notify so a connected BLE client sees the result —
-            // matters even when the trigger came over USB.
-            BleServer::pushStatusNotify();
-#endif
-            calibratedThisTick = true;
-        }
-        // Reset-calibration only touches NVS — no LVGL mutex needed, but
-        // running it on the UI task keeps all NVS writes on a single thread.
-        if (PendingActions::takeTouchCalibrationReset()) {
-            TouchDriver::resetCalibration();
-        }
-        (void)calibratedThisTick;
+        uiDrainPreMutexActions();
 
         bool didDayNightChange = false;
-
-#if APP_PROFILE_UI
-        const int64_t lockStartUs = esp_timer_get_time();
-#endif
-        const BaseType_t mutexTaken = xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10));
-#if APP_PROFILE_UI
-        ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
-                                     static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
-#endif
-        if (mutexTaken != pdTRUE) {
+        if (uiAcquireLvglMutex() != pdTRUE) {
             LOG_WARN("UI", "LVGL mutex timeout — skipping update");
         } else {
-            LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_UI);
-            // lv_tick_inc() is driven by the esp_timer set up in setup() —
-            // keeping it out of this loop means animations stay wall-clock
-            // accurate even when the UI task overruns.
-            TouchDriver::poll();
-
-            // Explicit set wins over toggle when both are pending in the same
-            // tick — the explicit command carries the user's literal intent
-            // (#893: same precedence as before, just from one shared source).
-            const bool prevIsDay = ThemeManager::isDayMode();
-
-            const int8_t dnSet = PendingActions::takeDayNightSet();
-            if (dnSet >= 0) {
-                ThemeManager::setDayMode(dnSet == 1);
-                // Drop any stale toggle to avoid undoing the explicit set.
-                (void)PendingActions::takeDayNightToggle();
-            } else if (PendingActions::takeDayNightToggle()) {
-                ThemeManager::toggleDayMode();
-            }
-
-            didDayNightChange = (ThemeManager::isDayMode() != prevIsDay);
-
-            // Drain BLE pairing-passkey events queued by the BLE callbacks.
-            // Hide first so a quick disconnect-then-reconnect within one tick
-            // ends up showing the *new* code rather than tearing down the
-            // overlay the BLE task just asked us to put up (issue #873).
-            if (PendingActions::takeBlePasskeyHide()) {
-                PasskeyOverlay::hide();
-            }
-            const uint32_t passkey = PendingActions::takeBlePasskeyShow();
-            if (passkey != 0u) {
-                PasskeyOverlay::show(passkey);
-            }
-
-            PageManager::updateWidgets();
-            {
-                PERF_SCOPE(::PerfCounters::LV_HANDLER);
-#if APP_LV_TASK_LOG
-                const int64_t _t0 = esp_timer_get_time();
-#endif
-                lv_task_handler();
-#if APP_LV_TASK_LOG
-                const uint32_t _dt = static_cast<uint32_t>(esp_timer_get_time() - _t0);
-                s_lvSumUs += _dt;
-                if (_dt > s_lvMaxUs)
-                    s_lvMaxUs = _dt;
-                ++s_lvCount;
-#endif
-            }
-
-            xSemaphoreGive(g_lvglMutex);
-
-            // Count a successful frame only after lv_task_handler() returned
-            // and the mutex was released cleanly. Saturate at the threshold
-            // so the counter does not wrap on a long-lived device.
-            if (s_uiSuccessfulFrames < UI_OTA_VALID_FRAMES) {
-                ++s_uiSuccessfulFrames;
-            }
+            didDayNightChange = uiRunMutexBody();
+            uiHandleOtaMark(successfulFrames, otaSlotMarked);
         }
 
-        // OTA rollback cancel — fires exactly once per boot, after
-        // UI_OTA_VALID_FRAMES healthy frames. Compile-time no-op in sim
-        // builds. F-ME-8 / issue #674 / #1014.
-        if (!s_otaSlotMarked && s_uiSuccessfulFrames >= UI_OTA_VALID_FRAMES) {
-            BootSequence::markOtaSlotValidIfPending();
-            s_otaSlotMarked = true;
-        }
-
-#if !APP_SIMULATION_MODE
-        // Issue #666 — feed the Task WDT once per UI tick. Placed after
-        // lv_task_handler() (the slowest leg of the loop) so genuine LVGL
-        // deadlocks deeper in the iteration still trip the watchdog.
-        esp_task_wdt_reset();
-#endif
-
-#if APP_BLE_ENABLED
-        // Notify STATUS after releasing LVGL mutex so ThemeManager::isDayMode() is stable
-        if (didDayNightChange) {
-            BleServer::pushStatusNotify();
-        }
-#else
-        (void)didDayNightChange;
-#endif
-
-#if APP_PROFILE_UI
-        // Frame-total wall time, captured before the delay so the metric
-        // measures useful work — not the deliberate sleep.
-        const int64_t frameEndUs = esp_timer_get_time();
-        ::PerfCounters::recordSample(::PerfCounters::FRAME_TOTAL,
-                                     static_cast<uint32_t>(frameEndUs - frameStartUs));
-        // Frame-miss heuristic: if the delta between consecutive `lastWake`
-        // values exceeds the configured period by >2 ms, the previous frame
-        // overran its deadline.
-        const TickType_t prevWake = lastWake;
-        const TickType_t nowTicks = xTaskGetTickCount();
-        if ((nowTicks - prevWake) > pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS + 2)) {
-            ::PerfCounters::recordFrameMiss();
-        }
-        ::PerfCounters::tick();
-#endif
-
-#if APP_LV_TASK_LOG
-        {
-            const int64_t _now = esp_timer_get_time();
-            if (s_lvLastFlushUs == 0)
-                s_lvLastFlushUs = _now;
-            if (_now - s_lvLastFlushUs >= 1000000) {
-                const uint32_t avg = s_lvCount ? (s_lvSumUs / s_lvCount) : 0;
-                LOG_INFO("PERF", "lv_task: avg=%uus max=%uus n=%u", avg,
-                         static_cast<unsigned>(s_lvMaxUs), static_cast<unsigned>(s_lvCount));
-                s_lvSumUs = 0;
-                s_lvMaxUs = 0;
-                s_lvCount = 0;
-                s_lvLastFlushUs = _now;
-            }
-        }
-#endif
-
-        // Sustained LVGL frame overruns (e.g. heavy page rebuild, icon
-        // decode) would otherwise pin the UI task to CPU 1: vTaskDelayUntil
-        // returns immediately once the next wake-up is already past, the UI
-        // task (prio 10) keeps running, and lower-priority tasks on the same
-        // core (USB prio 8, BLE prio 6, Sim prio 5) never get scheduled —
-        // the USB task then misses its WDT feed and the panic handler reboots
-        // the device with "usb (CPU 1)". Force a 1-tick yield when we'd have
-        // returned immediately (issue #976).
-        if (xTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS)) == pdFALSE) {
-            vTaskDelay(1);
-            lastWake = xTaskGetTickCount();
-        }
+        uiFeedTaskWdt();
+        uiNotifyDayNightChanged(didDayNightChange);
+        uiRecordFrameMetrics(frameStartUs, frameWakeStart);
+        uiFlushLvTaskLog();
+        uiThrottle(lastWake);
     }
 }
 
