@@ -93,6 +93,21 @@ constexpr const char *kDashboardWithProfile = R"({
   ]
 })";
 
+// Dashboard carrying an explicit `fontFamily` field (issues #971 + #500).
+// Parser must surface the literal id on CfgDashboard.fontFamily so
+// FontManager::init can branch on it.
+constexpr const char *kDashboardWithFontFamily = R"({
+  "version": "1.0.0",
+  "name": "Font Family Test",
+  "defaultPageId": "main",
+  "revLimitRpm": 7000,
+  "fontFamily": "orbitron",
+  "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
+  "pages": [
+    {"id": "main", "backgroundColor": "#111111", "showTopBar": true, "widgets": []}
+  ]
+})";
+
 // Two pages exercising the page template field (issue #451) — the first omits
 // `template` (must default to CUSTOM, back-compat), the second carries
 // `cruise_control` (must round-trip to CfgPageTemplate::CRUISE_CONTROL).

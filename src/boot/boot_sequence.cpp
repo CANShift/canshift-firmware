@@ -411,11 +411,16 @@ static void provisionDefaultFontsIfNeeded(bool storageOk) {
     logHeap("before FontManager");
 }
 
-// Load SPIFFS-backed fonts before showSplash() so the logo renders at
-// Orbitron Black 32 from the very first frame — no two-phase appearance.
+// Load SPIFFS-backed fonts before showSplash() so the logo renders at the
+// active family's primary size from the very first frame — no two-phase
+// appearance. The family id arrives from the just-parsed dashboard config
+// (`CfgDashboard.fontFamily`, issues #971 + #500). v1 only ships `orbitron`,
+// so the call equals the pre-#971 path; the indirection is the seat for the
+// next family the catalog gains.
 static void initFontManagerWithHeapLog() {
     LOG_INFO("BOOT", "Initializing FontManager...");
-    FontManager::init();
+    const char *family = ConfigLoader::getDashboardConfig().fontFamily;
+    FontManager::init(family);
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
 }

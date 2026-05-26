@@ -35,6 +35,11 @@
 // the second board lands (issues #17, #18). Single source of truth in
 // canshift-core/src/schemas/screen-profile.ts (ScreenProfileIdSchema).
 #define CFG_MAX_PROFILE_ID_LEN 24
+// Font family id length. v1 ships a single id (`orbitron`, 8 chars); 16 leaves
+// headroom for richer names (`jetbrains-mono`, `roboto-mono`) when the second
+// family lands. Single source of truth in
+// canshift-core/src/schemas/font-family.ts (FontFamilyIdSchema). Issue #971.
+#define CFG_MAX_FONT_FAMILY_LEN 16
 // Asset / config file paths. 48 was tight — `/assets/sensor_oil_pressure.bin`
 // already takes 30 chars and any moderately-named user icon (e.g.
 // `/assets/longish-icon-name.bin`, 35 chars) would graze the cap. 64 gives
@@ -360,6 +365,13 @@ struct CfgDashboard {
     // DEFAULT_SCREEN_PROFILE_ID" — mirrors resolveScreenProfile() in
     // canshift-core/src/schemas/screen-profile.ts.
     char targetProfile[CFG_MAX_PROFILE_ID_LEN];
+    // Font family the dashboard was authored against (issues #971 + #500).
+    // Drives the per-family asset resolver in FontManager::init(). Empty /
+    // missing in JSON means "fall back to DEFAULT_FONT_FAMILY_ID" (`orbitron`)
+    // — mirrors resolveFontFamily() in canshift-core/src/schemas/font-family.ts
+    // and preserves byte-for-byte the v0.* behaviour for every dashboard
+    // authored before this field existed.
+    char fontFamily[CFG_MAX_FONT_FAMILY_LEN];
     CfgTopBar topBar;
     // Optional day theme — when present the top bar shows a ☀/N toggle.
     // The active mode is persisted in NVS so it survives power cycles.
