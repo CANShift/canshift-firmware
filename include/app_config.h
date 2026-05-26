@@ -341,6 +341,16 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
     #define APP_WIFI_OTA_ENABLED 0
 #endif
 
+// Dash-hosted Studio SPA — when 1, wifi_ap.cpp registers a static-file
+// route table that serves the gzipped browser bundle embedded via
+// board_build.embed_files. When 0, the SPA routes drop out (no embed
+// symbols pulled in, no flash cost). Requires APP_WIFI_OTA_ENABLED=1 to
+// have a WebServer to attach to — gated at compile time in wifi_ap.cpp.
+// Issue #1077 phase 4.
+#ifndef APP_SPA_SERVE
+    #define APP_SPA_SERVE 0
+#endif
+
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120 // NimBLE + ArduinoJson telemetry serialization
 #endif

@@ -83,6 +83,37 @@ static bool s_otaHmacOk = false;
 // (Arduino WebServer dispatches upload + complete separately).
 static bool s_otaAuthRejected = false;
 
+        #if APP_SPA_SERVE
+// Dash-hosted Studio SPA — embed-file symbol declarations (#1077 phase 4).
+// PlatformIO's `board_build.embed_files` exposes each blob as a pair of
+// linker symbols `_binary_<munged_path>_start` / `_end`. We list every SPA
+// artifact here at file scope (extern "C" + asm-label naming) so the
+// anonymous-namespace route table below can take their addresses; declaring
+// these inside the namespace would prevent C linkage and the linker would
+// emit undefined-symbol errors.
+
+extern "C" {
+
+            #define EMBED_BLOB(name)                                                               \
+                extern const uint8_t name##_start[] asm("_binary_" #name "_start");                \
+                extern const uint8_t name##_end[] asm("_binary_" #name "_end")
+
+EMBED_BLOB(data_web_index_html_gz);
+EMBED_BLOB(data_web_assets_index_js_gz);
+EMBED_BLOB(data_web_assets_index_css_gz);
+EMBED_BLOB(data_web_assets_vendor_react_js_gz);
+EMBED_BLOB(data_web_assets_vendor_radix_js_gz);
+EMBED_BLOB(data_web_assets_vendor_state_js_gz);
+EMBED_BLOB(data_web_assets_EditorRoute_js_gz);
+EMBED_BLOB(data_web_assets_Orbitron_Black_woff2);
+EMBED_BLOB(data_web_assets_Orbitron_Bold_woff2);
+EMBED_BLOB(data_web_assets_Orbitron_Medium_woff2);
+
+            #undef EMBED_BLOB
+
+} // extern "C"
+        #endif // APP_SPA_SERVE
+
 // ---------------------------------------------------------------------------
 // HTTP handlers
 // ---------------------------------------------------------------------------
@@ -186,6 +217,79 @@ void handleStatus() {
     snprintf(buf, sizeof(buf), "{\"status\":\"ok\",\"ver\":\"%s\"}", APP_VERSION_STR);
     s_server.send(200, "application/json", buf);
 }
+
+        #if APP_SPA_SERVE
+
+// ---------------------------------------------------------------------------
+// Dash-hosted Studio SPA — static asset serving (#1077 phase 4)
+// ---------------------------------------------------------------------------
+//
+// Browser-fetched artifacts live in flash via `board_build.embed_files`;
+// extern "C" declarations sit at file scope (see top of this file). The
+// table below maps each URL the SPA can request to its embed-symbol pair.
+
+struct SpaAsset {
+    const char *path;        // URL path the browser requests
+    const uint8_t *start;    // first byte of the embedded blob
+    const uint8_t *end;      // one-past-last byte of the embedded blob
+    const char *contentType; // MIME for the Content-Type header
+    bool gzipped;            // sets Content-Encoding: gzip when true
+};
+
+// Send a single embedded asset. send_P() streams from flash without an
+// intermediate heap copy — important on the dash because index.js gzipped is
+// ~28 KB and a String copy of that on a fragmented heap would risk a
+// fragmentation-induced fail mid-handler. Cache-Control: no-store because
+// the AP isn't a CDN and the next OTA may rewrite the bytes.
+void serveSpaAsset(const SpaAsset &asset) {
+    const size_t len = static_cast<size_t>(asset.end - asset.start);
+    if (asset.gzipped) {
+        s_server.sendHeader("Content-Encoding", "gzip");
+    }
+    s_server.sendHeader("Cache-Control", "no-store");
+    s_server.send_P(200, asset.contentType, reinterpret_cast<const char *>(asset.start), len);
+}
+
+// Single table — every URL the SPA can request. Index 0 is the SPA shell
+// (served at both `/` and `/index.html`); the rest are referenced by the
+// HTML / CSS the browser parses after that. New chunks → new row here AND
+// a matching EMBED_BLOB() at the top of this file AND a matching entry in
+// scripts/sync_studio_web.py + platformio.ini.
+const SpaAsset kSpaAssets[] = {
+    {"/index.html", data_web_index_html_gz_start, data_web_index_html_gz_end, "text/html", true},
+    {"/assets/index.js", data_web_assets_index_js_gz_start, data_web_assets_index_js_gz_end,
+     "application/javascript", true},
+    {"/assets/index.css", data_web_assets_index_css_gz_start, data_web_assets_index_css_gz_end,
+     "text/css", true},
+    {"/assets/vendor-react.js", data_web_assets_vendor_react_js_gz_start,
+     data_web_assets_vendor_react_js_gz_end, "application/javascript", true},
+    {"/assets/vendor-radix.js", data_web_assets_vendor_radix_js_gz_start,
+     data_web_assets_vendor_radix_js_gz_end, "application/javascript", true},
+    {"/assets/vendor-state.js", data_web_assets_vendor_state_js_gz_start,
+     data_web_assets_vendor_state_js_gz_end, "application/javascript", true},
+    {"/assets/EditorRoute.js", data_web_assets_EditorRoute_js_gz_start,
+     data_web_assets_EditorRoute_js_gz_end, "application/javascript", true},
+    {"/assets/Orbitron-Black.woff2", data_web_assets_Orbitron_Black_woff2_start,
+     data_web_assets_Orbitron_Black_woff2_end, "font/woff2", false},
+    {"/assets/Orbitron-Bold.woff2", data_web_assets_Orbitron_Bold_woff2_start,
+     data_web_assets_Orbitron_Bold_woff2_end, "font/woff2", false},
+    {"/assets/Orbitron-Medium.woff2", data_web_assets_Orbitron_Medium_woff2_start,
+     data_web_assets_Orbitron_Medium_woff2_end, "font/woff2", false},
+};
+constexpr size_t kSpaAssetCount = sizeof(kSpaAssets) / sizeof(kSpaAssets[0]);
+
+void registerSpaRoutes() {
+    // Root path → shell HTML (same blob as /index.html). Kept as a separate
+    // registration so the WebServer's exact-match dispatcher returns the SPA
+    // when the user types `http://canshift.local/` with no path.
+    s_server.on("/", HTTP_GET, []() { serveSpaAsset(kSpaAssets[0]); });
+    for (size_t i = 0; i < kSpaAssetCount; ++i) {
+        const SpaAsset &asset = kSpaAssets[i];
+        s_server.on(asset.path, HTTP_GET, [&asset]() { serveSpaAsset(asset); });
+    }
+}
+
+        #endif // APP_SPA_SERVE
 
 void cleanupVerifier() {
     if (s_otaVerifier != nullptr) {
@@ -443,6 +547,14 @@ void apTaskFn(void *) {
     // canshift-mobile/src/services/ota-secret.ts and the studio's OTA push
     // pipeline; keep all three in sync.
     s_server.on("/ota", HTTP_POST, handleOtaComplete, handleOtaUpload);
+
+        #if APP_SPA_SERVE
+    // Dash-hosted Studio SPA routes — `/`, `/index.html`, `/assets/*`
+    // (#1077 phase 4). Registered after the operational endpoints so the
+    // exact-match dispatcher tries `/status` / `/ota` first.
+    registerSpaRoutes();
+        #endif
+
     s_server.begin();
 
     const uint32_t startMs = millis();

@@ -11,6 +11,11 @@
 !data/fonts/*.bin
 !data/assets/*.bin
 
+# Dash-hosted Studio SPA — mirrored at firmware build time from
+# canshift-studio-web/dist/ by scripts/sync_studio_web.py (#1077 phase 4).
+# Generated artifact, never committed.
+data/web/
+
 # IDE
 .vscode/
 .idea/

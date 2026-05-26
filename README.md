@@ -526,6 +526,84 @@ risk profile, acceptable for the WROOM-only no-WiFi image). Native
 unit tests keep the BSS buffer so `pio test -e native` still exercises the
 rollback path byte-for-byte.
 
+### Dash-hosted Studio SPA (#1077 phase 4)
+
+When `APP_SPA_SERVE=1` (default on `[env:crowpanel_28_wifi]`), the firmware
+embeds the browser SPA shipped by `canshift-studio-web/` directly into the
+OTA payload and serves it from the existing `WebServer` on port 80. The
+user joins the softAP, navigates to `http://canshift.local/`, and lands on
+the Studio ConnectScreen — no install, no internet. The SPA then talks to
+the firmware via the WebSocket transport on port 81 (#1108) for live data.
+
+**Build chain (host side):**
+
+1. `extra_scripts = scripts/sync_studio_web.py` (registered alongside
+   `extra_targets.py` on `[env:crowpanel_28_wifi]`) runs `npm run build`
+   in `../canshift-studio-web/`, gzip-encodes every text artifact via the
+   studio-web post-build hook, then mirrors `dist/*.gz` + `*.woff2` into
+   `canshift-firmware/data/web/`.
+2. `board_build.embed_files` baked into `[env:crowpanel_28_wifi]` lists
+   every file; the linker emits `_binary_data_web_<path>_start` /
+   `_end` symbol pairs (same mechanism used for the default JSON configs
+   and Orbitron font binaries).
+3. `src/hal/wifi/wifi_ap.cpp` declares those symbols via the local
+   `EMBED_BLOB()` macro, builds a single `kSpaAssets[]` route table
+   mapping URL → embed blob + MIME + `Content-Encoding`, and registers
+   one handler per row at AP start.
+
+**Source-of-truth list of embedded files** — keep these three in lock-step:
+
+- `canshift-studio-web/scripts/gzip-dist.mjs` (which extensions get a `.gz` sibling)
+- `canshift-firmware/scripts/sync_studio_web.py` (`EXPECTED_GZ` + `EXPECTED_FONTS`)
+- `canshift-firmware/platformio.ini` `board_build.embed_files`
+- `canshift-firmware/src/hal/wifi/wifi_ap.cpp` `kSpaAssets[]`
+
+Vite emits hash-free filenames (see `canshift-studio-web/vite.config.ts`)
+so the embed list stays stable across builds. Cache-busting via content
+hash buys nothing here — the SPA ships inside the OTA payload, not on a
+CDN, so every byte already rotates atomically with the firmware.
+
+**Skipping the SPA rebuild:** set `CANSHIFT_SKIP_STUDIO_WEB_BUILD=1` in
+the environment to reuse the existing `canshift-studio-web/dist/`. Useful
+in CI when a prior job already built the SPA, or when iterating on the
+firmware side without touching the SPA.
+
+**Routes registered when `APP_SPA_SERVE=1`:**
+
+| Method | Path | Content-Type | Content-Encoding |
+|--------|------|--------------|------------------|
+| GET    | `/`  | `text/html`  | `gzip` (same blob as `/index.html`) |
+| GET    | `/index.html` | `text/html` | `gzip` |
+| GET    | `/assets/index.js`         | `application/javascript` | `gzip` |
+| GET    | `/assets/index.css`        | `text/css`               | `gzip` |
+| GET    | `/assets/vendor-react.js`  | `application/javascript` | `gzip` |
+| GET    | `/assets/vendor-radix.js`  | `application/javascript` | `gzip` |
+| GET    | `/assets/vendor-state.js`  | `application/javascript` | `gzip` |
+| GET    | `/assets/EditorRoute.js`   | `application/javascript` | `gzip` |
+| GET    | `/assets/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2` | — (already compressed) |
+
+All SPA responses carry `Cache-Control: no-store`. The operational
+endpoints (`/status`, `/ota`) keep their existing handlers — they're
+registered first so the WebServer's exact-match dispatcher checks them
+before the SPA fall-through.
+
+**Known flash overflow on `_wifi` (follow-up).** The embedded SPA pushes
+`[env:crowpanel_28_wifi]` past the 1.57 MB app slot:
+
+| Configuration | Flash | Notes |
+|---|---|---|
+| `crowpanel_28` (prod, no SPA, no WiFi libs) | 75.9% (1.19 MB) | Unchanged by this work |
+| `crowpanel_28_wifi` baseline (no SPA) | ~107.7% (1.69 MB) | WiFi/WebServer/Update/WS already over budget |
+| `crowpanel_28_wifi` + SPA embedded | 119.6% (1.88 MB) | +185 KB SPA payload |
+
+The production env (`crowpanel_28`) stays at 75.9% — SPA is gated by
+`APP_SPA_SERVE` (default 0) so it never lands in builds that aren't
+serving it. Resolving the `_wifi` overflow needs a partition layout
+change (raise the app slot, shrink SPIFFS) tracked separately; until
+then `pio run -e crowpanel_28_wifi` will report flash overflow at link
+time. The SPA serving code is staged here so the studio side, mobile
+side, and partition-resize PR can land in any order.
+
 ---
 
 ## Wi-Fi OTA (issue #667)
