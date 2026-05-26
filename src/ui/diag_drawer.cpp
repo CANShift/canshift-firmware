@@ -44,10 +44,13 @@ constexpr int16_t PANEL_H = 240;
 constexpr int16_t PANEL_PAD = 6;
 constexpr int16_t ROW_H = 18;
 
-// Close button — visible "✕" tap target at the panel's top-right. Replaces
+// Close button — visible "X" tap target at the panel's top-right. Replaces
 // the swipe-down-to-close gesture which was undiscoverable on the
-// resistive touch panel.
-constexpr int16_t CLOSE_BTN_SIZE = 24;
+// resistive touch panel. Sized for XPT2046 resistive jitter (~10 px around
+// the centroid); paired with `lv_obj_set_ext_click_area` below for an even
+// larger hit rectangle than the visible bounds.
+constexpr int16_t CLOSE_BTN_SIZE = 36;
+constexpr int16_t CLOSE_BTN_EXT_CLICK_PAD = 12;
 
 // Section heights computed from row counts so they stay in sync with the
 // row arrays below.
@@ -266,8 +269,32 @@ const char *errorSrcLabel(ErrorSource src) {
     return "?";
 }
 
-void onCloseClicked(lv_event_t * /*e*/) {
+void onCloseReleased(lv_event_t * /*e*/) {
+    // Listen on LV_EVENT_RELEASED (not LV_EVENT_CLICKED) because the panel
+    // is LV_OBJ_FLAG_SCROLLABLE and resistive-touch jitter routinely starts
+    // a scroll. From lv_indev.c (LVGL 8.3, line 973):
+    //     /*Send CLICK if no scrolling*/
+    //     if(scroll_obj == NULL) { … SHORT_CLICKED … CLICKED … }
+    // — i.e. CLICKED and SHORT_CLICKED are BOTH suppressed once any scroll
+    // begins. RELEASED is the only release event guaranteed to fire on the
+    // currently-pressed object regardless of scroll state, and combined
+    // with LV_OBJ_FLAG_PRESS_LOCK (which keeps the press anchored on this
+    // button) it gives a reliable tap-to-close on a noisy touch panel.
+    LOG_INFO("DIAG_DRAWER", "close release");
     close();
+}
+
+void onClosePressed(lv_event_t * /*e*/) {
+    // Diagnostic shim — fires before any scroll arbitration so we can
+    // distinguish two failure modes on device:
+    //   1. "press" line absent  → touch is NOT reaching the button at all
+    //      (hit-area, z-order, or coord/clip issue — H5)
+    //   2. "press" line present but "release" line absent → press arrived
+    //      but RELEASED never reached the button (PRESS_LOCK is unset or
+    //      the indev re-resolved act_obj — H1/H3)
+    // Leave this log in until a user-confirmed close cycle is observed on
+    // the hardware build; then it can be removed in a follow-up.
+    LOG_INFO("DIAG_DRAWER", "close press");
 }
 
 void onVerticalSwipe(lv_dir_t dir) {
@@ -347,7 +374,23 @@ void init() {
     // flex-column layout so it doesn't stack between sections.
     s_closeBtn = lv_btn_create(s_panel);
     lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_FLOATING);
+    // PRESS_LOCK keeps the press anchored to the button even when the touch
+    // coordinate slides a few px (XPT2046 resistive panels jitter ±5-10 px).
+    // Without it `lv_indev` re-resolves `indev_obj_act` each tick, the panel
+    // wins because it's bigger, scrolling starts, and the eventual release
+    // gets routed to s_panel — so LV_EVENT_CLICKED on the button never fires.
+    // See lv_indev.c:837 (LVGL 8.3) for the press-lock branch.
+    lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_PRESS_LOCK);
+    // SCROLL_ON_FOCUS would scroll s_panel to bring the focused close-btn
+    // into view, racing the touch resolution. The btn is always at the top
+    // edge so this scroll is never useful; disable it explicitly.
+    lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
+    // Extra hit area beyond the visible 36×36 — gives the user a ~60×60 px
+    // tap target without the visual weight of a 60 px button on a 320 px
+    // screen. `lv_obj_set_ext_click_area` grows the click rectangle on all
+    // sides by the same amount.
+    lv_obj_set_ext_click_area(s_closeBtn, CLOSE_BTN_EXT_CLICK_PAD);
     lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, 0, 0);
     lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(COL_HANDLE_BG), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_closeBtn, LV_OPA_COVER, LV_PART_MAIN);
@@ -355,7 +398,10 @@ void init() {
     lv_obj_set_style_border_color(s_closeBtn, lv_color_hex(COL_PANEL_BORDER), LV_PART_MAIN);
     lv_obj_set_style_radius(s_closeBtn, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_closeBtn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_closeBtn, onCloseClicked, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_event_cb(s_closeBtn, onCloseReleased, LV_EVENT_RELEASED, nullptr);
+    // Diagnostic — see onClosePressed comment. Lets the user disambiguate
+    // hit-test failure vs. event-routing failure on hardware.
+    lv_obj_add_event_cb(s_closeBtn, onClosePressed, LV_EVENT_PRESSED, nullptr);
 
     lv_obj_t *closeLabel = lv_label_create(s_closeBtn);
     // Plain "X" — LV_SYMBOL_CLOSE (U+F00D, FontAwesome PUA) is not in our
@@ -369,7 +415,8 @@ void init() {
     // Diagnostic stamp — bumped each time this PR's bug-batch lands so the
     // user can confirm at boot that the device is actually running the new
     // build (vs. a stale upload). Grep the serial log for "DIAG_DRAWER".
-    LOG_INFO("DIAG_DRAWER", "init done — z-reaffirm + scroll + 12px badges + frac digits build");
+    LOG_INFO("DIAG_DRAWER",
+             "init done — close-btn v3: press-lock + ext-click + RELEASED + press/release logs");
 }
 
 void open() {
