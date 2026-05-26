@@ -1003,6 +1003,42 @@ line at the end of `BootSequence::run()` in `src/boot/boot_sequence.cpp`
 — CI depends on it. Workflow: `.github/workflows/firmware-boot-smoke.yml`
 (issue #486).
 
+## Static analysis layers (#936 Phase 0)
+
+The firmware is gated by four complementary static- and dynamic-analysis
+layers. Together they cover the bug classes the codebase has historically
+taken (UB shifts #682, races #876, use-after-free #886, length-validation
+gaps #897) before they reach a real device.
+
+| Layer | Build env | What it catches | What it doesn't |
+|---|---|---|---|
+| **ASan + UBSan (full)** | `[env:native]` — host gcc/clang, `pio test -e native` | Use-after-free, double-free, heap-overflow, stack-overflow, leak (Linux CI via `ASAN_OPTIONS=detect_leaks=1`), integer UB, null deref, alignment, vptr, bounds, vla-bound, returns-nonnull violations | Anything that only manifests on the Xtensa target (cache coherency, PSRAM access patterns, FreeRTOS scheduler timing). 11 first-party TUs only (the unit-test source set). |
+| **UBSan (integer subset, trap-on-error)** | `[env:sim]` — gcc-xtensa 8.4.0, QEMU boot smoke | Integer UB at runtime: shift out-of-range, integer divide-by-zero, signed-integer-overflow, vla-bound, array bounds. Each violation triggers `__builtin_trap()` → `Guru Meditation`, fails the boot smoke gate. | C++ UB (vptr, vla-bound type-info) — `-fsanitize=vptr` is rejected by the toolchain (no libubsan, prebuilt framework objects miss type-info refs). ASan family — not supported on Xtensa at all. |
+| **clang-tidy strict (gating)** | `[env:native]` compile DB, CI job `firmware — clang-tidy (gating, native subset)` | Anti-pattern + secure-coding rules: `bugprone-*`, `cert-*`, `clang-analyzer-core.*`, `clang-analyzer-cplusplus.*`, `concurrency-*`. `WarningsAsErrors: '*'` — any rule emit fails the build. Required check. | The same 11 TUs as ASan/UBSan; UI / LVGL / driver code is not yet gated. |
+| **clang-tidy informational** | `[env:crowpanel_28]` compile DB, CI job `firmware — clang-tidy (non-blocking)` | Same rule set on the Xtensa compile DB — wider TU coverage, including UI / drivers / HAL. | Dominated by toolchain-induced `clang-diagnostic-error` noise (stock Ubuntu clang's host sysroot is missing ESP32-newlib bits like `machine/endian.h`). Surfaces signal but is not blocking until the ESP-IDF Xtensa-aware clang is wired into CI. |
+
+Ruleset lives in `canshift-firmware/.clang-tidy`. Suppressions are inline
+`// NOLINTNEXTLINE(<check>)` with a one-line WHY immediately above the
+target line — see `src/config/config_loader.cpp` and
+`src/ui/sensor_color_ramp.cpp` for the current set.
+
+Native run locally:
+
+```bash
+# ASan + UBSan
+pio test -e native
+
+# clang-tidy gating (needs LLVM clang-tidy locally — `brew install llvm`
+# on macOS, `apt install clang-tidy` on Linux).
+pio run -e native -t compiledb
+clang-tidy -p . src/can/can_parser.cpp src/can/signal_map.cpp \
+    src/config/config_loader.cpp src/config/json_reader.cpp \
+    src/diag/error_store.cpp src/diag/logger.cpp \
+    src/hal/usb/usb_envelope.cpp src/hal/wifi/ota_hmac.cpp \
+    src/runtime/signal_store.cpp src/ui/sensor_color_ramp.cpp \
+    src/ui/sensor_palette.cpp
+```
+
 ## Contributing & issues
 
 Bug reports, feature requests, and hardware-verification PRs are welcome at

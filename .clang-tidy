@@ -1,43 +1,59 @@
-# .clang-tidy — Semantic static-analysis checks for the firmware (#829).
+# .clang-tidy — Semantic static-analysis checks for the firmware (#936 Phase 0).
 #
-# Initial conservative ruleset. The CI job is run as non-blocking until the
-# baseline is cleaned up (issue #829 plan, Step 2). Once warnings hit zero
-# the job will flip to a required check.
+# Narrow, sustainable ruleset. The four enabled families are the highest-
+# signal / lowest-noise checks for embedded C++17 against the bug classes
+# this codebase has historically taken (UB shifts #682, races #876, leaks
+# / use-after-free #886, missing length validation #897):
 #
-# Disabled selectively because they fire too noisily on Arduino-style code:
+#   bugprone-*                 Anti-patterns prone to bugs (UB, narrowing,
+#                              swapped args, missing assert, …).
+#   cert-*                     CERT secure-coding rules (CWE-aligned).
+#   clang-analyzer-core.*      Path-sensitive: null deref, uninit reads,
+#                              divide-by-zero, dead store with side effects.
+#   clang-analyzer-cplusplus.* Path-sensitive C++ specifics: new/delete
+#                              mismatch, self-assign, move-after-use.
+#   concurrency-*              Threading/atomics — multi-task firmware
+#                              (UI / CAN / USB / BLE / WiFi) is exactly
+#                              where these checks pay off.
+#
+# Selectively disabled because they fire too noisily on Arduino-style code
+# or duplicate signal already covered by -Wall / -Wextra:
 #   - bugprone-easily-swappable-parameters    Half the LVGL API.
-#   - cppcoreguidelines-avoid-magic-numbers   Pin numbers, font sizes.
-#   - cert-err58-cpp                          Arduino global init pattern.
 #   - bugprone-narrowing-conversions          int → uint8_t everywhere LVGL touches.
 #   - bugprone-implicit-widening-of-multiplication-result  Same as above.
+#   - cert-dcl50-cpp                          Variadic Logger::emit signature.
+#   - cert-err33-c                            Arduino APIs (Serial.print,
+#                                             pinMode) return void / ignored ints.
+#   - cert-err58-cpp                          Arduino global init pattern
+#                                             (constructors run before main).
 #
-# HeaderFilterRegex restricts the check to first-party headers so third-party
-# libs (LovyanGFX, LVGL, ArduinoJson) don't drown the report.
+# WarningsAsErrors: '*' — any rule violation in source that parses cleanly
+# is treated as an error. The gating CI job (ci.yml `firmware — clang-tidy
+# (gating, native subset)`) runs against the native env compile DB where
+# every TU resolves with system clang; promoting to errors there makes the
+# job a true required check.
+#
+# HeaderFilterRegex restricts the report to first-party code so third-party
+# libs (LovyanGFX, LVGL, ArduinoJson, NimBLE) don't drown the signal.
 Checks: >
   bugprone-*,
   cert-*,
-  clang-analyzer-*,
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
   concurrency-*,
-  cppcoreguidelines-init-variables,
-  cppcoreguidelines-pro-type-member-init,
-  cppcoreguidelines-pro-bounds-array-to-pointer-decay,
-  misc-const-correctness,
-  misc-unused-parameters,
-  misc-unused-using-decls,
-  modernize-use-nullptr,
-  modernize-use-override,
-  modernize-use-using,
-  performance-*,
-  readability-redundant-*,
-  readability-misleading-indentation,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
   -bugprone-narrowing-conversions,
-  -cppcoreguidelines-avoid-magic-numbers,
+  -cert-dcl50-cpp,
+  -cert-err33-c,
   -cert-err58-cpp
 
-# Not yet promoted to errors — baseline cleanup PRs land first (#829 plan).
-WarningsAsErrors: ''
+# Promote every emitted rule finding to an error. The gating CI job fails
+# on the first violation; the legacy informational job (which runs against
+# the Xtensa compile DB and is dominated by toolchain-induced
+# clang-diagnostic-error noise — see ci.yml footnote) stays
+# `continue-on-error: true` until ESP-IDF's Xtensa-aware clang lands in CI.
+WarningsAsErrors: '*'
 
 # Restrict header analysis to first-party code. clang-tidy uses regex_search
 # so the pattern must anchor at start (`^`) — without it `src/.*` matches the

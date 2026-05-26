@@ -151,6 +151,10 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
         DeserializationError err = StorageDriver::parseJsonFile(path, doc);
         if (!err)
             return true;
+        // Both branches below collapse to a no-op when LOG_WARN is compiled
+        // out (APP_LOG_LEVEL=1 in production + native env) but emit distinct
+        // messages otherwise — false positive under the no-op preprocess path.
+        // NOLINTNEXTLINE(bugprone-branch-clone)
         if (err == DeserializationError::EmptyInput) {
             LOG_WARN("CFG", "%s could not be opened — falling back to .bak", path);
         } else {
@@ -857,6 +861,11 @@ bool loadDashboard() {
         auto &items = s_dashboard.topBar.items;
         auto addItem = [&](TopBarItemKind kind, TopBarItemPos pos, const char *sig,
                            const char *txt) {
+            // `n` is the ref-captured s_dashboard.topBar.itemCount, set to 0
+            // above. clang-analyzer's path tracking loses the initialisation
+            // across the lambda capture and reports a false-positive
+            // uninitialised-deref on the read below.
+            // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
             if (n >= CFG_MAX_TOPBAR_ITEMS)
                 return;
             CfgTopBarItem &out = items[n++];

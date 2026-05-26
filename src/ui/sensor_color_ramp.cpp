@@ -2,6 +2,7 @@
 
 #include "sensor_color_ramp.h"
 
+#include <cmath>
 #include <ctype.h>
 #include <stddef.h>
 #include <string.h>
@@ -29,7 +30,10 @@ uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
             return 0u;
         if (v > 255.0f)
             return 255u;
-        return static_cast<uint32_t>(v + 0.5f);
+        // Use std::lround to avoid the bias of (int)(v + 0.5f) on negative
+        // values + the rounding-toward-zero bug clang-tidy flagged
+        // (bugprone-incorrect-roundings). Input clamped above so cast is safe.
+        return static_cast<uint32_t>(std::lround(v));
     };
     return (mix(ar, br) << 16) | (mix(ag, bg) << 8) | mix(ab, bb);
 }
@@ -96,6 +100,11 @@ constexpr CfgRampStop S(float v, uint32_t c) {
 
 // Default catalog — index aligns with SensorKind. Hex literals chosen to match
 // SENSOR_DEFAULT_RAMPS in canshift-core/src/sensorDefaults.ts.
+//
+// CfgColorRamp / CfgRampStop are POD aggregates; the initializer is
+// non-throwing in practice. clang-tidy can't prove noexcept on the implicit
+// ctor chain because the structs don't declare `noexcept` explicitly.
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const CfgColorRamp kSensorDefaultRamps[kSensorKindCount] = {
     // Coolant
     {4,

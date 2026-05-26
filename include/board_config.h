@@ -28,9 +28,9 @@
 #define PIN_TFT_MISO 12 // Often not used (display is write-only)
 #define PIN_TFT_SCLK 14
 #define PIN_TFT_CS 15
-#define PIN_TFT_DC 2   // Data/Command (RS)
-#define PIN_TFT_RST -1 // Not connected on CrowPanel 2.8" (held high internally)
-#define PIN_TFT_BL 27  // Backlight PWM — 0=off, 255=full
+#define PIN_TFT_DC 2     // Data/Command (RS)
+#define PIN_TFT_RST (-1) // Not connected on CrowPanel 2.8" (held high internally)
+#define PIN_TFT_BL 27    // Backlight PWM — 0=off, 255=full
 
 // SPI clock speeds — verified from official CrowPanel 2.8" documentation.
 // HW_TFT_FAST_SPI is an opt-in flag for boards that have been validated to
@@ -54,7 +54,7 @@
 
 #define PIN_TOUCH_CS 33
 // Touch IRQ not exposed / not used — driver uses polling via getTouch()
-#define PIN_TOUCH_IRQ -1
+#define PIN_TOUCH_IRQ (-1)
 
 // Touch calibration is owned by LovyanGFX + NVS (see TouchDriver::calibrate()).
 // No board-level defaults are needed — first boot prompts an interactive run.
