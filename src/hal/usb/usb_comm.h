@@ -5,15 +5,20 @@
 // Each message is one JSON object followed by \n.
 //
 //   Commands from desktop → device:
-//     CMD_PUT_CONFIG        0x02  — Push new dashboard.json content
-//     CMD_SCREEN_SETTINGS   0x05  — Push display settings (brightness, sleep)
-//     CMD_PUT_FILE          0x06  — Stream a file to storage in base64-encoded chunks
-//     CMD_TOGGLE_DAY_NIGHT  0x07  — Flip the day/night theme on the device
-//     CMD_CALIBRATE_TOUCH   0x08  — Run the on-device touch calibration crosshairs
-//     CMD_RESET_TOUCH_CAL   0x0A  — Clear saved touch calibration (revert to defaults on next boot)
-//     CMD_GET_STATUS        0x10  — Query firmware version, protocol, is_day flag
-//     CMD_CAN_SCAN_START    0x20  — Start forwarding raw CAN frames over USB
-//     CMD_CAN_SCAN_STOP     0x21  — Stop forwarding raw CAN frames
+//     CMD_GET_CONFIG         0x01 — Read dashboard.json
+//     CMD_PUT_CONFIG         0x02 — Push new dashboard.json content
+//     CMD_GET_DEVICE_CONFIG  0x03 — Read device.json (CAN speed + TWAI pins)
+//     CMD_PUT_DEVICE_CONFIG  0x04 — Push device.json (reboots on success)
+//     CMD_SCREEN_SETTINGS    0x05 — Push display settings (brightness, sleep)
+//     CMD_PUT_FILE           0x06 — Stream a file to storage in base64-encoded chunks
+//     CMD_TOGGLE_DAY_NIGHT   0x07 — Flip the day/night theme on the device
+//     CMD_CALIBRATE_TOUCH    0x08 — Run the on-device touch calibration crosshairs
+//     CMD_RESET_TOUCH_CAL    0x0A — Clear saved touch calibration (revert to defaults on next boot)
+//     CMD_GET_INPUT_BINDINGS 0x0B — Read input_bindings.json
+//     CMD_PUT_INPUT_BINDINGS 0x0C — Push input_bindings.json (reboots on success)
+//     CMD_GET_STATUS         0x10 — Query firmware version, protocol, is_day flag
+//     CMD_CAN_SCAN_START     0x20 — Start forwarding raw CAN frames over USB
+//     CMD_CAN_SCAN_STOP      0x21 — Stop forwarding raw CAN frames
 //
 //   Responses from device → desktop:
 //     {"status":"ok"}
@@ -51,6 +56,14 @@ void tick();
 // ---------------------------------------------------------------------------
 static constexpr uint8_t CMD_GET_CONFIG = 0x01;
 static constexpr uint8_t CMD_PUT_CONFIG = 0x02;
+// Read the on-device `/config/device.json` as a typed envelope.
+// Response: {"status":"ok","device_config":{...}} or
+//           {"status":"error","message":"config_not_found"}
+static constexpr uint8_t CMD_GET_DEVICE_CONFIG = 0x03;
+// Write a new `/config/device.json`. Payload: {"cmd":4,"device_config":{...}}.
+// Validates JSON shape, persists atomically, reboots on success because the
+// TWAI pins / CAN speed are read at boot only.
+static constexpr uint8_t CMD_PUT_DEVICE_CONFIG = 0x04;
 // Push screen display settings (brightness, sleep)
 // Payload: {"brightness":80,"sleep":0}
 static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
@@ -80,6 +93,16 @@ static constexpr uint8_t CMD_SET_DAY_NIGHT = 0x09;
 // but pairing it with the same flag handler keeps the action sequenced after
 // any pending calibrate request. Payload: {"cmd":10}.
 static constexpr uint8_t CMD_RESET_TOUCH_CAL = 0x0A;
+// Read the on-device `/config/input_bindings.json` as a typed envelope.
+// Response: {"status":"ok","input_bindings":[...]} or
+//           {"status":"error","message":"config_not_found"}
+static constexpr uint8_t CMD_GET_INPUT_BINDINGS = 0x0B;
+// Write a new `/config/input_bindings.json`. Payload:
+//   {"cmd":12,"input_bindings":[...]}.
+// Validates JSON shape, persists atomically, reboots on success — the
+// InputButtons polling task latches the binding table at boot and exposes no
+// runtime reload API, so a reboot is the only way new bindings take effect.
+static constexpr uint8_t CMD_PUT_INPUT_BINDINGS = 0x0C;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;

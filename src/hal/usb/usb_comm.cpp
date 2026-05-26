@@ -485,6 +485,150 @@ void handlePutFile(const JsonObjectConst &obj) {
     UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
+// ---------------------------------------------------------------------------
+// Typed config GET / PUT — device.json + input_bindings.json
+//
+// CMD_PUT_FILE (0x06) rejects `/config/*` paths via `kAllowedPutPrefixes`
+// because it is a generic blob writer with no schema awareness. The typed
+// PUT commands below deliberately bypass that allowlist for two reasons:
+//   1. The target path is fixed per cmd byte (no host-supplied path → no
+//      traversal / overwrite-anything risk that motivated the allowlist).
+//   2. Each handler parses the inbound JSON before writing, so a malformed
+//      payload is rejected without ever touching SPIFFS — the validation
+//      contract that CMD_PUT_FILE intentionally skips.
+//
+// Reload semantics: writes succeed → `{"status":"ok","rebooting":true}` ack
+// → `esp_restart()`. Both files (TWAI pin / CAN-speed config, input-binding
+// table) are latched at boot by their respective consumers and expose no
+// runtime reload API today, so the reboot is the only correct way to apply
+// the change. If `InputButtons::reloadBindings()` lands in a follow-up, the
+// CMD_PUT_INPUT_BINDINGS handler can swap `esp_restart()` for the in-place
+// call without changing the wire shape.
+// ---------------------------------------------------------------------------
+
+// Send a `{"status":"ok","<key>":<value>}` envelope by parsing the on-disk
+// JSON file and lifting `unwrapKey` out of it (when non-null) before
+// embedding the result under `fieldKey`. The unwrap is needed for
+// input_bindings.json — on disk the file is `{"input_bindings":[...]}` but
+// the wire envelope expects the bare array under the same key so the
+// studio-side wire schema (`InputBindingsConfigWireSchema`) parses cleanly.
+// For device.json the file body is already the flat shape the studio
+// expects, so callers pass unwrapKey=nullptr to send it verbatim.
+//
+// On a missing file: sends `{"status":"error","message":"config_not_found"}`.
+// Feeds the assembled response through `UsbComm::sendLine` so WS / TCP / USB
+// sinks all receive it.
+void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey) {
+    if (!StorageDriver::fileExists(path)) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+        return;
+    }
+
+    JsonDocument fileDoc;
+    DeserializationError err = StorageDriver::parseJsonFile(path, fileDoc);
+    if (err) {
+        LOG_WARN("USB", "GET %s parse error: %s", path, err.c_str());
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
+        return;
+    }
+
+    JsonVariantConst body =
+        unwrapKey ? fileDoc[unwrapKey].as<JsonVariantConst>() : fileDoc.as<JsonVariantConst>();
+    if (body.isNull()) {
+        LOG_WARN("USB", "GET %s: missing '%s' in file body", path,
+                 unwrapKey ? unwrapKey : "(root)");
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+        return;
+    }
+
+    JsonDocument resp;
+    resp["status"] = "ok";
+    resp[fieldKey] = body;
+
+    const size_t needed = measureJson(resp) + 2; // payload + '\n' + NUL terminator
+    char *buf = static_cast<char *>(malloc(needed));
+    if (!buf) {
+        LOG_ERROR("USB", "GET %s: response buffer alloc (%u B) failed", path,
+                  static_cast<unsigned>(needed));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+        return;
+    }
+    const size_t written = serializeJson(resp, buf, needed);
+    buf[written] = '\0';
+    UsbComm::sendLine(buf);
+    free(buf);
+}
+
+// Length cap for typed PUT payloads. Mirrors the worst-case input_bindings
+// envelope (16 entries × ~256 B + wrapper) with comfortable headroom; the
+// device_config payload is ~80 B so the same cap covers both. Anything
+// above this is rejected before parse so a malicious / malformed host
+// cannot exhaust the JsonDocument heap pool. Kept well under
+// USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256 = 16 640 B) which is
+// the upstream cap enforced by the RX line accumulator in tick().
+constexpr size_t kTypedPutMaxPayloadBytes = 8192;
+
+// Persist a typed-config payload to `path`, then reboot. The caller has
+// already validated that `subValue` is non-null and matches the expected
+// JSON shape (object for device.json, array for input_bindings.json). The
+// stored file is `{"<fieldKey>": <subValue>}` so the boot-time loaders see
+// the same wrapping shape they expect from a hand-edited file.
+void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
+                                 JsonVariantConst subValue) {
+    JsonDocument out;
+    out[fieldKey] = subValue;
+
+    const size_t needed = measureJson(out);
+    if (needed == 0 || needed > kTypedPutMaxPayloadBytes) {
+        LOG_WARN("USB", "PUT %s: serialized size %u out of bounds", path,
+                 static_cast<unsigned>(needed));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"too_large\"}");
+        return;
+    }
+
+    uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
+    if (!buf) {
+        LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
+                  static_cast<unsigned>(needed));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+        return;
+    }
+    const size_t written = serializeJson(out, buf, needed);
+
+    const bool ok = StorageDriver::writeFileAtomic(path, buf, written);
+    free(buf);
+    if (!ok) {
+        LOG_ERROR("USB", "PUT %s: storage write failed", path);
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        return;
+    }
+
+    LOG_INFO("USB", "PUT %s: %u bytes written — rebooting", path, static_cast<unsigned>(written));
+    UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
+#ifdef ARDUINO
+    Serial.flush();
+    esp_restart(); // never returns
+#endif
+}
+
+void handlePutDeviceConfig(const JsonObjectConst &obj) {
+    JsonVariantConst sub = obj["device_config"];
+    if (sub.isNull() || !sub.is<JsonObjectConst>()) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_device_config\"}");
+        return;
+    }
+    persistTypedConfigAndReboot(CONFIG_PATH_DEVICE, "device_config", sub);
+}
+
+void handlePutInputBindings(const JsonObjectConst &obj) {
+    JsonVariantConst sub = obj["input_bindings"];
+    if (sub.isNull() || !sub.is<JsonArrayConst>()) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_input_bindings\"}");
+        return;
+    }
+    persistTypedConfigAndReboot(CONFIG_PATH_INPUTS, "input_bindings", sub);
+}
+
 void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
 
@@ -614,6 +758,23 @@ void handleCommand(const char *jsonLine) {
             }
             break;
         }
+        case UsbComm::CMD_GET_DEVICE_CONFIG:
+            // device.json on disk is already the flat snake_case shape the
+            // wire schema expects — pass it through unwrapped.
+            sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", nullptr);
+            break;
+        case UsbComm::CMD_PUT_DEVICE_CONFIG:
+            handlePutDeviceConfig(doc.as<JsonObjectConst>());
+            break;
+        case UsbComm::CMD_GET_INPUT_BINDINGS:
+            // input_bindings.json wraps the array as `{"input_bindings":[...]}`
+            // — lift the inner array so the wire envelope carries the bare
+            // array under the same key (matches InputBindingsConfigWireSchema).
+            sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", "input_bindings");
+            break;
+        case UsbComm::CMD_PUT_INPUT_BINDINGS:
+            handlePutInputBindings(doc.as<JsonObjectConst>());
+            break;
         case UsbComm::CMD_SCREEN_SETTINGS:
             handleScreenSettings(doc.as<JsonObjectConst>());
             break;
