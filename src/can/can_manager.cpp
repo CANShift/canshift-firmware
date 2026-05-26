@@ -2,6 +2,7 @@
 
 #include "can_manager.h"
 #include "can_parser.h"
+#include "obd2_poller.h"
 #include "board_config.h"
 #include "app_config.h"
 #include "config/config_loader.h"
@@ -111,6 +112,11 @@ esp_err_t installAndStartOnThisCore() {
 
     // Load dynamic signal definitions from config
     CanParser::loadSignalDefinitions();
+    // Wire any `polling`-flagged signals into the OBD-II request scheduler.
+    // Safe no-op when nothing in signals.json carries a polling block — keeps
+    // legacy broadcast-only configs unchanged. Must run after the parser load
+    // so SignalIds are mappable from signal names (issue #841).
+    Obd2Poller::init();
 
     LOG_INFO("CAN", "TWAI driver started successfully");
     return ESP_OK;
@@ -204,7 +210,18 @@ void CanManager::tick() {
             // overflow CanScanFrame::data[8].
             const uint8_t safeLen =
                 static_cast<uint8_t>(message.data_length_code < 8 ? message.data_length_code : 8);
-            CanParser::parseFrame(message.identifier, message.data, safeLen);
+
+            // OBD-II response intercept (issue #841). When Obd2Poller has a
+            // pending PID query that matches this frame's ID and PID echo, it
+            // decodes the payload into SignalStore and returns true — we
+            // skip the broadcast parser to avoid double-decoding a passive
+            // entry that happens to share the response ID. When the frame is
+            // unrelated to polling, the parser handles it as before.
+            const bool consumedByPoller =
+                Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
+            if (!consumedByPoller) {
+                CanParser::parseFrame(message.identifier, message.data, safeLen);
+            }
 
             // Forward raw frame to USB scan queue if scanner is active (best-effort, no lock)
             UsbComm::CanScanFrame sf;
@@ -262,6 +279,12 @@ void CanManager::tick() {
         s_windowFrames = 0;
         s_lastStatMs = nowMs;
     }
+
+    // OBD-II poll scheduler tick (issue #841). Non-blocking — enqueues at
+    // most one request frame per active polling slot per tick. Lives at the
+    // end of the loop so the RX path above runs first (a response that
+    // arrives between two ticks is decoded before the next request fires).
+    Obd2Poller::tick(nowMs);
 }
 
 uint32_t CanManager::getFrameCount() {

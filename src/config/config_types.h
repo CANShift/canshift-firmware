@@ -406,6 +406,15 @@ struct CfgSignalDef {
     // Optional per-signal color ramp (issue #430). `colorRamp.count == 0` means
     // "no ramp configured" → widgets fall back to default sensor-name lookup.
     CfgColorRampDef colorRamp;
+    // OBD-II polling (issue #841 — phase 3 of #556). When `pollIntervalMs > 0`,
+    // the signal is request/response: Obd2Poller sends a query frame at the
+    // configured interval and decodes the response. `pollIntervalMs == 0`
+    // (the parser default for legacy configs) keeps the signal in passive
+    // broadcast mode — `canFrameId` is the unsolicited frame to decode.
+    // v1 ships Mode 01 only at the standard 0x7DF/0x7E8 pair.
+    uint8_t pollMode;        // OBD-II mode byte (0x01); 0 = polling disabled
+    uint8_t pollPid;         // OBD-II PID byte (Mode 01: see SAE J1979)
+    uint32_t pollIntervalMs; // 0 = polling disabled (legacy broadcast behaviour)
 };
 
 // ---------------------------------------------------------------------------

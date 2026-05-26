@@ -1034,6 +1034,39 @@ bool loadSignals() {
         // widget renderer falls back to a default lookup keyed on the name.
         parseColorRamp(sig["colorRamp"], s.name, &s.colorRamp);
 
+        // OBD-II polling block (issue #841 — phase 3 of #556). Optional —
+        // when absent the signal stays in legacy passive-broadcast mode
+        // (`pollIntervalMs == 0`). When present, Obd2Poller sends a request
+        // frame at `pollIntervalMs` and decodes the response into this
+        // signal. v1 supports Mode 01 only — out-of-range modes/intervals
+        // are silently dropped (logged) so a malformed config keeps the
+        // signal usable as a passive entry rather than rejecting the whole
+        // catalog.
+        s.pollMode = 0;
+        s.pollPid = 0;
+        s.pollIntervalMs = 0;
+        JsonObjectConst pollObj = sig["polling"];
+        if (!pollObj.isNull()) {
+            const uint32_t mode = pollObj["mode"] | 0u;
+            const uint32_t pid = pollObj["pid"] | 0u;
+            const uint32_t intervalMs = pollObj["intervalMs"] | 0u;
+            const bool modeOk = (mode == 0x01u);
+            const bool pidOk = (pid <= 0xFFu);
+            const bool intervalOk =
+                (intervalMs >= OBD2_MIN_INTERVAL_MS_FW && intervalMs <= OBD2_MAX_INTERVAL_MS_FW);
+            if (modeOk && pidOk && intervalOk) {
+                s.pollMode = static_cast<uint8_t>(mode);
+                s.pollPid = static_cast<uint8_t>(pid);
+                s.pollIntervalMs = intervalMs;
+            } else {
+                LOG_WARN("CFG",
+                         "signals.json: '%s' polling block invalid "
+                         "(mode=0x%02X pid=0x%02X intervalMs=%u) — broadcast fallback",
+                         s.name, static_cast<unsigned>(mode), static_cast<unsigned>(pid),
+                         static_cast<unsigned>(intervalMs));
+            }
+        }
+
         // ----- Validate decoder-critical fields (issues #197 / #198) -----
         // CAN classic frames are 8 bytes; byteLength must be 1, 2, or 4 to
         // produce a well-defined sign-extend and a bounded read.

@@ -245,6 +245,30 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define TWAI_INIT_MAX_RETRIES 6U
 
 // ---------------------------------------------------------------------------
+// OBD-II polling (issue #841 — phase 3 of #556)
+// ---------------------------------------------------------------------------
+
+// Standard OBD-II frame IDs for the v1 single-ECU path. The dash broadcasts
+// requests on the functional ID and decodes responses from the ECM at 0x7E8.
+// Multi-ECU (0x7E9..0x7EF) + ISO-TP multi-frame are deferred.
+#define OBD2_REQUEST_FRAME_ID 0x7DFU
+#define OBD2_RESPONSE_FRAME_ID 0x7E8U
+
+// Mirror of canshift-core OBD2_{MIN,MAX}_INTERVAL_MS. Kept in lockstep so
+// the config_loader can reject out-of-range JSON locally rather than waiting
+// for the Studio validator. _FW suffix avoids colliding with a future
+// auto-generated header that might define the same name.
+#define OBD2_MIN_INTERVAL_MS_FW 100U
+#define OBD2_MAX_INTERVAL_MS_FW 60000U
+
+// Maximum number of distinct polling slots the firmware tracks. The poller
+// uses one slot per signal that carries a `polling` block — caps at
+// `CONFIG_MAX_SIGNALS` since a single signal cannot have more than one
+// polling configuration. Promoted to a named constant so the static storage
+// in obd2_poller.cpp stays in sync with the upstream signal cap.
+#define OBD2_MAX_POLL_SLOTS CONFIG_MAX_SIGNALS
+
+// ---------------------------------------------------------------------------
 // Config loading
 // ---------------------------------------------------------------------------
 
