@@ -9,6 +9,14 @@
 
 #include <string.h>
 
+#if !defined(UNIT_TEST)
+    #include "app_config.h" // OTA_HMAC_SECRET embedded fallback (issue #521)
+    #include "diag/logger.h"
+    #include <Preferences.h>
+    #include <esp_random.h>
+    #include <mbedtls/sha256.h>
+#endif
+
 namespace OtaHmac {
 
 int constantTimeMemcmp(const uint8_t *a, const uint8_t *b, size_t len) {
@@ -137,6 +145,52 @@ bool OtaHmacVerifier::finish() {
 }
 
 // ---------------------------------------------------------------------------
+// Per-device key provisioning (issue #521)
+// ---------------------------------------------------------------------------
+
+bool loadOrGenerateKey(const KeyStore &store, RandomFn rng, const uint8_t *fallback,
+                       size_t fallbackLen, uint8_t out[kHmacLen], KeySource *outSource) {
+    // 1. Try NVS read. A full-size match is the steady-state happy path.
+    const size_t readBytes = store.read(out, kHmacLen, store.user);
+    if (readBytes == kHmacLen) {
+        if (outSource != nullptr)
+            *outSource = KeySource::Nvs;
+        return true;
+    }
+
+    // 2. Missing or wrong size — generate fresh bytes and persist. If either
+    //    step fails we fall through to the embedded fallback.
+    if (rng != nullptr) {
+        rng(out, kHmacLen);
+        if (store.write(out, kHmacLen, store.user)) {
+            if (outSource != nullptr)
+                *outSource = KeySource::NvsGenerated;
+            return true;
+        }
+    }
+
+    // 3. NVS write failed (or no RNG was supplied) — last resort, copy the
+    //    build-time embedded secret into the output. This keeps legacy
+    //    installs that never seeded NVS alive through the rollout window.
+    //    TODO(#521): remove the embedded-fallback branch once the fleet has
+    //    rolled over to NVS-resident keys.
+    if (fallback != nullptr && fallbackLen > 0) {
+        const size_t copy = (fallbackLen < kHmacLen) ? fallbackLen : kHmacLen;
+        memcpy(out, fallback, copy);
+        // If the embedded secret is shorter than 32 bytes, zero-pad the rest
+        // — HMAC accepts arbitrary key lengths, so this preserves all the
+        // entropy the operator put in secrets.ini.
+        if (copy < kHmacLen) {
+            memset(out + copy, 0, kHmacLen - copy);
+        }
+        if (outSource != nullptr)
+            *outSource = KeySource::Embedded;
+        return true;
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // Production backend — mbedTLS. Excluded from:
 //   - native unit tests (UNIT_TEST), which use a stub backend
 //   - USE_RUST_OTA_HMAC builds (#827 Phase 3), where ota_hmac_bridge.cpp
@@ -194,5 +248,149 @@ const HmacBackend &mbedtlsHmacBackend() {
 }
 
 #endif // !UNIT_TEST && !USE_RUST_OTA_HMAC
+
+// ---------------------------------------------------------------------------
+// Per-device key — Preferences-backed KeyStore and process-lifetime cache.
+// Lives outside the Rust gate because the key provisioning path is shared
+// by both backends (Rust and mbedTLS HMACs both take the same 32 bytes).
+// ---------------------------------------------------------------------------
+#if !defined(UNIT_TEST)
+
+namespace {
+
+constexpr char kNvsNamespace[] = "ota";
+constexpr char kNvsKey[] = "hmac_key";
+
+size_t prefsRead(uint8_t *out, size_t maxLen, void * /*user*/) {
+    Preferences p;
+    if (!p.begin(kNvsNamespace, /*readOnly=*/true)) {
+        return 0;
+    }
+    const size_t storedLen = p.getBytesLength(kNvsKey);
+    if (storedLen != kHmacLen || storedLen > maxLen) {
+        p.end();
+        return 0;
+    }
+    const size_t copied = p.getBytes(kNvsKey, out, kHmacLen);
+    p.end();
+    return copied;
+}
+
+bool prefsWrite(const uint8_t *data, size_t len, void * /*user*/) {
+    Preferences p;
+    if (!p.begin(kNvsNamespace, /*readOnly=*/false)) {
+        return false;
+    }
+    const size_t written = p.putBytes(kNvsKey, data, len);
+    p.end();
+    return written == len;
+}
+
+void hwRandom(uint8_t *out, size_t len) {
+    esp_fill_random(out, len);
+}
+
+// Process-lifetime cache for the resolved key. Populated lazily on first
+// call to loadOrGenerateKey() so we touch NVS at most once per boot.
+uint8_t s_cachedKey[kHmacLen] = {};
+bool s_cachedKeyValid = false;
+KeySource s_cachedSource = KeySource::Embedded;
+
+} // namespace
+
+const uint8_t *loadOrGenerateKey(KeySource *outSource) {
+    if (!s_cachedKeyValid) {
+        const KeyStore store = {prefsRead, prefsWrite, nullptr};
+        // The embedded macro lives in app_config.h; it is always a NUL-
+        // terminated C string. Pass it without the trailing NUL so the byte
+        // count matches what the legacy code path used in handleOtaUpload.
+        static const char kEmbedded[] = OTA_HMAC_SECRET;
+        constexpr size_t kEmbeddedLen = sizeof(kEmbedded) - 1;
+        const bool ok =
+            loadOrGenerateKey(store, hwRandom, reinterpret_cast<const uint8_t *>(kEmbedded),
+                              kEmbeddedLen, s_cachedKey, &s_cachedSource);
+        // ok is always true on device — the embedded fallback is non-empty
+        // by construction (extra_targets.py enforces a non-placeholder for
+        // prod and supplies the dev placeholder otherwise). Be defensive
+        // anyway: leaving s_cachedKeyValid=false forces a retry next call
+        // instead of handing out an all-zero key.
+        if (!ok) {
+            return nullptr;
+        }
+        s_cachedKeyValid = true;
+    }
+    if (outSource != nullptr) {
+        *outSource = s_cachedSource;
+    }
+    return s_cachedKey;
+}
+
+namespace {
+
+const char *keySourceName(KeySource src) {
+    switch (src) {
+        case KeySource::Nvs:
+            return "NVS";
+        case KeySource::NvsGenerated:
+            return "NVS (generated)";
+        case KeySource::Embedded:
+            return "embedded (legacy)";
+    }
+    return "?";
+}
+
+} // namespace
+
+void logBootKeyFingerprint() {
+    static bool s_logged = false;
+    if (s_logged) {
+        return;
+    }
+    s_logged = true;
+
+    KeySource src;
+    const uint8_t *key = loadOrGenerateKey(&src);
+    if (key == nullptr) {
+        LOG_ERROR("OTA", "HMAC key load failed at boot — OTA will refuse uploads");
+        return;
+    }
+    char fp[9] = {};
+    if (!computeKeyFingerprint(key, kHmacLen, fp)) {
+        LOG_WARN("OTA", "HMAC key sha-256 fingerprint compute failed");
+        return;
+    }
+    // Format: source tag + 8-hex prefix of SHA-256(key). Embedded fingerprint
+    // is identical across the fleet; NVS-derived fingerprints are unique per
+    // device. Operators eyeballing logs can tell at a glance which key the
+    // device is using.
+    LOG_INFO("OTA", "HMAC key source=%s sha256=%s", keySourceName(src), fp);
+}
+
+bool computeKeyFingerprint(const uint8_t *key, size_t keyLen, char out[9]) {
+    uint8_t digest[32];
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    if (mbedtls_sha256_starts_ret(&ctx, /*is224=*/0) != 0) {
+        mbedtls_sha256_free(&ctx);
+        return false;
+    }
+    if (mbedtls_sha256_update_ret(&ctx, key, keyLen) != 0 ||
+        mbedtls_sha256_finish_ret(&ctx, digest) != 0) {
+        mbedtls_sha256_free(&ctx);
+        return false;
+    }
+    mbedtls_sha256_free(&ctx);
+    // First 4 bytes → 8 hex chars + NUL. Enough to detect drift between
+    // devices without leaking exploitable bits of the key.
+    static const char kHex[] = "0123456789abcdef";
+    for (size_t i = 0; i < 4; ++i) {
+        out[i * 2] = kHex[(digest[i] >> 4) & 0x0F];
+        out[i * 2 + 1] = kHex[digest[i] & 0x0F];
+    }
+    out[8] = '\0';
+    return true;
+}
+
+#endif // !UNIT_TEST
 
 } // namespace OtaHmac

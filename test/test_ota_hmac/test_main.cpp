@@ -81,8 +81,8 @@ bool recordSink(const uint8_t *data, size_t len, void *user) {
 
 // Compute the stub HMAC over a body using the same algorithm — useful for
 // crafting a valid trailer in tests.
-void computeStubHmac(const uint8_t *secret, size_t secretLen, const uint8_t *body,
-                     size_t bodyLen, uint8_t out[OtaHmac::kHmacLen]) {
+void computeStubHmac(const uint8_t *secret, size_t secretLen, const uint8_t *body, size_t bodyLen,
+                     uint8_t out[OtaHmac::kHmacLen]) {
     memset(out, 0, OtaHmac::kHmacLen);
     for (size_t i = 0; i < secretLen; ++i) {
         out[i % OtaHmac::kHmacLen] ^= secret[i];
@@ -93,8 +93,8 @@ void computeStubHmac(const uint8_t *secret, size_t secretLen, const uint8_t *bod
 }
 
 // Build "body || hmac(body)" using the stub algorithm.
-std::vector<uint8_t> buildSignedUpload(const std::vector<uint8_t> &body,
-                                       const uint8_t *secret, size_t secretLen) {
+std::vector<uint8_t> buildSignedUpload(const std::vector<uint8_t> &body, const uint8_t *secret,
+                                       size_t secretLen) {
     std::vector<uint8_t> upload = body;
     uint8_t hmac[OtaHmac::kHmacLen];
     computeStubHmac(secret, secretLen, body.data(), body.size(), hmac);
@@ -103,8 +103,7 @@ std::vector<uint8_t> buildSignedUpload(const std::vector<uint8_t> &body,
 }
 
 // Feed an upload to a verifier in fixed-size chunks. Returns finish() result.
-bool feedInChunks(OtaHmac::OtaHmacVerifier &v, const std::vector<uint8_t> &upload,
-                  size_t chunk) {
+bool feedInChunks(OtaHmac::OtaHmacVerifier &v, const std::vector<uint8_t> &upload, size_t chunk) {
     for (size_t off = 0; off < upload.size();) {
         size_t take = upload.size() - off;
         if (take > chunk)
@@ -216,8 +215,7 @@ void test_chunking_severalSizes_allEquivalent() {
         snprintf(msg, sizeof(msg), "verifier should accept chunk size %zu", cs);
         TEST_ASSERT_TRUE_MESSAGE(ok, msg);
         TEST_ASSERT_EQUAL_size_t(reference.body.size(), rec.body.size());
-        TEST_ASSERT_EQUAL_MEMORY(reference.body.data(), rec.body.data(),
-                                 reference.body.size());
+        TEST_ASSERT_EQUAL_MEMORY(reference.body.data(), rec.body.data(), reference.body.size());
     }
 }
 
@@ -306,6 +304,146 @@ void test_sinkFailure_abortsFeed() {
 }
 
 // ---------------------------------------------------------------------------
+// Per-device key load-or-generate path (issue #521)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// In-memory KeyStore fake. read() returns whatever has been written via
+// presetStored(); write() captures the latest value. Failure modes (read
+// blocked, write blocked) are toggled via the flags so each test pins the
+// branch it cares about.
+struct FakeStore {
+    std::vector<uint8_t> stored;
+    bool readBlocked = false;
+    bool writeBlocked = false;
+    int writes = 0;
+};
+
+size_t fakeRead(uint8_t *out, size_t maxLen, void *user) {
+    auto *s = static_cast<FakeStore *>(user);
+    if (s->readBlocked || s->stored.empty() || s->stored.size() > maxLen) {
+        return 0;
+    }
+    memcpy(out, s->stored.data(), s->stored.size());
+    return s->stored.size();
+}
+
+bool fakeWrite(const uint8_t *data, size_t len, void *user) {
+    auto *s = static_cast<FakeStore *>(user);
+    if (s->writeBlocked) {
+        return false;
+    }
+    s->stored.assign(data, data + len);
+    s->writes++;
+    return true;
+}
+
+// Deterministic "random" — fills with the byte 0xA5 so tests can assert the
+// exact key bytes written. The real esp_fill_random() is non-deterministic
+// by design; we only verify behaviour around it here.
+void fakeRng(uint8_t *out, size_t len) {
+    memset(out, 0xA5, len);
+}
+
+constexpr uint8_t kEmbeddedFallback[] = "EMBEDDED_LEGACY_SECRET";
+constexpr size_t kEmbeddedFallbackLen = sizeof(kEmbeddedFallback) - 1;
+
+} // namespace
+
+void test_loadOrGenerateKey_nvsHit_returnsStoredKey() {
+    FakeStore s;
+    s.stored.assign(OtaHmac::kHmacLen, 0x42);
+    OtaHmac::KeyStore store = {fakeRead, fakeWrite, &s};
+
+    uint8_t out[OtaHmac::kHmacLen] = {};
+    OtaHmac::KeySource src = OtaHmac::KeySource::Embedded;
+    TEST_ASSERT_TRUE(OtaHmac::loadOrGenerateKey(store, fakeRng, kEmbeddedFallback,
+                                                kEmbeddedFallbackLen, out, &src));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaHmac::KeySource::Nvs), static_cast<int>(src));
+    for (size_t i = 0; i < OtaHmac::kHmacLen; ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0x42, out[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, s.writes); // never writes when NVS already populated
+}
+
+void test_loadOrGenerateKey_nvsMiss_generatesAndPersists() {
+    FakeStore s; // empty
+    OtaHmac::KeyStore store = {fakeRead, fakeWrite, &s};
+
+    uint8_t out[OtaHmac::kHmacLen] = {};
+    OtaHmac::KeySource src = OtaHmac::KeySource::Embedded;
+    TEST_ASSERT_TRUE(OtaHmac::loadOrGenerateKey(store, fakeRng, kEmbeddedFallback,
+                                                kEmbeddedFallbackLen, out, &src));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaHmac::KeySource::NvsGenerated),
+                          static_cast<int>(src));
+    // Generated bytes match the deterministic RNG output (0xA5 everywhere).
+    for (size_t i = 0; i < OtaHmac::kHmacLen; ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0xA5, out[i]);
+    }
+    // And the same bytes were persisted to the store.
+    TEST_ASSERT_EQUAL_INT(1, s.writes);
+    TEST_ASSERT_EQUAL_size_t(OtaHmac::kHmacLen, s.stored.size());
+    TEST_ASSERT_EQUAL_MEMORY(out, s.stored.data(), OtaHmac::kHmacLen);
+}
+
+void test_loadOrGenerateKey_persistenceAcrossCalls() {
+    // After a first-boot generation, a subsequent call must return the
+    // SAME key (read path), not generate another one. This is the property
+    // that gives us per-device-stable keys.
+    FakeStore s;
+    OtaHmac::KeyStore store = {fakeRead, fakeWrite, &s};
+
+    uint8_t first[OtaHmac::kHmacLen] = {};
+    OtaHmac::KeySource src1;
+    TEST_ASSERT_TRUE(OtaHmac::loadOrGenerateKey(store, fakeRng, kEmbeddedFallback,
+                                                kEmbeddedFallbackLen, first, &src1));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaHmac::KeySource::NvsGenerated),
+                          static_cast<int>(src1));
+
+    uint8_t second[OtaHmac::kHmacLen] = {};
+    OtaHmac::KeySource src2;
+    TEST_ASSERT_TRUE(OtaHmac::loadOrGenerateKey(store, fakeRng, kEmbeddedFallback,
+                                                kEmbeddedFallbackLen, second, &src2));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaHmac::KeySource::Nvs), static_cast<int>(src2));
+    TEST_ASSERT_EQUAL_MEMORY(first, second, OtaHmac::kHmacLen);
+    TEST_ASSERT_EQUAL_INT(1, s.writes); // no extra writes — read path took over
+}
+
+void test_loadOrGenerateKey_nvsWriteFails_fallsBackToEmbedded() {
+    // Corrupted/full NVS: read returns nothing, write refuses. Loader must
+    // still produce a usable key from the build-time embedded secret so
+    // OTA keeps working through the upgrade rollout.
+    FakeStore s;
+    s.writeBlocked = true;
+    OtaHmac::KeyStore store = {fakeRead, fakeWrite, &s};
+
+    uint8_t out[OtaHmac::kHmacLen] = {};
+    OtaHmac::KeySource src;
+    TEST_ASSERT_TRUE(OtaHmac::loadOrGenerateKey(store, fakeRng, kEmbeddedFallback,
+                                                kEmbeddedFallbackLen, out, &src));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaHmac::KeySource::Embedded), static_cast<int>(src));
+    // First kEmbeddedFallbackLen bytes match the embedded secret, remainder
+    // zero-padded to fill kHmacLen.
+    TEST_ASSERT_EQUAL_MEMORY(kEmbeddedFallback, out, kEmbeddedFallbackLen);
+    for (size_t i = kEmbeddedFallbackLen; i < OtaHmac::kHmacLen; ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0, out[i]);
+    }
+}
+
+void test_loadOrGenerateKey_noFallback_andNoNvs_returnsFalse() {
+    // Defensive: when neither NVS nor an embedded key is available the
+    // loader must NOT silently hand back an all-zero key.
+    FakeStore s;
+    s.writeBlocked = true;
+    OtaHmac::KeyStore store = {fakeRead, fakeWrite, &s};
+
+    uint8_t out[OtaHmac::kHmacLen] = {};
+    OtaHmac::KeySource src = OtaHmac::KeySource::Nvs; // intentionally bogus
+    TEST_ASSERT_FALSE(OtaHmac::loadOrGenerateKey(store, fakeRng, nullptr, 0, out, &src));
+}
+
+// ---------------------------------------------------------------------------
 // Test runner
 // ---------------------------------------------------------------------------
 
@@ -323,5 +461,10 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_corruptedTrailerLastByte_isRejected);
     RUN_TEST(test_corruptedBodyByte_isRejected);
     RUN_TEST(test_sinkFailure_abortsFeed);
+    RUN_TEST(test_loadOrGenerateKey_nvsHit_returnsStoredKey);
+    RUN_TEST(test_loadOrGenerateKey_nvsMiss_generatesAndPersists);
+    RUN_TEST(test_loadOrGenerateKey_persistenceAcrossCalls);
+    RUN_TEST(test_loadOrGenerateKey_nvsWriteFails_fallsBackToEmbedded);
+    RUN_TEST(test_loadOrGenerateKey_noFallback_andNoNvs_returnsFalse);
     return UNITY_END();
 }

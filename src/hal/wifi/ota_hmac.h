@@ -100,4 +100,80 @@ class OtaHmacVerifier {
 const HmacBackend &mbedtlsHmacBackend();
 #endif
 
+// ---------------------------------------------------------------------------
+// Per-device key provisioning (issue #521)
+// ---------------------------------------------------------------------------
+//
+// First-boot flow: read NVS namespace `ota` key `hmac_key`. If absent or the
+// wrong length, draw 32 fresh random bytes, persist them, and return them.
+// If NVS is unwritable (rare — corrupted partition), fall back to the
+// build-time `OTA_HMAC_SECRET` macro so legacy installs that already trust
+// the embedded key keep working through the rollout.
+//
+// The 32-byte length matches `kHmacLen` because SHA-256's block size is
+// 64 bytes — anything longer would get hashed-then-rekeyed by HMAC anyway,
+// so 32 bytes is the largest size that contributes full entropy.
+
+// Provenance of the loaded key — used by the boot diag to tell operators
+// whether a device is on a per-device NVS key (good) or still leaning on
+// the embedded build-time secret (legacy, fleet-wide).
+enum class KeySource : uint8_t {
+    Nvs,          // read from NVS — per-device, generated on first boot
+    NvsGenerated, // first-boot path — drew new bytes AND persisted to NVS
+    Embedded,     // NVS unavailable — fell back to build-time OTA_HMAC_SECRET
+};
+
+// Abstraction over the persistent key store. Backed by `Preferences` on
+// device; a host fake is used by native unit tests. Read returns the number
+// of bytes written into `out` (or 0 if the entry is missing / wrong size).
+struct KeyStore {
+    size_t (*read)(uint8_t *out, size_t maxLen, void *user);
+    bool (*write)(const uint8_t *data, size_t len, void *user);
+    void *user;
+};
+
+// Random-bytes source. esp_fill_random() on device; injectable for tests.
+using RandomFn = void (*)(uint8_t *out, size_t len);
+
+// Core load-or-generate routine. Side-effect-free relative to its inputs
+// — no globals — so host tests can exercise every branch.
+//
+// Returns true on success and writes the 32-byte key into `out`. On
+// success, *outSource records where the key came from.
+//
+// `fallback` may be null (no embedded key available); in that case a
+// missing/unwritable NVS produces a return value of false.
+bool loadOrGenerateKey(const KeyStore &store, RandomFn rng, const uint8_t *fallback,
+                       size_t fallbackLen, uint8_t out[kHmacLen], KeySource *outSource);
+
+// Render the first 8 hex chars of SHA-256(key) into `out` (9 bytes incl.
+// trailing NUL). Used by the boot diag so the actual key never appears in
+// logs. `out` must point to ≥ 9 bytes. Returns false if sha-256 init fails.
+//
+// On the host (UNIT_TEST), no mbedTLS is linked — this helper is only
+// declared on the device build to keep host tests self-contained.
+#ifndef UNIT_TEST
+bool computeKeyFingerprint(const uint8_t *key, size_t keyLen, char out[9]);
+#endif
+
+#ifndef UNIT_TEST
+// Production-side wrapper: opens the `ota` Preferences namespace, defers
+// to loadOrGenerateKey(), and caches the result for the lifetime of the
+// process. Called once at OTA-verifier construction time; subsequent calls
+// are cheap and return the cached key. Returns a pointer to a static
+// 32-byte buffer — caller must NOT free.
+//
+// `outSource` is optional; when non-null it reports the provenance of the
+// returned key (cached on first call, returned identically thereafter).
+const uint8_t *loadOrGenerateKey(KeySource *outSource = nullptr);
+
+// One-shot boot diagnostic — resolves the in-use key (triggering NVS
+// load-or-generate the first time) and logs its SHA-256 fingerprint plus
+// provenance. Lets operators correlate which devices have rolled over to
+// per-device NVS keys vs which still ride the embedded fallback, without
+// exposing the actual key bytes. Safe to call multiple times — only logs
+// once. Issue #521.
+void logBootKeyFingerprint();
+#endif
+
 } // namespace OtaHmac

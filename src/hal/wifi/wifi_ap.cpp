@@ -363,11 +363,18 @@ void handleOtaUpload() {
         }
 
         #if APP_OTA_REQUIRE_HMAC
-        static const char kSecret[] = OTA_HMAC_SECRET;
+        // Per-device key (issue #521): pulled from NVS namespace `ota`, key
+        // `hmac_key`. Generated on first boot or read on subsequent boots;
+        // falls through to the embedded OTA_HMAC_SECRET on NVS write failure
+        // so legacy installs keep verifying through the rollout window.
+        const uint8_t *kSecret = OtaHmac::loadOrGenerateKey();
+        if (kSecret == nullptr) {
+            LOG_ERROR("WiFi", "OTA HMAC key load failed");
+            Update.abort();
+            return;
+        }
         s_otaVerifier = new (s_otaVerifierStorage) OtaHmac::OtaHmacVerifier(
-            OtaHmac::mbedtlsHmacBackend(), reinterpret_cast<const uint8_t *>(kSecret),
-            sizeof(kSecret) - 1, // exclude trailing NUL
-            otaUpdateSink, nullptr);
+            OtaHmac::mbedtlsHmacBackend(), kSecret, OtaHmac::kHmacLen, otaUpdateSink, nullptr);
         if (!s_otaVerifier->begin()) {
             LOG_ERROR("WiFi", "OTA HMAC verifier init failed");
             cleanupVerifier();
