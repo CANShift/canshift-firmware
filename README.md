@@ -73,11 +73,19 @@ pio device monitor               # Serial monitor at 115200 baud
 
 # Simulation mode (no hardware required)
 pio run -e sim --target upload
+
+# Dash-hosted Studio (WiFi build) — needs both firmware AND SPIFFS
+pio run -e crowpanel_28_wifi --target upload
+pio run -e crowpanel_28_wifi --target uploadfs  # mandatory for the SPA (#1123)
 ```
 
 First boot provisions the embedded default config files automatically — no
 manual asset copy step is required. Fonts and icons under `data/assets/` and
-`data/fonts/` ship to the device via `pio run -t uploadfs`.
+`data/fonts/` ship to the device via `pio run -t uploadfs`. On
+`[env:crowpanel_28_wifi]`, `data/web/*` also lives on SPIFFS (gzipped SPA
+bundle for the dash-hosted Studio, post-#1123 follow-up); without the
+`uploadfs` step the dash boots normally but `http://canshift.local/`
+returns 404 until the SPIFFS image lands.
 
 ### Logging knobs
 
@@ -592,11 +600,11 @@ rollback path byte-for-byte.
 ### Dash-hosted Studio SPA (#1077 phase 4)
 
 When `APP_SPA_SERVE=1` (default on `[env:crowpanel_28_wifi]`), the firmware
-embeds the browser SPA shipped by `canshift-studio-web/` directly into the
-OTA payload and serves it from the existing `WebServer` on port 80. The
-user joins the softAP, navigates to `http://canshift.local/`, and lands on
-the Studio ConnectScreen — no install, no internet. The SPA then talks to
-the firmware via the WebSocket transport on port 81 (#1108) for live data.
+serves the browser SPA shipped by `canshift-studio-web/` straight off SPIFFS
+through the existing `WebServer` on port 80. The user joins the softAP,
+navigates to `http://canshift.local/`, and lands on the Studio
+ConnectScreen — no install, no internet. The SPA then talks to the firmware
+via the WebSocket transport on port 81 (#1108) for live data.
 
 **Build chain (host side):**
 
@@ -605,67 +613,81 @@ the firmware via the WebSocket transport on port 81 (#1108) for live data.
    in `../canshift-studio-web/`, gzip-encodes every text artifact via the
    studio-web post-build hook, then mirrors `dist/*.gz` + `*.woff2` into
    `canshift-firmware/data/web/`.
-2. `board_build.embed_files` baked into `[env:crowpanel_28_wifi]` lists
-   every file; the linker emits `_binary_data_web_<path>_start` /
-   `_end` symbol pairs (same mechanism used for the default JSON configs
-   and Orbitron font binaries).
-3. `src/hal/wifi/wifi_ap.cpp` declares those symbols via the local
-   `EMBED_BLOB()` macro, builds a single `kSpaAssets[]` route table
-   mapping URL → embed blob + MIME + `Content-Encoding`, and registers
-   one handler per row at AP start.
+2. `pio run -t uploadfs` flashes the resulting SPIFFS image to the
+   `spiffs` partition. `data/web/*` lands at `/web/*` on the device.
+3. `src/hal/wifi/wifi_ap.cpp`'s `kSpaAssets[]` table maps each browser URL
+   to its SPIFFS path; the handler opens the file and uses
+   `WebServer::streamFile()` to push it back to the browser in 1.4 KB
+   chunks. The framework auto-emits `Content-Encoding: gzip` for any
+   filename ending in `.gz`, so the `.gz` SPIFFS file extensions
+   round-trip transparently.
 
-**Source-of-truth list of embedded files** — keep these three in lock-step:
+> **#1123 follow-up — SPA moved out of the firmware embed.** The SPA
+> artifacts used to ride in the firmware image via
+> `board_build.embed_files`, pushing `[env:crowpanel_28_wifi]` to 107.3 %
+> of the 1728 KB app slot at link time. Moving them onto SPIFFS reclaims
+> ~185 KB of app-slot flash (now at ~96.8 %). The trade-off: a freshly
+> flashed dash needs the extra `pio run -t uploadfs` step (or the
+> equivalent SPIFFS image flash from `canshift-flasher`) before the
+> dash-hosted Studio loads. `/status`, `/ota`, BLE, and CAN are all
+> unaffected — the dash boots and behaves normally either way.
+
+**Source-of-truth list of SPA files** — keep these two in lock-step:
 
 - `canshift-studio-web/scripts/gzip-dist.mjs` (which extensions get a `.gz` sibling)
 - `canshift-firmware/scripts/sync_studio_web.py` (`EXPECTED_GZ` + `EXPECTED_FONTS`)
-- `canshift-firmware/platformio.ini` `board_build.embed_files`
 - `canshift-firmware/src/hal/wifi/wifi_ap.cpp` `kSpaAssets[]`
 
 Vite emits hash-free filenames (see `canshift-studio-web/vite.config.ts`)
-so the embed list stays stable across builds. Cache-busting via content
-hash buys nothing here — the SPA ships inside the OTA payload, not on a
-CDN, so every byte already rotates atomically with the firmware.
+so the file list stays stable across builds. Cache-busting via content
+hash buys nothing here — `Cache-Control: no-store` is set on every
+response and the bytes rotate atomically with each uploadfs run.
 
 **Skipping the SPA rebuild:** set `CANSHIFT_SKIP_STUDIO_WEB_BUILD=1` in
 the environment to reuse the existing `canshift-studio-web/dist/`. Useful
 in CI when a prior job already built the SPA, or when iterating on the
 firmware side without touching the SPA.
 
+**First-flash step.** Brand-new dashes carrying a clean `[env:crowpanel_28_wifi]`
+firmware image return `404 SPA asset not provisioned (run uploadfs)` for
+every `/` and `/assets/*` request until the SPIFFS image is flashed:
+
+```bash
+# After `pio run -e crowpanel_28_wifi -t upload` (firmware):
+pio run -e crowpanel_28_wifi -t uploadfs
+```
+
+The standalone `canshift-flasher` flashes both partitions in one pass via
+the merged firmware + SPIFFS bundle published per release, so end-users
+joining the dash from a fresh first-flash don't have to think about the
+two-step.
+
 **Routes registered when `APP_SPA_SERVE=1`:**
 
-| Method | Path | Content-Type | Content-Encoding |
-|--------|------|--------------|------------------|
-| GET    | `/`  | `text/html`  | `gzip` (same blob as `/index.html`) |
-| GET    | `/index.html` | `text/html` | `gzip` |
-| GET    | `/assets/index.js`         | `application/javascript` | `gzip` |
-| GET    | `/assets/index.css`        | `text/css`               | `gzip` |
-| GET    | `/assets/vendor-react.js`  | `application/javascript` | `gzip` |
-| GET    | `/assets/vendor-radix.js`  | `application/javascript` | `gzip` |
-| GET    | `/assets/vendor-state.js`  | `application/javascript` | `gzip` |
-| GET    | `/assets/EditorRoute.js`   | `application/javascript` | `gzip` |
-| GET    | `/assets/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2` | — (already compressed) |
+| Method | Path | Content-Type | Content-Encoding | SPIFFS path |
+|--------|------|--------------|------------------|-------------|
+| GET    | `/`  | `text/html`  | `gzip` (same file as `/index.html`) | `/web/index.html.gz` |
+| GET    | `/index.html` | `text/html` | `gzip` | `/web/index.html.gz` |
+| GET    | `/assets/index.js`         | `application/javascript` | `gzip` | `/web/assets/index.js.gz` |
+| GET    | `/assets/index.css`        | `text/css`               | `gzip` | `/web/assets/index.css.gz` |
+| GET    | `/assets/vendor-react.js`  | `application/javascript` | `gzip` | `/web/assets/vendor-react.js.gz` |
+| GET    | `/assets/vendor-radix.js`  | `application/javascript` | `gzip` | `/web/assets/vendor-radix.js.gz` |
+| GET    | `/assets/vendor-state.js`  | `application/javascript` | `gzip` | `/web/assets/vendor-state.js.gz` |
+| GET    | `/assets/EditorRoute.js`   | `application/javascript` | `gzip` | `/web/assets/EditorRoute.js.gz` |
+| GET    | `/assets/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2` | — (already compressed) | `/web/assets/Orbitron-*.woff2` |
 
 All SPA responses carry `Cache-Control: no-store`. The operational
 endpoints (`/status`, `/ota`) keep their existing handlers — they're
 registered first so the WebServer's exact-match dispatcher checks them
-before the SPA fall-through.
+before the SPA routes.
 
-**Known flash overflow on `_wifi` (follow-up).** The embedded SPA pushes
-`[env:crowpanel_28_wifi]` past the 1.57 MB app slot:
+**Flash budget on `_wifi` (post-#1123 follow-up).**
 
 | Configuration | Flash | Notes |
 |---|---|---|
-| `crowpanel_28` (prod, no SPA, no WiFi libs) | 75.9% (1.19 MB) | Unchanged by this work |
-| `crowpanel_28_wifi` baseline (no SPA) | ~107.7% (1.69 MB) | WiFi/WebServer/Update/WS already over budget |
-| `crowpanel_28_wifi` + SPA embedded | 119.6% (1.88 MB) | +185 KB SPA payload |
-
-The production env (`crowpanel_28`) stays at 75.9% — SPA is gated by
-`APP_SPA_SERVE` (default 0) so it never lands in builds that aren't
-serving it. Resolving the `_wifi` overflow needs a partition layout
-change (raise the app slot, shrink SPIFFS) tracked separately; until
-then `pio run -e crowpanel_28_wifi` will report flash overflow at link
-time. The SPA serving code is staged here so the studio side, mobile
-side, and partition-resize PR can land in any order.
+| `crowpanel_28` (prod, no SPA, no WiFi libs) | 68.4 % (1.16 MB) | Unchanged by this work |
+| `crowpanel_28_wifi` baseline (no SPA) | ~107.3 % (1.81 MB) | Pre-fix overflow — SPA embedded |
+| `crowpanel_28_wifi` + SPA on SPIFFS | **~96.8 % (1.63 MB)** | Post-fix — fits the 1728 KB slot |
 
 ---
 

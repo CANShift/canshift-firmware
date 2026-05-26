@@ -22,6 +22,7 @@
         #include <Arduino.h>
         #include <ESPmDNS.h>
         #include <Preferences.h>
+        #include <SPIFFS.h>
         #include <esp_system.h>
         #include <esp_task_wdt.h>
         #include <freertos/FreeRTOS.h>
@@ -90,36 +91,18 @@ static bool s_otaHmacOk = false;
 // (Arduino WebServer dispatches upload + complete separately).
 static bool s_otaAuthRejected = false;
 
-        #if APP_SPA_SERVE
-// Dash-hosted Studio SPA — embed-file symbol declarations (#1077 phase 4).
-// PlatformIO's `board_build.embed_files` exposes each blob as a pair of
-// linker symbols `_binary_<munged_path>_start` / `_end`. We list every SPA
-// artifact here at file scope (extern "C" + asm-label naming) so the
-// anonymous-namespace route table below can take their addresses; declaring
-// these inside the namespace would prevent C linkage and the linker would
-// emit undefined-symbol errors.
-
-extern "C" {
-
-            #define EMBED_BLOB(name)                                                               \
-                extern const uint8_t name##_start[] asm("_binary_" #name "_start");                \
-                extern const uint8_t name##_end[] asm("_binary_" #name "_end")
-
-EMBED_BLOB(data_web_index_html_gz);
-EMBED_BLOB(data_web_assets_index_js_gz);
-EMBED_BLOB(data_web_assets_index_css_gz);
-EMBED_BLOB(data_web_assets_vendor_react_js_gz);
-EMBED_BLOB(data_web_assets_vendor_radix_js_gz);
-EMBED_BLOB(data_web_assets_vendor_state_js_gz);
-EMBED_BLOB(data_web_assets_EditorRoute_js_gz);
-EMBED_BLOB(data_web_assets_Orbitron_Black_woff2);
-EMBED_BLOB(data_web_assets_Orbitron_Bold_woff2);
-EMBED_BLOB(data_web_assets_Orbitron_Medium_woff2);
-
-            #undef EMBED_BLOB
-
-} // extern "C"
-        #endif // APP_SPA_SERVE
+// Dash-hosted Studio SPA — assets live on SPIFFS (#1123 follow-up).
+//
+// In #1077 phase 4 these files rode in flash via `board_build.embed_files`
+// and were streamed from the linker `_binary_*_start` / `_end` symbols.
+// That cost ~185 KB of the 1728 KB app slot — combined with the WiFi /
+// WebServer / Update / WS libs the `_wifi` env overflowed at 107.3 %.
+// Moving the SPA out of the firmware image into SPIFFS recovers the full
+// 185 KB. The trade-off: a freshly-flashed dash now needs one extra
+// `pio run -t uploadfs` step (or the equivalent canshift-flasher SPIFFS
+// image flash) before the SPA loads — operational endpoints (`/status`,
+// `/ota`) and BLE remain unaffected. The route table + handler live under
+// `#if APP_SPA_SERVE` below.
 
 // ---------------------------------------------------------------------------
 // HTTP handlers
@@ -228,71 +211,68 @@ void handleStatus() {
         #if APP_SPA_SERVE
 
 // ---------------------------------------------------------------------------
-// Dash-hosted Studio SPA — static asset serving (#1077 phase 4)
+// Dash-hosted Studio SPA — static asset serving (#1077 phase 4, #1123 follow-up)
 // ---------------------------------------------------------------------------
 //
-// Browser-fetched artifacts live in flash via `board_build.embed_files`;
-// extern "C" declarations sit at file scope (see top of this file). The
-// table below maps each URL the SPA can request to its embed-symbol pair.
+// Browser-fetched artifacts live on SPIFFS at `/web/...` and stream straight
+// from the file system via WebServer::streamFile, which auto-sends the
+// Content-Encoding: gzip header for any filename ending in `.gz` (see
+// _streamFileCore in arduino-esp32 WebServer.cpp). The route table maps each
+// URL the SPA can request to its SPIFFS path + Content-Type.
 
 struct SpaAsset {
-    const char *path;        // URL path the browser requests
-    const uint8_t *start;    // first byte of the embedded blob
-    const uint8_t *end;      // one-past-last byte of the embedded blob
+    const char *urlPath;     // URL path the browser requests
+    const char *spiffsPath;  // SPIFFS path the asset lives at
     const char *contentType; // MIME for the Content-Type header
-    bool gzipped;            // sets Content-Encoding: gzip when true
 };
 
-// Send a single embedded asset. send_P() streams from flash without an
-// intermediate heap copy — important on the dash because index.js gzipped is
-// ~28 KB and a String copy of that on a fragmented heap would risk a
-// fragmentation-induced fail mid-handler. Cache-Control: no-store because
-// the AP isn't a CDN and the next OTA may rewrite the bytes.
+// Stream a single SPA asset from SPIFFS. WebServer::streamFile reads in
+// fixed-size chunks (1436 B by default), so even the 58 KB vendor-react bundle
+// never blows up the heap. The .gz suffix on the SPIFFS path triggers the
+// framework's automatic Content-Encoding: gzip header, so we don't set it
+// manually here.
 void serveSpaAsset(const SpaAsset &asset) {
-    const size_t len = static_cast<size_t>(asset.end - asset.start);
-    if (asset.gzipped) {
-        s_server.sendHeader("Content-Encoding", "gzip");
+    File file = SPIFFS.open(asset.spiffsPath, "r");
+    if (!file || file.isDirectory()) {
+        LOG_WARN("WiFi", "SPA asset missing on SPIFFS: %s", asset.spiffsPath);
+        s_server.send(404, "text/plain", "SPA asset not provisioned (run uploadfs)");
+        if (file) {
+            file.close();
+        }
+        return;
     }
     s_server.sendHeader("Cache-Control", "no-store");
-    s_server.send_P(200, asset.contentType, reinterpret_cast<const char *>(asset.start), len);
+    s_server.streamFile(file, asset.contentType);
+    file.close();
 }
 
 // Single table — every URL the SPA can request. Index 0 is the SPA shell
 // (served at both `/` and `/index.html`); the rest are referenced by the
 // HTML / CSS the browser parses after that. New chunks → new row here AND
-// a matching EMBED_BLOB() at the top of this file AND a matching entry in
-// scripts/sync_studio_web.py + platformio.ini.
+// a matching entry in scripts/sync_studio_web.py. SPIFFS-resident; see
+// `pio run -t uploadfs` in the README first-flash section.
 const SpaAsset kSpaAssets[] = {
-    {"/index.html", data_web_index_html_gz_start, data_web_index_html_gz_end, "text/html", true},
-    {"/assets/index.js", data_web_assets_index_js_gz_start, data_web_assets_index_js_gz_end,
-     "application/javascript", true},
-    {"/assets/index.css", data_web_assets_index_css_gz_start, data_web_assets_index_css_gz_end,
-     "text/css", true},
-    {"/assets/vendor-react.js", data_web_assets_vendor_react_js_gz_start,
-     data_web_assets_vendor_react_js_gz_end, "application/javascript", true},
-    {"/assets/vendor-radix.js", data_web_assets_vendor_radix_js_gz_start,
-     data_web_assets_vendor_radix_js_gz_end, "application/javascript", true},
-    {"/assets/vendor-state.js", data_web_assets_vendor_state_js_gz_start,
-     data_web_assets_vendor_state_js_gz_end, "application/javascript", true},
-    {"/assets/EditorRoute.js", data_web_assets_EditorRoute_js_gz_start,
-     data_web_assets_EditorRoute_js_gz_end, "application/javascript", true},
-    {"/assets/Orbitron-Black.woff2", data_web_assets_Orbitron_Black_woff2_start,
-     data_web_assets_Orbitron_Black_woff2_end, "font/woff2", false},
-    {"/assets/Orbitron-Bold.woff2", data_web_assets_Orbitron_Bold_woff2_start,
-     data_web_assets_Orbitron_Bold_woff2_end, "font/woff2", false},
-    {"/assets/Orbitron-Medium.woff2", data_web_assets_Orbitron_Medium_woff2_start,
-     data_web_assets_Orbitron_Medium_woff2_end, "font/woff2", false},
+    {"/index.html", "/web/index.html.gz", "text/html"},
+    {"/assets/index.js", "/web/assets/index.js.gz", "application/javascript"},
+    {"/assets/index.css", "/web/assets/index.css.gz", "text/css"},
+    {"/assets/vendor-react.js", "/web/assets/vendor-react.js.gz", "application/javascript"},
+    {"/assets/vendor-radix.js", "/web/assets/vendor-radix.js.gz", "application/javascript"},
+    {"/assets/vendor-state.js", "/web/assets/vendor-state.js.gz", "application/javascript"},
+    {"/assets/EditorRoute.js", "/web/assets/EditorRoute.js.gz", "application/javascript"},
+    {"/assets/Orbitron-Black.woff2", "/web/assets/Orbitron-Black.woff2", "font/woff2"},
+    {"/assets/Orbitron-Bold.woff2", "/web/assets/Orbitron-Bold.woff2", "font/woff2"},
+    {"/assets/Orbitron-Medium.woff2", "/web/assets/Orbitron-Medium.woff2", "font/woff2"},
 };
 constexpr size_t kSpaAssetCount = sizeof(kSpaAssets) / sizeof(kSpaAssets[0]);
 
 void registerSpaRoutes() {
-    // Root path → shell HTML (same blob as /index.html). Kept as a separate
-    // registration so the WebServer's exact-match dispatcher returns the SPA
-    // when the user types `http://canshift.local/` with no path.
+    // Root path → shell HTML (same SPIFFS path as /index.html). Kept as a
+    // separate registration so the WebServer's exact-match dispatcher returns
+    // the SPA when the user types `http://canshift.local/` with no path.
     s_server.on("/", HTTP_GET, []() { serveSpaAsset(kSpaAssets[0]); });
     for (size_t i = 0; i < kSpaAssetCount; ++i) {
         const SpaAsset &asset = kSpaAssets[i];
-        s_server.on(asset.path, HTTP_GET, [&asset]() { serveSpaAsset(asset); });
+        s_server.on(asset.urlPath, HTTP_GET, [&asset]() { serveSpaAsset(asset); });
     }
 }
 
