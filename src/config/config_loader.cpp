@@ -679,7 +679,7 @@ void parseButtonActionsArray(JsonArrayConst actionsArr, const char *widgetId,
     for (JsonObjectConst a : actionsArr) {
         if (out->actionsCount >= CFG_MAX_BUTTON_ACTIONS)
             break;
-        CfgButtonAction parsed;
+        CfgButtonAction parsed{}; // value-init — parser zero-fills before switching on JSON
         parseButtonAction(a, &parsed);
         if (parsed.type == CfgButtonActionType::UNKNOWN) {
             LOG_WARN("BTN", "button '%s': unknown action type '%s' — skipped", widgetId,
@@ -1239,7 +1239,7 @@ bool loadInputBindings() {
 // ---------------------------------------------------------------------------
 
 ConfigLoader::LoadResult ConfigLoader::loadAll() {
-    LoadResult r;
+    LoadResult r{}; // value-init — every member is assigned below
     r.dashboardOk = loadDashboard();
     r.signalsOk = loadSignals();
     r.deviceOk = loadDevice();

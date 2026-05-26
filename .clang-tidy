@@ -1,23 +1,48 @@
-# .clang-tidy — Semantic static-analysis checks for the firmware (#936 Phase 0).
+# .clang-tidy — Semantic static-analysis checks for the firmware
+# (#936 Phase 0 + Phase 1).
 #
-# Narrow, sustainable ruleset. The four enabled families are the highest-
-# signal / lowest-noise checks for embedded C++17 against the bug classes
-# this codebase has historically taken (UB shifts #682, races #876, leaks
-# / use-after-free #886, missing length validation #897):
+# Narrow, sustainable ruleset. The enabled families are the highest-signal /
+# lowest-noise checks for embedded C++17 against the bug classes this codebase
+# has historically taken (UB shifts #682, races #876, leaks / use-after-free
+# #886, missing length validation #897):
 #
-#   bugprone-*                 Anti-patterns prone to bugs (UB, narrowing,
-#                              swapped args, missing assert, …).
-#   cert-*                     CERT secure-coding rules (CWE-aligned).
-#   clang-analyzer-core.*      Path-sensitive: null deref, uninit reads,
-#                              divide-by-zero, dead store with side effects.
-#   clang-analyzer-cplusplus.* Path-sensitive C++ specifics: new/delete
-#                              mismatch, self-assign, move-after-use.
-#   concurrency-*              Threading/atomics — multi-task firmware
-#                              (UI / CAN / USB / BLE / WiFi) is exactly
-#                              where these checks pay off.
+#   bugprone-*                                 Anti-patterns prone to bugs.
+#   cert-*                                     CERT secure-coding rules.
+#   clang-analyzer-core.*                      Null deref, uninit reads, …
+#   clang-analyzer-cplusplus.*                 new/delete, self-assign, move.
+#   concurrency-*                              Multi-task threading checks.
 #
-# Selectively disabled because they fire too noisily on Arduino-style code
-# or duplicate signal already covered by -Wall / -Wextra:
+# Phase 1 additions (#936 Phase 1) — small, high-quality bumps:
+#   performance-*                              Unnecessary copies, emplace, …
+#                                              (no violations across the
+#                                              native subset).
+#   cppcoreguidelines-pro-type-cstyle-cast     Ban C-style casts (already 0).
+#   cppcoreguidelines-pro-type-static-cast-downcast
+#                                              Ban unchecked downcasts (0).
+#   cppcoreguidelines-pro-type-member-init     Catch local POD structs whose
+#                                              members forget to init —
+#                                              already caught two latent UB
+#                                              risks in config_loader.cpp.
+#   cppcoreguidelines-pro-type-reinterpret-cast
+#                                              Force a deliberate NOLINT at
+#                                              each reinterpret_cast (one,
+#                                              for Serial.write char[] →
+#                                              uint8_t* API boundary, see
+#                                              diag/logger.cpp).
+#
+# Deliberately NOT enabled (would explode against legitimate firmware
+# patterns — hardware constants, GSL-less bounds checks, ESP-IDF macros):
+#   - cppcoreguidelines-pro-bounds-*           Pointer arithmetic & raw array
+#                                              indexing — drowns signal in
+#                                              CAN parsers / config IO.
+#   - cppcoreguidelines-avoid-magic-numbers    Hardware register addresses.
+#   - readability-identifier-length            Idiomatic short names (i, r).
+#   - modernize-macro-to-enum                  app_config.h macros are shared
+#                                              with .cpp / build flags /
+#                                              Python codegen.
+#
+# Selectively disabled inside enabled families because they fire too noisily
+# on Arduino-style code or duplicate signal already covered by -Wall / -Wextra:
 #   - bugprone-easily-swappable-parameters    Half the LVGL API.
 #   - bugprone-narrowing-conversions          int → uint8_t everywhere LVGL touches.
 #   - bugprone-implicit-widening-of-multiplication-result  Same as above.
@@ -41,6 +66,11 @@ Checks: >
   clang-analyzer-core.*,
   clang-analyzer-cplusplus.*,
   concurrency-*,
+  performance-*,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-pro-type-reinterpret-cast,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
   -bugprone-narrowing-conversions,

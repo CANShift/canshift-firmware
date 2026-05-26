@@ -209,6 +209,9 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     if (n > 0) {
         const size_t toWrite =
             (static_cast<size_t>(n) >= sizeof(line)) ? sizeof(line) - 1 : static_cast<size_t>(n);
+        // Arduino's Serial.write only takes uint8_t*; reinterpret is the
+        // documented way to feed it a printable char[] without copying.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         Serial.write(reinterpret_cast<const uint8_t *>(line), toWrite);
     }
 
