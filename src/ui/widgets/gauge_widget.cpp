@@ -275,6 +275,13 @@ static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
 // Pick the integer-tier font size by container height, mirroring the
 // original three-tier ladder (20 / 24 / 32). The fractional label picks
 // a smaller font derived from this size.
+//
+// TODO(#18): the 80 / 110 px thresholds and the 20/24/32 Orbitron sizes are
+// hard-coded against the v1 design canvas (320×240). When a second screen
+// profile lands the thresholds must be scaled with `ScreenProfile::scaleYVal`
+// AND the font sizes themselves need to scale (either via additional baked
+// Orbitron tiers or by swapping the font family entirely). v1 keeps the
+// scale at 1.0 so no behaviour change today.
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
     const lv_font_t *font = FontManager::secondary(20);
     intFontSizeOut = 20;

@@ -38,6 +38,10 @@ struct GearTag {
 
 // Same proportional formula as label_widget so a gear and a numeric widget
 // at the same size render at identical font sizes.
+//
+// TODO(#18): 12..48 px clamp matches label_widget — see the matching comment
+// there. When a larger physical panel ships, the upper bound must grow with
+// the vertical scale factor and FontManager will need wider Orbitron tiers.
 const lv_font_t *selectFont(int16_t h, int16_t w) {
     const int byHeight = (h * 85) / 100;
     const int byWidth = (w * 72) / 100;

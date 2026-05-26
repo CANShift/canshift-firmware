@@ -31,6 +31,12 @@ namespace {
 // Scale the value font to the available band, capped to 52 % of widget width
 // so a wide number ("12345") never overflows. Snapped by FontManager to a
 // cached size in the appropriate Orbitron tier.
+//
+// TODO(#18): the 12..48 px clamp is calibrated against the v1 320×240 canvas
+// — when a larger physical panel ships, the lower bound stays at 12 (Orbitron
+// readability floor) but the upper bound should grow proportionally to the
+// vertical scale factor. FontManager will also need to bake a wider tier of
+// sizes (or swap families) once the upper bound exceeds 48 px.
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
     const int byWidth = (widgetW * 52) / 100;

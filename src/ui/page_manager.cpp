@@ -8,6 +8,7 @@
 #include "error_bar.h"
 #include "gesture_controller.h"
 #include "icon_assets.h"
+#include "screen_profile.h"
 #include "setup_screen.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
@@ -623,6 +624,10 @@ void PageManager::updateWidgets() {
         s_reloadRequested = false;
         s_rebuildRequested = false;
         if (ConfigLoader::reloadAll()) {
+            // Refresh design→physical scale factors before widgets reread
+            // their layout — a hot reload may have changed targetProfile
+            // (issues #17, #18).
+            ScreenProfile::initFromDashboard();
             rebuildAllPages();
             BurnOverlay::hide();
         } else {

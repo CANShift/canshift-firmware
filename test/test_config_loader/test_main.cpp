@@ -199,6 +199,29 @@ void test_reloadAll_invalidSignals_preservesSignalState() {
     TEST_ASSERT_EQUAL_UINT32(0x370u, after.signals[0].canFrameId);
 }
 
+// Issues #17 / #18 / #1128 — targetProfile parsing. When the field is absent
+// (every pre-#1128 dashboard, including kDashboardMinimal) the loader must
+// surface the canshift-core default `crowpanel-28` so downstream scale
+// computation reads a stable non-empty id.
+void test_loadDashboard_targetProfile_defaultsToCrowpanel28WhenAbsent() {
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    TEST_ASSERT_EQUAL_STRING("crowpanel-28", ConfigLoader::getDashboardConfig().targetProfile);
+}
+
+// When the field is present, the literal id must round-trip onto the struct
+// untouched so a future second profile (e.g. `crowpanel-50`) routes through
+// the same code path without further parser changes.
+void test_loadDashboard_targetProfile_roundTripsExplicitValue() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithProfile,
+                             strlen(fixtures::kDashboardWithProfile));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    TEST_ASSERT_EQUAL_STRING("crowpanel-28", ConfigLoader::getDashboardConfig().targetProfile);
+}
+
 void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithTemplates,
@@ -227,6 +250,8 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_reloadAll_invalidJson_preservesPriorState);
     RUN_TEST(test_reloadAll_validJson_replacesPriorState);
     RUN_TEST(test_reloadAll_invalidSignals_preservesSignalState);
+    RUN_TEST(test_loadDashboard_targetProfile_defaultsToCrowpanel28WhenAbsent);
+    RUN_TEST(test_loadDashboard_targetProfile_roundTripsExplicitValue);
     RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
     return UNITY_END();
 }

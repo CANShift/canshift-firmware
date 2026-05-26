@@ -79,6 +79,20 @@ constexpr const char *kDashboardCorrupt = R"({
     {"id": "main"
 )";
 
+// Dashboard carrying an explicit `targetProfile` field (issues #17 / #18 /
+// #1128 / #548). Parser must surface the literal id on CfgDashboard.
+constexpr const char *kDashboardWithProfile = R"({
+  "version": "1.0.0",
+  "name": "Profile Test",
+  "defaultPageId": "main",
+  "revLimitRpm": 7000,
+  "targetProfile": "crowpanel-28",
+  "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
+  "pages": [
+    {"id": "main", "backgroundColor": "#111111", "showTopBar": true, "widgets": []}
+  ]
+})";
+
 // Two pages exercising the page template field (issue #451) — the first omits
 // `template` (must default to CUSTOM, back-compat), the second carries
 // `cruise_control` (must round-trip to CfgPageTemplate::CRUISE_CONTROL).

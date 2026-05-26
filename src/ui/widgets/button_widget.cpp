@@ -7,6 +7,7 @@
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/screen_profile.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
@@ -21,6 +22,10 @@ namespace {
 // Maximum LVGL FS path length including the "S:" SPIFFS drive prefix.
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
+// TODO(#18): tier thresholds (20/28/40/56 px) and font sizes (12..24) are
+// hard-coded against the v1 320×240 canvas. When a second screen profile
+// lands, thresholds must scale with `ScreenProfile::scaleYVal` and the font
+// ladder needs proportionally larger Orbitron tiers baked into FontManager.
 const lv_font_t *selectButtonFont(int16_t h) {
     if (h >= 56)
         return FontManager::secondary(24);
@@ -170,8 +175,13 @@ void btnClickHandler(lv_event_t *e) {
 
 lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_pos(btn, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(btn, cfg.layout.w, cfg.layout.h);
+    // Design-space → physical coordinate scaling (issues #17, #18). Identity
+    // on the only v1 profile (`crowpanel-28`), so output is byte-identical.
+    const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
+    const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
+    lv_obj_set_pos(btn, px, py);
+    lv_obj_set_size(btn, ScreenProfile::scaleXVal(cfg.layout.w),
+                    ScreenProfile::scaleYVal(cfg.layout.h));
 
     const CfgButtonParams &p = cfg.button;
 

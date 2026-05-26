@@ -30,6 +30,11 @@
 #define CFG_MAX_ID_LEN 32
 #define CFG_MAX_NAME_LEN 32
 #define CFG_MAX_SIGNAL_LEN 32
+// Target screen profile id length. Profile ids today (`crowpanel-28`) fit in
+// 12 chars; 24 leaves headroom for `crowpanel-50` / similar additions when
+// the second board lands (issues #17, #18). Single source of truth in
+// canshift-core/src/schemas/screen-profile.ts (ScreenProfileIdSchema).
+#define CFG_MAX_PROFILE_ID_LEN 24
 // Asset / config file paths. 48 was tight — `/assets/sensor_oil_pressure.bin`
 // already takes 30 chars and any moderately-named user icon (e.g.
 // `/assets/longish-icon-name.bin`, 35 chars) would graze the cap. 64 gives
@@ -349,6 +354,12 @@ struct CfgDashboard {
     char name[CFG_MAX_NAME_LEN];
     char defaultPageId[CFG_MAX_ID_LEN];
     float revLimitRpm; // For alert engine
+    // Screen profile the dashboard was authored against (issues #17, #18).
+    // Drives the design→physical coordinate scaling computed at boot in
+    // `ui/screen_profile.cpp`. Empty / missing in JSON means "fall back to
+    // DEFAULT_SCREEN_PROFILE_ID" — mirrors resolveScreenProfile() in
+    // canshift-core/src/schemas/screen-profile.ts.
+    char targetProfile[CFG_MAX_PROFILE_ID_LEN];
     CfgTopBar topBar;
     // Optional day theme — when present the top bar shows a ☀/N toggle.
     // The active mode is persisted in NVS so it survives power cycles.

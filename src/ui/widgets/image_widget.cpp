@@ -7,6 +7,7 @@
 // This is prefixed with "S:" to form the LVGL FS path "S:/images/bg.bmp".
 
 #include "image_widget.h"
+#include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -42,8 +43,12 @@ struct ImageTag {
 
 lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
+    // Design-space → physical scaling (issues #17, #18). Identity on v1.
+    const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
+    const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
+    lv_obj_set_pos(cont, px, py);
+    lv_obj_set_size(cont, ScreenProfile::scaleXVal(cfg.layout.w),
+                    ScreenProfile::scaleYVal(cfg.layout.h));
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     WidgetStyles::applyContainerBaseNoBorder(cont);
 

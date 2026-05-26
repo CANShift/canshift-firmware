@@ -22,6 +22,7 @@
 #include "runtime/timer_service.h"
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
+#include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
 #include "ui/font_manager.h"
 #include "ui/top_bar.h"
@@ -547,6 +548,11 @@ void BootSequence::run() {
     const bool storageOk = mountStorageOrLogError();
     provisionDefaultConfigsIfNeeded(storageOk);
     loadConfigWithHeapBracket();
+    // Compute design→physical scale factors from the just-parsed dashboard's
+    // targetProfile (issues #17, #18). Must run after loadConfig and before
+    // buildUI so widget builders read non-default factors when a future
+    // non-crowpanel-28 profile lands. v1 → identity (scale=1.0).
+    ScreenProfile::initFromDashboard();
 
     initDisplayAndLVGL();
     initTouchHardware();

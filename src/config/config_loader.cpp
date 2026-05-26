@@ -823,6 +823,13 @@ bool loadDashboard() {
     strlcpy(s_dashboard.defaultPageId, doc["defaultPageId"] | "",
             sizeof(s_dashboard.defaultPageId));
     s_dashboard.revLimitRpm = doc["revLimitRpm"] | 7200.0f;
+    // Target screen profile (issues #17, #18). Optional in JSON — pre-#1128
+    // dashboards omit it; resolveScreenProfile() in canshift-core treats
+    // missing as DEFAULT_SCREEN_PROFILE_ID. Mirror that here so the
+    // downstream scale computation (ui/screen_profile.cpp) reads a stable
+    // non-empty id and never has to special-case the empty string.
+    strlcpy(s_dashboard.targetProfile, doc["targetProfile"] | "crowpanel-28",
+            sizeof(s_dashboard.targetProfile));
 
     JsonObjectConst topBar = doc["topBar"];
     s_dashboard.topBar.height = topBar["height"] | 30;

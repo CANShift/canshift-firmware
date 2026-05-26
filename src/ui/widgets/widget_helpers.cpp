@@ -7,6 +7,7 @@
 #include "widget_helpers.h"
 
 #include "config/config_loader.h"
+#include "ui/screen_profile.h"
 #include "util/format_float.h"
 
 #include <ctype.h>
@@ -109,8 +110,16 @@ void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool h
                    uint32_t borderRgb) {
     if (!cont)
         return;
-    lv_obj_set_pos(cont, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(cont, cfg.layout.w, cfg.layout.h);
+    // Treat layout.x/y/w/h as design-space coords (issues #17, #18). On v1 the
+    // active screen profile is `crowpanel-28` whose design dims equal the
+    // physical panel, so the scale helpers are identity and output matches
+    // pre-scaffold firmware byte-for-byte. yOffset is the top-bar reservation
+    // already in physical pixels — scale only the design-space y coord.
+    const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
+    const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
+    lv_obj_set_pos(cont, px, py);
+    lv_obj_set_size(cont, ScreenProfile::scaleXVal(cfg.layout.w),
+                    ScreenProfile::scaleYVal(cfg.layout.h));
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     WidgetStyles::applyContainerBase(cont, hasBorder, borderRgb);
 }

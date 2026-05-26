@@ -165,6 +165,10 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
+    // TODO(#18): font tier thresholds (80, 110 px) and the 20/24/32 Orbitron
+    // sizes are hard-coded against the v1 320×240 design canvas. When a
+    // second screen profile lands, thresholds need ScreenProfile::scaleYVal
+    // and the font sizes themselves must scale. Identity scale today.
     const lv_font_t *font = FontManager::secondary(20);
     if (cfg.layout.h >= 80)
         font = FontManager::secondary(24);

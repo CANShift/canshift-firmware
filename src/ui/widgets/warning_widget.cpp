@@ -6,6 +6,7 @@
 #include "warning_widget.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widgets/widget_helpers.h"
@@ -62,8 +63,12 @@ void stopBlink(WarningTag *tag) {
 
 lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *root = lv_obj_create(parent);
-    lv_obj_set_pos(root, cfg.layout.x, cfg.layout.y + yOffset);
-    lv_obj_set_size(root, cfg.layout.w, cfg.layout.h);
+    // Design-space → physical scaling (issues #17, #18). Identity on v1.
+    const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
+    const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
+    lv_obj_set_pos(root, px, py);
+    lv_obj_set_size(root, ScreenProfile::scaleXVal(cfg.layout.w),
+                    ScreenProfile::scaleYVal(cfg.layout.h));
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(root, lv_color_hex(cfg.style.criticalColor.rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(root, 0x18, LV_PART_MAIN);
@@ -91,6 +96,9 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     // Signal label below the icon — replaced by the user-configured corner
     // label (handled by WidgetLabelOverlay below) when one is set, and dropped
     // entirely on very small layouts where there is no room for it.
+    // TODO(#18): 28 / 56 px thresholds + 12/14 px font sizes are calibrated
+    // against the v1 320×240 canvas — scale with `ScreenProfile::scaleYVal`
+    // and pick proportional FontManager::label sizes on larger panels.
     lv_obj_t *signalLabel = nullptr;
     if (cfg.warning.label[0] == '\0' && cfg.layout.h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
