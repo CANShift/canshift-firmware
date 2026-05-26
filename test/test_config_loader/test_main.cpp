@@ -80,8 +80,7 @@ void test_reload_picks_up_new_dashboard() {
     stageMinimalFiles();
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
     TEST_ASSERT_EQUAL_UINT8(1, ConfigLoader::getDashboardConfig().pageCount);
-    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard",
-                             ConfigLoader::getDashboardConfig().name);
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
 
     // Fixture B — two pages, distinct name. Replace the on-disk file and call
     // reloadAll(); observable struct change confirms reload picked up B.
@@ -152,8 +151,7 @@ void test_reloadAll_invalidJson_preservesPriorState() {
 void test_reloadAll_validJson_replacesPriorState() {
     stageMinimalFiles();
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard",
-                             ConfigLoader::getDashboardConfig().name);
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
 
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimalReload,
@@ -201,6 +199,25 @@ void test_reloadAll_invalidSignals_preservesSignalState() {
     TEST_ASSERT_EQUAL_UINT32(0x370u, after.signals[0].canFrameId);
 }
 
+void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithTemplates,
+                             strlen(fixtures::kDashboardWithTemplates));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_EQUAL_UINT8(2, dashboard.pageCount);
+    // First page omits `template` → defaults to CUSTOM for back-compat (#451).
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CfgPageTemplate::CUSTOM),
+                            static_cast<uint8_t>(dashboard.pages[0].templateKind));
+    // Second page carries the cruise_control template literal.
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CfgPageTemplate::CRUISE_CONTROL),
+                            static_cast<uint8_t>(dashboard.pages[1].templateKind));
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_loadDashboard_minimalValidJson_populatesStruct);
@@ -210,5 +227,6 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_reloadAll_invalidJson_preservesPriorState);
     RUN_TEST(test_reloadAll_validJson_replacesPriorState);
     RUN_TEST(test_reloadAll_invalidSignals_preservesSignalState);
+    RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
     return UNITY_END();
 }

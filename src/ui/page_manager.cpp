@@ -55,6 +55,122 @@ static uint8_t s_pendingFreeIdx = 0xFF;
 static uint8_t s_pendingLazyBuildIdx = 0xFF;
 static uint32_t s_pendingLazyBuildMs = 120;
 
+// ---------------------------------------------------------------------------
+// Cruise control template (issue #451) — procedural 2×2 button grid.
+//
+// Drawn instead of `cfg.widgets[]` whenever `page.templateKind ==
+// CRUISE_CONTROL`. Each button is synthesised as a temporary CfgWidget and
+// pushed through WidgetFactory::create so all of the existing button styling,
+// theming, click-dispatch, and pool-lifecycle code keeps working unchanged —
+// this template only chooses WHERE the buttons sit and WHICH cruise op they
+// dispatch.
+//
+// Layout (firmware pixels, native 320×240 panel):
+//   - 8 px outer padding so the buttons don't kiss the screen edge
+//   - 12 px horizontal gap, 10 px vertical gap between cells
+//   - Each cell is 140×85 fw-px → well above the 48×48 thumb-tap minimum
+//     established by #117 for the day/night toggle on the top bar
+//
+// The studio mirrors this exact layout in CruiseControlPreview.tsx — keep
+// the two in lock-step.
+// ---------------------------------------------------------------------------
+
+constexpr int16_t CRUISE_BUTTON_W = 140;
+constexpr int16_t CRUISE_BUTTON_H = 85;
+constexpr int16_t CRUISE_GAP_X = 12;
+constexpr int16_t CRUISE_GAP_Y = 10;
+constexpr int16_t CRUISE_OUTER_PAD = 8;
+
+struct CruiseButtonSpec {
+    const char *id;
+    const char *label;
+    CfgCruiseOp op;
+};
+
+constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
+    {"cruise_plus", "+", CfgCruiseOp::INCREMENT},
+    {"cruise_set", "SET", CfgCruiseOp::SET},
+    {"cruise_minus", "-", CfgCruiseOp::DECREMENT},
+    {"cruise_off", "OFF", CfgCruiseOp::OFF},
+};
+
+// Build a synthetic CfgWidget representing one cruise button. Returned by
+// value — small struct (~few hundred bytes), short-lived, only used to feed
+// WidgetFactory::create() which copies the relevant fields it needs.
+CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg, int16_t x,
+                           int16_t y) {
+    CfgWidget w = {};
+    strlcpy(w.id, spec.id, CFG_MAX_ID_LEN);
+    w.type = WidgetType::BUTTON;
+    w.signalId[0] = '\0';
+    w.layout.x = x;
+    w.layout.y = y;
+    w.layout.w = CRUISE_BUTTON_W;
+    w.layout.h = CRUISE_BUTTON_H;
+    w.layout.zOrder = 0;
+
+    // Reuse the page palette so the buttons follow day/night theming. The
+    // background mirrors the page so the button face stays subtle and the
+    // label reads as the primary visual.
+    w.style.primaryColor = pageCfg.bgColor;
+    w.style.textColor = CfgColor{0xFFFFFFu};
+    w.style.fontSize = 22;
+
+    CfgButtonParams &p = w.button;
+    strlcpy(p.label, spec.label, CFG_MAX_NAME_LEN);
+    p.iconPath[0] = '\0';
+    p.iconName[0] = '\0';
+    p.isToggle = false;
+    p.showIcon = false;
+    p.showLabel = true;
+    p.hasColors = false;
+    p.actionsCount = 1;
+
+    CfgButtonAction &a = p.actions[0];
+    a.type = CfgButtonActionType::CRUISE_CONTROL;
+    a.pageId[0] = '\0';
+    a.mapIndex = 0;
+    a.canFrameId = 0;
+    a.canDataLen = 0;
+    a.canDataOffLen = 0;
+    a.canExtended = false;
+    a.cruiseOp = spec.op;
+    a.cruiseStepKmh = 0; // 0 = use firmware default
+
+    return w;
+}
+
+void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
+    // Centre the 2×2 grid in the available content area (below the top bar
+    // when one is configured). Falls back to the outer-pad anchor if the
+    // screen is narrower/shorter than the grid — defensive only; the native
+    // 320×240 panel comfortably fits the layout.
+    const int16_t gridW = CRUISE_BUTTON_W * 2 + CRUISE_GAP_X;
+    const int16_t gridH = CRUISE_BUTTON_H * 2 + CRUISE_GAP_Y;
+    const int16_t contentH = LV_VER_RES - contentY;
+    int16_t startX = (LV_HOR_RES - gridW) / 2;
+    int16_t startY = contentY + (contentH - gridH) / 2;
+    if (startX < CRUISE_OUTER_PAD)
+        startX = CRUISE_OUTER_PAD;
+    if (startY < contentY + CRUISE_OUTER_PAD)
+        startY = contentY + CRUISE_OUTER_PAD;
+
+    uint8_t created = 0;
+    for (uint8_t i = 0; i < 4; ++i) {
+        const uint8_t col = i % 2;
+        const uint8_t row = i / 2;
+        const int16_t x = startX + col * (CRUISE_BUTTON_W + CRUISE_GAP_X);
+        // yOffset==0 here because we already baked the top-bar offset into the
+        // synthetic widget's layout.y. WidgetFactory::create adds yOffset on
+        // top of layout.y, so passing 0 keeps the buttons where we placed them.
+        const int16_t y = startY + row * (CRUISE_BUTTON_H + CRUISE_GAP_Y);
+        const CfgWidget w = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y);
+        if (WidgetFactory::create(screen, w, /*yOffset=*/0) != nullptr)
+            ++created;
+    }
+    LOG_INFO("UI", "Built cruise_control template on page '%s' (%u/4 buttons)", cfg.id, created);
+}
+
 void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &effectiveBg) {
     lv_obj_set_style_bg_color(screen, lv_color_hex(effectiveBg.rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
@@ -95,6 +211,24 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
     // Adjust content area for top bar
     int16_t contentY = cfg.showTopBar ? TopBar::getHeight() : 0;
+
+    // Template-rendered pages (issue #451) bypass the free-form widgets[]
+    // array entirely. The procedural builder synthesises CfgWidgets in place
+    // and routes them through WidgetFactory::create so theming, click
+    // dispatch, and pool lifecycle stay shared with the custom path.
+    if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
+        buildCruiseControlTemplate(p.screen, cfg, contentY);
+        p.built = true;
+        if (cfg.widgetCount > 0) {
+            LOG_INFO("UI", "Page '%s': cruise_control template — ignoring %u user widget(s)",
+                     cfg.id, static_cast<unsigned>(cfg.widgetCount));
+        }
+        LOG_INFO("UI", "buildPage(%s) exit:  heap.largest=%u heap.free=%u stack.hwm=%u", cfg.id,
+                 static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
+                 static_cast<unsigned>(ESP.getFreeHeap()),
+                 static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+        return;
+    }
 
     // Create all widgets for this page. Count successes so we surface a
     // visible warning if any silently failed — this is the diagnostic hook

@@ -79,4 +79,20 @@ constexpr const char *kDashboardCorrupt = R"({
     {"id": "main"
 )";
 
+// Two pages exercising the page template field (issue #451) — the first omits
+// `template` (must default to CUSTOM, back-compat), the second carries
+// `cruise_control` (must round-trip to CfgPageTemplate::CRUISE_CONTROL).
+constexpr const char *kDashboardWithTemplates = R"({
+  "version": "1.0.0",
+  "name": "Template Test",
+  "defaultPageId": "p1",
+  "revLimitRpm": 7000,
+  "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
+  "pages": [
+    {"id": "p1", "backgroundColor": "#111111", "showTopBar": true, "widgets": []},
+    {"id": "p2", "backgroundColor": "#222222", "showTopBar": true,
+     "template": "cruise_control", "widgets": []}
+  ]
+})";
+
 } // namespace fixtures

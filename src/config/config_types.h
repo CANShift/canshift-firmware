@@ -267,6 +267,16 @@ struct CfgWidget {
 };
 
 // ---------------------------------------------------------------------------
+// Page rendering template — mirrors PageTemplate in canshift-core (issue #451).
+// `CUSTOM` is the legacy free-form widget grid; other values cause PageManager
+// to draw a procedural layout and ignore the `widgets[]` array.
+// ---------------------------------------------------------------------------
+enum class CfgPageTemplate : uint8_t {
+    CUSTOM = 0,     // Default — render widgets[] as-is
+    CRUISE_CONTROL, // 2×2 grid of (+, −, SET, OFF) buttons (issue #451)
+};
+
+// ---------------------------------------------------------------------------
 // Page definition
 // ---------------------------------------------------------------------------
 struct CfgPage {
@@ -275,6 +285,10 @@ struct CfgPage {
     CfgColor bgColor;
     bool showTopBar;
     bool visible; // false = page hidden on device (still editable in studio); default true
+    // Page rendering template (issue #451). Defaults to CUSTOM for back-compat
+    // — every dashboard config written before #451 lacks the JSON field and
+    // must continue to render its widgets[] grid unchanged.
+    CfgPageTemplate templateKind;
     uint8_t widgetCount;
     CfgWidget widgets[CONFIG_MAX_WIDGETS_PER_PAGE];
 };

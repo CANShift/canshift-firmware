@@ -909,6 +909,18 @@ bool loadDashboard() {
 
         p.showTopBar = page["showTopBar"] | true;
         p.visible = page["visible"] | true;
+        // Page template (issue #451). Absent / "custom" / unknown → CUSTOM, so
+        // every pre-#451 config keeps rendering its widgets[] grid unchanged.
+        const char *templateStr = page["template"] | "custom";
+        if (strcmp(templateStr, "cruise_control") == 0) {
+            p.templateKind = CfgPageTemplate::CRUISE_CONTROL;
+        } else {
+            if (strcmp(templateStr, "custom") != 0) {
+                LOG_WARN("CFG", "page '%s': unknown template='%s' — falling back to 'custom'", p.id,
+                         templateStr);
+            }
+            p.templateKind = CfgPageTemplate::CUSTOM;
+        }
         p.widgetCount = 0;
 
         JsonArrayConst widgets = page["widgets"];
