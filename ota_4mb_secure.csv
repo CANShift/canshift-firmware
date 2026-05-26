@@ -1,27 +1,39 @@
 # Partition table — 4MB flash with dual OTA + SPIFFS (SECURE variant)
-# Sibling to ota_4mb.csv. Used only by [env:secure] (secure boot v2 +
+# Sibling to ota_4mb_wifi.csv. Used only by [env:secure] (secure boot v2 +
 # flash encryption). See docs/secure-boot-setup.md.
 #
-# Differences vs ota_4mb.csv:
-#   - 4 KB nvs_keys partition added (encrypted-NVS key storage)
-#   - encrypted flag set on nvs, otadata, app0, app1, spiffs
-#   - bootloader + partition table remain plaintext (signed, not encrypted)
+# Layout follows ota_4mb_wifi.csv (post-#1117) so a fielded dash running an
+# unsigned _wifi image and a future dash running this signed image share the
+# same on-flash partition geometry. That makes the migration to secure boot
+# a one-shot USB reflash on the production-flash workstation without first
+# rebuilding the partition table (the live bootloader still sees the same
+# offsets). It also keeps a single SPIFFS offset (0x370000) across every
+# build target — the scripts that flash SPIFFS images (Studio, canshift-
+# flasher, scripts/secure_boot_first_flash.sh, the QEMU boot-smoke harness)
+# all use the one constant.
 #
-# Layout (sizes unchanged from ota_4mb.csv except for the 4 KB nvs_keys
-# carved out of nvs):
-#   nvs        16 KB   — encrypted Preferences storage
-#   nvs_keys    4 KB   — encrypted-NVS key (encrypted under flash key)
-#   otadata     8 KB   — encrypted OTA slot tracking
-#   app0     1536 KB   — encrypted firmware slot 0 (ota_0)
-#   app1     1536 KB   — encrypted firmware slot 1 (ota_1)
-#   spiffs    832 KB   — encrypted config files, assets
-#   coredump  128 KB   — plaintext crash dumps (analysis on host)
+# Differences vs ota_4mb_wifi.csv:
+#   - nvs shrunk 20 KB → 16 KB to make room for the 4 KB nvs_keys partition
+#   - nvs_keys (4 KB) added at 0xd000 — holds the encrypted-NVS key
+#     (encrypted under the chip's flash encryption key)
+#   - `encrypted` flag set on nvs, nvs_keys, otadata, app0, app1, spiffs
+#   - bootloader + partition table remain plaintext (signed, not encrypted —
+#     Espressif's ROM reads them in the clear)
+#
+# Sizing identity vs _wifi.csv:
+#   nvs:        0x5000 → 0x4000 (16 KB, -4 KB)
+#   nvs_keys:   new    → 0x1000 (4 KB)
+#   otadata:    0x2000 (unchanged)
+#   app0/app1:  0x1B0000 each (unchanged — 1728 KB)
+#   spiffs:     0x80000 @ 0x370000 (unchanged — 512 KB)
+#   coredump:   0x10000 @ 0x3F0000 (unchanged — 64 KB)
+#   Total:      4 MB exactly
 #
 # Name,    Type, SubType,  Offset,   Size,     Flags
 nvs,       data, nvs,      0x9000,   0x4000,   encrypted
 nvs_keys,  data, nvs_keys, 0xd000,   0x1000,   encrypted
 otadata,   data, ota,      0xe000,   0x2000,   encrypted
-app0,      app,  ota_0,    0x10000,  0x180000, encrypted
-app1,      app,  ota_1,    0x190000, 0x180000, encrypted
-spiffs,    data, spiffs,   0x310000, 0xD0000,  encrypted
-coredump,  data, coredump, 0x3E0000, 0x20000,
+app0,      app,  ota_0,    0x10000,  0x1B0000, encrypted
+app1,      app,  ota_1,    0x1c0000, 0x1B0000, encrypted
+spiffs,    data, spiffs,   0x370000, 0x80000,  encrypted
+coredump,  data, coredump, 0x3f0000, 0x10000,

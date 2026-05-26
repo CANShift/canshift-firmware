@@ -215,9 +215,10 @@ runtime, and the table is identical across `crowpanel_28` /
   build.
 - `canshift-flasher/src/constants.ts` (`SPIFFS_FLASH_OFFSET = 0x310000`) —
   same update; this is what end-users will run from `canshift.tmbk.ch`.
-- `scripts/secure_boot_first_flash.sh` (`0x310000` argument) — secure-boot
-  variant; `ota_4mb_secure.csv` is intentionally unchanged in #1117 so the
-  secure-boot flow keeps booting until its own repartition PR lands.
+- `scripts/secure_boot_first_flash.sh` — bumped to `0x370000` in #531 once
+  `ota_4mb_secure.csv` was re-aligned to the post-#1117 `_wifi` layout.
+  Single SPIFFS offset across every flasher (Studio, canshift-flasher,
+  this script, the QEMU smoke harness).
 - `.github/workflows/firmware-boot-smoke.yml` (`0x310000` argument to
   `esptool merge_bin`) — QEMU smoke harness will still boot (SPIFFS-mount
   failure is non-fatal pre-`[BOOT] Ready`) but the SPIFFS-resident default
@@ -755,6 +756,115 @@ unsigned or corrupted binary.
 
 Rotating the secret is therefore a release-line break: pre-rotation
 devices reject the new binaries until they're flashed via USB.
+
+---
+
+## Secure boot v2 + flash encryption (#531)
+
+> [!CAUTION]
+> **No fielded device runs secure boot yet.** This section documents the
+> rollout state — what's ready, what's not, and the irreversible operations
+> that gate the next step. **Burning eFuses is one-way per chip — a wrong
+> step bricks the module.** Read [`docs/secure-boot-setup.md`](../docs/secure-boot-setup.md)
+> end to end before invoking any `scripts/secure_boot_*` or `scripts/generate_keys.sh`.
+
+### Rollout state
+
+| Layer | Status | Notes |
+|---|---|---|
+| `[env:secure]` PlatformIO env | Ready | RSA-3072 signing + AES-XTS-256 flash encryption, anti-rollback floor at SEC_VER=2 (#531) |
+| Partition table (`ota_4mb_secure.csv`) | Ready | Aligned to `ota_4mb_wifi.csv` in #531 — same app/SPIFFS geometry, `encrypted` flag on data partitions, 4 KB `nvs_keys` for encrypted-NVS |
+| `sdkconfig.defaults.secure` | Ready | Anti-rollback wired with `SEC_VER=2` floor, release-mode flash encryption, UART download backdoors closed |
+| Host scripts | Ready | `generate_keys.sh` (project-wide signing key, one-shot), `secure_boot_first_flash.sh` (per-chip irreversible provisioning) |
+| CI build | Gated | `firmware-secure-build` (non-blocking) compiles `[env:secure]` when `SECURE_BOOT_SIGNING_KEY_TEST` repository secret is present; otherwise skipped with a notice. Promote to blocking once the secret is provisioned and a few clean runs are observed |
+| Signing key | **Not yet generated** | One-time per-project. Run `scripts/generate_keys.sh --i-understand-this-is-irreversible` on a controlled workstation and place the result under offline custody (HSM / YubiKey / encrypted offline backup) |
+| Test signing key (CI) | **Not yet generated** | SEPARATE key from production, provisioned as `SECURE_BOOT_SIGNING_KEY_TEST` repo secret. Production key never enters CI |
+| First-flash on a real chip | **Not yet performed** | Gated on sacrificial-board QA per the issue's acceptance criteria |
+| Flasher compat (`canshift.tmbk.ch`) | **Not yet** | Today's `canshift-flasher` writes raw bytes via `esptool` — it has no `--encrypt` path and no signed-bootloader awareness. See "Flashing signed builds" below |
+
+The `[env:secure]` env compiles on a developer workstation as soon as the
+project-wide signing key exists at
+`canshift-firmware/secrets/secure_boot_signing_key.pem`:
+
+```bash
+cd canshift-firmware
+./scripts/generate_keys.sh --i-understand-this-is-irreversible   # one-shot
+pio run -e secure
+```
+
+The build alone does **not** flash anything or touch any chip — it produces
+a signed app image and an encryptable bootloader, both verified locally
+with `esptool.py image_info --version 2`.
+
+### Key custody — the single most security-critical artifact
+
+The RSA-3072 secure-boot signing key signs every image every CANShift unit
+ever fielded under this key will accept. The blast-radius failure modes:
+
+- **Lost key.** Every device fielded under this key is permanently stuck
+  on its last-flashed image. No future OTA passes the signature check.
+  There is no recovery key, no Espressif master key, no vendor escrow —
+  the fleet is frozen.
+- **Leaked key.** An attacker can sign arbitrary firmware that every
+  fielded device accepts. There is no revocation path. Mitigation: keep
+  the key behind hardware (HSM / YubiKey PIV slot 9c) so theft requires
+  physical compromise plus the PIN.
+
+Recommended posture (full detail in [section 6 of the runbook](../docs/secure-boot-setup.md)):
+
+- HSM (YubiHSM 2 / NitroKey HSM 2) **or** YubiKey PIV slot 9c, **or**
+- LUKS / FileVault encrypted volume on an air-gapped dedicated workstation
+- Encrypted offline backup (age / GPG to a USB stick in a safe)
+- Two-person control: backup custodian and key holder are different people
+
+Anti-recommended: never commit to Git, never put the production key in CI,
+never store in a cloud-synced folder. The `.gitignore` blocks `secrets/`,
+`keys/`, and `*.pem` defensively — verify with `git check-ignore secrets/`.
+
+### Anti-rollback
+
+`CONFIG_BOOTLOADER_APP_SEC_VER` is the per-release security version. The
+bootloader stores the highest version ever booted in eFuse and refuses
+images with a lower version. Floor is currently `2` (#531 rollout-readiness
+bump). Decrement is impossible — bump only on a release that fixes a
+remotely exploitable bug. Every bump permanently raises the floor on every
+chip that boots the new image.
+
+### Flashing signed builds
+
+The standalone [`canshift-flasher`](https://github.com/tburkhalterr/canshift-flasher)
+served from `canshift.tmbk.ch` writes raw binaries via esptool from the
+browser. It does **not** currently understand:
+
+- `write_flash --encrypt` (mandatory for chips in release-mode flash
+  encryption — every write to an encrypted partition must be pre-encrypted
+  or the chip will increment `FLASH_CRYPT_CNT` and eventually refuse to
+  boot)
+- The signed-bootloader path (signing happens at build time on the host,
+  but the flasher must keep the bootloader signature intact on the wire)
+- The `nvs_keys` partition (encrypted-NVS key storage, present only in
+  `ota_4mb_secure.csv`)
+
+For now, **signed builds are flashed exclusively via**
+`scripts/secure_boot_first_flash.sh` on a controlled workstation with
+PlatformIO + esptool installed locally. Browser-based flashing of signed
+builds is out of scope and tracked as separate follow-up work in the
+`canshift-flasher` repo. A future v2 of that flasher will need a signed-
+build mode that pre-encrypts the app + SPIFFS payloads on the host side
+before pushing them through Web Serial.
+
+### First-flash procedure (one-time, irreversible)
+
+```bash
+cd canshift-firmware
+./scripts/secure_boot_first_flash.sh --i-understand-this-is-irreversible
+```
+
+See [section 4 of the runbook](../docs/secure-boot-setup.md) for the
+full prompt-by-prompt walk-through. The script enforces a 60-second
+abort window, requires the operator to retype the chip MAC, refuses on
+dev workstations (`DEV_BOARD_DO_NOT_RUN=1`), and pauses for operator
+confirmation between the irreversible fuse-burn steps.
 
 ---
 

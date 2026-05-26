@@ -200,8 +200,12 @@ echo "Flashing app + filesystem (encrypted)…"
     0x10000 "${FIRMWARE_BIN}"
 
 if [[ -f "${SPIFFS_BIN}" ]]; then
+    # SPIFFS offset must match the secure partition table (ota_4mb_secure.csv).
+    # Aligned to ota_4mb_wifi.csv at 0x370000 since #531 — both layouts share
+    # the same SPIFFS offset so the host-side flashers (Studio, canshift-flasher,
+    # this script, the QEMU boot-smoke harness) use one constant.
     "${ESPTOOL_PY}" --port "${ESP_PORT}" --baud 460800 write_flash --encrypt \
-        0x310000 "${SPIFFS_BIN}"
+        0x370000 "${SPIFFS_BIN}"
 fi
 
 # ---------------------------------------------------------------------------

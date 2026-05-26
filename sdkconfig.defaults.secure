@@ -17,13 +17,23 @@ CONFIG_FLASH_ENCRYPTION_ENABLED=y
 CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y
 CONFIG_SECURE_FLASH_REQUIRE_ALREADY_ENABLED=
 
-# --- Anti-rollback (wired but SEC_VER ratchet is follow-up work) ---
+# --- Anti-rollback (wired; SEC_VER floor bumped to 2 per #531) ---
 # Per-release: bump CONFIG_BOOTLOADER_APP_SEC_VER below before signing a
 # build that fixes a remotely exploitable bug. The ESP32 bootloader stores
 # the highest SEC_VER ever booted in eFuse and refuses to boot any image
 # with a lower version. See docs/secure-boot-setup.md section 7.
+#
+# SEC_VER floor history:
+#   v0 — initial scaffolding (pre-rollout, never signed for production)
+#   v1 — reserved for the first production-line release floor
+#   v2 — current floor (#531): rollout-readiness bump so the first fielded
+#        chip lands at v2 and leaves room for an emergency v1→v2 downgrade-
+#        cutoff if a v1 image is ever found to contain a remotely
+#        exploitable bug. Once a chip boots at v2, the eFuse SEC_VER
+#        counter advances and the chip permanently refuses v0/v1 images.
+#        Decrement is impossible — bump only when shipping a real fix.
 CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=y
-CONFIG_BOOTLOADER_APP_SEC_VER=0
+CONFIG_BOOTLOADER_APP_SEC_VER=2
 
 # --- UART download backdoors closed in release mode ---
 CONFIG_SECURE_BOOT_INSECURE=
