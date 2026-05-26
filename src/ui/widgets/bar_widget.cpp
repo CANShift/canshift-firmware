@@ -1,7 +1,9 @@
 // bar_widget.cpp — Horizontal / vertical bar widget that mirrors studio's
 // GaugeBarPreview: a proportional track with translucent warning/danger
 // zones, a threshold-coloured fill, signal label, value readout, and an
-// optional widget label at a chosen corner.
+// optional widget label at a chosen corner. `create()` split into 19 phase
+// helpers in #1125 (umbrella #1014); see the file's anonymous-namespace
+// block below for the helpers + the orchestrator at the bottom.
 
 #include "bar_widget.h"
 #include "ui/alert_flash.h"
@@ -71,6 +73,23 @@ constexpr uint32_t TICK_LABEL_RGB = 0x383838;
 constexpr uint32_t VALUE_TEXT_RGB = 0xFFFFFF; // value % always white per user spec
 constexpr lv_opa_t ZONE_OPA = 0x35;
 
+// Horizontal label band height tuning. The 14-px floor matches Orbitron
+// Medium 12's line height — anything tighter visibly clips the value
+// ("65%") and the signal name. The 24-px cap keeps the bar dominant on
+// tall widgets. The 25 % ratio mirrors studio's GaugeBarPreview.
+constexpr int16_t HORIZ_BAND_RATIO_PCT = 25;
+constexpr int16_t HORIZ_BAND_MIN_H = 14;
+constexpr int16_t HORIZ_BAND_MAX_H = 24;
+constexpr int16_t HORIZ_BAND_GAP = 2;
+constexpr int16_t HORIZ_VAL_MIN_H = 14;       // Skip the value label below this track height
+constexpr int16_t HORIZ_VAL_LARGE_TRACK = 24; // Use the bigger value font above this
+constexpr int16_t HORIZ_VAL_FONT_SM = 12;
+constexpr int16_t HORIZ_VAL_FONT_LG = 14;
+
+// Vertical layout font tuning — same H >= 80 break as the GaugeBarPreview.
+constexpr int16_t VERT_LARGE_BREAK_H = 80;
+constexpr int16_t VERT_MIN_BAR_W = 10;
+
 void renderValueText(BarTag *t, float v) {
     if (!t->valueLabel)
         return;
@@ -80,25 +99,18 @@ void renderValueText(BarTag *t, float v) {
     lv_label_set_text(t->valueLabel, buf);
 }
 
-} // namespace
+// ---------------------------------------------------------------------------
+// create() phase helpers
+// ---------------------------------------------------------------------------
 
-lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    const bool isVertical = cfg.bar.isVertical;
-    const int16_t W = cfg.layout.w;
-    const int16_t H = cfg.layout.h;
-
-    lv_obj_t *cont = lv_obj_create(parent);
-    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
-                                 cfg.style.borderColor.rgb);
-
-    BarTag *t = WidgetTagPool::alloc<BarTag>();
-    if (!t) {
-        LOG_WARN("BAR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(cont);
-        return nullptr;
-    }
-    t->isVertical = isVertical;
+// Seed every Tag field from the widget config. Resolves the per-widget
+// suffix (signals.json default, per-widget override wins — same resolution
+// as the numeric label widget), the two-zone palette (#954, pins a known
+// SensorIconName) and the color ramp (#430). The `lastValue = NAN` is a
+// sentinel that guarantees the first update() runs through the paint path
+// even if minValue happens to be 0.
+void initBarTag(BarTag *t, const CfgWidget &cfg) {
+    t->isVertical = cfg.bar.isVertical;
     t->minValue = cfg.bar.minValue;
     t->maxValue = cfg.bar.maxValue;
     t->dangerLevel = cfg.bar.dangerLevel;
@@ -108,258 +120,359 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     t->criticalRgb = cfg.style.criticalColor.rgb;
     t->decimalPlaces = cfg.bar.decimalPlaces;
     strlcpy(t->prefix, cfg.bar.prefix, sizeof(t->prefix));
-    // Default the unit from the bound signal definition (signals.json), with
-    // the per-widget `cfg.bar.suffix` winning as a manual override — same
-    // resolution as the numeric label widget so the dashboard config doesn't
-    // need to repeat the unit per widget.
     strlcpy(t->suffix, WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.bar.suffix),
             sizeof(t->suffix));
-    // Sentinel that no real value has been pushed yet — guarantees the
-    // first update() runs through the paint path even if minValue == 0.
     t->lastValue = NAN;
     t->wasValid = false;
     t->lastFillRgb = 0xFFFFFFFFu;
-
-    // Two-zone palette (#954) takes precedence over the ramp path when the
-    // widget pins a known SensorIconName.
     strlcpy(t->iconName, cfg.bar.iconName, sizeof(t->iconName));
     t->palette = SensorPalette::lookup(t->iconName);
-
-    // Resolve the active color ramp once (issue #430). Per-signal ramp wins,
-    // sensor-name heuristic next, nullptr → legacy zone-based tinting.
     t->ramp = t->palette ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
+}
 
-    // Single-threshold zone math (issue #965). Palette mode (#954) replaces
-    // the translucent danger band with a solid per-sensor fill, so suppress
-    // the band geometry when a palette is pinned.
-    const bool hasDanger = !std::isnan(t->dangerLevel) && t->palette == nullptr;
-    const float dangerPct =
-        hasDanger ? WidgetHelpers::clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.0f;
-
-    char sigBuf[CFG_MAX_SIGNAL_LEN + 4];
-    WidgetHelpers::formatSignalLabel(cfg.signalId, sigBuf, sizeof(sigBuf));
-
-    // -----------------------------------------------------------------------
-    // Horizontal layout — label band on one side of the widget, track on the
-    // other. The band side follows the user's `cfg.bar.labelPosition` (or
-    // defaults to top when no user label, mirroring studio's signal header).
-    // Layout chosen so a corner-anchored user label can never sit ON TOP of
-    // the bar fill — required because widgets can be placed/sized freely from
-    // studio.
-    // -----------------------------------------------------------------------
-    if (!isVertical) {
-        const bool noUserLabel = (cfg.bar.label[0] == '\0');
-        const bool labelIsTop = noUserLabel || cfg.bar.labelPosition == CfgLabelPos::TOP_LEFT ||
-                                cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER ||
-                                cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
-
-        // Reserve a label band: 25 % of widget height, clamped 14..24. The
-        // 14-px floor matches Orbitron Medium 12's line height — anything tighter
-        // visibly clips the value (\"65%\") and the signal name. The 24-px
-        // cap keeps the bar dominant on tall widgets.
-        int16_t labelBandH = static_cast<int16_t>((H * 25) / 100);
-        if (labelBandH < 14)
-            labelBandH = 14;
-        if (labelBandH > 24)
-            labelBandH = 24;
-        // Bar fills the rest minus a small gap.
-        const int16_t gap = 2;
-        const int16_t barH = H - labelBandH - gap;
-        const int16_t trackY = labelIsTop ? labelBandH + gap : 0;
-        const int16_t bandY = labelIsTop ? 0 : barH + gap;
-        const int16_t trackW = W - HORIZ_PAD_X * 2;
-        t->trackX = HORIZ_PAD_X;
-        t->trackY = trackY;
-        t->trackW = trackW;
-        t->trackH = barH;
-
-        // Track background — square corners per user spec
-        lv_obj_t *track = lv_obj_create(cont);
-        lv_obj_set_pos(track, HORIZ_PAD_X, trackY);
-        lv_obj_set_size(track, trackW, barH);
-        WidgetStyles::applyBarTrack(track);
-        lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
-        t->track = track;
-
-        // Danger zone (danger..max band) — single zone (issue #965).
-        if (hasDanger && dangerPct < 1.0f) {
-            int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(trackW * dangerPct);
-            int16_t zW = static_cast<int16_t>(trackW * (1.0f - dangerPct));
-            lv_obj_t *zone = lv_obj_create(cont);
-            WidgetHelpers::disableInteract(zone);
-            lv_obj_set_pos(zone, zX, trackY);
-            lv_obj_set_size(zone, zW, barH);
-            WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneDangerRgb, ZONE_OPA);
-            t->dangerZone = zone;
-        }
-
-        // Fill — width is updated dynamically. Starts at 0. Colour set in
-        // update() based on the active zone (green/orange/red).
-        lv_obj_t *fill = lv_obj_create(cont);
-        WidgetHelpers::disableInteract(fill);
-        lv_obj_set_pos(fill, HORIZ_PAD_X, trackY);
-        lv_obj_set_size(fill, 0, barH);
-        WidgetStyles::applyBarFill(fill, WidgetHelpers::kZoneNormalRgb);
-        t->fill = fill;
-
-        // Signal label — only when the user hasn't supplied a custom one.
-        // Lives in the label band, NOT over the track.
-        if (noUserLabel) {
-            lv_obj_t *sig = lv_label_create(cont);
-            lv_label_set_text(sig, sigBuf);
-            lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-            lv_obj_set_style_text_font(sig, FontManager::label(12), 0);
-            lv_obj_set_style_text_letter_space(sig, 1, 0);
-            lv_obj_set_pos(sig, 2, bandY + 1);
-            t->signalLabel = sig;
-        }
-
-        // Value label — white, centred ON the bar track (not the label band).
-        // Sits over the fill so it reads as part of the bar.
-        if (barH >= 14) {
-            const lv_font_t *valFont = FontManager::label(barH >= 24 ? 14 : 12);
-            lv_obj_t *val = lv_label_create(cont);
-            lv_obj_set_style_text_color(val, lv_color_hex(VALUE_TEXT_RGB), 0);
-            lv_obj_set_style_text_font(val, valFont, 0);
-            lv_obj_set_width(val, W);
-            lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_CENTER, 0);
-            const int16_t fontH = lv_font_get_line_height(valFont);
-            const int16_t valueY = trackY + (barH - fontH) / 2;
-            lv_obj_set_pos(val, 0, valueY);
-            t->valueLabel = val;
-        }
-
-        // Optional widget label — sits in the label band at the user-chosen
-        // corner. WidgetLabelOverlay aligns to the container, so we anchor
-        // through a transient inner stripe matched to the band.
-        if (!noUserLabel) {
-            // Build a lightweight inner stripe so WidgetLabelOverlay anchors
-            // its label inside the band (rather than the whole widget).
-            lv_obj_t *band = lv_obj_create(cont);
-            WidgetHelpers::disableInteract(band);
-            lv_obj_set_pos(band, 0, bandY);
-            lv_obj_set_size(band, W, labelBandH);
-            lv_obj_set_style_bg_opa(band, LV_OPA_TRANSP, LV_PART_MAIN);
-            lv_obj_set_style_border_width(band, 0, LV_PART_MAIN);
-            lv_obj_set_style_pad_all(band, 0, LV_PART_MAIN);
-            // Map the user's vertical preference (top/bottom) to the band's
-            // inner top — the band itself is already on the right side of the
-            // widget. Horizontal alignment (left/center/right) preserved.
-            CfgLabelPos innerPos = CfgLabelPos::TOP_LEFT;
-            switch (cfg.bar.labelPosition) {
-                case CfgLabelPos::TOP_LEFT:
-                case CfgLabelPos::BOTTOM_LEFT:
-                    innerPos = CfgLabelPos::TOP_LEFT;
-                    break;
-                case CfgLabelPos::TOP_CENTER:
-                case CfgLabelPos::BOTTOM_CENTER:
-                    innerPos = CfgLabelPos::TOP_CENTER;
-                    break;
-                case CfgLabelPos::TOP_RIGHT:
-                case CfgLabelPos::BOTTOM_RIGHT:
-                    innerPos = CfgLabelPos::TOP_RIGHT;
-                    break;
-            }
-            WidgetLabelOverlay::apply(band, cfg.bar.label, innerPos,
-                                      ThemeManager::getEffectiveTextColor(
-                                          cfg.style.textColor.rgb, cfg.style.respectDayMode));
-        }
-
-        // Optional icon (drawn at left edge of the band, before any label)
-        if (cfg.bar.iconName[0] != '\0') {
-            const char *path = IconAssets::path(cfg.bar.iconName);
-            if (path[0] != '\0') {
-                lv_obj_t *img = lv_img_create(cont);
-                lv_img_set_src(img, path);
-                lv_obj_set_style_img_recolor(img, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-                lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
-                lv_obj_set_pos(img, 1, bandY + 1);
-                t->iconImg = img;
-            }
-        }
-    } else {
-        // -------------------------------------------------------------------
-        // Vertical layout (matches GaugeBarPreview vertical branch)
-        // -------------------------------------------------------------------
-        const int16_t barW = static_cast<int16_t>(fmaxf(10.0f, W * TRACK_W_RATIO));
-        const int16_t padX = (W - barW) / 2;
-        // Reserve top for the signal label and bottom for value + suffix.
-        const int16_t sigLabelH = H >= 80 ? 14 : 12;
-        const int16_t valLabelH = H >= 80 ? 16 : 14;
-        const int16_t suffixH = H >= 80 ? 12 : 10;
-        const int16_t padTop = sigLabelH + 3;
-        const int16_t padBot = valLabelH + suffixH + 6;
-        const int16_t trackH = static_cast<int16_t>(fmaxf(MIN_TRACK_DIM, H - padTop - padBot));
-        t->trackX = padX;
-        t->trackY = padTop;
-        t->trackW = barW;
-        t->trackH = trackH;
-
-        // Track
-        lv_obj_t *track = lv_obj_create(cont);
-        lv_obj_set_pos(track, padX, padTop);
-        lv_obj_set_size(track, barW, trackH);
-        WidgetStyles::applyBarTrack(track);
-        lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
-        t->track = track;
-
-        // Danger zone — band from the top of the track down to dangerLevel
-        // (single zone, issue #965).
-        if (hasDanger && dangerPct < 1.0f) {
-            int16_t topZH = static_cast<int16_t>(trackH * (1.0f - dangerPct));
-            if (topZH > 0) {
-                lv_obj_t *zone = lv_obj_create(cont);
-                WidgetHelpers::disableInteract(zone);
-                lv_obj_set_pos(zone, padX, padTop);
-                lv_obj_set_size(zone, barW, topZH);
-                WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneDangerRgb, ZONE_OPA);
-                t->dangerZone = zone;
-            }
-        }
-
-        // Fill — sits at the bottom of the track, height grows upwards.
-        lv_obj_t *fill = lv_obj_create(cont);
-        WidgetHelpers::disableInteract(fill);
-        lv_obj_set_pos(fill, padX, padTop + trackH);
-        lv_obj_set_size(fill, barW, 0);
-        WidgetStyles::applyBarFill(fill, t->primaryRgb);
-        t->fill = fill;
-
-        // Signal label — top centre, dropped when the user set a custom label.
-        if (cfg.bar.label[0] == '\0') {
-            lv_obj_t *sig = lv_label_create(cont);
-            lv_label_set_text(sig, sigBuf);
-            lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-            lv_obj_set_style_text_font(sig, FontManager::label(sigLabelH), 0);
-            lv_obj_align(sig, LV_ALIGN_TOP_MID, 0, 1);
-            t->signalLabel = sig;
-        }
-
-        // Value — bottom center, large monospace
-        lv_obj_t *val = lv_label_create(cont);
-        lv_obj_set_style_text_color(val, lv_color_hex(t->primaryRgb), 0);
-        lv_obj_set_style_text_font(val, FontManager::label(valLabelH), 0);
-        lv_obj_align(val, LV_ALIGN_BOTTOM_MID, 0, -suffixH - 1);
-        t->valueLabel = val;
-
-        // Suffix — small line below value
-        if (t->suffix[0] != '\0') {
-            lv_obj_t *suffix = lv_label_create(cont);
-            lv_label_set_text(suffix, t->suffix);
-            lv_obj_set_style_text_color(suffix, lv_color_hex(SIGNAL_LABEL_RGB), 0);
-            lv_obj_set_style_text_font(suffix, FontManager::label(suffixH), 0);
-            lv_obj_align(suffix, LV_ALIGN_BOTTOM_MID, 0, -1);
-            t->suffixLabel = suffix;
-        }
+// Allocate the Tag from the shared pool. Returns nullptr (and logs) when
+// the pool is exhausted — the caller must destroy the half-built container
+// in that case.
+BarTag *allocBarTag(const CfgWidget &cfg) {
+    BarTag *t = WidgetTagPool::alloc<BarTag>();
+    if (!t) {
+        LOG_WARN("BAR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
+                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+        return nullptr;
     }
+    initBarTag(t, cfg);
+    return t;
+}
 
-    // Mount the alert overlay last so it sits on top of all bar elements. Track
-    // the value label so it flips to white during a flash (signalLabel and
-    // suffixLabel already use a fixed dim grey — leave them alone for contrast).
+// Resolved danger-band geometry shared by both layout branches. Palette
+// mode (#954) replaces the translucent band with a solid per-sensor fill,
+// so suppress the band geometry when a palette is pinned.
+struct DangerBand {
+    bool hasDanger;
+    float dangerPct;
+};
+
+DangerBand resolveDangerBand(const BarTag *t) {
+    DangerBand b{};
+    b.hasDanger = !std::isnan(t->dangerLevel) && t->palette == nullptr;
+    b.dangerPct =
+        b.hasDanger ? WidgetHelpers::clampPct(t->dangerLevel, t->minValue, t->maxValue) : 1.0f;
+    return b;
+}
+
+// Computed horizontal layout — label band on one side of the widget, track
+// on the other. The band side follows the user's `cfg.bar.labelPosition`
+// (or defaults to top when no user label) so a corner-anchored user label
+// can never sit ON TOP of the bar fill.
+struct HorizLayout {
+    int16_t labelBandH;
+    int16_t barH;
+    int16_t trackY;
+    int16_t bandY;
+    int16_t trackW;
+    bool noUserLabel;
+    bool labelIsTop;
+};
+
+HorizLayout computeHorizLayout(const CfgWidget &cfg, int16_t W, int16_t H) {
+    HorizLayout h{};
+    h.noUserLabel = (cfg.bar.label[0] == '\0');
+    h.labelIsTop = h.noUserLabel || cfg.bar.labelPosition == CfgLabelPos::TOP_LEFT ||
+                   cfg.bar.labelPosition == CfgLabelPos::TOP_CENTER ||
+                   cfg.bar.labelPosition == CfgLabelPos::TOP_RIGHT;
+    h.labelBandH = static_cast<int16_t>((H * HORIZ_BAND_RATIO_PCT) / 100);
+    if (h.labelBandH < HORIZ_BAND_MIN_H)
+        h.labelBandH = HORIZ_BAND_MIN_H;
+    if (h.labelBandH > HORIZ_BAND_MAX_H)
+        h.labelBandH = HORIZ_BAND_MAX_H;
+    h.barH = H - h.labelBandH - HORIZ_BAND_GAP;
+    h.trackY = h.labelIsTop ? h.labelBandH + HORIZ_BAND_GAP : 0;
+    h.bandY = h.labelIsTop ? 0 : h.barH + HORIZ_BAND_GAP;
+    h.trackW = W - HORIZ_PAD_X * 2;
+    return h;
+}
+
+// Track background — square corners per user spec. Caches the geometry
+// onto the Tag so update() can resize the fill without reading the LVGL
+// object back.
+void buildHorizTrack(lv_obj_t *cont, BarTag *t, const HorizLayout &lay) {
+    t->trackX = HORIZ_PAD_X;
+    t->trackY = lay.trackY;
+    t->trackW = lay.trackW;
+    t->trackH = lay.barH;
+    lv_obj_t *track = lv_obj_create(cont);
+    lv_obj_set_pos(track, HORIZ_PAD_X, lay.trackY);
+    lv_obj_set_size(track, lay.trackW, lay.barH);
+    WidgetStyles::applyBarTrack(track);
+    lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
+    t->track = track;
+}
+
+// Danger zone (danger..max band) — single zone (issue #965). No-op when
+// the band collapses to zero width.
+void buildHorizDangerZone(lv_obj_t *cont, BarTag *t, const HorizLayout &lay,
+                          const DangerBand &band) {
+    if (!band.hasDanger || band.dangerPct >= 1.0f)
+        return;
+    int16_t zX = HORIZ_PAD_X + static_cast<int16_t>(lay.trackW * band.dangerPct);
+    int16_t zW = static_cast<int16_t>(lay.trackW * (1.0f - band.dangerPct));
+    lv_obj_t *zone = lv_obj_create(cont);
+    WidgetHelpers::disableInteract(zone);
+    lv_obj_set_pos(zone, zX, lay.trackY);
+    lv_obj_set_size(zone, zW, lay.barH);
+    WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneDangerRgb, ZONE_OPA);
+    t->dangerZone = zone;
+}
+
+// Fill obj — width is updated dynamically. Starts at 0. Colour set in
+// update() based on the active zone (green/orange/red).
+void buildHorizFill(lv_obj_t *cont, BarTag *t, const HorizLayout &lay) {
+    lv_obj_t *fill = lv_obj_create(cont);
+    WidgetHelpers::disableInteract(fill);
+    lv_obj_set_pos(fill, HORIZ_PAD_X, lay.trackY);
+    lv_obj_set_size(fill, 0, lay.barH);
+    WidgetStyles::applyBarFill(fill, WidgetHelpers::kZoneNormalRgb);
+    t->fill = fill;
+}
+
+// Signal label — only when the user hasn't supplied a custom one. Lives
+// in the label band, NOT over the track.
+void buildHorizSignalLabel(lv_obj_t *cont, BarTag *t, const HorizLayout &lay, const char *sigBuf) {
+    if (!lay.noUserLabel)
+        return;
+    lv_obj_t *sig = lv_label_create(cont);
+    lv_label_set_text(sig, sigBuf);
+    lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+    lv_obj_set_style_text_font(sig, FontManager::label(HORIZ_VAL_FONT_SM), 0);
+    lv_obj_set_style_text_letter_space(sig, 1, 0);
+    lv_obj_set_pos(sig, 2, lay.bandY + 1);
+    t->signalLabel = sig;
+}
+
+// Value label — white, centred ON the bar track (not the label band). Sits
+// over the fill so it reads as part of the bar. Skipped when the track is
+// too thin to fit any readable font.
+void buildHorizValueLabel(lv_obj_t *cont, BarTag *t, int16_t W, const HorizLayout &lay) {
+    if (lay.barH < HORIZ_VAL_MIN_H)
+        return;
+    const lv_font_t *valFont = FontManager::label(
+        lay.barH >= HORIZ_VAL_LARGE_TRACK ? HORIZ_VAL_FONT_LG : HORIZ_VAL_FONT_SM);
+    lv_obj_t *val = lv_label_create(cont);
+    lv_obj_set_style_text_color(val, lv_color_hex(VALUE_TEXT_RGB), 0);
+    lv_obj_set_style_text_font(val, valFont, 0);
+    lv_obj_set_width(val, W);
+    lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_CENTER, 0);
+    const int16_t fontH = lv_font_get_line_height(valFont);
+    const int16_t valueY = lay.trackY + (lay.barH - fontH) / 2;
+    lv_obj_set_pos(val, 0, valueY);
+    t->valueLabel = val;
+}
+
+// Map the user's full vertical+horizontal label position to the band's
+// inner position — the band itself is already on the right side of the
+// widget, so we only need horizontal alignment + a top anchor.
+CfgLabelPos mapBandInnerPos(CfgLabelPos outer) {
+    switch (outer) {
+        case CfgLabelPos::TOP_LEFT:
+        case CfgLabelPos::BOTTOM_LEFT:
+            return CfgLabelPos::TOP_LEFT;
+        case CfgLabelPos::TOP_CENTER:
+        case CfgLabelPos::BOTTOM_CENTER:
+            return CfgLabelPos::TOP_CENTER;
+        case CfgLabelPos::TOP_RIGHT:
+        case CfgLabelPos::BOTTOM_RIGHT:
+            return CfgLabelPos::TOP_RIGHT;
+    }
+    return CfgLabelPos::TOP_LEFT;
+}
+
+// Optional widget label — sits in the label band at the user-chosen
+// corner. WidgetLabelOverlay aligns to the container, so we anchor through
+// a transient inner stripe matched to the band.
+void buildHorizUserLabel(lv_obj_t *cont, const CfgWidget &cfg, const HorizLayout &lay, int16_t W) {
+    if (lay.noUserLabel)
+        return;
+    lv_obj_t *band = lv_obj_create(cont);
+    WidgetHelpers::disableInteract(band);
+    lv_obj_set_pos(band, 0, lay.bandY);
+    lv_obj_set_size(band, W, lay.labelBandH);
+    lv_obj_set_style_bg_opa(band, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(band, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(band, 0, LV_PART_MAIN);
+    const CfgLabelPos innerPos = mapBandInnerPos(cfg.bar.labelPosition);
+    WidgetLabelOverlay::apply(
+        band, cfg.bar.label, innerPos,
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode));
+}
+
+// Optional icon (drawn at left edge of the band, before any label).
+void buildHorizIcon(lv_obj_t *cont, BarTag *t, const CfgWidget &cfg, const HorizLayout &lay) {
+    if (cfg.bar.iconName[0] == '\0')
+        return;
+    const char *path = IconAssets::path(cfg.bar.iconName);
+    if (path[0] == '\0')
+        return;
+    lv_obj_t *img = lv_img_create(cont);
+    lv_img_set_src(img, path);
+    lv_obj_set_style_img_recolor(img, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+    lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
+    lv_obj_set_pos(img, 1, lay.bandY + 1);
+    t->iconImg = img;
+}
+
+// Horizontal layout orchestrator — band on one side, track on the other.
+void buildHorizontal(lv_obj_t *cont, const CfgWidget &cfg, BarTag *t, const DangerBand &band,
+                     const char *sigBuf) {
+    const int16_t W = cfg.layout.w;
+    const int16_t H = cfg.layout.h;
+    const HorizLayout lay = computeHorizLayout(cfg, W, H);
+    buildHorizTrack(cont, t, lay);
+    buildHorizDangerZone(cont, t, lay, band);
+    buildHorizFill(cont, t, lay);
+    buildHorizSignalLabel(cont, t, lay, sigBuf);
+    buildHorizValueLabel(cont, t, W, lay);
+    buildHorizUserLabel(cont, cfg, lay, W);
+    buildHorizIcon(cont, t, cfg, lay);
+}
+
+// Computed vertical layout — fixed-width track centred horizontally, with
+// reserved bands top (signal) and bottom (value + suffix). Matches studio's
+// GaugeBarPreview vertical branch.
+struct VertLayout {
+    int16_t padX;
+    int16_t padTop;
+    int16_t barW;
+    int16_t trackH;
+    int16_t sigLabelH;
+    int16_t valLabelH;
+    int16_t suffixH;
+};
+
+VertLayout computeVertLayout(int16_t W, int16_t H) {
+    VertLayout v{};
+    v.barW = static_cast<int16_t>(fmaxf(static_cast<float>(VERT_MIN_BAR_W), W * TRACK_W_RATIO));
+    v.padX = (W - v.barW) / 2;
+    v.sigLabelH = H >= VERT_LARGE_BREAK_H ? 14 : 12;
+    v.valLabelH = H >= VERT_LARGE_BREAK_H ? 16 : 14;
+    v.suffixH = H >= VERT_LARGE_BREAK_H ? 12 : 10;
+    v.padTop = v.sigLabelH + 3;
+    const int16_t padBot = v.valLabelH + v.suffixH + 6;
+    v.trackH = static_cast<int16_t>(fmaxf(MIN_TRACK_DIM, H - v.padTop - padBot));
+    return v;
+}
+
+// Vertical track background. Caches geometry onto the Tag so update()
+// can resize the fill without reading the LVGL object back.
+void buildVertTrack(lv_obj_t *cont, BarTag *t, const VertLayout &lay) {
+    t->trackX = lay.padX;
+    t->trackY = lay.padTop;
+    t->trackW = lay.barW;
+    t->trackH = lay.trackH;
+    lv_obj_t *track = lv_obj_create(cont);
+    lv_obj_set_pos(track, lay.padX, lay.padTop);
+    lv_obj_set_size(track, lay.barW, lay.trackH);
+    WidgetStyles::applyBarTrack(track);
+    lv_obj_set_style_bg_color(track, lv_color_hex(TRACK_BG_RGB), LV_PART_MAIN);
+    t->track = track;
+}
+
+// Vertical danger zone — band from the top of the track down to
+// dangerLevel (single zone, issue #965). No-op when the band collapses.
+void buildVertDangerZone(lv_obj_t *cont, BarTag *t, const VertLayout &lay, const DangerBand &band) {
+    if (!band.hasDanger || band.dangerPct >= 1.0f)
+        return;
+    int16_t topZH = static_cast<int16_t>(lay.trackH * (1.0f - band.dangerPct));
+    if (topZH <= 0)
+        return;
+    lv_obj_t *zone = lv_obj_create(cont);
+    WidgetHelpers::disableInteract(zone);
+    lv_obj_set_pos(zone, lay.padX, lay.padTop);
+    lv_obj_set_size(zone, lay.barW, topZH);
+    WidgetStyles::applyBarZone(zone, WidgetHelpers::kZoneDangerRgb, ZONE_OPA);
+    t->dangerZone = zone;
+}
+
+// Vertical fill — sits at the bottom of the track, height grows upwards.
+void buildVertFill(lv_obj_t *cont, BarTag *t, const VertLayout &lay) {
+    lv_obj_t *fill = lv_obj_create(cont);
+    WidgetHelpers::disableInteract(fill);
+    lv_obj_set_pos(fill, lay.padX, lay.padTop + lay.trackH);
+    lv_obj_set_size(fill, lay.barW, 0);
+    WidgetStyles::applyBarFill(fill, t->primaryRgb);
+    t->fill = fill;
+}
+
+// Vertical labels — signal (top centre, dropped when user set a custom
+// label), value (bottom centre, large), and optional suffix below.
+void buildVertLabels(lv_obj_t *cont, BarTag *t, const CfgWidget &cfg, const VertLayout &lay,
+                     const char *sigBuf) {
+    if (cfg.bar.label[0] == '\0') {
+        lv_obj_t *sig = lv_label_create(cont);
+        lv_label_set_text(sig, sigBuf);
+        lv_obj_set_style_text_color(sig, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+        lv_obj_set_style_text_font(sig, FontManager::label(lay.sigLabelH), 0);
+        lv_obj_align(sig, LV_ALIGN_TOP_MID, 0, 1);
+        t->signalLabel = sig;
+    }
+    lv_obj_t *val = lv_label_create(cont);
+    lv_obj_set_style_text_color(val, lv_color_hex(t->primaryRgb), 0);
+    lv_obj_set_style_text_font(val, FontManager::label(lay.valLabelH), 0);
+    lv_obj_align(val, LV_ALIGN_BOTTOM_MID, 0, -lay.suffixH - 1);
+    t->valueLabel = val;
+    if (t->suffix[0] != '\0') {
+        lv_obj_t *suffix = lv_label_create(cont);
+        lv_label_set_text(suffix, t->suffix);
+        lv_obj_set_style_text_color(suffix, lv_color_hex(SIGNAL_LABEL_RGB), 0);
+        lv_obj_set_style_text_font(suffix, FontManager::label(lay.suffixH), 0);
+        lv_obj_align(suffix, LV_ALIGN_BOTTOM_MID, 0, -1);
+        t->suffixLabel = suffix;
+    }
+}
+
+// Vertical layout orchestrator — matches GaugeBarPreview vertical branch.
+void buildVertical(lv_obj_t *cont, const CfgWidget &cfg, BarTag *t, const DangerBand &band,
+                   const char *sigBuf) {
+    const VertLayout lay = computeVertLayout(cfg.layout.w, cfg.layout.h);
+    buildVertTrack(cont, t, lay);
+    buildVertDangerZone(cont, t, lay, band);
+    buildVertFill(cont, t, lay);
+    buildVertLabels(cont, t, cfg, lay, sigBuf);
+}
+
+// Mount the alert overlay last so it sits on top of all bar elements.
+// Track the value label so it flips to white during a flash (signalLabel
+// and suffixLabel already use a fixed dim grey — leave them alone for
+// contrast).
+void attachBarAlertFlash(lv_obj_t *cont, BarTag *t) {
     AlertFlash::attach(t->alert, cont);
     if (t->valueLabel)
         AlertFlash::watchLabel(t->alert, t->valueLabel, VALUE_TEXT_RGB);
+}
 
+} // namespace
+
+lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    lv_obj_t *cont = lv_obj_create(parent);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
+
+    BarTag *t = allocBarTag(cfg);
+    if (!t) {
+        lv_obj_del(cont);
+        return nullptr;
+    }
+
+    const DangerBand band = resolveDangerBand(t);
+    char sigBuf[CFG_MAX_SIGNAL_LEN + 4];
+    WidgetHelpers::formatSignalLabel(cfg.signalId, sigBuf, sizeof(sigBuf));
+
+    if (!t->isVertical) {
+        buildHorizontal(cont, cfg, t, band, sigBuf);
+    } else {
+        buildVertical(cont, cfg, t, band, sigBuf);
+    }
+
+    attachBarAlertFlash(cont, t);
     lv_obj_set_user_data(cont, t);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<BarTag>, LV_EVENT_DELETE, t);
 
@@ -367,8 +480,9 @@ lv_obj_t *BarWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOff
     BarWidget::update(cont, cfg.bar.minValue, false, cfg);
 
     LOG_DEBUG("BAR", "Created %s bar '%s' at (%d,%d) size=%dx%d range=[%d,%d]",
-              isVertical ? "vertical" : "horizontal", cfg.id, cfg.layout.x, cfg.layout.y + yOffset,
-              W, H, static_cast<int>(lroundf(cfg.bar.minValue)),
+              t->isVertical ? "vertical" : "horizontal", cfg.id, cfg.layout.x,
+              cfg.layout.y + yOffset, cfg.layout.w, cfg.layout.h,
+              static_cast<int>(lroundf(cfg.bar.minValue)),
               static_cast<int>(lroundf(cfg.bar.maxValue)));
     return cont;
 }
