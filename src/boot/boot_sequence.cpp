@@ -32,6 +32,7 @@
 
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
+    #include "hal/wifi/wifi_ap.h"
 #endif
 
 #include <Arduino.h>
@@ -469,6 +470,26 @@ static void initUsbCommPhase() {
     updateSplash("USB ready", 90);
 }
 
+// WiFi AP auto-start phase (#1077 audit blocker #3). When the user has
+// previously toggled the on-device Settings WIFI AP row to ON, the
+// preference persists in NVS (namespace "wifi_ap", key "auto") and we
+// bring the softAP up here so the dash-hosted Studio is reachable from
+// the user's laptop browser without requiring a paired phone first.
+//
+// WifiAp::start() spawns a FreeRTOS task on core 1 and returns immediately,
+// so the rest of the boot sequence (UI build, splash hold) is unaffected
+// even though the AP itself needs a few hundred ms to settle. The 5-minute
+// auto-stop timer in apTaskFn is suppressed when this flag is on — see
+// the timeout check in wifi_ap.cpp's apTaskFn.
+static void autoStartWifiApIfPersisted() {
+#if APP_BLE_ENABLED
+    if (WifiAp::isAutoStartEnabled()) {
+        LOG_INFO("BOOT", "WiFi AP auto-start enabled — bringing AP up");
+        WifiAp::start();
+    }
+#endif
+}
+
 // Build the UI from config.
 // updateSplash("Ready") must happen BEFORE buildUI() because
 // PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
@@ -538,6 +559,7 @@ void BootSequence::run() {
     initRuntimeServices();
     initCanOrSplashSimNotice();
     initUsbCommPhase();
+    autoStartWifiApIfPersisted();
     buildUiWithHeapBracket();
 
     holdSplashUntilMin(bootStartMs);

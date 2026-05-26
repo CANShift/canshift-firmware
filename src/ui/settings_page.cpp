@@ -6,6 +6,7 @@
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/ble/ble_server.h"
+#include "hal/wifi/wifi_ap.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -55,11 +56,18 @@ namespace {
 
 static uint8_t s_brightness = DEFAULT_BRIGHTNESS;
 static bool s_bleEnabled = DEFAULT_BLE_ENABLED;
+// WiFi AP auto-start mirror — sourced from NVS via WifiAp::isAutoStartEnabled()
+// at init() time so the segmented button paints the right initial state.
+// Writes are immediate (no SAVE round-trip needed) because the AP comes up /
+// drops the moment the toggle flips, and the persisted flag is the source of
+// truth for the boot sequence (#1077 audit blocker #3).
+static bool s_wifiApAutoStart = false;
 
 static lv_obj_t *s_panel = nullptr;
 static lv_obj_t *s_brSlider = nullptr;
 static lv_obj_t *s_brValue = nullptr;
 static lv_obj_t *s_bleBtns[2] = {};
+static lv_obj_t *s_wifiApBtns[2] = {};
 
 static bool s_open = false;
 static bool s_dragging = false;
@@ -148,6 +156,24 @@ void updateBleButtons() {
     }
 }
 
+// Mirror of updateBleButtons() for the WiFi AP segmented row. Kept verbatim
+// (same style ops, same active-bit math) so a future refactor can collapse
+// the two without subtle drift in border / text-color picking.
+void updateWifiApButtons() {
+    const bool active[2] = {s_wifiApAutoStart, !s_wifiApAutoStart}; // ON=idx0, OFF=idx1
+    for (uint8_t i = 0; i < 2; ++i) {
+        if (!s_wifiApBtns[i])
+            continue;
+        lv_obj_set_style_bg_color(s_wifiApBtns[i],
+                                  lv_color_hex(active[i] ? CLR_BTN_ACT : CLR_BTN_BG), LV_PART_MAIN);
+        lv_obj_set_style_border_color(
+            s_wifiApBtns[i], lv_color_hex(active[i] ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
+        lv_obj_t *lbl = lv_obj_get_child(s_wifiApBtns[i], 0);
+        if (lbl)
+            lv_obj_set_style_text_color(lbl, lv_color_hex(active[i] ? CLR_ACCENT : CLR_MUTED), 0);
+    }
+}
+
 // -----------------------------------------------------------------------
 // Event callbacks
 // -----------------------------------------------------------------------
@@ -166,6 +192,19 @@ static void onBleBtn(lv_event_t *e) {
     updateBleButtons();
 #if APP_BLE_ENABLED
     BleServer::setPendingEnabled(s_bleEnabled);
+#endif
+}
+
+// WiFi AP segmented toggle — unlike BLE there is no SAVE round-trip:
+// WifiAp::setAutoStartEnabled() persists to NVS *and* brings the AP up or
+// drops it immediately, so the dash-hosted Studio path becomes reachable
+// the moment the user picks ON.
+static void onWifiApBtn(lv_event_t *e) {
+    uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+    s_wifiApAutoStart = (idx == 0);
+    updateWifiApButtons();
+#if APP_BLE_ENABLED
+    WifiAp::setAutoStartEnabled(s_wifiApAutoStart);
 #endif
 }
 
@@ -192,13 +231,19 @@ static void onSave(lv_event_t * /*e*/) {
 static void onReset(lv_event_t * /*e*/) {
     s_brightness = DEFAULT_BRIGHTNESS;
     s_bleEnabled = DEFAULT_BLE_ENABLED;
+    // WiFi AP default-off matches the dormant-until-opt-in policy. Persist
+    // immediately (mirrors setAutoStartEnabled behaviour) so a RESET ->
+    // close cycle never leaves the AP running against the persisted "OFF".
+    s_wifiApAutoStart = false;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
     updateBleButtons();
+    updateWifiApButtons();
     applyBrightness();
 #if APP_BLE_ENABLED
     BleServer::setPendingEnabled(s_bleEnabled);
+    WifiAp::setAutoStartEnabled(s_wifiApAutoStart);
 #endif
 }
 
@@ -368,6 +413,31 @@ void buildBleRow(int16_t &y, int16_t rowW) {
     y += BTN_H;
 }
 
+// WiFi AP toggle — entry point for the dash-hosted Studio user who has no
+// phone (#1077 audit blocker #3). Labeled "WIFI AP" so it's obvious this
+// is the softAP the laptop joins for the browser-based studio path, not a
+// station-mode WiFi credential entry.
+void buildWifiApRow(int16_t &y, int16_t rowW) {
+    lv_obj_t *lbl = lv_label_create(s_panel);
+    lv_label_set_text(lbl, "WIFI AP");
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+    lv_obj_set_pos(lbl, PAD_H, y);
+    y += LABEL_H + GAP_INNER;
+
+    const int16_t gap = 4;
+    const int16_t btnW = (rowW - gap) / 2;
+    const char *const labels[2] = {"ON", "OFF"};
+    for (uint8_t i = 0; i < 2; ++i) {
+        bool active = (i == 0) ? s_wifiApAutoStart : !s_wifiApAutoStart;
+        s_wifiApBtns[i] = makeSegButton(s_panel, labels[i], active, onWifiApBtn,
+                                        reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+        lv_obj_set_pos(s_wifiApBtns[i], PAD_H + i * (btnW + gap), y);
+        lv_obj_set_size(s_wifiApBtns[i], btnW, BTN_H);
+    }
+    y += BTN_H;
+}
+
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW) {
     lv_obj_t *btn = makeFullButton(s_panel, "CALIBRATE TOUCH", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
                                    onCalibrateTouch);
@@ -410,6 +480,13 @@ void buildActionsRow(int16_t y, int16_t rowW) {
 
 void SettingsPage::init(int16_t yOffset, int16_t height) {
     nvsLoad();
+    // WiFi AP auto-start lives in the "wifi_ap" NVS namespace (owned by
+    // WifiAp), not "screen_cfg" — read through the WifiAp API so both
+    // owners agree on the persisted value. Defaults to OFF on a fresh
+    // device (no NVS entry) so the AP stays dormant until the user opts in.
+#if APP_BLE_ENABLED
+    s_wifiApAutoStart = WifiAp::isAutoStartEnabled();
+#endif
 
     const int16_t panelW = LV_HOR_RES;
     const int16_t rowW = panelW - PAD_H * 2;
@@ -423,6 +500,8 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     buildBrightnessRow(y, rowW);
     y += GAP_ROW;
     buildBleRow(y, rowW);
+    y += GAP_ROW;
+    buildWifiApRow(y, rowW);
     y += GAP_ROW;
     buildCalibrateTouchRow(y, rowW);
     y += GAP_INNER;
@@ -481,6 +560,10 @@ uint8_t SettingsPage::getBrightness() {
 
 bool SettingsPage::getBleEnabled() {
     return s_bleEnabled;
+}
+
+bool SettingsPage::getWifiApAutoStart() {
+    return s_wifiApAutoStart;
 }
 
 // ---------------------------------------------------------------------------

@@ -52,6 +52,13 @@ static char s_password[AP_PASSWORD_LEN + 1] = {};
 
 static constexpr char NVS_NS_WIFI_AP[] = "wifi_ap";
 static constexpr char NVS_KEY_PWD[] = "pwd";
+// Persistent "auto-start AP on boot" toggle (#1077 audit blocker #3). Stored
+// as uint8 (0/1) so a fresh device (no NVS entry) reads back as 0 — AP stays
+// dormant until the user opts in via the Settings page or via the BLE
+// `start_wifi_ap` CMD path. When 1, BootSequence::run() brings the AP up
+// after USB init AND the apTaskFn loop ignores BLE_WIFI_AP_TIMEOUT_MS so the
+// dash-hosted Studio path stays reachable indefinitely.
+static constexpr char NVS_KEY_AUTO[] = "auto";
 
 // Per-request bearer token gating the /ota endpoint (issue #667).
 //
@@ -557,8 +564,18 @@ void apTaskFn(void *) {
 
     s_server.begin();
 
+    // Persistent auto-start opts out of the 5-minute safety timeout (#1077
+    // audit blocker #3). Rationale: the timeout exists so a one-off BLE-CMD
+    // start_wifi_ap leaves no lingering RF surface / battery draw if the
+    // user forgets to stop the AP. When the user has explicitly toggled
+    // the persistent AP preference ON from the on-device Settings page,
+    // they want the dash-hosted Studio reachable indefinitely; auto-stop
+    // would silently kill that contract. Read once at task entry — the
+    // preference can't flip mid-session without going through
+    // setAutoStartEnabled() (which also routes through start/stop).
+    const bool persistOn = WifiAp::isAutoStartEnabled();
     const uint32_t startMs = millis();
-    while (s_active && (millis() - startMs < BLE_WIFI_AP_TIMEOUT_MS)) {
+    while (s_active && (persistOn || (millis() - startMs < BLE_WIFI_AP_TIMEOUT_MS))) {
         s_server.handleClient();
 
         // Issue #1006 — WiFi AP task WDT feed. Placed AFTER handleClient()
@@ -637,6 +654,39 @@ const char *WifiAp::getPassword() {
     return s_password;
 }
 
+bool WifiAp::isAutoStartEnabled() {
+    Preferences p;
+    if (!p.begin(NVS_NS_WIFI_AP, /*readOnly=*/true)) {
+        return false; // missing namespace = never opted in
+    }
+    const uint8_t v = p.getUChar(NVS_KEY_AUTO, 0);
+    p.end();
+    return v != 0;
+}
+
+void WifiAp::setAutoStartEnabled(bool enabled) {
+    Preferences p;
+    if (p.begin(NVS_NS_WIFI_AP, /*readOnly=*/false)) {
+        p.putUChar(NVS_KEY_AUTO, enabled ? 1 : 0);
+        p.end();
+        LOG_INFO("WiFi", "AP auto-start preference: %s", enabled ? "ON" : "OFF");
+    } else {
+        LOG_WARN("WiFi", "NVS open failed — AP auto-start preference not persisted");
+    }
+    // Mirror the new preference into runtime state immediately so the user
+    // sees the AP come up (or drop) the moment they toggle the Settings row,
+    // without having to reboot the dash.
+    if (enabled) {
+        if (!s_active) {
+            WifiAp::start();
+        }
+    } else {
+        if (s_active) {
+            WifiAp::stop();
+        }
+    }
+}
+
     #else // !APP_WIFI_OTA_ENABLED — stubs
 
 void WifiAp::start() {
@@ -651,6 +701,12 @@ const char *WifiAp::getSsid() {
 }
 const char *WifiAp::getPassword() {
     return "";
+}
+bool WifiAp::isAutoStartEnabled() {
+    return false;
+}
+void WifiAp::setAutoStartEnabled(bool /*enabled*/) {
+    LOG_WARN("WiFi", "WiFi OTA disabled at compile time — AP auto-start ignored");
 }
 
     #endif // APP_WIFI_OTA_ENABLED

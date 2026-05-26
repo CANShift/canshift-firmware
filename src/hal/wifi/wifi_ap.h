@@ -1,8 +1,16 @@
 #pragma once
 // wifi_ap.h — WiFi AP mode + HTTP OTA server
 //
-// Started on demand via BLE CMD {"cmd":"start_wifi_ap"}.
-// Auto-stops after BLE_WIFI_AP_TIMEOUT_MS (5 minutes) or after a successful OTA.
+// Started on demand via either:
+//   - BLE CMD {"cmd":"start_wifi_ap"} (mobile bonded peer)
+//   - On-device Settings page toggle (#1077 — dash-hosted Studio path)
+//   - Boot auto-start when the persisted "auto-start" NVS preference is on
+//
+// Auto-stops after BLE_WIFI_AP_TIMEOUT_MS (5 minutes) UNLESS the persistent
+// auto-start preference is on, in which case the AP stays up until the user
+// explicitly toggles it off. The auto-start flag exists so a phone-less user
+// can bring up the dash-hosted Studio over WiFi from their laptop's browser
+// without a BLE mobile app.
 //
 // SSID:     CANShift-XXXX (last 2 bytes of MAC, uppercase hex)
 // Password: per-device, 32 hex chars (128 bits entropy from esp_fill_random()),
@@ -38,6 +46,26 @@ const char *getSsid();
 
 /** Returns the AP password (32 hex chars). Lazy-generates and persists on first call. */
 const char *getPassword();
+
+/**
+ * Persistent "auto-start WiFi AP on boot" preference (NVS namespace "wifi_ap",
+ * key "auto"). When true, BootSequence::run() brings the AP up after USB init,
+ * and the 5-minute timeout in the AP task is suppressed (the user opted in).
+ *
+ * Surfaced to the on-device Settings page (#1077) so a phone-less user can
+ * enable the dash-hosted Studio path without going through the BLE mobile app.
+ */
+bool isAutoStartEnabled();
+
+/**
+ * Persist the auto-start preference AND act on it immediately:
+ *   - true  → writes NVS and calls start() if the AP isn't already up.
+ *   - false → writes NVS and calls stop() if the AP is currently up.
+ *
+ * Safe to call from the UI task — the underlying start()/stop() spawn /
+ * signal a separate WiFi task on core 1.
+ */
+void setAutoStartEnabled(bool enabled);
 
 } // namespace WifiAp
 

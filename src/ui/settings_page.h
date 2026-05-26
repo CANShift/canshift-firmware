@@ -72,6 +72,13 @@ uint8_t getBrightness();
 bool getBleEnabled();
 
 /**
+ * Returns true when the WiFi AP auto-start preference is on (mirrors NVS
+ * value owned by WifiAp). Default false on a fresh device — the AP only
+ * comes up after the user opts in via the WIFI AP toggle row (#1077).
+ */
+bool getWifiApAutoStart();
+
+/**
  * Apply settings pushed from the desktop Studio over USB.
  * Must be called while holding g_lvglMutex.
  * Applies backlight immediately and persists to NVS.
