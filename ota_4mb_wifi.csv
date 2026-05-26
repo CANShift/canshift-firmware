@@ -1,0 +1,52 @@
+# Partition table — 4MB flash with dual OTA + shrunk SPIFFS (WIFI variant)
+# Sibling to ota_4mb.csv. Used by [env:crowpanel_28] and [env:crowpanel_28_wifi]
+# to make room for the dash-hosted Studio SPA embedded in the WiFi build
+# (#1077 phase 4 — issue #1117).
+#
+# Differences vs ota_4mb.csv:
+#   - app0 / app1 grown 1536 KB → 1728 KB (+192 KB each, +384 KB total)
+#   - spiffs shrunk 832 KB → 512 KB (-320 KB)
+#   - coredump shrunk 128 KB → 64 KB (-64 KB) to claw back the alignment
+#     mismatch so the layout still sums to exactly 4 MB
+#   - spiffs partition OFFSET MOVED from 0x310000 → 0x370000. Hardcoded
+#     references in canshift-studio + canshift-flasher + the CI boot smoke
+#     workflow must follow in separate PRs (out-of-scope here; tracked in
+#     the PR body). Field dashes must be USB-reflashed to migrate — OTA from
+#     a pre-1077 image to a 1077+ image is unsafe because the running
+#     bootloader's partition table still points at the old slots.
+#
+# Sizing note: app partition offsets MUST be aligned to 0x10000 (64 KB) on
+# ESP32 — so app slot size must itself be a multiple of 64 KB. 1728 KB
+# (= 0x1B0000) is the largest aligned size that leaves room for a 512 KB
+# SPIFFS. Initial proposals at 1856 KB / 256 KB SPIFFS failed QEMU boot
+# smoke at runtime — atomic-write provisioning of the embedded default
+# fonts (writeFileAtomic creates .tmp + .bak) blew past the effective
+# free-space budget at small partition sizes (SPIFFS overhead is ~30-50 %
+# at 256 KB, not the ~15 % observed at 832 KB). 512 KB restores comfortable
+# headroom for the atomic-write pattern.
+#
+# Layout (4 MB total = 0x400000):
+#   nvs        20 KB   — settings, NVS Preferences
+#   otadata     8 KB   — active OTA slot tracking
+#   app0     1728 KB   — firmware slot 0 (ota_0), holds firmware + embedded SPA
+#   app1     1728 KB   — firmware slot 1 (ota_1)
+#   spiffs    512 KB   — config files, assets (Orbitron .bin fonts + sensor icons)
+#   coredump   64 KB   — crash dumps
+#
+# SPIFFS content audit (current data/ tree):
+#   - 5 Orbitron .bin fonts            ~34 KB
+#   - dashboard.json + signals.json    ~25 KB
+#   - 25 sensor icons (3.0 KB each)    ~77 KB
+#   - 2 day/night icons                 <1 KB
+#   - device.json                       <1 KB
+#   - .bak companions (atomic write)   ~25 KB
+#   - SPIFFS overhead (~25 % at this size) ~55 KB
+#   Total                             ~220 KB → fits in 512 KB with comfortable headroom
+#
+# Name,    Type, SubType,  Offset,   Size,     Flags
+nvs,       data, nvs,      0x9000,   0x5000,
+otadata,   data, ota,      0xe000,   0x2000,
+app0,      app,  ota_0,    0x10000,  0x1B0000,
+app1,      app,  ota_1,    0x1c0000, 0x1B0000,
+spiffs,    data, spiffs,   0x370000, 0x80000,
+coredump,  data, coredump, 0x3f0000, 0x10000,

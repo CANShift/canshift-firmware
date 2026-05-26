@@ -140,7 +140,7 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
   --before default_reset --after hard_reset write_flash \
   --flash_mode keep --flash_size keep --flash_freq keep \
   0x0      "canshift-firmware-${TAG}-crowpanel_28-merged.bin" \
-  0x310000 "canshift-spiffs-${TAG}-crowpanel_28.bin"
+  0x370000 "canshift-spiffs-${TAG}-crowpanel_28.bin"
 ```
 
 **Notes:**
@@ -148,13 +148,72 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
 - The merged firmware binary already starts at offset `0x0` (it embeds the
   bootloader at its own internal `0x1000` offset). Writing it at `0x1000`
   would shift every component and brick the boot.
-- SPIFFS partition offset `0x310000` matches `partitions/ota_4mb.csv`.
+- SPIFFS partition offset `0x370000` matches `ota_4mb_wifi.csv` (the
+  partition layout shipped since #1117 — see
+  [Partition upgrade path](#partition-upgrade-path-1117) below). Dashes
+  carrying a pre-#1117 firmware image (SPIFFS at `0x310000`) must be
+  re-flashed via USB to pick up the new partition table; OTA between
+  layouts is unsafe.
 - `460800` baud is reliable on most CH340 + cable combos. If the flash hangs,
   drop to `230400`. Avoid `921600` — it tends to time out on weak cables.
 - PlatformIO uses `upload_speed = 115200` by default for cable compatibility
   (`platformio.ini:80`); raise it manually if your cable is reliable.
 - After a successful flash the device reboots and the studio auto-connects
   within a few seconds.
+
+---
+
+## Partition upgrade path (#1117)
+
+The partition layout changed in #1117 to make room for the dash-hosted Studio
+SPA embedded in `[env:crowpanel_28_wifi]`. Both production (`crowpanel_28`)
+and WiFi (`crowpanel_28_wifi`) builds now share the same partition table —
+defined in `ota_4mb_wifi.csv` — so an OTA between the two builds is binary-
+table compatible.
+
+**What changed:**
+
+| Region        | Before (`ota_4mb.csv`) | After (`ota_4mb_wifi.csv`) |
+|---------------|------------------------|----------------------------|
+| `app0` / `app1` (each) | 1536 KB @ `0x10000` / `0x190000` | 1856 KB @ `0x10000` / `0x1E0000` |
+| `spiffs`      | 832 KB @ `0x310000`    | 512 KB @ `0x370000`        |
+| `coredump`    | 128 KB @ `0x3E0000`    | 64 KB @ `0x3F0000`         |
+
+App slots grew by 320 KB each (+640 KB total) so the WiFi build can link
+firmware + WebSocket bridge + WiFi/mDNS/lwip stacks + the gzipped Studio SPA
+in a single OTA payload. SPIFFS shrank because the runtime content sums to
+~220 KB (5 Orbitron .bin fonts ~34 KB + canonical JSON configs ~25 KB + 25
+sensor icons ~77 KB + `.bak` atomic-write companions ~25 KB + ~25 % SPIFFS
+overhead at small partition sizes ~55 KB) — well under 512 KB with headroom
+for future user pushes.
+
+**Field-upgrade story.** Dashes already deployed with a pre-#1117 image
+carry the old partition table baked into their bootloader region. An OTA
+from the old layout to the new layout is **unsafe** — the running bootloader
+writes the new firmware into a slot whose offset / size no longer matches
+what the new firmware expects on next boot, and SPIFFS lands in the wrong
+region. Until those dashes are USB-reflashed via the standalone
+`canshift-flasher`, OTA from a pre-#1117 image is blocked.
+
+Going forward (post-#1117), OTAs between #1117+ images are transparent:
+`esp_ota_get_next_update_partition()` reads the live partition table at
+runtime, and the table is identical across `crowpanel_28` /
+`crowpanel_28_wifi`.
+
+**Known follow-ups (separate PRs):**
+
+- `canshift-studio/src/hooks/useFirmwareFlash.ts` (`0x310000` constant) —
+  update to `0x370000` before the bundled Studio flasher can image a #1117+
+  build.
+- `canshift-flasher/src/constants.ts` (`SPIFFS_FLASH_OFFSET = 0x310000`) —
+  same update; this is what end-users will run from `canshift.tmbk.ch`.
+- `scripts/secure_boot_first_flash.sh` (`0x310000` argument) — secure-boot
+  variant; `ota_4mb_secure.csv` is intentionally unchanged in #1117 so the
+  secure-boot flow keeps booting until its own repartition PR lands.
+- `.github/workflows/firmware-boot-smoke.yml` (`0x310000` argument to
+  `esptool merge_bin`) — QEMU smoke harness will still boot (SPIFFS-mount
+  failure is non-fatal pre-`[BOOT] Ready`) but the SPIFFS-resident default
+  asset checks downstream will need the new offset.
 
 ---
 
