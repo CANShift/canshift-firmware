@@ -149,14 +149,19 @@ static void unlockSink() {
 // the dashboard JSON before sending it down the wire.
 static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
               "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
-// Heap-allocated in UsbComm::init() (was BSS pre-#1071) so the ~16 KB lives
-// outside the dram0_0_seg budget; flipping APP_WIFI_OTA_ENABLED=1 to bring
-// the WiFi / WebServer / ESPmDNS stack online ate the BSS headroom that
+// Heap-allocated in UsbComm::reserveRxBuf() (was BSS pre-#1071) so the ~16 KB
+// lives outside the dram0_0_seg budget; flipping APP_WIFI_OTA_ENABLED=1 to
+// bring the WiFi / WebServer / ESPmDNS stack online ate the BSS headroom that
 // previously hosted this buffer. Sized at USB_RX_BUF_SIZE bytes and pinned
 // to internal DRAM (PSRAM caches add a 2-cycle penalty per byte that the
-// per-byte Serial.read() loop in tick() would feel on every burn). Cleared
-// to zero on alloc so the existing handlers can treat it as "valid NUL-
-// terminated empty line" while no command is in flight.
+// per-byte Serial.read() loop in tick() would feel on every burn).
+//
+// reserveRxBuf() MUST run early in setup() — before lv_init() — because
+// lv_init() takes an 80 KB pool malloc and DisplayDriver carves the LVGL
+// framebuffer out of internal DRAM. On no-PSRAM WROOM boards a 16 KB
+// contiguous slot disappears from the internal-DRAM heap after that point.
+// The init() entry point keeps a defensive fallback alloc for completeness
+// but the happy path is reserveRxBuf() from setup().
 static char *s_rxBuf = nullptr;
 static size_t s_rxPos = 0;
 
@@ -998,27 +1003,36 @@ void drainCanScanQueue() {
 // Public API
 // ---------------------------------------------------------------------------
 
+void UsbComm::reserveRxBuf() {
+    if (s_rxBuf) {
+        return;
+    }
+    // Prefer PSRAM (16 KB is cheap there) so internal DRAM stays available
+    // for the WiFi / NimBLE stacks. Fall back to internal DRAM on no-PSRAM
+    // boards (WROOM) — the per-byte Serial.read() in tick() can absorb the
+    // small PSRAM cache penalty. Halt on alloc failure: USB is a hard
+    // dependency for provisioning and silently degrading would lock the
+    // user out.
+    s_rxBuf = static_cast<char *>(heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_SPIRAM));
+    if (!s_rxBuf) {
+        s_rxBuf = static_cast<char *>(
+            heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    }
+    if (!s_rxBuf) {
+        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — halting", USB_RX_BUF_SIZE);
+        while (true) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
+
 void UsbComm::init() {
     s_rxPos = 0;
     s_tickCount = 0;
+    // Defensive — happy path is reserveRxBuf() from setup() before lv_init();
+    // this fallback only fires if main.cpp skipped that call.
     if (!s_rxBuf) {
-        // Prefer PSRAM (16 KB is cheap there) so internal DRAM stays
-        // available for the WiFi / NimBLE stacks. Fall back to internal DRAM
-        // on no-PSRAM boards — the per-byte Serial.read() in tick() can
-        // absorb the small PSRAM cache penalty. Halt on alloc failure: USB
-        // is a hard dependency for provisioning and silently degrading
-        // would lock the user out.
-        s_rxBuf = static_cast<char *>(heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_SPIRAM));
-        if (!s_rxBuf) {
-            s_rxBuf = static_cast<char *>(
-                heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-        }
-        if (!s_rxBuf) {
-            LOG_ERROR("USB", "rxBuf alloc (%u B) failed — halting", USB_RX_BUF_SIZE);
-            while (true) {
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            }
-        }
+        reserveRxBuf();
     }
     memset(s_rxBuf, 0, USB_RX_BUF_SIZE);
     if (!s_sinkMutex) {

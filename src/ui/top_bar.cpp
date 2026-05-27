@@ -258,8 +258,13 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             break;
         }
         case TopBarItemKind::USB_ICON: {
-            // LV_SYMBOL_* glyphs are not in the Orbitron font (no symbol range).
-            // Use "USB" as a colour-coded text badge instead.
+            // USB icon retired — since the dash-hosted Studio refactor (#1077),
+            // USB is no longer the primary connectivity surface and the badge
+            // was visually misleading on a WiFi-first dash. Skip the build
+            // entirely so existing dashboard.json configs that still list a
+            // USB_ICON gracefully render nothing. To bring it back, drop this
+            // `return` and the construction below resumes.
+            return;
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, "USB");
             lv_obj_set_style_text_color(obj, lv_color_hex(COLOR_USB_OFF), 0);

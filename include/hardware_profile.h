@@ -29,9 +29,16 @@
 #define HW_TOUCH_RAW_Y_MAX (HW_PANEL_NATIVE_HEIGHT - 1)
 
 // Per-board RAM budget (bytes) for both LVGL draw buffers combined.
-// Drives LVGL_BUF_LINE_COUNT computation. 25 KB matches existing
-// 320 × 20 × 2 × 2 = 25,600-byte allocation, so the existing board is byte-identical.
-#define HW_LVGL_DRAW_BUDGET_BYTES (25U * 1024U)
+// Drives LVGL_BUF_LINE_COUNT computation. 12.5 KB → 320 × 10 × 2 × 2 = 12,800 B
+// (two 6.4 KB buffers). Reduced from 25 KB so the second buffer fits on the
+// crowpanel_28_wifi env where WiFi/WS/Update BSS leaves only ~13 KB largest
+// contiguous DMA-INTERNAL after lv_init() — at 25 KB the second buffer
+// allocation failed, dropping us into single-buffer mode which collapses
+// from 50 fps to ~5 fps during full-screen redraws (page transitions). The
+// flush callback is synchronous, so smaller per-buffer chunks just mean
+// more flush calls per frame — net throughput is unchanged in steady state
+// and double-buffered rendering wins handily on page-change bursts.
+#define HW_LVGL_DRAW_BUDGET_BYTES (12U * 1024U + 800U)
 
 // Display features
 #define HW_DISPLAY_HAS_BACKLIGHT 1

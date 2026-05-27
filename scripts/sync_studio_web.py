@@ -29,6 +29,17 @@ import sys
 from pathlib import Path
 
 
+# Skip the SPA sync when the active env doesn't actually serve it. crowpanel_28
+# inherits from base envs and so do sim / native / debug / secure / rust — they
+# all picked this script up via `extends = env:crowpanel_28`, but only envs
+# that link the WebServer + WS code need the SPA bundle in data/web/. Gate on
+# the APP_SPA_SERVE build flag so the dependency graph stays correct.
+_BUILD_FLAGS = " ".join(env.get("BUILD_FLAGS", []) or [])
+if "APP_SPA_SERVE=1" not in _BUILD_FLAGS:
+    print(f"[sync_studio_web] skipping — APP_SPA_SERVE not set on env '{env.get('PIOENV', '?')}'")
+    Return()
+
+
 PROJECT_DIR = Path(env["PROJECT_DIR"])
 STUDIO_WEB_DIR = (PROJECT_DIR / ".." / "canshift-studio-web").resolve()
 STUDIO_WEB_DIST = STUDIO_WEB_DIR / "dist"
@@ -62,11 +73,22 @@ def log(msg):
 def run_studio_web_build():
     if os.environ.get("CANSHIFT_SKIP_STUDIO_WEB_BUILD") == "1":
         log("CANSHIFT_SKIP_STUDIO_WEB_BUILD=1 — skipping npm run build")
-        return
+        return False
     if not STUDIO_WEB_DIR.is_dir():
         raise SystemExit(
             f"error: canshift-studio-web not found at {STUDIO_WEB_DIR}"
         )
+    # CI / fresh checkout path: when studio-web's node_modules is missing the
+    # script can't run `npm run build` (vite + co. unresolved). Rather than
+    # forcing an `npm ci` here (slow + version-pinned to the workflow), bail
+    # with a clear message — the firmware ELF doesn't need the SPA bundle to
+    # link; only `pio run -t uploadfs` would, and that runs in its own CI job
+    # that pre-installs the JS deps.
+    if not (STUDIO_WEB_DIR / "node_modules").is_dir():
+        log("node_modules absent in canshift-studio-web — skipping SPA build")
+        log("(firmware ELF doesn't need data/web/*.gz; run `npm ci` + reflash"
+            " if you also need a fresh SPIFFS image)")
+        return False
     log(f"npm run build in {STUDIO_WEB_DIR}")
     # shell=False keeps argv literal so paths with spaces stay safe.
     result = subprocess.run(
@@ -79,6 +101,7 @@ def run_studio_web_build():
             "error: `npm run build` in canshift-studio-web failed — "
             "fix the SPA build before rebuilding firmware."
         )
+    return True
 
 
 def validate_dist():
@@ -120,7 +143,10 @@ def report_sizes():
     log(f"  {'TOTAL':<40} {total:>8} B (uploaded to SPIFFS via uploadfs)")
 
 
-run_studio_web_build()
-validate_dist()
-mirror_to_data_web()
-report_sizes()
+_built = run_studio_web_build()
+if _built:
+    validate_dist()
+    mirror_to_data_web()
+    report_sizes()
+else:
+    log("dist/ not produced this run — data/web/ left as-is")

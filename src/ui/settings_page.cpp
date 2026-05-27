@@ -499,8 +499,9 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     y += GAP_ROW;
     buildBrightnessRow(y, rowW);
     y += GAP_ROW;
-    buildBleRow(y, rowW);
-    y += GAP_ROW;
+    // BLE toggle removed — BLE is now auto-enabled by default and skipped at
+    // boot when the WiFi AP is opted in (see `BleServer::earlyInit`). The
+    // user controls Bluetooth implicitly via the WiFi toggle below.
     buildWifiApRow(y, rowW);
     y += GAP_ROW;
     buildCalibrateTouchRow(y, rowW);

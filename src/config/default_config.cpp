@@ -29,12 +29,17 @@ static constexpr const char *kBakSuffix = ".bak";
 // CFG_MAX_PATH_LEN + ".bak" (4) + null terminator (1).
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
+// dashboard.json stays embedded — its absence at first boot left PageManager
+// with zero pages and the UI build crashed (`Guru Meditation LoadProhibited`
+// post-lv_init in QEMU smoke). dashboard.json is small (~17 KB) and the
+// baseline layout is a useful first-flash experience even if the flasher
+// later overwrites it. signals.json IS dropped: loadSignals() handles the
+// empty case (widgets fall back to "--") and the flasher injects the right
+// ECU profile per the canshift-flasher#189 catalog.
+
 extern "C" {
 extern const uint8_t kDefaultDashboardStart[] asm("_binary_data_config_dashboard_json_start");
 extern const uint8_t kDefaultDashboardEnd[] asm("_binary_data_config_dashboard_json_end");
-
-extern const uint8_t kDefaultSignalsStart[] asm("_binary_data_config_signals_json_start");
-extern const uint8_t kDefaultSignalsEnd[] asm("_binary_data_config_signals_json_end");
 }
 
 namespace {
@@ -48,7 +53,6 @@ struct EmbeddedBlob {
 
 const EmbeddedBlob kEmbedded[] = {
     {CONFIG_PATH_DASHBOARD, kDefaultDashboardStart, kDefaultDashboardEnd, "dashboard.json"},
-    {CONFIG_PATH_SIGNALS, kDefaultSignalsStart, kDefaultSignalsEnd, "signals.json"},
 };
 
 bool buildBakPath(char *out, size_t outLen, const char *base) {

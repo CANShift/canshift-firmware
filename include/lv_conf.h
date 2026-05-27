@@ -38,25 +38,22 @@
  *=========================*/
 
         /* Size of the memory available for `lv_mem_alloc()` in bytes.
-   80 KB — sized to fit 6 Orbitron SPIFFS fonts (~54 KB total on disk)
-   plus widget styles and draw descriptors with ~22 KB headroom.
+   64 KB — reduced from 80 KB so the WiFi/WebServer/mDNS stack has the
+   contiguous DRAM it needs after boot. With 80 KB the pool ate the
+   remaining heap headroom and `esp_event_loop_create_default` failed
+   inside `WifiAp::start()` (issue surfaced 2026-05-27 — WebServer::on
+   then threw bad_alloc → unhandled exception → abort). 64 KB still
+   holds the 6 Orbitron SPIFFS fonts (~54 KB on disk) with the widget
+   styles + draw descriptors. If a future widget set bumps LVGL usage
+   above ~58 KB at steady state, raise this back up AND shave WiFi's
+   BSS footprint (drop ESPmDNS or the WebServer route count).
 
-   96 KB was tried and caused a black screen: after malloc(96 KB), only
-   ~12 KB contiguous DRAM remains, but DisplayDriver needs 2×12.8 KB
-   contiguous draw buffers (both allocations fail → display dead).
-
-   lv_init() runs BEFORE DisplayDriver::init() so the pool malloc runs
-   when heap largest = ~110 KB. That leaves ~28 KB contiguous after
-   the pool for the two draw buffers (2×12.8 KB = 25.6 KB — fits).
-
-   Sim/QEMU shares the same pool size as production — the QEMU boot
-   smoke test (.github/workflows/firmware-boot-smoke.yml) runs the sim
-   build through the full font-load and PageManager bring-up, so the
-   pool must hold all 6 Orbitron .bin payloads. A previous sim-only
-   12 KB override panicked StoreProhibited at EXCVADDR=0 because the
-   first 20 KB font's bitmap allocation returned NULL inside LVGL's
-   lvgl_load_font (which then memset'd the NULL pointer); issue #557. */
-        #define LV_MEM_SIZE (80U * 1024U)
+   Earlier note: 96 KB caused a black screen; 12 KB sim-only override
+   panicked inside lvgl_load_font because the 20 KB font bitmap alloc
+   returned NULL (issue #557). Sim/QEMU shares the same pool. */
+    #ifndef LV_MEM_SIZE
+        #define LV_MEM_SIZE (64U * 1024U)
+    #endif
 
         /* Set an address for the memory pool instead of allocating it as a global array.
    Can be in external SRAM too. */

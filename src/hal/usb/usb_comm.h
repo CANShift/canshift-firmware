@@ -39,6 +39,15 @@
 namespace UsbComm {
 
 /**
+     * Reserve the USB rx buffer. MUST be called once early in setup() —
+     * before lv_init() — so the ~16 KB allocation finds contiguous heap
+     * on no-PSRAM boards (WROOM) where post-lv_init() heap fragmentation
+     * makes a late-boot alloc fail. Idempotent. Halts on alloc failure
+     * (USB is required for provisioning + recovery).
+     */
+void reserveRxBuf();
+
+/**
      * Initialize USB serial communication.
      * Sets up the receive buffer, state machine, and CAN scan queue.
      */

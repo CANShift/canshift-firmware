@@ -549,10 +549,21 @@ bool startStack() {
 // ---------------------------------------------------------------------------
 
 void BleServer::earlyInit() {
+    // Mutual exclusion with WiFi AP — BLE and WiFi share the ESP32 radio
+    // AND together exceed contiguous DRAM after lv_init() on no-PSRAM WROOM
+    // (BLE init takes ~22 KB, WiFi event-loop task creation another ~5 KB,
+    // and `esp_event_loop_create_default` then fails → WebServer::on
+    // bad_alloc → abort). When the user opts into the WiFi AP via Settings,
+    // skip BLE entirely. Reverse: BLE is the default (mobile pairing) — when
+    // WiFi auto-start is off, BLE runs.
+    if (WifiAp::isAutoStartEnabled()) {
+        LOG_INFO("BLE", "BLE skipped — WiFi AP auto-start is enabled");
+        return;
+    }
+
     // Read the BLE-enabled preference directly from NVS — SettingsPage (and
-    // LVGL) are not yet initialized at this call site. Default tracks
-    // `BLE_DEFAULT_ENABLED` (app_config.h) — off by default so a fresh device
-    // doesn't advertise an unauthenticated GATT surface (issue #878).
+    // LVGL) are not yet initialized at this call site. Default is ON so a
+    // fresh device advertises for the mobile app pairing.
     Preferences p;
     p.begin("screen_cfg", /*readOnly=*/true);
     const bool enabled = p.getUChar("ble_en", BLE_DEFAULT_ENABLED) != 0;

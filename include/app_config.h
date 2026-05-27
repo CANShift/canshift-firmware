@@ -347,13 +347,15 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #endif
 
 // Runtime default for the BLE-enabled NVS preference (`screen_cfg/ble_en`).
-// Off by default — pairing is opt-in. Until #873 lands, the GATT surface is
-// unauthenticated and the STATUS characteristic notifies the WiFi AP password
-// in cleartext, so an open BLE advertisement is effectively an open WiFi+OTA
-// surface to anyone within ~30 m. Default-off forces a deliberate user
-// action through the Settings page (issue #878).
+// ON by default — BLE is the primary mobile-app pairing path, the dash
+// advertises out of the box. Mutually exclusive with the WiFi AP at boot:
+// `BleServer::earlyInit()` checks `WifiAp::isAutoStartEnabled()` and skips
+// BLE when WiFi is opted in, so the two never compete for ESP32 DRAM / radio.
+// (Security note from #878 — the GATT surface is still unauthenticated until
+// #873 lands; pairing is intentionally short-window via the MOBILE PAIRING
+// toggle to limit exposure.)
 #ifndef BLE_DEFAULT_ENABLED
-    #define BLE_DEFAULT_ENABLED 0
+    #define BLE_DEFAULT_ENABLED 1
 #endif
 
 // WiFi-AP-based OTA flow (started on demand from BLE). Phase 1 ships firmware
