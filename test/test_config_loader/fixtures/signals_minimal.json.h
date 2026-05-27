@@ -37,4 +37,43 @@ constexpr const char *kSignalsCorrupt = R"({
     {"name": "rpm"
 )";
 
+// Signals JSON with one malformed canFrameId. The good signal ("rpm") must
+// survive; the bad signal ("tps") must be silently dropped. Used by
+// test_loadSignals_malformedCanFrameId_dropsSignal (issue #1159).
+constexpr const char *kSignalsMalformedCanFrameId = R"({
+  "version": "1.0.0",
+  "protocol": "custom_v1.0",
+  "canSpeedKbps": 500,
+  "signals": [
+    {
+      "name": "rpm",
+      "canFrameId": "0x370",
+      "startByte": 0,
+      "byteLength": 2,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1.0,
+      "offset": 0.0,
+      "unit": "rpm",
+      "min": 0,
+      "max": 8000,
+      "timeoutMs": 1000
+    },
+    {
+      "name": "tps",
+      "canFrameId": "0xGGG",
+      "startByte": 0,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1.0,
+      "offset": 0.0,
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "timeoutMs": 1000
+    }
+  ]
+})";
+
 } // namespace fixtures

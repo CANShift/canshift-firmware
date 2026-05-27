@@ -243,6 +243,24 @@ void test_loadDashboard_fontFamily_roundTripsExplicitValue() {
     TEST_ASSERT_EQUAL_STRING("orbitron", ConfigLoader::getDashboardConfig().fontFamily);
 }
 
+// Issue #1159 — malformed canFrameId must drop the offending signal and keep
+// all other signals intact. A bare strtoul would have silently produced 0.
+void test_loadSignals_malformedCanFrameId_dropsSignal() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+                             strlen(fixtures::kDashboardMinimal));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMalformedCanFrameId,
+                             strlen(fixtures::kSignalsMalformedCanFrameId));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+
+    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
+    // Only the valid "rpm" signal survives; "tps" (0xGGG) is dropped.
+    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
+    TEST_ASSERT_EQUAL_STRING("rpm", signals.signals[0].name);
+    TEST_ASSERT_EQUAL_UINT32(0x370u, signals.signals[0].canFrameId);
+}
+
 void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithTemplates,
@@ -276,5 +294,6 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadDashboard_fontFamily_defaultsToOrbitronWhenAbsent);
     RUN_TEST(test_loadDashboard_fontFamily_roundTripsExplicitValue);
     RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
+    RUN_TEST(test_loadSignals_malformedCanFrameId_dropsSignal);
     return UNITY_END();
 }

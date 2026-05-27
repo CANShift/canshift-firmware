@@ -5,6 +5,7 @@
 #include "board_config.h"
 #include "hal/storage/storage_driver.h"
 #include "config/json_reader.h"
+#include "config/parse_utils.h"
 #include "diag/logger.h"
 #include "diag/error_store.h"
 
@@ -997,8 +998,12 @@ bool loadSignals() {
                 id = idv.as<uint32_t>();
             } else {
                 const char *idStr = idv.as<const char *>();
-                if (idStr)
-                    id = static_cast<uint32_t>(strtoul(idStr, nullptr, 0));
+                if (idStr && !parseU32Strict(idStr, 0, &id)) {
+                    LOG_WARN("CFG",
+                             "signals.json out.map_switch.id='%s' is not a valid number — ignored",
+                             idStr);
+                    id = 0;
+                }
             }
             if (id > CAN_EXTENDED_ID_MAX) {
                 LOG_WARN("CFG", "signals.json out.map_switch.id=0x%lX exceeds 29-bit max — ignored",
@@ -1018,7 +1023,15 @@ bool loadSignals() {
 
         CfgSignalDef &s = s_signals.signals[s_signals.signalCount++];
         strlcpy(s.name, sig["name"] | "", CFG_MAX_SIGNAL_LEN);
-        s.canFrameId = strtoul(sig["canFrameId"] | "0x0", nullptr, 16);
+        {
+            const char *raw = sig["canFrameId"] | (const char *)nullptr;
+            if (!parseU32Strict(raw, 16, &s.canFrameId)) {
+                LOG_WARN("CFG", "signals.json: dropping '%s' — invalid canFrameId '%s'", s.name,
+                         raw ? raw : "(null)");
+                --s_signals.signalCount;
+                continue;
+            }
+        }
         s.startByte = sig["startByte"] | 0;
         s.byteLength = sig["byteLength"] | 1;
         s.bigEndian = sig["bigEndian"] | true;
@@ -1039,8 +1052,22 @@ bool loadSignals() {
             s.highDangerLevel = hdv.isNull() ? NAN : hdv.as<float>();
         }
         s.timeoutMs = sig["timeoutMs"] | SIGNAL_DEFAULT_TIMEOUT_MS;
-        const char *bitMaskStr = sig["bitMask"] | nullptr;
-        s.bitMask = bitMaskStr ? static_cast<uint8_t>(strtoul(bitMaskStr, nullptr, 16)) : 0;
+        {
+            const char *bitMaskStr = sig["bitMask"] | (const char *)nullptr;
+            if (bitMaskStr) {
+                uint32_t maskVal = 0;
+                if (parseU32Strict(bitMaskStr, 16, &maskVal)) {
+                    s.bitMask = static_cast<uint8_t>(maskVal);
+                } else {
+                    LOG_WARN("CFG",
+                             "signals.json: '%s' bitMask='%s' is not valid hex — using 0 (no mask)",
+                             s.name, bitMaskStr);
+                    s.bitMask = 0;
+                }
+            } else {
+                s.bitMask = 0;
+            }
+        }
 
         // Per-signal color ramp (issue #430). Optional — when absent, the
         // widget renderer falls back to a default lookup keyed on the name.
