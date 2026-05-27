@@ -14,7 +14,7 @@
     #include "diag/logger.h"
     #include <Preferences.h>
     #include <esp_random.h>
-    #include <mbedtls/sha256.h>
+    #include "hal/wifi/sw_sha256.h"
 #endif
 
 namespace OtaHmac {
@@ -367,19 +367,14 @@ void logBootKeyFingerprint() {
 }
 
 bool computeKeyFingerprint(const uint8_t *key, size_t keyLen, char out[9]) {
+    // Software SHA-256 — mbedtls' parallel_engine backend races NimBLE for
+    // the HW SHA engine and panics if BLE owns it (issue: boot loop on
+    // sha_get_engine_state assert when computing this fingerprint at boot).
     uint8_t digest[32];
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    if (mbedtls_sha256_starts_ret(&ctx, /*is224=*/0) != 0) {
-        mbedtls_sha256_free(&ctx);
-        return false;
-    }
-    if (mbedtls_sha256_update_ret(&ctx, key, keyLen) != 0 ||
-        mbedtls_sha256_finish_ret(&ctx, digest) != 0) {
-        mbedtls_sha256_free(&ctx);
-        return false;
-    }
-    mbedtls_sha256_free(&ctx);
+    canshift::hal::wifi::SwSha256Ctx ctx;
+    canshift::hal::wifi::sw_sha256_init(&ctx);
+    canshift::hal::wifi::sw_sha256_update(&ctx, key, keyLen);
+    canshift::hal::wifi::sw_sha256_final(&ctx, digest);
     // First 4 bytes → 8 hex chars + NUL. Enough to detect drift between
     // devices without leaking exploitable bits of the key.
     static const char kHex[] = "0123456789abcdef";

@@ -1019,10 +1019,12 @@ void UsbComm::reserveRxBuf() {
             heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     }
     if (!s_rxBuf) {
-        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — halting", USB_RX_BUF_SIZE);
-        while (true) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        // Used to halt here, but on heap-starved WROOM boots (empty SPIFFS →
+        // font/image cache fragmentation) the BLE realloc fails afterwards
+        // anyway. Logging + leaving rxBuf NULL lets the rest of the system
+        // boot; init()/tick() degrade USB CDC silently so the user can still
+        // reach Settings via BLE / WiFi and recover.
+        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB CDC config disabled", USB_RX_BUF_SIZE);
     }
 }
 
@@ -1033,6 +1035,11 @@ void UsbComm::init() {
     // this fallback only fires if main.cpp skipped that call.
     if (!s_rxBuf) {
         reserveRxBuf();
+    }
+    if (!s_rxBuf) {
+        // Heap exhausted (WROOM + missing SPIFFS) — skip rest of init; tick()
+        // will short-circuit on null rxBuf too.
+        return;
     }
     memset(s_rxBuf, 0, USB_RX_BUF_SIZE);
     if (!s_sinkMutex) {
@@ -1154,6 +1161,12 @@ bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
 }
 
 void UsbComm::tick() {
+    // USB CDC config push disabled (rxBuf alloc failed at boot). Stay silent
+    // — the BLE / WiFi paths remain available for user recovery.
+    if (!s_rxBuf) {
+        return;
+    }
+
     // Abort any chunked transfer that has stalled (host crashed mid-stream
     // or unplugged) — leaves storage in a clean state.
     if (StorageDriver::isChunkedWriteOpen() &&

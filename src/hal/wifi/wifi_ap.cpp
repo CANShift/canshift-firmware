@@ -27,7 +27,7 @@
         #include <esp_task_wdt.h>
         #include <freertos/FreeRTOS.h>
         #include <freertos/task.h>
-        #include <mbedtls/sha256.h>
+        #include "hal/wifi/sw_sha256.h"
         #include <new>
         #include <stdio.h>
         #include <string.h>
@@ -136,22 +136,17 @@ bool deriveOtaToken() {
     if (s_password[0] == '\0') {
         return false;
     }
+    // SW SHA-256 — same race avoidance as ota_hmac.cpp fingerprint path. The
+    // ESP32 HW SHA engine asserts when invoked while another stack (BLE host
+    // at runtime, or even partially-initialised WiFi crypto) holds the lock.
     uint8_t digest[32];
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    if (mbedtls_sha256_starts_ret(&ctx, /*is224=*/0) != 0) {
-        mbedtls_sha256_free(&ctx);
-        return false;
-    }
-    if (mbedtls_sha256_update_ret(&ctx, reinterpret_cast<const uint8_t *>(s_password),
-                                  strlen(s_password)) != 0 ||
-        mbedtls_sha256_update_ret(&ctx, reinterpret_cast<const uint8_t *>(OTA_TOKEN_SALT),
-                                  sizeof(OTA_TOKEN_SALT) - 1) != 0 ||
-        mbedtls_sha256_finish_ret(&ctx, digest) != 0) {
-        mbedtls_sha256_free(&ctx);
-        return false;
-    }
-    mbedtls_sha256_free(&ctx);
+    canshift::hal::wifi::SwSha256Ctx ctx;
+    canshift::hal::wifi::sw_sha256_init(&ctx);
+    canshift::hal::wifi::sw_sha256_update(&ctx, reinterpret_cast<const uint8_t *>(s_password),
+                                          strlen(s_password));
+    canshift::hal::wifi::sw_sha256_update(&ctx, reinterpret_cast<const uint8_t *>(OTA_TOKEN_SALT),
+                                          sizeof(OTA_TOKEN_SALT) - 1);
+    canshift::hal::wifi::sw_sha256_final(&ctx, digest);
     bytesToHex(digest, OTA_TOKEN_BYTES, s_otaTokenHex);
     return true;
 }

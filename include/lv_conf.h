@@ -51,8 +51,13 @@
    Earlier note: 96 KB caused a black screen; 12 KB sim-only override
    panicked inside lvgl_load_font because the 20 KB font bitmap alloc
    returned NULL (issue #557). Sim/QEMU shares the same pool. */
+    /* 72 KB. Squeezed from 80 → 72 to free 8 KB for the WiFi event loop /
+       softAP queue tasks on WROOM (free heap was hitting 252 B at AP start
+       and event_loop_create_default failed). UI still builds because SPIFFS
+       is provisioned so failed-load pool churn is minimal. If the page build
+       OOMs return, the next lever is disabling APP_BLE_ENABLED on WROOM. */
     #ifndef LV_MEM_SIZE
-        #define LV_MEM_SIZE (64U * 1024U)
+        #define LV_MEM_SIZE (72U * 1024U)
     #endif
 
         /* Set an address for the memory pool instead of allocating it as a global array.

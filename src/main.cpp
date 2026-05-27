@@ -231,17 +231,12 @@ void setup() {
     // Must run before BootSequence::run() — see preallocateTaskStacks().
     preallocateTaskStacks();
 
-    // Reserve the USB rx buffer (~16 KB) before lv_init() fragments the heap.
-    // On no-PSRAM WROOM boards a post-lv_init() heap_caps_malloc cannot find
-    // 16 KB contiguous in internal DRAM and UsbComm::init() halts.
-    //
-    // DO NOT pre-reserve the LVGL draw buffers here — see lv_conf.h:48-50.
-    // lv_init() needs 80 KB contiguous from the same internal-DRAM pool;
-    // taking 25.6 KB for draw buffers first would push largest_free below
-    // LV_MEM_SIZE and panic inside lv_init(). DisplayDriver::init() runs
-    // AFTER lv_init() inside BootSequence::run() and is free to fall back
-    // to single-buffer mode if the post-pool heap can't host two buffers.
-    UsbComm::reserveRxBuf();
+    // USB rxBuf is allocated lazily inside UsbComm::init() (post-lv_init).
+    // On heap-tight WROOM boots (missing SPIFFS → font/image cache frag),
+    // letting BLE / WiFi grab their working memory FIRST and treating USB
+    // CDC config push as best-effort lets the device boot every time.
+    // If the late alloc fails, reserveRxBuf() logs and disables USB silently;
+    // recovery via BLE pairing or WiFi AP toggle is still possible.
 
     // Runs synchronous boot: HAL init → lv_init() → load config → build UI.
     BootSequence::run();
