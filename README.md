@@ -210,15 +210,13 @@ runtime, and the table is identical across `crowpanel_28` /
 
 **Known follow-ups (separate PRs):**
 
-- `canshift-studio/src/hooks/useFirmwareFlash.ts` (`0x310000` constant) —
-  update to `0x370000` before the bundled Studio flasher can image a #1117+
-  build.
 - `canshift-flasher/src/constants.ts` (`SPIFFS_FLASH_OFFSET = 0x310000`) —
-  same update; this is what end-users will run from `canshift.tmbk.ch`.
+  update to `0x370000`; this is what end-users will run from
+  `canshift.tmbk.ch`.
 - `scripts/secure_boot_first_flash.sh` — bumped to `0x370000` in #531 once
   `ota_4mb_secure.csv` was re-aligned to the post-#1117 `_wifi` layout.
-  Single SPIFFS offset across every flasher (Studio, canshift-flasher,
-  this script, the QEMU smoke harness).
+  Single SPIFFS offset across every flasher (canshift-flasher, this
+  script, the QEMU smoke harness).
 - `.github/workflows/firmware-boot-smoke.yml` (`0x310000` argument to
   `esptool merge_bin`) — QEMU smoke harness will still boot (SPIFFS-mount
   failure is non-fatal pre-`[BOOT] Ready`) but the SPIFFS-resident default
@@ -237,11 +235,13 @@ runtime, and the table is identical across `crowpanel_28` /
 4. Confirm the display initializes, the splash holds for 2 s, and a dashboard
    page renders with simulated data.
 5. Drop simulation, switch back to `[env:crowpanel_28]`, connect the CAN
-   transceiver, and verify signal reception via the studio's CAN scan.
+   transceiver, and verify signal reception via the dash-hosted Studio's
+   Diagnostics panel.
 6. Confirm `device.json` matches your CAN-Pal wiring (`twai_tx_pin`,
    `twai_rx_pin`, `can_speed_kbps`). If absent, the firmware falls back to
    `PIN_TWAI_TX` / `PIN_TWAI_RX` from `board_config.h`.
-7. Open CANShift Studio, connect via USB, and push a config.
+7. Join the dash's `CANShift-XXXX` WiFi AP, browse to `http://canshift.local`,
+   and push a config from the dash-hosted Studio.
 
 ---
 
@@ -1075,21 +1075,15 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
 ## Connections to other workspaces
 
 - **canshift-studio-web** (dash-hosted Studio) — served straight from this
-  package via `board_build.embed_files` + `kSpaAssets[]` in `wifi_ap.cpp`
-  on port 80; live data + commands flow over the WebSocket transport on
-  port 81 (`wifi_ws.cpp`, #1108). Same `UsbComm::handleLine()` dispatcher
-  as USB.
-- **canshift-studio** (Electron, legacy) — pushes `dashboard.json` over USB
-  (`CMD_PUT_CONFIG`), streams asset files (`CMD_PUT_FILE`), runs CAN scans.
-  Kept until phase 3 of #1077 cuts over to the dash-hosted Studio in
-  production. The bundled Web-Serial flasher path is being retired in
-  favour of the standalone `canshift-flasher` (#1081); update
-  `useFirmwareFlash.ts`'s `0x310000` constant to `0x370000` before it can
-  image a #1117+ build (tracked as a follow-up).
+  package out of the SPIFFS data partition via `kSpaAssets[]` in
+  `wifi_ap.cpp` on port 80; live data + commands flow over the WebSocket
+  transport on port 81 (`wifi_ws.cpp`, #1108). Same `UsbComm::handleLine()`
+  dispatcher as USB. The SPA build is mirrored into `data/web/` at firmware
+  build time by `scripts/sync_studio_web.py` (#1077 phase 4 / #1123).
 - **canshift-mobile** — connects over BLE; reads telemetry, writes settings,
   triggers the WiFi softAP for OTA, and uploads firmware via
   `POST /update` on the AP. Pairs with the `ble_server.cpp` characteristics
-  described above. Independent of both Studio flavours.
+  described above. Independent of the dash-hosted Studio.
 - **canshift-flasher** (separate repo) — browser-based esptool hosted at
   [canshift.tmbk.ch](https://canshift.tmbk.ch). First-flash, recovery,
   and pre-#1117 partition-layout migration. Reads the merged firmware +
@@ -1098,8 +1092,8 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
   `src/config/config_types.h`. `CONFIG_SCHEMA_VERSION` is injected at build
   time from `canshift-core/src/index.ts` by `scripts/extra_targets.py`, the
   same script that injects `APP_VERSION_STR` from
-  `canshift-studio/package.json` (kept as the version source until the
-  Electron package retires).
+  `canshift-firmware/package.json` — firmware is the only release artifact,
+  so the version naturally tracks the firmware.
 
 ---
 

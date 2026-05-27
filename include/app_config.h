@@ -12,7 +12,7 @@
 // Version
 // ---------------------------------------------------------------------------
 // APP_VERSION_STR is injected at build time by scripts/extra_targets.py from
-// canshift-studio/package.json — single source of truth across the release.
+// canshift-firmware/package.json — single source of truth across the release.
 // The fallback below only triggers if the script fails (and prints a warning).
 #ifndef APP_VERSION_STR
     #define APP_VERSION_STR "0.0.0-unset"

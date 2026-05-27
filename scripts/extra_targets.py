@@ -1,6 +1,9 @@
 # extra_targets.py — PlatformIO extra_scripts
-# - Injects APP_VERSION_STR from canshift-studio/package.json so the firmware
-#   reports the same version as the studio release that bundles it (issue #37).
+# - Injects APP_VERSION_STR from canshift-firmware/package.json so the
+#   firmware splash, BLE STATUS char, and /status endpoint report the same
+#   version the release workflow tags (issue #37). The source-of-truth moved
+#   here from canshift-studio/package.json once the Electron Studio package
+#   was decommissioned — firmware is now the only artifact in releases.
 # - Injects CONFIG_SCHEMA_VERSION mirrored from canshift-core
 #   (CURRENT_SCHEMA_VERSION in src/index.ts) so firmware and shared-core can
 #   never disagree on the schema version (issue #203).
@@ -17,17 +20,16 @@ import re
 import os
 
 
-def read_studio_version():
-    """Single source of truth: canshift-studio/package.json `version`. The
-    release workflow keys off the same file, so studio + firmware can never
-    disagree as long as this script runs.
+def read_firmware_version():
+    """Single source of truth: canshift-firmware/package.json `version`. The
+    release workflow keys off the same file, so the release tag and the
+    APP_VERSION_STR baked into the binary can never disagree as long as this
+    script runs.
 
     Fails the build loudly on any read/parse error — a silent fallback
     macro (e.g. "0.0.0-unset") would brick the splash version with no way
     for the user to spot it on the device (issue #101)."""
-    pkg = os.path.join(
-        env["PROJECT_DIR"], "..", "canshift-studio", "package.json"
-    )
+    pkg = os.path.join(env["PROJECT_DIR"], "package.json")
     try:
         with open(pkg, "r") as fh:
             data = json.load(fh)
@@ -176,7 +178,7 @@ def enforce_ota_secret_policy(secret, is_fallback):
 # `projenv` flows to project src/. We must append to both, otherwise
 # src/boot/boot_sequence.cpp falls back to "0.0.0-unset" from app_config.h
 # even though framework/library code sees the right macro (issue #233).
-_studio_version = read_studio_version()
+_firmware_version = read_firmware_version()
 _schema_version = read_core_schema_version()
 _ota_secret, _ota_fallback = read_ota_hmac_secret()
 
@@ -186,7 +188,7 @@ _ota_secret, _ota_fallback = read_ota_hmac_secret()
 enforce_ota_secret_policy(_ota_secret, _ota_fallback)
 
 _defines = [
-    ("APP_VERSION_STR", env.StringifyMacro(_studio_version)),
+    ("APP_VERSION_STR", env.StringifyMacro(_firmware_version)),
     ("CONFIG_SCHEMA_VERSION", env.StringifyMacro(_schema_version)),
 ]
 if _ota_secret is not None:
@@ -202,7 +204,7 @@ except Exception as exc:
         f"error: build-flag injection into projenv failed: {exc}"
     ) from exc
 
-print(f"firmware version (from studio package.json): {_studio_version}")
+print(f"firmware version (from canshift-firmware package.json): {_firmware_version}")
 print(f"config schema version (from canshift-core): {_schema_version}")
 if _ota_fallback:
     # Dev path only — prod would already have raised in

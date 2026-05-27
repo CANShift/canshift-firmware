@@ -38,7 +38,8 @@ void applySignalHeader(_lv_obj_t *cont, const char *signalId);
 // then fall back to the auto-formatted version.
 //
 // Keep in sync with the studio dictionary in
-// `canshift-studio/src/utils/signalLabels.ts`.
+// `canshift-studio-web/src/utils/signalLabels.ts` (if/when it's lifted from
+// the now-decommissioned Electron Studio package).
 const char *displayLabelForSignal(const char *signalId);
 
 } // namespace WidgetLabelOverlay

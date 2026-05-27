@@ -1,5 +1,5 @@
 // warning_widget.cpp — Threshold-driven alert with icon + signal label.
-// Mirrors studio's WarningPreview (canshift-studio/src/components/editor/
+// Mirrors studio's WarningPreview (canshift-studio-web/src/components/editor/
 // WidgetPreview.tsx) at runtime: translucent critical background that blinks
 // when active, an icon at the top, and the signal name underneath.
 
