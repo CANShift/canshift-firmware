@@ -204,12 +204,14 @@ static uint32_t s_scanDrops = 0;
 // ---------------------------------------------------------------------------
 
 // Written by CAN task (core 0), read by USB task (core 1).
-// Volatile struct + pending flag — worst case: one stale display value.
+// A portMUX spinlock guards both writes and the snapshot read so the
+// two-word struct is never torn across a core boundary (#1160).
 struct CanHealthStats {
     uint32_t fpsX10;
     uint32_t errors;
 };
-static volatile CanHealthStats s_canStats = {0, 0};
+static CanHealthStats s_canStats = {0, 0};
+static portMUX_TYPE s_canStatsMux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool s_canStatsPending = false;
 
 // ---------------------------------------------------------------------------
@@ -1127,8 +1129,10 @@ bool UsbComm::isHostActive() {
 }
 
 void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
+    portENTER_CRITICAL(&s_canStatsMux);
     s_canStats.fpsX10 = fpsX10;
     s_canStats.errors = errors;
+    portEXIT_CRITICAL(&s_canStatsMux);
     s_canStatsPending = true;
 }
 
@@ -1202,8 +1206,18 @@ void UsbComm::tick() {
     if (s_canStatsPending) {
         s_canStatsPending = false;
         // Format: {"can_stat":1,"fps":12.5,"errors":0}\n
+        // Worst-case with all UINT32_MAX operands:
+        //   prefix 20 + fpsX10/10 (9) + '.' (1) + fpsX10%10 (1)
+        //   + "," "errors":"  (10) + errors (10) + "}\n" (2) + '\0' (1) = 54
+        // 72 bytes gives headroom for future protocol additions (#1161).
+        static constexpr size_t CAN_STAT_BUF_WORST_CASE = 54;
+        static_assert(72 >= CAN_STAT_BUF_WORST_CASE,
+                      "statBuf too small for worst-case can_stat payload");
         char statBuf[72];
-        const CanHealthStats stats = {s_canStats.fpsX10, s_canStats.errors};
+        CanHealthStats stats;
+        portENTER_CRITICAL(&s_canStatsMux);
+        stats = s_canStats;
+        portEXIT_CRITICAL(&s_canStatsMux);
         const int n =
             snprintf(statBuf, sizeof(statBuf), "{\"can_stat\":1,\"fps\":%lu.%lu,\"errors\":%lu}\n",
                      static_cast<unsigned long>(stats.fpsX10 / 10),
@@ -1212,11 +1226,9 @@ void UsbComm::tick() {
         if (n > 0 && static_cast<size_t>(n) < sizeof(statBuf)) {
             UsbComm::sendLine(statBuf);
         } else {
-            // 72-byte cap fits the worst-case max-uint values today, but if a
-            // future protocol bump grows the payload we want to know rather
-            // than ship malformed JSON to the host (#936).
             LOG_WARN("USB", "can_stat payload truncated (n=%d, cap=%u)", n,
                      static_cast<unsigned>(sizeof(statBuf)));
+            ErrorStore::push(ERROR_SRC_SYSTEM, "USB_TRUNC", "can_stat payload truncated");
         }
     }
 

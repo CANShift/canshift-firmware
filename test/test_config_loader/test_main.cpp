@@ -261,6 +261,42 @@ void test_loadSignals_malformedCanFrameId_dropsSignal() {
     TEST_ASSERT_EQUAL_UINT32(0x370u, signals.signals[0].canFrameId);
 }
 
+// Issue #1162 — signal name longer than CFG_MAX_SIGNAL_LEN must drop the
+// signal (not truncate silently). A good signal before the offending one
+// must survive intact.
+void test_loadSignals_nameTooLong_dropsSignal() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+                             strlen(fixtures::kDashboardMinimal));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsNameTooLong,
+                             strlen(fixtures::kSignalsNameTooLong));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+
+    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
+    // Only "rpm" survives; the too-long-name signal is dropped.
+    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
+    TEST_ASSERT_EQUAL_STRING("rpm", signals.signals[0].name);
+}
+
+// Issue #1162 — unit string longer than sizeof(s.unit) must be reset to ""
+// rather than truncated silently. The signal itself must survive.
+void test_loadSignals_unitTooLong_resetsUnitToEmpty() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+                             strlen(fixtures::kDashboardMinimal));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsUnitTooLong,
+                             strlen(fixtures::kSignalsUnitTooLong));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+
+    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
+    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
+    TEST_ASSERT_EQUAL_STRING("rpm", signals.signals[0].name);
+    // Unit must be empty string, not a truncated fragment.
+    TEST_ASSERT_EQUAL_STRING("", signals.signals[0].unit);
+}
+
 void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithTemplates,
@@ -295,5 +331,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadDashboard_fontFamily_roundTripsExplicitValue);
     RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
     RUN_TEST(test_loadSignals_malformedCanFrameId_dropsSignal);
+    RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);
+    RUN_TEST(test_loadSignals_unitTooLong_resetsUnitToEmpty);
     return UNITY_END();
 }

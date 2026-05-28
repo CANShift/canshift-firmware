@@ -1022,7 +1022,19 @@ bool loadSignals() {
             break;
 
         CfgSignalDef &s = s_signals.signals[s_signals.signalCount++];
-        strlcpy(s.name, sig["name"] | "", CFG_MAX_SIGNAL_LEN);
+        {
+            const char *rawName = sig["name"] | "";
+            const size_t nameLen = strlcpy(s.name, rawName, CFG_MAX_SIGNAL_LEN);
+            if (nameLen >= CFG_MAX_SIGNAL_LEN) {
+                LOG_WARN(
+                    "CFG",
+                    "signals.json: dropping signal — name too long (%u chars, max %u): '%s...'",
+                    static_cast<unsigned>(nameLen), static_cast<unsigned>(CFG_MAX_SIGNAL_LEN - 1),
+                    s.name);
+                --s_signals.signalCount;
+                continue;
+            }
+        }
         {
             const char *raw = sig["canFrameId"] | (const char *)nullptr;
             if (!parseU32Strict(raw, 16, &s.canFrameId)) {
@@ -1038,7 +1050,17 @@ bool loadSignals() {
         s.isSigned = sig["signed"] | false;
         s.scale = sig["scale"] | 1.0f;
         s.offset = sig["offset"] | 0.0f;
-        strlcpy(s.unit, sig["unit"] | "", sizeof(s.unit));
+        {
+            const char *rawUnit = sig["unit"] | "";
+            const size_t unitLen = strlcpy(s.unit, rawUnit, sizeof(s.unit));
+            if (unitLen >= sizeof(s.unit)) {
+                LOG_WARN("CFG",
+                         "signals.json: '%s' unit too long (%u chars, max %u) — unit reset to \"\"",
+                         s.name, static_cast<unsigned>(unitLen),
+                         static_cast<unsigned>(sizeof(s.unit) - 1));
+                s.unit[0] = '\0';
+            }
+        }
         s.minValue = sig["min"] | 0.0f;
         s.maxValue = sig["max"] | 100.0f;
         {
