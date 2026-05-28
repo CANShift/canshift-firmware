@@ -22,8 +22,6 @@
       { "type": "signal", "signal": "map_number", "format": "MAP%.0f", "position": "right" },
       { "type": "separator", "position": "right" },
       { "type": "bleIcon", "position": "right" },
-      { "type": "usbIcon", "position": "right" },
-      { "type": "separator", "position": "right" },
       { "type": "themeToggle", "position": "right" }
     ]
   },
