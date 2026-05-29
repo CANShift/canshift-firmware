@@ -1,4 +1,10 @@
 // can_parser.cpp — CAN frame parser implementation
+//
+// When `USE_RUST_CAN_PARSER=1` is set in the PIO build, the body of
+// `detail::decodeBytes` delegates to the Rust port (issue #1177 R-1).
+// `parseFrame` and `loadSignalDefinitions` stay C++ — they touch
+// SignalStore, Logger, ArduinoJson via ConfigLoader, none of which are
+// pure-logic candidates per the issue's non-candidate list.
 
 #include "can_parser.h"
 #include "app_config.h"
@@ -6,6 +12,10 @@
 #include "runtime/signal_store.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
+
+#if USE_RUST_CAN_PARSER
+    #include "can_parser_rs.h"
+#endif
 
 #include <algorithm>
 
@@ -42,6 +52,13 @@ static bool s_runtimeLoaded = false;
 float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
                                      bool bigEndian, bool isSigned, uint8_t bitMask, float scale,
                                      float offset) {
+#if USE_RUST_CAN_PARSER
+    // Delegate to the Rust port — same signature, byte-for-byte parity
+    // gated by the test suite below. The Rust shim handles null `data`
+    // and out-of-range `startByte + byteLen` defensively, returning 0.0f
+    // exactly like the C++ original.
+    return decode_bytes_rs(data, startByte, byteLen, bigEndian, isSigned, bitMask, scale, offset);
+#else
     // kCanFrameMaxBytes lives in app_config.h (F-LO-3). uint16_t casts on
     // the operands keep the addition well-defined even though the cap is
     // uint8_t — startByte + byteLen could overflow uint8_t pre-comparison
@@ -76,6 +93,7 @@ float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uin
         physical = static_cast<float>(raw);
     }
     return physical * scale + offset;
+#endif
 }
 
 // ---------------------------------------------------------------------------

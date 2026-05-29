@@ -50,6 +50,14 @@ CRATES = (
         # CPPPATH append needed.
         "include": None,
     },
+    {
+        "flag": "USE_RUST_CAN_PARSER=1",
+        "manifest": os.path.join(RUST_DIR, "can-parser", "Cargo.toml"),
+        "libfile": "libcan_parser.a",
+        # Header at canshift-firmware/include/can_parser_rs.h, same
+        # convention as signal-map.
+        "include": None,
+    },
 )
 
 

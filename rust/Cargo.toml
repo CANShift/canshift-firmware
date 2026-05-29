@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "ota-hmac",
     "signal-map",
+    "can-parser",
 ]
 
 # Workspace-shared profile knobs — Phase 1 host build only. ESP32 target
