@@ -11,10 +11,23 @@
 
 #include <string.h>
 
+#if USE_RUST_USB_ENVELOPE
+    #include "usb_envelope_rs.h"
+#endif
+
 namespace UsbEnvelope {
 
 const char *findNeedle(const char *haystack, size_t haystackLen, const char *needle,
                        size_t needleLen) {
+#if USE_RUST_USB_ENVELOPE
+    // Delegate to the Rust port. The Rust shim tightens the null-pointer
+    // contract (returns nullptr for null haystack / needle) — the existing
+    // Unity suite never exercised that path, so the change is observable but
+    // unreachable in practice.
+    return reinterpret_cast<const char *>(
+        find_needle_rs(reinterpret_cast<const uint8_t *>(haystack), haystackLen,
+                       reinterpret_cast<const uint8_t *>(needle), needleLen));
+#else
     if (needleLen == 0 || haystackLen < needleLen)
         return nullptr;
     const size_t lastStart = haystackLen - needleLen;
@@ -23,9 +36,14 @@ const char *findNeedle(const char *haystack, size_t haystackLen, const char *nee
             return haystack + i;
     }
     return nullptr;
+#endif
 }
 
 const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLen) {
+#if USE_RUST_USB_ENVELOPE
+    return reinterpret_cast<const char *>(
+        find_payload_slice_rs(reinterpret_cast<const uint8_t *>(jsonLine), lineLen, outLen));
+#else
     if (!jsonLine || !outLen)
         return nullptr;
     *outLen = 0;
@@ -88,6 +106,7 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
         ++cursor;
     }
     return nullptr;
+#endif
 }
 
 } // namespace UsbEnvelope

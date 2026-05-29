@@ -1,0 +1,15 @@
+[package]
+name = "usb-envelope"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of CANShift UsbEnvelope::{findNeedle, findPayloadSlice} — issue #1177 R-7"
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []

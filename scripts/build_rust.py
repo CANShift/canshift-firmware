@@ -9,8 +9,10 @@
 #     the default and the Rust path lives in a dedicated env.
 #
 # To exercise a Rust port locally:
-#   pio run -e crowpanel_28_rust            # ota-hmac
-#   pio run -e crowpanel_28_rust_signal_map # signal-map
+#   pio run -e crowpanel_28_rust              # ota-hmac
+#   pio run -e crowpanel_28_rust_signal_map   # signal-map
+#   pio run -e crowpanel_28_rust_can_parser   # can-parser
+#   pio run -e crowpanel_28_rust_usb_envelope # usb-envelope
 #
 # Adding a new crate is one entry in `CRATES` below.
 
@@ -56,6 +58,13 @@ CRATES = (
         "libfile": "libcan_parser.a",
         # Header at canshift-firmware/include/can_parser_rs.h, same
         # convention as signal-map.
+        "include": None,
+    },
+    {
+        "flag": "USE_RUST_USB_ENVELOPE=1",
+        "manifest": os.path.join(RUST_DIR, "usb-envelope", "Cargo.toml"),
+        "libfile": "libusb_envelope.a",
+        # Header at canshift-firmware/include/usb_envelope_rs.h.
         "include": None,
     },
 )
