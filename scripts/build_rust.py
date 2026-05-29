@@ -16,6 +16,7 @@
 #   pio run -e crowpanel_28_rust_config_loader # config-loader
 #   pio run -e crowpanel_28_rust_format_float  # format-float
 #   pio run -e crowpanel_28_rust_error_store   # error-store
+#   pio run -e crowpanel_28_rust_alert_engine  # alert-engine
 #
 # Adding a new crate is one entry in `CRATES` below.
 
@@ -89,6 +90,13 @@ CRATES = (
         "manifest": os.path.join(RUST_DIR, "error-store", "Cargo.toml"),
         "libfile": "liberror_store.a",
         # Header at canshift-firmware/include/error_store_rs.h.
+        "include": None,
+    },
+    {
+        "flag": "USE_RUST_ALERT_ENGINE=1",
+        "manifest": os.path.join(RUST_DIR, "alert-engine", "Cargo.toml"),
+        "libfile": "libalert_engine.a",
+        # Header at canshift-firmware/include/alert_engine_rs.h.
         "include": None,
     },
 )

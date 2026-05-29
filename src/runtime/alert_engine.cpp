@@ -12,6 +12,10 @@
 #include <cmath>
 #include <string.h>
 
+#if USE_RUST_ALERT_ENGINE
+    #include "alert_engine_rs.h"
+#endif
+
 // ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------
@@ -63,14 +67,22 @@ AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLe
 // neither threshold is configured, so callers can safely max() with their
 // existing per-signal verdict.
 AlertEngine::AlertLevel evalHighSide(float value, float highWarn, float highCrit) {
+#if USE_RUST_ALERT_ENGINE
+    return static_cast<AlertEngine::AlertLevel>(alert_eval_high_side_rs(value, highWarn, highCrit));
+#else
     if (!isnan(highCrit) && value > highCrit)
         return AlertEngine::AlertLevel::CRITICAL;
     if (!isnan(highWarn) && value > highWarn)
         return AlertEngine::AlertLevel::WARNING;
     return AlertEngine::AlertLevel::NORMAL;
+#endif
 }
 
 AlertEngine::AlertLevel evalRevLimiter(float rpm) {
+#if USE_RUST_ALERT_ENGINE
+    return static_cast<AlertEngine::AlertLevel>(alert_eval_rev_limiter_rs(
+        rpm, s_revLimitRpm, ALERT_REVLIMIT_WARN_PCT, ALERT_REVLIMIT_FLASH_PCT));
+#else
     float warnRpm = s_revLimitRpm * (ALERT_REVLIMIT_WARN_PCT / 100.0f);
     float flashRpm = s_revLimitRpm * (ALERT_REVLIMIT_FLASH_PCT / 100.0f);
 
@@ -79,9 +91,14 @@ AlertEngine::AlertLevel evalRevLimiter(float rpm) {
     if (rpm >= warnRpm)
         return AlertEngine::AlertLevel::WARNING;
     return AlertEngine::AlertLevel::NORMAL;
+#endif
 }
 
 AlertEngine::AlertLevel evalCoolantTemp(float tempC) {
+#if USE_RUST_ALERT_ENGINE
+    return static_cast<AlertEngine::AlertLevel>(alert_eval_coolant_temp_rs(
+        tempC, s_coolantWarnC, s_coolantCritC, s_coolantHighWarnC, s_coolantHighCritC));
+#else
     AlertEngine::AlertLevel base;
     if (tempC >= s_coolantCritC)
         base = AlertEngine::AlertLevel::CRITICAL;
@@ -92,9 +109,14 @@ AlertEngine::AlertLevel evalCoolantTemp(float tempC) {
     else
         base = AlertEngine::AlertLevel::NORMAL;
     return maxLevel(base, evalHighSide(tempC, s_coolantHighWarnC, s_coolantHighCritC));
+#endif
 }
 
 AlertEngine::AlertLevel evalOilTemp(float tempC) {
+#if USE_RUST_ALERT_ENGINE
+    return static_cast<AlertEngine::AlertLevel>(alert_eval_oil_temp_rs(
+        tempC, s_oilTempWarnC, s_oilTempCritC, s_oilTempHighWarnC, s_oilTempHighCritC));
+#else
     AlertEngine::AlertLevel base;
     if (tempC >= s_oilTempCritC)
         base = AlertEngine::AlertLevel::CRITICAL;
@@ -103,9 +125,15 @@ AlertEngine::AlertLevel evalOilTemp(float tempC) {
     else
         base = AlertEngine::AlertLevel::NORMAL;
     return maxLevel(base, evalHighSide(tempC, s_oilTempHighWarnC, s_oilTempHighCritC));
+#endif
 }
 
 AlertEngine::AlertLevel evalOilPressure(float pressBar) {
+#if USE_RUST_ALERT_ENGINE
+    return static_cast<AlertEngine::AlertLevel>(
+        alert_eval_oil_pressure_rs(pressBar, s_oilPressWarnBar, s_oilPressCritBar,
+                                   s_oilPressHighWarnBar, s_oilPressHighCritBar));
+#else
     // Low oil pressure is dangerous — alert on LOW values via warningLevel/dangerLevel.
     // Optional high-side via highWarningLevel/highDangerLevel (rare: over-pressure).
     AlertEngine::AlertLevel base;
@@ -116,15 +144,21 @@ AlertEngine::AlertLevel evalOilPressure(float pressBar) {
     else
         base = AlertEngine::AlertLevel::NORMAL;
     return maxLevel(base, evalHighSide(pressBar, s_oilPressHighWarnBar, s_oilPressHighCritBar));
+#endif
 }
 
 AlertEngine::AlertLevel evalBattery(float volts) {
+#if USE_RUST_ALERT_ENGINE
+    return static_cast<AlertEngine::AlertLevel>(alert_eval_battery_rs(
+        volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV, s_batteryHighCritV));
+#else
     // Low side first (cranking failure dominates).
     if (volts < s_batteryLowCritV)
         return AlertEngine::AlertLevel::CRITICAL;
     AlertEngine::AlertLevel base = (volts < s_batteryLowWarnV) ? AlertEngine::AlertLevel::WARNING
                                                                : AlertEngine::AlertLevel::NORMAL;
     return maxLevel(base, evalHighSide(volts, s_batteryHighWarnV, s_batteryHighCritV));
+#endif
 }
 
 } // namespace

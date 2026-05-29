@@ -1,0 +1,15 @@
+[package]
+name = "alert-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of CANShift AlertEngine eval* threshold helpers — issue #1177 R-6. Module-level state stays C++; only the pure NaN-aware comparison logic moves to Rust."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []
