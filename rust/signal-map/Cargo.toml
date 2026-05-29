@@ -1,0 +1,25 @@
+[package]
+name = "signal-map"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of CANShift signalIdFromName — issue #1177 R-4"
+license = "UNLICENSED"
+
+[lib]
+# rlib: required for `cargo test` (parity suite against the C++ table).
+# staticlib: emits `.a` so PlatformIO's Xtensa link step can pull the Rust
+#   implementation into the ESP32 firmware (gated by USE_RUST_SIGNAL_MAP=1).
+crate-type = ["rlib", "staticlib"]
+
+[features]
+# `std` is on by default so `cargo test` works without ceremony.
+# The PlatformIO build flips to `no_std + ffi`:
+#   cargo build --release --no-default-features --features ffi
+default = ["std"]
+std = []
+# Compile the `extern "C"` bridge module. Enabled by the firmware build.
+ffi = []
+
+# No third-party dependencies — the port is a pure `&str` → `u8` lookup
+# table, so there is nothing to bring in from crates.io.

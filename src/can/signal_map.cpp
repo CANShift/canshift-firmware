@@ -3,10 +3,20 @@
 // Single source of truth for mapping the string keys used in dashboard.json
 // (and CfgWidget.signalId / CfgTopBarItem.signalId) to the numeric SignalIds
 // used in SignalStore. Add new signals here and in signal_map.h together.
+//
+// When `USE_RUST_SIGNAL_MAP=1` is set in the PIO build, the body of
+// `signalIdFromName` delegates to the Rust port (issue #1177 R-4). Keep
+// `rust/signal-map/src/lib.rs` `NAME_TO_ID` in lockstep with `kNameToId`
+// below — `cargo test -p signal-map` locks the IDs down, but the names
+// have to be updated on both sides for new signals.
 
 #include "signal_map.h"
 
 #include <string.h>
+
+#if USE_RUST_SIGNAL_MAP
+    #include "signal_map_rs.h"
+#endif
 
 namespace {
 
@@ -16,7 +26,9 @@ struct NameToId {
 };
 
 // Extend this table when adding a signal — it is the only place the mapping
-// lives. Ordering does not matter (linear scan).
+// lives. Ordering does not matter (linear scan). Compiled even when the
+// Rust path is active so a future "compare both backends in CI" smoke can
+// pull it back in without resurrecting the table.
 constexpr NameToId kNameToId[] = {
     {"rpm", SignalIds::RPM},
     {"throttle_pos", SignalIds::THROTTLE_POS},
@@ -45,6 +57,12 @@ constexpr NameToId kNameToId[] = {
 } // namespace
 
 SignalId signalIdFromName(const char *name) {
+#if USE_RUST_SIGNAL_MAP
+    // Delegate to the Rust port. `signal_id_from_name_rs` already handles
+    // null / empty / missing-NUL defensively, so the wrapper here is a
+    // one-liner — matches the function signature exactly.
+    return signal_id_from_name_rs(name);
+#else
     if (name == nullptr || name[0] == '\0')
         return SignalIds::SIGNAL_COUNT;
     for (const auto &entry : kNameToId) {
@@ -52,4 +70,5 @@ SignalId signalIdFromName(const char *name) {
             return entry.id;
     }
     return SignalIds::SIGNAL_COUNT;
+#endif
 }
