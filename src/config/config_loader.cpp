@@ -16,6 +16,10 @@
 #include <cstdlib>
 #include <string.h>
 
+#if USE_RUST_CONFIG_LOADER
+    #include "config_loader_rs.h"
+#endif
+
 #ifdef ARDUINO
     #include <esp_heap_caps.h>
     #include "hal/memory/psram.h"
@@ -481,6 +485,15 @@ void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef
 // Major-only comparison is intentional — minor/patch bumps are backward
 // compatible (issue #203).
 int parseMajorVersion(const char *version) {
+#if USE_RUST_CONFIG_LOADER
+    // Delegate to the Rust port. The Rust shim tightens the contract
+    // (rejects leading whitespace and `+`/`-` signs that C++ `strtol`
+    // accepted) but on the production wire — JSON-parsed canonical version
+    // strings — the result is identical. The Rust shim also adds a bounded
+    // NUL scan (MAX_VERSION_LEN = 32) so a missing terminator can't run off
+    // the buffer.
+    return parse_major_version_rs(version);
+#else
     if (!version || version[0] == '\0')
         return -1;
     char *end = nullptr;
@@ -488,6 +501,7 @@ int parseMajorVersion(const char *version) {
     if (end == version || major < 0 || major > INT_MAX)
         return -1;
     return static_cast<int>(major);
+#endif
 }
 
 // Compare a config file's "version" string against CONFIG_SCHEMA_VERSION

@@ -5,6 +5,7 @@ members = [
     "signal-map",
     "can-parser",
     "usb-envelope",
+    "config-loader",
 ]
 
 # Workspace-shared profile knobs — Phase 1 host build only. ESP32 target

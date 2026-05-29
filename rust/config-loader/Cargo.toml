@@ -1,0 +1,15 @@
+[package]
+name = "config-loader"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of pure-logic helpers from canshift-firmware/src/config/config_loader.cpp — issue #1177 R-10 (parseMajorVersion only for now; future helpers land here as they're ported)"
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []
