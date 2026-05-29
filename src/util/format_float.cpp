@@ -10,6 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#if USE_RUST_FORMAT_FLOAT
+    #include "format_float_rs.h"
+#endif
+
 namespace {
 
 constexpr int kMaxDecimals = 9;
@@ -199,18 +203,29 @@ namespace FloatFormat {
 size_t formatFixed(char *buf, size_t size, float value, int decimals) {
     if (buf == nullptr || size == 0)
         return 0;
+#if USE_RUST_FORMAT_FLOAT
+    return format_fixed_rs(buf, size, value, decimals);
+#else
     return formatFixedSigned(buf, size, value, decimals);
+#endif
 }
 
 size_t formatFromSpec(char *buf, size_t size, float value, const char *spec) {
     if (buf == nullptr || size == 0)
         return 0;
+#if USE_RUST_FORMAT_FLOAT
+    return format_from_spec_rs(buf, size, value, spec);
+#else
     return formatWithSpec(buf, size, value, spec);
+#endif
 }
 
 size_t formatGeneral(char *buf, size_t size, float value, int sigDigits) {
     if (buf == nullptr || size == 0)
         return 0;
+#if USE_RUST_FORMAT_FLOAT
+    return format_general_rs(buf, size, value, sigDigits);
+#else
     if (sigDigits < 1)
         sigDigits = 1;
     if (sigDigits > kMaxSigDigits)
@@ -257,6 +272,7 @@ size_t formatGeneral(char *buf, size_t size, float value, int sigDigits) {
     }
 
     return copyTerminated(buf, size, scratch);
+#endif
 }
 
 } // namespace FloatFormat

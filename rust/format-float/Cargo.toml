@@ -1,0 +1,15 @@
+[package]
+name = "format-float"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of CANShift FloatFormat::{formatFixed, formatFromSpec, formatGeneral} — issue #1177 R-2"
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []

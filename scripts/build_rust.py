@@ -14,6 +14,7 @@
 #   pio run -e crowpanel_28_rust_can_parser   # can-parser
 #   pio run -e crowpanel_28_rust_usb_envelope # usb-envelope
 #   pio run -e crowpanel_28_rust_config_loader # config-loader
+#   pio run -e crowpanel_28_rust_format_float  # format-float
 #
 # Adding a new crate is one entry in `CRATES` below.
 
@@ -73,6 +74,13 @@ CRATES = (
         "manifest": os.path.join(RUST_DIR, "config-loader", "Cargo.toml"),
         "libfile": "libconfig_loader.a",
         # Header at canshift-firmware/include/config_loader_rs.h.
+        "include": None,
+    },
+    {
+        "flag": "USE_RUST_FORMAT_FLOAT=1",
+        "manifest": os.path.join(RUST_DIR, "format-float", "Cargo.toml"),
+        "libfile": "libformat_float.a",
+        # Header at canshift-firmware/include/format_float_rs.h.
         "include": None,
     },
 )

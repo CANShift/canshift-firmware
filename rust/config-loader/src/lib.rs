@@ -21,6 +21,19 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
+// Panic handler — required for `no_std + staticlib`. Halts forever (same
+// strategy as the other ports). `parse_major_version` returns `None` on bad
+// input rather than panicking; reaching the handler means an internal
+// invariant break (e.g. checked_mul saturating panic if a digit run blew
+// past i64 — currently unreachable but defended at the type level).
+#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
 // Extract the major component of a "major.minor.patch" version string.
 // Returns `None` (mapped to -1 in the FFI shim) when the string is empty,
 // missing leading digits, or the parsed integer doesn't fit `i32`.

@@ -22,6 +22,18 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
+// Panic handler — required for `no_std + staticlib`. Halts forever (same
+// strategy as the other ports). `find_needle` / `find_payload_slice` both
+// return `None` on bad input rather than panicking; reaching the handler
+// means an internal invariant break.
+#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
 // `find_needle` — length-bounded substring search. Returns the offset of the
 // first occurrence of `needle` inside `haystack`, or `None`. Mirrors the C++
 // `findNeedle` (used in place of `strstr` so an embedded NUL byte cannot
