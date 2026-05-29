@@ -1,0 +1,15 @@
+[package]
+name = "error-store"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of CANShift ErrorStore ring-buffer math — issue #1177 R-5. Lock + static buffer stay C++; only the pure ring arithmetic moves to Rust."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []

@@ -15,6 +15,7 @@
 #   pio run -e crowpanel_28_rust_usb_envelope # usb-envelope
 #   pio run -e crowpanel_28_rust_config_loader # config-loader
 #   pio run -e crowpanel_28_rust_format_float  # format-float
+#   pio run -e crowpanel_28_rust_error_store   # error-store
 #
 # Adding a new crate is one entry in `CRATES` below.
 
@@ -81,6 +82,13 @@ CRATES = (
         "manifest": os.path.join(RUST_DIR, "format-float", "Cargo.toml"),
         "libfile": "libformat_float.a",
         # Header at canshift-firmware/include/format_float_rs.h.
+        "include": None,
+    },
+    {
+        "flag": "USE_RUST_ERROR_STORE=1",
+        "manifest": os.path.join(RUST_DIR, "error-store", "Cargo.toml"),
+        "libfile": "liberror_store.a",
+        # Header at canshift-firmware/include/error_store_rs.h.
         "include": None,
     },
 )

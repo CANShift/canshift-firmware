@@ -19,6 +19,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 
+#if USE_RUST_ERROR_STORE
+    #include "error_store_rs.h"
+#endif
+
 // ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------
@@ -41,7 +45,10 @@ static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 void ErrorStore::push(ErrorSource source, const char *code, const char *message) {
     // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
-
+#if USE_RUST_ERROR_STORE
+    error_store_push_rs(s_ring, RING_SIZE, &s_head, &s_count, &s_version,
+                        static_cast<uint8_t>(source), code, message);
+#else
     // If same source+code already in ring, update message in-place
     for (uint8_t i = 0; i < s_count; i++) {
         uint8_t idx = (s_head + i) % RING_SIZE;
@@ -71,13 +78,16 @@ void ErrorStore::push(ErrorSource source, const char *code, const char *message)
     strncpy(s_ring[slot].message, message, sizeof(s_ring[slot].message) - 1);
     s_ring[slot].message[sizeof(s_ring[slot].message) - 1] = '\0';
     s_version++;
-
+#endif
     portEXIT_CRITICAL(&s_mux);
 }
 
 void ErrorStore::getAll(FwError *buf, uint8_t *count, uint8_t maxCount) {
     // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
+#if USE_RUST_ERROR_STORE
+    *count = error_store_get_all_rs(s_ring, RING_SIZE, s_head, s_count, buf, maxCount);
+#else
     uint8_t n = s_count < maxCount ? s_count : maxCount;
     // Copy newest-first: index (head + count - 1) down to head
     for (uint8_t i = 0; i < n; i++) {
@@ -85,6 +95,7 @@ void ErrorStore::getAll(FwError *buf, uint8_t *count, uint8_t maxCount) {
         buf[i] = s_ring[idx];
     }
     *count = n;
+#endif
     portEXIT_CRITICAL(&s_mux);
 }
 
@@ -117,6 +128,9 @@ void ErrorStore::dismissLatest() {
 void ErrorStore::dismissAt(uint8_t row) {
     // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_mux);
+#if USE_RUST_ERROR_STORE
+    error_store_dismiss_at_rs(s_ring, RING_SIZE, &s_head, &s_count, &s_version, row);
+#else
     if (row < s_count) {
         // `row` is newest-first (matches getAll); convert to oldest-first
         // position inside the ring so the shift math reads naturally.
@@ -136,6 +150,7 @@ void ErrorStore::dismissAt(uint8_t row) {
         s_count--;
         s_version++;
     }
+#endif
     portEXIT_CRITICAL(&s_mux);
 }
 
