@@ -73,8 +73,6 @@ Estimated effort: ~50 lines of firmware + the SPIFFS bundle.
      `CfgDashboard.fontFamily` byte-identically.
    - `pio run -e crowpanel_28` — the link step catches forgotten symbols
      (in-flash overrides).
-   - `pio run -e sim` — exercises the boot path under the host SPIFFS
-     shim with no display dependency.
 
 ## Backward compatibility
 

@@ -2,8 +2,8 @@
 # Applied only when building [env:secure] in platformio.ini.
 # See docs/secure-boot-setup.md for the full procedure and threat model.
 #
-# DO NOT enable in [env:crowpanel_28] or [env:sim] — these flags are
-# meaningful only when paired with the per-chip first-flash procedure.
+# DO NOT enable in [env:crowpanel_28] — these flags are meaningful only
+# when paired with the per-chip first-flash procedure.
 
 # --- Secure boot v2 (RSA-3072) ---
 CONFIG_SECURE_BOOT_V2_ENABLED=y

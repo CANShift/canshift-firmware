@@ -13,9 +13,7 @@
 #include "board_config.h"
 #include "hardware_profile.h"
 
-#if !APP_SIMULATION_MODE
-    #include <esp_task_wdt.h>
-#endif
+#include <esp_task_wdt.h>
 
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
@@ -34,19 +32,12 @@
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
 #endif
-#if APP_SIMULATION_MODE
-    #include "sim/sim_engine.h"
-#endif
-
 // Task function forward declarations
 void taskUI(void *pvParameters);
 void taskCAN(void *pvParameters);
 void taskUSBComm(void *pvParameters);
 #if APP_BLE_ENABLED
 void taskBLE(void *pvParameters);
-#endif
-#if APP_SIMULATION_MODE
-void taskSim(void *pvParameters);
 #endif
 
 // ---------------------------------------------------------------------------
@@ -143,21 +134,15 @@ static void preallocateTaskStacks() {
 // longer than TASK_WDT_TIMEOUT_MS fires the panic handler and the device
 // auto-resets (issue #666, BLE added in #1006). The WiFi AP task is created
 // on-demand from WifiAp::start() and self-registers from inside its task
-// body — see hal/wifi/wifi_ap.cpp. Sim is intentionally NOT registered: it
-// runs only in QEMU smoke builds, where the WDT is itself disabled.
+// body — see hal/wifi/wifi_ap.cpp.
 // ---------------------------------------------------------------------------
 static void createAllTasks() {
     TaskHandle_t uiHandle = xTaskCreateStaticPinnedToCore(
         taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack, &s_uiTaskTCB, TASK_CORE_UI);
 
-#if !APP_SIMULATION_MODE
     TaskHandle_t canHandle =
         xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
                                       s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
-#else
-    xTaskCreatePinnedToCore(taskSim, "sim", TASK_STACK_SIM, nullptr, TASK_PRIO_SIM, nullptr,
-                            TASK_CORE_SIM);
-#endif
 
     TaskHandle_t usbHandle =
         xTaskCreateStaticPinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB,
@@ -169,7 +154,6 @@ static void createAllTasks() {
                                       s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
 #endif
 
-#if !APP_SIMULATION_MODE
     if (uiHandle) {
         const esp_err_t err = esp_task_wdt_add(uiHandle);
         if (err != ESP_OK)
@@ -185,7 +169,7 @@ static void createAllTasks() {
         if (err != ESP_OK)
             LOG_WARN("BOOT", "WDT add(usb) failed: %d", static_cast<int>(err));
     }
-    #if APP_BLE_ENABLED
+#if APP_BLE_ENABLED
     // Issue #1006 — subscribe taskBLE to the WDT. The task loops every
     // BLE_TELE_INTERVAL_MS (100 ms) and its body is non-blocking: pairing
     // crypto and GATT discovery run on NimBLE's own host task, not here.
@@ -196,13 +180,6 @@ static void createAllTasks() {
         if (err != ESP_OK)
             LOG_WARN("BOOT", "WDT add(ble) failed: %d", static_cast<int>(err));
     }
-    #endif
-#else
-    (void)uiHandle;
-    (void)usbHandle;
-    #if APP_BLE_ENABLED
-    (void)bleHandle;
-    #endif
 #endif
 }
 
@@ -215,10 +192,6 @@ void setup() {
 
     Logger::init();
     LOG_INFO("BOOT", "CANShift v" APP_VERSION_STR " starting");
-
-#if APP_SIMULATION_MODE
-    LOG_WARN("BOOT", "*** SIMULATION MODE ACTIVE — no CAN hardware ***");
-#endif
 
     g_lvglMutex = xSemaphoreCreateMutex();
     if (!g_lvglMutex) {
@@ -425,12 +398,9 @@ inline void uiHandleOtaMark(int &successfulFrames, bool &otaSlotMarked) {
 
 // 5. Issue #666 — feed the Task WDT once per UI tick. Placed after
 // lv_task_handler() (the slowest leg of the loop) so genuine LVGL deadlocks
-// deeper in the iteration still trip the watchdog. Compile-time no-op in
-// sim builds where the WDT is disabled.
+// deeper in the iteration still trip the watchdog.
 inline void uiFeedTaskWdt() {
-#if !APP_SIMULATION_MODE
     esp_task_wdt_reset();
-#endif
 }
 
 // 6. Post-mutex day/night BLE STATUS notify. Deferred until after the mutex
@@ -546,12 +516,10 @@ void taskCAN(void *pvParameters) {
     // twai_receive returns immediately every iteration (issue #200).
     while (true) {
         CanManager::tick();
-#if !APP_SIMULATION_MODE
         // Issue #666 — CAN task WDT feed. CanManager::tick() blocks up to
         // 10 ms in twai_receive and may sleep 100 ms while retrying install;
         // both are well within TASK_WDT_TIMEOUT_MS.
         esp_task_wdt_reset();
-#endif
         vTaskDelay(CAN_TASK_YIELD_TICKS);
     }
 }
@@ -594,12 +562,10 @@ void taskUSBComm(void *pvParameters) {
         ++tickCount;
 #endif
 
-#if !APP_SIMULATION_MODE
         // Issue #666 — USB task WDT feed. Default tick cadence is 20 ms,
         // worst case (CMD_PUT_CONFIG burn under LVGL mutex) ~200 ms, both
         // far below TASK_WDT_TIMEOUT_MS.
         esp_task_wdt_reset();
-#endif
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
@@ -622,30 +588,12 @@ void taskBLE(void *pvParameters) {
         }
         BleServer::tick();
 
-    #if !APP_SIMULATION_MODE
         // Issue #1006 — BLE task WDT feed. Placed AFTER tick() (and any
         // start/stop transition) so a real hang inside NimBLE's tick path
         // still trips the watchdog. The 100 ms cadence + non-blocking tick
         // body leaves ~80x headroom against TASK_WDT_TIMEOUT_MS.
         esp_task_wdt_reset();
-    #endif
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(BLE_TELE_INTERVAL_MS));
-    }
-}
-
-#endif
-
-// ---------------------------------------------------------------------------
-// Simulation task
-// ---------------------------------------------------------------------------
-#if APP_SIMULATION_MODE
-
-void taskSim(void *pvParameters) {
-    SimEngine::init();
-
-    while (true) {
-        SimEngine::tick();
-        vTaskDelay(pdMS_TO_TICKS(SIM_UPDATE_MS));
     }
 }
 

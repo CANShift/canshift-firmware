@@ -477,20 +477,18 @@ void ensurePassword() {
 }
 
 void apTaskFn(void *) {
-        // Issue #1006 — subscribe this task to the WDT armed in BootSequence.
-        // The task is created on-demand from WifiAp::start() and self-deletes
-        // after BLE_WIFI_AP_TIMEOUT_MS or an explicit stop. Subscribe from
-        // inside the task body (pass nullptr = current task) so the handle slot
-        // is guaranteed live when esp_task_wdt_add runs.
-        //
-        // Skipped in simulation builds — the WDT is itself disabled there
-        // (boot_sequence.cpp) and esp_task_wdt_add would return ESP_ERR_INVALID_STATE.
-        #if !APP_SIMULATION_MODE
+    // Issue #1006 — subscribe this task to the WDT armed in BootSequence.
+    // The task is created on-demand from WifiAp::start() and self-deletes
+    // after BLE_WIFI_AP_TIMEOUT_MS or an explicit stop. Subscribe from
+    // inside the task body (pass nullptr = current task) so the handle slot
+    // is guaranteed live when esp_task_wdt_add runs.
+    //
+    // Skipped in simulation builds — the WDT is itself disabled there
+    // (boot_sequence.cpp) and esp_task_wdt_add would return ESP_ERR_INVALID_STATE.
     const esp_err_t wdtAddErr = esp_task_wdt_add(nullptr);
     if (wdtAddErr != ESP_OK) {
         LOG_WARN("WiFi", "WDT add(wifi_ap) failed: %d", static_cast<int>(wdtAddErr));
     }
-        #endif
 
     WiFi.softAP(s_ssid, s_password);
     LOG_INFO("WiFi", "AP started — SSID: %s  IP: %s", s_ssid, WiFi.softAPIP().toString().c_str());
@@ -577,9 +575,7 @@ void apTaskFn(void *) {
         // trips the watchdog. The 10 ms vTaskDelay cadence + Update.end()'s
         // worst-case ~2 s erase-and-finalise stays comfortably below
         // TASK_WDT_TIMEOUT_MS (8 s).
-        #if !APP_SIMULATION_MODE
         esp_task_wdt_reset();
-        #endif
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
@@ -596,15 +592,13 @@ void apTaskFn(void *) {
     s_server.stop();
     WiFi.softAPdisconnect(true);
 
-        // Unregister BEFORE self-delete: a deleted task that's still on the WDT
-        // registry triggers the panic handler on the next watchdog tick because
-        // the TCB pointer is no longer valid.
-        #if !APP_SIMULATION_MODE
+    // Unregister BEFORE self-delete: a deleted task that's still on the WDT
+    // registry triggers the panic handler on the next watchdog tick because
+    // the TCB pointer is no longer valid.
     const esp_err_t wdtDelErr = esp_task_wdt_delete(nullptr);
     if (wdtDelErr != ESP_OK) {
         LOG_WARN("WiFi", "WDT delete(wifi_ap) failed: %d", static_cast<int>(wdtDelErr));
     }
-        #endif
 
     s_active = false;
     s_taskHandle = nullptr;

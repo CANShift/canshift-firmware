@@ -8,9 +8,7 @@
 #include <lvgl.h>
 #include <stdint.h>
 
-#if !defined(APP_SIMULATION_MODE) || !APP_SIMULATION_MODE
-    #include "lgfx_panel.h"
-#endif
+#include "lgfx_panel.h"
 
 namespace DisplayDriver {
 
@@ -19,8 +17,6 @@ void registerWithLVGL();
 void setBacklight(uint8_t brightness);
 void flushCallback(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorMap);
 
-#if !defined(APP_SIMULATION_MODE) || !APP_SIMULATION_MODE
 LGFX &getDisplay();
-#endif
 
 } // namespace DisplayDriver

@@ -24,12 +24,6 @@
 // platformio.ini overrides take precedence (defined before this header).
 // ---------------------------------------------------------------------------
 
-// Simulation mode — generate fake engine data, skip CAN hardware init
-// Set to 1 for UI development without a connected ECU
-#ifndef APP_SIMULATION_MODE
-    #define APP_SIMULATION_MODE 0
-#endif
-
 // Debug build — enables extra logging and assertions
 #ifndef APP_DEBUG_BUILD
     #define APP_DEBUG_BUILD 0
@@ -60,17 +54,12 @@
 #ifndef TASK_STACK_USB
     #define TASK_STACK_USB 4096 // USB serial config sync
 #endif
-#ifndef TASK_STACK_SIM
-    #define TASK_STACK_SIM 2048 // Simulation signal generator
-#endif
-
 // Task priorities (0=lowest, configMAX_PRIORITIES-1=highest)
 // ESP32 Arduino framework default configMAX_PRIORITIES is 25.
 #define TASK_PRIO_UI 10   // UI rendering — moderate priority
 #define TASK_PRIO_CAN 15  // CAN parsing — higher, time-sensitive
 #define TASK_PRIO_USB 8   // USB sync — lower, not time-critical
-#define TASK_PRIO_SIM 5   // Sim — lowest, best-effort
-#define TASK_PRIO_INPUT 7 // GPIO button polling — below UI, above sim (#833)
+#define TASK_PRIO_INPUT 7 // GPIO button polling — below UI (#833)
 
 // Task core pinning — ESP32 has 2 cores (0 and 1)
 // Core 1 (APP_CPU) is typically used for Arduino loop/app code
@@ -78,7 +67,6 @@
 #define TASK_CORE_UI 1
 #define TASK_CORE_CAN 0
 #define TASK_CORE_USB 1
-#define TASK_CORE_SIM 1
 #define TASK_CORE_INPUT 0 // Pinned to core 0 to keep UI core jitter-free (#833)
 
 #ifndef TASK_STACK_INPUT
@@ -341,7 +329,6 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 // ---------------------------------------------------------------------------
 
 // Set to 0 to exclude NimBLE and WiFi from the build (saves ~30 KB DRAM).
-// Disabled in [env:sim] because the sim environment doesn't need wireless.
 #ifndef APP_BLE_ENABLED
     #define APP_BLE_ENABLED 1
 #endif
@@ -477,26 +464,6 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define BURN_OVERLAY_ERROR_HOLD_MS 3000
 
 // ---------------------------------------------------------------------------
-// Simulation mode config
-// ---------------------------------------------------------------------------
-#if APP_SIMULATION_MODE
-    // Simulated RPM sweep parameters
-    #define SIM_RPM_MIN 800
-    #define SIM_RPM_MAX 7200
-    #define SIM_RPM_STEP 20  // RPM change per update tick
-    #define SIM_UPDATE_MS 50 // Simulation update interval
-
-    // Simulated coolant temperature (°C, fixed for simplicity)
-    #define SIM_COOLANT_C 90
-
-    // Simulated oil temperature (°C)
-    #define SIM_OIL_TEMP_C 95
-
-    // Simulated oil pressure (bar)
-    #define SIM_OIL_PRESS_BAR 3.5f
-#endif // APP_SIMULATION_MODE
-
-// ---------------------------------------------------------------------------
 // Diagnostics / logging
 // ---------------------------------------------------------------------------
 
@@ -533,12 +500,12 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #endif
 
 // Verbose per-event debug logs. Kept off in release so per-touch / per-gesture /
-// per-signal-timeout chatter doesn't flood UART0. Enabled in [env:debug] and
-// [env:sim] so developers see the full stream while iterating. Independent of
+// per-signal-timeout chatter doesn't flood UART0. Enabled in [env:debug] so
+// developers see the full stream while iterating. Independent of
 // APP_LOG_LEVEL — when off, individual LOG_VDEBUG() call-sites collapse to
 // no-ops at preprocess time even if APP_LOG_LEVEL >= 4.
 #ifndef APP_VERBOSE_DEBUG_LOGS
-    #if APP_DEBUG_BUILD || APP_SIMULATION_MODE
+    #if APP_DEBUG_BUILD
         #define APP_VERBOSE_DEBUG_LOGS 1
     #else
         #define APP_VERBOSE_DEBUG_LOGS 0

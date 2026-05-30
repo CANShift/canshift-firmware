@@ -49,7 +49,6 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 - CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains them to USB at ≤32 frames per tick.
 - CAN health stats emitted as `{"can_stat":1,"fps":X.X,"errors":N}` every 2 s.
 - Telemetry push — `{"tele":1,"v":{...}}` every ~200 ms over USB; same payload at 10 Hz over BLE TELE.
-- Simulation mode (`[env:sim]`) generates VR6-shaped data with no CAN hardware required.
 - LVGL draw buffers sized at 20 lines × 320 px × 2 bytes (~12.8 KB each) so the firmware fits comfortably alongside NimBLE in DRAM.
 
 ---
@@ -70,9 +69,6 @@ pio run                          # Build only
 pio run --target upload          # Build and flash firmware
 pio run --target uploadfs        # Upload SPIFFS filesystem (data/)
 pio device monitor               # Serial monitor at 115200 baud
-
-# Simulation mode (no hardware required)
-pio run -e sim --target upload
 
 # Dash-hosted Studio (WiFi build) — needs both firmware AND SPIFFS
 pio run -e crowpanel_28_wifi --target upload
@@ -102,9 +98,7 @@ scales line up, but the knobs are otherwise orthogonal — raising one does not
 affect the other.
 
 To get full chatter (both framework + app logs at verbose) when debugging,
-build `[env:debug]` instead of overriding flags by hand. `[env:sim]` keeps
-`APP_LOG_LEVEL=3` + `CORE_DEBUG_LEVEL=4` so the QEMU boot smoke harness sees
-the expected info-level boot markers.
+build `[env:debug]` instead of overriding flags by hand.
 
 ### Flashing a release
 
@@ -229,18 +223,16 @@ runtime, and the table is identical across `crowpanel_28` /
 1. Verify pins in [`include/board_config.h`](include/board_config.h) **and** the
    contents of [`data/config/device.json`](data/config/device.json) against
    your CrowPanel 2.8" schematic and your CAN-Pal wiring.
-2. Set `APP_SIMULATION_MODE=1` in `include/app_config.h` (or build `[env:sim]`)
-   for the very first UI test — it skips CAN init and disables BLE.
-3. `pio run -e sim --target upload` — flash the simulation build.
-4. Confirm the display initializes, the splash holds for 2 s, and a dashboard
-   page renders with simulated data.
-5. Drop simulation, switch back to `[env:crowpanel_28]`, connect the CAN
-   transceiver, and verify signal reception via the dash-hosted Studio's
-   Diagnostics panel.
-6. Confirm `device.json` matches your CAN-Pal wiring (`twai_tx_pin`,
+2. `pio run --target upload` — flash the default `[env:crowpanel_28]` build.
+3. Confirm the display initializes, the splash holds for 2 s, and the
+   dashboard renders. Without a CAN transceiver attached the signal-driven
+   widgets stay at their default values — BLE and WiFi paths still come up.
+4. Connect the CAN transceiver and verify signal reception via the dash-hosted
+   Studio's Diagnostics panel.
+5. Confirm `device.json` matches your CAN-Pal wiring (`twai_tx_pin`,
    `twai_rx_pin`, `can_speed_kbps`). If absent, the firmware falls back to
    `PIN_TWAI_TX` / `PIN_TWAI_RX` from `board_config.h`.
-7. Join the dash's `CANShift-XXXX` WiFi AP, browse to `http://canshift.local`,
+6. Join the dash's `CANShift-XXXX` WiFi AP, browse to `http://canshift.local`,
    and push a config from the dash-hosted Studio.
 
 ---
@@ -249,7 +241,7 @@ runtime, and the table is identical across `crowpanel_28` /
 
 ```
 canshift-firmware/
-├── platformio.ini                  # Build envs (crowpanel_28, sim, native, …)
+├── platformio.ini                  # Build envs (crowpanel_28, native, …)
 ├── include/
 │   ├── app_config.h                # Feature flags, task sizes, thresholds
 │   ├── board.h                     # Compile-time board selector (#831)
@@ -311,7 +303,6 @@ canshift-firmware/
 │   │   ├── widget_styles.{cpp,h}   # Reusable lv_style_t bank
 │   │   └── widgets/                # bar, button, gauge, gear, image, label,
 │   │                               # timer, warning
-│   ├── sim/sim_engine.{cpp,h}      # Triangle-wave RPM + slow temp ramp
 │   ├── util/                       # format_float, no_float_printf — host-portable helpers
 │   └── diag/
 │       ├── error_store.{cpp,h}     # Persistent error state for the badge
@@ -348,7 +339,6 @@ canshift-firmware/
 | USB | 1 | 8 | 4096 B | 20 ms | `taskUSBComm` — `src/main.cpp` |
 | Input | 0 | 7 | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS` | `taskInput` — `src/runtime/input_buttons.cpp` |
 | BLE | 1 | 6 | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz) | `taskBLE` — `src/main.cpp` |
-| Sim *(sim mode only)* | 1 | 5 | 2048 B | 50 ms (`SIM_UPDATE_MS`) | `taskSim` — `src/main.cpp` |
 | WiFi AP *(OTA on demand)* | 1 | 5 | 4096 B | event-driven | `src/hal/wifi/wifi_ap.cpp` |
 | WiFi TCP *(Studio JSON-lines, AP-gated, #1071)* | 1 | 5 | 4096 B | 10 ms | `src/hal/wifi/wifi_tcp.cpp` |
 | WiFi WS *(dash-hosted Studio, AP-gated, #1105)* | 1 | 5 | 4096 B | 10 ms | `src/hal/wifi/wifi_ws.cpp` |
@@ -493,9 +483,8 @@ because applying it triggers a reboot.
 BLE is compiled in for the production build (`APP_BLE_ENABLED=1`) but stays
 **off at runtime by default** — `BLE_DEFAULT_ENABLED=0` since #873 so a
 freshly-flashed device does not advertise until the user turns BLE on from
-the on-device Settings page. The `[env:sim]` build sets `APP_BLE_ENABLED=0`
-to keep simulator boots silent. NimBLE adds ~30 KB DRAM; the build flags
-trim the stack to peripheral-only.
+the on-device Settings page. NimBLE adds ~30 KB DRAM; the build flags trim
+the stack to peripheral-only.
 
 ### Pairing & security (issue #873)
 
@@ -989,19 +978,6 @@ pin is rejected before the push to the dash.
 
 ---
 
-## Simulation mode
-
-Build with `[env:sim]` (see `platformio.ini`) or set `APP_SIMULATION_MODE=1`
-in your build flags. In sim mode:
-
-- TWAI hardware is not initialized.
-- `SimEngine` generates a triangle-wave RPM sweep and a slow temperature ramp.
-- USB protocol still works end-to-end.
-- Config loading, page navigation, and widget rendering all behave normally.
-- BLE and WiFi are auto-disabled (`-DAPP_BLE_ENABLED=0` in `[env:sim]`).
-
----
-
 ## Hardware assumptions
 
 > Verify all GPIO assignments against your CrowPanel 2.8" schematic before the
@@ -1117,7 +1093,6 @@ gaps #897) before they reach a real device.
 | Layer | Build env | What it catches | What it doesn't |
 |---|---|---|---|
 | **ASan + UBSan (full)** | `[env:native]` — host gcc/clang, `pio test -e native` | Use-after-free, double-free, heap-overflow, stack-overflow, leak (Linux CI via `ASAN_OPTIONS=detect_leaks=1`), integer UB, null deref, alignment, vptr, bounds, vla-bound, returns-nonnull violations | Anything that only manifests on the Xtensa target (cache coherency, PSRAM access patterns, FreeRTOS scheduler timing). 11 first-party TUs only (the unit-test source set). |
-| **UBSan (integer subset, trap-on-error)** | `[env:sim]` — gcc-xtensa 8.4.0, QEMU boot smoke | Integer UB at runtime: shift out-of-range, integer divide-by-zero, signed-integer-overflow, vla-bound, array bounds. Each violation triggers `__builtin_trap()` → `Guru Meditation`, fails the boot smoke gate. | C++ UB (vptr, vla-bound type-info) — `-fsanitize=vptr` is rejected by the toolchain (no libubsan, prebuilt framework objects miss type-info refs). ASan family — not supported on Xtensa at all. |
 | **clang-tidy strict (gating)** | `[env:native]` compile DB, CI job `firmware — clang-tidy (gating, native subset)` | Anti-pattern + secure-coding rules: `bugprone-*`, `cert-*`, `clang-analyzer-core.*`, `clang-analyzer-cplusplus.*`, `concurrency-*`. `WarningsAsErrors: '*'` — any rule emit fails the build. Required check. | The same 11 TUs as ASan/UBSan; UI / LVGL / driver code is not yet gated. |
 | **clang-tidy informational** | `[env:crowpanel_28]` compile DB, CI job `firmware — clang-tidy (non-blocking)` | Same rule set on the Xtensa compile DB — wider TU coverage, including UI / drivers / HAL. | Dominated by toolchain-induced `clang-diagnostic-error` noise (stock Ubuntu clang's host sysroot is missing ESP32-newlib bits like `machine/endian.h`). Surfaces signal but is not blocking until the ESP-IDF Xtensa-aware clang is wired into CI. |
 

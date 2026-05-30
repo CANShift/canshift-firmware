@@ -27,9 +27,7 @@
 #include "ui/font_manager.h"
 #include "ui/top_bar.h"
 
-#if !APP_SIMULATION_MODE
-    #include "can/can_manager.h"
-#endif
+#include "can/can_manager.h"
 
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
@@ -43,10 +41,8 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
-#if !APP_SIMULATION_MODE
-    #include <esp_ota_ops.h>
-    #include <esp_task_wdt.h>
-#endif
+#include <esp_ota_ops.h>
+#include <esp_task_wdt.h>
 #include <lvgl.h>
 
 // Diagnostic — log free heap, largest contiguous LVGL-relevant block, and
@@ -241,8 +237,7 @@ static void buildUI() {
 
 // Mark the running OTA slot as valid so the bootloader cancels its pending
 // rollback. No-op when the running partition is not in PENDING_VERIFY state
-// (factory boot, or already-marked slot from an earlier boot). Compiled out
-// entirely on `APP_SIMULATION_MODE` builds — sim has no OTA partitions.
+// (factory boot, or already-marked slot from an earlier boot).
 //
 // Originally fired once from BootSequence::run() right after [BOOT] Ready —
 // "if we reached this point the UI is built, so the image is healthy". That
@@ -252,7 +247,6 @@ static void buildUI() {
 // taskUI, gated on N successfully rendered frames (see UI_OTA_VALID_FRAMES
 // in main.cpp). Issue #674.
 void BootSequence::markOtaSlotValidIfPending() {
-#if !APP_SIMULATION_MODE
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
         return;
@@ -270,7 +264,6 @@ void BootSequence::markOtaSlotValidIfPending() {
     } else {
         LOG_WARN("OTA", "esp_ota_mark_app_valid_cancel_rollback returned %s", esp_err_to_name(err));
     }
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -301,14 +294,11 @@ static void initPsramAndLogEntry() {
 // Task Watchdog Timer — initialised here, before any task is spawned in
 // main.cpp::createAllTasks(). Registered tasks (UI/CAN/USB) must call
 // esp_task_wdt_reset() each loop iteration or the panic handler resets
-// the device. Skipped in simulation builds because QEMU has no real WDT
-// and the boot smoke test would otherwise reset before reaching
-// "[BOOT] Ready". Issue #666.
+// the device. Issue #666.
 //
 // The arduino-esp32 SDK pinned here ships the IDF v4 TWDT API
 // (seconds + bool, idempotent — re-init updates the existing config).
 static void initTaskWatchdog() {
-#if !APP_SIMULATION_MODE
     constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
     const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, /*panic=*/true);
     if (wdtErr != ESP_OK) {
@@ -317,7 +307,6 @@ static void initTaskWatchdog() {
     } else {
         LOG_INFO("BOOT", "Task WDT armed (%u s)", static_cast<unsigned>(WDT_TIMEOUT_S));
     }
-#endif
 }
 
 // BLE early init — NimBLE needs ~50 KB contiguous DRAM. After LovyanGFX
@@ -462,16 +451,10 @@ static void initRuntimeServices() {
     updateSplash("Starting runtime...", 60);
 }
 
-// CAN hardware (skip in simulation mode).
-static void initCanOrSplashSimNotice() {
-#if !APP_SIMULATION_MODE
+static void initCanHardwarePhase() {
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
     CanManager::initHardware();
     updateSplash("CAN ready", 78);
-#else
-    LOG_INFO("BOOT", "Simulation mode — skipping CAN init");
-    updateSplash("Simulation mode", 78);
-#endif
 }
 
 static void initUsbCommPhase() {
@@ -583,7 +566,7 @@ void BootSequence::run() {
 
     showSplashWithInitialUpdates();
     initRuntimeServices();
-    initCanOrSplashSimNotice();
+    initCanHardwarePhase();
     initUsbCommPhase();
     logOtaHmacKeyDiag();
     autoStartWifiApIfPersisted();

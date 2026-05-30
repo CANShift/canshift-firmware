@@ -212,12 +212,10 @@ void wsTaskFn(void *) {
     // handler the same way every other long-lived task does. Skipped in
     // simulation builds — the WDT is itself disabled there (BootSequence) and
     // esp_task_wdt_add would return ESP_ERR_INVALID_STATE.
-    #if !APP_SIMULATION_MODE
     const esp_err_t wdtAddErr = esp_task_wdt_add(nullptr);
     if (wdtAddErr != ESP_OK) {
         LOG_WARN("WiFiWS", "WDT add(wifi_ws) failed: %d", static_cast<int>(wdtAddErr));
     }
-    #endif
 
     s_clientNum = WS_INVALID_CLIENT;
     s_ownsAuxSink = false;
@@ -229,9 +227,7 @@ void wsTaskFn(void *) {
     while (s_active) {
         s_ws.loop();
 
-    #if !APP_SIMULATION_MODE
         esp_task_wdt_reset();
-    #endif
         vTaskDelay(WS_TICK_DELAY);
     }
 
@@ -245,12 +241,10 @@ void wsTaskFn(void *) {
     }
     s_ws.close();
 
-    #if !APP_SIMULATION_MODE
     const esp_err_t wdtDelErr = esp_task_wdt_delete(nullptr);
     if (wdtDelErr != ESP_OK) {
         LOG_WARN("WiFiWS", "WDT delete(wifi_ws) failed: %d", static_cast<int>(wdtDelErr));
     }
-    #endif
 
     s_taskHandle = nullptr;
     LOG_INFO("WiFiWS", "Server stopped");

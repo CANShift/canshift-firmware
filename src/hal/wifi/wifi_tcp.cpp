@@ -160,12 +160,10 @@ void tcpTaskFn(void *) {
     // the panic handler the same way every other long-lived task does.
     // Skipped in simulation builds — the WDT is itself disabled there
     // (BootSequence) and esp_task_wdt_add would return ESP_ERR_INVALID_STATE.
-    #if !APP_SIMULATION_MODE
     const esp_err_t wdtAddErr = esp_task_wdt_add(nullptr);
     if (wdtAddErr != ESP_OK) {
         LOG_WARN("WiFiTCP", "WDT add(wifi_tcp) failed: %d", static_cast<int>(wdtAddErr));
     }
-    #endif
 
     // Heap-allocate the line buffer here (not in start(), which runs on the
     // caller's task) so the largest contiguous block on this core's heap is
@@ -195,9 +193,7 @@ void tcpTaskFn(void *) {
             pumpInbound();
         }
 
-    #if !APP_SIMULATION_MODE
         esp_task_wdt_reset();
-    #endif
         vTaskDelay(TCP_TICK_DELAY);
     }
 
@@ -214,12 +210,10 @@ void tcpTaskFn(void *) {
     }
     s_linePos = 0;
 
-    #if !APP_SIMULATION_MODE
     const esp_err_t wdtDelErr = esp_task_wdt_delete(nullptr);
     if (wdtDelErr != ESP_OK) {
         LOG_WARN("WiFiTCP", "WDT delete(wifi_tcp) failed: %d", static_cast<int>(wdtDelErr));
     }
-    #endif
 
     s_taskHandle = nullptr;
     LOG_INFO("WiFiTCP", "Server stopped");

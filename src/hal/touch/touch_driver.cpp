@@ -1,6 +1,5 @@
 // touch_driver.cpp — XPT2046 resistive touch HAL (LovyanGFX backend)
-// In sim mode: dummy input device that always reports "released".
-// In hardware mode: XPT2046 via the shared LGFX panel.
+// XPT2046 via the shared LGFX panel.
 // Calibration data persisted in NVS (namespace "touch", key "cal", 16 bytes).
 
 #include "touch_driver.h"
@@ -12,14 +11,12 @@
 
 static lv_indev_drv_t s_indevDrv;
 
-#if !APP_SIMULATION_MODE
+#include "board_config.h"
+#include "hardware_profile.h"
+#include "hal/display/display_driver.h"
+#include <Preferences.h>
 
-    #include "board_config.h"
-    #include "hardware_profile.h"
-    #include "hal/display/display_driver.h"
-    #include <Preferences.h>
-
-    #define s_lcd DisplayDriver::getDisplay()
+#define s_lcd DisplayDriver::getDisplay()
 
 static constexpr char NVS_NS[] = "touch";
 static constexpr char NVS_KEY_CAL[] = "cal";
@@ -90,7 +87,7 @@ void TouchDriver::init() {
 
     lv_indev_drv_register(&s_indevDrv);
 
-    #if APP_PROFILE_UI
+#if APP_PROFILE_UI
     // Global click listener: bubble-up LV_EVENT_CLICKED from any screen lands
     // here so we can close the press → click latency loop. Attaching to
     // lv_layer_top() works because that layer's event tree sees every
@@ -104,7 +101,7 @@ void TouchDriver::init() {
             }
         },
         LV_EVENT_CLICKED, nullptr);
-    #endif
+#endif
 
     LOG_INFO("TOUCH", "Touch driver registered");
 }
@@ -142,28 +139,3 @@ void TouchDriver::resetCalibration() {
     p.end();
     LOG_INFO("TOUCH", "Calibration data cleared from NVS");
 }
-
-#else // APP_SIMULATION_MODE
-
-// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
-void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
-    data->state = LV_INDEV_STATE_RELEASED;
-}
-
-void TouchDriver::init() {
-    lv_indev_drv_init(&s_indevDrv);
-    s_indevDrv.type = LV_INDEV_TYPE_POINTER;
-    s_indevDrv.read_cb = readCallback;
-    lv_indev_drv_register(&s_indevDrv);
-    LOG_INFO("TOUCH", "Sim mode — touch stub active (always released)");
-}
-
-void TouchDriver::poll() {}
-
-bool TouchDriver::isCalibrated() {
-    return false;
-}
-void TouchDriver::calibrate() {}
-void TouchDriver::resetCalibration() {}
-
-#endif // APP_SIMULATION_MODE

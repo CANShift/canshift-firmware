@@ -4,10 +4,8 @@
 #include "app_config.h"
 #include "diag/logger.h"
 
-#if !APP_SIMULATION_MODE
-    #include <Arduino.h>
-    #include <esp_heap_caps.h>
-#endif
+#include <Arduino.h>
+#include <esp_heap_caps.h>
 
 namespace canshift::hal::memory {
 
@@ -23,7 +21,6 @@ void initPsram() {
     }
     s_initialized = true;
 
-#if !APP_SIMULATION_MODE
     // ESP.getPsramSize() is the canonical Arduino-core probe. On a WROOM
     // chip with -DBOARD_HAS_PSRAM set, the IDF psram init fails silently
     // at boot and this returns 0 — exactly the runtime-detect path we want.
@@ -37,11 +34,6 @@ void initPsram() {
     } else {
         LOG_INFO("MEM", "no PSRAM — using DRAM only");
     }
-#else
-    s_totalBytes = 0;
-    s_available = false;
-    LOG_INFO("MEM", "sim build — PSRAM detection skipped");
-#endif
 }
 
 bool isPsramAvailable() {
@@ -53,14 +45,10 @@ size_t getPsramSize() {
 }
 
 size_t getFreePsram() {
-#if !APP_SIMULATION_MODE
     if (!s_available) {
         return 0;
     }
     return ESP.getFreePsram();
-#else
-    return 0;
-#endif
 }
 
 } // namespace canshift::hal::memory

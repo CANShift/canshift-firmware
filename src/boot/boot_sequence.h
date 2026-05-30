@@ -14,7 +14,7 @@ namespace BootSequence {
  *   7. Initialize signal store
  *   8. Initialize alert engine
  *   9. Build UI from config (page manager, widgets)
- *  10. Initialize CAN HAL (unless simulation mode)
+ *  10. Initialize CAN HAL
  *  11. Initialize USB comm HAL
  *  12. Dismiss splash, show main page
  *
@@ -29,8 +29,7 @@ void run();
 /**
  * Mark the running OTA slot as valid so the bootloader cancels its pending
  * rollback. No-op when the running partition is not in PENDING_VERIFY state
- * (factory boot, or already-marked from an earlier boot), and a compile-time
- * no-op in `APP_SIMULATION_MODE` builds (sim has no OTA partitions).
+ * (factory boot, or already-marked from an earlier boot).
  *
  * Idempotent — safe to call more than once. Designed to fire from taskUI
  * after the UI loop has rendered N healthy frames (F-ME-8), so a UI-layer
