@@ -43,14 +43,15 @@ extern const CfgColorRamp kSensorDefaultRamps[kSensorKindCount];
 
 // Map a free-form signal name (e.g. "coolant_temp_c") to a `SensorKind`.
 // Mirrors `resolveSensorKind` in TypeScript. Case-insensitive, substring-based.
-SensorKind sensorKindFromName(const char *signalName);
+[[nodiscard]] SensorKind sensorKindFromName(const char *signalName);
 
 // Resolve the active ramp for a widget. Prefers the per-signal ramp parsed
 // from JSON; falls back to the sensor-name heuristic. Returns nullptr when
 // neither resolves — caller keeps the legacy static color path.
-const CfgColorRamp *resolveRamp(const CfgColorRamp &perSignal, const char *signalName);
+[[nodiscard]] const CfgColorRamp *resolveRamp(const CfgColorRamp &perSignal,
+                                              const char *signalName);
 
 // Sample the ramp at `value`. Returns 0x00RRGGBB. O(count), no allocation.
 // Below the first stop returns the first color; above the last returns the
 // last. Empty ramps return 0x000000 (defensive — validator forbids them).
-uint32_t colorAtValue(const CfgColorRamp &ramp, float value);
+[[nodiscard]] uint32_t colorAtValue(const CfgColorRamp &ramp, float value);

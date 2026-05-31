@@ -28,7 +28,7 @@ void apply();
 void init();
 
 /** True when day mode is currently active. */
-bool isDayMode();
+[[nodiscard]] bool isDayMode();
 
 /**
  * Toggle day <-> night mode.
@@ -48,7 +48,7 @@ void setDayMode(bool day);
  * Return effective page background: dayTheme.bgColor when in day mode
  * and hasDayTheme, otherwise returns nightBg unchanged.
  */
-CfgColor getEffectiveBgColor(const CfgColor &nightBg);
+[[nodiscard]] CfgColor getEffectiveBgColor(const CfgColor &nightBg);
 
 /**
  * Return the effective widget text color for the current mode.
@@ -60,7 +60,7 @@ CfgColor getEffectiveBgColor(const CfgColor &nightBg);
  * background the active mode renders. The top bar reads its own colour
  * constants so it is unaffected.
  */
-uint32_t getEffectiveTextColor();
+[[nodiscard]] uint32_t getEffectiveTextColor();
 
 /**
  * Resolve the text colour for a widget that opts out of the mode-driven
@@ -69,6 +69,6 @@ uint32_t getEffectiveTextColor();
  * `style.textColor` verbatim so user-chosen accents (cyan COOLANT, …)
  * survive day mode.
  */
-uint32_t getEffectiveTextColor(uint32_t styleTextColor, bool respectDayMode);
+[[nodiscard]] uint32_t getEffectiveTextColor(uint32_t styleTextColor, bool respectDayMode);
 
 } // namespace ThemeManager

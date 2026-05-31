@@ -30,7 +30,7 @@ constexpr uint32_t kSentinelNoWarning = 0u;
 // Returns the entry for a given iconName, or nullptr when the name is empty
 // or doesn't match a known sensor. Case-sensitive — values come from the
 // Zod enum so the casing is fixed.
-const SensorPaletteEntry *lookup(const char *iconName);
+[[nodiscard]] const SensorPaletteEntry *lookup(const char *iconName);
 
 // Resolve the fill colour for a value relative to the danger threshold. When
 // no palette entry matches, returns 0 — callers fall back to their existing
@@ -39,6 +39,6 @@ const SensorPaletteEntry *lookup(const char *iconName);
 // Caller-supplied semantics: `value` and `dangerLevel` are in the same
 // native unit. NaN `dangerLevel` is treated as "no threshold" so the OK
 // colour fills the entire range.
-uint32_t fillColor(const char *iconName, float value, float dangerLevel);
+[[nodiscard]] uint32_t fillColor(const char *iconName, float value, float dangerLevel);
 
 } // namespace SensorPalette
