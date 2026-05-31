@@ -222,27 +222,6 @@ void test_loadDashboard_targetProfile_roundTripsExplicitValue() {
     TEST_ASSERT_EQUAL_STRING("crowpanel-28", ConfigLoader::getDashboardConfig().targetProfile);
 }
 
-// Issues #971 + #500 — fontFamily parsing. When the field is absent the
-// loader must surface the canonical default `orbitron` so FontManager keeps
-// loading the same in-flash + SPIFFS bundle as pre-#1132 builds.
-void test_loadDashboard_fontFamily_defaultsToOrbitronWhenAbsent() {
-    stageMinimalFiles();
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    TEST_ASSERT_EQUAL_STRING("orbitron", ConfigLoader::getDashboardConfig().fontFamily);
-}
-
-// When the field is present, the literal id must round-trip onto the struct
-// untouched so FontManager's per-family resolver receives a stable input.
-void test_loadDashboard_fontFamily_roundTripsExplicitValue() {
-    StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithFontFamily,
-                             strlen(fixtures::kDashboardWithFontFamily));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
-                             strlen(fixtures::kSignalsMinimal));
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    TEST_ASSERT_EQUAL_STRING("orbitron", ConfigLoader::getDashboardConfig().fontFamily);
-}
-
 // Issue #1159 — malformed canFrameId must drop the offending signal and keep
 // all other signals intact. A bare strtoul would have silently produced 0.
 void test_loadSignals_malformedCanFrameId_dropsSignal() {
@@ -327,8 +306,6 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_reloadAll_invalidSignals_preservesSignalState);
     RUN_TEST(test_loadDashboard_targetProfile_defaultsToCrowpanel28WhenAbsent);
     RUN_TEST(test_loadDashboard_targetProfile_roundTripsExplicitValue);
-    RUN_TEST(test_loadDashboard_fontFamily_defaultsToOrbitronWhenAbsent);
-    RUN_TEST(test_loadDashboard_fontFamily_roundTripsExplicitValue);
     RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
     RUN_TEST(test_loadSignals_malformedCanFrameId_dropsSignal);
     RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);

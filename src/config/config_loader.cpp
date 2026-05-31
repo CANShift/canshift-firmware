@@ -845,12 +845,6 @@ bool loadDashboard() {
     // non-empty id and never has to special-case the empty string.
     strlcpy(s_dashboard.targetProfile, doc["targetProfile"] | "crowpanel-28",
             sizeof(s_dashboard.targetProfile));
-    // Font family (issues #971 + #500). Optional in JSON — every dashboard
-    // authored before this field existed must keep rendering with the
-    // canonical default ("orbitron"). The resolver in FontManager owns the
-    // unknown-id WARN + fallback so the parser stays a straight passthrough.
-    strlcpy(s_dashboard.fontFamily, doc["fontFamily"] | "orbitron", sizeof(s_dashboard.fontFamily));
-
     JsonObjectConst topBar = doc["topBar"];
     s_dashboard.topBar.height = topBar["height"] | 30;
     parseColor(topBar["bgColor"] | "#111111", &s_dashboard.topBar.bgColor);

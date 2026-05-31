@@ -1,17 +1,10 @@
 // font_manager.cpp — Loads dashboard fonts from SPIFFS at boot (issue #431).
 //
-// Each .bin lives at `S:/fonts/<family>_<weight>_<N>.bin` (lv_font_conv
+// Each .bin lives at `S:/fonts/orbitron_<weight>_<N>.bin` (lv_font_conv
 // output). Loaded once into per-intent cached lookup tables; freed via
 // shutdown(). On load failure for any size, the accessor falls back to the
 // built-in `lv_font_orbitron_medium_14_nk` linked into flash so the UI always
 // renders something readable.
-//
-// Family selection (issues #971 + #500): the family id arrives from
-// `CfgDashboard.fontFamily` and is resolved to a `FontFamilyAssets` row by
-// `resolveFamily()`. v1 catalog ships a single entry (`orbitron`) — adding a
-// second family is a catalog edit plus the matching SPIFFS bundle, no
-// changes to the loader, resolver, or accessors. See the docs note in
-// docs/firmware/adding-a-font-family.md (#971 follow-up).
 
 #include "font_manager.h"
 #include "diag/error_store.h"
@@ -54,99 +47,17 @@ namespace {
 //     even with both primary sizes in flash, adding the 15 KB 28 px Bold on
 //     top of the existing bold/medium SPIFFS budget pushes the pool past its
 //     working ceiling. 28 stays dropped (secondary text snaps to 24 px).
-constexpr uint8_t kOrbitronPrimarySizes[] = {32, 48};   // both in-flash
-constexpr uint8_t kOrbitronSecondarySizes[] = {20, 24}; // 28 dropped — pool too tight
-constexpr uint8_t kOrbitronLabelSizes[] = {12, 14, 16};
+constexpr uint8_t kPrimarySizes[] = {32, 48};   // both in-flash
+constexpr uint8_t kSecondarySizes[] = {20, 24}; // 28 dropped — pool too tight
+constexpr uint8_t kLabelSizes[] = {12, 14, 16};
 
-// Maximum tier widths across every family in the catalog. The runtime cache
-// arrays are sized to these constants — adding a family with a wider tier
-// only needs the constant to grow, not the surrounding scaffold.
-constexpr size_t kMaxPrimaryCount = 2;
-constexpr size_t kMaxSecondaryCount = 2;
-constexpr size_t kMaxLabelCount = 3;
+constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
+constexpr size_t kSecondaryCount = sizeof(kSecondarySizes) / sizeof(kSecondarySizes[0]);
+constexpr size_t kLabelCount = sizeof(kLabelSizes) / sizeof(kLabelSizes[0]);
 
-static_assert(sizeof(kOrbitronPrimarySizes) / sizeof(kOrbitronPrimarySizes[0]) <= kMaxPrimaryCount,
-              "orbitron primary tier exceeds kMaxPrimaryCount");
-static_assert(sizeof(kOrbitronSecondarySizes) / sizeof(kOrbitronSecondarySizes[0]) <=
-                  kMaxSecondaryCount,
-              "orbitron secondary tier exceeds kMaxSecondaryCount");
-static_assert(sizeof(kOrbitronLabelSizes) / sizeof(kOrbitronLabelSizes[0]) <= kMaxLabelCount,
-              "orbitron label tier exceeds kMaxLabelCount");
-
-// Per-family static asset bundle. Adding a family means appending a row to
-// `kFamilies` (and dropping the matching `<id>_<weight>_<N>.bin` files into
-// `data/fonts/`). Hot-path lookups never see this struct — it is consulted
-// once inside `init()`.
-struct FontFamilyAssets {
-    const char *id;            // matches FontFamilyId in canshift-core
-    const char *primaryWeight; // file token, e.g. "black"
-    const char *secondaryWeight;
-    const char *labelWeight;
-    const uint8_t *primarySizes;
-    size_t primaryCount;
-    const uint8_t *secondarySizes;
-    size_t secondaryCount;
-    const uint8_t *labelSizes;
-    size_t labelCount;
-    // In-flash overrides keyed by px size — lookup runs once per slot at
-    // init() and never on the per-character render path. `size == 0`
-    // terminates the list; an empty list means "load every size from SPIFFS".
-    struct InFlashOverride {
-        uint8_t size;
-        const lv_font_t *font;
-        const char *log; // human-readable annotation for the boot log
-    };
-    const InFlashOverride *primaryFlash;
-    const InFlashOverride *secondaryFlash;
-    const InFlashOverride *labelFlash;
-};
-
-// Orbitron — v1's only family. Mirrors the single entry in FONT_FAMILIES
-// in canshift-core/src/schemas/font-family.ts (issues #971 + #500).
-constexpr FontFamilyAssets::InFlashOverride kOrbitronPrimaryFlash[] = {
-    {32, &lv_font_orbitron_black_32_nk, "in-flash copy (saves ~20 KB pool)"},
-    {48, &lv_font_orbitron_black_48_nk, "in-flash copy (saves ~44 KB pool)"},
-    {0, nullptr, nullptr},
-};
-constexpr FontFamilyAssets::InFlashOverride kOrbitronLabelFlash[] = {
-    {14, &lv_font_orbitron_medium_14_nk, "in-flash copy (saves ~4.6 KB pool)"},
-    {0, nullptr, nullptr},
-};
-
-constexpr FontFamilyAssets kOrbitronAssets = {
-    "orbitron",
-    "black",
-    "bold",
-    "medium",
-    kOrbitronPrimarySizes,
-    sizeof(kOrbitronPrimarySizes) / sizeof(kOrbitronPrimarySizes[0]),
-    kOrbitronSecondarySizes,
-    sizeof(kOrbitronSecondarySizes) / sizeof(kOrbitronSecondarySizes[0]),
-    kOrbitronLabelSizes,
-    sizeof(kOrbitronLabelSizes) / sizeof(kOrbitronLabelSizes[0]),
-    kOrbitronPrimaryFlash,
-    nullptr,
-    kOrbitronLabelFlash,
-};
-
-// Canonical default — mirrors DEFAULT_FONT_FAMILY_ID in canshift-core.
-constexpr const FontFamilyAssets *kDefaultFamily = &kOrbitronAssets;
-
-// Resolve a family id to its asset bundle. Unknown / empty / null inputs
-// return nullptr so the caller owns the WARN + fallback log message. v1
-// recognises a single id — adding a family means an extra branch here.
-const FontFamilyAssets *resolveFamily(const char *family) {
-    if (!family || family[0] == '\0')
-        return nullptr;
-    if (strcmp(family, "orbitron") == 0)
-        return &kOrbitronAssets;
-    return nullptr;
-}
-
-const lv_font_t *s_primary[kMaxPrimaryCount] = {nullptr};
-const lv_font_t *s_secondary[kMaxSecondaryCount] = {nullptr};
-const lv_font_t *s_label[kMaxLabelCount] = {nullptr};
-const FontFamilyAssets *s_active_family = nullptr;
+const lv_font_t *s_primary[kPrimaryCount] = {nullptr};
+const lv_font_t *s_secondary[kSecondaryCount] = {nullptr};
+const lv_font_t *s_label[kLabelCount] = {nullptr};
 bool s_initialized = false;
 
 // Returns the index of the largest sizes[i] <= size, or 0 if none.
@@ -215,14 +126,13 @@ bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
 // Loads a single .bin into `slot` and pushes a diagnostic error on failure.
 // `weight` is the file-system token used in the filename ("black", "bold",
 // "medium") and `intent` is the human-readable role logged on success.
-void loadOne(const char *familyId, const char *weight, const char *intent, uint8_t size,
-             const lv_font_t *&slot) {
+void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font_t *&slot) {
     char path[64];
-    snprintf(path, sizeof(path), "S:/fonts/%s_%s_%u.bin", familyId, weight, size);
+    snprintf(path, sizeof(path), "S:/fonts/orbitron_%s_%u.bin", weight, size);
 
     // SPIFFS-side path mirrors `lvgl_fs_driver` mapping (drops the "S:" prefix).
     char spiffsPath[64];
-    snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/%s_%s_%u.bin", familyId, weight, size);
+    snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/orbitron_%s_%u.bin", weight, size);
 
     logFontHeap("before", weight, size);
 
@@ -234,49 +144,17 @@ void loadOne(const char *familyId, const char *weight, const char *intent, uint8
     logFontHeap("after ", weight, size);
 
     if (font == nullptr) {
-        LOG_ERROR("FONT", "Failed to load %s_%s_%u.bin from SPIFFS — falling back to built-in 14",
-                  familyId, weight, size);
+        LOG_ERROR("FONT",
+                  "Failed to load orbitron_%s_%u.bin from SPIFFS — falling back to built-in 14",
+                  weight, size);
 
         char detail[60];
-        snprintf(detail, sizeof(detail), "%s_%s_%u.bin missing", familyId, weight, size);
+        snprintf(detail, sizeof(detail), "orbitron_%s_%u.bin missing", weight, size);
         ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_LOAD", detail);
     } else {
-        LOG_INFO("FONT", "Loaded %s_%s_%u.bin from SPIFFS (%s)", familyId, weight, size, intent);
+        LOG_INFO("FONT", "Loaded orbitron_%s_%u.bin from SPIFFS (%s)", weight, size, intent);
     }
     slot = font;
-}
-
-// Walk the in-flash override list for a given px size. Returns the override
-// row pointer (so the caller can also log the annotation), or nullptr when
-// the size has no override and must be loaded from SPIFFS.
-const FontFamilyAssets::InFlashOverride *
-findFlashOverride(const FontFamilyAssets::InFlashOverride *list, uint8_t size) {
-    if (!list)
-        return nullptr;
-    for (const FontFamilyAssets::InFlashOverride *row = list; row->size != 0; ++row) {
-        if (row->size == size)
-            return row;
-    }
-    return nullptr;
-}
-
-// Populate one tier of the cache (primary/secondary/label) for the given
-// family. In-flash overrides win; everything else streams from SPIFFS via
-// `loadOne()`.
-void loadTier(const FontFamilyAssets &family, const char *weight, const char *intent,
-              const uint8_t *sizes, size_t count,
-              const FontFamilyAssets::InFlashOverride *flashList, const lv_font_t **slots,
-              size_t slotCount) {
-    for (size_t i = 0; i < count && i < slotCount; ++i) {
-        const FontFamilyAssets::InFlashOverride *flash = findFlashOverride(flashList, sizes[i]);
-        if (flash != nullptr) {
-            slots[i] = flash->font;
-            LOG_INFO("FONT", "%s_%s_%u: using %s", family.id, weight,
-                     static_cast<unsigned>(sizes[i]), flash->log);
-        } else {
-            loadOne(family.id, weight, intent, sizes[i], slots[i]);
-        }
-    }
 }
 
 // Snaps `size` to a cached entry, returning the cached font or the in-flash
@@ -288,48 +166,33 @@ const lv_font_t *resolve(const uint8_t *sizes, size_t count, const lv_font_t *co
     return (cached != nullptr) ? cached : &lv_font_orbitron_medium_14_nk;
 }
 
-// Populate every tier of the cache from a resolved family bundle. Runs once
-// per boot — never on the per-character render path.
-void applyFamily(const FontFamilyAssets &assets) {
-    s_active_family = &assets;
-    LOG_INFO("FONT", "Loading font family '%s'", assets.id);
-
-    loadTier(assets, assets.primaryWeight, "primary", assets.primarySizes, assets.primaryCount,
-             assets.primaryFlash, s_primary, kMaxPrimaryCount);
-    loadTier(assets, assets.secondaryWeight, "secondary", assets.secondarySizes,
-             assets.secondaryCount, assets.secondaryFlash, s_secondary, kMaxSecondaryCount);
-    loadTier(assets, assets.labelWeight, "label", assets.labelSizes, assets.labelCount,
-             assets.labelFlash, s_label, kMaxLabelCount);
-}
-
 } // namespace
 
-void FontManager::init(const char *family) {
+void FontManager::init() {
     if (s_initialized) {
         return;
     }
-    const FontFamilyAssets *assets = resolveFamily(family);
-    if (assets == nullptr) {
-        // Unknown / missing id — fall back to the canonical default and keep
-        // booting. Empty / null inputs (legacy dashboards pre-#1132) are
-        // silent because the parser already substitutes "orbitron" by the
-        // time we get here; only a hand-edited file with a typo lands a real
-        // string here.
-        if (family && family[0] != '\0') {
-            LOG_WARN("FONT", "unknown fontFamily='%s' — falling back to default '%s'", family,
-                     kDefaultFamily->id);
-            char detail[48];
-            snprintf(detail, sizeof(detail), "unknown family '%s'", family);
-            ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_FAMILY", detail);
-        }
-        assets = kDefaultFamily;
-    }
-    applyFamily(*assets);
-    s_initialized = true;
-}
+    LOG_INFO("FONT", "Loading font family 'orbitron'");
 
-void FontManager::init() {
-    init(kDefaultFamily->id);
+    // Primary tier (Black) — both sizes shipped in-flash; no SPIFFS load.
+    s_primary[0] = &lv_font_orbitron_black_32_nk;
+    LOG_INFO("FONT", "orbitron_black_32: using in-flash copy (saves ~20 KB pool)");
+    s_primary[1] = &lv_font_orbitron_black_48_nk;
+    LOG_INFO("FONT", "orbitron_black_48: using in-flash copy (saves ~44 KB pool)");
+
+    // Secondary tier (Bold) — all sizes from SPIFFS.
+    for (size_t i = 0; i < kSecondaryCount; ++i) {
+        loadOne("bold", "secondary", kSecondarySizes[i], s_secondary[i]);
+    }
+
+    // Label tier (Medium) — 14 px in-flash; 12 + 16 from SPIFFS.
+    s_label[0] = nullptr;
+    loadOne("medium", "label", kLabelSizes[0], s_label[0]);
+    s_label[1] = &lv_font_orbitron_medium_14_nk;
+    LOG_INFO("FONT", "orbitron_medium_14: using in-flash copy (saves ~4.6 KB pool)");
+    loadOne("medium", "label", kLabelSizes[2], s_label[2]);
+
+    s_initialized = true;
 }
 
 void FontManager::shutdown() {
@@ -345,24 +208,20 @@ void FontManager::shutdown() {
             slots[i] = nullptr;
         }
     };
-    freeAll(s_primary, kMaxPrimaryCount);
-    freeAll(s_secondary, kMaxSecondaryCount);
-    freeAll(s_label, kMaxLabelCount);
-    s_active_family = nullptr;
+    freeAll(s_primary, kPrimaryCount);
+    freeAll(s_secondary, kSecondaryCount);
+    freeAll(s_label, kLabelCount);
     s_initialized = false;
 }
 
 const lv_font_t *FontManager::primary(uint8_t size) {
-    const FontFamilyAssets *fam = s_active_family ? s_active_family : kDefaultFamily;
-    return resolve(fam->primarySizes, fam->primaryCount, s_primary, size);
+    return resolve(kPrimarySizes, kPrimaryCount, s_primary, size);
 }
 
 const lv_font_t *FontManager::secondary(uint8_t size) {
-    const FontFamilyAssets *fam = s_active_family ? s_active_family : kDefaultFamily;
-    return resolve(fam->secondarySizes, fam->secondaryCount, s_secondary, size);
+    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size);
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {
-    const FontFamilyAssets *fam = s_active_family ? s_active_family : kDefaultFamily;
-    return resolve(fam->labelSizes, fam->labelCount, s_label, size);
+    return resolve(kLabelSizes, kLabelCount, s_label, size);
 }
