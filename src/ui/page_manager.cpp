@@ -15,6 +15,7 @@
 #include "runtime/signal_store.h"
 #include "runtime/alert_engine.h"
 #include "diag/logger.h"
+#include "diag/lvgl_assert_lock.h"
 #include "diag/perf_counters.h"
 #include "app_config.h"
 
@@ -567,6 +568,11 @@ void PageManager::init() {
 }
 
 bool PageManager::navigateTo(const char *pageId) {
+    // Canary for #158 LVGL mutex audit (2026-05-31). Page transitions touch
+    // every widget tree under the new page — touching them from outside the
+    // UI task hold window would race with the next lv_task_handler tick.
+    // Debug builds crash here; release builds compile this to a no-op.
+    LVGL_ASSERT_LOCKED();
     for (uint8_t i = 0; i < s_pageCount; ++i) {
         if (strcmp(s_pages[i].id, pageId) == 0) {
             showPage(i);
