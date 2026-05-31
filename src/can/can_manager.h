@@ -34,16 +34,6 @@ esp_err_t initHardware();
 void tick();
 
 /**
-     * Return the number of CAN frames received since boot.
-     */
-uint32_t getFrameCount();
-
-/**
-     * Return the number of CAN parse errors since boot.
-     */
-uint32_t getErrorCount();
-
-/**
      * Transmit a single CAN frame.
      *
      * Non-blocking: hands the frame to the TWAI driver's TX queue and returns.

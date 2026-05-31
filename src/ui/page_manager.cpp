@@ -583,13 +583,6 @@ bool PageManager::navigateTo(const char *pageId) {
     return false;
 }
 
-bool PageManager::navigateToIndex(uint8_t index) {
-    if (index >= s_pageCount)
-        return false;
-    showPage(index);
-    return true;
-}
-
 void PageManager::navigateNext() {
     if (s_pageCount == 0)
         return;
@@ -601,12 +594,6 @@ void PageManager::navigatePrev() {
         return;
     showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1, LV_SCR_LOAD_ANIM_MOVE_RIGHT,
              SWIPE_ANIM_MS);
-}
-
-const char *PageManager::getCurrentPageId() {
-    if (s_pageCount == 0)
-        return "";
-    return s_pages[s_currentIdx].id;
 }
 
 const char *PageManager::getDefaultPageId() {
@@ -697,8 +684,4 @@ void PageManager::setRevLimiterOverlay(bool visible) {
     } else {
         lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
     }
-}
-
-uint8_t PageManager::getPageCount() {
-    return s_pageCount;
 }

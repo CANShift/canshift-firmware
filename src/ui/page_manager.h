@@ -32,11 +32,6 @@ void init();
 bool navigateTo(const char *pageId);
 
 /**
-     * Navigate to a page by index (0-based).
-     */
-bool navigateToIndex(uint8_t index);
-
-/**
      * Navigate to the next page (wraps around).
      */
 void navigateNext();
@@ -45,11 +40,6 @@ void navigateNext();
      * Navigate to the previous page (wraps around).
      */
 void navigatePrev();
-
-/**
-     * Get the ID of the currently displayed page.
-     */
-const char *getCurrentPageId();
 
 /**
      * Get the ID of the default (first shown) page from config.
@@ -69,11 +59,6 @@ void updateWidgets();
      * Called by AlertEngine via the UI task.
      */
 void setRevLimiterOverlay(bool visible);
-
-/**
- * Return total number of pages.
- */
-uint8_t getPageCount();
 
 /**
  * Request a full page rebuild on the next updateWidgets() tick.

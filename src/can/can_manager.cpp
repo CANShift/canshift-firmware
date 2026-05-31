@@ -22,7 +22,6 @@
 // Internal state
 // ---------------------------------------------------------------------------
 
-static uint32_t s_frameCount = 0;
 static uint32_t s_errorCount = 0;
 
 // Health stats — frame rate window (reset every STAT_INTERVAL_MS)
@@ -197,7 +196,6 @@ void CanManager::tick() {
     esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(10));
 
     if (err == ESP_OK) {
-        s_frameCount++;
         s_windowFrames++;
 
         if (!(message.rtr)) {
@@ -285,13 +283,6 @@ void CanManager::tick() {
     // end of the loop so the RX path above runs first (a response that
     // arrives between two ticks is decoded before the next request fires).
     Obd2Poller::tick(nowMs);
-}
-
-uint32_t CanManager::getFrameCount() {
-    return s_frameCount;
-}
-uint32_t CanManager::getErrorCount() {
-    return s_errorCount;
 }
 
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
