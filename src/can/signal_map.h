@@ -16,7 +16,7 @@ using SignalId = uint8_t;
 // its SignalId constant. Returns SignalIds::SIGNAL_COUNT for unknown names or
 // nullptr — callers must check before indexing into SignalStore. Backed by
 // a single table — adding a signal is a one-line change there.
-SignalId signalIdFromName(const char *name);
+[[nodiscard]] SignalId signalIdFromName(const char *name);
 
 // ---------------------------------------------------------------------------
 // Well-known signal IDs — must match signals.json "id" fields

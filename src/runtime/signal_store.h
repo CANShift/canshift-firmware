@@ -55,12 +55,12 @@ void update(SignalId id, float value);
      * Read the smoothed value of a signal. Thread-safe.
      * Returns the EMA-smoothed value, or defaultValue if signal is invalid/timed out.
      */
-float read(SignalId id, float defaultValue = 0.0f);
+[[nodiscard]] float read(SignalId id, float defaultValue = 0.0f);
 
 /**
      * Check if a signal is valid (received recently, within timeout).
      */
-bool isValid(SignalId id);
+[[nodiscard]] bool isValid(SignalId id);
 
 /**
      * Bulk-copy every signal slot under one mutex acquisition. Designed for the

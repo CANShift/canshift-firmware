@@ -22,45 +22,45 @@ struct LoadResult {
      * On failure, the corresponding cfg struct has .loaded = false and
      * callers should use built-in defaults.
      */
-LoadResult loadAll();
+[[nodiscard]] LoadResult loadAll();
 
 /**
      * Access the loaded dashboard config.
      * Returns a reference valid for the firmware lifetime.
      */
-const CfgDashboard &getDashboardConfig();
+[[nodiscard]] const CfgDashboard &getDashboardConfig();
 
 /**
      * Access the loaded signal config.
      */
-const CfgSignalConfig &getSignalConfig();
+[[nodiscard]] const CfgSignalConfig &getSignalConfig();
 
 /**
      * Access the loaded device hardware config.
      * If device.json was absent, returns a struct with .loaded = false
      * and callers should fall back to board_config.h defaults.
      */
-const CfgDeviceConfig &getDeviceConfig();
+[[nodiscard]] const CfgDeviceConfig &getDeviceConfig();
 
 /**
      * Access the loaded physical-button bindings (issue #833).
      * Returns a struct with .count=0 / .loaded=false when
      * input_bindings.json is absent or malformed.
      */
-const CfgInputBindings &getInputBindings();
+[[nodiscard]] const CfgInputBindings &getInputBindings();
 
 /**
      * Reload all configs from storage and rebuild the UI.
      * Called after USB comm receives a PUT_CONFIG command.
      * NOTE: Must be called from the UI task context (holds LVGL mutex).
      */
-bool reloadAll();
+[[nodiscard]] bool reloadAll();
 
 /**
      * Find a signal definition by name. Returns nullptr if no matching
      * signal is loaded. Used by widget renderers to pull per-signal
      * metadata (color ramp, etc.) at construction time.
      */
-const CfgSignalDef *findSignal(const char *name);
+[[nodiscard]] const CfgSignalDef *findSignal(const char *name);
 
 } // namespace ConfigLoader
