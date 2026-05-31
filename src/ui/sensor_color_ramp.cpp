@@ -7,6 +7,10 @@
 #include <stddef.h>
 #include <string.h>
 
+#if USE_RUST_SENSOR_COLOR_RAMP
+    #include "sensor_color_ramp_rs.h"
+#endif
+
 namespace {
 
 // Channel-wise lerp between two RGB ints. `t` clamped to [0,1] by the caller.
@@ -143,6 +147,9 @@ const CfgColorRamp kSensorDefaultRamps[kSensorKindCount] = {
 };
 
 SensorKind sensorKindFromName(const char *signalName) {
+#if USE_RUST_SENSOR_COLOR_RAMP
+    return static_cast<SensorKind>(sensor_kind_from_name_rs(signalName));
+#else
     if (!signalName || signalName[0] == '\0')
         return SensorKind::Unknown;
     for (const NameRule &rule : kNameRules) {
@@ -150,18 +157,26 @@ SensorKind sensorKindFromName(const char *signalName) {
             return rule.kind;
     }
     return SensorKind::Unknown;
+#endif
 }
 
 const CfgColorRamp *resolveRamp(const CfgColorRamp &perSignal, const char *signalName) {
+#if USE_RUST_SENSOR_COLOR_RAMP
+    return resolve_ramp_rs(&perSignal, signalName);
+#else
     if (perSignal.count > 0)
         return &perSignal;
     const SensorKind kind = sensorKindFromName(signalName);
     if (kind == SensorKind::Unknown)
         return nullptr;
     return &kSensorDefaultRamps[static_cast<uint8_t>(kind)];
+#endif
 }
 
 uint32_t colorAtValue(const CfgColorRamp &ramp, float value) {
+#if USE_RUST_SENSOR_COLOR_RAMP
+    return color_at_value_rs(&ramp, value);
+#else
     if (ramp.count == 0)
         return 0x000000u;
     const CfgRampStop &first = ramp.stops[0];
@@ -195,4 +210,5 @@ uint32_t colorAtValue(const CfgColorRamp &ramp, float value) {
     }
 
     return last.color;
+#endif
 }

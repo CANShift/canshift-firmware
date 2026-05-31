@@ -17,6 +17,7 @@
 #   pio run -e crowpanel_28_rust_format_float  # format-float
 #   pio run -e crowpanel_28_rust_error_store   # error-store
 #   pio run -e crowpanel_28_rust_alert_engine  # alert-engine
+#   pio run -e crowpanel_28_rust_sensor_color_ramp # sensor-color-ramp
 #
 # Adding a new crate is one entry in `CRATES` below.
 
@@ -97,6 +98,13 @@ CRATES = (
         "manifest": os.path.join(RUST_DIR, "alert-engine", "Cargo.toml"),
         "libfile": "libalert_engine.a",
         # Header at canshift-firmware/include/alert_engine_rs.h.
+        "include": None,
+    },
+    {
+        "flag": "USE_RUST_SENSOR_COLOR_RAMP=1",
+        "manifest": os.path.join(RUST_DIR, "sensor-color-ramp", "Cargo.toml"),
+        "libfile": "libsensor_color_ramp.a",
+        # Header at canshift-firmware/include/sensor_color_ramp_rs.h.
         "include": None,
     },
 )
