@@ -371,15 +371,18 @@ static void asyncDoLazyBuild(void * /*unused*/) {
 }
 
 // Page transitions on the ESP32:
-//  - MOVE_LEFT/RIGHT: both screens translate together — old slides out while
-//    new slides in. Visually similar to OVER_* for swipe nav but takes a
-//    shorter duration to feel responsive (issue #95, F4 — cross-links #64).
+//  - OVER_LEFT/RIGHT: new screen slides over old, old stays static. Only the
+//    moving screen is repainted each frame — cheapest per-pixel option without
+//    a GPU. Used for swipe gestures (issue #64, restoring PR #59's choice
+//    after #331 swapped it for MOVE_* which redraws both screens every frame
+//    and dominated the per-frame budget during transitions).
 //  - FADE_IN: alpha-blended cross-fade. Costly per pixel on a 320×240 panel
 //    without a GPU; we keep it short. Used for programmatic navigation where
 //    no direction is implied.
 //
-// Default swipe-transition duration (ms). Trimmed from 180 ms to 120 ms in
-// fix F4 because the previous value dominated the page-switch wall time.
+// Default swipe-transition duration (ms). Kept at 120 ms (down from PR #59's
+// 180 ms in fix #331/F4) because the previous value dominated page-switch
+// wall time; the OVER_* mode revert above does the heavy lifting for #64.
 static constexpr uint32_t SWIPE_ANIM_MS = 120;
 
 void showPage(uint8_t idx, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_IN,
@@ -467,12 +470,12 @@ void onSwipe(lv_dir_t dir) {
     switch (dir) {
         case LV_DIR_LEFT:
             // Next page enters from the right, slides left — matches finger motion.
-            showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT, SWIPE_ANIM_MS);
+            showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, SWIPE_ANIM_MS);
             LOG_VDEBUG("UI", "Gesture: swipe left → next page");
             break;
         case LV_DIR_RIGHT:
             showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
-                     LV_SCR_LOAD_ANIM_MOVE_RIGHT, SWIPE_ANIM_MS);
+                     LV_SCR_LOAD_ANIM_OVER_RIGHT, SWIPE_ANIM_MS);
             LOG_VDEBUG("UI", "Gesture: swipe right → prev page");
             break;
         default:
@@ -586,13 +589,13 @@ bool PageManager::navigateTo(const char *pageId) {
 void PageManager::navigateNext() {
     if (s_pageCount == 0)
         return;
-    showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_MOVE_LEFT, SWIPE_ANIM_MS);
+    showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, SWIPE_ANIM_MS);
 }
 
 void PageManager::navigatePrev() {
     if (s_pageCount == 0)
         return;
-    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1, LV_SCR_LOAD_ANIM_MOVE_RIGHT,
+    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1, LV_SCR_LOAD_ANIM_OVER_RIGHT,
              SWIPE_ANIM_MS);
 }
 
