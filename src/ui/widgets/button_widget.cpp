@@ -319,10 +319,21 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         if (path[0] != '\0' && heapOk) {
             tag->iconImg = lv_img_create(btn);
             lv_img_set_src(tag->iconImg, tag->lvglPath);
-            // Scale icon to the Studio-computed target size. LVGL stores the
-            // source dims after `lv_img_set_src`; `lv_obj_get_self_width`
-            // returns those native pixel dims so the zoom factor can be
-            // derived without baking per-asset sizes into the firmware.
+            // Pin the layout slot to the Studio-computed target size. lv_img
+            // defaults to `LV_SIZE_CONTENT`, reporting its self-size as the
+            // *unzoomed* native dims under `LV_IMG_SIZE_MODE_VIRTUAL`. Inside
+            // a column flex parent that left the layout slot decoupled from
+            // the zoomed rendered size, so when the SPIFFS decode in
+            // `lv_img_set_src` failed silently (heap-low FS gate, missing
+            // header) `img->w` stayed at 0 and the slot collapsed — icon
+            // never appeared (#1242). Forcing the size also guarantees the
+            // flex parent reserves exactly the painted region regardless of
+            // when the .bin header is decoded.
+            lv_obj_set_size(tag->iconImg, targetIconSize, targetIconSize);
+            // Derive zoom from native dims so the source paints to the
+            // explicit slot size. LVGL populates source dims synchronously
+            // inside `lv_img_set_src` via `lv_img_decoder_get_info`, so the
+            // read below is safe at create time for any decoded asset.
             // zoom = (target / native) * 256, with 256 = 1:1.
             const lv_coord_t nativeW = lv_obj_get_self_width(tag->iconImg);
             const lv_coord_t nativeH = lv_obj_get_self_height(tag->iconImg);
