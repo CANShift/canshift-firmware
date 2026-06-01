@@ -58,7 +58,7 @@ void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor
     lv_label_set_text(lbl, text);
 
     lv_obj_set_style_text_color(lbl, lv_color_hex(kLabelDimRgb), 0);
-    lv_obj_set_style_text_font(lbl, FontManager::label(12), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::label(10), 0);
     lv_obj_set_style_text_letter_space(lbl, 1, 0);
 
     const lv_coord_t parentW = lv_obj_get_width(cont);

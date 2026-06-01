@@ -18,7 +18,7 @@ no kerning.
 | ---------- | ------------ | ---------- | ------------------------------------------------------ |
 | primary    | Black (900)  | 32, 48     | both in-flash twins (see below) — no SPIFFS .bin       |
 | secondary  | Bold (700)   | 20, 24     | `orbitron_bold_{20,24}.bin`                            |
-| label      | Medium (500) | 12, 14, 16 | `orbitron_medium_{12,14,16}.bin` (14 is in-flash)      |
+| label      | Medium (500) | 8, 10, 12, 14, 16 | `orbitron_medium_{8,10,12,14,16}.bin` (14 is in-flash) |
 
 ## In-flash twins
 

@@ -49,7 +49,11 @@ namespace {
 //     working ceiling. 28 stays dropped (secondary text snaps to 24 px).
 constexpr uint8_t kPrimarySizes[] = {32, 48};   // both in-flash
 constexpr uint8_t kSecondarySizes[] = {20, 24}; // 28 dropped — pool too tight
-constexpr uint8_t kLabelSizes[] = {12, 14, 16};
+// 8 + 10 added for widget labels — Studio renders them at 6-9 px (#1207 follow-up,
+// 2026-06-01 user feedback); the 12 px floor used to make them ~30 % wider than
+// Studio. Each new bin is ~2-3 KB so the SPIFFS + LVGL-pool budget stays well
+// inside its working ceiling.
+constexpr uint8_t kLabelSizes[] = {8, 10, 12, 14, 16};
 
 constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
 constexpr size_t kSecondaryCount = sizeof(kSecondarySizes) / sizeof(kSecondarySizes[0]);
@@ -185,12 +189,13 @@ void FontManager::init() {
         loadOne("bold", "secondary", kSecondarySizes[i], s_secondary[i]);
     }
 
-    // Label tier (Medium) — 14 px in-flash; 12 + 16 from SPIFFS.
-    s_label[0] = nullptr;
+    // Label tier (Medium) — 14 px in-flash; 8, 10, 12, 16 from SPIFFS.
     loadOne("medium", "label", kLabelSizes[0], s_label[0]);
-    s_label[1] = &lv_font_orbitron_medium_14_nk;
-    LOG_INFO("FONT", "orbitron_medium_14: using in-flash copy (saves ~4.6 KB pool)");
+    loadOne("medium", "label", kLabelSizes[1], s_label[1]);
     loadOne("medium", "label", kLabelSizes[2], s_label[2]);
+    s_label[3] = &lv_font_orbitron_medium_14_nk;
+    LOG_INFO("FONT", "orbitron_medium_14: using in-flash copy (saves ~4.6 KB pool)");
+    loadOne("medium", "label", kLabelSizes[4], s_label[4]);
 
     s_initialized = true;
 }

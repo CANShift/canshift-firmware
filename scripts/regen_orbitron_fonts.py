@@ -31,7 +31,7 @@ LATIN_RANGE = "0x20-0x7F,0xB0,0x2022"  # ASCII + degree + bullet (label parity)
 TIERS = (
     ("black",  "Orbitron-Black.ttf",  (32, 48)),
     ("bold",   "Orbitron-Bold.ttf",   (20, 24, 28)),
-    ("medium", "Orbitron-Medium.ttf", (12, 14, 16)),
+    ("medium", "Orbitron-Medium.ttf", (8, 10, 12, 14, 16)),
 )
 
 
