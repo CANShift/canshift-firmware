@@ -26,11 +26,14 @@ constexpr uint32_t kLabelDimRgb = 0x888888;
 // they never compete with coloured value text.
 void apply(_lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor);
 
-// Auto signal-name header — drawn at top-left in the same dim caps style when
-// the widget has no user-configured `cfg.label`. Uses the curated dictionary
-// when available, otherwise falls back to a simple uppercase / underscore-to-
-// space transform of the signal id.
-void applySignalHeader(_lv_obj_t *cont, const char *signalId);
+// Auto signal-name header — drawn in the same dim caps style when the widget
+// has no user-configured `cfg.label`. Uses the curated dictionary when
+// available, otherwise falls back to a simple uppercase / underscore-to-space
+// transform of the signal id. `pos` defaults to TOP_LEFT to keep the existing
+// numeric-label band; gear widgets pass TOP_CENTER to match the Studio preview
+// (see widget-parity audit §4).
+void applySignalHeader(_lv_obj_t *cont, const char *signalId,
+                       CfgLabelPos pos = CfgLabelPos::TOP_LEFT);
 
 // Curated short labels for known signals — fits the 80-px-wide cells used by
 // the small numeric widgets where the auto-formatted "COOLANT TEMP C" would

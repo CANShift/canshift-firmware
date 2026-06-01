@@ -110,13 +110,13 @@ const char *displayLabelForSignal(const char *signalId) {
     return nullptr;
 }
 
-void applySignalHeader(lv_obj_t *cont, const char *signalId) {
+void applySignalHeader(lv_obj_t *cont, const char *signalId, CfgLabelPos pos) {
     if (!cont || !signalId || signalId[0] == '\0')
         return;
 
     const char *curated = displayLabelForSignal(signalId);
     if (curated != nullptr) {
-        apply(cont, curated, CfgLabelPos::TOP_LEFT, 0);
+        apply(cont, curated, pos, 0);
         return;
     }
 
@@ -133,7 +133,7 @@ void applySignalHeader(lv_obj_t *cont, const char *signalId) {
     }
     buf[i] = '\0';
 
-    apply(cont, buf, CfgLabelPos::TOP_LEFT, 0);
+    apply(cont, buf, pos, 0);
 }
 
 } // namespace WidgetLabelOverlay
