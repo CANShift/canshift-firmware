@@ -300,15 +300,26 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
     return FontManager::secondary(20);
 }
 
+// Vertical offsets for the centred value cluster. Issue #1241: the
+// true-geometric-centre layout introduced in #1234 caused the value text to
+// collide with the bottom-anchored widget label on dense 160×112 dashboards.
+// Firmware is the canonical source for widget visuals (per-feature design
+// authority, 2026-06-01) so we restore the negative-Y nudge and push the unit
+// label further down to keep clean separation; Studio's GaugeArcPreview
+// mirrors these offsets.
+static constexpr int16_t kValueRowYOffset = -8;
+static constexpr int16_t kUnitLabelYOffset = 16;
+
 // Build the value row — flex container holding [int][frac] baseline-aligned
 // so gauges with decimals render the fractional digits at ~70 % of the
-// integer font. Matches the numeric widget treatment from PR #975.
-// The value sits at the true centre regardless of `hasUnit` — Studio renders
-// the unit below the value without nudging the value up (GaugeArc.tsx:126).
+// integer font. Matches the numeric widget treatment from PR #975. The value
+// row sits `kValueRowYOffset` above the geometric centre so the unit below
+// and any bottom-anchored widget label don't crowd the numeric readout
+// (issue #1241).
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
     lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, kValueRowYOffset);
     lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
@@ -359,7 +370,7 @@ static lv_obj_t *buildUnitLabel(lv_obj_t *cont, const char *unitText, uint32_t t
     if (unitText[0] == '\0')
         return nullptr;
     lv_obj_t *unitLabel = lv_label_create(cont);
-    lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, 12);
+    lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, kUnitLabelYOffset);
     lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
     lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
     lv_label_set_text(unitLabel, unitText);
