@@ -163,8 +163,11 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
     // Font size is derived from the bar height via the shared proportion table.
     // FontManager::label() snaps to the nearest cached Orbitron Medium size.
-    const uint8_t fs = static_cast<uint8_t>(derivedFontSize(s_height));
-    lv_obj_set_style_text_font(lbl, FontManager::label(fs), 0);
+    // Top bar uses Orbitron Medium 12 fixed (user preference 2026-06-01).
+    // The previous derivedFontSize formula snapped to 8 px which read too
+    // small at the 16 px bar height on the production panel.
+    (void)derivedFontSize;
+    lv_obj_set_style_text_font(lbl, FontManager::label(12), 0);
     return lbl;
 }
 
@@ -276,7 +279,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, "BLE");
             lv_obj_set_style_text_color(obj, lv_color_hex(COLOR_BLE_OFF), 0);
-            lv_obj_set_style_text_font(obj, FontManager::label(derivedFontSize(s_height)), 0);
+            lv_obj_set_style_text_font(obj, FontManager::label(12), 0);
             anchor(obj, gap);
             break;
         }

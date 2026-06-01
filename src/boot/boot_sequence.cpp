@@ -496,6 +496,18 @@ static void initUsbCommPhase() {
 // the timeout check in wifi_ap.cpp's apTaskFn.
 static void autoStartWifiApIfPersisted() {
 #if APP_BLE_ENABLED
+    // Heap-pressure guard: after #1250 loads orbitron_medium_8 + 10 from
+    // SPIFFS, the post-init heap can dip below WebServer::collectHeaders'
+    // tiny allocation threshold — apTaskFn throws bad_alloc and aborts the
+    // boot. Refuse the auto-start when the largest free block is too small
+    // and surface a clear log instead.
+    constexpr size_t WIFI_AP_MIN_HEAP_BYTES = 24 * 1024;
+    const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    if (largest < WIFI_AP_MIN_HEAP_BYTES) {
+        LOG_WARN("BOOT", "WiFi AP auto-start skipped — largest=%u below %u",
+                 static_cast<unsigned>(largest), static_cast<unsigned>(WIFI_AP_MIN_HEAP_BYTES));
+        return;
+    }
     if (WifiAp::isAutoStartEnabled()) {
         LOG_INFO("BOOT", "WiFi AP auto-start enabled — bringing AP up");
         WifiAp::start();

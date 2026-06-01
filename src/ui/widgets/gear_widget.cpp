@@ -83,16 +83,12 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
-    // Auto signal-name header takes the top band when no user label is set —
-    // Studio centres it horizontally; mirror that with TOP_CENTER. The digit
-    // area shrinks by `kSigHeaderH` so it never collides with the header.
-    const bool hasUserLabel = cfg.label.label[0] != '\0';
-    const int16_t sigHeaderH = hasUserLabel ? 0 : kSigHeaderH;
-    const int16_t digitBandH = static_cast<int16_t>(cfg.layout.h - sigHeaderH);
-
-    if (!hasUserLabel) {
-        WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId, CfgLabelPos::TOP_CENTER);
-    }
+    // Gear widget never shows a label — the giant digit communicates the
+    // signal (user feedback 2026-06-01: "on sait ce qu'il represente").
+    // Digit takes the full widget height.
+    const int16_t sigHeaderH = 0;
+    const int16_t digitBandH = cfg.layout.h;
+    (void)kSigHeaderH;
 
     lv_obj_t *label = lv_label_create(cont);
     // Bias down by half the header so the digit sits at the centre of the
@@ -117,8 +113,8 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GearTag>, LV_EVENT_DELETE, tag);
 
-    // Optional widget label (gear shares CfgLabelParams in the union).
-    WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
+    // Custom widget label intentionally skipped — see comment at the top of
+    // create() for the rationale.
 
     return cont;
 }

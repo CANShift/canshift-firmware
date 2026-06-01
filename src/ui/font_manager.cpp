@@ -189,8 +189,12 @@ void FontManager::init() {
         loadOne("bold", "secondary", kSecondarySizes[i], s_secondary[i]);
     }
 
-    // Label tier (Medium) — 14 px in-flash; 8, 10, 12, 16 from SPIFFS.
-    loadOne("medium", "label", kLabelSizes[0], s_label[0]);
+    // Label tier (Medium) — 14 px in-flash; 10, 12, 16 from SPIFFS.
+    // The 8 px bake is currently unused at any widget site, and loading it
+    // pushes newlib fopen over the heap edge during FontManager::init when
+    // LV_MEM_SIZE is sized to absorb the orbitron_medium_10 load. Skip the
+    // 8 px load — re-enable when a widget actually requests label(8).
+    s_label[0] = nullptr;
     loadOne("medium", "label", kLabelSizes[1], s_label[1]);
     loadOne("medium", "label", kLabelSizes[2], s_label[2]);
     s_label[3] = &lv_font_orbitron_medium_14_nk;

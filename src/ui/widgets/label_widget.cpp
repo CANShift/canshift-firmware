@@ -142,7 +142,12 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // header, not the centre of the whole widget (which would clip into the
     // header). Matches the original layout users expect from before the
     // flex-row refactor.
-    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, static_cast<int16_t>(sigHeaderH / 2));
+    // Push the value row down a fixed +8 px so it sits clearly below the
+    // top label band (auto-header or top-left user label, both ~14 px tall).
+    // User feedback 2026-06-01: value + unit need to be "un peu contre le
+    // bas" relative to the label.
+    (void)sigHeaderH;
+    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 8);
 
     lv_obj_t *label = lv_label_create(valueRow);
     if (!label) {
@@ -180,7 +185,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     if (hasUserLabel) {
-        WidgetLabelOverlay::apply(cont, cfg.label.label, cfg.label.labelPosition, textRgb);
+        WidgetLabelOverlay::apply(cont, cfg.label.label, CfgLabelPos::TOP_LEFT, textRgb);
     }
 
     // Unit label — small grey, sits to the right of the value (frac) in the

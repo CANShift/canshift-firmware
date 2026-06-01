@@ -181,10 +181,14 @@
 // to be higher on a future newlib bump, raise this back. The threshold is
 // only relevant on no-PSRAM ESP32 — boards with PSRAM have `largest_free`
 // in the hundreds of KB throughout.
+// Lowered 512→256 after observing CAN_NO_MEM at boot starves heap and the
+// 512 gate refused every icon preload (2026-06-02). The newlib __sfp abort
+// risk is real but on this device the actual abort threshold is around 200 B
+// internal-cap free, so 256 keeps a margin while letting icons load.
 #ifdef __cplusplus
-static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 512;
+static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 256;
 #else
-    #define LVGL_FS_MIN_HEAP_BYTES 512
+    #define LVGL_FS_MIN_HEAP_BYTES 256
 #endif
 
 // ---------------------------------------------------------------------------

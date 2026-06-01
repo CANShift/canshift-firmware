@@ -190,10 +190,11 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     lv_obj_set_style_bg_opa(btn, v.bgOpa, LV_PART_MAIN);
     lv_obj_set_style_border_color(btn, lv_color_hex(v.borderColor), LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
-    if (tag.iconImg) {
-        lv_obj_set_style_img_recolor(tag.iconImg, lv_color_hex(v.textColor), 0);
-        lv_obj_set_style_img_recolor_opa(tag.iconImg, BUTTON_ICON_OPA, 0);
-    }
+    // Don't re-apply icon recolor on state change — the redraw triggers an
+    // lv_img reload that falls back to the LVGL "No data" placeholder when
+    // it can't allocate the recolor layer (a known pressed-state regression
+    // surfaced after #1247 / #1252). Initial recolor is set once at create.
+    (void)tag;
     if (tag.labelObj) {
         lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
     }
@@ -329,24 +330,13 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             // never appeared (#1242). Forcing the size also guarantees the
             // flex parent reserves exactly the painted region regardless of
             // when the .bin header is decoded.
-            lv_obj_set_size(tag->iconImg, targetIconSize, targetIconSize);
-            // Derive zoom from native dims so the source paints to the
-            // explicit slot size. LVGL populates source dims synchronously
-            // inside `lv_img_set_src` via `lv_img_decoder_get_info`, so the
-            // read below is safe at create time for any decoded asset.
-            // zoom = (target / native) * 256, with 256 = 1:1.
-            const lv_coord_t nativeW = lv_obj_get_self_width(tag->iconImg);
-            const lv_coord_t nativeH = lv_obj_get_self_height(tag->iconImg);
-            const lv_coord_t nativeMax = nativeW > nativeH ? nativeW : nativeH;
-            if (nativeMax > 0) {
-                uint32_t zoom = (static_cast<uint32_t>(targetIconSize) * 256u) /
-                                static_cast<uint32_t>(nativeMax);
-                if (zoom < 1)
-                    zoom = 1;
-                if (zoom > 0xFFFFu)
-                    zoom = 0xFFFFu;
-                lv_img_set_zoom(tag->iconImg, static_cast<uint16_t>(zoom));
-            }
+            // No zoom and no explicit size — let LVGL use LV_SIZE_CONTENT (the
+            // image's native dims). Diagnostic step: if icons appear at native
+            // 32x32 in the button cell, the SPIFFS load works and the previous
+            // zoom path (#1247) is what was breaking rendering. If icons stay
+            // invisible at this point, the root cause is upstream of LVGL's
+            // transform path (e.g. cache, decoder, or fs gate).
+            (void)targetIconSize;
         } else if (path[0] != '\0' && !heapOk) {
             // Asset is on disk but heap is too fragmented to load it — skip
             // and log once. The button still renders its label/colour cues.
@@ -373,6 +363,14 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     {
         const ButtonVisual idle = computeButtonVisual(cfg, p, false);
         applyButtonVisual(btn, *tag, idle);
+        // Apply the icon recolor ONCE here, at create time. Re-applying on
+        // every state change (in applyButtonVisual) triggered an lv_img
+        // redecode that fell back to the LVGL "No data" placeholder when
+        // memory was tight (2026-06-02). Single static recolor avoids it.
+        if (tag->iconImg) {
+            lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(idle.textColor), 0);
+            lv_obj_set_style_img_recolor_opa(tag->iconImg, BUTTON_ICON_OPA, 0);
+        }
         if (!p.isToggle) {
             // Momentary buttons still flash via LVGL's PRESSED state so the
             // user gets immediate feedback on tap. Toggle buttons drive the

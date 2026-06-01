@@ -8,6 +8,7 @@
 
 #include "ui/font_manager.h"
 
+#include <ctype.h>
 #include <lvgl.h>
 #include <string.h>
 
@@ -54,8 +55,17 @@ void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor
     if (!cont || !text || text[0] == '\0')
         return;
 
+    // Studio uppercases every cfg.label rendering (GaugeArc.tsx:185,
+    // GaugeNumeric.tsx:113/134, Gear.tsx:55/103). Match here so the firmware
+    // shows the same casing regardless of how the fixture wrote the label.
+    char upper[64];
+    size_t i = 0;
+    for (; text[i] != '\0' && i < sizeof(upper) - 1; ++i)
+        upper[i] = static_cast<char>(toupper(static_cast<unsigned char>(text[i])));
+    upper[i] = '\0';
+
     lv_obj_t *lbl = lv_label_create(cont);
-    lv_label_set_text(lbl, text);
+    lv_label_set_text(lbl, upper);
 
     lv_obj_set_style_text_color(lbl, lv_color_hex(kLabelDimRgb), 0);
     lv_obj_set_style_text_font(lbl, FontManager::label(10), 0);

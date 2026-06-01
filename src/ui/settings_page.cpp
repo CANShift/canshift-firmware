@@ -454,22 +454,12 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
     y += BTN_H;
 }
 
-// Actions row — Reset (1/3) + Save (2/3) laid out side-by-side at the
-// end of the scrollable content.
+// Actions row — both SAVE and RESET removed per user request
+// (2026-06-02). Writes are immediate via per-control change handlers, and the
+// destructive RESET path is no longer needed in the settings UI surface.
 void buildActionsRow(int16_t y, int16_t rowW) {
-    const int16_t gap = 6;
-    const int16_t resetW = (rowW - gap) / 3;
-    const int16_t saveW = rowW - resetW - gap;
-
-    lv_obj_t *resetBtn =
-        makeFullButton(s_panel, "RESET", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED, onReset);
-    lv_obj_set_pos(resetBtn, PAD_H, y);
-    lv_obj_set_size(resetBtn, resetW, BTN_H);
-
-    lv_obj_t *saveBtn =
-        makeFullButton(s_panel, "SAVE", CLR_SAVE_BG, CLR_SAVE_BDR, CLR_SAVE_TEXT, onSave);
-    lv_obj_set_pos(saveBtn, PAD_H + resetW + gap, y);
-    lv_obj_set_size(saveBtn, saveW, BTN_H);
+    (void)y;
+    (void)rowW;
 }
 
 } // namespace
