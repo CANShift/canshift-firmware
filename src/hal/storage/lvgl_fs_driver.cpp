@@ -25,17 +25,25 @@
 namespace {
 
 // Fixed pool of Arduino `File` slots used as the LVGL handle storage. Sized
-// for the worst observed concurrent open count (font + bg image + widget icon
-// during a page rebuild) with one slot of headroom. Sized small because
-// each `File` only carries an internal ref-counted descriptor pointer; the
-// SPIFFS-side state is allocated by `SPIFFS.open()` on demand and freed by
-// `f.close()`. Eliminating the per-open `new File(...)` / `delete f` pair
-// is what closes #895 — the underlying SPIFFS fopen still allocates, but
-// the wrapper-object churn that fragments the heap on the render path is
-// gone.
-constexpr size_t kFsPoolSize = 4;
+// to cover the LVGL image cache (`LV_IMG_CACHE_DEF_SIZE = 24` in lv_conf.h)
+// because the built-in BIN decoder leaves the source file OPEN for the entire
+// cached lifetime of every TRUE_COLOR / TRUE_COLOR_ALPHA image — files are
+// only closed when the cache evicts the entry. Sizing the pool below the
+// cache size guarantees slot exhaustion as soon as more icons are preloaded
+// than the pool can hold (#1242 root cause: with 19 dashboard icon refs +
+// 2 theme icons against a 4-slot pool, the 5th preload onward silently fails
+// in `fs_open`, the image cache returns NULL, and `lv_img_set_src` silently
+// no-ops → buttons render label-only and the day/night toggle stays blank).
+//
+// 16 covers the demo dashboard's 14 unique icons + 2 theme icons with no
+// headroom for fonts/SPA assets; bumped from 4. Each `File` wrapper is small
+// (~24 B on Arduino-ESP32 — internal ref-counted descriptor pointer), so the
+// 16 × 24 B = 384 B static cost is negligible. The SPIFFS-side per-open
+// state is allocated by `SPIFFS.open()` on demand and freed by `f.close()`;
+// SPIFFS `maxOpenFiles` is bumped to match (storage_driver.cpp).
+constexpr size_t kFsPoolSize = 16;
 File s_filePool[kFsPoolSize];
-bool s_slotBusy[kFsPoolSize] = {false, false, false, false};
+bool s_slotBusy[kFsPoolSize] = {};
 
 // Always called under the LVGL mutex (UI task) — no extra synchronisation
 // needed for the pool bookkeeping.

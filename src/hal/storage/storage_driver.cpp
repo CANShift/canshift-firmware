@@ -109,7 +109,17 @@ bool StorageDriver::init() {
         LOG_INFO("STORAGE", "Backend=SPIFFS partition=spiffs offset=? size=? attempting mount...");
     }
 
-    if (!SPIFFS.begin(true /* formatOnFail */)) {
+    // maxOpenFiles raised from the Arduino default (10) to 16 so SPIFFS can
+    // hold as many file descriptors open as the LVGL FS driver pool admits
+    // (`kFsPoolSize = 16` in lvgl_fs_driver.cpp). LVGL's built-in BIN image
+    // decoder leaves the source file open for the cached lifetime of every
+    // TRUE_COLOR / TRUE_COLOR_ALPHA image; with the demo dashboard preloading
+    // ~16 icons (14 sensor + 2 theme), SPIFFS' default 10-slot table would
+    // otherwise refuse opens past the 10th and the corresponding icons would
+    // silently fail to render (#1242 secondary cause behind the LVGL pool
+    // exhaustion).
+    constexpr uint8_t kSpiffsMaxOpenFiles = 16;
+    if (!SPIFFS.begin(true /* formatOnFail */, kSpiffsMount, kSpiffsMaxOpenFiles)) {
         const char *reason =
             (part == nullptr) ? "partition_missing" : "partition_corrupt_or_format_fail";
         LOG_ERROR("STORAGE", "Backend=SPIFFS mount=failed reason=%s", reason);

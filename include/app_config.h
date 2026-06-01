@@ -168,17 +168,23 @@
 // Minimum largest-free-block to allow an LVGL FS open. Below this, return
 // nullptr to keep newlib __sfp out of abort() territory. See issue #651.
 // Empirically, newlib's real abort threshold is ~256-512 bytes (FILE struct
-// + recursive mutex). 768 covers the abort threshold + a 256-byte safety
-// margin — was 1024 (per #660) but the device's runtime heap fragments
-// down to ~820 bytes when the user toggles theme on a no-PSRAM build, and
-// icons are refused at that point. 768 lets icons load through. If the
-// abort threshold turns out to be higher on a future newlib bump, raise
-// this back. The threshold is only relevant on no-PSRAM ESP32 — boards
-// with PSRAM have largest_free in the hundreds of KB throughout.
+// + recursive mutex). 512 sits at the upper bound of the abort range with
+// no extra safety margin — bumped down from 768 (#1242) because the prior
+// margin was conservative enough to refuse legitimate icon loads whenever
+// `largest_free` dipped just under 768 B mid-buildPage, leaving button
+// icons + the day/night toggle blank on the user-visible controls page.
+// `icon_assets.cpp::preloadDashboardAssets()` uses the same constant so
+// preload and on-demand loads agree on the gate threshold; previously the
+// two paths disagreed (preload: 512, widget: 768) which caused an icon to
+// be preloaded into the cache only to have the widget refuse to render it
+// against the same heap a few ms later. If the abort threshold turns out
+// to be higher on a future newlib bump, raise this back. The threshold is
+// only relevant on no-PSRAM ESP32 — boards with PSRAM have `largest_free`
+// in the hundreds of KB throughout.
 #ifdef __cplusplus
-static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 768;
+static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 512;
 #else
-    #define LVGL_FS_MIN_HEAP_BYTES 768
+    #define LVGL_FS_MIN_HEAP_BYTES 512
 #endif
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 // icon_assets.cpp — Sensor icon name → SPIFFS asset path.
 
 #include "icon_assets.h"
+#include "app_config.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
@@ -101,16 +102,15 @@ bool exists(const char *lvglPath) {
 
 namespace {
 
-// Heap guard mirrors lvgl_fs_driver.cpp: if the largest free block is below
-// the FS-open threshold, decoding will fail anyway and may trip the newlib
+// Heap guard mirrors lvgl_fs_driver.cpp via the shared LVGL_FS_MIN_HEAP_BYTES
+// constant (include/app_config.h): if the largest free block is below the
+// FS-open threshold, decoding will fail anyway and may trip the newlib
 // __sfp() abort. Skip the preload in that case — the asset will be retried
-// on demand by the widget layer. Lowered from 1024 → 512 after observing
-// the post-rebuild heap dropping to ~380 B and the theme-icon preload then
-// skipping — leaving the cache cold and the day/night toggle blank.
-// 512 is the smallest contiguous block that reliably holds an
-// `_lv_img_cache_entry_t` + a small decoder dsc; if even that fails the
-// caller bails gracefully (LVGL returns nullptr from cache_open).
-constexpr size_t PRELOAD_MIN_HEAP_BYTES = 512;
+// on demand by the widget layer. Using the shared constant guarantees the
+// preload and on-demand paths agree on the gate threshold (#1242 — they
+// previously diverged, with preload at 512 and the widget gate at 768, so
+// a path could be preloaded into the cache only to have the widget refuse
+// to render it from the same heap moments later).
 
 // In-place "have we seen this name" tracker — avoids preloading the same
 // asset twice when several widgets reference it. Sized to the IconAssets
@@ -144,7 +144,7 @@ void preload(const char *lvglPath) {
     if (!lvglPath || lvglPath[0] == '\0')
         return;
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    if (largest < PRELOAD_MIN_HEAP_BYTES) {
+    if (largest < LVGL_FS_MIN_HEAP_BYTES) {
         LOG_WARN("ICON", "Skip preload of %s — heap largest=%u too low", lvglPath,
                  static_cast<unsigned>(largest));
         return;
