@@ -255,22 +255,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!tag || !tag->valueLabel)
         return;
 
-    if (!valid && cfg.label.hideWhenInvalid) {
-        // Only retext when state actually flips — lv_label_set_text always
-        // reallocates and invalidates the label area (issue #236).
-        if (tag->lastValid || !std::isnan(tag->lastValue)) {
-            lv_label_set_text(tag->valueLabel, "");
-            if (tag->fracLabel)
-                lv_label_set_text(tag->fracLabel, "");
-            tag->lastValid = false;
-            tag->lastValue = NAN;
-        }
-        AlertFlash::update(tag->alert, 0.0f, tag->alertThreshold);
-        return;
-    }
-
-    // Invalid signals fall through with value=0 — same formatting as live
-    // values so the dashboard always reads numerically.
+    // Invalid signals render as "0" so the widget stays visible at all times
+    // (issue #1243) — matches the Studio preview which never blanks. The
+    // previous `hideWhenInvalid` opt-in was dropped in schema 1.20 because
+    // users mistook a hidden voltage / pressure readout for a flashing bug.
     const float displayValue = valid ? value : 0.0f;
 
     // Skip snprintf + lv_label_set_text when nothing has changed. The text

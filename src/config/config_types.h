@@ -158,7 +158,6 @@ struct CfgLabelParams {
     uint8_t decimalPlaces;
     char prefix[16];
     char suffix[16];
-    bool hideWhenInvalid;
     float alertThreshold;         // NaN = disabled (issue #133)
     char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
     CfgLabelPos labelPosition;

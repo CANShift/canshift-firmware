@@ -619,7 +619,6 @@ void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThres
     out->alertThreshold = alertThreshold;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    out->hideWhenInvalid = cfg["hideWhenInvalid"] | false;
     strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
@@ -752,14 +751,13 @@ void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
-// Gear indicator reuses the label params for prefix/suffix/hideWhenInvalid.
+// Gear indicator reuses the label params for prefix/suffix/label positioning.
 // Kept separate because decimalPlaces is forced to 0 (the firmware always
 // renders a single character) and alertThreshold isn't part of the schema.
 void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
     out->decimalPlaces = 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    out->hideWhenInvalid = cfg["hideWhenInvalid"] | false;
     strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
