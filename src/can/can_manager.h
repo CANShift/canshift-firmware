@@ -27,6 +27,16 @@ namespace CanManager {
 [[nodiscard]] esp_err_t initHardware();
 
 /**
+     * True when the TWAI driver has been successfully installed and started.
+     *
+     * Send/receive entry points short-circuit when this returns false so that
+     * UI handlers invoked while the bus is down do not flood diagnostics
+     * (issue #1229). Callers may also use this to gate UI affordances on the
+     * presence of CAN hardware.
+     */
+[[nodiscard]] bool isAvailable();
+
+/**
      * Main CAN receive and dispatch loop.
      * Blocks waiting for a frame (with timeout), then dispatches to parser.
      * Called repeatedly from the CAN FreeRTOS task.

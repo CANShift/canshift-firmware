@@ -141,6 +141,10 @@ void twaiInitTaskFn(void *arg) {
 // Public API
 // ---------------------------------------------------------------------------
 
+bool CanManager::isAvailable() {
+    return s_twaiInstalled;
+}
+
 esp_err_t CanManager::initHardware() {
     InitContext ctx{xSemaphoreCreateBinary(), ESP_FAIL};
     if (!ctx.done) {
@@ -286,6 +290,12 @@ void CanManager::tick() {
 }
 
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
+    // Silent no-op when TWAI never came up — issue #1229. UI handlers wired to
+    // CAN-send buttons would otherwise fire twai_transmit on every tap, each
+    // returning ESP_ERR_INVALID_STATE and surfacing diagnostic noise.
+    if (!s_twaiInstalled)
+        return false;
+
     // CAN classic frames carry at most 8 payload bytes — silently clamp to
     // protect callers from transmitting garbage past the end of `data`.
     // kCanFrameMaxBytes lives in app_config.h (F-LO-3).
