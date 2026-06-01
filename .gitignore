@@ -16,8 +16,9 @@ compile_commands.json
 
 # Dash-hosted Studio SPA — mirrored at firmware build time from
 # canshift-studio-web/dist/ by scripts/sync_studio_web.py (#1077 phase 4).
-# Generated artifact, never committed.
-data/web/
+# Generated artifact, never committed. Path shortened to `w/` so on-device
+# SPIFFS names fit under SPIFFS_OBJ_NAME_LEN (#1240).
+data/w/
 
 # IDE
 .vscode/

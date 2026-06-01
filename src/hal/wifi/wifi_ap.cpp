@@ -109,6 +109,14 @@ static bool s_otaAuthRejected = false;
 // image flash) before the SPA loads — operational endpoints (`/status`,
 // `/ota`) and BLE remain unaffected. The route table + handler live under
 // `#if APP_SPA_SERVE` below.
+//
+// SPIFFS paths use the short prefix `/w/a/` (was `/web/assets/`) so the
+// on-device filename stays under SPIFFS_OBJ_NAME_LEN (31 chars incl. NUL).
+// Vite emits browser-side URLs at `/a/<name>` (matching the dist layout in
+// `vite.config.ts`), so the route table maps `/a/<name>` URLs to
+// `/w/a/<name>.gz` SPIFFS paths. The two prefixes deliberately match so
+// the URL → SPIFFS translation is a single string concat at lookup time
+// rather than a per-route hand-mapping table (#1240).
 
 // ---------------------------------------------------------------------------
 // HTTP handlers
@@ -215,11 +223,13 @@ void handleStatus() {
 // Dash-hosted Studio SPA — static asset serving (#1077 phase 4, #1123 follow-up)
 // ---------------------------------------------------------------------------
 //
-// Browser-fetched artifacts live on SPIFFS at `/web/...` and stream straight
+// Browser-fetched artifacts live on SPIFFS at `/w/...` and stream straight
 // from the file system via WebServer::streamFile, which auto-sends the
 // Content-Encoding: gzip header for any filename ending in `.gz` (see
 // _streamFileCore in arduino-esp32 WebServer.cpp). The route table maps each
-// URL the SPA can request to its SPIFFS path + Content-Type.
+// URL the SPA can request to its SPIFFS path + Content-Type. Short paths
+// keep mkspiffs from silently dropping any chunk over SPIFFS_OBJ_NAME_LEN
+// (31 chars, see #1240).
 
 struct SpaAsset {
     const char *urlPath;     // URL path the browser requests
@@ -252,17 +262,22 @@ void serveSpaAsset(const SpaAsset &asset) {
 // HTML / CSS the browser parses after that. New chunks → new row here AND
 // a matching entry in scripts/sync_studio_web.py. SPIFFS-resident; see
 // `pio run -t uploadfs` in the README first-flash section.
+//
+// Path lengths — the SPIFFS column stays under SPIFFS_OBJ_NAME_LEN (31 chars
+// incl. NUL); the longest entry is `/w/a/Orbitron-Medium.woff2` at 26 chars.
+// The sync_studio_web.py preflight asserts the same invariant at build time
+// so a future asset rename can't silently regress past the cap (#1240).
 const SpaAsset kSpaAssets[] = {
-    {"/index.html", "/web/index.html.gz", "text/html"},
-    {"/assets/index.js", "/web/assets/index.js.gz", "application/javascript"},
-    {"/assets/index.css", "/web/assets/index.css.gz", "text/css"},
-    {"/assets/vendor-react.js", "/web/assets/vendor-react.js.gz", "application/javascript"},
-    {"/assets/vendor-radix.js", "/web/assets/vendor-radix.js.gz", "application/javascript"},
-    {"/assets/vendor-state.js", "/web/assets/vendor-state.js.gz", "application/javascript"},
-    {"/assets/EditorRoute.js", "/web/assets/EditorRoute.js.gz", "application/javascript"},
-    {"/assets/Orbitron-Black.woff2", "/web/assets/Orbitron-Black.woff2", "font/woff2"},
-    {"/assets/Orbitron-Bold.woff2", "/web/assets/Orbitron-Bold.woff2", "font/woff2"},
-    {"/assets/Orbitron-Medium.woff2", "/web/assets/Orbitron-Medium.woff2", "font/woff2"},
+    {"/index.html", "/w/index.html.gz", "text/html"},
+    {"/a/index.js", "/w/a/index.js.gz", "application/javascript"},
+    {"/a/index.css", "/w/a/index.css.gz", "text/css"},
+    {"/a/vendor-react.js", "/w/a/vendor-react.js.gz", "application/javascript"},
+    {"/a/vendor-radix.js", "/w/a/vendor-radix.js.gz", "application/javascript"},
+    {"/a/vendor-state.js", "/w/a/vendor-state.js.gz", "application/javascript"},
+    {"/a/EditorRoute.js", "/w/a/EditorRoute.js.gz", "application/javascript"},
+    {"/a/Orbitron-Black.woff2", "/w/a/Orbitron-Black.woff2", "font/woff2"},
+    {"/a/Orbitron-Bold.woff2", "/w/a/Orbitron-Bold.woff2", "font/woff2"},
+    {"/a/Orbitron-Medium.woff2", "/w/a/Orbitron-Medium.woff2", "font/woff2"},
 };
 constexpr size_t kSpaAssetCount = sizeof(kSpaAssets) / sizeof(kSpaAssets[0]);
 
@@ -548,7 +563,7 @@ void apTaskFn(void *) {
     s_server.on("/ota", HTTP_POST, handleOtaComplete, handleOtaUpload);
 
         #if APP_SPA_SERVE
-    // Dash-hosted Studio SPA routes — `/`, `/index.html`, `/assets/*`
+    // Dash-hosted Studio SPA routes — `/`, `/index.html`, `/a/*`
     // (#1077 phase 4). Registered after the operational endpoints so the
     // exact-match dispatcher tries `/status` / `/ota` first.
     registerSpaRoutes();

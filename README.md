@@ -78,7 +78,7 @@ pio run -e crowpanel_28_wifi --target uploadfs  # mandatory for the SPA (#1123)
 First boot provisions the embedded default config files automatically — no
 manual asset copy step is required. Fonts and icons under `data/assets/` and
 `data/fonts/` ship to the device via `pio run -t uploadfs`. On
-`[env:crowpanel_28_wifi]`, `data/web/*` also lives on SPIFFS (gzipped SPA
+`[env:crowpanel_28_wifi]`, `data/w/*` also lives on SPIFFS (gzipped SPA
 bundle for the dash-hosted Studio, post-#1123 follow-up); without the
 `uploadfs` step the dash boots normally but `http://canshift.local/`
 returns 404 until the SPIFFS image lands.
@@ -602,9 +602,12 @@ via the WebSocket transport on port 81 (#1108) for live data.
    `extra_targets.py` on `[env:crowpanel_28_wifi]`) runs `npm run build`
    in `../canshift-studio-web/`, gzip-encodes every text artifact via the
    studio-web post-build hook, then mirrors `dist/*.gz` + `*.woff2` into
-   `canshift-firmware/data/web/`.
+   `canshift-firmware/data/w/`.
 2. `pio run -t uploadfs` flashes the resulting SPIFFS image to the
-   `spiffs` partition. `data/web/*` lands at `/web/*` on the device.
+   `spiffs` partition. `data/w/*` lands at `/w/*` on the device. The short
+   prefix keeps every on-device filename under SPIFFS_OBJ_NAME_LEN (31
+   chars + NUL) — the longer `/web/assets/` layout silently dropped
+   chunks past the cap (#1240).
 3. `src/hal/wifi/wifi_ap.cpp`'s `kSpaAssets[]` table maps each browser URL
    to its SPIFFS path; the handler opens the file and uses
    `WebServer::streamFile()` to push it back to the browser in 1.4 KB
@@ -640,7 +643,7 @@ firmware side without touching the SPA.
 
 **First-flash step.** Brand-new dashes carrying a clean `[env:crowpanel_28_wifi]`
 firmware image return `404 SPA asset not provisioned (run uploadfs)` for
-every `/` and `/assets/*` request until the SPIFFS image is flashed:
+every `/` and `/a/*` request until the SPIFFS image is flashed:
 
 ```bash
 # After `pio run -e crowpanel_28_wifi -t upload` (firmware):
@@ -656,15 +659,15 @@ two-step.
 
 | Method | Path | Content-Type | Content-Encoding | SPIFFS path |
 |--------|------|--------------|------------------|-------------|
-| GET    | `/`  | `text/html`  | `gzip` (same file as `/index.html`) | `/web/index.html.gz` |
-| GET    | `/index.html` | `text/html` | `gzip` | `/web/index.html.gz` |
-| GET    | `/assets/index.js`         | `application/javascript` | `gzip` | `/web/assets/index.js.gz` |
-| GET    | `/assets/index.css`        | `text/css`               | `gzip` | `/web/assets/index.css.gz` |
-| GET    | `/assets/vendor-react.js`  | `application/javascript` | `gzip` | `/web/assets/vendor-react.js.gz` |
-| GET    | `/assets/vendor-radix.js`  | `application/javascript` | `gzip` | `/web/assets/vendor-radix.js.gz` |
-| GET    | `/assets/vendor-state.js`  | `application/javascript` | `gzip` | `/web/assets/vendor-state.js.gz` |
-| GET    | `/assets/EditorRoute.js`   | `application/javascript` | `gzip` | `/web/assets/EditorRoute.js.gz` |
-| GET    | `/assets/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2` | — (already compressed) | `/web/assets/Orbitron-*.woff2` |
+| GET    | `/`  | `text/html`  | `gzip` (same file as `/index.html`) | `/w/index.html.gz` |
+| GET    | `/index.html` | `text/html` | `gzip` | `/w/index.html.gz` |
+| GET    | `/a/index.js`         | `application/javascript` | `gzip` | `/w/a/index.js.gz` |
+| GET    | `/a/index.css`        | `text/css`               | `gzip` | `/w/a/index.css.gz` |
+| GET    | `/a/vendor-react.js`  | `application/javascript` | `gzip` | `/w/a/vendor-react.js.gz` |
+| GET    | `/a/vendor-radix.js`  | `application/javascript` | `gzip` | `/w/a/vendor-radix.js.gz` |
+| GET    | `/a/vendor-state.js`  | `application/javascript` | `gzip` | `/w/a/vendor-state.js.gz` |
+| GET    | `/a/EditorRoute.js`   | `application/javascript` | `gzip` | `/w/a/EditorRoute.js.gz` |
+| GET    | `/a/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2` | — (already compressed) | `/w/a/Orbitron-*.woff2` |
 
 All SPA responses carry `Cache-Control: no-store`. The operational
 endpoints (`/status`, `/ota`) keep their existing handlers — they're
@@ -1054,8 +1057,10 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
   package out of the SPIFFS data partition via `kSpaAssets[]` in
   `wifi_ap.cpp` on port 80; live data + commands flow over the WebSocket
   transport on port 81 (`wifi_ws.cpp`, #1108). Same `UsbComm::handleLine()`
-  dispatcher as USB. The SPA build is mirrored into `data/web/` at firmware
-  build time by `scripts/sync_studio_web.py` (#1077 phase 4 / #1123).
+  dispatcher as USB. The SPA build is mirrored into `data/w/` at firmware
+  build time by `scripts/sync_studio_web.py` (#1077 phase 4 / #1123 /
+  #1240 — the path was shortened from `data/web/assets/` to `data/w/a/`
+  to stay under SPIFFS_OBJ_NAME_LEN).
 - **canshift-mobile** — connects over BLE; reads telemetry, writes settings,
   triggers the WiFi softAP for OTA, and uploads firmware via
   `POST /update` on the AP. Pairs with the `ble_server.cpp` characteristics
