@@ -33,8 +33,11 @@ static constexpr uint32_t kColorValue = 0xFFFFFF; // White — value indicator n
 // track so the value arc reads cleanly on top of it.
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 
-// Arc sweep constants (matches rotation=140, bg_angles=0..280)
-static constexpr float kArcSweep = 280.0f;
+// Arc geometry — matches Studio's gauge-math.ts (SoT per #1183):
+// START_DEG = 135 (lower-left), SWEEP_DEG = 270 (clockwise to lower-right).
+static constexpr float kArcSweep = 270.0f;
+static constexpr uint16_t kArcSweepInt = 270;
+static constexpr uint16_t kArcRotation = 135;
 
 // Arc line widths — thick enough to read on the now-smaller (h=80)
 // dashboard arcs without overwhelming the value text in the centre.
@@ -86,7 +89,7 @@ static uint32_t interpolateGreenOrangeRed(float pct) {
                    (pct - 0.5f) * 2.0f);
 }
 
-// Map a signal value to arc angle [0..280]
+// Map a signal value to arc angle [0..kArcSweep]
 static uint16_t valueToAngle(float value, float minVal, float maxVal) {
     return static_cast<uint16_t>(WidgetHelpers::clampPct(value, minVal, maxVal) * kArcSweep);
 }
@@ -102,7 +105,7 @@ static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startA
     lv_obj_set_size(arc, diam, diam);
     lv_obj_align(arc, LV_ALIGN_CENTER, 0, 0);
     lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_arc_set_rotation(arc, 140);
+    lv_arc_set_rotation(arc, kArcRotation);
     lv_arc_set_bg_angles(arc, startAngle, endAngle);
     lv_arc_set_angles(arc, 0, 0); // No indicator
 
@@ -128,8 +131,8 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
     lv_obj_set_size(arc, diam, diam);
     lv_obj_align(arc, LV_ALIGN_CENTER, 0, 0);
     lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_arc_set_rotation(arc, 140);
-    lv_arc_set_bg_angles(arc, 0, 280);
+    lv_arc_set_rotation(arc, kArcRotation);
+    lv_arc_set_bg_angles(arc, 0, kArcSweepInt);
     lv_arc_set_angles(arc, 0, 0);
 
     // Background: transparent (sector arcs show through)
@@ -244,14 +247,15 @@ static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, bool paletteMode
                                   bool hasDanger, uint16_t dangerAngle) {
     if (paletteMode || gradientMode) {
         // Single mid-grey base track — the value arc tints over it.
-        createSectorArc(cont, diam, 0, 280, kColorGradientBg, kBgWidth);
+        createSectorArc(cont, diam, 0, kArcSweepInt, kColorGradientBg, kBgWidth);
     } else if (!hasDanger) {
         // No threshold — single dimmed background track (old behavior).
-        createSectorArc(cont, diam, 0, 280, kColorBgDim, kBgWidth);
+        createSectorArc(cont, diam, 0, kArcSweepInt, kColorBgDim, kBgWidth);
     } else {
-        // Two zones (issue #965): green (0→danger), red (danger→280).
+        // Two zones (issue #965): green (0→danger), red (danger→kArcSweep).
         createSectorArc(cont, diam, 0, dangerAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
-        createSectorArc(cont, diam, dangerAngle, 280, WidgetHelpers::kZoneDangerRgb, kBgWidth);
+        createSectorArc(cont, diam, dangerAngle, kArcSweepInt, WidgetHelpers::kZoneDangerRgb,
+                        kBgWidth);
     }
 }
 
