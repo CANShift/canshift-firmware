@@ -651,14 +651,16 @@ void parseWarningWidget(JsonObjectConst cfg, CfgWarningParams *out) {
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
-// Direct "type":"bar" — BarWidgetConfig schema (always horizontal, dangerLevel
-// defaults to NaN unlike the legacy gauge-bar reclassification path).
+// Direct "type":"bar" — BarWidgetConfig schema. Optional `barOrientation`
+// added in schema 1.19 (#1232 flag); undefined keeps the legacy horizontal
+// layout. `dangerLevel` defaults to NaN unlike the legacy gauge-bar path.
 void parseBarWidget(JsonObjectConst cfg, CfgBarParams *out) {
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
     out->dangerLevel = cfg["dangerLevel"] | NAN;
     out->alertThreshold = readAlertThreshold(cfg);
-    out->isVertical = false;
+    const char *orient = cfg["barOrientation"] | "horizontal";
+    out->isVertical = (strcmp(orient, "vertical") == 0);
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
