@@ -24,7 +24,7 @@ namespace CanManager {
 /**
      * Initialize TWAI hardware driver. Pinned to core 0 via a dedicated task.
      */
-esp_err_t initHardware();
+[[nodiscard]] esp_err_t initHardware();
 
 /**
      * Main CAN receive and dispatch loop.

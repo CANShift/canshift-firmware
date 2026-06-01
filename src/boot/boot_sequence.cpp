@@ -449,8 +449,21 @@ static void initRuntimeServices() {
 
 static void initCanHardwarePhase() {
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
-    CanManager::initHardware();
-    updateSplash("CAN ready", 78);
+    // Capture init result (#1224). Boot continues even on failure so the UI
+    // and USB remain usable for config edits; the in-driver retry loop in
+    // can_manager.cpp::tick() will keep re-attempting installation. We
+    // surface the failure through ErrorStore so the top bar / diag drawer
+    // can show it instead of silently reading 0 fps forever.
+    const esp_err_t err = CanManager::initHardware();
+    if (err != ESP_OK) {
+        LOG_ERROR("BOOT", "CAN init failed: %s — degraded mode", esp_err_to_name(err));
+        char msg[52];
+        snprintf(msg, sizeof(msg), "Boot init failed: %s", esp_err_to_name(err));
+        ErrorStore::push(ERROR_SRC_CAN, "BOOT_FAIL", msg);
+        updateSplash("CAN unavailable", 78);
+    } else {
+        updateSplash("CAN ready", 78);
+    }
 }
 
 static void initUsbCommPhase() {
