@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <lvgl.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -22,18 +23,61 @@ namespace {
 // Maximum LVGL FS path length including the "S:" SPIFFS drive prefix.
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
-// TODO(#18): tier thresholds (20/28/40/56 px) and font sizes (12..24) are
-// hard-coded against the v1 320×240 canvas. When a second screen profile
-// lands, thresholds must scale with `ScreenProfile::scaleYVal` and the font
-// ladder needs proportionally larger Orbitron tiers baked into FontManager.
-const lv_font_t *selectButtonFont(int16_t h) {
-    if (h >= 56)
-        return FontManager::secondary(24);
-    if (h >= 40)
-        return FontManager::secondary(20);
-    if (h >= 28)
+// Studio reference (widget-previews/Button.tsx::computeButtonPreviewMetrics):
+// column layout, icon on top sized to fill ~0.75 of the cell, label below at
+// Medium 500 weight, font driven by width budget (not height).
+// TODO(#18): thresholds + font snap target are hard-coded against the v1
+// 320×240 canvas. When a second screen profile lands, scale with
+// `ScreenProfile::scaleYVal` and grow the Orbitron ladder in FontManager.
+
+constexpr int16_t BUTTON_PAD_X = 6;
+constexpr int16_t BUTTON_PAD_Y = 4;
+constexpr int16_t BUTTON_ROW_GAP = 2;
+constexpr int16_t ICON_MIN_PX = 18;
+constexpr int16_t ICON_MAX_PX = 56;
+constexpr int16_t ICON_H_BUDGET_DROP = 14; // matches Studio's `h - 14` term
+constexpr float ICON_H_RATIO = 0.75f;
+constexpr float ICON_W_RATIO = 0.70f;
+constexpr float LABEL_NO_ICON_VBUDGET_RATIO = 0.48f;
+constexpr float LABEL_WITH_ICON_VBUDGET_RATIO = 0.20f;
+constexpr float LABEL_ICON_FRACTION = 0.40f;
+constexpr float LABEL_W_RATIO = 0.22f;
+constexpr int16_t LABEL_FONT_MIN = 8;
+constexpr int16_t LABEL_BUDGET_PAD = 12; // matches Studio's `w - 12`
+
+int16_t computeIconSize(int16_t w, int16_t h) {
+    int16_t budget = static_cast<int16_t>(h * ICON_H_RATIO);
+    if (h - ICON_H_BUDGET_DROP < budget)
+        budget = static_cast<int16_t>(h - ICON_H_BUDGET_DROP);
+    const int16_t widthCap = static_cast<int16_t>(w * ICON_W_RATIO);
+    if (widthCap < budget)
+        budget = widthCap;
+    if (budget > ICON_MAX_PX)
+        budget = ICON_MAX_PX;
+    if (budget < ICON_MIN_PX)
+        budget = ICON_MIN_PX;
+    return budget;
+}
+
+int16_t computeLabelFontSize(int16_t w, int16_t h, bool showIcon, int16_t iconSize) {
+    const float verticalBudget =
+        showIcon ? fminf(h * LABEL_WITH_ICON_VBUDGET_RATIO, iconSize * LABEL_ICON_FRACTION)
+                 : h * LABEL_NO_ICON_VBUDGET_RATIO;
+    const float labelBudget = static_cast<float>(w - LABEL_BUDGET_PAD);
+    float fontSize = fminf(verticalBudget, labelBudget * LABEL_W_RATIO);
+    if (fontSize < LABEL_FONT_MIN)
+        fontSize = LABEL_FONT_MIN;
+    return static_cast<int16_t>(fontSize);
+}
+
+// Pick the nearest baked Medium tier {12, 14, 16} for the target px size.
+// FontManager::label() snaps DOWN, so we round to nearest explicitly: any
+// target ≥ 15 picks 16, ≥ 13 picks 14, otherwise 12. Studio always uses
+// fontWeight: 500 (Medium) so we stay in the label tier regardless of size.
+const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
+    if (targetPx >= 15)
         return FontManager::label(16);
-    if (h >= 20)
+    if (targetPx >= 13)
         return FontManager::label(14);
     return FontManager::label(12);
 }
@@ -41,12 +85,22 @@ const lv_font_t *selectButtonFont(int16_t h) {
 static constexpr int16_t MAP_BADGE_DIAMETER = 7;
 static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44; // green
 
+// Translucency to mirror Studio's idle/active alpha tints
+// (normalColor + '18' ≈ 9 %, activeColor + '55' ≈ 33 %).
+// LV_OPA_10 (= 25 ≈ 0x19) is the closest baked tier to 0x18; the active
+// tint uses a raw 0x55 because LV_OPA_30 (= 76) snaps below the Studio value.
+constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_10;
+constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = 0x55;
+constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC; // matches Studio textColor + 'CC'
+constexpr int16_t BUTTON_BORDER_WIDTH = 1;
+
 // Per-button runtime state — owns the latched toggle flag and a pointer back
 // to the const config (kept alive by the dashboard singleton).
 struct ButtonTag {
     const CfgWidget *cfg; // For style.primaryColor when computing derived toggle visuals (#838)
     const CfgButtonParams *params;
     lv_obj_t *iconImg;                 // nullptr when no asset is rendered
+    lv_obj_t *labelObj;                // nullptr when label is hidden
     bool toggleActive;                 // only meaningful when params->isToggle == true
     char lvglPath[LVGL_PATH_LEN];      // resolved LVGL FS path for the icon, "" if none
     lv_obj_t *activeBadge;             // green dot overlay, nullptr if not a map_switch button
@@ -88,7 +142,6 @@ const char *resolveIconAsset(const CfgButtonParams &p, char *out, size_t outLen)
 // (issue #838). Keeps the resting appearance untouched and only shifts the
 // pressed state, so existing dashboards don't suddenly look different.
 constexpr uint32_t TOGGLE_DERIVED_ACTIVE_DELTA = 0x40; // ~25 % brighter
-constexpr uint32_t TOGGLE_DERIVED_BORDER = 0xFFFFFFu;
 
 uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
     const uint32_t r = (rgb >> 16) & 0xFF;
@@ -100,37 +153,58 @@ uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
     return (rL << 16) | (gL << 8) | bL;
 }
 
-// Resting / active colours for a toggle button. When the dashboard provides
-// an explicit `colors` block we honour it verbatim. Otherwise we derive an
-// active tint from the widget's primary colour AND surface a 1 px border to
-// give the latched state a second visual cue (issue #838). Both branches
-// share the same surface so the caller doesn't have to special-case.
-struct ToggleVisual {
-    uint32_t bg;
-    bool showBorder;
+// Resting / active visual for a button. Mirrors Studio's per-state palette
+// (widget-previews/Button.tsx): translucent bg, 1-px border in stateColor /
+// secondaryColor, icon + label tinted with the matching stateColor. The
+// derived-active path (no explicit `colors` block) still lightens primary
+// for legacy two-state behaviour from #838.
+struct ButtonVisual {
+    uint32_t bgColor;
+    lv_opa_t bgOpa;
+    uint32_t borderColor;
+    uint32_t textColor;
 };
 
-ToggleVisual computeToggleVisual(const CfgWidget &cfg, const CfgButtonParams &p, bool active) {
-    if (p.hasColors) {
-        return {active ? p.colorActive.rgb : p.colorNormal.rgb, false};
-    }
+ButtonVisual computeButtonVisual(const CfgWidget &cfg, const CfgButtonParams &p, bool active) {
+    const uint32_t normalColor = p.hasColors ? p.colorNormal.rgb : cfg.style.primaryColor.rgb;
+    const uint32_t activeColor =
+        p.hasColors ? p.colorActive.rgb
+                    : lightenRgb(cfg.style.primaryColor.rgb, TOGGLE_DERIVED_ACTIVE_DELTA);
+    ButtonVisual v;
     if (active) {
-        return {lightenRgb(cfg.style.primaryColor.rgb, TOGGLE_DERIVED_ACTIVE_DELTA), true};
+        v.bgColor = activeColor;
+        v.bgOpa = BUTTON_BG_OPA_ACTIVE;
+        v.borderColor = activeColor;
+        v.textColor = activeColor;
+    } else {
+        v.bgColor = normalColor;
+        v.bgOpa = BUTTON_BG_OPA_IDLE;
+        v.borderColor = cfg.style.secondaryColor.rgb;
+        v.textColor = cfg.style.textColor.rgb;
     }
-    return {cfg.style.primaryColor.rgb, false};
+    return v;
+}
+
+void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &v) {
+    lv_obj_set_style_bg_color(btn, lv_color_hex(v.bgColor), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(btn, v.bgOpa, LV_PART_MAIN);
+    lv_obj_set_style_border_color(btn, lv_color_hex(v.borderColor), LV_PART_MAIN);
+    lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
+    if (tag.iconImg) {
+        lv_obj_set_style_img_recolor(tag.iconImg, lv_color_hex(v.textColor), 0);
+        lv_obj_set_style_img_recolor_opa(tag.iconImg, BUTTON_ICON_OPA, 0);
+    }
+    if (tag.labelObj) {
+        lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
+    }
 }
 
 void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
-    if (!tag.params || !tag.params->isToggle || !tag.cfg)
+    if (!tag.cfg || !tag.params)
         return;
-    const ToggleVisual v = computeToggleVisual(*tag.cfg, *tag.params, tag.toggleActive);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(v.bg), LV_PART_MAIN);
-    if (v.showBorder) {
-        lv_obj_set_style_border_color(btn, lv_color_hex(TOGGLE_DERIVED_BORDER), LV_PART_MAIN);
-        lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
-    }
+    const bool active = tag.params->isToggle && tag.toggleActive;
+    const ButtonVisual v = computeButtonVisual(*tag.cfg, *tag.params, active);
+    applyButtonVisual(btn, tag, v);
 }
 
 void btnClickHandler(lv_event_t *e) {
@@ -185,28 +259,20 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     const CfgButtonParams &p = cfg.button;
 
-    // Idle / pressed background — honor `colors{normal,active}` when present,
-    // otherwise fall back to the legacy `widget.style.primaryColor`. Toggle
-    // buttons drive the bg color manually from the latched flag (see
-    // applyToggleVisualState) and ignore LVGL's PRESSED state.
-    const uint32_t bgNormal = p.hasColors ? p.colorNormal.rgb : cfg.style.primaryColor.rgb;
-    const uint32_t bgActive = p.hasColors ? p.colorActive.rgb : cfg.style.primaryColor.rgb;
-    lv_obj_set_style_bg_color(btn, lv_color_hex(bgNormal), LV_PART_MAIN);
-    if (!p.isToggle) {
-        lv_obj_set_style_bg_color(btn, lv_color_hex(bgActive), LV_PART_MAIN | LV_STATE_PRESSED);
-    }
     lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(btn, BUTTON_PAD_X, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(btn, BUTTON_PAD_Y, LV_PART_MAIN);
 
-    // Lay out icon (if any) and label (if any) in a row, mirroring the
-    // studio's ButtonPreview (icon left, label right, centered).
+    // Column layout (icon on top, label below) mirroring Studio's
+    // widget-previews/Button.tsx column flex.
     const bool hasIcon = p.showIcon && (p.iconPath[0] != '\0' || p.iconName[0] != '\0');
     const bool hasLabel = p.showLabel && p.label[0] != '\0';
 
     if (hasIcon || hasLabel) {
-        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(btn, 4, LV_PART_MAIN);
+        lv_obj_set_style_pad_row(btn, BUTTON_ROW_GAP, LV_PART_MAIN);
     }
 
     ButtonTag *tag = WidgetTagPool::alloc<ButtonTag>();
@@ -221,6 +287,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->cfg = &cfg;
     tag->params = &p;
     tag->iconImg = nullptr;
+    tag->labelObj = nullptr;
     tag->toggleActive = false;
     tag->lvglPath[0] = '\0';
     tag->activeBadge = nullptr;
@@ -236,7 +303,10 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         }
     }
 
-    const lv_font_t *btnFont = selectButtonFont(cfg.layout.h);
+    const int16_t targetIconSize = hasIcon ? computeIconSize(cfg.layout.w, cfg.layout.h) : 0;
+    const int16_t targetFontSize =
+        computeLabelFontSize(cfg.layout.w, cfg.layout.h, hasIcon, targetIconSize);
+    const lv_font_t *btnFont = selectButtonFontFromTarget(targetFontSize);
 
     if (hasIcon) {
         const char *path = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
@@ -249,8 +319,23 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         if (path[0] != '\0' && heapOk) {
             tag->iconImg = lv_img_create(btn);
             lv_img_set_src(tag->iconImg, tag->lvglPath);
-            lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(cfg.style.textColor.rgb), 0);
-            lv_obj_set_style_img_recolor_opa(tag->iconImg, LV_OPA_COVER, 0);
+            // Scale icon to the Studio-computed target size. LVGL stores the
+            // source dims after `lv_img_set_src`; `lv_obj_get_self_width`
+            // returns those native pixel dims so the zoom factor can be
+            // derived without baking per-asset sizes into the firmware.
+            // zoom = (target / native) * 256, with 256 = 1:1.
+            const lv_coord_t nativeW = lv_obj_get_self_width(tag->iconImg);
+            const lv_coord_t nativeH = lv_obj_get_self_height(tag->iconImg);
+            const lv_coord_t nativeMax = nativeW > nativeH ? nativeW : nativeH;
+            if (nativeMax > 0) {
+                uint32_t zoom = (static_cast<uint32_t>(targetIconSize) * 256u) /
+                                static_cast<uint32_t>(nativeMax);
+                if (zoom < 1)
+                    zoom = 1;
+                if (zoom > 0xFFFFu)
+                    zoom = 0xFFFFu;
+                lv_img_set_zoom(tag->iconImg, static_cast<uint16_t>(zoom));
+            }
         } else if (path[0] != '\0' && !heapOk) {
             // Asset is on disk but heap is too fragmented to load it — skip
             // and log once. The button still renders its label/colour cues.
@@ -266,7 +351,29 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_t *label = lv_label_create(btn);
         lv_label_set_text(label, p.label);
         lv_obj_set_style_text_font(label, btnFont, 0);
-        lv_obj_set_style_text_color(label, lv_color_hex(cfg.style.textColor.rgb), 0);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        tag->labelObj = label;
+    }
+
+    // Apply idle visual (translucent bg + 1-px border + recoloured icon/label).
+    // computeButtonVisual mirrors Studio's idle/active per-state palette so
+    // toggle clicks (applyToggleVisualState) and PRESSED feedback below stay
+    // consistent.
+    {
+        const ButtonVisual idle = computeButtonVisual(cfg, p, false);
+        applyButtonVisual(btn, *tag, idle);
+        if (!p.isToggle) {
+            // Momentary buttons still flash via LVGL's PRESSED state so the
+            // user gets immediate feedback on tap. Toggle buttons drive the
+            // active visual themselves from the latched flag (see
+            // applyToggleVisualState) and ignore PRESSED.
+            const ButtonVisual pressed = computeButtonVisual(cfg, p, true);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(pressed.bgColor),
+                                      LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_bg_opa(btn, pressed.bgOpa, LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_border_color(btn, lv_color_hex(pressed.borderColor),
+                                          LV_PART_MAIN | LV_STATE_PRESSED);
+        }
     }
 
     // Active-map badge — green dot in top-right corner, shown when MAP_NUMBER
