@@ -29,6 +29,11 @@
 
 #include "can/can_manager.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
+extern SemaphoreHandle_t g_lvglMutex;
+
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
     #include "hal/wifi/wifi_ap.h"
@@ -212,7 +217,13 @@ static void buildUI() {
     LOG_INFO("BOOT", "Initializing PageManager...");
     PageManager::init();
     LOG_INFO("BOOT", "Navigating to default page...");
+    // navigateTo has an LVGL_ASSERT_LOCKED canary. Boot is single-threaded
+    // (taskUI not spawned yet) so no race is possible, but the assert can't
+    // distinguish boot from steady-state — hold the mutex briefly to honour
+    // the contract.
+    xSemaphoreTake(g_lvglMutex, portMAX_DELAY);
     PageManager::navigateTo(PageManager::getDefaultPageId());
+    xSemaphoreGive(g_lvglMutex);
 
     // Log LVGL pool stats — useful to verify fonts + widgets fit in the pool.
     lv_mem_monitor_t mon;
@@ -545,7 +556,9 @@ static void logBootCompleteAndReady(uint32_t bootStartMs) {
 
 void BootSequence::run() {
     // Boot is single-threaded — taskUI is created in main.cpp after this
-    // returns, so LVGL calls below do not need g_lvglMutex.
+    // returns, so LVGL calls below run race-free. Calls that hit an
+    // LVGL_ASSERT_LOCKED canary still need a mutex take/give pair to honour
+    // the assert contract (see navigateTo in buildUI).
     //
     // OTA rollback handshake (markOtaSlotValidIfPending) is no longer fired
     // from this orchestrator — taskUI calls it after UI_OTA_VALID_FRAMES
