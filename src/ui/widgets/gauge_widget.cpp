@@ -1,4 +1,4 @@
-// gauge_widget.cpp — Arc-based gauge widget with colored zone sectors
+// gauge_widget.cpp — Arc-based gauge widget (270° sweep, Studio-aligned).
 
 #include "gauge_widget.h"
 #include "ui/alert_flash.h"
@@ -14,6 +14,7 @@
 #include "hardware_profile.h"
 #include "diag/logger.h"
 
+#include <algorithm>
 #include <cmath>
 #include <lvgl.h>
 #include <stdio.h>
@@ -28,7 +29,6 @@ namespace {
 // Palette for the colored arc sectors. Zone tints come from the shared
 // helper palette so bar + gauge stay in lockstep.
 static constexpr uint32_t kColorBgDim = 0x222222; // Dark grey — no-threshold bg track
-static constexpr uint32_t kColorValue = 0xFFFFFF; // White — value indicator needle
 // Gradient base track (issue #175) — slightly lighter than the no-threshold
 // track so the value arc reads cleanly on top of it.
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
@@ -39,15 +39,20 @@ static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
 static constexpr uint16_t kArcRotation = 135;
 
-// Arc line widths — thick enough to read on the now-smaller (h=80)
-// dashboard arcs without overwhelming the value text in the centre.
-static constexpr uint8_t kBgWidth = 14; // Sector track width
-static constexpr uint8_t kIndWidth = 7; // Value indicator (thinner, sits inside)
-
 // Minimum arc diameter clamp — protects against degenerate gauge configs.
 static constexpr int32_t kMinArcDiam = 40;
 // Padding subtracted from min(w, h) when sizing the arc inside its container.
 static constexpr int32_t kArcContainerPadding = 8;
+
+// Stroke width — mirrors Studio's `Math.max(5, r * 0.24)` (GaugeArc.tsx:69)
+// where `r = Math.min(w*0.45, h*0.46)`. Both background track and value arc
+// share the same width so the value tint fully covers the dark base.
+static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
+    const float r = std::min(static_cast<float>(cfg.layout.w) * 0.45f,
+                             static_cast<float>(cfg.layout.h) * 0.46f);
+    const float w = r * 0.24f;
+    return static_cast<uint8_t>(w < 5.0f ? 5.0f : w);
+}
 
 // Linear interpolation between two RGB colours, channel-wise.
 // Returns a 0x00RRGGBB integer suitable for lv_color_hex.
@@ -138,8 +143,8 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
     // Background: transparent (sector arcs show through)
     lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_MAIN);
 
-    // Indicator: bright white needle — square ends.
-    lv_obj_set_style_arc_color(arc, lv_color_hex(kColorValue), LV_PART_INDICATOR);
+    // Indicator: solid value needle — caller overrides the colour at build time.
+    lv_obj_set_style_arc_color(arc, lv_color_hex(0xFFFFFFu), LV_PART_INDICATOR);
     lv_obj_set_style_arc_width(arc, indicatorWidth, LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
@@ -239,74 +244,71 @@ static int32_t computeArcDiameter(const CfgWidget &cfg) {
     return diam;
 }
 
-// Lay down the static background tracks (sector arcs). Render order: first
-// created = bottom, last created = top. Palette + gradient modes share the
-// same single mid-grey base track; zones mode emits two coloured halves
-// split at `dangerAngle`; no-threshold mode falls back to a dim full ring.
+// Lay down the static background track. Palette + gradient modes use the
+// slightly lighter base so the value arc tints cleanly over it; every other
+// config (with or without `dangerLevel`) renders a single dim ring matching
+// Studio (legacy two-zone sectors were dropped from GaugeArc.tsx — the
+// `hasDanger` value still drives the value-tint switch in update()).
 static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, bool paletteMode, bool gradientMode,
-                                  bool hasDanger, uint16_t dangerAngle) {
-    if (paletteMode || gradientMode) {
-        // Single mid-grey base track — the value arc tints over it.
-        createSectorArc(cont, diam, 0, kArcSweepInt, kColorGradientBg, kBgWidth);
-    } else if (!hasDanger) {
-        // No threshold — single dimmed background track (old behavior).
-        createSectorArc(cont, diam, 0, kArcSweepInt, kColorBgDim, kBgWidth);
-    } else {
-        // Two zones (issue #965): green (0→danger), red (danger→kArcSweep).
-        createSectorArc(cont, diam, 0, dangerAngle, WidgetHelpers::kZoneNormalRgb, kBgWidth);
-        createSectorArc(cont, diam, dangerAngle, kArcSweepInt, WidgetHelpers::kZoneDangerRgb,
-                        kBgWidth);
-    }
+                                  uint8_t strokeW) {
+    const uint32_t color = (paletteMode || gradientMode) ? kColorGradientBg : kColorBgDim;
+    createSectorArc(cont, diam, 0, kArcSweepInt, color, strokeW);
 }
 
-// Build the value fill arc that renders on top of the sector/base tracks.
-// Palette + gradient modes paint at full kBgWidth so the value arc fully
-// covers the base track; zones mode uses the thinner kIndWidth so sector
-// zones remain visible around it.
+// Build the value fill arc that renders on top of the base track. Stroke
+// width matches the background so the value tint fully covers the dim ring
+// (matches Studio — both arcs share `strokeW`).
 static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
                                    const SensorPaletteEntry *paletteEntry, bool paletteMode,
-                                   bool gradientMode, bool hasDanger) {
-    const uint8_t fillW = (gradientMode || paletteMode) ? kBgWidth : kIndWidth;
-    lv_obj_t *fillArc = createValueArc(cont, diam, fillW);
+                                   bool gradientMode, uint32_t primaryRgb, uint8_t strokeW) {
+    lv_obj_t *fillArc = createValueArc(cont, diam, strokeW);
     lv_arc_set_angles(fillArc, 0, 0);
-    const uint32_t startColor =
-        paletteMode ? paletteEntry->okColor
-                    : ((hasDanger || gradientMode) ? WidgetHelpers::kZoneNormalRgb : kColorValue);
+    const uint32_t startColor = paletteMode    ? paletteEntry->okColor
+                                : gradientMode ? WidgetHelpers::kZoneNormalRgb
+                                               : primaryRgb;
     lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
     return fillArc;
 }
 
-// Pick the integer-tier font size by container height, mirroring the
-// original three-tier ladder (20 / 24 / 32). The fractional label picks
-// a smaller font derived from this size.
+// Pick the integer-tier font size by container height. Studio uses the
+// continuous formula `max(11, min(r*0.55, h*0.3, 42))` with `r = min(w*0.45,
+// h*0.46)` (GaugeArc.tsx:77); firmware can only emit baked tiers (20/24
+// Bold, 32/48 Black — 28 Bold was dropped, see font_manager.cpp:46-49).
+// Thresholds picked so each tier minimises the absolute pixel-size delta
+// to Studio at typical widget heights — see PR body for the residual
+// (h≈110: Studio 27 px Black, firmware 24 px Bold — 3 px size delta plus
+// the Bold→Black weight drift the audit lists separately as `med`).
 //
-// TODO(#18): the 80 / 110 px thresholds and the 20/24/32 Orbitron sizes are
-// hard-coded against the v1 design canvas (320×240). When a second screen
-// profile lands the thresholds must be scaled with `ScreenProfile::scaleYVal`
-// AND the font sizes themselves need to scale (either via additional baked
-// Orbitron tiers or by swapping the font family entirely). v1 keeps the
-// scale at 1.0 so no behaviour change today.
+// TODO(#18): hard-coded against the v1 design canvas (320×240). When a
+// second screen profile lands the thresholds must be scaled with
+// `ScreenProfile::scaleYVal` and the baked sizes must follow.
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
-    const lv_font_t *font = FontManager::secondary(20);
-    intFontSizeOut = 20;
-    if (cfg.layout.h >= 80) {
-        font = FontManager::secondary(24);
-        intFontSizeOut = 24;
+    const int16_t h = cfg.layout.h;
+    if (h >= 165) {
+        intFontSizeOut = 48;
+        return FontManager::primary(48);
     }
-    if (cfg.layout.h >= 110) {
-        font = FontManager::primary(32);
+    if (h >= 125) {
         intFontSizeOut = 32;
+        return FontManager::primary(32);
     }
-    return font;
+    if (h >= 95) {
+        intFontSizeOut = 24;
+        return FontManager::secondary(24);
+    }
+    intFontSizeOut = 20;
+    return FontManager::secondary(20);
 }
 
 // Build the value row — flex container holding [int][frac] baseline-aligned
 // so gauges with decimals render the fractional digits at ~70 % of the
 // integer font. Matches the numeric widget treatment from PR #975.
-static lv_obj_t *buildValueRow(lv_obj_t *cont, bool hasUnit) {
+// The value sits at the true centre regardless of `hasUnit` — Studio renders
+// the unit below the value without nudging the value up (GaugeArc.tsx:126).
+static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
     lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, hasUnit ? -8 : 0);
+    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
@@ -425,12 +427,14 @@ struct GaugeBuildState {
 static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
                               lv_obj_t *&outLabel, lv_obj_t *&outFrac, lv_obj_t *&outUnit) {
     const char *unitText = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix);
-    const bool hasUnit = unitText[0] != '\0';
     uint8_t intFontSize = 20;
     const lv_font_t *font = resolveValueFont(cfg, intFontSize);
-    lv_obj_t *valueRow = buildValueRow(cont, hasUnit);
-    outLabel = buildValueLabel(valueRow, font, textRgb, cfg);
-    outFrac = buildFracLabel(valueRow, cfg, intFontSize, textRgb);
+    lv_obj_t *valueRow = buildValueRow(cont);
+    // Value + fractional seed with `primaryColor` so the first frame matches
+    // Studio (update() then tints per the danger/ramp/palette state).
+    const uint32_t valueRgb = cfg.style.primaryColor.rgb;
+    outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
+    outFrac = buildFracLabel(valueRow, cfg, intFontSize, valueRgb);
     outUnit = buildUnitLabel(cont, unitText, textRgb);
     WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition, textRgb);
 }
@@ -464,11 +468,15 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
 
 // Mount the alert overlay last so it sits on top of arcs and labels, and
 // register each text label so AlertFlash can repaint them in lockstep.
-static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, uint32_t textRgb) {
+// Value + fractional labels restore to `primaryColor` (the Studio-aligned
+// resting tint); unit keeps the dim text-based mask.
+static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg,
+                             uint32_t textRgb) {
     AlertFlash::attach(tag->alert, cont);
-    AlertFlash::watchLabel(tag->alert, tag->valueLabel, textRgb);
+    const uint32_t valueRgb = cfg.style.primaryColor.rgb;
+    AlertFlash::watchLabel(tag->alert, tag->valueLabel, valueRgb);
     if (tag->fracLabel) {
-        AlertFlash::watchLabel(tag->alert, tag->fracLabel, textRgb);
+        AlertFlash::watchLabel(tag->alert, tag->fracLabel, valueRgb);
     }
     if (tag->unitLabel) {
         AlertFlash::watchLabel(tag->alert, tag->unitLabel, textRgb & 0x888888);
@@ -491,10 +499,10 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
-    buildBackgroundTracks(cont, diam, modes.paletteMode, modes.gradientMode, modes.hasDanger,
-                          modes.dangerAngle);
+    const uint8_t strokeW = computeArcStrokeWidth(cfg);
+    buildBackgroundTracks(cont, diam, modes.paletteMode, modes.gradientMode, strokeW);
     lv_obj_t *fillArc = buildValueFillArc(cont, diam, modes.paletteEntry, modes.paletteMode,
-                                          modes.gradientMode, modes.hasDanger);
+                                          modes.gradientMode, cfg.style.primaryColor.rgb, strokeW);
 
     lv_obj_t *label = nullptr;
     lv_obj_t *fracLabel = nullptr;
@@ -512,7 +520,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                                    fillArc,         modes.paletteEntry, modes.dangerAngle,
                                    modes.hasDanger, modes.gradientMode};
     initGaugeTag(tag, cfg, built);
-    attachAlertFlash(tag, cont, textRgb);
+    attachAlertFlash(tag, cont, cfg, textRgb);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE, tag);
@@ -551,10 +559,11 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             tag->lastValid = false;
         }
         if (!tag->alert.active) {
-            WidgetStyles::setTextColorIfChanged(
-                tag->valueLabel, tag->lastLabelRgb,
-                ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb,
-                                                    cfg.style.respectDayMode));
+            // Invalid signal renders as "0" — falls below `dangerLevel` so the
+            // primary tint applies (mirrors the live-path no-palette/no-ramp
+            // branch below).
+            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb,
+                                                cfg.style.primaryColor.rgb);
         }
         // Collapse the fill arc to zero on invalid signals so the base track
         // is fully visible — matches the "show 0" rule above.
@@ -576,15 +585,17 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // Tint the value label — skip when AlertFlash owns the colour. Palette
     // mode (#954) drives both fill AND label colour so the read matches. The
     // legacy ramp path (issue #430) still applies when no palette is pinned.
+    // No-palette/no-ramp path: Studio uses `st.primaryColor` below danger and
+    // `st.criticalColor` above (GaugeArc.tsx:51-56) — match that instead of
+    // the previous white / kZoneDangerRgb hardcodes.
     if (!tag->alert.active) {
-        uint32_t labelColor =
-            ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+        uint32_t labelColor = cfg.style.primaryColor.rgb;
         if (tag->palette) {
             labelColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->dangerLevel);
         } else if (tag->ramp) {
             labelColor = colorAtValue(*tag->ramp, value);
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
-            labelColor = WidgetHelpers::kZoneDangerRgb;
+            labelColor = cfg.style.criticalColor.rgb;
         }
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
         if (tag->fracLabel) {
@@ -612,7 +623,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             fillColor = value >= cfg.gauge.dangerLevel ? WidgetHelpers::kZoneDangerRgb
                                                        : WidgetHelpers::kZoneNormalRgb;
         } else {
-            fillColor = kColorValue; // white — no threshold, no ramp
+            fillColor = 0xFFFFFFu; // white — no threshold, no ramp, no gradient
         }
         WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
                                            LV_PART_INDICATOR);
