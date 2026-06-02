@@ -525,15 +525,34 @@ void taskUI(void *pvParameters) {
 void taskCAN(void *pvParameters) {
     // CanManager::initHardware() is called from BootSequence::run() before tasks start.
     // This task only runs the receive/dispatch loop.
-    // vTaskDelay(CAN_TASK_YIELD_TICKS) keeps IDLE0 alive on a busy bus where
-    // twai_receive returns immediately every iteration (issue #200).
+    //
+    // Yield strategy (issue #1258, refines #200):
+    //   - Empty RX queue → `twai_receive` already blocked ~10 ms, which is
+    //     plenty for IDLE0; skip the per-iteration vTaskDelay so the next
+    //     iteration starts immediately when a frame finally arrives.
+    //   - Frame consumed → keep firing through the queue without sleeping
+    //     between reads (the previous unconditional vTaskDelay(1) capped the
+    //     CAN task at ~1000 frames/s, which a busy MaxxECU bus exceeds).
+    //     Force IDLE0 a slot every CAN_BURST_BEFORE_YIELD consecutive frames
+    //     so the lower-priority IDLE task on this core still runs and the
+    //     OS WDT stays fed (the original #200 invariant). At 800 frames/s
+    //     with N=16 that's ~50 forced yields/s = 50 ms/s, ~5 % of the core.
+    constexpr uint32_t CAN_BURST_BEFORE_YIELD = 16;
+    uint32_t consecutiveFrames = 0;
     while (true) {
-        CanManager::tick();
+        const bool frameConsumed = CanManager::tick();
         // Issue #666 — CAN task WDT feed. CanManager::tick() blocks up to
         // 10 ms in twai_receive and may sleep 100 ms while retrying install;
         // both are well within TASK_WDT_TIMEOUT_MS.
         esp_task_wdt_reset();
-        vTaskDelay(CAN_TASK_YIELD_TICKS);
+        if (!frameConsumed) {
+            consecutiveFrames = 0;
+            continue;
+        }
+        if (++consecutiveFrames >= CAN_BURST_BEFORE_YIELD) {
+            consecutiveFrames = 0;
+            vTaskDelay(CAN_TASK_YIELD_TICKS);
+        }
     }
 }
 

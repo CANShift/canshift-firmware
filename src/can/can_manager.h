@@ -40,8 +40,17 @@ namespace CanManager {
      * Main CAN receive and dispatch loop.
      * Blocks waiting for a frame (with timeout), then dispatches to parser.
      * Called repeatedly from the CAN FreeRTOS task.
+     *
+     * Returns `true` when a frame was popped from the RX queue (whether or
+     * not it carried decodable data — RTR frames also count), `false` when
+     * the call returned without consuming a frame (timeout on idle bus,
+     * receive error, or driver-not-installed retry path). The caller uses
+     * this to throttle adaptively: yield the core periodically when bursting
+     * through frames so IDLE0 keeps running, skip the yield when the queue
+     * is empty because `twai_receive`'s 10 ms timeout already amortizes the
+     * idle case (issue #1258).
      */
-void tick();
+[[nodiscard]] bool tick();
 
 /**
      * Transmit a single CAN frame.

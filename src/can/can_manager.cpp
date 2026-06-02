@@ -170,7 +170,7 @@ esp_err_t CanManager::initHardware() {
     return ctx.result;
 }
 
-void CanManager::tick() {
+bool CanManager::tick() {
     // Guard: if the driver was never installed (e.g. ESP_ERR_NO_MEM at boot),
     // do not call twai_receive() — it would return ESP_ERR_INVALID_STATE at
     // every tick (~100 Hz) and flood the log. Schedule retries on a timer.
@@ -191,7 +191,7 @@ void CanManager::tick() {
             s_permanentlyDownWarned = true;
         }
         vTaskDelay(pdMS_TO_TICKS(100));
-        return;
+        return false;
     }
 
     twai_message_t message;
@@ -287,6 +287,12 @@ void CanManager::tick() {
     // end of the loop so the RX path above runs first (a response that
     // arrives between two ticks is decoded before the next request fires).
     Obd2Poller::tick(nowMs);
+
+    // Report whether the RX queue had a frame for us. `err == ESP_OK` means
+    // `twai_receive` popped a slot (even RTR frames count — they short the
+    // decode path but still drain the queue). Caller uses this to drop the
+    // per-iteration 1 ms yield while the queue is being burned through.
+    return err == ESP_OK;
 }
 
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
