@@ -4,8 +4,8 @@
 // Mirrors `SENSOR_PALETTE` in canshift-core/src/sensor-palette.ts. Each
 // `SensorIconName` resolves to an "OK zone" colour matching the metric (water
 // blue for coolant, violet for boost, ...) plus an optional warning colour
-// used above `dangerLevel`. Gauges and bars look up by the string iconName
-// stored in `CfgGaugeParams::iconName` / `CfgBarParams::iconName`.
+// used above `dangerLevel`. Gauges look up by the string iconName stored in
+// `CfgGaugeParams::iconName`.
 //
 // Drift against the TS source is caught at native-test time by
 // test_sensor_palette against the fixture exported by

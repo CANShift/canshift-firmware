@@ -61,7 +61,6 @@ enum class WidgetType : uint8_t {
     BUTTON = 4,   // Tap action button (page nav, etc.)
     TOP_BAR = 5,  // Reserved for top bar use
     TIMER = 6,    // Lap/session timer
-    BAR = 7,      // Horizontal or vertical progress bar
     GEAR_IND = 8, // Large gear indicator
     IMAGE = 9,    // Static or signal-driven image/icon
 };
@@ -98,7 +97,7 @@ struct CfgStyle {
 // ---------------------------------------------------------------------------
 // Widget config (type-specific parameters)
 // ---------------------------------------------------------------------------
-// Position of the optional widget label drawn at a corner (gauge / bar widgets).
+// Position of the optional widget label drawn at a corner (gauge widgets).
 enum class CfgLabelPos : uint8_t {
     TOP_LEFT = 0,
     TOP_CENTER = 1,
@@ -136,22 +135,6 @@ struct CfgGaugeParams {
     // "" = no palette; widgets fall back to the legacy `style.primaryColor`
     // and zone tints.
     char iconName[16];
-};
-
-struct CfgBarParams {
-    float minValue;
-    float maxValue;
-    // Single threshold above which the indicator turns critical / palette
-    // warning colour (issue #965). NaN = no threshold.
-    float dangerLevel;
-    float alertThreshold; // NaN = disabled (issue #133)
-    bool isVertical;      // true = bottom-up fill, false = left-to-right
-    uint8_t decimalPlaces;
-    char prefix[8];
-    char suffix[8];
-    char label[CFG_MAX_NAME_LEN]; // Optional widget label (e.g. "Boost")
-    CfgLabelPos labelPosition;
-    char iconName[16]; // SensorIconName key, "" = none
 };
 
 struct CfgLabelParams {
@@ -264,7 +247,6 @@ struct CfgWidget {
         CfgLabelParams label;
         CfgWarningParams warning;
         CfgButtonParams button;
-        CfgBarParams bar;
         CfgTimerParams timer;
         CfgImageParams image;
     };

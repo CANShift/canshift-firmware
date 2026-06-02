@@ -2,7 +2,6 @@
 
 #include "widget_factory.h"
 #include "widgets/gauge_widget.h"
-#include "widgets/bar_widget.h"
 #include "widgets/label_widget.h"
 #include "widgets/warning_widget.h"
 #include "widgets/button_widget.h"
@@ -61,11 +60,6 @@ lv_obj_t *createButton(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) 
     return obj;
 }
 
-lv_obj_t *createBar(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    lv_obj_t *obj = BarWidget::create(parent, cfg, yOffset);
-    return obj;
-}
-
 lv_obj_t *createGear(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     return GearWidget::create(parent, cfg, yOffset);
 }
@@ -99,9 +93,6 @@ void updateWidget(WidgetEntry &entry,
     switch (entry.type) {
         case WidgetType::GAUGE:
             GaugeWidget::update(entry.obj, value, valid, *entry.cfg);
-            break;
-        case WidgetType::BAR:
-            BarWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::LABEL:
             LabelWidget::update(entry.obj, rawValue, valid, *entry.cfg);
@@ -143,9 +134,6 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     switch (cfg.type) {
         case WidgetType::GAUGE:
             obj = createGauge(parent, cfg, yOffset);
-            break;
-        case WidgetType::BAR:
-            obj = createBar(parent, cfg, yOffset);
             break;
         case WidgetType::LABEL:
             obj = createLabel(parent, cfg, yOffset);

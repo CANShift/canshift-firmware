@@ -174,9 +174,6 @@ void preloadDashboardAssets() {
         for (uint8_t w = 0; w < page.widgetCount; ++w) {
             const CfgWidget &widget = page.widgets[w];
             switch (widget.type) {
-                case WidgetType::BAR:
-                    preloadIconNameOnce(seen, seenCount, widget.bar.iconName);
-                    break;
                 case WidgetType::WARNING:
                     preloadIconNameOnce(seen, seenCount, widget.warning.iconName);
                     break;

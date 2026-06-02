@@ -539,8 +539,6 @@ WidgetType parseWidgetType(const char *str) {
         return WidgetType::BUTTON;
     if (strcmp(str, "timer") == 0)
         return WidgetType::TIMER;
-    if (strcmp(str, "bar") == 0)
-        return WidgetType::BAR;
     if (strcmp(str, "gear") == 0)
         return WidgetType::GEAR_IND;
     if (strcmp(str, "image") == 0)
@@ -595,25 +593,6 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
 }
 
-// Bar parameters reached via the legacy `gauge` widget with displayStyle=bar.
-// Behaviour identical to the old monolith — kept separate from the direct
-// "type":"bar" parser because the default `dangerLevel` differs (hardcoded 95
-// vs. NaN for the standalone BarWidgetConfig).
-void parseGaugeBarParams(JsonObjectConst cfg, CfgBarParams *out, float alertThreshold) {
-    out->minValue = cfg["minValue"] | 0.0f;
-    out->maxValue = cfg["maxValue"] | 100.0f;
-    out->dangerLevel = cfg["dangerLevel"] | 95.0f;
-    out->alertThreshold = alertThreshold;
-    const char *orient = cfg["barOrientation"] | "horizontal";
-    out->isVertical = (strcmp(orient, "vertical") == 0);
-    out->decimalPlaces = cfg["decimalPlaces"] | 0;
-    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
-    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
-    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
-}
-
 void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThreshold) {
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     out->alertThreshold = alertThreshold;
@@ -623,16 +602,13 @@ void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThres
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
-// Gauge widgets in dashboard.json use displayStyle "bar" / "numeric" / "arc"
-// to encode sub-types — reclassify the outgoing WidgetType here so downstream
-// renderers can stay simple and dispatch on a single enum.
+// Gauge widgets in dashboard.json use displayStyle "numeric" / "arc" to encode
+// sub-types — reclassify the outgoing WidgetType here so downstream renderers
+// can stay simple and dispatch on a single enum.
 void parseGaugeWidget(JsonObjectConst cfg, CfgWidget *w) {
     const char *displayStyle = cfg["displayStyle"] | "arc";
     const float alertThreshold = readAlertThreshold(cfg);
-    if (strcmp(displayStyle, "bar") == 0) {
-        w->type = WidgetType::BAR;
-        parseGaugeBarParams(cfg, &w->bar, alertThreshold);
-    } else if (strcmp(displayStyle, "numeric") == 0) {
+    if (strcmp(displayStyle, "numeric") == 0) {
         // Large numeric readout — render as a label widget.
         w->type = WidgetType::LABEL;
         parseLabelParams(cfg, &w->label, alertThreshold);
@@ -648,24 +624,6 @@ void parseWarningWidget(JsonObjectConst cfg, CfgWarningParams *out) {
     strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
     strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
     out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
-}
-
-// Direct "type":"bar" — BarWidgetConfig schema. Optional `barOrientation`
-// added in schema 1.19 (#1232 flag); undefined keeps the legacy horizontal
-// layout. `dangerLevel` defaults to NaN unlike the legacy gauge-bar path.
-void parseBarWidget(JsonObjectConst cfg, CfgBarParams *out) {
-    out->minValue = cfg["minValue"] | 0.0f;
-    out->maxValue = cfg["maxValue"] | 100.0f;
-    out->dangerLevel = cfg["dangerLevel"] | NAN;
-    out->alertThreshold = readAlertThreshold(cfg);
-    const char *orient = cfg["barOrientation"] | "horizontal";
-    out->isVertical = (strcmp(orient, "vertical") == 0);
-    out->decimalPlaces = cfg["decimalPlaces"] | 0;
-    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
-    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "bottom-center");
-    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
 }
 
 void parseButtonColors(JsonObjectConst cfg, CfgButtonParams *out) {
@@ -780,9 +738,6 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             break;
         case WidgetType::WARNING:
             parseWarningWidget(cfg, &w->warning);
-            break;
-        case WidgetType::BAR:
-            parseBarWidget(cfg, &w->bar);
             break;
         case WidgetType::BUTTON:
             parseButtonWidget(cfg, w->id, &w->button);

@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift demo dashboard \u2014 coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160\u00d756) and XL (160\u00d7112) per issue #131; horizontal bars use H-FULL (320\u00d728). Gauges pin `iconName` to opt into the semantic two-zone sensor palette (#954).",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo dashboard \u2014 overview, engine, fluids, controls",
   "defaultPageId": "overview",
