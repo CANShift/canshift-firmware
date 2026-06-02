@@ -84,10 +84,10 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     // Glyph fallback was removed in #681 because Orbitron does not cover the
     // LVGL symbol range — an "empty" label only consumed layout space.
     lv_obj_t *iconImg = nullptr;
-    const char *assetPath = IconAssets::path(cfg.warning.iconName);
-    if (assetPath[0] != '\0') {
+    const void *iconSrc = IconAssets::resolveSource(cfg.warning.iconName);
+    if (iconSrc != nullptr) {
         iconImg = lv_img_create(root);
-        lv_img_set_src(iconImg, assetPath);
+        lv_img_set_src(iconImg, iconSrc);
         lv_obj_set_style_img_recolor(iconImg, lv_color_hex(critRgb), 0);
         lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
     }

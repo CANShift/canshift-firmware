@@ -13,6 +13,7 @@
 
 #include "top_bar.h"
 #include "app_config.h"
+#include "icon_assets.h"
 #include "ui/font_manager.h"
 #include "settings_page.h"
 #include "theme_manager.h"
@@ -304,8 +305,8 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         }
         case TopBarItemKind::THEME_TOGGLE: {
             obj = lv_img_create(s_bar);
-            lv_img_set_src(obj, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
-                                                          : "S:/assets/icon_night.bin");
+            lv_img_set_src(obj, IconAssets::resolveSource(
+                                    ThemeManager::isDayMode() ? "icon_day" : "icon_night"));
             anchor(obj, 0);
             if (hasDayTheme) {
                 lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
@@ -476,8 +477,8 @@ void TopBar::reapplyTheme() {
     const CfgTopBar &cfg = ConfigLoader::getDashboardConfig().topBar;
     lv_obj_set_style_bg_color(s_bar, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
     if (s_themeIcon) {
-        lv_img_set_src(s_themeIcon, ThemeManager::isDayMode() ? "S:/assets/icon_day.bin"
-                                                              : "S:/assets/icon_night.bin");
+        lv_img_set_src(s_themeIcon, IconAssets::resolveSource(
+                                        ThemeManager::isDayMode() ? "icon_day" : "icon_night"));
     }
 }
 

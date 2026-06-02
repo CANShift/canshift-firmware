@@ -7,6 +7,7 @@
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/icon_assets_baked.h"
 #include "ui/screen_profile.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
@@ -109,31 +110,39 @@ struct ButtonTag {
     uint32_t signalSyncIgnoreUntilMs;  // ms tick before which update() must skip signal-driven sync
 };
 
-// Resolve the icon source. Returns a non-empty C-string LVGL path when an
-// asset exists for the widget, or "" when no icon will be drawn (see #681 —
-// the LVGL symbol fallback was removed). Prefers user-provided iconPath over
-// the built-in iconName lookup.
+// Resolve the icon source for `p`. Tagged result: `dsc` is non-null when the
+// icon is baked into flash (preferred — zero FS / cache / heap risk); else
+// `path` holds the SPIFFS path string and `dsc` stays null. When both are
+// empty no icon will be drawn (see #681 — the LVGL symbol fallback was gone).
+// Prefers user-provided `iconPath` over the built-in `iconName` lookup.
 //
-// Both branches probe the underlying file before returning: LVGL silently
+// SPIFFS branches probe the underlying file before returning: LVGL silently
 // no-ops on lv_img_set_src for a missing file, so without the probe the
 // widget would render an empty box.
-const char *resolveIconAsset(const CfgButtonParams &p, char *out, size_t outLen) {
-    out[0] = '\0';
+struct IconSource {
+    const lv_img_dsc_t *dsc; // nullptr when no baked dsc is available
+    const char *path;        // non-empty SPIFFS path, or "" when no SPIFFS asset
+};
+
+IconSource resolveIconAsset(const CfgButtonParams &p, char *pathBuf, size_t pathBufLen) {
+    pathBuf[0] = '\0';
+    IconSource result{nullptr, pathBuf};
     if (p.iconPath[0] != '\0') {
         // Studio supplies SPIFFS paths with a leading slash already.
         const char *prefix = (p.iconPath[0] == '/') ? "" : "/";
-        snprintf(out, outLen, "S:%s%s", prefix, p.iconPath);
-        if (IconAssets::exists(out))
-            return out;
-        out[0] = '\0';
-        return out;
+        snprintf(pathBuf, pathBufLen, "S:%s%s", prefix, p.iconPath);
+        if (!IconAssets::exists(pathBuf))
+            pathBuf[0] = '\0';
+        return result;
     }
-    const char *assetPath = IconAssets::path(p.iconName);
-    if (assetPath[0] != '\0') {
-        strlcpy(out, assetPath, outLen);
-        return out;
-    }
-    return out; // empty
+    // Prefer the baked flash dsc when one exists for this iconName.
+    result.dsc = IconAssetsBaked::resolve(p.iconName);
+    if (result.dsc != nullptr)
+        return result;
+    const char *spiffs = IconAssets::path(p.iconName);
+    if (spiffs[0] != '\0')
+        strlcpy(pathBuf, spiffs, pathBufLen);
+    return result;
 }
 
 // Brighten an RGB colour by a fixed per-channel delta (saturating). Used to
@@ -310,16 +319,21 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     const lv_font_t *btnFont = selectButtonFontFromTarget(targetFontSize);
 
     if (hasIcon) {
-        const char *path = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
-        // Heap guard: under fragmentation the SPIFFS icon load via
-        // lv_img_set_src → lv_fs_open → newlib fopen can abort(). Mirrors the
-        // gate in lvgl_fs_driver.cpp::fs_open so the icon path bails out at
-        // the widget layer too. Closes the OOM suspect in #717 / #651 / #660.
-        const size_t poolLargest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-        const bool heapOk = (poolLargest >= LVGL_FS_MIN_HEAP_BYTES);
-        if (path[0] != '\0' && heapOk) {
+        const IconSource icon = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
+        // Heap guard ONLY applies to the SPIFFS path. Baked icons live in
+        // flash — no decoder allocation, no FS open, no cache life math —
+        // so they bypass the gate entirely and survive any page-rebuild
+        // cycle that could starve a SPIFFS reload (issue #1261).
+        const bool heapOk = icon.dsc != nullptr || heap_caps_get_largest_free_block(
+                                                       MALLOC_CAP_8BIT) >= LVGL_FS_MIN_HEAP_BYTES;
+        const bool hasSrc = icon.dsc != nullptr || tag->lvglPath[0] != '\0';
+        if (hasSrc && heapOk) {
             tag->iconImg = lv_img_create(btn);
-            lv_img_set_src(tag->iconImg, tag->lvglPath);
+            if (icon.dsc != nullptr) {
+                lv_img_set_src(tag->iconImg, icon.dsc);
+            } else {
+                lv_img_set_src(tag->iconImg, tag->lvglPath);
+            }
             // Pin the layout slot to the Studio-computed target size. lv_img
             // defaults to `LV_SIZE_CONTENT`, reporting its self-size as the
             // *unzoomed* native dims under `LV_IMG_SIZE_MODE_VIRTUAL`. Inside
@@ -337,11 +351,13 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             // invisible at this point, the root cause is upstream of LVGL's
             // transform path (e.g. cache, decoder, or fs gate).
             (void)targetIconSize;
-        } else if (path[0] != '\0' && !heapOk) {
+        } else if (hasSrc && !heapOk) {
             // Asset is on disk but heap is too fragmented to load it — skip
             // and log once. The button still renders its label/colour cues.
+            // Baked icons can't hit this branch (they short-circuit heapOk
+            // to true above).
             LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
-                     static_cast<unsigned>(poolLargest));
+                     static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
             tag->lvglPath[0] = '\0';
         }
         // No glyph fallback (#681): Orbitron does not cover the LVGL symbol

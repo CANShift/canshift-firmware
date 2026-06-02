@@ -1,10 +1,11 @@
-// icon_assets.cpp — Sensor icon name → SPIFFS asset path.
+// icon_assets.cpp — Sensor icon name → LVGL asset source (baked dsc or SPIFFS path).
 
 #include "icon_assets.h"
 #include "app_config.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
+#include "icon_assets_baked.h"
 
 #include <esp_heap_caps.h>
 #include <lvgl.h>
@@ -80,6 +81,14 @@ const char *stripDriveLetter(const char *lvglPath) {
 
 } // namespace
 
+const void *resolveSource(const char *iconName) {
+    // Baked icons win — flash data is always present, no FS probe, no cache.
+    if (const lv_img_dsc_t *baked = IconAssetsBaked::resolve(iconName))
+        return baked;
+    const char *p = path(iconName);
+    return p[0] != '\0' ? p : nullptr;
+}
+
 const char *path(const char *iconName) {
     const IconEntry *e = find(iconName);
     if (!e || e->path[0] == '\0')
@@ -135,6 +144,9 @@ void preloadIconNameOnce(char seen[SEEN_CAP][SEEN_LEN], uint8_t &seenCount, cons
         return;
     if (!rememberSeen(seen, seenCount, iconName))
         return;
+    // Baked icons live in flash — no decode / cache work to warm up.
+    if (IconAssetsBaked::resolve(iconName) != nullptr)
+        return;
     preload(path(iconName));
 }
 
@@ -158,9 +170,8 @@ void preload(const char *lvglPath) {
 }
 
 void preloadDashboardAssets() {
-    // Theme icons — always needed regardless of dashboard contents.
-    preload("S:/assets/icon_day.bin");
-    preload("S:/assets/icon_night.bin");
+    // Theme icons are baked into flash (icon_assets_baked.cpp) so they no
+    // longer need a SPIFFS preload pass.
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (!dash.loaded)
