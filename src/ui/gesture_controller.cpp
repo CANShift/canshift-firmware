@@ -237,6 +237,13 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (s_pressCancelled)
         return;
 
+    // Defer to the settings drag tracker — its hot-zone press lives in the
+    // top 40 px of the screen and any horizontal drift on the way down used
+    // to cross the 8 px swipe threshold below and steal the gesture, leaving
+    // settings refusing to open. Issue #1262 follow-up.
+    if (SettingsPage::isOpen() || SettingsPage::isDragging())
+        return;
+
     const int16_t signedTravelX = static_cast<int16_t>(p.x - s_pressStartX);
     const int16_t travelX = static_cast<int16_t>(abs(signedTravelX));
     if (travelX < SWIPE_CANCEL_THRESHOLD_PX)

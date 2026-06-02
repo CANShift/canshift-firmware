@@ -97,9 +97,15 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    // Auto signal header eats ~14 px from the top of the cell.
-    constexpr int16_t kSigHeaderH = 14;
-    const int16_t valueLineH = cfg.layout.h - kSigHeaderH;
+    // Auto signal header sits at the top of the cell. Font sizing intentionally
+    // uses the FULL widget height — the value row is centred with a +8 px
+    // downward bias (see `lv_obj_align` below) which keeps the glyph cap line
+    // clear of the ~14 px header band even at the upper font tiers. Subtracting
+    // the band height here would shrink the headline number on L cells from
+    // primary(32) down to secondary(20–24) — the regression that surfaced when
+    // the previous `hasUserLabel ? 0 : 14` branch collapsed into a uniform 14
+    // alongside #1244.
+    const int16_t valueLineH = cfg.layout.h;
 
     const lv_font_t *valueFont = valueFontFor(pickValueFontSize(valueLineH, cfg.layout.w));
 
