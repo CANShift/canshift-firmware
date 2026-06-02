@@ -150,6 +150,20 @@ void onTimerTouch(lv_event_t *e) {
 // Public API
 // ---------------------------------------------------------------------------
 
+void TimerWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
+    if (!obj)
+        return;
+    auto *t = static_cast<TimerTag *>(lv_obj_get_user_data(obj));
+    if (!t || !t->timeLabel)
+        return;
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    if (textRgb == t->textRgb)
+        return;
+    t->textRgb = textRgb;
+    lv_obj_set_style_text_color(t->timeLabel, lv_color_hex(textRgb), 0);
+}
+
 lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,

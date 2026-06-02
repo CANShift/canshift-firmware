@@ -544,6 +544,28 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     return cont;
 }
 
+void GaugeWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
+    if (!obj)
+        return;
+    auto *tag = static_cast<GaugeTag *>(lv_obj_get_user_data(obj));
+    if (!tag)
+        return;
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    // Unit label is dimmed against textRgb at create-time (textRgb & 0x888888).
+    // Repaint it the same way so it follows day/night without rebuilding.
+    if (tag->unitLabel) {
+        lv_obj_set_style_text_color(tag->unitLabel, lv_color_hex(textRgb & 0x888888u), 0);
+    }
+    // Invalidate the cached label colour sentinel so the next update() forces
+    // a repaint of the value/frac labels. Live updates already drive the
+    // colour from value-zone / palette / ramp inputs; this guarantees an
+    // immediate refresh when the signal is invalid (the "0" placeholder uses
+    // `cfg.style.primaryColor` which is theme-independent — no-op there) or
+    // when LVGL caches a stale style across the theme flip.
+    tag->lastLabelRgb = 0xFFFFFFFFu;
+}
+
 void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
     if (!obj)
         return;

@@ -257,6 +257,31 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
              static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 }
 
+// Theme-toggle fast path (issue #1257). Walks every built page screen and
+// re-applies the new day/night theme in place — no `lv_obj_del`, no
+// `WidgetFactory::clearAll`, no SPIFFS icon reloads, no LVGL pool churn.
+// Wall time is sub-millisecond instead of the hundred-or-so the destructive
+// rebuild paid. `rebuildAllPages()` stays the path for `requestReload()`
+// (PUT_CONFIG → real structural change).
+void reapplyThemeAllPages() {
+    s_rebuildRequested = false;
+
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (!dash.loaded || s_pageCount == 0)
+        return;
+
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        if (!s_pages[i].screen)
+            continue;
+        const CfgPage &cfg = dash.pages[s_pages[i].cfgIdx];
+        const CfgColor effectiveBg = ThemeManager::getEffectiveBgColor(cfg.bgColor);
+        lv_obj_set_style_bg_color(s_pages[i].screen, lv_color_hex(effectiveBg.rgb), LV_PART_MAIN);
+        WidgetFactory::reapplyTheme(s_pages[i].screen);
+    }
+
+    TopBar::reapplyTheme();
+}
+
 void rebuildAllPages() {
     s_rebuildRequested = false;
     s_pendingFreeIdx = 0xFF; // All pages are about to be deleted — nothing to defer.
@@ -636,9 +661,10 @@ void PageManager::updateWidgets() {
     if (s_pageCount == 0)
         return;
 
-    // Rebuild all pages when a theme switch has been requested
+    // Theme toggle takes the in-place reapply path (#1257). Structural
+    // reloads still go through `rebuildAllPages` via `s_reloadRequested`.
     if (s_rebuildRequested) {
-        rebuildAllPages();
+        reapplyThemeAllPages();
         return; // Skip widget updates this tick; next tick runs normally
     }
 

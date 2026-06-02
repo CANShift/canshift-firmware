@@ -118,6 +118,21 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     return cont;
 }
 
+void GearWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
+    if (!obj)
+        return;
+    auto *tag = static_cast<GearTag *>(lv_obj_get_user_data(obj));
+    if (!tag || !tag->label)
+        return;
+    // Re-apply only the neutral-state colour: the running state honours
+    // `cfg.style.primaryColor` which doesn't depend on day/night. Update()
+    // will overwrite this on the next tick if the live signal is non-zero —
+    // safe either way because `setTextColorIfChanged` is idempotent.
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    WidgetStyles::setTextColorIfChanged(tag->label, tag->lastColorRgb, textRgb);
+}
+
 void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
     if (!obj)
         return;

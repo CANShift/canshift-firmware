@@ -203,6 +203,39 @@ void WidgetFactory::updateAll(lv_obj_t *parent) {
     }
 }
 
+void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
+    for (uint8_t i = 0; i < s_widgetCount; ++i) {
+        if (s_widgets[i].parent != parent)
+            continue;
+        const WidgetEntry &entry = s_widgets[i];
+        if (!entry.obj || !entry.cfg)
+            continue;
+        switch (entry.type) {
+            case WidgetType::GAUGE:
+                GaugeWidget::reapplyTheme(entry.obj, *entry.cfg);
+                break;
+            case WidgetType::LABEL:
+                LabelWidget::reapplyTheme(entry.obj, *entry.cfg);
+                break;
+            case WidgetType::TIMER:
+                TimerWidget::reapplyTheme(entry.obj, *entry.cfg);
+                break;
+            case WidgetType::GEAR_IND:
+                GearWidget::reapplyTheme(entry.obj, *entry.cfg);
+                break;
+            case WidgetType::WARNING:
+            case WidgetType::BUTTON:
+            case WidgetType::IMAGE:
+                // No theme-driven styles to refresh — warning uses
+                // criticalColor, button uses its own colours block, image
+                // is a static asset.
+                break;
+            default:
+                break;
+        }
+    }
+}
+
 // Drop every entry whose parent matches `parent` and compact the array in place.
 // Called from PageManager::rebuildAllPages() before each page screen is deleted —
 // without this, the registry grows unbounded across theme toggles and eventually

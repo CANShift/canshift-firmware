@@ -242,6 +242,27 @@ static void splitDecimal(const char *in, char *intOut, size_t intCap, char *frac
     strlcpy(fracOut, dot, fracCap);
 }
 
+void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
+    if (!obj)
+        return;
+    auto *tag = static_cast<LabelTag *>(lv_obj_get_user_data(obj));
+    if (!tag || !tag->valueLabel)
+        return;
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    // Refresh the static base colour so the next update() sees the new theme
+    // when no ramp / palette override applies. Push the same colour straight
+    // through the `setTextColorIfChanged` cache so the static "0" placeholder
+    // visible while the signal is invalid repaints immediately, without
+    // waiting for a signal-driven tick.
+    tag->baseTextRgb = textRgb;
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, textRgb);
+    if (tag->fracLabel) {
+        uint32_t fracLast = tag->lastTintRgb;
+        WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, textRgb);
+    }
+}
+
 void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
     if (!obj)
         return;

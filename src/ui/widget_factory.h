@@ -35,4 +35,15 @@ void updateAll(lv_obj_t *parent);
      */
 void clearAll(lv_obj_t *parent);
 
+/**
+     * Walk every widget registered under `parent` and ask each one to
+     * re-apply theme-derived styles in place — no LVGL teardown, no widget
+     * registry churn, no SPIFFS icon reloads.
+     *
+     * Issue #1257 — used by `PageManager::reapplyThemeAllPages()` as the
+     * fast path for `ThemeManager::toggleDayMode()`. Heavy `rebuildAllPages`
+     * stays the path for structural reloads (PUT_CONFIG → `requestReload`).
+     */
+void reapplyTheme(lv_obj_t *parent);
+
 } // namespace WidgetFactory

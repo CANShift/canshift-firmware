@@ -9,4 +9,10 @@ namespace GearWidget {
 lv_obj_t *create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset);
 void update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg);
 
+// Re-apply the theme-effective text colour to the gear digit. Invalidates the
+// tag's colour cache so the next `update()` repaints the placeholder digit
+// against the new day/night background. Issue #1257 — bypasses the
+// destructive page rebuild for theme toggles.
+void reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg);
+
 } // namespace GearWidget
