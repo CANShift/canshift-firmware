@@ -152,6 +152,18 @@
 // arrive without flickering or re-arming on re-tap. See issue #658.
 #define BUTTON_SIGNAL_SYNC_GRACE_MS 500
 
+// Touch-press → click latency warn threshold (µs). Crossing this fires a
+// single `LOG_WARN("TOUCH", "press→click slow: …")` for the offending click.
+// Always compiled (issue #1256) — the full APP_PROFILE_UI histogram still
+// only runs in dev builds. 80 ms covers two LVGL handler periods plus
+// generous slack for a normal mutex-take + draw cycle, so a healthy
+// dashboard never trips. The destructive theme-toggle rebuild used to push
+// press→click past 200 ms; #1257's in-place reskin brings it to sub-ms,
+// leaving the budget for genuine regressions.
+#ifndef APP_TOUCH_LATENCY_WARN_US
+    #define APP_TOUCH_LATENCY_WARN_US 80000U
+#endif
+
 // Suppression window (ms) after Settings opens during which a click on the
 // top bar must NOT close it. A swipe-down that opens Settings is followed by
 // LVGL's click event for the same touch — without this guard the panel

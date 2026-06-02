@@ -6,6 +6,7 @@
 #include "app_config.h"
 #include "diag/logger.h"
 #include "diag/perf_counters.h"
+#include "diag/touch_latency.h"
 
 #include <lvgl.h>
 
@@ -33,6 +34,7 @@ void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) 
     static bool s_wasPressed = false;
     if (pressed && !s_wasPressed) {
         PERF_RECORD_TOUCH_PRESS();
+        TouchLatency::recordPressNow();
     }
     s_wasPressed = pressed;
 
@@ -87,21 +89,26 @@ void TouchDriver::init() {
 
     lv_indev_drv_register(&s_indevDrv);
 
-#if APP_PROFILE_UI
     // Global click listener: bubble-up LV_EVENT_CLICKED from any screen lands
     // here so we can close the press → click latency loop. Attaching to
     // lv_layer_top() works because that layer's event tree sees every
     // dispatched click on the active display.
+    //
+    // The lambda always fires the production-shipped warn-on-slow path
+    // (issue #1256), and feeds the full histogram on dev builds via the
+    // existing APP_PROFILE_UI gate.
     lv_obj_add_event_cb(
         lv_layer_top(),
         [](lv_event_t * /*e*/) {
+            TouchLatency::consumePressAndWarnIfSlow();
+#if APP_PROFILE_UI
             uint32_t deltaUs = 0;
             if (::PerfCounters::consumeTouchPressTs(&deltaUs)) {
                 ::PerfCounters::recordSample(::PerfCounters::TOUCH_LATENCY, deltaUs);
             }
+#endif
         },
         LV_EVENT_CLICKED, nullptr);
-#endif
 
     LOG_INFO("TOUCH", "Touch driver registered");
 }
