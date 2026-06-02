@@ -2,14 +2,13 @@
 //
 // Layout:
 //   ┌────────────────────────────┐
-//   │ COOLANT TEMP C  ← header   │  (auto signal name when no user label)
+//   │ COOLANT  ← auto header     │  (signal name, dim caps, top-left)
 //   │                            │
 //   │         78°C               │  (value + suffix concatenated, coloured)
 //   │                            │
-//   │ COOLANT  ← user label      │  (rendered at cfg.labelPosition when set)
 //   └────────────────────────────┘
-// Header and user label are mutually exclusive. Suffix sits inline with the
-// value so a corner-anchored user label can never collide with the unit.
+// Custom widget labels were removed in issue #1244. The auto signal-name
+// header is the only label path; suffix sits inline with the value.
 
 #include "label_widget.h"
 #include "diag/logger.h"
@@ -98,17 +97,13 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    const bool hasUserLabel = cfg.label.label[0] != '\0';
-
-    // Auto signal header eats ~14 px from the top — only when no user label.
-    const int16_t sigHeaderH = hasUserLabel ? 0 : 14;
-    const int16_t valueLineH = cfg.layout.h - sigHeaderH;
+    // Auto signal header eats ~14 px from the top of the cell.
+    constexpr int16_t kSigHeaderH = 14;
+    const int16_t valueLineH = cfg.layout.h - kSigHeaderH;
 
     const lv_font_t *valueFont = valueFontFor(pickValueFontSize(valueLineH, cfg.layout.w));
 
-    if (!hasUserLabel) {
-        WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
-    }
+    WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
     // Layout strategy: a flex row centered horizontally holds [int][frac][unit]
     // so the three labels stay baseline-aligned with a tight gap and the whole
@@ -143,10 +138,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // header). Matches the original layout users expect from before the
     // flex-row refactor.
     // Push the value row down a fixed +8 px so it sits clearly below the
-    // top label band (auto-header or top-left user label, both ~14 px tall).
-    // User feedback 2026-06-01: value + unit need to be "un peu contre le
-    // bas" relative to the label.
-    (void)sigHeaderH;
+    // top label band (auto-header, ~14 px tall). User feedback 2026-06-01:
+    // value + unit need to be "un peu contre le bas" relative to the label.
     lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 8);
 
     lv_obj_t *label = lv_label_create(valueRow);
@@ -182,10 +175,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
             lv_obj_set_style_text_font(fracLabel, valueFontFor(fracSize), 0);
             lv_label_set_text(fracLabel, "");
         }
-    }
-
-    if (hasUserLabel) {
-        WidgetLabelOverlay::apply(cont, cfg.label.label, CfgLabelPos::TOP_LEFT, textRgb);
     }
 
     // Unit label — small grey, sits to the right of the value (frac) in the

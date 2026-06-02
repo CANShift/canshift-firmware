@@ -447,7 +447,12 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t tex
     outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
     outFrac = buildFracLabel(valueRow, cfg, intFontSize, valueRgb);
     outUnit = buildUnitLabel(cont, unitText, textRgb);
-    WidgetLabelOverlay::apply(cont, cfg.gauge.label, cfg.gauge.labelPosition, textRgb);
+    // Issue #1244: arc gauges render the signal name pinned bottom-left as a
+    // dim caps caption. Custom widget labels were dropped — the auto signal
+    // header is the only label path.
+    WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
+                                          WidgetLabelOverlay::HeaderPos::BOTTOM_LEFT);
+    (void)textRgb;
 }
 
 // Populate the Tag struct from the widget config + the just-built widget

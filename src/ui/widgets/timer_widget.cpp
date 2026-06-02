@@ -214,8 +214,7 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
 
-    // Optional widget label drawn at the configured corner.
-    WidgetLabelOverlay::apply(cont, cfg.timer.label, cfg.timer.labelPosition, textRgb);
+    WidgetLabelOverlay::applySignalHeader(cont, "timer");
 
     return cont;
 }

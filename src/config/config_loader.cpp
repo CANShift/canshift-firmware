@@ -405,24 +405,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     }
 }
 
-CfgLabelPos parseLabelPos(const char *str) {
-    if (!str)
-        return CfgLabelPos::TOP_LEFT;
-    if (strcmp(str, "top-left") == 0)
-        return CfgLabelPos::TOP_LEFT;
-    if (strcmp(str, "top-center") == 0)
-        return CfgLabelPos::TOP_CENTER;
-    if (strcmp(str, "top-right") == 0)
-        return CfgLabelPos::TOP_RIGHT;
-    if (strcmp(str, "bottom-left") == 0)
-        return CfgLabelPos::BOTTOM_LEFT;
-    if (strcmp(str, "bottom-center") == 0)
-        return CfgLabelPos::BOTTOM_CENTER;
-    if (strcmp(str, "bottom-right") == 0)
-        return CfgLabelPos::BOTTOM_RIGHT;
-    return CfgLabelPos::TOP_LEFT;
-}
-
 // Parse arcFillStyle (issue #175). Defaults to ZONES so legacy configs and
 // unknown values keep the previous warn/danger sector tinting behaviour.
 CfgArcFillStyle parseArcFillStyle(const char *str) {
@@ -587,8 +569,6 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
     out->arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "zones");
     strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
 }
@@ -598,8 +578,6 @@ void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThres
     out->alertThreshold = alertThreshold;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
 // Gauge widgets in dashboard.json use displayStyle "numeric" / "arc" to encode
@@ -622,8 +600,6 @@ void parseWarningWidget(JsonObjectConst cfg, CfgWarningParams *out) {
     out->invertLogic = cfg["invertLogic"] | false;
     out->threshold = cfg["threshold"] | 0.5f;
     strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
 void parseButtonColors(JsonObjectConst cfg, CfgButtonParams *out) {
@@ -699,25 +675,19 @@ void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParam
 void parseTimerWidget(JsonObjectConst cfg, CfgTimerParams *out) {
     out->autoStart = cfg["autoStart"] | false;
     out->formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
 void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
     strlcpy(out->imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
-// Gear indicator reuses the label params for prefix/suffix/label positioning.
-// Kept separate because decimalPlaces is forced to 0 (the firmware always
-// renders a single character) and alertThreshold isn't part of the schema.
+// Gear indicator reuses the label params for prefix/suffix. Kept separate
+// because decimalPlaces is forced to 0 (the firmware always renders a single
+// character) and alertThreshold isn't part of the schema.
 void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
     out->decimalPlaces = 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    strlcpy(out->label, cfg["label"] | "", sizeof(out->label));
-    out->labelPosition = parseLabelPos(cfg["labelPosition"] | "top-left");
 }
 
 void parseWidget(JsonObjectConst src, CfgWidget *w) {

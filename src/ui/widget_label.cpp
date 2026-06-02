@@ -1,4 +1,4 @@
-// widget_label.cpp — Implementation of the dim caps corner label overlay.
+// widget_label.cpp — Implementation of the auto signal-name header.
 //
 // See widget_label.h for the API contract. Bodies live here so the header
 // can stay slim (no <lvgl.h> include) and the heavy LVGL drawing path
@@ -8,7 +8,6 @@
 
 #include "ui/font_manager.h"
 
-#include <ctype.h>
 #include <lvgl.h>
 #include <string.h>
 
@@ -19,53 +18,21 @@ namespace {
 constexpr int16_t kEdgeInsetX = 4;
 constexpr int16_t kEdgeInsetY = 1;
 
-void alignLabel(lv_obj_t *lbl, CfgLabelPos pos) {
+void alignHeader(lv_obj_t *lbl, HeaderPos pos) {
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
     switch (pos) {
-        case CfgLabelPos::TOP_LEFT:
-            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
+        case HeaderPos::TOP_LEFT:
             lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, kEdgeInsetX, kEdgeInsetY);
             break;
-        case CfgLabelPos::TOP_CENTER:
-            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, kEdgeInsetY);
-            break;
-        case CfgLabelPos::TOP_RIGHT:
-            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
-            lv_obj_align(lbl, LV_ALIGN_TOP_RIGHT, -kEdgeInsetX, kEdgeInsetY);
-            break;
-        case CfgLabelPos::BOTTOM_LEFT:
-            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
+        case HeaderPos::BOTTOM_LEFT:
             lv_obj_align(lbl, LV_ALIGN_BOTTOM_LEFT, kEdgeInsetX, -kEdgeInsetY);
-            break;
-        case CfgLabelPos::BOTTOM_CENTER:
-            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -kEdgeInsetY);
-            break;
-        case CfgLabelPos::BOTTOM_RIGHT:
-            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
-            lv_obj_align(lbl, LV_ALIGN_BOTTOM_RIGHT, -kEdgeInsetX, -kEdgeInsetY);
             break;
     }
 }
 
-} // namespace
-
-void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor) {
-    (void)textColor;
-    if (!cont || !text || text[0] == '\0')
-        return;
-
-    // Studio uppercases every cfg.label rendering (GaugeArc.tsx:185,
-    // GaugeNumeric.tsx:113/134, Gear.tsx:55/103). Match here so the firmware
-    // shows the same casing regardless of how the fixture wrote the label.
-    char upper[64];
-    size_t i = 0;
-    for (; text[i] != '\0' && i < sizeof(upper) - 1; ++i)
-        upper[i] = static_cast<char>(toupper(static_cast<unsigned char>(text[i])));
-    upper[i] = '\0';
-
+void drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
     lv_obj_t *lbl = lv_label_create(cont);
-    lv_label_set_text(lbl, upper);
+    lv_label_set_text(lbl, text);
 
     lv_obj_set_style_text_color(lbl, lv_color_hex(kLabelDimRgb), 0);
     lv_obj_set_style_text_font(lbl, FontManager::label(10), 0);
@@ -77,9 +44,15 @@ void apply(lv_obj_t *cont, const char *text, CfgLabelPos pos, uint32_t textColor
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
     }
 
-    alignLabel(lbl, pos);
+    alignHeader(lbl, pos);
 }
 
+} // namespace
+
+// Curated short labels — must mirror the Studio dictionary in
+// canshift-studio-web/src/utils/signalLabels.ts. The unit shown alongside
+// the value disambiguates metric type (OIL + 80°C = temp, OIL + 3.5 bar =
+// press), so labels stay short and the value remains the focal point.
 const char *displayLabelForSignal(const char *signalId) {
     if (!signalId || signalId[0] == '\0')
         return nullptr;
@@ -90,13 +63,17 @@ const char *displayLabelForSignal(const char *signalId) {
     if (strcmp(signalId, "coolant_temp_c") == 0)
         return "COOLANT";
     if (strcmp(signalId, "oil_temp_c") == 0)
-        return "OIL TEMP";
+        return "OIL";
     if (strcmp(signalId, "oil_press_bar") == 0)
-        return "OIL PRESS";
+        return "OIL";
+    if (strcmp(signalId, "fuel_press_bar") == 0)
+        return "FUEL";
+    if (strcmp(signalId, "map_kpa") == 0)
+        return "MAP";
     if (strcmp(signalId, "boost_bar") == 0)
         return "BOOST";
     if (strcmp(signalId, "throttle_pos") == 0)
-        return "THROTTLE";
+        return "TPS";
     if (strcmp(signalId, "gear") == 0)
         return "GEAR";
     if (strcmp(signalId, "afr_1") == 0)
@@ -120,13 +97,13 @@ const char *displayLabelForSignal(const char *signalId) {
     return nullptr;
 }
 
-void applySignalHeader(lv_obj_t *cont, const char *signalId, CfgLabelPos pos) {
+void applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {
     if (!cont || !signalId || signalId[0] == '\0')
         return;
 
     const char *curated = displayLabelForSignal(signalId);
     if (curated != nullptr) {
-        apply(cont, curated, pos, 0);
+        drawHeader(cont, curated, pos);
         return;
     }
 
@@ -143,7 +120,7 @@ void applySignalHeader(lv_obj_t *cont, const char *signalId, CfgLabelPos pos) {
     }
     buf[i] = '\0';
 
-    apply(cont, buf, pos, 0);
+    drawHeader(cont, buf, pos);
 }
 
 } // namespace WidgetLabelOverlay

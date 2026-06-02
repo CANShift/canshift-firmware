@@ -1,8 +1,8 @@
 {
-  "_comment": "CANShift demo dashboard \u2014 coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160\u00d756) and XL (160\u00d7112) per issue #131; horizontal bars use H-FULL (320\u00d728). Gauges pin `iconName` to opt into the semantic two-zone sensor palette (#954).",
-  "version": "1.21.0",
+  "_comment": "CANShift demo dashboard — coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160×56) and XL (160×112) per issue #131; horizontal bars use H-FULL (320×28). Gauges pin `iconName` to opt into the semantic two-zone sensor palette (#954).",
+  "version": "1.22.0",
   "name": "CANShift Demo",
-  "description": "Coherent 4-page demo dashboard \u2014 overview, engine, fluids, controls",
+  "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
   "defaultPageId": "overview",
   "revLimitRpm": 7200,
   "topBar": {
@@ -112,9 +112,7 @@
             "minValue": 0,
             "maxValue": 300,
             "dangerLevel": 280,
-            "decimalPlaces": 0,
-            "label": "Speed",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -143,9 +141,7 @@
             "minValue": 0,
             "maxValue": 120,
             "dangerLevel": 110,
-            "decimalPlaces": 0,
-            "label": "Coolant",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -174,9 +170,7 @@
             "minValue": -20,
             "maxValue": 80,
             "dangerLevel": 60,
-            "decimalPlaces": 0,
-            "label": "IAT",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -205,9 +199,7 @@
             "minValue": 0,
             "maxValue": 6,
             "dangerLevel": 0.5,
-            "decimalPlaces": 1,
-            "label": "Oil",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 1
           }
         },
         {
@@ -236,9 +228,7 @@
             "minValue": 0.7,
             "maxValue": 1.3,
             "dangerLevel": 1.2,
-            "decimalPlaces": 2,
-            "label": "Lambda",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 2
           }
         }
       ]
@@ -275,9 +265,7 @@
             "minValue": 0,
             "maxValue": 300,
             "dangerLevel": 270,
-            "decimalPlaces": 0,
-            "label": "Boost",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -301,9 +289,7 @@
           },
           "config": {
             "type": "gear",
-            "decimalPlaces": 0,
-            "label": "Gear",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -332,9 +318,7 @@
             "minValue": 0.7,
             "maxValue": 1.3,
             "dangerLevel": 1.2,
-            "decimalPlaces": 2,
-            "label": "Lambda",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 2
           }
         },
         {
@@ -363,9 +347,7 @@
             "minValue": 0,
             "maxValue": 8000,
             "dangerLevel": 7000,
-            "decimalPlaces": 0,
-            "label": "RPM",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -394,9 +376,7 @@
             "minValue": 0,
             "maxValue": 100,
             "dangerLevel": 95,
-            "decimalPlaces": 0,
-            "label": "TPS",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -425,9 +405,7 @@
             "minValue": 10,
             "maxValue": 15,
             "dangerLevel": 11,
-            "decimalPlaces": 1,
-            "label": "Battery",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 1
           }
         }
       ]
@@ -464,9 +442,7 @@
             "minValue": 0,
             "maxValue": 120,
             "dangerLevel": 110,
-            "decimalPlaces": 0,
-            "label": "Coolant",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -495,9 +471,7 @@
             "minValue": 0,
             "maxValue": 6,
             "dangerLevel": 0.5,
-            "decimalPlaces": 1,
-            "label": "Oil",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 1
           }
         },
         {
@@ -526,9 +500,7 @@
             "minValue": 0,
             "maxValue": 150,
             "dangerLevel": 140,
-            "decimalPlaces": 0,
-            "label": "Oil",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         },
         {
@@ -557,9 +529,7 @@
             "minValue": 0,
             "maxValue": 6,
             "dangerLevel": 5.5,
-            "decimalPlaces": 1,
-            "label": "Fuel",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 1
           }
         },
         {
@@ -588,9 +558,7 @@
             "minValue": -20,
             "maxValue": 80,
             "dangerLevel": 60,
-            "decimalPlaces": 0,
-            "label": "IAT",
-            "labelPosition": "bottom-left"
+            "decimalPlaces": 0
           }
         }
       ]

@@ -8,7 +8,6 @@
 #include "ui/icon_assets.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
-#include "ui/widget_label.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
@@ -93,14 +92,13 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
     }
 
-    // Signal label below the icon — replaced by the user-configured corner
-    // label (handled by WidgetLabelOverlay below) when one is set, and dropped
-    // entirely on very small layouts where there is no room for it.
+    // Signal name below the icon — dropped entirely on very small layouts
+    // where there is no room for it.
     // TODO(#18): 28 / 56 px thresholds + 12/14 px font sizes are calibrated
     // against the v1 320×240 canvas — scale with `ScreenProfile::scaleYVal`
     // and pick proportional FontManager::label sizes on larger panels.
     lv_obj_t *signalLabel = nullptr;
-    if (cfg.warning.label[0] == '\0' && cfg.layout.h >= 28) {
+    if (cfg.layout.h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
         WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
         signalLabel = lv_label_create(root);
@@ -132,11 +130,6 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     // (issue #886) and keeps button + warning on the same delete path
     // (F-LO-5).
     WidgetHelpers::attachTagDeleter(root, tag);
-
-    // Optional widget label drawn at the configured corner.
-    WidgetLabelOverlay::apply(
-        root, cfg.warning.label, cfg.warning.labelPosition,
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode));
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
               iconImg ? "asset" : "none");

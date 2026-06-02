@@ -11,7 +11,6 @@
 #include "gear_widget.h"
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
-#include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"

@@ -9,7 +9,6 @@
 #include "image_widget.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
-#include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
@@ -75,11 +74,6 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<ImageTag>, LV_EVENT_DELETE, tag);
-
-    // Optional widget label drawn at the configured corner.
-    WidgetLabelOverlay::apply(
-        cont, cfg.image.label, cfg.image.labelPosition,
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode));
 
     LOG_DEBUG("IMG", "Image widget created: %s", tag->lvglPath);
     return cont;

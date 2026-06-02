@@ -97,15 +97,6 @@ struct CfgStyle {
 // ---------------------------------------------------------------------------
 // Widget config (type-specific parameters)
 // ---------------------------------------------------------------------------
-// Position of the optional widget label drawn at a corner (gauge widgets).
-enum class CfgLabelPos : uint8_t {
-    TOP_LEFT = 0,
-    TOP_CENTER = 1,
-    TOP_RIGHT = 2,
-    BOTTOM_LEFT = 3,
-    BOTTOM_CENTER = 4,
-    BOTTOM_RIGHT = 5,
-};
 
 // Arc fill rendering mode (issue #175). Mirrors GaugeArcFillStyle in
 // canshift-core/src/types/dashboard.ts. Defaults to ZONES so existing arc
@@ -128,8 +119,6 @@ struct CfgGaugeParams {
     uint8_t decimalPlaces;
     char prefix[8];
     char suffix[16];              // Unit label shown below the value (e.g. "RPM", "°C")
-    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
-    CfgLabelPos labelPosition;
     CfgArcFillStyle arcFillStyle; // Arc style only — ignored otherwise (issue #175)
     // SensorIconName key driving the two-zone semantic palette (issue #954).
     // "" = no palette; widgets fall back to the legacy `style.primaryColor`
@@ -141,17 +130,13 @@ struct CfgLabelParams {
     uint8_t decimalPlaces;
     char prefix[16];
     char suffix[16];
-    float alertThreshold;         // NaN = disabled (issue #133)
-    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
-    CfgLabelPos labelPosition;
+    float alertThreshold; // NaN = disabled (issue #133)
 };
 
 struct CfgWarningParams {
-    bool invertLogic;             // True = lit when signal == 0 (e.g. oil pressure OK light)
-    float threshold;              // Signal value that activates warning
-    char iconName[16];            // SensorIconName key, "" = default warning glyph
-    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
-    CfgLabelPos labelPosition;
+    bool invertLogic;  // True = lit when signal == 0 (e.g. oil pressure OK light)
+    float threshold;   // Signal value that activates warning
+    char iconName[16]; // SensorIconName key, "" = default warning glyph
 };
 
 // Button action types — mirror ButtonAction discriminated union in
@@ -220,15 +205,11 @@ struct CfgButtonParams {
 
 struct CfgTimerParams {
     bool autoStart;
-    bool formatMsec;              // true = "ss.mmm", false = "mm:ss"
-    char label[CFG_MAX_NAME_LEN]; // Optional widget label drawn at a corner
-    CfgLabelPos labelPosition;
+    bool formatMsec; // true = "ss.mmm", false = "mm:ss"
 };
 
 struct CfgImageParams {
     char imagePath[CFG_MAX_PATH_LEN]; // SPIFFS path e.g. "/images/bg.bmp"
-    char label[CFG_MAX_NAME_LEN];     // Optional widget label drawn at a corner
-    CfgLabelPos labelPosition;
 };
 
 // ---------------------------------------------------------------------------
