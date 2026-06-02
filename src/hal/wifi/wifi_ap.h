@@ -67,6 +67,20 @@ bool isAutoStartEnabled();
  */
 void setAutoStartEnabled(bool enabled);
 
+/**
+ * Periodic auto-start retry — call from the UI task. Issue #1263.
+ *
+ * Boot fires before the LVGL pool, icon cache and per-page widgets have
+ * settled, so the largest free internal block can be too small for the
+ * WebServer's allocations. Rather than refusing the AP at boot, defer the
+ * attempt: this tick checks once per `AUTO_START_RETRY_INTERVAL_MS` whether
+ * (a) the user enabled auto-start, (b) the AP isn't already up, and (c) the
+ * heap has settled above the safe threshold — and only then calls `start()`.
+ *
+ * Safe to call every UI tick; cheap when nothing needs doing.
+ */
+void tickAutoStart();
+
 } // namespace WifiAp
 
 #endif // APP_BLE_ENABLED

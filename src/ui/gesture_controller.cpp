@@ -193,12 +193,24 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
     }
 }
 
+// Per-press swipe-fired latch — set when `cancelClickIfSwiping` dispatches
+// the page swipe, cleared on release. Read by `checkGestures` below to skip
+// the LVGL-level gesture re-fire that would otherwise navigate twice for a
+// single finger motion.
+bool s_swipeFiredThisPress = false;
+
 // Track horizontal travel since press-down. If it exceeds the swipe cancel
 // threshold we clear pressed state on the underlying object so its click
 // handler does not fire on release — the press has clearly become a swipe.
 // Issue #640: a swipe whose path crosses a button widget previously triggered
 // the button on lift-up because LVGL routes touch events to the object under
 // the press-down point regardless of finger movement.
+//
+// Issue #1262: also fire the page-swipe directly from here so navigation
+// commits on the same threshold that cancels the click. Waiting for LVGL's
+// own `gesture_limit` (40 px cumulative) left a 12-40 px dead zone where the
+// click was cancelled but no swipe fired — the page sat still and the user
+// thought the swipe was lost.
 void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     static int16_t s_pressStartX = 0;
     static bool s_pressActive = false;
@@ -207,6 +219,7 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (state == LV_INDEV_STATE_RELEASED) {
         s_pressActive = false;
         s_pressCancelled = false;
+        s_swipeFiredThisPress = false;
         return;
     }
 
@@ -216,6 +229,7 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (!s_pressActive) {
         s_pressActive = true;
         s_pressCancelled = false;
+        s_swipeFiredThisPress = false;
         s_pressStartX = p.x;
         return;
     }
@@ -223,7 +237,8 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (s_pressCancelled)
         return;
 
-    const int16_t travelX = static_cast<int16_t>(abs(p.x - s_pressStartX));
+    const int16_t signedTravelX = static_cast<int16_t>(p.x - s_pressStartX);
+    const int16_t travelX = static_cast<int16_t>(abs(signedTravelX));
     if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
         return;
 
@@ -233,6 +248,16 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     lv_indev_reset_long_press(indev);
     lv_indev_reset(indev, nullptr);
     s_pressCancelled = true;
+
+    // Fire the page-nav swipe immediately so navigation feels snappy on
+    // pages where the buttons fill the canvas (issue #1262). Direction
+    // mirrors the finger: a leftward drag (negative travel) navigates to
+    // the next page (LV_DIR_LEFT in LVGL's gesture convention).
+    if (!s_swipeFiredThisPress && s_swipeHandler) {
+        const lv_dir_t dir = signedTravelX < 0 ? LV_DIR_LEFT : LV_DIR_RIGHT;
+        s_swipeFiredThisPress = true;
+        s_swipeHandler(dir);
+    }
     LOG_VDEBUG("UI", "Swipe cancelled pending click (travelX=%d)", travelX);
 }
 

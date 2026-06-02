@@ -483,34 +483,19 @@ static void initUsbCommPhase() {
     updateSplash("USB ready", 90);
 }
 
-// WiFi AP auto-start phase (#1077 audit blocker #3). When the user has
-// previously toggled the on-device Settings WIFI AP row to ON, the
-// preference persists in NVS (namespace "wifi_ap", key "auto") and we
-// bring the softAP up here so the dash-hosted Studio is reachable from
-// the user's laptop browser without requiring a paired phone first.
-//
-// WifiAp::start() spawns a FreeRTOS task on core 1 and returns immediately,
-// so the rest of the boot sequence (UI build, splash hold) is unaffected
-// even though the AP itself needs a few hundred ms to settle. The 5-minute
-// auto-stop timer in apTaskFn is suppressed when this flag is on — see
-// the timeout check in wifi_ap.cpp's apTaskFn.
-static void autoStartWifiApIfPersisted() {
+// WiFi AP auto-start phase (#1077 audit blocker #3, fix #1263). When the
+// user has previously toggled the on-device Settings WIFI AP row to ON, the
+// preference persists in NVS (namespace "wifi_ap", key "auto"). The actual
+// AP start is **deferred to the UI task** via `WifiAp::tickAutoStart()` —
+// the post-boot heap is at its tightest right here (LVGL pool taken, fonts
+// loaded, widgets about to allocate) and a refused start at boot used to
+// leave the user stuck with no SSID. Polling in the UI task brings the AP
+// up the moment the heap relaxes (typically within a couple of seconds of
+// boot completing). See `taskUI` in main.cpp.
+static void noteWifiApAutoStartPersisted() {
 #if APP_BLE_ENABLED
-    // Heap-pressure guard: after #1250 loads orbitron_medium_8 + 10 from
-    // SPIFFS, the post-init heap can dip below WebServer::collectHeaders'
-    // tiny allocation threshold — apTaskFn throws bad_alloc and aborts the
-    // boot. Refuse the auto-start when the largest free block is too small
-    // and surface a clear log instead.
-    constexpr size_t WIFI_AP_MIN_HEAP_BYTES = 24 * 1024;
-    const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-    if (largest < WIFI_AP_MIN_HEAP_BYTES) {
-        LOG_WARN("BOOT", "WiFi AP auto-start skipped — largest=%u below %u",
-                 static_cast<unsigned>(largest), static_cast<unsigned>(WIFI_AP_MIN_HEAP_BYTES));
-        return;
-    }
     if (WifiAp::isAutoStartEnabled()) {
-        LOG_INFO("BOOT", "WiFi AP auto-start enabled — bringing AP up");
-        WifiAp::start();
+        LOG_INFO("BOOT", "WiFi AP auto-start enabled — deferred to UI task tick");
     }
 #endif
 }
@@ -603,7 +588,7 @@ void BootSequence::run() {
     initCanHardwarePhase();
     initUsbCommPhase();
     logOtaHmacKeyDiag();
-    autoStartWifiApIfPersisted();
+    noteWifiApAutoStartPersisted();
     buildUiWithHeapBracket();
 
     holdSplashUntilMin(bootStartMs);

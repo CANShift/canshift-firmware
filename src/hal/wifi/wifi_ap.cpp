@@ -23,6 +23,7 @@
         #include <ESPmDNS.h>
         #include <Preferences.h>
         #include <SPIFFS.h>
+        #include <esp_heap_caps.h>
         #include <esp_system.h>
         #include <esp_task_wdt.h>
         #include <freertos/FreeRTOS.h>
@@ -690,6 +691,40 @@ void WifiAp::setAutoStartEnabled(bool enabled) {
     }
 }
 
+void WifiAp::tickAutoStart() {
+    // Minimum largest free internal block before we'll bring the AP up. Mirrors
+    // the original boot-time guard introduced in #1260 to prevent WebServer
+    // bad_alloc during the busiest stretch of init — only here it's polled
+    // until the heap settles instead of refused once.
+    constexpr size_t WIFI_AP_MIN_HEAP_BYTES = 24 * 1024;
+    // Retry cadence — fast enough that the user sees the SSID within a few
+    // seconds of boot once the heap has relaxed, slow enough that we don't
+    // spam the logs or pay the NVS read every UI tick.
+    constexpr uint32_t AUTO_START_RETRY_INTERVAL_MS = 1000;
+
+    if (s_active)
+        return;
+
+    static uint32_t lastAttemptMs = 0;
+    const uint32_t now = millis();
+    if (now - lastAttemptMs < AUTO_START_RETRY_INTERVAL_MS)
+        return;
+    lastAttemptMs = now;
+
+    if (!isAutoStartEnabled())
+        return;
+
+    const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    if (largest < WIFI_AP_MIN_HEAP_BYTES) {
+        LOG_DEBUG("WiFi", "AP auto-start deferred — largest=%u below %u",
+                  static_cast<unsigned>(largest), static_cast<unsigned>(WIFI_AP_MIN_HEAP_BYTES));
+        return;
+    }
+    LOG_INFO("WiFi", "AP auto-start: heap settled (largest=%u) — bringing AP up",
+             static_cast<unsigned>(largest));
+    start();
+}
+
     #else // !APP_WIFI_OTA_ENABLED — stubs
 
 void WifiAp::start() {
@@ -711,6 +746,7 @@ bool WifiAp::isAutoStartEnabled() {
 void WifiAp::setAutoStartEnabled(bool /*enabled*/) {
     LOG_WARN("WiFi", "WiFi OTA disabled at compile time — AP auto-start ignored");
 }
+void WifiAp::tickAutoStart() {}
 
     #endif // APP_WIFI_OTA_ENABLED
 

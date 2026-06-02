@@ -31,6 +31,7 @@
 #include "ui/theme_manager.h"
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
+    #include "hal/wifi/wifi_ap.h"
 #endif
 // Task function forward declarations
 void taskUI(void *pvParameters);
@@ -403,6 +404,17 @@ inline void uiFeedTaskWdt() {
     esp_task_wdt_reset();
 }
 
+// 5b. WiFi AP deferred auto-start (issue #1263). Polls the WifiAp module
+// outside the LVGL mutex so the eventual start() call (which spawns a
+// FreeRTOS task on core 1) doesn't fight UI work for the lock. The function
+// rate-limits itself internally so this runs at most once per second's worth
+// of UI ticks and is a few branches when nothing needs doing.
+inline void uiTickWifiApAutoStart() {
+#if APP_BLE_ENABLED
+    WifiAp::tickAutoStart();
+#endif
+}
+
 // 6. Post-mutex day/night BLE STATUS notify. Deferred until after the mutex
 // is released so ThemeManager::isDayMode() is stable when the BLE task reads
 // it through the notify pipeline.
@@ -498,6 +510,7 @@ void taskUI(void *pvParameters) {
         }
 
         uiFeedTaskWdt();
+        uiTickWifiApAutoStart();
         uiNotifyDayNightChanged(didDayNightChange);
         uiRecordFrameMetrics(frameStartUs, frameWakeStart);
         uiFlushLvTaskLog();

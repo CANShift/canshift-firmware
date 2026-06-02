@@ -139,10 +139,13 @@
 #define LVGL_HANDLER_PERIOD_MS 10
 
 // Horizontal travel (in px) that reclassifies a press as a swipe and cancels
-// any pending button click underneath the finger (issue #640). Tuned above the
-// expected jitter of a stationary tap on the resistive XPT2046 (~4 px) yet
-// well below a deliberate page swipe so navigation still feels responsive.
-#define SWIPE_CANCEL_THRESHOLD_PX 12
+// any pending button click underneath the finger (issue #640). Tuned just
+// above the expected jitter of a stationary tap on the resistive XPT2046
+// (~4 px) so even a short flick of the finger across a button-filled page
+// commits to a swipe (issue #1262). The gesture is also fired directly from
+// the cancel path so a tap that crosses this threshold navigates without
+// waiting for LVGL's slower cumulative gesture_limit.
+#define SWIPE_CANCEL_THRESHOLD_PX 8
 
 // Grace window (ms) after a toggle button click during which update() must
 // NOT overwrite the local latch from the bound signal. Lets the ECU echo
