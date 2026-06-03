@@ -325,13 +325,39 @@ void rebuildAllPages() {
         buildPage(savedIdx, dash.pages[s_pages[savedIdx].cfgIdx]);
     }
 
-    // Return to the page that was active before the rebuild
+    // Return to the page that was active before the rebuild, then delete the
+    // dummy. Order matters: `lv_obj_del(dummy)` MUST run only after a real
+    // page screen has been loaded as the active screen — deleting the active
+    // screen crashes LVGL (#1284). If `buildPage` above failed (e.g. heap
+    // exhaustion, font load), try the first page that survives a rebuild as
+    // a fallback. If every page fails, keep the dummy as the active screen
+    // — visually awkward but not a crash — and surface the failure.
+    uint8_t loadedIdx = 0xFF;
     if (savedIdx < s_pageCount && s_pages[savedIdx].screen) {
-        lv_scr_load(s_pages[savedIdx].screen);
-        s_currentIdx = savedIdx;
+        loadedIdx = savedIdx;
+    } else {
+        for (uint8_t i = 0; i < s_pageCount; ++i) {
+            if (i == savedIdx)
+                continue; // already attempted above
+            buildPage(i, dash.pages[s_pages[i].cfgIdx]);
+            if (s_pages[i].screen) {
+                loadedIdx = i;
+                break;
+            }
+        }
     }
 
-    lv_obj_del(dummy);
+    if (loadedIdx != 0xFF) {
+        lv_scr_load(s_pages[loadedIdx].screen);
+        s_currentIdx = loadedIdx;
+        lv_obj_del(dummy);
+    } else {
+        // Do NOT delete the dummy — it's still the active screen. Leaving it
+        // alive avoids the UAF; the blank screen is the visible symptom of a
+        // catastrophic rebuild failure (every page failed to build).
+        LOG_ERROR("UI", "rebuildAllPages: no page could be rebuilt — staging "
+                        "screen kept active to avoid LVGL UAF");
+    }
 
     // Re-warm the LVGL image cache BEFORE swapping the top bar icon. The
     // theme-toggle rebuild has just thrashed the image cache (each new
