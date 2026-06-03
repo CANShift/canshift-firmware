@@ -232,15 +232,26 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     // NimBLE so the central can match the value the user types in the mobile
     // app (issue #873).
     uint32_t onPassKeyRequest() override {
-        const uint32_t passkey = esp_random() % 1000000u;
+        // Unbiased rejection sampling: a plain `esp_random() % 1_000_000`
+        // would bias the low 705_032_704 values of the 2^32 draw space (#1283).
+        // Reject draws inside the residual band so every 6-digit code is
+        // equiprobable. The 0 reserved value (carrier "nothing pending") is
+        // also rejected here so the value displayed to the user matches what
+        // NimBLE will compare against — previously the carrier was bumped to
+        // 1 while NimBLE kept receiving 0, breaking pairing on the 1-in-1M
+        // draw (#1283).
+        constexpr uint32_t PASSKEY_RANGE = 1000000u;
+        constexpr uint32_t REJECTION_LIMIT = UINT32_MAX - (UINT32_MAX % PASSKEY_RANGE);
+        uint32_t passkey;
+        do {
+            uint32_t draw = esp_random();
+            while (draw >= REJECTION_LIMIT) {
+                draw = esp_random();
+            }
+            passkey = draw % PASSKEY_RANGE;
+        } while (passkey == 0u);
         LOG_INFO("BLE", "Pairing requested — passkey %06u", static_cast<unsigned>(passkey));
-        // The atomic carries the passkey itself; 0 is reserved as "nothing
-        // pending", so on the rare 0 draw we bump to a non-zero value rather
-        // than swallow the show request. The user-visible passkey from
-        // `PasskeyOverlay::show()` is taken modulo 1_000_000 so the bump
-        // never lifts us into a 7-digit code.
-        const uint32_t carrier = (passkey == 0u) ? 1u : passkey;
-        PendingActions::blePasskeyShow.store(carrier, std::memory_order_relaxed);
+        PendingActions::blePasskeyShow.store(passkey, std::memory_order_relaxed);
         return passkey;
     }
 
@@ -650,9 +661,18 @@ int8_t BleServer::takePendingEnabled() {
 }
 
 void BleServer::tick() {
-    if (!s_connected || !s_pTele)
+    if (!s_connected)
         return;
-    if (!s_pTele->getSubscribedCount())
+    // Snapshot the file-scope pointer to a local — BleServer::stop() can null
+    // s_pTele on a different task between the entry check and the notify
+    // call below. The earlyInit() GATT-preserved path keeps the underlying
+    // characteristic object alive for the lifetime of the process, so the
+    // snapshot remains valid even if the global is cleared mid-call. Mirrors
+    // the snapshot pattern in updateStatus() for s_pStatus (#1283).
+    auto *pTele = s_pTele;
+    if (!pTele)
+        return;
+    if (!pTele->getSubscribedCount())
         return;
 
     // Heap-free telemetry — `buildTelemetryPayload` writes directly to a
@@ -665,8 +685,8 @@ void BleServer::tick() {
         LOG_WARN("BLE", "TELE payload would overflow %u B buffer — skipping notify",
                  static_cast<unsigned>(sizeof(buf)));
     } else {
-        s_pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
-        s_pTele->notify();
+        pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
+        pTele->notify();
     }
 
     // Refresh STATUS every 2s; notify if AP state changed (e.g. timeout)
