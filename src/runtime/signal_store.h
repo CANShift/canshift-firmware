@@ -52,6 +52,18 @@ void init();
 void update(SignalId id, float value);
 
 /**
+     * Overwrite both raw and smoothed value, bypassing EMA. Thread-safe.
+     * Use when the caller is the canonical source of truth (synthetic
+     * toggle writes from physical button bindings, test fixtures), not a
+     * sample to be smoothed. See #1285 for the motivating bug — feeding
+     * smoothed reads back through update() left button toggles stuck.
+     *
+     * @param id    Signal ID (see signal_map.h)
+     * @param value Canonical value — stored verbatim in both raw and smoothed.
+     */
+void set(SignalId id, float value);
+
+/**
      * Read the smoothed value of a signal. Thread-safe.
      * Returns the EMA-smoothed value, or defaultValue if signal is invalid/timed out.
      */

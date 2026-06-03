@@ -92,6 +92,26 @@ void SignalStore::update(SignalId id, float value) {
     portEXIT_CRITICAL(&s_signalsMux);
 }
 
+void SignalStore::set(SignalId id, float value) {
+    if (!idValid(id))
+        return;
+
+    uint32_t now = millis();
+
+    // Canonical overwrite — raw and smoothed both receive `value` verbatim,
+    // bypassing the EMA. Used for synthetic toggle writes (#1285) where the
+    // caller's value IS the truth, not a sample. Lock held for the whole
+    // write so concurrent CAN updates can't interleave a stale smoothed.
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    portENTER_CRITICAL(&s_signalsMux);
+    SignalValue &sig = s_signals[id];
+    sig.raw = value;
+    sig.smoothed = value;
+    sig.lastUpdateMs = now;
+    sig.valid = true;
+    portEXIT_CRITICAL(&s_signalsMux);
+}
+
 float SignalStore::read(SignalId id, float defaultValue) {
     if (!idValid(id))
         return defaultValue;

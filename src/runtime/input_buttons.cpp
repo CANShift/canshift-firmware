@@ -66,6 +66,11 @@ bool isPressedNow(const CfgInputBinding &b) {
 // Push a synthetic signal update so dashboard button widgets bound to the
 // same signal flip their visual toggle without waiting for the ECU echo.
 // No-op when binding.signal is empty or names an unknown signal.
+//
+// Uses SignalStore::set (EMA bypass) instead of update because the toggle
+// value IS canonical truth, not a sample to smooth. Routing through update
+// left read() returning fractional EMA values like 0.3 → `!= 0.0` is always
+// true → the toggle gets stuck pushing 0 (#1285).
 void syncSharedSignal(const CfgInputBinding &b) {
     if (b.signal[0] == '\0')
         return;
@@ -73,7 +78,7 @@ void syncSharedSignal(const CfgInputBinding &b) {
     if (sid >= SignalIds::SIGNAL_COUNT)
         return;
     const float current = SignalStore::read(sid, 0.0f);
-    SignalStore::update(sid, current != 0.0f ? 0.0f : 1.0f);
+    SignalStore::set(sid, current != 0.0f ? 0.0f : 1.0f);
 }
 
 // Resolve press kind and (when it matches the binding) fire the action.

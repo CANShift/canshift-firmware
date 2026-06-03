@@ -60,10 +60,39 @@ void test_timeout_invalidates_after_threshold() {
     TEST_ASSERT_FALSE(SignalStore::isValid(kTestSignalId));
 }
 
+// Regression: synthetic toggle writes via SignalStore::set must bypass EMA
+// so read() returns exactly the written value (#1285). Anything fuzzier
+// than exact equality re-creates the button-stuck symptom.
+void test_set_writes_exact_value() {
+    SignalStore::set(kTestSignalId, 1.0f);
+    TEST_ASSERT_TRUE(SignalStore::isValid(kTestSignalId));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, SignalStore::read(kTestSignalId, kReadDefault));
+
+    SignalStore::set(kTestSignalId, 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, SignalStore::read(kTestSignalId, kReadDefault));
+}
+
+// Regression: 10 alternating set() calls — read() must report exactly 0 or
+// 1 on every cycle, even though the signal already has a previous smoothed
+// value sitting in the slot from earlier updates.
+void test_set_repeated_toggles_stay_binary() {
+    // Seed with a non-binary smoothed value so the bug from #1285 would
+    // surface immediately if set() ever fell back to the EMA path.
+    SignalStore::update(kTestSignalId, 0.7f);
+
+    for (int i = 0; i < 10; ++i) {
+        const float target = (i % 2 == 0) ? 1.0f : 0.0f;
+        SignalStore::set(kTestSignalId, target);
+        TEST_ASSERT_EQUAL_FLOAT(target, SignalStore::read(kTestSignalId, kReadDefault));
+    }
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_set_then_get_returnsValue_andValid);
     RUN_TEST(test_get_unwritten_signal_isInvalid);
     RUN_TEST(test_timeout_invalidates_after_threshold);
+    RUN_TEST(test_set_writes_exact_value);
+    RUN_TEST(test_set_repeated_toggles_stay_binary);
     return UNITY_END();
 }
