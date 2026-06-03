@@ -82,17 +82,22 @@ static constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_S
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Output sink — abstracts UART0 vs. an alternate transport (WiFi TCP).
+// Output sink — abstracts UART0 vs. an alternate transport (WiFi TCP / WS).
 //
-// `s_sink` defaults to the Serial sink and is temporarily swapped by
-// handleLine() while a non-USB transport dispatches one command. The aux
-// sink, when non-null, receives a parallel copy of every sendLine() write so
-// telemetry / acks reach both transports concurrently — used by the WiFi TCP
-// server to mirror the proactive telemetry stream out to a connected Studio.
+// `s_sink` defaults to the Serial sink and is used as the fallback target
+// for proactive telemetry (sendLine() called outside any handleLine()
+// dispatch). Command replies are routed through a per-task thread_local
+// `t_dispatchSink` set by handleLine() for the duration of one command, so
+// concurrent dispatches on different transports never block each other on
+// the sink mutex. The aux sink, when non-null, receives a parallel copy of
+// every sendLine() write so telemetry / acks reach both transports
+// concurrently — used by the WiFi TCP / WS servers to mirror the proactive
+// telemetry stream out to a connected Studio.
 //
 // A single mutex serialises every sink read/write. Held only across the brief
-// pointer swap or the synchronous sendLine() write, never across user-supplied
-// I/O that may block (no nested logger locks inside the critical section).
+// pointer snapshot or the aux-sink registration, never across user-supplied
+// I/O that may block (no nested logger locks inside the critical section)
+// and never across handleCommand() (#1286).
 // ---------------------------------------------------------------------------
 
 #ifdef ARDUINO
@@ -116,13 +121,23 @@ static void serialSink(const char *, size_t) {
 }
 #endif
 
-// Recursive — handleLine() locks for the duration of one command dispatch,
-// and the handlers it invokes call sendLine() which re-locks to snapshot the
-// sink pointers. Recursive ownership avoids the obvious self-deadlock while
-// still serialising competing TASKS (e.g. USB tick vs WiFi TCP task).
+// Recursive — kept recursive so a handler that calls sendLine() while a
+// caller already holds the lock (e.g. nested error paths inside an aux-sink
+// registration window) never self-deadlocks. The lock is no longer held
+// across handleCommand() since #1286 — see t_dispatchSink below — but the
+// recursive semantics stay so future call paths remain safe by construction.
 static SemaphoreHandle_t s_sinkMutex = nullptr;
 static UsbComm::SendSink s_sink = &serialSink;
 static UsbComm::SendSink s_auxSink = nullptr;
+
+// Per-task dispatch sink — set by handleLine() while a command is in flight on
+// the current task. sendLine() consults this BEFORE the global s_sink so we no
+// longer need to hold the sink mutex across the whole handler dispatch (which
+// could block other tasks' sendLine for the ~100-200 ms a PUT_CONFIG burn
+// takes to acquire the LVGL mutex). thread_local gives each FreeRTOS task its
+// own pointer so two transports dispatching concurrently route their replies
+// to the correct caller. Issue #1286.
+static thread_local UsbComm::SendSink t_dispatchSink = nullptr;
 
 // Acquire / release the sink mutex with a bounded timeout. Returns true on
 // success; callers fall through unprotected on timeout to mirror the
@@ -744,17 +759,23 @@ void handleGetConfig() {
     BufferPrint sink(buf + kPrefixLen, needed - kPrefixLen - 2 /* '}' + '\0' */);
     const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink,
                                                         true /* replaceNewlinesWithSpaces */);
+    // Detect a mid-flight streamFileTo failure (read error after the size check
+    // passed). Composing the envelope with an empty body would ship
+    // `{"status":"ok","config":}` — invalid JSON to the host. Emit the canonical
+    // error envelope instead. Issue #1286.
+    if (streamed == 0 || sink.used() == 0) {
+        free(buf);
+        LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s", CONFIG_PATH_DASHBOARD);
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_read_failed\"}");
+        return;
+    }
     size_t pos = kPrefixLen + sink.used();
     buf[pos++] = '}';
     buf[pos] = '\0';
     UsbComm::sendLine(buf);
     free(buf);
 
-    if (streamed == 0) {
-        LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s", CONFIG_PATH_DASHBOARD);
-    } else {
-        LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
-    }
+    LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
 }
 
 // Last time the host sent a command. Used by UsbComm::isHostActive() for the
@@ -1064,18 +1085,32 @@ void UsbComm::sendLine(const char *line) {
         return;
     const size_t len = strlen(line);
 
-    // Snapshot the sink pointers under the sink mutex so a concurrent
-    // handleLine() / setAuxSink() never observes a half-written value.
-    // The actual sink invocations run AFTER releasing the mutex so a slow
-    // sink (e.g. a TCP write to a saturated client) cannot block another
-    // task's logger output behind us.
-    SendSink primary = &serialSink;
-    SendSink aux = nullptr;
-    const bool locked = lockSink();
-    primary = s_sink;
-    aux = s_auxSink;
-    if (locked)
-        unlockSink();
+    // Per-task dispatch sink shortcut: if the current task is inside a
+    // handleLine() dispatch, route the reply to that caller's sink directly.
+    // Reading a thread_local pointer is race-free without the sink mutex,
+    // which lets the dispatch hold no global locks across the command body
+    // (#1286 — was a 50 ms tail on every other transport's telemetry).
+    const SendSink dispatch = t_dispatchSink;
+
+    // Snapshot the global sink pointers under the sink mutex so a concurrent
+    // setAuxSink() never exposes a half-written value. The actual sink
+    // invocations run AFTER releasing the mutex so a slow sink (e.g. a TCP
+    // write to a saturated client) cannot block another task's logger
+    // output behind us.
+    //
+    // On lock-timeout we drop the message rather than reading s_sink /
+    // s_auxSink unprotected. A concurrent setAuxSink() write could otherwise
+    // expose a torn / alien pointer to other tasks during one dispatch
+    // window. Dropping one telemetry tick is preferable to invoking a sink
+    // we cannot prove is current. Issue #1286.
+    if (!lockSink()) {
+        LOG_DEBUG("USB", "sendLine: sink lock timeout — dropping (%u B)",
+                  static_cast<unsigned>(len));
+        return;
+    }
+    const SendSink primary = dispatch ? dispatch : s_sink;
+    const SendSink aux = s_auxSink;
+    unlockSink();
 
     if (primary)
         primary(line, len);
@@ -1087,21 +1122,20 @@ void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
     if (!line || len == 0 || !sink)
         return;
 
-    // Swap the sink under the mutex so sendLine() snapshots a consistent
-    // (line-scoped) target. We DO hold the mutex across handleCommand() —
-    // that means a concurrent USB tick blocks for the duration of one TCP
-    // command. Acceptable: dispatching a command is bounded (<200 ms even
-    // for PUT_CONFIG burns, well under the WDT) and the issue's contract
-    // is single-client, single-transport-at-a-time anyway.
-    const bool locked = lockSink();
-    SendSink saved = s_sink;
-    s_sink = sink;
+    // Record the per-call sink in a thread_local so sendLine() routes replies
+    // back to this caller without us having to hold the sink mutex across the
+    // whole command body. Previously we swapped the global s_sink under the
+    // mutex and kept it locked until handleCommand() returned — that put a
+    // 100-200 ms tail on every other transport's sendLine when a PUT_CONFIG
+    // hit the LVGL mutex. The thread_local is per-task (USB tick vs WiFi
+    // TCP/WS tasks each get their own pointer) so concurrent dispatches do
+    // not stomp each other. Issue #1286.
+    const SendSink saved = t_dispatchSink;
+    t_dispatchSink = sink;
 
     handleCommand(line);
 
-    s_sink = saved;
-    if (locked)
-        unlockSink();
+    t_dispatchSink = saved;
 
     (void)len; // reserved for future length-aware dispatch paths
 }

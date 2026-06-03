@@ -97,6 +97,11 @@ static bool s_otaHmacOk = false;
 // missing or wrong so the matching complete handler can return 401 cleanly
 // (Arduino WebServer dispatches upload + complete separately).
 static bool s_otaAuthRejected = false;
+// Sticky failure flag — set in the UPLOAD_FILE_START branch when
+// Update.begin() fails (heap / partition). Surfaced as a distinct
+// reason:"update_begin" in handleOtaComplete instead of being mis-attributed
+// to HMAC. Issue #1286.
+static bool s_otaUpdateBeginFailed = false;
 
 // Dash-hosted Studio SPA — assets live on SPIFFS (#1123 follow-up).
 //
@@ -326,28 +331,45 @@ void handleOtaComplete() {
     }
 
     // Reject if either the Update layer reported an error OR the HMAC check
-    // failed (or never happened when it was required).
+    // failed (or never happened when it was required). The order below picks
+    // the failure cause so we can return an accurate status code + reason:
+    //   - Update.begin() failure (heap / partition) takes precedence and is
+    //     reported as 500 with reason "update_begin" (#1286).
+    //   - HMAC mismatch on a peer-uploaded image is a peer-side failure and
+    //     maps to HTTP 403, not 500 (#1286).
+    //   - Other Update.* failures (write / end / I/O) stay as 500.
     const bool updateOk = !Update.hasError();
     const bool hmacRequired = (APP_OTA_REQUIRE_HMAC != 0);
     const bool hmacOk = hmacRequired ? s_otaHmacOk : true;
-    const bool ok = updateOk && hmacOk;
+    const bool ok = updateOk && hmacOk && !s_otaUpdateBeginFailed;
 
     const char *body = nullptr;
+    int statusCode = 200;
     if (ok) {
         body = "{\"status\":\"ok\"}";
+        statusCode = 200;
+    } else if (s_otaUpdateBeginFailed) {
+        body = "{\"status\":\"error\",\"reason\":\"update_begin\"}";
+        statusCode = 500;
     } else if (!hmacOk) {
         body = "{\"status\":\"error\",\"reason\":\"hmac\"}";
+        statusCode = 403;
     } else {
         body = "{\"status\":\"error\"}";
+        statusCode = 500;
     }
-    s_server.send(ok ? 200 : 500, "application/json", body);
+    s_server.send(statusCode, "application/json", body);
 
     cleanupVerifier();
+    const bool beginFailed = s_otaUpdateBeginFailed;
+    s_otaUpdateBeginFailed = false;
 
     if (ok) {
         LOG_INFO("WiFi", "OTA complete — rebooting");
         delay(PRE_RESTART_FLUSH_DELAY_MS);
         esp_restart();
+    } else if (beginFailed) {
+        LOG_ERROR("WiFi", "OTA failed: Update.begin (heap / partition)");
     } else if (!hmacOk) {
         LOG_ERROR("WiFi", "OTA rejected: HMAC verification failed");
     } else {
@@ -372,10 +394,18 @@ void handleOtaUpload() {
         LOG_INFO("WiFi", "OTA upload start: %s (%u bytes expected)", upload.filename.c_str(),
                  upload.totalSize);
         s_otaHmacOk = false;
+        // Reset the sticky begin-failure flag at the start of every fresh
+        // upload so a previous attempt's outcome doesn't bleed through (#1286).
+        s_otaUpdateBeginFailed = false;
         cleanupVerifier();
 
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
             LOG_ERROR("WiFi", "Update.begin failed: %s", Update.errorString());
+            // Mark the upload as begin-failed so handleOtaComplete returns
+            // reason:"update_begin" instead of mis-attributing to HMAC. The
+            // subsequent UPLOAD_FILE_WRITE chunks bypass the (null) verifier
+            // and the matching complete handler surfaces the correct cause.
+            s_otaUpdateBeginFailed = true;
             return;
         }
 

@@ -54,6 +54,12 @@ WiFiClient s_client;
 TaskHandle_t s_taskHandle = nullptr;
 volatile bool s_active = false;
 
+// True while we hold the UsbComm aux-sink registration. We only claim the
+// slot if it was free at accept time (whichever transport landed first wins),
+// and we only release it if we still own it — never stomping a later
+// registration from a coexisting transport (WS). Issue #1286.
+bool s_ownsAuxSink = false;
+
 // Line-assembly buffer for inbound bytes. Sized identically to the USB RX
 // buffer so the largest CMD_PUT_CONFIG payload (~13 KB at schema v1.11) fits
 // in one line. Heap-allocated in start() so the ~16 KB is only consumed
@@ -89,6 +95,26 @@ void resetLineBuffer() {
         s_lineBuf[0] = '\0';
 }
 
+// Claim the UsbComm aux sink iff nobody else holds it. Returns true on
+// success so the caller knows whether to release on disconnect. Mirrors the
+// pattern in wifi_ws.cpp so the two transports can coexist without
+// stomping each other's registration. Issue #1286.
+bool tryClaimAuxSink() {
+    if (UsbComm::hasAuxSink())
+        return false;
+    UsbComm::setAuxSink(&tcpWriteSink);
+    return true;
+}
+
+// Release the aux sink iff we previously claimed it. Idempotent — safe to
+// call on every disconnect path including the dangling teardown in stop().
+void releaseAuxSinkIfOwned() {
+    if (!s_ownsAuxSink)
+        return;
+    UsbComm::setAuxSink(nullptr);
+    s_ownsAuxSink = false;
+}
+
 // Disconnect the current client cleanly: clear the aux sink so telemetry
 // stops mirroring, stop the underlying socket, reset the line buffer.
 void dropClient(const char *reason) {
@@ -96,7 +122,7 @@ void dropClient(const char *reason) {
         LOG_INFO("WiFiTCP", "Client disconnected (%s)", reason ? reason : "?");
         s_client.stop();
     }
-    UsbComm::setAuxSink(nullptr);
+    releaseAuxSinkIfOwned();
     resetLineBuffer();
 }
 
@@ -117,8 +143,9 @@ void acceptOrReject() {
     s_client = incoming;
     s_client.setNoDelay(true);
     resetLineBuffer();
-    UsbComm::setAuxSink(&tcpWriteSink);
-    LOG_INFO("WiFiTCP", "Client connected on port %u", static_cast<unsigned>(TCP_PORT));
+    s_ownsAuxSink = tryClaimAuxSink();
+    LOG_INFO("WiFiTCP", "Client connected on port %u (aux sink: %s)",
+             static_cast<unsigned>(TCP_PORT), s_ownsAuxSink ? "tcp" : "shared-with-ws");
 }
 
 // Drain available bytes from the socket into the line buffer, dispatching
