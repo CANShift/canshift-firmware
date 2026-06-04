@@ -525,7 +525,10 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_t *unitLabel = nullptr;
     buildValueCluster(cont, cfg, textRgb, label, fracLabel, unitLabel);
 
-    GaugeTag *tag = WidgetTagPool::alloc<GaugeTag>();
+    // RAII slot guard (#1207): early returns from initGaugeTag / attachAlertFlash
+    // release the slot before LVGL takes ownership via deleteHandler below.
+    WidgetTagPool::Slot<GaugeTag> tagSlot;
+    GaugeTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("GAUGE", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -539,7 +542,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     attachAlertFlash(tag, cont, cfg, textRgb);
 
     lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE,
+                        tagSlot.commit());
 
     return cont;
 }

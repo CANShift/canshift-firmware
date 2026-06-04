@@ -112,7 +112,10 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
     }
 
-    WarningTag *tag = WidgetTagPool::alloc<WarningTag>();
+    // RAII slot guard (#1207): early returns between here and attachTagDeleter
+    // release the slot deterministically.
+    WidgetTagPool::Slot<WarningTag> tagSlot;
+    WarningTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("WARN", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -129,7 +132,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     // releasing the slot — closes the queued-anim-after-tag-release race
     // (issue #886) and keeps button + warning on the same delete path
     // (F-LO-5).
-    WidgetHelpers::attachTagDeleter(root, tag);
+    WidgetHelpers::attachTagDeleter(root, tagSlot.commit());
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
               iconImg ? "asset" : "none");

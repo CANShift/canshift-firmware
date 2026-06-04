@@ -198,7 +198,10 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         }
     }
 
-    LabelTag *tag = WidgetTagPool::alloc<LabelTag>();
+    // RAII slot guard (#1207): early returns from AlertFlash::attach or future
+    // setup steps release the slot before LVGL takes ownership.
+    WidgetTagPool::Slot<LabelTag> tagSlot;
+    LabelTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("WF", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -221,7 +224,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         AlertFlash::watchLabel(tag->alert, fracLabel, textRgb);
 
     lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<LabelTag>, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<LabelTag>, LV_EVENT_DELETE,
+                        tagSlot.commit());
 
     return cont;
 }

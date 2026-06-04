@@ -285,7 +285,11 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_set_style_pad_row(btn, BUTTON_ROW_GAP, LV_PART_MAIN);
     }
 
-    ButtonTag *tag = WidgetTagPool::alloc<ButtonTag>();
+    // RAII slot guard (#1207): any early return between here and
+    // attachTagDeleter() below releases the slot deterministically. After
+    // commit() LVGL owns destruction via LV_EVENT_DELETE.
+    WidgetTagPool::Slot<ButtonTag> tagSlot;
+    ButtonTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("BTN", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -420,7 +424,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     lv_obj_set_user_data(btn, tag);
     lv_obj_add_event_cb(btn, btnClickHandler, LV_EVENT_CLICKED, nullptr);
-    WidgetHelpers::attachTagDeleter(btn, tag);
+    WidgetHelpers::attachTagDeleter(btn, tagSlot.commit());
 
     return btn;
 }

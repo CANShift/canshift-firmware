@@ -89,9 +89,51 @@ static char s_otaTokenHex[OTA_TOKEN_HEX_LEN + 1] = {};
 // through closures. Static-lifetime storage means Update.begin() can never
 // fail open because of a heap-exhaustion `new` on a fragmented device (#781).
 // The HTTP server task is single-threaded, so a single static is safe.
-alignas(OtaHmac::OtaHmacVerifier) static unsigned char s_otaVerifierStorage[sizeof(
-    OtaHmac::OtaHmacVerifier)];
-static OtaHmac::OtaHmacVerifier *s_otaVerifier = nullptr;
+//
+// RAII helper (#1207): wraps the aligned storage + engaged flag so the
+// placement-new / explicit-dtor dance lives in one place. Callers go through
+// `construct()` / `destroy()` / `get()`; the destructor closes the slot at
+// program shutdown if it was somehow still engaged. Cannot use std::optional
+// because OtaHmacVerifier is non-movable.
+namespace {
+class OtaVerifierStorage {
+  public:
+    OtaVerifierStorage() = default;
+    ~OtaVerifierStorage() {
+        destroy();
+    }
+    OtaVerifierStorage(const OtaVerifierStorage &) = delete;
+    OtaVerifierStorage &operator=(const OtaVerifierStorage &) = delete;
+
+    template <typename... Args>
+    OtaHmac::OtaHmacVerifier *construct(Args &&...args) {
+        if (m_engaged) {
+            destroy();
+        }
+        auto *p = new (m_storage) OtaHmac::OtaHmacVerifier(static_cast<Args &&>(args)...);
+        m_engaged = true;
+        return p;
+    }
+
+    void destroy() {
+        if (!m_engaged) {
+            return;
+        }
+        reinterpret_cast<OtaHmac::OtaHmacVerifier *>(&m_storage)->~OtaHmacVerifier();
+        m_engaged = false;
+    }
+
+    OtaHmac::OtaHmacVerifier *get() {
+        return m_engaged ? reinterpret_cast<OtaHmac::OtaHmacVerifier *>(&m_storage) : nullptr;
+    }
+
+  private:
+    alignas(OtaHmac::OtaHmacVerifier) unsigned char m_storage[sizeof(OtaHmac::OtaHmacVerifier)];
+    bool m_engaged = false;
+};
+} // namespace
+
+static OtaVerifierStorage s_otaVerifierStorage;
 static bool s_otaHmacOk = false;
 // Sticky reject flag — set by the upload handler when the bearer token is
 // missing or wrong so the matching complete handler can return 401 cleanly
@@ -301,10 +343,7 @@ void registerSpaRoutes() {
         #endif // APP_SPA_SERVE
 
 void cleanupVerifier() {
-    if (s_otaVerifier != nullptr) {
-        s_otaVerifier->~OtaHmacVerifier();
-        s_otaVerifier = nullptr;
-    }
+    s_otaVerifierStorage.destroy();
 }
 
 // Sink invoked by the HMAC verifier with body bytes (everything but the
@@ -420,9 +459,9 @@ void handleOtaUpload() {
             Update.abort();
             return;
         }
-        s_otaVerifier = new (s_otaVerifierStorage) OtaHmac::OtaHmacVerifier(
-            OtaHmac::mbedtlsHmacBackend(), kSecret, OtaHmac::kHmacLen, otaUpdateSink, nullptr);
-        if (!s_otaVerifier->begin()) {
+        auto *verifier = s_otaVerifierStorage.construct(OtaHmac::mbedtlsHmacBackend(), kSecret,
+                                                        OtaHmac::kHmacLen, otaUpdateSink, nullptr);
+        if (!verifier->begin()) {
             LOG_ERROR("WiFi", "OTA HMAC verifier init failed");
             cleanupVerifier();
             Update.abort();
@@ -435,10 +474,11 @@ void handleOtaUpload() {
             return; // unauthenticated peer — drop the bytes on the floor
         }
         #if APP_OTA_REQUIRE_HMAC
-        if (s_otaVerifier == nullptr) {
+        auto *verifier = s_otaVerifierStorage.get();
+        if (verifier == nullptr) {
             return; // begin failed earlier
         }
-        if (!s_otaVerifier->feed(upload.buf, upload.currentSize)) {
+        if (!verifier->feed(upload.buf, upload.currentSize)) {
             LOG_ERROR("WiFi", "OTA upload feed failed");
             cleanupVerifier();
             Update.abort();
@@ -453,10 +493,11 @@ void handleOtaUpload() {
             return; // handled by handleOtaComplete → 401
         }
         #if APP_OTA_REQUIRE_HMAC
-        if (s_otaVerifier == nullptr) {
+        auto *verifier = s_otaVerifierStorage.get();
+        if (verifier == nullptr) {
             return;
         }
-        const bool hmacMatch = s_otaVerifier->finish();
+        const bool hmacMatch = verifier->finish();
         s_otaHmacOk = hmacMatch;
         if (!hmacMatch) {
             LOG_ERROR("WiFi", "OTA HMAC mismatch — aborting");

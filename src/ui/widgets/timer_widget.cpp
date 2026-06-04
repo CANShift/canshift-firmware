@@ -191,8 +191,10 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
-    // Allocate tag from the fixed pool (F-HI-2).
-    TimerTag *tag = WidgetTagPool::alloc<TimerTag>();
+    // Allocate tag from the fixed pool (F-HI-2). RAII slot guard (#1207) so
+    // any early return below releases the slot before we hand off to LVGL.
+    WidgetTagPool::Slot<TimerTag> tagSlot;
+    TimerTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("TMR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -221,7 +223,8 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE,
+                        tagSlot.commit());
 
     // Register touch events for start / pause / resume / reset.
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);

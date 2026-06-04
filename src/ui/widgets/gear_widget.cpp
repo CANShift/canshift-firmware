@@ -100,7 +100,9 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_obj_set_style_text_font(label, selectFont(digitBandH, cfg.layout.w), 0);
     lv_label_set_text(label, "N");
 
-    GearTag *tag = WidgetTagPool::alloc<GearTag>();
+    // RAII slot guard (#1207).
+    WidgetTagPool::Slot<GearTag> tagSlot;
+    GearTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("GEAR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -110,7 +112,8 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     tag->label = label;
     tag->lastColorRgb = textRgb; // First paint above used textRgb (neutral "N" path).
     lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GearTag>, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GearTag>, LV_EVENT_DELETE,
+                        tagSlot.commit());
 
     // Custom widget label intentionally skipped — see comment at the top of
     // create() for the rationale.

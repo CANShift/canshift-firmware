@@ -77,4 +77,52 @@ void deleteHandler(lv_event_t *e) {
     release(t);
 }
 
+// RAII guard around a single pool slot (#1207 firmware safety).
+//
+// Use case: between alloc<T>() and the moment the caller wires LVGL's
+// LV_EVENT_DELETE callback (which becomes the deterministic cleanup path),
+// any early return — exhausted heap, missing asset, parse failure — would
+// leak the slot. `Slot<T>` closes that window:
+//
+//     WidgetTagPool::Slot<FooTag> slot;
+//     FooTag *tag = slot.get();
+//     if (!tag) { ... return nullptr; }     // pool exhausted, nothing to free
+//     tag->foo = ...;
+//     if (somethingFailed) return nullptr;  // dtor frees the slot
+//     WidgetHelpers::attachTagDeleter(obj, slot.commit()); // LVGL now owns it
+//
+// Once `commit()` runs the guard disengages and the LV_EVENT_DELETE handler
+// is responsible for `release(tag)` (typically via WidgetHelpers::attachTagDeleter).
+template <typename T>
+class Slot {
+  public:
+    Slot() : m_tag(alloc<T>()) {}
+    ~Slot() {
+        if (m_tag) {
+            release(m_tag);
+        }
+    }
+
+    Slot(const Slot &) = delete;
+    Slot &operator=(const Slot &) = delete;
+    Slot(Slot &&) = delete;
+    Slot &operator=(Slot &&) = delete;
+
+    // Pointer into the slot, or nullptr when the pool was exhausted.
+    T *get() const {
+        return m_tag;
+    }
+
+    // Disengage the guard — caller (usually LVGL via LV_EVENT_DELETE) now
+    // owns destruction. Returns the bare pointer for convenience.
+    T *commit() {
+        T *t = m_tag;
+        m_tag = nullptr;
+        return t;
+    }
+
+  private:
+    T *m_tag;
+};
+
 } // namespace WidgetTagPool

@@ -58,7 +58,9 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     // Build LVGL FS path: "S:" + SPIFFS path
     // SPIFFS path already has leading slash (e.g. "/images/bg.bmp")
-    ImageTag *tag = WidgetTagPool::alloc<ImageTag>();
+    // RAII slot guard (#1207).
+    WidgetTagPool::Slot<ImageTag> tagSlot;
+    ImageTag *tag = tagSlot.get();
     if (!tag) {
         LOG_WARN("IMG", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
                  static_cast<unsigned>(WidgetTagPool::kPoolSlots));
@@ -73,7 +75,8 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     // Scale image to fit widget dimensions (LVGL 8.3 integer scale factor)
     // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
     lv_obj_set_user_data(cont, tag);
-    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<ImageTag>, LV_EVENT_DELETE, tag);
+    lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<ImageTag>, LV_EVENT_DELETE,
+                        tagSlot.commit());
 
     LOG_DEBUG("IMG", "Image widget created: %s", tag->lvglPath);
     return cont;
