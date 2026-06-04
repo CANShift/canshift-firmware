@@ -154,3 +154,17 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
     }
     return nullptr;
 }
+
+// ---------------------------------------------------------------------------
+// Unity build — the helper TUs are pulled into this TU so the production
+// build (`-O2`, no `-flto`) can inline cross-helper calls. Splitting them as
+// separate `.cpp` files preserved logical separation but pushed flash usage
+// to 98.2% (#1207 split CI fail). Including them here keeps the file-level
+// boundaries intact while restoring the single-TU optimization surface.
+// Native tests compile this single TU too — `build_src_filter` no longer
+// lists the helpers individually since they are pulled in here.
+// ---------------------------------------------------------------------------
+#include "config_file_loaders.inc"
+#include "config_parser.inc"
+#include "config_validators.inc"
+#include "json_helpers.inc"
