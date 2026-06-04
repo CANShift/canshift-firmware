@@ -528,6 +528,51 @@ void handlePutFile(const JsonObjectConst &obj) {
 // call without changing the wire shape.
 // ---------------------------------------------------------------------------
 
+// Length cap for typed PUT payloads. Mirrors the worst-case input_bindings
+// envelope (16 entries × ~256 B + wrapper) with comfortable headroom; the
+// device_config payload is ~80 B so the same cap covers both. Anything
+// above this is rejected before parse so a malicious / malformed host
+// cannot exhaust the JsonDocument heap pool. Kept well under
+// USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256 = 16 640 B) which is
+// the upstream cap enforced by the RX line accumulator in tick().
+constexpr size_t kTypedPutMaxPayloadBytes = 8192;
+
+// Module-static response buffer reused by every typed GET / PUT handler so
+// the hot path no longer does malloc/serializeJson/free per request — that
+// pattern was fragmenting internal DRAM under sustained config traffic
+// (#1207). Sized to kTypedPutMaxPayloadBytes (8 KB) which is the same cap
+// the PUT path already enforces upstream. Lives in BSS; the cost is paid
+// once at link time, not per request.
+//
+// Concurrency: a single FreeRTOS recursive mutex serialises buffer access
+// across the USB task (sendTypedConfigGet / persistTypedConfigAndReboot
+// called from handleCommand) and any future transport (TCP / WS) that
+// routes typed config commands through the same handlers. The mutex is
+// created in UsbComm::init(). On lock-timeout the handler falls back to a
+// one-shot heap alloc with an explicit log so a stuck transport can't drop
+// a config reply silently — should be rare since each handler holds the
+// lock for under 1 ms.
+static uint8_t s_responseBuffer[kTypedPutMaxPayloadBytes];
+static SemaphoreHandle_t s_responseBufferMutex = nullptr;
+
+// Bounded timeout mirrors the sink-mutex contract: long enough to absorb a
+// concurrent handler's serialize+send pass (<1 ms typical) without
+// indefinitely blocking a stuck caller.
+static constexpr TickType_t kResponseBufferLockTimeout = pdMS_TO_TICKS(50);
+
+// Acquire / release the response buffer mutex. Returns true on success.
+// Callers that get false fall back to a one-shot malloc.
+static bool lockResponseBuffer() {
+    if (!s_responseBufferMutex)
+        return false;
+    return xSemaphoreTakeRecursive(s_responseBufferMutex, kResponseBufferLockTimeout) == pdTRUE;
+}
+
+static void unlockResponseBuffer() {
+    if (s_responseBufferMutex)
+        xSemaphoreGiveRecursive(s_responseBufferMutex);
+}
+
 // Send a `{"status":"ok","<key>":<value>}` envelope by parsing the on-disk
 // JSON file and lifting `unwrapKey` out of it (when non-null) before
 // embedding the result under `fieldKey`. The unwrap is needed for
@@ -567,7 +612,20 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     resp["status"] = "ok";
     resp[fieldKey] = body;
 
-    const size_t needed = measureJson(resp) + 2; // payload + '\n' + NUL terminator
+    const size_t needed = measureJson(resp) + 1; // payload + NUL terminator
+    if (needed <= sizeof(s_responseBuffer) && lockResponseBuffer()) {
+        char *buf = reinterpret_cast<char *>(s_responseBuffer);
+        const size_t written = serializeJson(resp, buf, sizeof(s_responseBuffer));
+        buf[written] = '\0';
+        UsbComm::sendLine(buf);
+        unlockResponseBuffer();
+        return;
+    }
+
+    // Fallback: payload larger than the pool, or mutex unavailable / contended.
+    // Should be rare — log so we can spot a regression if it stops being rare.
+    LOG_WARN("USB", "GET %s: response pool unavailable (need %u B, pool %u B) — heap fallback",
+             path, static_cast<unsigned>(needed), static_cast<unsigned>(sizeof(s_responseBuffer)));
     char *buf = static_cast<char *>(malloc(needed));
     if (!buf) {
         LOG_ERROR("USB", "GET %s: response buffer alloc (%u B) failed", path,
@@ -580,15 +638,6 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     UsbComm::sendLine(buf);
     free(buf);
 }
-
-// Length cap for typed PUT payloads. Mirrors the worst-case input_bindings
-// envelope (16 entries × ~256 B + wrapper) with comfortable headroom; the
-// device_config payload is ~80 B so the same cap covers both. Anything
-// above this is rejected before parse so a malicious / malformed host
-// cannot exhaust the JsonDocument heap pool. Kept well under
-// USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256 = 16 640 B) which is
-// the upstream cap enforced by the RX line accumulator in tick().
-constexpr size_t kTypedPutMaxPayloadBytes = 8192;
 
 // Persist a typed-config payload to `path`, then reboot. The caller has
 // already validated that `subValue` is non-null and matches the expected
@@ -608,17 +657,30 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
         return;
     }
 
-    uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
-    if (!buf) {
-        LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
-                  static_cast<unsigned>(needed));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
-        return;
+    bool ok = false;
+    size_t written = 0;
+    if (lockResponseBuffer()) {
+        written = serializeJson(out, s_responseBuffer, sizeof(s_responseBuffer));
+        ok = StorageDriver::writeFileAtomic(path, s_responseBuffer, written);
+        unlockResponseBuffer();
+    } else {
+        // Fallback: mutex unavailable / contended. One-shot heap alloc keeps
+        // the handler correct under contention; the warn lets us catch a
+        // regression where this path stops being rare.
+        LOG_WARN("USB", "PUT %s: response pool unavailable — heap fallback (%u B)", path,
+                 static_cast<unsigned>(needed));
+        uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
+        if (!buf) {
+            LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
+                      static_cast<unsigned>(needed));
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+            return;
+        }
+        written = serializeJson(out, buf, needed);
+        ok = StorageDriver::writeFileAtomic(path, buf, written);
+        free(buf);
     }
-    const size_t written = serializeJson(out, buf, needed);
 
-    const bool ok = StorageDriver::writeFileAtomic(path, buf, written);
-    free(buf);
     if (!ok) {
         LOG_ERROR("USB", "PUT %s: storage write failed", path);
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
@@ -1073,6 +1135,15 @@ void UsbComm::init() {
             // serialisation against handleLine()" which is still correct as
             // long as TCP and USB never dispatch concurrently.
             LOG_WARN("USB", "Sink mutex alloc failed — TCP/USB will not serialise");
+        }
+    }
+    if (!s_responseBufferMutex) {
+        s_responseBufferMutex = xSemaphoreCreateRecursiveMutex();
+        if (!s_responseBufferMutex) {
+            // No fatal halt — typed GET/PUT handlers fall back to one-shot
+            // heap allocs when the mutex is unavailable, restoring the
+            // pre-#1207 behaviour. Logged so a recurring fallback is visible.
+            LOG_WARN("USB", "Response buffer mutex alloc failed — typed config will heap-alloc");
         }
     }
     // s_canScanQueue is allocated lazily on first CMD_CAN_SCAN_START so we
