@@ -31,6 +31,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 
 extern SemaphoreHandle_t g_lvglMutex;
 
@@ -528,12 +529,23 @@ static void buildUiWithHeapBracket() {
 // long before handing the screen over to the dashboard.
 static constexpr uint32_t SPLASH_MIN_MS = 2000;
 
+// Splash wait quantum — short enough that the IDLE task / WDT / lv_timer_handler
+// (via tick interrupt) keep ticking through the hold (#1207).
+static constexpr uint32_t SPLASH_WAIT_STEP_MS = 50;
+
 // Hold the splash for at least SPLASH_MIN_MS so the user can read the
 // version + final progress state before the dashboard takes over.
+// Uses an explicit yielding vTaskDelay loop (rather than the Arduino
+// delay() shim) so the scheduler keeps running other tasks during the
+// hold and the granularity is visible to readers (#1207).
 static void holdSplashUntilMin(uint32_t bootStartMs) {
-    const uint32_t bootElapsed = millis() - bootStartMs;
-    if (bootElapsed < SPLASH_MIN_MS) {
-        delay(SPLASH_MIN_MS - bootElapsed);
+    while (true) {
+        const uint32_t bootElapsed = millis() - bootStartMs;
+        if (bootElapsed >= SPLASH_MIN_MS)
+            break;
+        const uint32_t remaining = SPLASH_MIN_MS - bootElapsed;
+        const uint32_t step = remaining < SPLASH_WAIT_STEP_MS ? remaining : SPLASH_WAIT_STEP_MS;
+        vTaskDelay(pdMS_TO_TICKS(step));
     }
 }
 

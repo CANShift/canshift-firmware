@@ -118,8 +118,10 @@ static void preallocateTaskStacks() {
 #endif
     ) {
         LOG_ERROR("BOOT", "Task stack pre-allocation failed — halting");
+        // vTaskDelay explicitly yields to IDLE so the WDT keeps running on
+        // this halted task — no reliance on the Arduino delay() shim (#1207).
         while (true) {
-            delay(1000);
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
 }
@@ -197,8 +199,10 @@ void setup() {
     g_lvglMutex = xSemaphoreCreateMutex();
     if (!g_lvglMutex) {
         LOG_ERROR("BOOT", "Failed to create LVGL mutex — halting");
+        // vTaskDelay explicitly yields to IDLE so the WDT keeps running on
+        // this halted task — no reliance on the Arduino delay() shim (#1207).
         while (true) {
-            delay(1000);
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
 
