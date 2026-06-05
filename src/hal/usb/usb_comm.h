@@ -207,4 +207,31 @@ bool hasAuxSink();
  */
 void setAuxSink(SendSink sink);
 
+// ---------------------------------------------------------------------------
+// BurnOverlay observer (#1207 #1314) — decouples the USB transport from the
+// LVGL widget that paints the "Saving config…" overlay during CMD_PUT_CONFIG.
+// Pre-refactor, usb_dispatch.cpp called BurnOverlay::show() / showError()
+// inline on the USB task and used a vTaskPrioritySet flip to keep the
+// LVGL build + lv_refr_now() responsive. That tied the transport directly
+// to the UI widget and starved equally-prioritised core-1 tasks during the
+// storage write. The two callbacks below are invoked from the dispatch path
+// instead; the boot code wires them to a "set PendingActions flag + notify
+// UI task" handler so BurnOverlay::show() runs at TASK_PRIO_UI.
+//
+// Both setters are idempotent; nullptr clears the slot. Called once from
+// main.cpp::setup() after createAllTasks() so the UI task handle is in scope.
+// ---------------------------------------------------------------------------
+
+using BurnOverlayShowCb = void (*)();
+
+/**
+ * Reason code passed to BurnOverlayShowErrorCb. Mirrors BurnOverlay::ErrorReason
+ * (0 = WriteFailed, 1 = ReloadFailed). Kept as a plain int so usb_comm.h has
+ * zero #include dependency on the LVGL UI layer.
+ */
+using BurnOverlayShowErrorCb = void (*)(int reason);
+
+void setBurnOverlayShowCallback(BurnOverlayShowCb cb);
+void setBurnOverlayShowErrorCallback(BurnOverlayShowErrorCb cb);
+
 } // namespace UsbComm

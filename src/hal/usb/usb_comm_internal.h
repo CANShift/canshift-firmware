@@ -105,4 +105,17 @@ bool canScanQueueTryReceive(UsbComm::CanScanFrame &out);
 
 void tickChunkTransferTimeout();
 
+// ---------------------------------------------------------------------------
+// BurnOverlay observer indirection (#1207 #1314) — usb_dispatch.cpp calls
+// these instead of #include "ui/burn_overlay.h" directly. The transport TU
+// (usb_comm.cpp) owns the callback slots registered through
+// UsbComm::setBurnOverlayShowCallback / setBurnOverlayShowErrorCallback.
+// Both invokes are no-ops when no callback has been registered yet (boot
+// race / sim build) — the storage write still proceeds, only the visual
+// feedback is skipped.
+// ---------------------------------------------------------------------------
+
+void invokeBurnOverlayShow();
+void invokeBurnOverlayShowError(int reason);
+
 } // namespace UsbCommInternal

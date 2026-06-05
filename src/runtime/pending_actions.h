@@ -49,6 +49,18 @@ inline std::atomic<uint32_t> blePasskeyShow{0};
 // previous overlay before a fresh passkey replaces it.
 inline std::atomic<bool> blePasskeyHide{false};
 
+// BurnOverlay spinner request — set by the USB transport when CMD_PUT_CONFIG
+// has validated the payload and is about to start the storage write. The UI
+// task drains this inside its LVGL-mutex window so BurnOverlay::show() runs
+// at TASK_PRIO_UI — no priority flip required on the USB task (#1207 #1314).
+inline std::atomic<bool> burnOverlayShow{false};
+
+// BurnOverlay error request — encodes the BurnOverlay::ErrorReason as int8_t
+// so this header has zero LVGL/UI dependencies (kept usable by transports):
+//   -1 = none, 0 = WriteFailed, 1 = ReloadFailed.
+// Drained by the UI task; the int8_t maps 1:1 to BurnOverlay::ErrorReason.
+inline std::atomic<int8_t> burnOverlayShowError{-1};
+
 inline bool takeDayNightToggle() {
     return dayNightToggle.exchange(false, std::memory_order_relaxed);
 }
@@ -72,6 +84,16 @@ inline uint32_t takeBlePasskeyShow() {
 
 inline bool takeBlePasskeyHide() {
     return blePasskeyHide.exchange(false, std::memory_order_relaxed);
+}
+
+inline bool takeBurnOverlayShow() {
+    return burnOverlayShow.exchange(false, std::memory_order_relaxed);
+}
+
+// Returns -1 when nothing is pending; otherwise the reason code
+// (0 = WriteFailed, 1 = ReloadFailed) cleared atomically.
+inline int8_t takeBurnOverlayShowError() {
+    return burnOverlayShowError.exchange(-1, std::memory_order_relaxed);
 }
 
 } // namespace PendingActions

@@ -35,7 +35,6 @@
 #include "diag/lvgl_lock_guard.h"
 #include "hal/storage/storage_driver.h"
 #include "runtime/pending_actions.h"
-#include "ui/burn_overlay.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 
@@ -253,13 +252,25 @@ void handlePutFile(const JsonObjectConst &obj) {
 // Race note: the SPIFFS/IDF flash driver yields to the OS between page writes
 // (vTaskDelay(0)). When USB yields, the LVGL task runs, calls lv_task_handler(),
 // lv_mem_alloc() fails (~1 KB free in LVGL heap), OOM assert fires esp_restart()
-// mid-write — config never committed. A priority boost alone doesn't prevent this
-// because vTaskDelay(0) is an explicit yield regardless of priority.
+// mid-write — config never committed. A priority boost alone does NOT prevent
+// this because vTaskDelay(0) is an explicit yield regardless of priority.
 // Fix: hold g_lvglMutex for the entire write so lv_task_handler() is blocked.
 // LVGL ticks that fire during the write see "mutex timeout" and skip — harmless
 // since the device reboots immediately after. On failure the mutex is released
-// so the UI recovers. BurnOverlay is shown while holding the mutex so the LCD
-// gives feedback on both success (reboot wipes it) and failure (error state).
+// so the UI recovers.
+//
+// Overlay paint (#1207 #1314 batch-render): the BurnOverlay is no longer drawn
+// inline on this (USB) task. invokeBurnOverlayShow() raises a pending-action
+// flag and notifies the UI task; the UI task paints the overlay at TASK_PRIO_UI
+// inside its own LVGL-mutex window — strictly BEFORE we acquire the mutex here
+// because the UI task wakes from xTaskNotify and acquires the mutex first
+// (TASK_PRIO_UI=10 preempts TASK_PRIO_USB=8 on core 1). The small grace delay
+// gives the UI tick room to paint + flush before this task blocks the mutex
+// for the duration of the flash write. This replaces the previous
+// vTaskPrioritySet(TASK_PRIO_UI+1) boost which starved equal-priority core-1
+// tasks (BLE/WiFi) during the write.
+constexpr uint32_t BURN_OVERLAY_RENDER_GRACE_MS = 20;
+
 void handlePutConfig(const char *jsonLine) {
 #ifdef ARDUINO
     LOG_INFO("USB", "heap.largest_free=%u before PUT_CONFIG",
@@ -275,32 +286,38 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
+    // Request the BurnOverlay spinner through the registered observer. The
+    // observer sets PendingActions::burnOverlayShow and notifies the UI task
+    // so it wakes from its idle wait and paints at TASK_PRIO_UI under the
+    // LVGL mutex. No-op until main.cpp::setup() has registered the callback.
+    UsbCommInternal::invokeBurnOverlayShow();
+
+    // Yield so the UI task — at TASK_PRIO_UI (10) > TASK_PRIO_USB (8) on the
+    // same core — preempts and runs one frame: drain burnOverlayShow,
+    // BurnOverlay::show() under g_lvglMutex (build + lv_refr_now), release
+    // mutex. After this delay the overlay is on screen and the mutex is free
+    // for us to take. Tuned to one LVGL_HANDLER_PERIOD_MS plus a safety
+    // margin so even a slightly delayed UI tick still completes.
+    vTaskDelay(pdMS_TO_TICKS(BURN_OVERLAY_RENDER_GRACE_MS));
+
     // Take the LVGL mutex before the write. This blocks lv_task_handler() for
-    // the entire duration so the OOM assert cannot fire mid-write. Priority
-    // inheritance raises our effective priority to TASK_PRIO_UI while we wait,
-    // then we boost further to TASK_PRIO_UI+1 so flash ops are uninterrupted.
-    // On the success path we call esp_restart() and never release; on failure
-    // we release so the UI recovers.
+    // the entire duration so the OOM assert cannot fire mid-write. No
+    // priority flip — running at TASK_PRIO_USB keeps core-1 schedulable for
+    // BLE/WiFi while the flash write proceeds.
     const bool mutexTaken = (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) == pdTRUE);
     if (!mutexTaken) {
         LOG_WARN("USB", "PUT_CONFIG: could not acquire LVGL mutex — proceeding");
     }
-    vTaskPrioritySet(nullptr, TASK_PRIO_UI + 1);
-    // BurnOverlay::show() calls lv_refr_now(), which runs
-    // DisplayDriver::flushCallback inline on this (USB) task — see the
-    // task-coupling note in src/ui/burn_overlay.cpp::show(). The LVGL mutex
-    // taken above is what makes that safe: it serialises LVGL state and SPI
-    // access with the UI task. Do not call show() without holding the mutex,
-    // and do not relax the mutex contract here without revisiting show().
-    BurnOverlay::show();
 
     bool ok = StorageDriver::writeFileAtomic(
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
-        BurnOverlay::showError(BurnOverlay::ErrorReason::WriteFailed);
-        vTaskPrioritySet(nullptr, TASK_PRIO_USB);
         if (mutexTaken)
             xSemaphoreGive(g_lvglMutex);
+        // Reason code 0 = BurnOverlay::ErrorReason::WriteFailed. Defined in
+        // ui/burn_overlay.h; mirrored as int through the observer to keep
+        // the USB module free of any LVGL-side includes.
+        UsbCommInternal::invokeBurnOverlayShowError(0);
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
         return;

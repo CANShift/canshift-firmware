@@ -126,6 +126,14 @@ SemaphoreHandle_t s_sinkMutex = nullptr;
 UsbComm::SendSink s_sink = &serialSink;
 UsbComm::SendSink s_auxSink = nullptr;
 
+// BurnOverlay observer callbacks (#1207 #1314). Slots are written by
+// UsbComm::setBurnOverlayShow{,Error}Callback and read by
+// UsbCommInternal::invokeBurnOverlay{Show,ShowError}. Single writer (boot
+// setup), multiple readers (any task that drives a PUT_CONFIG dispatch), and
+// pointer-sized so the relaxed read is torn-free on ESP32 — no extra mutex.
+UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
+UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
+
 // Per-task dispatch sink — set by handleLine() while a command is in flight on
 // the current task. sendLine() consults this BEFORE the global s_sink so we no
 // longer need to hold the sink mutex across the whole handler dispatch (which
@@ -427,6 +435,28 @@ void UsbComm::setAuxSink(SendSink sink) {
     s_auxSink = sink;
     if (locked)
         unlockSink();
+}
+
+void UsbComm::setBurnOverlayShowCallback(BurnOverlayShowCb cb) {
+    s_burnOverlayShowCb = cb;
+}
+
+void UsbComm::setBurnOverlayShowErrorCallback(BurnOverlayShowErrorCb cb) {
+    s_burnOverlayShowErrorCb = cb;
+}
+
+void UsbCommInternal::invokeBurnOverlayShow() {
+    // Snapshot to a local so a concurrent setter never races a non-null check
+    // against a tear-down. Pointer reads are atomic on ESP32; no mutex needed.
+    const UsbComm::BurnOverlayShowCb cb = s_burnOverlayShowCb;
+    if (cb)
+        cb();
+}
+
+void UsbCommInternal::invokeBurnOverlayShowError(int reason) {
+    const UsbComm::BurnOverlayShowErrorCb cb = s_burnOverlayShowErrorCb;
+    if (cb)
+        cb(reason);
 }
 
 bool UsbComm::isHostActive() {

@@ -26,6 +26,7 @@
 #include "runtime/alert_engine.h"
 #include "runtime/input_buttons.h"
 #include "runtime/pending_actions.h"
+#include "ui/burn_overlay.h"
 #include "ui/page_manager.h"
 #include "ui/passkey_overlay.h"
 #include "ui/theme_manager.h"
@@ -46,6 +47,16 @@ void taskBLE(void *pvParameters);
 // LVGL is NOT thread-safe. All LVGL calls from any task must hold this mutex.
 // ---------------------------------------------------------------------------
 SemaphoreHandle_t g_lvglMutex = nullptr;
+
+// ---------------------------------------------------------------------------
+// UI task handle — exposed so transports (USB, BLE) can xTaskNotifyGive() it
+// from their pending-action publishers. Used by the BurnOverlay observer
+// wired in setup() to wake the UI task ahead of its next 10 ms tick when a
+// CMD_PUT_CONFIG dispatch needs the overlay painted before the flash write.
+// Single writer (setup), many readers — pointer-sized so the unguarded read
+// is torn-free on ESP32. Null until createAllTasks() has run.
+// ---------------------------------------------------------------------------
+TaskHandle_t g_uiTaskHandle = nullptr;
 
 // ---------------------------------------------------------------------------
 // Task stack buffers — heap-allocated early in setup() before lv_init() claims
@@ -127,6 +138,38 @@ static void preallocateTaskStacks() {
 }
 
 // ---------------------------------------------------------------------------
+// BurnOverlay observer (#1207 #1314) — wired into the USB transport via
+// UsbComm::setBurnOverlayShow{,Error}Callback after createAllTasks() so
+// the UI task handle published in g_uiTaskHandle is in scope. The callbacks
+// publish a PendingActions flag and notify the UI task; the UI task drains
+// the flag inside its LVGL-mutex window and calls BurnOverlay::show() at
+// TASK_PRIO_UI — no priority flip on the USB task.
+// ---------------------------------------------------------------------------
+
+static void burnOverlayShowObserver() {
+    PendingActions::burnOverlayShow.store(true, std::memory_order_relaxed);
+    // Wake the UI task ahead of its next LVGL_HANDLER_PERIOD_MS deadline.
+    // xTaskNotifyGive is ISR-safe and never blocks; safe to call from any
+    // task including a transport task holding no LVGL state.
+    if (g_uiTaskHandle != nullptr) {
+        xTaskNotifyGive(g_uiTaskHandle);
+    }
+}
+
+static void burnOverlayShowErrorObserver(int reason) {
+    PendingActions::burnOverlayShowError.store(static_cast<int8_t>(reason),
+                                               std::memory_order_relaxed);
+    if (g_uiTaskHandle != nullptr) {
+        xTaskNotifyGive(g_uiTaskHandle);
+    }
+}
+
+static void registerBurnOverlayObserver() {
+    UsbComm::setBurnOverlayShowCallback(&burnOverlayShowObserver);
+    UsbComm::setBurnOverlayShowErrorCallback(&burnOverlayShowErrorObserver);
+}
+
+// ---------------------------------------------------------------------------
 // Create all FreeRTOS tasks using the pre-allocated static stacks and TCBs.
 // xTaskCreateStaticPinnedToCore never allocates from the heap, so it always
 // succeeds here even with the fragmented post-lv_init() heap.
@@ -142,6 +185,10 @@ static void preallocateTaskStacks() {
 static void createAllTasks() {
     TaskHandle_t uiHandle = xTaskCreateStaticPinnedToCore(
         taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack, &s_uiTaskTCB, TASK_CORE_UI);
+    // Publish the UI task handle so the BurnOverlay observer (registered in
+    // setup() below) can xTaskNotifyGive() it ahead of the regular tick
+    // cadence — see g_uiTaskHandle decl.
+    g_uiTaskHandle = uiHandle;
 
     TaskHandle_t canHandle =
         xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
@@ -227,6 +274,12 @@ void setup() {
 
     LOG_INFO("BOOT", "Boot complete — starting tasks");
     createAllTasks();
+    // BurnOverlay observer wiring (#1207 #1314) — must run AFTER createAllTasks()
+    // so g_uiTaskHandle is non-null. Until this call, UsbCommInternal::invoke*
+    // is a no-op so any CMD_PUT_CONFIG arriving in the window above proceeds
+    // without visual feedback but still completes the storage write (no race —
+    // the USB task itself isn't running until createAllTasks() returned).
+    registerBurnOverlayObserver();
     // Physical GPIO buttons (#833) — owns its own task, started here so that
     // it sees the configs already loaded by BootSequence::run().
     InputButtons::init();
@@ -352,6 +405,23 @@ inline void uiDrainPasskeyActions() {
     }
 }
 
+// 2b'. BurnOverlay drain (#1207 #1314) — runs under g_lvglMutex. The USB
+// CDC dispatch path no longer paints the overlay inline on the USB task; it
+// publishes a pending-action flag via the observer registered in setup()
+// and notifies this task to render at TASK_PRIO_UI. The error path is
+// drained AFTER the spinner show so a rapid show→error sequence collapses
+// to a single error overlay (the show is no-oped — teardownOverlay() inside
+// showError handles the previous state).
+inline void uiDrainBurnOverlayActions() {
+    if (PendingActions::takeBurnOverlayShow()) {
+        BurnOverlay::show();
+    }
+    const int8_t err = PendingActions::takeBurnOverlayShowError();
+    if (err >= 0) {
+        BurnOverlay::showError(static_cast<BurnOverlay::ErrorReason>(err));
+    }
+}
+
 // 2c. lv_task_handler() invocation with PERF_SCOPE and the APP_LV_TASK_LOG
 // duration aggregator. Runs under g_lvglMutex.
 inline void uiRunLvTaskHandler() {
@@ -380,6 +450,7 @@ inline bool uiRunMutexBody() {
     TouchDriver::poll();
     const bool didDayNightChange = uiDrainDayNightActions();
     uiDrainPasskeyActions();
+    uiDrainBurnOverlayActions();
     PageManager::updateWidgets();
     uiRunLvTaskHandler();
     xSemaphoreGive(g_lvglMutex);
@@ -478,11 +549,37 @@ inline void uiFlushLvTaskLog() {
 // BLE prio 6, Sim prio 5) never get scheduled — the USB task then misses
 // its WDT feed and the panic handler reboots the device with "usb (CPU 1)".
 // Force a 1-tick yield when we'd have returned immediately (issue #976).
+//
+// Notify-aware wait (#1207 #1314): swap xTaskDelayUntil for
+// ulTaskNotifyTake(pdTRUE, period) so a transport (USB CDC PUT_CONFIG,
+// future BLE/WS render requests) can xTaskNotifyGive(g_uiTaskHandle) and
+// wake this task ahead of the next LVGL_HANDLER_PERIOD_MS deadline. The
+// ESP-IDF ulTaskNotifyTake returns either the (now-cleared) notification
+// count, or 0 on timeout — both mean "tick the UI now". The deadline-anchor
+// behaviour of xTaskDelayUntil is replaced with `lastWake = xTaskGetTickCount()`
+// at the bottom; in steady state (no notifications) the frame cadence is
+// identical to the previous pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS) wait.
+//
+// Issue #976 overrun guard is preserved: if a frame body overruns the period
+// the notify-take returns immediately with timeout=0, so we still force a
+// 1-tick yield instead of busy-spinning.
 inline void uiThrottle(TickType_t &lastWake) {
-    if (xTaskDelayUntil(&lastWake, pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS)) == pdFALSE) {
+    const TickType_t period = pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS);
+    const TickType_t now = xTaskGetTickCount();
+    const TickType_t elapsed = now - lastWake;
+    if (elapsed >= period) {
+        // Frame body overran the period — yield one tick to lower-prio
+        // tasks (#976) instead of waiting on a notification that may
+        // never come and re-running back-to-back.
         vTaskDelay(1);
-        lastWake = xTaskGetTickCount();
+    } else {
+        // Wait up to the remaining slice of the period for either a notify
+        // (transport requesting an early render) or the deadline. pdTRUE
+        // clears the notification count on take so back-to-back notifies
+        // coalesce into one render.
+        (void)ulTaskNotifyTake(pdTRUE, period - elapsed);
     }
+    lastWake = xTaskGetTickCount();
 }
 
 } // namespace
