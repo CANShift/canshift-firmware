@@ -16,39 +16,41 @@ no kerning.
 
 | Intent     | Weight       | Sizes (px) | Files                                                  |
 | ---------- | ------------ | ---------- | ------------------------------------------------------ |
-| primary    | Black (900)  | 32, 48     | both in-flash twins (see below) — no SPIFFS .bin       |
+| primary    | Black (900)  | 32, 48     | `orbitron_black_48.bin` (32 is in-flash twin)          |
 | secondary  | Bold (700)   | 20, 24     | `orbitron_bold_{20,24}.bin`                            |
 | label      | Medium (500) | 8, 10, 12, 14, 16 | `orbitron_medium_{8,10,12,14,16}.bin` (14 is in-flash) |
 
 ## In-flash twins
 
-Three Orbitron faces are linked into flash as compiled C arrays instead of
+Two Orbitron faces are linked into flash as compiled C arrays instead of
 loaded from SPIFFS:
 
 - `src/ui/fonts/lv_font_orbitron_medium_14_nk.c` — symbol
-  `lv_font_orbitron_medium_14_nk`. Acts as the FontManager fallback when a
-  SPIFFS load fails (e.g. fresh-flash device without `pio run -t uploadfs`).
+  `lv_font_orbitron_medium_14_nk`. Acts as the FontManager fallback for
+  secondary/label tiers when a SPIFFS load fails (e.g. fresh-flash device
+  without `pio run -t uploadfs`).
 - `src/ui/fonts/lv_font_orbitron_black_32_nk.c` — symbol
   `lv_font_orbitron_black_32_nk`. Moved in-flash in PR #665 to free ~20 KB
-  of LVGL pool.
-- `src/ui/fonts/lv_font_orbitron_black_48_nk.c` — symbol
-  `lv_font_orbitron_black_48_nk`. Moved in-flash in PR #665 because hosting
-  the 43 KB binary in the LVGL pool is impossible: the 80 KB pool is shared
-  with the two LVGL draw buffers (~25 KB combined) and widget runtime state,
-  leaving roughly 50 KB available for fonts. Black 32 + Black 48 together
-  would exhaust that budget by themselves — both primary sizes therefore
-  ship as compiled C arrays and the SPIFFS-loaded set shrinks to bold/medium
-  only.
+  of LVGL pool. Also acts as the primary-tier fallback if Black 48 SPIFFS
+  load fails — primary(48) snaps down to 32 px instead of Medium 14.
+
+PR #665 originally also linked `lv_font_orbitron_black_48_nk` in flash. F-1
+of #1249 moves Black 48 to SPIFFS as `orbitron_black_48.bin`, reclaiming
+~43 KB of `.flash.rodata`. The LVGL pool budget post-#1249 is tight (~74 KB
+of 80 KB consumed); `font_manager.cpp::poolHasRoomFor()` runs as pre-flight
+and the snap-down to 32 px Black makes the failure graceful instead of a
+crash.
 
 ## Dropped
 
 The 28 px Bold and 48 px Black entries were dropped in PR #487 to fit the
-then-active LV_MEM_SIZE=64KB budget. PR #665 (issue #664) restores
-**48 px Black** via in-flash linkage. **28 px Bold remains dropped** because
-even with both primary sizes off the pool, adding 28 px Bold (15 KB) on top
-of the existing bold/medium SPIFFS budget leaves the pool too tight for
-LVGL widget runtime state. Secondary text that previously asked for 28
-snaps down to 24 instead.
+then-active LV_MEM_SIZE=64KB budget. PR #665 (issue #664) restored both
+Black sizes in-flash, then #1249 F-1 split the strategy: 32 px stays
+in-flash, 48 px moves to SPIFFS. **28 px Bold remains dropped** because
+even with primary sizes off the pool, adding 28 px Bold (15 KB) on top of
+the existing bold/medium SPIFFS budget leaves the pool too tight for LVGL
+widget runtime state. Secondary text that previously asked for 28 snaps
+down to 24 instead.
 
 ## Conversion command — SPIFFS bin
 
