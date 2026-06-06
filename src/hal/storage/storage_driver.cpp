@@ -3,11 +3,13 @@
 #include "storage_driver.h"
 #include "board_config.h"
 #include "config/config_types.h" // CFG_MAX_PATH_LEN
+#include "config/json_reader.h"  // single-instantiation parse wrapper
 #include "diag/logger.h"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
+#include <esp_heap_caps.h>
 #include <esp_partition.h>
 #include <sys/stat.h>
 
@@ -155,15 +157,45 @@ DeserializationError StorageDriver::parseJsonFile(const char *path, JsonDocument
         return DeserializationError::EmptyInput;
     }
     const size_t size = file.size();
-    DeserializationError err = deserializeJson(doc, file);
+
+    // Slurp the file into a buffer and route the parse through JsonReader::parse
+    // so the binary ships a single `JsonDeserializer<BoundedReader<const char*>>`
+    // instantiation. Previously this path called `deserializeJson(doc, file)`,
+    // adding a second `JsonDeserializer<Reader<fs::File>>` instantiation worth
+    // ~9 KB flash on production (#1249 F-2). PSRAM is preferred so the
+    // allocation lands off the constrained internal DRAM heap that #576 was
+    // about; internal DRAM is the fallback on WROOM boards / native tests.
+    char *buf = static_cast<char *>(heap_caps_malloc(size + 1, MALLOC_CAP_SPIRAM));
+    if (!buf) {
+        buf =
+            static_cast<char *>(heap_caps_malloc(size + 1, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    }
+    if (!buf) {
+        file.close();
+        LOG_WARN("STORAGE", "JSON buffer alloc (%u B) failed for %s",
+                 static_cast<unsigned>(size + 1), path);
+        if (outSize)
+            *outSize = size;
+        return DeserializationError::NoMemory;
+    }
+    const size_t read = file.readBytes(buf, size);
     file.close();
     if (outSize)
         *outSize = size;
+    if (read != size) {
+        free(buf);
+        LOG_WARN("STORAGE", "Short read on %s: %u/%u bytes", path, static_cast<unsigned>(read),
+                 static_cast<unsigned>(size));
+        return DeserializationError::IncompleteInput;
+    }
+    buf[size] = '\0';
+    DeserializationError err = JsonReader::parse(doc, buf, size);
+    free(buf);
     if (err) {
-        LOG_WARN("STORAGE", "Stream-parse %s failed: %s (size=%u)", path, err.c_str(),
+        LOG_WARN("STORAGE", "Parse %s failed: %s (size=%u)", path, err.c_str(),
                  static_cast<unsigned>(size));
     } else {
-        LOG_DEBUG("STORAGE", "Stream-parsed %s (%u bytes)", path, static_cast<unsigned>(size));
+        LOG_DEBUG("STORAGE", "Parsed %s (%u bytes)", path, static_cast<unsigned>(size));
     }
     return err;
 }

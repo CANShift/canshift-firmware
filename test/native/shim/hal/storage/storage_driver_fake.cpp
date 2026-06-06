@@ -7,6 +7,8 @@
 
 #include "hal/storage/storage_driver.h"
 
+#include "config/json_reader.h"
+
 #include <ArduinoJson.h>
 #include <string.h>
 
@@ -72,7 +74,9 @@ DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *
     }
     if (outSize)
         *outSize = f->size;
-    return deserializeJson(doc, f->data, f->size);
+    // Route through JsonReader::parse so the host build exercises the same
+    // BoundedReader<const char*> instantiation as the device build (#1249 F-2).
+    return JsonReader::parse(doc, f->data, f->size);
 }
 
 size_t fileSize(const char *path) {
