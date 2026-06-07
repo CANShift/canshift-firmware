@@ -11,10 +11,11 @@
 // size) lives in usb_dispatch.cpp because it does not share the typed
 // response-buffer sizing contract.
 //
-// Memory: a module-static s_responseBuffer (8 KB, BSS) is reused by every
-// typed handler so the hot path no longer does malloc/serializeJson/free per
-// request (#1207 medium-perf entry). The mutex is created lazily by
-// UsbCommInternal::initResponseBufferMutex(), invoked from UsbComm::init().
+// Memory: typed GET / PUT handlers heap-allocate their staging buffer per
+// request and free it before returning. The BSS pool from #1320 was reverted
+// in #1332 because its 8 KB allocation pushed WROOM boot heap consumption
+// past the budget needed for NimBLE / USB CDC / FreeRTOS object inits.
+// See follow-up #1335 for re-attempt options (smaller pool or PSRAM-only).
 
 #include "usb_comm_internal.h"
 
@@ -35,29 +36,13 @@
 
 namespace {
 
-// Module-static response buffer reused by every typed GET / PUT handler so
-// the hot path no longer does malloc/serializeJson/free per request — that
-// pattern was fragmenting internal DRAM under sustained config traffic
-// (#1207). Sized to kTypedPutMaxPayloadBytes (8 KB) which is the same cap
-// the PUT path already enforces upstream. Lives in BSS; the cost is paid
-// once at link time, not per request.
-//
-// Concurrency: a single FreeRTOS recursive mutex serialises buffer access
-// across the USB task (sendTypedConfigGet / persistTypedConfigAndReboot
-// called from handleCommand) and any future transport (TCP / WS) that
-// routes typed config commands through the same handlers. The mutex is
-// created via UsbCommInternal::initResponseBufferMutex() from
-// UsbComm::init(). On lock-timeout the handler falls back to a one-shot
-// heap alloc with an explicit log so a stuck transport can't drop a config
-// reply silently — should be rare since each handler holds the lock for
-// under 1 ms.
-// NOTE: the BSS pool from #1320 was removed — the 8 KB static buffer pushed
-// boot-time heap consumption past the WROOM DRAM budget (board has no PSRAM)
-// and tripped the FreeRTOS object allocator inside boot. The heap-fallback
-// path below was already the only correct code path on WROOM; we now use it
-// unconditionally. Revisit when PSRAM-only gating or a smaller fixed pool
-// can land safely on the tight-DRAM target.
-bool lockResponseBuffer() { return false; }
+// lockResponseBuffer / unlockResponseBuffer are vestigial stubs from the
+// reverted #1320 BSS pool. Retained so the call sites stay diff-minimal
+// against #1320's surface; future cleanup can inline them away once #1335
+// settles on the re-attempt shape.
+bool lockResponseBuffer() {
+    return false;
+}
 void unlockResponseBuffer() {}
 
 // Persist a typed-config payload to `path`, then reboot. The caller has
