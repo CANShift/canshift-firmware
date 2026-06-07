@@ -3,23 +3,8 @@
 // Each .bin lives at `S:/fonts/orbitron_<weight>_<N>.bin` (lv_font_conv
 // output). Loaded once into per-intent cached lookup tables; freed via
 // shutdown(). On load failure for any size, the accessor falls back to the
-// built-in `lv_font_orbitron_medium_14_nk` linked into flash (or the 32 px
-// Black twin for primary sizes) so the UI always renders something readable.
-//
-// LVGL pool budget post-#1249 (F-1, Black 48 moved out of flash):
-//   - LV_MEM_SIZE = 80 KB (lv_conf.h).
-//   - SPIFFS-loaded steady-state set:
-//       bold_20   ~8.3 KB · bold_24   ~11.2 KB
-//       medium_10 ~2.6 KB · medium_12 ~3.6 KB · medium_16 ~5.5 KB
-//       black_48  ~42.8 KB (added by F-1)
-//     Total ~74 KB unpacked into pool.
-//   - Remaining ~6 KB hosts widget runtime state (styles, draw descriptors).
-//   - `poolHasRoomFor()` runs as pre-flight on every load — if the budget
-//     ever tightens (extra glyph range, larger widget set), Black 48 is the
-//     first to be skipped and primary(48) snaps down to in-flash Black 32.
-//     `FONT_POOL_OOM` lands in ErrorStore so the regression is observable
-//     instead of silent. Raise LV_MEM_SIZE only after measuring widget
-//     allocations on hardware — past attempts at 88/96 KB broke boot.
+// built-in `lv_font_orbitron_medium_14_nk` linked into flash so the UI always
+// renders something readable.
 
 #include "font_manager.h"
 #include "diag/error_store.h"
@@ -31,19 +16,19 @@
 #include <stdio.h>
 #include <string.h>
 
-// In-flash Orbitron Black 32 px — the symbol lives in
-// src/ui/fonts/lv_font_orbitron_black_32_nk.c. 32 px stays in flash because
-// the LVGL pool would not accommodate both Black sizes alongside the
-// bold/medium SPIFFS loads (issue #664, PR #665). Black 48 was moved to
-// SPIFFS in #1249 (F-1) — see `loadOne("black", "primary", 48, …)` below.
-// The 32 px in-flash copy doubles as the snap-down fallback if the 48 px
-// SPIFFS load fails (missing uploadfs, pool too tight, etc).
+// In-flash Orbitron Black 32 + 48 px — declared here (not in lv_conf.h, which
+// already exposes the 14 px Medium twin via LV_FONT_CUSTOM_DECLARE). The
+// symbols live in src/ui/fonts/lv_font_orbitron_black_{32,48}_nk.c. Both
+// primary sizes ship in-flash because the 80 KB LVGL pool is shared with the
+// LVGL draw buffers (~25 KB) — there is no room to host the 43 KB 48 px Black
+// binary in pool alongside the bold/medium SPIFFS loads (issue #664, PR #665).
 LV_FONT_DECLARE(lv_font_orbitron_black_32_nk);
+LV_FONT_DECLARE(lv_font_orbitron_black_48_nk);
 
 namespace {
 
 // Sizes shipped per tier. Driven by actual call sites (see issues #431 + #487
-// + #664 + #1249):
+// + #664):
 //   primary   — gauge/timer/gear at full panel height, label_widget large
 //   secondary — gauge/timer mid-band, gear mid, burn_overlay icon
 //   label     — top bar text, signal headers, settings, error bar, dot/icon
@@ -52,18 +37,17 @@ namespace {
 //   - 32 px Black stays declared as a primary size, linked in-flash
 //     (lv_font_orbitron_black_32_nk in src/ui/fonts/) instead of loaded from
 //     SPIFFS.
-//   - 48 px Black ships as a SPIFFS-loaded .bin (#1249 F-1, moved out of
-//     flash to reclaim ~43 KB). `loadOne` runs the same `poolHasRoomFor`
-//     pre-flight as the other SPIFFS sizes — if the LVGL pool cannot hold
-//     the ~43 KB binary alongside the bold/medium loads, the slot stays
-//     null and `resolve()` snaps primary(48) down to the 32 px in-flash
-//     copy. Worst case: numerics render at 32 px instead of 48 px and a
-//     `FONT_POOL_OOM` entry lands in ErrorStore — never a crash.
+//   - 48 px Black is restored as a primary size, also linked in-flash
+//     (lv_font_orbitron_black_48_nk in src/ui/fonts/). Hosting it in the LVGL
+//     pool was attempted first but failed at boot: the 80 KB pool is shared
+//     with the LVGL draw buffers (~25 KB) and widget runtime state, leaving
+//     ~50 KB for fonts — not enough for the 43 KB 48 px binary alongside the
+//     bold/medium loads. Flash linkage sidesteps the pool entirely.
 //   - 28 px Bold was reintroduced earlier on this branch then dropped:
 //     even with both primary sizes in flash, adding the 15 KB 28 px Bold on
 //     top of the existing bold/medium SPIFFS budget pushes the pool past its
 //     working ceiling. 28 stays dropped (secondary text snaps to 24 px).
-constexpr uint8_t kPrimarySizes[] = {32, 48};   // 32 in-flash, 48 from SPIFFS
+constexpr uint8_t kPrimarySizes[] = {32, 48};   // both in-flash
 constexpr uint8_t kSecondarySizes[] = {20, 24}; // 28 dropped — pool too tight
 // 8 + 10 added for widget labels — Studio renders them at 6-9 px (#1207 follow-up,
 // 2026-06-01 user feedback); the 12 px floor used to make them ~30 % wider than
@@ -177,15 +161,13 @@ void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font
     slot = font;
 }
 
-// Snaps `size` to a cached entry, returning the cached font or `fallback`
-// when the slot is null. Primary callers pass the 32 px Black in-flash copy
-// so primary(48) snaps to 32 px on SPIFFS load failure; secondary/label
-// callers pass the 14 px Medium in-flash copy (the existing global default).
+// Snaps `size` to a cached entry, returning the cached font or the in-flash
+// fallback (`lv_font_orbitron_medium_14_nk`) when the slot is null.
 const lv_font_t *resolve(const uint8_t *sizes, size_t count, const lv_font_t *const *cache,
-                         uint8_t size, const lv_font_t *fallback) {
+                         uint8_t size) {
     const size_t idx = snapIndex(sizes, count, size);
     const lv_font_t *const cached = cache[idx];
-    return (cached != nullptr) ? cached : fallback;
+    return (cached != nullptr) ? cached : &lv_font_orbitron_medium_14_nk;
 }
 
 } // namespace
@@ -196,12 +178,11 @@ void FontManager::init() {
     }
     LOG_INFO("FONT", "Loading font family 'orbitron'");
 
-    // Primary tier (Black) — 32 px in-flash, 48 px from SPIFFS.
-    // #1249 F-1: 48 px moved out of flash to reclaim ~43 KB; on SPIFFS load
-    // failure `resolve()` snaps primary(48) down to the in-flash 32 px.
+    // Primary tier (Black) — both sizes shipped in-flash; no SPIFFS load.
     s_primary[0] = &lv_font_orbitron_black_32_nk;
     LOG_INFO("FONT", "orbitron_black_32: using in-flash copy (saves ~20 KB pool)");
-    loadOne("black", "primary", kPrimarySizes[1], s_primary[1]);
+    s_primary[1] = &lv_font_orbitron_black_48_nk;
+    LOG_INFO("FONT", "orbitron_black_48: using in-flash copy (saves ~44 KB pool)");
 
     // Secondary tier (Bold) — all sizes from SPIFFS.
     for (size_t i = 0; i < kSecondaryCount; ++i) {
@@ -228,7 +209,8 @@ void FontManager::shutdown() {
         for (size_t i = 0; i < count; ++i) {
             // Skip flash-resident fonts — never pool-allocated, so never freed.
             const bool isInFlash = slots[i] == &lv_font_orbitron_medium_14_nk ||
-                                   slots[i] == &lv_font_orbitron_black_32_nk;
+                                   slots[i] == &lv_font_orbitron_black_32_nk ||
+                                   slots[i] == &lv_font_orbitron_black_48_nk;
             if (slots[i] != nullptr && !isInFlash) {
                 lv_font_free(const_cast<lv_font_t *>(slots[i]));
             }
@@ -242,16 +224,13 @@ void FontManager::shutdown() {
 }
 
 const lv_font_t *FontManager::primary(uint8_t size) {
-    // Primary fallback is the 32 px Black in-flash copy so a Black-48 SPIFFS
-    // miss still renders Black numerics (snap-down), never Medium 14.
-    return resolve(kPrimarySizes, kPrimaryCount, s_primary, size, &lv_font_orbitron_black_32_nk);
+    return resolve(kPrimarySizes, kPrimaryCount, s_primary, size);
 }
 
 const lv_font_t *FontManager::secondary(uint8_t size) {
-    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size,
-                   &lv_font_orbitron_medium_14_nk);
+    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size);
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {
-    return resolve(kLabelSizes, kLabelCount, s_label, size, &lv_font_orbitron_medium_14_nk);
+    return resolve(kLabelSizes, kLabelCount, s_label, size);
 }
