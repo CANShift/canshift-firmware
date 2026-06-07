@@ -51,26 +51,14 @@ namespace {
 // heap alloc with an explicit log so a stuck transport can't drop a config
 // reply silently — should be rare since each handler holds the lock for
 // under 1 ms.
-uint8_t s_responseBuffer[UsbCommInternal::kTypedPutMaxPayloadBytes];
-SemaphoreHandle_t s_responseBufferMutex = nullptr;
-
-// Bounded timeout mirrors the sink-mutex contract: long enough to absorb a
-// concurrent handler's serialize+send pass (<1 ms typical) without
-// indefinitely blocking a stuck caller.
-constexpr TickType_t kResponseBufferLockTimeout = pdMS_TO_TICKS(50);
-
-// Acquire / release the response buffer mutex. Returns true on success.
-// Callers that get false fall back to a one-shot malloc.
-bool lockResponseBuffer() {
-    if (!s_responseBufferMutex)
-        return false;
-    return xSemaphoreTakeRecursive(s_responseBufferMutex, kResponseBufferLockTimeout) == pdTRUE;
-}
-
-void unlockResponseBuffer() {
-    if (s_responseBufferMutex)
-        xSemaphoreGiveRecursive(s_responseBufferMutex);
-}
+// NOTE: the BSS pool from #1320 was removed — the 8 KB static buffer pushed
+// boot-time heap consumption past the WROOM DRAM budget (board has no PSRAM)
+// and tripped the FreeRTOS object allocator inside boot. The heap-fallback
+// path below was already the only correct code path on WROOM; we now use it
+// unconditionally. Revisit when PSRAM-only gating or a smaller fixed pool
+// can land safely on the tight-DRAM target.
+bool lockResponseBuffer() { return false; }
+void unlockResponseBuffer() {}
 
 // Persist a typed-config payload to `path`, then reboot. The caller has
 // already validated that `subValue` is non-null and matches the expected
@@ -90,29 +78,19 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
         return;
     }
 
-    bool ok = false;
-    size_t written = 0;
-    if (lockResponseBuffer()) {
-        written = serializeJson(out, s_responseBuffer, sizeof(s_responseBuffer));
-        ok = StorageDriver::writeFileAtomic(path, s_responseBuffer, written);
-        unlockResponseBuffer();
-    } else {
-        // Fallback: mutex unavailable / contended. One-shot heap alloc keeps
-        // the handler correct under contention; the warn lets us catch a
-        // regression where this path stops being rare.
-        LOG_WARN("USB", "PUT %s: response pool unavailable — heap fallback (%u B)", path,
-                 static_cast<unsigned>(needed));
-        uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
-        if (!buf) {
-            LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
-                      static_cast<unsigned>(needed));
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
-            return;
-        }
-        written = serializeJson(out, buf, needed);
-        ok = StorageDriver::writeFileAtomic(path, buf, written);
-        free(buf);
+    // Heap-on-demand staging — the BSS pool was removed (see file header
+    // comment); on this tight-DRAM board the heap-fallback path is the only
+    // option. malloc/free per call accepts the fragmentation risk.
+    uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
+    if (!buf) {
+        LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
+                  static_cast<unsigned>(needed));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+        return;
     }
+    const size_t written = serializeJson(out, buf, needed);
+    const bool ok = StorageDriver::writeFileAtomic(path, buf, written);
+    free(buf);
 
     if (!ok) {
         LOG_ERROR("USB", "PUT %s: storage write failed", path);
@@ -133,15 +111,7 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
 namespace UsbCommInternal {
 
 void initResponseBufferMutex() {
-    if (s_responseBufferMutex)
-        return;
-    s_responseBufferMutex = xSemaphoreCreateRecursiveMutex();
-    if (!s_responseBufferMutex) {
-        // No fatal halt — typed GET/PUT handlers fall back to one-shot
-        // heap allocs when the mutex is unavailable, restoring the
-        // pre-#1207 behaviour. Logged so a recurring fallback is visible.
-        LOG_WARN("USB", "Response buffer mutex alloc failed — typed config will heap-alloc");
-    }
+    // No-op since the BSS pool was removed — heap-fallback only on WROOM.
 }
 
 // Send a `{"status":"ok","<key>":<value>}` envelope by parsing the on-disk
@@ -184,19 +154,8 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     resp[fieldKey] = body;
 
     const size_t needed = measureJson(resp) + 1; // payload + NUL terminator
-    if (needed <= sizeof(s_responseBuffer) && lockResponseBuffer()) {
-        char *buf = reinterpret_cast<char *>(s_responseBuffer);
-        const size_t written = serializeJson(resp, buf, sizeof(s_responseBuffer));
-        buf[written] = '\0';
-        UsbComm::sendLine(buf);
-        unlockResponseBuffer();
-        return;
-    }
-
-    // Fallback: payload larger than the pool, or mutex unavailable / contended.
-    // Should be rare — log so we can spot a regression if it stops being rare.
-    LOG_WARN("USB", "GET %s: response pool unavailable (need %u B, pool %u B) — heap fallback",
-             path, static_cast<unsigned>(needed), static_cast<unsigned>(sizeof(s_responseBuffer)));
+    // Heap-on-demand staging — see file header comment for why the BSS pool
+    // was removed.
     char *buf = static_cast<char *>(malloc(needed));
     if (!buf) {
         LOG_ERROR("USB", "GET %s: response buffer alloc (%u B) failed", path,
