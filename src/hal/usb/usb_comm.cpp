@@ -171,6 +171,12 @@ static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
 
 size_t s_rxPos = 0;
 
+// Set when an overflowing line is in progress — subsequent bytes are
+// dropped until the next newline so the partial buffer isn't reused as a
+// fresh command and a `line_too_long` error has time to flush back to the
+// host (#1341).
+bool s_rxDraining = false;
+
 // Tick counter for telemetry scheduling (tick() runs every 20ms)
 uint8_t s_tickCount = 0;
 
@@ -333,6 +339,7 @@ void UsbComm::reserveRxBuf() {
 
 void UsbComm::init() {
     s_rxPos = 0;
+    s_rxDraining = false;
     s_tickCount = 0;
     // Defensive — happy path is reserveRxBuf() from setup() before lv_init();
     // this fallback only fires if main.cpp skipped that call.
@@ -507,6 +514,16 @@ void UsbComm::tick() {
         // is open even between command lines.
         UsbCommInternal::s_lastHostCmdMs = millis();
 
+        // Drain mode: an earlier byte tripped the buffer cap. Skip everything
+        // until the next newline so the leftover tail of the oversized line
+        // isn't interpreted as a fresh command (#1341).
+        if (s_rxDraining) {
+            if (c == '\n') {
+                s_rxDraining = false;
+            }
+            continue;
+        }
+
         if (c == '\n') {
             UsbCommInternal::s_rxBuf[s_rxPos] = '\0';
             if (s_rxPos > 0) {
@@ -516,8 +533,16 @@ void UsbComm::tick() {
         } else if (s_rxPos < USB_RX_BUF_SIZE - 1) {
             UsbCommInternal::s_rxBuf[s_rxPos++] = c;
         } else {
-            LOG_WARN("USB", "RX buffer overflow — discarding packet");
+            // Overflow: emit an explicit protocol error so the host can
+            // distinguish "command silently dropped" from "command accepted",
+            // then drain the rest of the line. Pre-#1341 we reset `s_rxPos` and
+            // started overwriting from byte 0, which interleaved tail-of-A with
+            // head-of-B and the host got no signal that anything went wrong.
+            LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
+                     static_cast<unsigned>(USB_RX_BUF_SIZE - 1));
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"line_too_long\"}");
             s_rxPos = 0;
+            s_rxDraining = true;
         }
     }
 

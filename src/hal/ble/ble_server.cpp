@@ -200,13 +200,18 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonDocument doc;
         doc["brightness"] = SettingsPage::getBrightness();
         char buf[64];
-        // Same truncation guard as updateStatus(): never push a half-serialised
-        // payload to a subscriber — leave the prior value visible (#936).
+        // Truncation guard: never push a half-serialised payload to a
+        // subscriber (#936). Pre-#1341 we returned here without writing,
+        // which left the peer reading whatever the prior call had put on the
+        // characteristic — a stale-data bug as soon as anyone bumps the
+        // payload schema past 63 bytes. Write a canary instead so the peer
+        // sees an explicit error sentinel and can decide to refetch / surface
+        // it to the user.
         const size_t len = serializeJson(doc, buf, sizeof(buf));
         if (len == 0 || len >= sizeof(buf)) {
-            LOG_WARN("BLE",
-                     "SETTINGS read payload truncated (len=%u, cap=%u) — keeping prior value",
+            LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",
                      static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
+            pChar->setValue("{\"err\":\"too_long\"}");
             return;
         }
         pChar->setValue(buf);
