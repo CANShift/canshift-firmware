@@ -20,7 +20,6 @@
 
     #include "can/signal_map.h"
     #include "diag/logger.h"
-    #include "hal/wifi/wifi_ap.h"
     #include "runtime/signal_store.h"
     #include "util/format_float.h"
 
@@ -118,10 +117,9 @@ size_t buildTelemetryPayload(char *buf, size_t bufSize) {
 
 // 2s STATUS refresh divider — kept module-static so the emit pump retains
 // byte-identical behaviour with the pre-split `tick()`'s function-local
-// `static uint8_t s_statusDiv = 0; static bool s_prevApActive = false;`.
+// `static uint8_t s_statusDiv = 0;`.
 // These intentionally persist across stop()/start() cycles (same as before).
 uint8_t s_statusDiv = 0;
-bool s_prevApActive = false;
 
 } // namespace
 
@@ -154,17 +152,10 @@ void emitTelemetry() {
         pTele->notify();
     }
 
-    // Refresh STATUS every 2s; notify if AP state changed (e.g. timeout)
+    // Refresh STATUS every 2s.
     if (++s_statusDiv >= 20) {
         BleServerInternal::updateStatus();
         s_statusDiv = 0;
-        bool apNow = WifiAp::isActive();
-        if (apNow != s_prevApActive) {
-            s_prevApActive = apNow;
-            auto *pStatus = BleServerInternal::s_pStatus;
-            if (pStatus && pStatus->getSubscribedCount() > 0)
-                pStatus->notify();
-        }
     }
 }
 

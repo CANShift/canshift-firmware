@@ -18,7 +18,6 @@
 #include "hal/ble/ble_server.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
-#include "hal/wifi/wifi_ap.h"
 #include "diag/logger.h"
 
 #include <Preferences.h>
@@ -54,18 +53,11 @@ static constexpr bool DEFAULT_BLE_ENABLED = (BLE_DEFAULT_ENABLED != 0);
 
 uint8_t s_brightness = DEFAULT_BRIGHTNESS;
 bool s_bleEnabled = DEFAULT_BLE_ENABLED;
-// WiFi AP auto-start mirror — sourced from NVS via WifiAp::isAutoStartEnabled()
-// at init() time so the segmented button paints the right initial state.
-// Writes are immediate (no SAVE round-trip needed) because the AP comes up /
-// drops the moment the toggle flips, and the persisted flag is the source of
-// truth for the boot sequence (#1077 audit blocker #3).
-bool s_wifiApAutoStart = false;
 
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_brSlider = nullptr;
 lv_obj_t *s_brValue = nullptr;
 lv_obj_t *s_bleBtns[2] = {};
-lv_obj_t *s_wifiApBtns[2] = {};
 
 bool s_open = false;
 bool s_dragging = false;
@@ -136,24 +128,6 @@ void updateBleButtons() {
     }
 }
 
-// Mirror of updateBleButtons() for the WiFi AP segmented row. Kept verbatim
-// (same style ops, same active-bit math) so a future refactor can collapse
-// the two without subtle drift in border / text-color picking.
-void updateWifiApButtons() {
-    const bool active[2] = {s_wifiApAutoStart, !s_wifiApAutoStart}; // ON=idx0, OFF=idx1
-    for (uint8_t i = 0; i < 2; ++i) {
-        if (!s_wifiApBtns[i])
-            continue;
-        lv_obj_set_style_bg_color(s_wifiApBtns[i],
-                                  lv_color_hex(active[i] ? CLR_BTN_ACT : CLR_BTN_BG), LV_PART_MAIN);
-        lv_obj_set_style_border_color(
-            s_wifiApBtns[i], lv_color_hex(active[i] ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_t *lbl = lv_obj_get_child(s_wifiApBtns[i], 0);
-        if (lbl)
-            lv_obj_set_style_text_color(lbl, lv_color_hex(active[i] ? CLR_ACCENT : CLR_MUTED), 0);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Event callbacks
 // ---------------------------------------------------------------------------
@@ -172,19 +146,6 @@ void onBleBtn(lv_event_t *e) {
     updateBleButtons();
 #if APP_BLE_ENABLED
     BleServer::setPendingEnabled(s_bleEnabled);
-#endif
-}
-
-// WiFi AP segmented toggle — unlike BLE there is no SAVE round-trip:
-// WifiAp::setAutoStartEnabled() persists to NVS *and* brings the AP up or
-// drops it immediately, so the dash-hosted Studio path becomes reachable
-// the moment the user picks ON.
-void onWifiApBtn(lv_event_t *e) {
-    uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-    s_wifiApAutoStart = (idx == 0);
-    updateWifiApButtons();
-#if APP_BLE_ENABLED
-    WifiAp::setAutoStartEnabled(s_wifiApAutoStart);
 #endif
 }
 
@@ -211,19 +172,13 @@ void onSave(lv_event_t * /*e*/) {
 void onReset(lv_event_t * /*e*/) {
     s_brightness = DEFAULT_BRIGHTNESS;
     s_bleEnabled = DEFAULT_BLE_ENABLED;
-    // WiFi AP default-off matches the dormant-until-opt-in policy. Persist
-    // immediately (mirrors setAutoStartEnabled behaviour) so a RESET ->
-    // close cycle never leaves the AP running against the persisted "OFF".
-    s_wifiApAutoStart = false;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
     updateBleButtons();
-    updateWifiApButtons();
     applyBrightness();
 #if APP_BLE_ENABLED
     BleServer::setPendingEnabled(s_bleEnabled);
-    WifiAp::setAutoStartEnabled(s_wifiApAutoStart);
 #endif
 }
 

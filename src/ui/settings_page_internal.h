@@ -64,7 +64,6 @@ static constexpr uint8_t DEFAULT_BRIGHTNESS = 80;
 
 extern uint8_t s_brightness;
 extern bool s_bleEnabled;
-extern bool s_wifiApAutoStart;
 
 // LVGL handles — created by settings_page_ui.cpp during init, mutated by the
 // state machine when broadcasting state changes back to the widget tree.
@@ -72,7 +71,6 @@ extern lv_obj_t *s_panel;
 extern lv_obj_t *s_brSlider;
 extern lv_obj_t *s_brValue;
 extern lv_obj_t *s_bleBtns[2];
-extern lv_obj_t *s_wifiApBtns[2];
 
 extern bool s_open;
 extern bool s_dragging;
@@ -92,17 +90,15 @@ void nvsSave();
 
 void applyBrightness();
 
-// State→UI sync — push the current s_brightness / s_bleEnabled /
-// s_wifiApAutoStart value into the corresponding widget(s).
+// State→UI sync — push the current s_brightness / s_bleEnabled value into the
+// corresponding widget(s).
 void updateBrValue();
 void updateBleButtons();
-void updateWifiApButtons();
 
 // LVGL event callbacks. Declared with C-style void* user data so the builder
 // can wire them directly into lv_obj_add_event_cb().
 void onBrightnessChanged(lv_event_t *e);
 void onBleBtn(lv_event_t *e);
-void onWifiApBtn(lv_event_t *e);
 void onCalibrateTouch(lv_event_t *e);
 void onResetTouchCal(lv_event_t *e);
 void onSave(lv_event_t *e);
@@ -122,7 +118,6 @@ void buildBrightnessRow(int16_t &y, int16_t rowW);
 // favour of WiFi-implied BLE control — but the builder is kept as a hidden
 // surface so the row can be re-enabled without re-deriving the layout.
 void buildBleRow(int16_t &y, int16_t rowW);
-void buildWifiApRow(int16_t &y, int16_t rowW);
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW);
 void buildResetTouchCalRow(int16_t &y, int16_t rowW);
 void buildActionsRow(int16_t y, int16_t rowW);

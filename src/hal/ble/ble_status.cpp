@@ -17,7 +17,6 @@
     #include "ble_server_internal.h"
 
     #include "diag/logger.h"
-    #include "hal/wifi/wifi_ap.h"
     #include "runtime/signal_store.h"
     #include "can/signal_map.h"
     #include "ui/theme_manager.h"
@@ -40,13 +39,6 @@ void updateStatus() {
     doc["ver"] = APP_VERSION_STR;
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
-    if (WifiAp::isActive()) {
-        doc["ap_ssid"] = WifiAp::getSsid();
-        // ap_password intentionally NOT included here — STATUS notifies are
-        // visible to every subscriber, and the password used to ride that
-        // stream in cleartext (#873). Paired+encrypted mobile clients read
-        // the password by GATTing the dedicated AP_PWD characteristic.
-    }
     char buf[128];
     // ArduinoJson silently truncates when the output buffer is too small;
     // a truncated STATUS payload is invalid JSON and crashes the mobile

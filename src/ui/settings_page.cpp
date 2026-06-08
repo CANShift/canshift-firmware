@@ -14,7 +14,6 @@
 #include "settings_page_internal.h"
 
 #include "app_config.h"
-#include "hal/wifi/wifi_ap.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -28,13 +27,6 @@ using namespace SettingsPageInternal;
 
 void SettingsPage::init(int16_t yOffset, int16_t height) {
     nvsLoad();
-    // WiFi AP auto-start lives in the "wifi_ap" NVS namespace (owned by
-    // WifiAp), not "screen_cfg" — read through the WifiAp API so both
-    // owners agree on the persisted value. Defaults to OFF on a fresh
-    // device (no NVS entry) so the AP stays dormant until the user opts in.
-#if APP_BLE_ENABLED
-    s_wifiApAutoStart = WifiAp::isAutoStartEnabled();
-#endif
 
     const int16_t panelW = LV_HOR_RES;
     const int16_t rowW = panelW - PAD_H * 2;
@@ -46,11 +38,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     buildHeader(y);
     y += GAP_ROW;
     buildBrightnessRow(y, rowW);
-    y += GAP_ROW;
-    // BLE toggle removed — BLE is now auto-enabled by default and skipped at
-    // boot when the WiFi AP is opted in (see `BleServer::earlyInit`). The
-    // user controls Bluetooth implicitly via the WiFi toggle below.
-    buildWifiApRow(y, rowW);
     y += GAP_ROW;
     buildCalibrateTouchRow(y, rowW);
     y += GAP_INNER;
@@ -107,10 +94,6 @@ uint8_t SettingsPage::getBrightness() {
 
 bool SettingsPage::getBleEnabled() {
     return s_bleEnabled;
-}
-
-bool SettingsPage::getWifiApAutoStart() {
-    return s_wifiApAutoStart;
 }
 
 // ---------------------------------------------------------------------------

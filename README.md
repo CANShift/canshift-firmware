@@ -6,13 +6,15 @@
 
 ESP32 firmware for the CANShift configurable automotive dashboard.
 
+> 🚨 **Architecture refactor (#1351)** — the WiFi stack, WebServer, WS bridge, and SPA-on-SPIFFS pipeline were removed in this PR. Studio is now hosted on Vercel as [`canshift-tuner`](../canshift-tuner/) and talks to the dash over WebSerial via the CH340 UART. Existing devices need a USB reflash via the Tuner — OTA between the WiFi-extended layout and the new one is unsafe (the bootloader-visible partition table changed).
+
 - **Platform:** Elecrow CrowPanel 2.8" (ESP32-WROOM-32, 320×240 ILI9341 + XPT2046 touch)
 - **Framework:** PlatformIO + Arduino + C++17
 - **UI:** LVGL 8.3 (`lvgl/lvgl @ ^8.3.11`)
 - **CAN:** ESP32 TWAI + [Adafruit CAN Pal (TJA1051T/3)](https://www.digikey.ch/fr/products/detail/adafruit-industries-llc/5708/18716420)
-- **Wireless:** NimBLE GATT (`h2zero/NimBLE-Arduino @ ^1.4.3`) + optional WiFi softAP for OTA and Studio transport (`links2004/WebSockets @ ^2.7.3` for the WS bridge — #1105)
+- **Wireless:** NimBLE GATT (`h2zero/NimBLE-Arduino @ ^1.4.3`)
 
-Library versions are pinned in [`platformio.ini`](platformio.ini) (lines 107–119).
+Library versions are pinned in [`platformio.ini`](platformio.ini).
 
 ---
 
@@ -69,19 +71,11 @@ pio run                          # Build only
 pio run --target upload          # Build and flash firmware
 pio run --target uploadfs        # Upload SPIFFS filesystem (data/)
 pio device monitor               # Serial monitor at 115200 baud
-
-# Dash-hosted Studio (WiFi build) — needs both firmware AND SPIFFS
-pio run -e crowpanel_28_wifi --target upload
-pio run -e crowpanel_28_wifi --target uploadfs  # mandatory for the SPA (#1123)
 ```
 
 First boot provisions the embedded default config files automatically — no
 manual asset copy step is required. Fonts and icons under `data/assets/` and
-`data/fonts/` ship to the device via `pio run -t uploadfs`. On
-`[env:crowpanel_28_wifi]`, `data/w/*` also lives on SPIFFS (gzipped SPA
-bundle for the dash-hosted Studio, post-#1123 follow-up); without the
-`uploadfs` step the dash boots normally but `http://canshift.local/`
-returns 404 until the SPIFFS image lands.
+`data/fonts/` ship to the device via `pio run -t uploadfs`.
 
 ### Logging knobs
 

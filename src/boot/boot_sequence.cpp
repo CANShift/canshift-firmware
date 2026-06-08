@@ -37,11 +37,6 @@ extern SemaphoreHandle_t g_lvglMutex;
 
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
-    #include "hal/wifi/wifi_ap.h"
-#endif
-
-#if APP_BLE_ENABLED && APP_WIFI_OTA_ENABLED
-    #include "hal/wifi/ota_hmac.h"
 #endif
 
 #include <Arduino.h>
@@ -484,34 +479,6 @@ static void initUsbCommPhase() {
     updateSplash("USB ready", 90);
 }
 
-// WiFi AP auto-start phase (#1077 audit blocker #3, fix #1263). When the
-// user has previously toggled the on-device Settings WIFI AP row to ON, the
-// preference persists in NVS (namespace "wifi_ap", key "auto"). The actual
-// AP start is **deferred to the UI task** via `WifiAp::tickAutoStart()` —
-// the post-boot heap is at its tightest right here (LVGL pool taken, fonts
-// loaded, widgets about to allocate) and a refused start at boot used to
-// leave the user stuck with no SSID. Polling in the UI task brings the AP
-// up the moment the heap relaxes (typically within a couple of seconds of
-// boot completing). See `taskUI` in main.cpp.
-static void noteWifiApAutoStartPersisted() {
-#if APP_BLE_ENABLED
-    if (WifiAp::isAutoStartEnabled()) {
-        LOG_INFO("BOOT", "WiFi AP auto-start enabled — deferred to UI task tick");
-    }
-#endif
-}
-
-// Boot-time diagnostic for the OTA HMAC key (issue #521). Eagerly resolves
-// the in-use key — provoking the first-boot NVS generation when applicable
-// — and logs only the SHA-256 prefix plus provenance. Running this early
-// also means the first OTA upload doesn't pay the generate+persist cost
-// inside the WebServer upload callback.
-static void logOtaHmacKeyDiag() {
-#if APP_BLE_ENABLED && APP_WIFI_OTA_ENABLED && APP_OTA_REQUIRE_HMAC
-    OtaHmac::logBootKeyFingerprint();
-#endif
-}
-
 // Build the UI from config.
 // updateSplash("Ready") must happen BEFORE buildUI() because
 // PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
@@ -599,8 +566,6 @@ void BootSequence::run() {
     initRuntimeServices();
     initCanHardwarePhase();
     initUsbCommPhase();
-    logOtaHmacKeyDiag();
-    noteWifiApAutoStartPersisted();
     buildUiWithHeapBracket();
 
     holdSplashUntilMin(bootStartMs);

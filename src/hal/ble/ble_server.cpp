@@ -1,11 +1,14 @@
 // ble_server.cpp — BLE GATT server (NimBLE stack)
 //
 // Orchestrator after the #1207 split: owns the NimBLE stack lifecycle,
-// advertising, GATT service tree, the SETTINGS / CMD / AP_PWD callback
-// classes, and the public `BleServer::` API surface. Status-payload encoding
-// lives in `ble_status.cpp`; telemetry frame encoding + emit pump lives in
+// advertising, GATT service tree, the SETTINGS and CMD callback classes,
+// and the public `BleServer::` API surface. Status-payload encoding lives
+// in `ble_status.cpp`; telemetry frame encoding + emit pump lives in
 // `ble_telemetry.cpp`. Cross-TU forward decls + state externs are in
 // `ble_server_internal.h`.
+//
+// The AP_PWD characteristic + start_wifi_ap/stop_wifi_ap commands were
+// removed alongside the WiFi stack — see #1351.
 
 #include "app_config.h"
 #if APP_BLE_ENABLED
@@ -17,7 +20,6 @@
     #include "config/rotation_config.h"
     #include "diag/logger.h"
     #include "diag/lvgl_lock_guard.h"
-    #include "hal/wifi/wifi_ap.h"
     #include "runtime/pending_actions.h"
     #include "runtime/track_store.h"
     #include "ui/settings_page.h"
@@ -47,10 +49,6 @@ static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
 static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
 static constexpr char SETTINGS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000004";
 static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
-// AP password lives on a dedicated, encryption-gated characteristic instead
-// of riding the STATUS notification. Without this split, the WiFi AP password
-// was broadcast over BLE in cleartext to any subscriber within ~30 m (#873).
-static constexpr char AP_PWD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000006";
 
 // ---------------------------------------------------------------------------
 // State
@@ -219,28 +217,8 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 // ---------------------------------------------------------------------------
-// AP_PWD read callback
-// Returns the current WiFi AP password on demand. The characteristic is
-// declared `READ_ENC`, so NimBLE refuses unencrypted reads at the stack
-// level — only a paired+bonded mobile client can resolve this read.
-// Returns an empty string when the AP is not currently active so a paired
-// client can poll the characteristic without having to subscribe to STATUS.
-// (#873)
-// ---------------------------------------------------------------------------
-
-class ApPasswordCallbacks : public NimBLECharacteristicCallbacks {
-    void onRead(NimBLECharacteristic *pChar) override {
-        if (WifiAp::isActive()) {
-            pChar->setValue(WifiAp::getPassword());
-        } else {
-            pChar->setValue("");
-        }
-    }
-};
-
-// ---------------------------------------------------------------------------
 // CMD write callback
-// Payload: {"cmd":"start_wifi_ap"} | {"cmd":"reboot"}
+// Payload: {"cmd":"reboot"} | {"cmd":"toggle_day_night"} | ...
 // ---------------------------------------------------------------------------
 
 class CmdCallbacks : public NimBLECharacteristicCallbacks {
@@ -260,23 +238,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
 
         const char *cmd = doc["cmd"] | "";
 
-        if (strcmp(cmd, "start_wifi_ap") == 0) {
-            WifiAp::start();
-            LOG_INFO("BLE", "CMD: starting WiFi AP — SSID: %s", WifiAp::getSsid());
-            BleServerInternal::updateStatus();
-            // s_pStatus is null when GATT setup failed (heap-too-low) or after
-            // a runtime BleServer::stop() — guard before notifying (#1007).
-            auto *pStatus = BleServerInternal::s_pStatus;
-            if (pStatus && pStatus->getSubscribedCount() > 0)
-                pStatus->notify();
-        } else if (strcmp(cmd, "stop_wifi_ap") == 0) {
-            LOG_INFO("BLE", "CMD: stopping WiFi AP");
-            WifiAp::stop();
-            BleServerInternal::updateStatus();
-            auto *pStatus = BleServerInternal::s_pStatus;
-            if (pStatus && pStatus->getSubscribedCount() > 0)
-                pStatus->notify();
-        } else if (strcmp(cmd, "toggle_day_night") == 0) {
+        if (strcmp(cmd, "toggle_day_night") == 0) {
             // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
             PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: day/night toggle queued");
@@ -338,7 +300,6 @@ void setupGatt() {
     static ServerCallbacks s_serverCb;
     static SettingsCallbacks s_settingsCb;
     static CmdCallbacks s_cmdCb;
-    static ApPasswordCallbacks s_apPwdCb;
 
     NimBLEServer *pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(&s_serverCb);
@@ -377,11 +338,6 @@ void setupGatt() {
     NimBLECharacteristic *pCmd = pSvc->createCharacteristic(
         CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
     pCmd->setCallbacks(&s_cmdCb);
-
-    NimBLECharacteristic *pApPwd =
-        pSvc->createCharacteristic(AP_PWD_UUID, NIMBLE_PROPERTY::READ_ENC);
-    pApPwd->setCallbacks(&s_apPwdCb);
-    pApPwd->setValue("");
 
     pSvc->start();
 
@@ -452,18 +408,6 @@ bool startStack() {
 // ---------------------------------------------------------------------------
 
 void BleServer::earlyInit() {
-    // Mutual exclusion with WiFi AP — BLE and WiFi share the ESP32 radio
-    // AND together exceed contiguous DRAM after lv_init() on no-PSRAM WROOM
-    // (BLE init takes ~22 KB, WiFi event-loop task creation another ~5 KB,
-    // and `esp_event_loop_create_default` then fails → WebServer::on
-    // bad_alloc → abort). When the user opts into the WiFi AP via Settings,
-    // skip BLE entirely. Reverse: BLE is the default (mobile pairing) — when
-    // WiFi auto-start is off, BLE runs.
-    if (WifiAp::isAutoStartEnabled()) {
-        LOG_INFO("BLE", "BLE skipped — WiFi AP auto-start is enabled");
-        return;
-    }
-
     // Read the BLE-enabled preference directly from NVS — SettingsPage (and
     // LVGL) are not yet initialized at this call site. Default is ON so a
     // fresh device advertises for the mobile app pairing.

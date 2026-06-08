@@ -328,12 +328,12 @@ void UsbComm::reserveRxBuf() {
             heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     }
     if (!UsbCommInternal::s_rxBuf) {
-        // Used to halt here, but on heap-starved WROOM boots (empty SPIFFS →
-        // font/image cache fragmentation) the BLE realloc fails afterwards
-        // anyway. Logging + leaving rxBuf NULL lets the rest of the system
-        // boot; init()/tick() degrade USB CDC silently so the user can still
-        // reach Settings via BLE / WiFi and recover.
-        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB CDC config disabled", USB_RX_BUF_SIZE);
+        // Used to halt here, but on heap-starved boots the BLE realloc fails
+        // afterwards anyway. Logging + leaving rxBuf NULL lets the rest of
+        // the system boot; init()/tick() degrade the USB receive path
+        // silently so the user can still reach Settings via BLE and recover.
+        // Should not trip post-#1351 (WiFi stack removed → ~80 KB more heap).
+        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", USB_RX_BUF_SIZE);
     }
 }
 
