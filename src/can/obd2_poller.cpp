@@ -50,6 +50,12 @@ uint32_t s_responsesMatched = 0;
 uint32_t s_responsesMissed = 0;
 bool s_warnedSlotOverflow = false;
 
+// Earliest `nextPollMs` across all active slots. Lets `tick()` short-circuit
+// without walking the whole table on every CAN-loop iteration (#1343). Reset
+// to 0 in `init()` so the first tick always enters the slow path and rebuilds
+// the cache.
+uint32_t s_nextDueMs = 0;
+
 // OBD-II Mode 01 request payload layout (single PID):
 //   [len=0x02] [mode=0x01] [pid] [0x00 x 5 padding]
 // The padding bytes are arbitrary on a strictly-spec-compliant ECU but most
@@ -85,6 +91,7 @@ void Obd2Poller::init() {
     s_responsesMatched = 0;
     s_responsesMissed = 0;
     s_warnedSlotOverflow = false;
+    s_nextDueMs = 0;
 
     const CfgSignalConfig &cfg = ConfigLoader::getSignalConfig();
     if (!cfg.loaded || cfg.signalCount == 0) {
@@ -145,6 +152,13 @@ void Obd2Poller::tick(uint32_t nowMs) {
     if (s_slotCount == 0)
         return;
 
+    // Fast path: nothing is due yet. taskCAN yields only every
+    // CAN_BURST_BEFORE_YIELD frames so on a busy bus we land here hundreds of
+    // times per second; without the cache the inner loop walked all 16 slots
+    // each call just to confirm none were due (#1343).
+    if (nowMs < s_nextDueMs)
+        return;
+
     for (uint8_t i = 0; i < s_slotCount; ++i) {
         PollSlot &slot = s_slots[i];
         if (nowMs < slot.nextPollMs)
@@ -177,6 +191,15 @@ void Obd2Poller::tick(uint32_t nowMs) {
         }
         slot.nextPollMs = nowMs + slot.intervalMs;
     }
+
+    // Refresh the gate from the freshly-updated slot table. Cheap min-walk
+    // (no per-slot work) and only runs when we actually entered the loop.
+    uint32_t nextDue = UINT32_MAX;
+    for (uint8_t i = 0; i < s_slotCount; ++i) {
+        if (s_slots[i].nextPollMs < nextDue)
+            nextDue = s_slots[i].nextPollMs;
+    }
+    s_nextDueMs = nextDue;
 }
 
 // ---------------------------------------------------------------------------
