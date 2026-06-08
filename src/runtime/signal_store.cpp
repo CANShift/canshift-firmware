@@ -134,6 +134,24 @@ bool SignalStore::isValid(SignalId id) {
     return result;
 }
 
+bool SignalStore::anyValid(const SignalId *ids, size_t count) {
+    if (ids == nullptr || count == 0)
+        return false;
+
+    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    // `idValid()` is a pure compile-time bound check, so it's lock-safe here.
+    portENTER_CRITICAL(&s_signalsMux);
+    for (size_t i = 0; i < count; ++i) {
+        const SignalId id = ids[i];
+        if (idValid(id) && s_signals[id].valid) {
+            portEXIT_CRITICAL(&s_signalsMux);
+            return true;
+        }
+    }
+    portEXIT_CRITICAL(&s_signalsMux);
+    return false;
+}
+
 void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
     if (out == nullptr)
         return;

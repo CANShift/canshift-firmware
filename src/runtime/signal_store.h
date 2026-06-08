@@ -75,6 +75,14 @@ void set(SignalId id, float value);
 [[nodiscard]] bool isValid(SignalId id);
 
 /**
+     * Returns true if at least one of the listed signals is currently valid,
+     * with a single spinlock acquisition. Callers that previously combined N
+     * `isValid()` calls paid N IRQ-disable round-trips on every check
+     * (#1342). Out-of-range ids are skipped silently.
+     */
+[[nodiscard]] bool anyValid(const SignalId *ids, size_t count);
+
+/**
      * Bulk-copy every signal slot under one mutex acquisition. Designed for the
      * UI render path: WidgetFactory::updateAll() takes the lock once per frame
      * via this API instead of once per widget × value (issue #95). The output

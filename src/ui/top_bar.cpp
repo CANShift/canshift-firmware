@@ -186,10 +186,13 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
 
 // True when at least one signal in the store is currently valid. Used by
 // `statusDot` items with signal="any" (the legacy "CAN" presence dot).
+// Three independent `isValid()` calls used to pay three IRQ-disable
+// round-trips on every check; the batched `anyValid()` API takes the lock
+// once (#1342).
 static bool anySignalValid() {
-    return SignalStore::isValid(SignalIds::RPM) ||
-           SignalStore::isValid(SignalIds::COOLANT_TEMP_C) ||
-           SignalStore::isValid(SignalIds::BATTERY_VOLTS);
+    static constexpr SignalId kAnyIds[] = {SignalIds::RPM, SignalIds::COOLANT_TEMP_C,
+                                           SignalIds::BATTERY_VOLTS};
+    return SignalStore::anyValid(kAnyIds, sizeof(kAnyIds) / sizeof(kAnyIds[0]));
 }
 
 // ---------------------------------------------------------------------------

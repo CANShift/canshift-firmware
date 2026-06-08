@@ -210,6 +210,12 @@ struct GaugeTag {
     // appear in a 0x00RRGGBB target so the sentinel is unique).
     uint32_t lastLabelRgb;
     uint32_t lastFillRgb;
+    // Last arc end-angle pushed to LVGL. `valueToAngle` truncates to a small
+    // uint16_t so EMA-smoothed updates collapse to the same angle most of the
+    // time; the cache lets the slow path skip `lv_arc_set_angles` (which
+    // triggers a draw-area invalidation) on identical angles (#1342).
+    // 0xFFFFu = unset sentinel; valid angles are well under that.
+    uint16_t lastAngle;
 };
 
 // GaugeTag storage comes from the shared WidgetTagPool slab (#1031
@@ -476,6 +482,7 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastValid = true;
     tag->lastLabelRgb = 0xFFFFFFFFu;
     tag->lastFillRgb = 0xFFFFFFFFu;
+    tag->lastAngle = 0xFFFFu;
     tag->palette = built.paletteEntry;
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->ramp = built.paletteEntry ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
@@ -608,9 +615,12 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
                                                 cfg.style.primaryColor.rgb);
         }
         // Collapse the fill arc to zero on invalid signals so the base track
-        // is fully visible — matches the "show 0" rule above.
-        if (tag->fillArc) {
+        // is fully visible — matches the "show 0" rule above. Guarded by the
+        // lastAngle cache so a sustained-invalid signal stops dirtying the
+        // arc draw area every tick (#1342).
+        if (tag->fillArc && tag->lastAngle != 0u) {
             lv_arc_set_angles(tag->fillArc, 0, 0);
+            tag->lastAngle = 0u;
         }
         AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
         return;
@@ -624,6 +634,22 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValue = value;
     tag->lastValid = true;
 
+    // Resolve the palette/ramp lookup once per frame and reuse for both label
+    // and arc — the two paths used to call `SensorPalette::fillColor`
+    // (`strcmp` scan of 23 entries) or `colorAtValue` (scan of ≤16 ramp stops)
+    // with identical arguments, twice (#1342). `sharedColor` is set only on
+    // the palette/ramp branches; the other branches stay disjoint because
+    // their label/arc colours legitimately differ.
+    uint32_t sharedColor = 0;
+    bool hasSharedColor = false;
+    if (tag->palette) {
+        sharedColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->dangerLevel);
+        hasSharedColor = true;
+    } else if (tag->ramp) {
+        sharedColor = colorAtValue(*tag->ramp, value);
+        hasSharedColor = true;
+    }
+
     // Tint the value label — skip when AlertFlash owns the colour. Palette
     // mode (#954) drives both fill AND label colour so the read matches. The
     // legacy ramp path (issue #430) still applies when no palette is pinned.
@@ -631,13 +657,13 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // `st.criticalColor` above (GaugeArc.tsx:51-56) — match that instead of
     // the previous white / kZoneDangerRgb hardcodes.
     if (!tag->alert.active) {
-        uint32_t labelColor = cfg.style.primaryColor.rgb;
-        if (tag->palette) {
-            labelColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->dangerLevel);
-        } else if (tag->ramp) {
-            labelColor = colorAtValue(*tag->ramp, value);
+        uint32_t labelColor;
+        if (hasSharedColor) {
+            labelColor = sharedColor;
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
             labelColor = cfg.style.criticalColor.rgb;
+        } else {
+            labelColor = cfg.style.primaryColor.rgb;
         }
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
         if (tag->fracLabel) {
@@ -650,13 +676,17 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     // two-zone (danger) > white fallback (issue #965).
     if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
-        lv_arc_set_angles(tag->fillArc, 0, angle);
+        // EMA-smoothed values usually round to the same uint16_t angle for
+        // many consecutive frames; the cache lets us skip `lv_arc_set_angles`
+        // (which dirties the arc's draw area) on identical angles (#1342).
+        if (angle != tag->lastAngle) {
+            lv_arc_set_angles(tag->fillArc, 0, angle);
+            tag->lastAngle = angle;
+        }
 
         uint32_t fillColor;
-        if (tag->palette) {
-            fillColor = SensorPalette::fillColor(cfg.gauge.iconName, value, tag->dangerLevel);
-        } else if (tag->ramp) {
-            fillColor = colorAtValue(*tag->ramp, value);
+        if (hasSharedColor) {
+            fillColor = sharedColor;
         } else if (tag->gradientMode) {
             const float range = tag->maxValue - tag->minValue;
             const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
