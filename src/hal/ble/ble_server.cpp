@@ -525,10 +525,21 @@ void BleServer::stop() {
         LOG_INFO("BLE", "BLE advertising stopped (GATT preserved)");
     } else {
         // Runtime-started stack — full deinit to free the heap.
-        NimBLEDevice::deinit(true);
+        //
+        // Pointer-null happens BEFORE `deinit(true)`: any callback that
+        // snapshots the file-scope pointer (#1283 pattern) AFTER this point
+        // sees nullptr and short-circuits. `NimBLEDevice::deinit(true)` then
+        // stops the NimBLE host task — which drains any callback already
+        // in-flight holding a pre-null snapshot — BEFORE freeing the
+        // characteristic objects. The prior ordering (deinit then null) left
+        // a window where a fresh snapshot could read a non-null pointer that
+        // had just been freed (#1336).
         BleServerInternal::s_pTele = nullptr;
         BleServerInternal::s_pStatus = nullptr;
         BleServerInternal::s_connected = false;
+        // Make the null stores visible across cores before the deinit handshake.
+        std::atomic_thread_fence(std::memory_order_release);
+        NimBLEDevice::deinit(true);
         s_enabled = false;
         s_stackInited = false;
         LOG_INFO("BLE", "BLE stack stopped — heap freed");

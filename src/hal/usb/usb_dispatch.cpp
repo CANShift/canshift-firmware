@@ -493,9 +493,18 @@ bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame) {
 }
 
 bool canScanQueueTryReceive(UsbComm::CanScanFrame &out) {
-    if (!s_canScanQueue)
-        return false;
-    return xQueueReceive(s_canScanQueue, &out, 0) == pdTRUE;
+    // Mirror the critical-section discipline of `canScanQueueTrySend` (#1042):
+    // `CMD_CAN_SCAN_STOP` nulls `s_canScanQueue` and `vQueueDelete`s the
+    // handle on the USB task while the CAN task can be between the null check
+    // and the `xQueueReceive` here. Without the mux the receive path races
+    // on a freed queue handle — use-after-free under cancel-mid-scan (#1336).
+    BaseType_t received = pdFAIL;
+    portENTER_CRITICAL(&s_canScanQueueMux);
+    if (s_canScanQueue != nullptr) {
+        received = xQueueReceive(s_canScanQueue, &out, 0);
+    }
+    portEXIT_CRITICAL(&s_canScanQueueMux);
+    return received == pdTRUE;
 }
 
 void tickChunkTransferTimeout() {
