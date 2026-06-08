@@ -304,16 +304,24 @@ void handlePutConfig(const char *jsonLine) {
     // the entire duration so the OOM assert cannot fire mid-write. No
     // priority flip — running at TASK_PRIO_USB keeps core-1 schedulable for
     // BLE/WiFi while the flash write proceeds.
-    const bool mutexTaken = (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) == pdTRUE);
-    if (!mutexTaken) {
-        LOG_WARN("USB", "PUT_CONFIG: could not acquire LVGL mutex — proceeding");
+    //
+    // Mutex contention is treated as an explicit failure (#1337): the prior
+    // "proceed without the mutex" fallback let `lv_task_handler` race a
+    // concurrent LVGL allocation against the flash write, which could
+    // OOM-panic mid-`writeFileAtomic`. `writeFileAtomic` already protects the
+    // live config via `.tmp` rename, but a panic leaves the user with a
+    // silent failure and a stale `.tmp` until the boot-time sweep clears it.
+    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
+        UsbCommInternal::invokeBurnOverlayShowError(0);
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
+        return;
     }
 
     bool ok = StorageDriver::writeFileAtomic(
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
-        if (mutexTaken)
-            xSemaphoreGive(g_lvglMutex);
+        xSemaphoreGive(g_lvglMutex);
         // Reason code 0 = BurnOverlay::ErrorReason::WriteFailed. Defined in
         // ui/burn_overlay.h; mirrored as int through the observer to keep
         // the USB module free of any LVGL-side includes.
@@ -445,9 +453,17 @@ void handleGetConfig() {
     // passed). Composing the envelope with an empty body would ship
     // `{"status":"ok","config":}` — invalid JSON to the host. Emit the canonical
     // error envelope instead. Issue #1286.
-    if (streamed == 0 || sink.used() == 0) {
+    //
+    // Also detect a partial fill (`streamed != sink.used()`): `BufferPrint::write`
+    // silently caps at its capacity, so a stream that returns more bytes than
+    // the sink absorbed means the body is truncated. Shipping
+    // `{"status":"ok","config":<truncated>}` would silently corrupt the host's
+    // view of the device config (#1337).
+    if (streamed == 0 || sink.used() == 0 || streamed != sink.used()) {
         free(buf);
-        LOG_WARN("USB", "GET_CONFIG: stream produced 0 bytes for %s", CONFIG_PATH_DASHBOARD);
+        LOG_WARN("USB", "GET_CONFIG: stream mismatch for %s (streamed=%u, sink=%u)",
+                 CONFIG_PATH_DASHBOARD, static_cast<unsigned>(streamed),
+                 static_cast<unsigned>(sink.used()));
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_read_failed\"}");
         return;
     }
