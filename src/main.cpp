@@ -253,12 +253,14 @@ void setup() {
     // Must run before BootSequence::run() — see preallocateTaskStacks().
     preallocateTaskStacks();
 
-    // USB rxBuf is allocated lazily inside UsbComm::init() (post-lv_init).
-    // On heap-tight WROOM boots (missing SPIFFS → font/image cache frag),
-    // letting BLE / WiFi grab their working memory FIRST and treating USB
-    // CDC config push as best-effort lets the device boot every time.
-    // If the late alloc fails, reserveRxBuf() logs and disables USB silently;
-    // recovery via BLE pairing or WiFi AP toggle is still possible.
+    // Reserve the USB CDC rx buffer (16 640 B) BEFORE lv_init() claims its
+    // 80 KB pool. Same rationale as preallocateTaskStacks(): a fresh heap
+    // gives a contiguous 16 KB chunk every time, whereas the post-lv_init
+    // heap on no-PSRAM WROOM boards is fragmented enough that the lazy
+    // path inside UsbComm::init() fails and silently disables CMD_PUT_CONFIG.
+    // (Pre-fix symptom: Tuner shows "Connected" but the dash never lights
+    // the USB icon and burns time-out with no overlay — see #1358 follow-up.)
+    UsbComm::reserveRxBuf();
 
     // Runs synchronous boot: HAL init → lv_init() → load config → build UI.
     BootSequence::run();
