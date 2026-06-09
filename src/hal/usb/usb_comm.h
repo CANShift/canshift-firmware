@@ -113,6 +113,7 @@ static constexpr uint8_t CMD_GET_INPUT_BINDINGS = 0x0B;
 // runtime reload API, so a reboot is the only way new bindings take effect.
 static constexpr uint8_t CMD_PUT_INPUT_BINDINGS = 0x0C;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
+static constexpr uint8_t CMD_PING = 0x11;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
 

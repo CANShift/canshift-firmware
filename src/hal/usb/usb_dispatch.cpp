@@ -594,6 +594,15 @@ void handleCommand(const char *jsonLine) {
             UsbComm::sendLine(resp);
             break;
         }
+        case UsbComm::CMD_PING: {
+            char resp[48];
+            const int n = snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"uptime_ms\":%lu}",
+                                   static_cast<unsigned long>(millis()));
+            if (n > 0 && static_cast<size_t>(n) < sizeof(resp)) {
+                UsbComm::sendLine(resp);
+            }
+            break;
+        }
         case UsbComm::CMD_GET_CONFIG:
             handleGetConfig();
             break;
