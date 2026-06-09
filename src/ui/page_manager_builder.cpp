@@ -12,6 +12,7 @@
 
 #include "page_manager_internal.h"
 
+#include "font_manager.h"
 #include "icon_assets.h"
 #include "theme_manager.h"
 #include "top_bar.h"
@@ -55,6 +56,16 @@ constexpr int16_t CRUISE_BUTTON_H = 85;
 constexpr int16_t CRUISE_GAP_X = 12;
 constexpr int16_t CRUISE_GAP_Y = 10;
 constexpr int16_t CRUISE_OUTER_PAD = 8;
+
+// Centred SET-SPEED display — mirrors CruiseControlPreview.tsx (CENTER_W /
+// CENTER_H / 100 km/h demo). Three labels stacked: dim "SET" header, large
+// bold value, dim "km/h" unit. Sits on top of the four buttons' inner
+// corners so visually the buttons read as L-shapes cropped by this rect
+// (real L-shape rendering tracked in #1375 follow-up).
+constexpr int16_t CRUISE_CENTER_W = 100;
+constexpr int16_t CRUISE_CENTER_H = 76;
+constexpr uint32_t CRUISE_CENTER_DIM_RGB = 0x888888u;
+constexpr uint32_t CRUISE_CENTER_VALUE_RGB = 0xFFFFFFu;
 
 struct CruiseButtonSpec {
     const char *id;
@@ -149,7 +160,46 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         if (WidgetFactory::create(screen, w, /*yOffset=*/0) != nullptr)
             ++created;
     }
-    LOG_INFO("UI", "Built cruise_control template on page '%s' (%u/4 buttons)", cfg.id, created);
+
+    // Centred SET-SPEED display. Labels are direct children of `screen` so they
+    // stay siblings of the buttons — lv_label is not clickable by default so
+    // taps in the centre area still resolve to the underlying button at the
+    // touched corner. Value is a placeholder em-dash until the cruise state
+    // machine lands (#451 follow-up); structure (SET / value / km/h) matches
+    // CruiseControlPreview.tsx exactly.
+    const int16_t centerX = (LV_HOR_RES - CRUISE_CENTER_W) / 2;
+    const int16_t centerY = contentY + (contentH - CRUISE_CENTER_H) / 2;
+
+    lv_obj_t *setHeader = lv_label_create(screen);
+    lv_label_set_text(setHeader, "SET");
+    lv_obj_set_style_text_color(setHeader, lv_color_hex(CRUISE_CENTER_DIM_RGB), 0);
+    lv_obj_set_style_text_font(setHeader, FontManager::label(12), 0);
+    lv_obj_set_width(setHeader, CRUISE_CENTER_W);
+    lv_obj_set_style_text_align(setHeader, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(setHeader, centerX, centerY + 4);
+
+    lv_obj_t *setValue = lv_label_create(screen);
+    // Zero is the "no signal" placeholder — no cruise state machine yet, so
+    // nothing feeds a real setpoint. Mirrors CruiseControlPreview.tsx's
+    // DEMO_SET_SPEED. Replace with the live setpoint when #451 wires the
+    // dispatcher to a real cruise controller.
+    lv_label_set_text(setValue, "0");
+    lv_obj_set_style_text_color(setValue, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
+    lv_obj_set_style_text_font(setValue, FontManager::primary(32), 0);
+    lv_obj_set_width(setValue, CRUISE_CENTER_W);
+    lv_obj_set_style_text_align(setValue, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(setValue, centerX, centerY + (CRUISE_CENTER_H - 32) / 2);
+
+    lv_obj_t *setUnit = lv_label_create(screen);
+    lv_label_set_text(setUnit, "km/h");
+    lv_obj_set_style_text_color(setUnit, lv_color_hex(CRUISE_CENTER_DIM_RGB), 0);
+    lv_obj_set_style_text_font(setUnit, FontManager::label(12), 0);
+    lv_obj_set_width(setUnit, CRUISE_CENTER_W);
+    lv_obj_set_style_text_align(setUnit, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(setUnit, centerX, centerY + CRUISE_CENTER_H - 16);
+
+    LOG_INFO("UI", "Built cruise_control template on page '%s' (%u/4 buttons + SET display)",
+             cfg.id, created);
 }
 
 void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &effectiveBg) {
