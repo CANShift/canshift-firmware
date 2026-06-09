@@ -62,10 +62,16 @@ struct CruiseButtonSpec {
     CfgCruiseOp op;
 };
 
+// Quadrant order matches CruiseControlPreview.tsx so the on-device buttons
+// dispatch the same op the user pressed in the studio preview:
+//   row 0 (top)    : col 0 = decrement (−),  col 1 = increment (+)
+//   row 1 (bottom) : col 0 = set,            col 1 = off
+// Reordering ≠ changing IDs — `cruise_plus` / `cruise_minus` etc. stay stable
+// so persisted configs that reference these button ids by name don't drift.
 constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
+    {"cruise_minus", "-", CfgCruiseOp::DECREMENT},
     {"cruise_plus", "+", CfgCruiseOp::INCREMENT},
     {"cruise_set", "SET", CfgCruiseOp::SET},
-    {"cruise_minus", "-", CfgCruiseOp::DECREMENT},
     {"cruise_off", "OFF", CfgCruiseOp::OFF},
 };
 
