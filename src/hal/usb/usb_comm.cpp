@@ -31,6 +31,7 @@
 #include "board_config.h"
 #include "can/signal_map.h"
 #include "diag/error_store.h"
+#include "diag/heap_stats.h"
 #include "diag/logger.h"
 #include "runtime/signal_store.h"
 #include "util/format_float.h"
@@ -583,4 +584,6 @@ void UsbComm::tick() {
         s_tickCount = 0;
         sendTelemetry();
     }
+
+    HeapStats::tick();
 }
