@@ -33,7 +33,6 @@
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
 #endif
-// Task function forward declarations
 void taskUI(void *pvParameters);
 void taskCAN(void *pvParameters);
 void taskUSBComm(void *pvParameters);
@@ -41,29 +40,15 @@ void taskUSBComm(void *pvParameters);
 void taskBLE(void *pvParameters);
 #endif
 
-// ---------------------------------------------------------------------------
-// Global LVGL mutex
-// LVGL is NOT thread-safe. All LVGL calls from any task must hold this mutex.
-// ---------------------------------------------------------------------------
+// LVGL is not thread-safe; every LVGL call from any task must hold this.
 SemaphoreHandle_t g_lvglMutex = nullptr;
 
-// ---------------------------------------------------------------------------
-// UI task handle — exposed so transports (USB, BLE) can xTaskNotifyGive() it
-// from their pending-action publishers. Used by the BurnOverlay observer
-// wired in setup() to wake the UI task ahead of its next 10 ms tick when a
-// CMD_PUT_CONFIG dispatch needs the overlay painted before the flash write.
-// Single writer (setup), many readers — pointer-sized so the unguarded read
-// is torn-free on ESP32. Null until createAllTasks() has run.
-// ---------------------------------------------------------------------------
+// Single writer (setup), many readers — pointer-sized so unguarded reads are
+// torn-free on ESP32. Null until createAllTasks() has run.
 TaskHandle_t g_uiTaskHandle = nullptr;
 
-// ---------------------------------------------------------------------------
-// Task stack buffers — heap-allocated early in setup() before lv_init() claims
-// ~82 KB and fragments DRAM. By task-creation time the largest contiguous block
-// drops to ~15 KB, which is smaller than TASK_STACK_UI=8192 + FreeRTOS overhead,
-// so xTaskCreatePinnedToCore fails. Pre-allocating here guarantees the blocks
-// are reserved from the unfragmented boot heap (~160 KB free).
-// ---------------------------------------------------------------------------
+// Task stacks pre-allocated before lv_init() fragments DRAM — post-init the
+// largest contiguous block is too small for TASK_STACK_UI + FreeRTOS overhead.
 static StackType_t *s_uiStack = nullptr;
 static StackType_t *s_canStack = nullptr;
 static StackType_t *s_usbStack = nullptr;
@@ -78,13 +63,7 @@ static StaticTask_t s_usbTaskTCB;
 static StaticTask_t s_bleTaskTCB;
 #endif
 
-// ---------------------------------------------------------------------------
-// LVGL tick — driven by a periodic esp_timer at LVGL_TICK_MS resolution so
-// animations and timeouts stay wall-clock accurate even when the UI task
-// overruns (page rebuild, theme toggle, slow flush). lv_tick_inc() is the
-// only LVGL API documented as safe to call without holding the LVGL mutex,
-// so the callback does not take g_lvglMutex.
-// ---------------------------------------------------------------------------
+// lv_tick_inc is the only LVGL API safe to call without g_lvglMutex.
 static esp_timer_handle_t s_lvglTickTimer = nullptr;
 
 static void lvglTickCb(void * /*arg*/) {
@@ -104,13 +83,8 @@ static void startLvglTickTimer() {
         esp_timer_start_periodic(s_lvglTickTimer, static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL));
 }
 
-// ---------------------------------------------------------------------------
-// Allocate task stacks before lv_init() fragments the heap.
-// Draw buffers are NOT pre-allocated here — doing so would fragment the heap
-// enough that lv_init()'s 80 KB pool malloc returns NULL (→ panic).
-// DisplayDriver::init() falls back to single-buffer mode if the second 12 KB
-// allocation fails; the flush callback is synchronous so there is no penalty.
-// ---------------------------------------------------------------------------
+// Draw buffers are intentionally NOT pre-allocated here — that would fragment
+// the heap enough that lv_init()'s 80 KB pool malloc would fail.
 static void preallocateTaskStacks() {
     s_uiStack = static_cast<StackType_t *>(heap_caps_malloc(TASK_STACK_UI * sizeof(StackType_t),
                                                             MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
@@ -128,28 +102,17 @@ static void preallocateTaskStacks() {
 #endif
     ) {
         LOG_ERROR("BOOT", "Task stack pre-allocation failed — halting");
-        // vTaskDelay explicitly yields to IDLE so the WDT keeps running on
-        // this halted task — no reliance on the Arduino delay() shim (#1207).
+        // vTaskDelay yields to IDLE so the WDT keeps feeding on this halted task.
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// BurnOverlay observer (#1207 #1314) — wired into the USB transport via
-// UsbComm::setBurnOverlayShow{,Error}Callback after createAllTasks() so
-// the UI task handle published in g_uiTaskHandle is in scope. The callbacks
-// publish a PendingActions flag and notify the UI task; the UI task drains
-// the flag inside its LVGL-mutex window and calls BurnOverlay::show() at
-// TASK_PRIO_UI — no priority flip on the USB task.
-// ---------------------------------------------------------------------------
-
+// USB-task observer that hops a paint request to the UI task without
+// requiring the USB task to ever take the LVGL mutex.
 static void burnOverlayShowObserver() {
     PendingActions::burnOverlayShow.store(true, std::memory_order_relaxed);
-    // Wake the UI task ahead of its next LVGL_HANDLER_PERIOD_MS deadline.
-    // xTaskNotifyGive is ISR-safe and never blocks; safe to call from any
-    // task including a transport task holding no LVGL state.
     if (g_uiTaskHandle != nullptr) {
         xTaskNotifyGive(g_uiTaskHandle);
     }
@@ -168,23 +131,9 @@ static void registerBurnOverlayObserver() {
     UsbComm::setBurnOverlayShowErrorCallback(&burnOverlayShowErrorObserver);
 }
 
-// ---------------------------------------------------------------------------
-// Create all FreeRTOS tasks using the pre-allocated static stacks and TCBs.
-// xTaskCreateStaticPinnedToCore never allocates from the heap, so it always
-// succeeds here even with the fragmented post-lv_init() heap.
-//
-// Each "hot loop" task (UI/CAN/USB/BLE) is also subscribed to the Task
-// Watchdog Timer that was armed in BootSequence::run(). Its tick body calls
-// esp_task_wdt_reset() once per iteration — a hang in any of those loops
-// longer than TASK_WDT_TIMEOUT_MS fires the panic handler and the device
-// auto-resets (issue #666, BLE added in #1006).
-// ---------------------------------------------------------------------------
 static void createAllTasks() {
     TaskHandle_t uiHandle = xTaskCreateStaticPinnedToCore(
         taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack, &s_uiTaskTCB, TASK_CORE_UI);
-    // Publish the UI task handle so the BurnOverlay observer (registered in
-    // setup() below) can xTaskNotifyGive() it ahead of the regular tick
-    // cadence — see g_uiTaskHandle decl.
     g_uiTaskHandle = uiHandle;
 
     TaskHandle_t canHandle =
@@ -230,12 +179,9 @@ static void createAllTasks() {
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// setup() — runs once on core 1 after reset
-// ---------------------------------------------------------------------------
 void setup() {
     Serial.begin(USB_SERIAL_BAUD);
-    delay(200); // let serial monitor connect
+    delay(200);
 
     Logger::init();
     LOG_INFO("BOOT", "CANShift v" APP_VERSION_STR " starting");
@@ -243,64 +189,32 @@ void setup() {
     g_lvglMutex = xSemaphoreCreateMutex();
     if (!g_lvglMutex) {
         LOG_ERROR("BOOT", "Failed to create LVGL mutex — halting");
-        // vTaskDelay explicitly yields to IDLE so the WDT keeps running on
-        // this halted task — no reliance on the Arduino delay() shim (#1207).
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
 
-    // Must run before BootSequence::run() — see preallocateTaskStacks().
     preallocateTaskStacks();
-
-    // Reserve the USB CDC rx buffer (16 640 B) BEFORE lv_init() claims its
-    // 80 KB pool. Same rationale as preallocateTaskStacks(): a fresh heap
-    // gives a contiguous 16 KB chunk every time, whereas the post-lv_init
-    // heap on no-PSRAM WROOM boards is fragmented enough that the lazy
-    // path inside UsbComm::init() fails and silently disables CMD_PUT_CONFIG.
-    // (Pre-fix symptom: Tuner shows "Connected" but the dash never lights
-    // the USB icon and burns time-out with no overlay — see #1358 follow-up.)
+    // Both reservations must run BEFORE lv_init() claims its 80 KB pool —
+    // the post-init heap is too fragmented on no-PSRAM WROOM boards.
     UsbComm::reserveRxBuf();
-
-    // Same idea for the one-shot twai_init task stack (#1376). Reserving the
-    // 4 KB block here means CanManager::initHardware() can switch to
-    // xTaskCreateStaticPinnedToCore() and never compete with the rxBuf for
-    // the post-lv_init heap window.
     CanManager::reserveInitTaskStack();
 
-    // Runs synchronous boot: HAL init → lv_init() → load config → build UI.
     BootSequence::run();
-
-    // Start tick timer only after lv_init() has run inside BootSequence.
     startLvglTickTimer();
-
-    // No-op when APP_PROFILE_UI=0.
     PERF_INIT();
 
     LOG_INFO("BOOT", "Boot complete — starting tasks");
     createAllTasks();
-    // BurnOverlay observer wiring (#1207 #1314) — must run AFTER createAllTasks()
-    // so g_uiTaskHandle is non-null. Until this call, UsbCommInternal::invoke*
-    // is a no-op so any CMD_PUT_CONFIG arriving in the window above proceeds
-    // without visual feedback but still completes the storage write (no race —
-    // the USB task itself isn't running until createAllTasks() returned).
+    // Must run AFTER createAllTasks so g_uiTaskHandle is non-null.
     registerBurnOverlayObserver();
-    // Physical GPIO buttons (#833) — owns its own task, started here so that
-    // it sees the configs already loaded by BootSequence::run().
     InputButtons::init();
     LOG_INFO("BOOT", "All tasks started");
 }
 
-// ---------------------------------------------------------------------------
-// loop() — Arduino main loop. All work is in FreeRTOS tasks.
-// ---------------------------------------------------------------------------
 void loop() {
     vTaskDelay(pdMS_TO_TICKS(1000));
 }
-
-// ---------------------------------------------------------------------------
-// UI task
-// ---------------------------------------------------------------------------
 
 #if APP_LV_TASK_LOG
 // 1 Hz aggregator for lv_task_handler() duration. Single-task (taskUI) so no
@@ -320,40 +234,17 @@ static int64_t s_lvLastFlushUs = 0;
 // first-paint glitch still trips it. F-ME-8 / issue #1014.
 static constexpr int UI_OTA_VALID_FRAMES = 30;
 
-// ---------------------------------------------------------------------------
-// taskUI per-frame phase helpers
-//
-// Each helper covers one discrete phase of the UI loop iteration. They are
-// kept in an anonymous namespace and inlined-by-default so the resulting
-// binary is byte-identical to the inlined form, and so the orchestrator stays
-// a ≤ 40 line loop body (CLAUDE.md function-length cap, issue #1014).
-//
-// Ordering contract — the orchestrator MUST call them in this order so the
-// behaviour matches the pre-split code:
-//   1. uiDrainPreMutexActions     (touch calibrate / calibration reset)
-//   2. uiAcquireLvglMutex         (timed take + perf sample)
-//   3. uiRunMutexBody             (touch poll → day/night → passkey → LVGL)
-//   4. uiHandleOtaMark            (one-shot OTA slot validation)
-//   5. uiFeedTaskWdt              (#666 — must run every iteration)
-//   6. uiNotifyDayNightChanged    (post-mutex BLE STATUS notify)
-//   7. uiRecordFrameMetrics       (frame total + frame-miss)
-//   8. uiFlushLvTaskLog           (1 Hz LVGL handler stat log)
-//   9. uiThrottle                 (vTaskDelayUntil + #976 yield-guard)
-// ---------------------------------------------------------------------------
-
+// taskUI helpers — the orchestrator must call them in declaration order so
+// behaviour matches the pre-split path: pre-mutex drain → mutex acquire →
+// mutex body → OTA mark → WDT feed → day/night notify → metrics → log →
+// throttle.
 namespace {
 
-// 1. Pre-mutex action drain. Touch calibrate blocks the screen with crosshairs
-// and draws via TFT_eSPI directly, so it MUST run without g_lvglMutex held.
-// Both calibration entry points (BLE + USB) feed the same flag (#893); we
-// drain it once here. Calibration-reset only touches NVS but stays on the UI
-// task to keep all NVS writes single-threaded.
+// Touch calibrate draws via TFT_eSPI directly — must NOT hold g_lvglMutex.
 inline void uiDrainPreMutexActions() {
     if (PendingActions::takeTouchCalibrate()) {
         TouchDriver::calibrate();
 #if APP_BLE_ENABLED
-        // Push a STATUS notify so a connected BLE client sees the result —
-        // matters even when the trigger came over USB.
         BleServer::pushStatusNotify();
 #endif
     }
@@ -362,9 +253,6 @@ inline void uiDrainPreMutexActions() {
     }
 }
 
-// 2. Timed mutex acquire. The 10 ms timeout is the same as pre-split; the
-// MUTEX_WAIT perf sample is recorded for both success and timeout paths so
-// the histogram still captures starvation events.
 inline BaseType_t uiAcquireLvglMutex() {
 #if APP_PROFILE_UI
     const int64_t lockStartUs = esp_timer_get_time();
@@ -377,17 +265,14 @@ inline BaseType_t uiAcquireLvglMutex() {
     return mutexTaken;
 }
 
-// 2a. Day/night theme drain — runs under g_lvglMutex (called from
-// uiRunMutexBody). Explicit set wins over toggle when both are pending in the
-// same tick (#893). Returns true when the resolved mode actually changed so
-// the caller can fire the BLE STATUS notify after the mutex is released.
+// Explicit set wins over toggle when both pend in the same tick. Returns
+// true when the resolved mode flipped so the caller can BLE-notify post-mutex.
 inline bool uiDrainDayNightActions() {
     const bool prevIsDay = ThemeManager::isDayMode();
 
     const int8_t dnSet = PendingActions::takeDayNightSet();
     if (dnSet >= 0) {
         ThemeManager::setDayMode(dnSet == 1);
-        // Drop any stale toggle to avoid undoing the explicit set.
         (void)PendingActions::takeDayNightToggle();
     } else if (PendingActions::takeDayNightToggle()) {
         ThemeManager::toggleDayMode();
@@ -396,10 +281,8 @@ inline bool uiDrainDayNightActions() {
     return ThemeManager::isDayMode() != prevIsDay;
 }
 
-// 2b. BLE passkey overlay drain — runs under g_lvglMutex. Hide is processed
-// first so a quick disconnect-then-reconnect within one tick ends up showing
-// the *new* code rather than tearing down the overlay the BLE task just
-// asked us to put up (issue #873).
+// Hide before show — a disconnect-then-reconnect in the same tick should land
+// on the NEW passkey, not tear down what BLE just published (#873).
 inline void uiDrainPasskeyActions() {
     if (PendingActions::takeBlePasskeyHide()) {
         PasskeyOverlay::hide();
@@ -410,13 +293,8 @@ inline void uiDrainPasskeyActions() {
     }
 }
 
-// 2b'. BurnOverlay drain (#1207 #1314) — runs under g_lvglMutex. The USB
-// CDC dispatch path no longer paints the overlay inline on the USB task; it
-// publishes a pending-action flag via the observer registered in setup()
-// and notifies this task to render at TASK_PRIO_UI. The error path is
-// drained AFTER the spinner show so a rapid show→error sequence collapses
-// to a single error overlay (the show is no-oped — teardownOverlay() inside
-// showError handles the previous state).
+// Drain in show→error order so a rapid show→error sequence collapses to a
+// single error overlay (showError tears down whatever came before).
 inline void uiDrainBurnOverlayActions() {
     if (PendingActions::takeBurnOverlayShow()) {
         BurnOverlay::show();
@@ -427,8 +305,6 @@ inline void uiDrainBurnOverlayActions() {
     }
 }
 
-// 2c. lv_task_handler() invocation with PERF_SCOPE and the APP_LV_TASK_LOG
-// duration aggregator. Runs under g_lvglMutex.
 inline void uiRunLvTaskHandler() {
     PERF_SCOPE(::PerfCounters::LV_HANDLER);
 #if APP_LV_TASK_LOG
