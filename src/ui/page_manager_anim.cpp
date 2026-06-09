@@ -88,6 +88,7 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
         LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
         return;
     }
+    LOG_INFO("UI", "showPage: %u -> %u anim=%d", s_currentIdx, idx, static_cast<int>(anim));
 
     // Release the page that finished its last animation. Do this BEFORE building
     // the new page so the freed pool space is available. Skip if the user
@@ -168,6 +169,16 @@ void showPage(uint8_t idx) {
 void onSwipe(lv_dir_t dir) {
     if (s_pageCount <= 1)
         return;
+    // If the touch that produced this swipe started on a clickable widget
+    // (a button), treat the input as a tap attempt with finger drift — NOT
+    // a navigation. Same finger drift that crosses LVGL's 40 px gesture
+    // threshold otherwise yanks the user off the page mid-press. Swipes
+    // that start in non-clickable background area (e.g. gaps between
+    // widgets) still navigate as before.
+    lv_obj_t *pressed = lv_indev_get_obj_act();
+    if (pressed && lv_obj_has_flag(pressed, LV_OBJ_FLAG_CLICKABLE)) {
+        return;
+    }
     switch (dir) {
         case LV_DIR_LEFT:
             // Next page enters from the right, slides left — matches finger motion.
