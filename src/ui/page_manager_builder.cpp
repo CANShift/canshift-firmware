@@ -32,72 +32,31 @@ namespace PageManagerInternal {
 
 namespace {
 
-// ---------------------------------------------------------------------------
-// Cruise control template (issue #451) — procedural 2×2 button grid.
-//
-// Drawn instead of `cfg.widgets[]` whenever `page.templateKind ==
-// CRUISE_CONTROL`. Each button is synthesised as a temporary CfgWidget and
-// pushed through WidgetFactory::create so all of the existing button styling,
-// theming, click-dispatch, and pool-lifecycle code keeps working unchanged —
-// this template only chooses WHERE the buttons sit and WHICH cruise op they
-// dispatch.
-//
-// Layout (firmware pixels, native 320×240 panel):
-//   - 8 px outer padding so the buttons don't kiss the screen edge
-//   - 12 px horizontal gap, 10 px vertical gap between cells
-//   - Each cell is 140×85 fw-px → well above the 48×48 thumb-tap minimum
-//     established by #117 for the day/night toggle on the top bar
-//
-// The studio mirrors this exact layout in CruiseControlPreview.tsx — keep
-// the two in lock-step.
-// ---------------------------------------------------------------------------
-
+// Cruise control template — keep in lock-step with CruiseControlPreview.tsx.
 constexpr int16_t CRUISE_BUTTON_W = 140;
 constexpr int16_t CRUISE_BUTTON_H = 85;
 constexpr int16_t CRUISE_GAP_X = 12;
 constexpr int16_t CRUISE_GAP_Y = 10;
 constexpr int16_t CRUISE_OUTER_PAD = 8;
-
-// L-shape geometry — mirrors CruiseControlPreview.tsx exactly. Each button
-// renders as a true L polygon via a LV_EVENT_DRAW_MAIN_END callback: two
-// convex rectangles for the fill (the L's arms) + a polyline outline that
-// traces the 6 rounded corners. Allows full visual fidelity with the studio
-// preview — the rectangle-overlay approach couldn't round the two convex
-// notch corners.
 constexpr int16_t CRUISE_CENTER_W = 100;
 constexpr int16_t CRUISE_CENTER_H = 76;
 constexpr int16_t CRUISE_NOTCH_MARGIN = 6;
-constexpr int16_t CRUISE_NOTCH_W = CRUISE_CENTER_W / 2 + CRUISE_NOTCH_MARGIN; // 56
-constexpr int16_t CRUISE_NOTCH_H = CRUISE_CENTER_H / 2 + CRUISE_NOTCH_MARGIN; // 44
-constexpr int16_t CRUISE_BUTTON_RADIUS = 8;   // CruiseControlPreview CORNER_R
-constexpr int16_t CRUISE_INNER_R = 5;         // CruiseControlPreview INNER_R
-constexpr int16_t CRUISE_BUTTON_BORDER_W = 2; // CruiseControlPreview STROKE_W
-constexpr uint8_t CRUISE_BEZIER_SEGS = 4;     // segments per rounded corner
-
-// 12 straight endpoints + 6 corners × 4 segs = 36 polygon vertices max.
+constexpr int16_t CRUISE_NOTCH_W = CRUISE_CENTER_W / 2 + CRUISE_NOTCH_MARGIN;
+constexpr int16_t CRUISE_NOTCH_H = CRUISE_CENTER_H / 2 + CRUISE_NOTCH_MARGIN;
+constexpr int16_t CRUISE_BUTTON_RADIUS = 8;
+constexpr int16_t CRUISE_INNER_R = 5;
+constexpr int16_t CRUISE_BUTTON_BORDER_W = 2;
+constexpr uint8_t CRUISE_BEZIER_SEGS = 4;
 constexpr uint8_t CRUISE_L_MAX_PTS = 40;
-
-// Per-button surface + stroke colours. Hardcoded — no firmware-side
-// PagePalette wiring yet. Surface reads against typical black page bg;
-// stroke matches the burn_overlay accent for visual continuity.
 constexpr uint32_t CRUISE_BUTTON_FILL_RGB = 0x1A1A1Au;
-// Pressed-state surface — slightly brighter so the user sees feedback on tap.
 constexpr uint32_t CRUISE_BUTTON_FILL_PRESSED_RGB = 0x3A3A3Au;
-// Saturated red outline — reads as "high-attention control surface" against
-// the dark page background, matches typical dash-cluster cruise UX.
 constexpr uint32_t CRUISE_BUTTON_STROKE_RGB = 0xE03030u;
-
 constexpr uint32_t CRUISE_CENTER_DIM_RGB = 0x888888u;
 constexpr uint32_t CRUISE_CENTER_VALUE_RGB = 0xFFFFFFu;
 
-// Prefixed values dodge collisions with xtensa specreg.h macros (TR, BR).
+// Prefixed to dodge collisions with xtensa specreg.h macros (TR, BR).
 enum class CruiseCorner : uint8_t { kTL = 0, kTR = 1, kBL = 2, kBR = 3 };
 
-// Cruise-active state — toggled visually by the OFF/ON button and forced ON
-// when SET is pressed. Tracked here rather than in a real state machine
-// because dispatchCruiseControl() is still a no-op (#451 pending). Pointers
-// to the live label widgets are cached on each page build so the toggle
-// callbacks can update them without walking the screen tree.
 static bool s_cruiseActive = false;
 static lv_obj_t *s_cruiseToggleBtn = nullptr;
 static lv_obj_t *s_cruiseToggleLabel = nullptr;
@@ -108,12 +67,6 @@ struct CruiseButtonSpec {
     CfgCruiseOp op;
 };
 
-// Quadrant order matches CruiseControlPreview.tsx so the on-device buttons
-// dispatch the same op the user pressed in the studio preview:
-//   row 0 (top)    : col 0 = decrement (−),  col 1 = increment (+)
-//   row 1 (bottom) : col 0 = set,            col 1 = off
-// Reordering ≠ changing IDs — `cruise_plus` / `cruise_minus` etc. stay stable
-// so persisted configs that reference these button ids by name don't drift.
 constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
     {"cruise_minus", "-", CfgCruiseOp::DECREMENT},
     {"cruise_plus", "+", CfgCruiseOp::INCREMENT},
@@ -121,15 +74,9 @@ constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
     {"cruise_off", "OFF", CfgCruiseOp::OFF},
 };
 
-// ---------------------------------------------------------------------------
-// L-shape polygon helpers.
-//
-// The 6-corner L outline is built as a polyline whose corners are
-// quadratic-Bezier approximations of arcs. The same path drives both the
-// outline (lv_draw_line between adjacent points) and the fill (two
-// overlapping axis-aligned rectangles since a concave L isn't a valid
-// lv_draw_polygon input — LVGL 8.4's polygon routine is convex-only).
-// ---------------------------------------------------------------------------
+// L outline built as a polyline whose corners are quadratic-Bezier
+// approximations of arcs — LVGL 8.4's lv_draw_polygon is convex-only, so the
+// fill ships as two overlapping axis-aligned rectangles.
 
 inline lv_point_t cruiseBezierAt(int16_t x0, int16_t y0, int16_t xc, int16_t yc, int16_t x2,
                                  int16_t y2, float t) {
