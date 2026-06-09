@@ -46,6 +46,14 @@ static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
 static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
 static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
 
+// Pre-reserved stack + TCB for the one-shot `twai_init` task. See
+// reserveInitTaskStack() above and #1376. NULL stack pointer means
+// reserveInitTaskStack() was never called (or alloc failed); initHardware()
+// falls back to the dynamic xTaskCreatePinnedToCore path in that case so
+// historical behaviour is preserved.
+static StackType_t *s_initTaskStack = nullptr;
+static StaticTask_t s_initTaskTCB;
+
 namespace {
 
 twai_timing_config_t getTimingConfig(uint16_t kbps) {
@@ -145,15 +153,41 @@ bool CanManager::isAvailable() {
     return s_twaiInstalled;
 }
 
+void CanManager::reserveInitTaskStack() {
+    if (s_initTaskStack) {
+        return;
+    }
+    s_initTaskStack = static_cast<StackType_t *>(heap_caps_malloc(
+        TWAI_INIT_TASK_STACK * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    if (!s_initTaskStack) {
+        LOG_ERROR("CAN", "Failed to reserve twai_init task stack (%u B)",
+                  static_cast<unsigned>(TWAI_INIT_TASK_STACK * sizeof(StackType_t)));
+    }
+}
+
 esp_err_t CanManager::initHardware() {
     InitContext ctx{xSemaphoreCreateBinary(), ESP_FAIL};
     if (!ctx.done) {
         LOG_ERROR("CAN", "Failed to create init semaphore");
         return ESP_ERR_NO_MEM;
     }
-    BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK, &ctx,
-                                            TWAI_INIT_TASK_PRIO, nullptr, 0 /* core 0 */);
-    if (ok != pdPASS) {
+    TaskHandle_t handle = nullptr;
+    if (s_initTaskStack) {
+        // Happy path — fresh-heap pre-reserved in setup().
+        handle = xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
+                                               &ctx, TWAI_INIT_TASK_PRIO, s_initTaskStack,
+                                               &s_initTaskTCB, 0 /* core 0 */);
+    } else {
+        // Fallback when reserveInitTaskStack() was skipped or failed — restores
+        // the pre-#1376 behaviour. Will likely OOM on no-PSRAM WROOM, but the
+        // log warning above explains why.
+        BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
+                                                &ctx, TWAI_INIT_TASK_PRIO, &handle, 0 /* core 0 */);
+        if (ok != pdPASS) {
+            handle = nullptr;
+        }
+    }
+    if (!handle) {
         vSemaphoreDelete(ctx.done);
         LOG_ERROR("CAN", "Failed to spawn twai_init task");
         return ESP_ERR_NO_MEM;

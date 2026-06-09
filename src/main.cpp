@@ -262,6 +262,12 @@ void setup() {
     // the USB icon and burns time-out with no overlay — see #1358 follow-up.)
     UsbComm::reserveRxBuf();
 
+    // Same idea for the one-shot twai_init task stack (#1376). Reserving the
+    // 4 KB block here means CanManager::initHardware() can switch to
+    // xTaskCreateStaticPinnedToCore() and never compete with the rxBuf for
+    // the post-lv_init heap window.
+    CanManager::reserveInitTaskStack();
+
     // Runs synchronous boot: HAL init → lv_init() → load config → build UI.
     BootSequence::run();
 

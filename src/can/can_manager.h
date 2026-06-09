@@ -22,6 +22,19 @@
 namespace CanManager {
 
 /**
+     * Reserve the one-shot `twai_init` task stack out of the fresh-heap window
+     * in `setup()` (same idiom as preallocateTaskStacks + UsbComm::reserveRxBuf).
+     *
+     * `xTaskCreatePinnedToCore` allocates the 4 KB task stack from the heap at
+     * spawn time. Post-`lv_init()` on no-PSRAM WROOM boards the heap is too
+     * fragmented to satisfy that alloc — twai_init fails to spawn and the bus
+     * is permanently down (#1376). Grabbing the buffer early on a fresh heap
+     * sidesteps the fragmentation cliff entirely. Idempotent — safe to call
+     * more than once.
+     */
+void reserveInitTaskStack();
+
+/**
      * Initialize TWAI hardware driver. Pinned to core 0 via a dedicated task.
      */
 [[nodiscard]] esp_err_t initHardware();
