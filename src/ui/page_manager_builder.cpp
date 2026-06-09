@@ -1,12 +1,3 @@
-// page_manager_builder.cpp — LVGL page construction + day/night theme rebuild
-//
-// Split out of page_manager.cpp during the #1207 refactor. Owns:
-//   - per-page LVGL widget tree construction (buildPage + applyPageBackground)
-//   - the procedural cruise-control 2×2 button grid template (#451)
-//   - the in-place theme reapply fast path (#1257)
-//   - the destructive rebuildAllPages path used by USB CMD_PUT_CONFIG, with
-//     the #1295 dummy-screen UAF guard preserved verbatim
-//
 // State (s_pages, s_currentIdx, s_rebuildRequested, s_pendingFreeIdx) is
 // owned by page_manager.cpp; this TU reaches in via page_manager_internal.h.
 
@@ -182,9 +173,6 @@ uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner co
     return n;
 }
 
-// Compute the two axis-aligned rectangles that fill the L (horizontal arm
-// + vertical arm). They overlap at the L's corner — same colour fill means
-// no visual seam.
 void buildCruiseLFillArms(const lv_area_t &btn, CruiseCorner corner, lv_area_t *armH,
                           lv_area_t *armV) {
     const int16_t x = btn.x1;
@@ -222,8 +210,6 @@ void buildCruiseLFillArms(const lv_area_t &btn, CruiseCorner corner, lv_area_t *
     }
 }
 
-// LV_EVENT_DRAW_MAIN_END callback — runs after the (transparent) default
-// button background draw, before child labels. Paints the L fill + outline.
 void cruiseLDrawCb(lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     if (code != LV_EVENT_DRAW_MAIN_END)
@@ -238,9 +224,6 @@ void cruiseLDrawCb(lv_event_t *e) {
     lv_area_t area;
     lv_obj_get_coords(btn, &area);
 
-    // Fill — two overlapping axis-aligned rectangles, no border/radius.
-    // State-aware colour so the user gets press feedback on tap AND so the
-    // OFF/ON toggle stays in the pressed visual while CHECKED.
     const lv_state_t state = lv_obj_get_state(btn);
     const bool active = (state & (LV_STATE_PRESSED | LV_STATE_CHECKED)) != 0;
     lv_draw_rect_dsc_t fill;
@@ -254,7 +237,6 @@ void cruiseLDrawCb(lv_event_t *e) {
     lv_draw_rect(draw_ctx, &fill, &armH);
     lv_draw_rect(draw_ctx, &fill, &armV);
 
-    // Outline — polyline closing back to start.
     lv_point_t pts[CRUISE_L_MAX_PTS];
     const uint8_t n = buildCruiseLPath(pts, area, corner);
     lv_draw_line_dsc_t stroke;
@@ -269,9 +251,6 @@ void cruiseLDrawCb(lv_event_t *e) {
     }
 }
 
-// Apply the current cruise-active visual to the toggle button: CHECKED
-// state lights up the pressed fill in cruiseLDrawCb, and the label flips
-// between OFF / ON.
 void cruiseSyncToggleVisual() {
     if (!s_cruiseToggleBtn || !s_cruiseToggleLabel)
         return;
@@ -285,9 +264,6 @@ void cruiseSyncToggleVisual() {
     lv_obj_invalidate(s_cruiseToggleBtn);
 }
 
-// OFF/ON button click — flip the cruise-active flag and resync the visual.
-// The OFF/ON button is the ONLY way to toggle activation; SET just captures
-// a speed without engaging the controller.
 void cruiseToggleClickCb(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED)
         return;
@@ -295,8 +271,6 @@ void cruiseToggleClickCb(lv_event_t *e) {
     cruiseSyncToggleVisual();
 }
 
-// LV_EVENT_HIT_TEST callback — reject touches that fall inside the L's
-// notch so the centre area doesn't steal taps from neighbouring buttons.
 void cruiseLHitTestCb(lv_event_t *e) {
     auto *info = lv_event_get_hit_test_info(e);
     if (!info || !info->point)
@@ -331,9 +305,6 @@ void cruiseLHitTestCb(lv_event_t *e) {
         info->res = false;
 }
 
-// Build a synthetic CfgWidget representing one cruise button. Returned by
-// value — small struct (~few hundred bytes), short-lived, only used to feed
-// WidgetFactory::create() which copies the relevant fields it needs.
 CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg, int16_t x,
                            int16_t y) {
     CfgWidget w = {};
@@ -346,9 +317,6 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
     w.layout.h = CRUISE_BUTTON_H;
     w.layout.zOrder = 0;
 
-    // Subtle dark surface — visible against the typical black page bg without
-    // overpowering the central SET-SPEED readout. (void)pageCfg silences the
-    // unused-param warning while the palette wiring is still pending.
     (void)pageCfg;
     w.style.primaryColor = CfgColor{CRUISE_BUTTON_FILL_RGB};
     w.style.textColor = CfgColor{0xFFFFFFu};
@@ -379,10 +347,6 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
 }
 
 void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
-    // Centre the 2×2 grid in the available content area (below the top bar
-    // when one is configured). Falls back to the outer-pad anchor if the
-    // screen is narrower/shorter than the grid — defensive only; the native
-    // 320×240 panel comfortably fits the layout.
     const int16_t gridW = CRUISE_BUTTON_W * 2 + CRUISE_GAP_X;
     const int16_t gridH = CRUISE_BUTTON_H * 2 + CRUISE_GAP_Y;
     const int16_t contentH = LV_VER_RES - contentY;
@@ -393,8 +357,6 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
     if (startY < contentY + CRUISE_OUTER_PAD)
         startY = contentY + CRUISE_OUTER_PAD;
 
-    // Reset cached toggle state — the previous page (if any) was deleted
-    // and the cached handles now point to freed objects.
     s_cruiseActive = false;
     s_cruiseToggleBtn = nullptr;
     s_cruiseToggleLabel = nullptr;
@@ -404,38 +366,22 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         const uint8_t col = i % 2;
         const uint8_t row = i / 2;
         const int16_t x = startX + col * (CRUISE_BUTTON_W + CRUISE_GAP_X);
-        // yOffset==0 here because we already baked the top-bar offset into the
-        // synthetic widget's layout.y. WidgetFactory::create adds yOffset on
-        // top of layout.y, so passing 0 keeps the buttons where we placed them.
         const int16_t y = startY + row * (CRUISE_BUTTON_H + CRUISE_GAP_Y);
         const CfgWidget w = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y);
         lv_obj_t *btn = WidgetFactory::create(screen, w, /*yOffset=*/0);
         if (!btn)
             continue;
 
-        // Wipe every default + state style the button widget installed so the
-        // ONLY visual is the L painted by the DRAW_MAIN_END callback. Per-
-        // state opacity overrides weren't enough: the factory's PRESSED-state
-        // rectangle still bled through on certain buttons. Removing all
-        // styles also kills the theme's default border / shadow / pressed
-        // tint without us having to enumerate every state combination.
-        // Click dispatch lives in the event-callback chain (not in styles)
-        // so it survives the wipe untouched.
+        // Wipe every theme style — the factory's PRESSED-rect bleeds through
+        // anything less. Click dispatch lives in the event chain, not styles,
+        // so it survives. Geometry is style-backed in LVGL 8 so re-apply.
         lv_obj_remove_style_all(btn);
-        // Geometry is style-backed in LVGL 8 so the wipe above zeros size +
-        // position. Re-apply both so the button keeps its quadrant slot.
         lv_obj_set_pos(btn, x, y);
         lv_obj_set_size(btn, CRUISE_BUTTON_W, CRUISE_BUTTON_H);
-        // Suppress the theme's focus outline / pressed tint that pops on tap.
-        // The cruise buttons drive their own pressed/checked visual through
-        // the DRAW_MAIN_END callback — they don't need (or want) focus rings
-        // or an internal scroll area.
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
-        // Belt-and-suspenders: zero every drawing primitive across every
-        // state lv_btn's theme might reach for. remove_style_all should
-        // already cover this but the LVGL default theme re-applies state
-        // styles on transitions — explicit per-state zeros lock it out.
+        // LVGL default theme re-applies state styles on transitions —
+        // explicit per-state zeros are the only thing that locks it out.
         for (lv_state_t st : {lv_state_t(LV_STATE_DEFAULT), lv_state_t(LV_STATE_PRESSED),
                               lv_state_t(LV_STATE_FOCUSED), lv_state_t(LV_STATE_FOCUS_KEY),
                               lv_state_t(LV_STATE_CHECKED), lv_state_t(LV_STATE_EDITED),
@@ -445,49 +391,28 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
             lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
             lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | st);
             lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
-            // text_color is inheritable — pinning it on the PARENT button
-            // across every state means the label inherits a stable white
-            // regardless of which state the LVGL default theme thinks the
-            // button is currently in. Without this the theme overrides the
-            // label's text colour to its own (dark grey / black) on press.
             lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFFu), LV_PART_MAIN | st);
         }
 
-        // Encode the corner orientation as the event user_data so a single
-        // pair of callbacks handles all four buttons.
         void *cornerData = reinterpret_cast<void *>(static_cast<uintptr_t>(i));
         lv_obj_add_event_cb(btn, cruiseLDrawCb, LV_EVENT_DRAW_MAIN_END, cornerData);
-        // Force a redraw on press / release so the L fill swaps between
-        // idle and pressed states. After remove_style_all there's no style
-        // delta on STATE_PRESSED for LVGL to detect, so the automatic
-        // invalidation on state change doesn't fire — drive it manually.
+        // After remove_style_all there's no style delta on STATE_PRESSED for
+        // LVGL to detect — drive the fill redraw manually.
         auto pressInvalidateCb = [](lv_event_t *ev) { lv_obj_invalidate(lv_event_get_target(ev)); };
         lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESSED, nullptr);
         lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_RELEASED, nullptr);
         lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESS_LOST, nullptr);
-        // Hit-test reject points inside the notch so taps in the centre area
-        // fall through to the next sibling rather than registering on the
-        // wrong corner button. Requires ADV_HITTEST flag.
         lv_obj_add_flag(btn, LV_OBJ_FLAG_ADV_HITTEST);
         lv_obj_add_event_cb(btn, cruiseLHitTestCb, LV_EVENT_HIT_TEST, cornerData);
-        // Make absolutely sure the button stays clickable — defensive against
-        // any factory default that might have cleared the flag.
         lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
 
-        // Shift the action label firmly into the L body, away from the notch.
-        // The button widget uses a flex column layout — opt the label out via
-        // IGNORE_LAYOUT so manual alignment isn't overwritten on the next
-        // flex pass. Offset = ±notchW/2, ±notchH/2 — large enough that the
-        // glyph clears the outline + has clear visual breathing room inside
-        // its arm.
-        constexpr int16_t LABEL_OFF_X = CRUISE_NOTCH_W / 2; // 28
-        constexpr int16_t LABEL_OFF_Y = CRUISE_NOTCH_H / 2; // 22
+        constexpr int16_t LABEL_OFF_X = CRUISE_NOTCH_W / 2;
+        constexpr int16_t LABEL_OFF_Y = CRUISE_NOTCH_H / 2;
         const int16_t shiftX = (col == 0) ? -LABEL_OFF_X : LABEL_OFF_X;
         const int16_t shiftY = (row == 0) ? -LABEL_OFF_Y : LABEL_OFF_Y;
-        // Hide the button widget's internal label — it kept catching the
-        // LVGL default theme's per-state text-colour overrides no matter
-        // how many local-style states we covered. Create a fresh label as
-        // a direct child of `screen` (sibling of the buttons) so neither
+        // The button widget's internal label catches theme text-colour
+        // overrides we can't fully out-state. Hide it and float our own
+        // label as a sibling of the buttons (child of `screen`) so neither
         // button state nor the theme observer can touch it.
         if (lv_obj_get_child_cnt(btn) > 0) {
             lv_obj_t *innerLabel = lv_obj_get_child(btn, 0);
@@ -499,22 +424,14 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         lv_label_set_text(label, CRUISE_BUTTONS[i].label);
         lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFFu), 0);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-        // +/− single glyphs at primary(32); SET/OFF 3-char labels at
-        // secondary(24) so they fit the L body without truncating.
         const bool isSymbol = (i == static_cast<uint8_t>(CruiseCorner::kTL)) ||
                               (i == static_cast<uint8_t>(CruiseCorner::kTR));
         lv_obj_set_style_text_font(
             label, isSymbol ? FontManager::primary(32) : FontManager::secondary(24), 0);
-        // Position over the button rect centre + per-corner L-body shift.
-        // The (-) compensations centre the text glyph on the target point
-        // (LV_ALIGN_CENTER on a screen-level obj requires manual math).
         const int16_t cx = x + (CRUISE_BUTTON_W / 2) + shiftX;
         const int16_t cy = y + (CRUISE_BUTTON_H / 2) + shiftY;
         lv_obj_set_pos(label, cx - (isSymbol ? 12 : 24), cy - (isSymbol ? 16 : 12));
 
-        // OFF/ON toggle wiring — only the BR button toggles cruise activation.
-        // The cached handles let cruiseToggleClickCb flip both the visual
-        // state and the label text without re-walking the screen tree.
         if (i == static_cast<uint8_t>(CruiseCorner::kBR)) {
             s_cruiseToggleBtn = btn;
             s_cruiseToggleLabel = label;
@@ -523,9 +440,6 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         ++created;
     }
 
-    // Centred SET-SPEED label stack. Labels float over the cross-shaped
-    // page-bg gap between the four buttons + notch overlays. Non-clickable
-    // by default so taps pass through.
     const int16_t centerX = (LV_HOR_RES - CRUISE_CENTER_W) / 2;
     const int16_t centerY = contentY + (contentH - CRUISE_CENTER_H) / 2;
 
@@ -547,10 +461,7 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
     lv_obj_set_pos(setHeader, 0, 4);
 
     lv_obj_t *setValue = lv_label_create(center);
-    // Zero is the "no signal" placeholder — no cruise state machine yet, so
-    // nothing feeds a real setpoint. Mirrors CruiseControlPreview.tsx's
-    // DEMO_SET_SPEED. Replace with the live setpoint when #451 wires the
-    // dispatcher to a real cruise controller.
+    // Placeholder until #451 wires a real setpoint.
     lv_label_set_text(setValue, "0");
     lv_obj_set_style_text_color(setValue, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
     lv_obj_set_style_text_font(setValue, FontManager::primary(32), 0);
