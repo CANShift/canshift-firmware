@@ -297,12 +297,16 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 // Maximum number of pages, widgets, and signals
 // NOTE: CfgDashboard and CfgPage are statically sized arrays in BSS.
 // Each CfgWidget is ~264 bytes; each page reserves CONFIG_MAX_WIDGETS_PER_PAGE
-// of them → ~6.2 KB BSS per page. #1357 tried 4→8 to fit cruise_control, but
-// the +25 KB hit fragmented the runtime heap enough that CAN's twai_init
-// task and the USB rxBuf alloc both started failing with ESP_ERR_NO_MEM at
-// boot (reverted in #1358). The proper fix is heap-allocating the page array
-// at load time so cap can grow without BSS pressure — tracked separately.
-#define CONFIG_MAX_PAGES 4
+// of them → ~6.2 KB BSS per page. The cap evolved through:
+//   - 4 (pre-#1351): too tight for cruise_control + 4 free-form pages.
+//   - 8 (#1357): jumped +25 KB BSS, OOM'd CAN init + USB rxBuf at boot (#1358 revert).
+//   - 5 (now, #1360): minimal bump that fits the demo seed (4 pages) + 1 cruise.
+//     Costs +6.2 KB BSS vs the 4-page baseline — well inside the post-#1351
+//     WiFi-removal headroom (~80 KB). The 25 KB jump from 4→8 was what hit
+//     fragmentation; +6.2 KB is comfortably below the cliff.
+// Heap-allocating the page array (issue #1359) is the durable fix and would
+// retire this static cap entirely.
+#define CONFIG_MAX_PAGES 5
 #define CONFIG_MAX_WIDGETS_PER_PAGE 12
 #define CONFIG_MAX_SIGNALS 32
 
