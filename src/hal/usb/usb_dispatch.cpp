@@ -718,8 +718,13 @@ void handleCommand(const char *jsonLine) {
             break;
         }
         default:
-            LOG_VDEBUG("USB", "Unhandled cmd: 0x%02X", cmd);
-            UsbComm::sendLine("{\"status\":\"ok\"}");
+            // Surface opcode drift loudly so a tuner built against a future
+            // protocol can't silently fall through with a fake `ok`. Old
+            // behaviour returned `{"status":"ok"}` here, which let the typed
+            // envelope drift between tuner and firmware without any signal
+            // until a downstream parser blew up (#1365).
+            LOG_WARN("USB", "Unknown cmd: 0x%02X — replying unknown_command", cmd);
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"unknown_command\"}");
             break;
     }
 }
