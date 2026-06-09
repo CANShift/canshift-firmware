@@ -76,7 +76,7 @@ constexpr const char *kSignalsMalformedCanFrameId = R"({
   ]
 })";
 
-// Signal with a name that exceeds CFG_MAX_SIGNAL_LEN (32). The signal must be
+// Signal with a name that exceeds CFG_MAX_SIGNAL_LEN. The signal must be
 // dropped and the valid "rpm" signal before it must survive (#1162).
 constexpr const char *kSignalsNameTooLong = R"({
   "version": "1.0.0",
@@ -98,7 +98,7 @@ constexpr const char *kSignalsNameTooLong = R"({
       "timeoutMs": 1000
     },
     {
-      "name": "this_signal_name_is_way_too_long_for_the_buffer",
+      "name": "this_signal_name_is_deliberately_way_too_long_to_exceed_the_64_char_signal_buffer_cap",
       "canFrameId": "0x200",
       "startByte": 0,
       "byteLength": 1,

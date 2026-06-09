@@ -29,7 +29,7 @@
 // Maximum string lengths for config values
 #define CFG_MAX_ID_LEN 32
 #define CFG_MAX_NAME_LEN 32
-#define CFG_MAX_SIGNAL_LEN 32
+#define CFG_MAX_SIGNAL_LEN 64
 // Target screen profile id length. Profile ids today (`crowpanel-28`) fit in
 // 12 chars; 24 leaves headroom for `crowpanel-50` / similar additions when
 // the second board lands (issues #17, #18). Single source of truth in
