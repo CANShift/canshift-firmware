@@ -1,15 +1,3 @@
-// settings_page.cpp — Orchestrator + public API for the on-device LVGL
-// settings page. The implementation is split across three TUs since #1207:
-//
-//   - settings_page.cpp        — this file: init flow, open/close/snap glue,
-//                                public getters, USB push.
-//   - settings_page_ui.cpp     — LVGL widget tree construction + snap anim.
-//   - settings_page_state.cpp  — NVS persistence + state machine + event
-//                                callbacks.
-//
-// All three share settings_page_internal.h for state and helper declarations.
-// Callers continue to use settings_page.h — the split is internal-only.
-
 #include "settings_page.h"
 #include "settings_page_internal.h"
 
@@ -20,10 +8,6 @@
 #include <stdint.h>
 
 using namespace SettingsPageInternal;
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 void SettingsPage::init(int16_t yOffset, int16_t height) {
     nvsLoad();
@@ -52,8 +36,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
 void SettingsPage::open() {
     if (!s_panel || s_open)
         return;
-    // Snap to the resting open position in case a previous drag/snap left the
-    // panel at an interpolated y.
     lv_obj_set_y(s_panel, s_openY);
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_panel);
@@ -70,7 +52,6 @@ void SettingsPage::close() {
     if (!s_panel || !s_open)
         return;
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    // Reset position so the next open()/snapOpen() starts from a known state.
     lv_obj_set_y(s_panel, s_openY);
     s_open = false;
     LOG_DEBUG("Settings", "Settings page closed");
@@ -95,10 +76,6 @@ uint8_t SettingsPage::getBrightness() {
 bool SettingsPage::getBleEnabled() {
     return s_bleEnabled;
 }
-
-// ---------------------------------------------------------------------------
-// Drag-to-reveal (issue #47)
-// ---------------------------------------------------------------------------
 
 int16_t SettingsPage::getOpenY() {
     return s_openY;
@@ -127,8 +104,7 @@ void SettingsPage::setPanelY(int16_t y) {
         y = s_closedY;
     if (y > s_openY)
         y = s_openY;
-    // Position before reveal — otherwise the panel flashes for one frame at
-    // its previous resting y before our drag offset takes effect.
+    // Position before reveal — else the panel flashes one frame at its old y.
     lv_obj_set_y(s_panel, y);
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
         lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -140,8 +116,7 @@ void SettingsPage::snapOpen() {
     if (!s_panel)
         return;
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
-        // Coming from a fully-closed state with no drag preview — start the
-        // animation from s_closedY rather than the resting open position.
+        // No drag preview — animate from closed rather than resting open.
         lv_obj_set_y(s_panel, s_closedY);
         lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(s_panel);
@@ -153,7 +128,7 @@ void SettingsPage::snapClosed() {
     if (!s_panel)
         return;
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN))
-        return; // Already hidden, nothing to animate.
+        return;
     runSnap(s_closedY, onSnapClosedDone);
 }
 

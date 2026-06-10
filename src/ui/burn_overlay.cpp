@@ -1,5 +1,3 @@
-// burn_overlay.cpp — see header for rationale.
-
 #include "burn_overlay.h"
 #include "app_config.h"
 #include "ui/font_manager.h"
@@ -16,11 +14,7 @@ lv_obj_t *s_overlay = nullptr;
 lv_obj_t *s_arc = nullptr;
 lv_timer_t *s_errorTimer = nullptr;
 
-// Debug-only invariant — show() builds LVGL objects on lv_layer_top, which
-// the UI task touches every tick. Caller MUST be on the UI core and MUST
-// either hold g_lvglMutex or be running before the mutex exists (boot
-// phase). Same pattern as WidgetTagPool::assertUiThreadHoldsLvglMutex
-// (#1058 / #1061). F-LO-6 / issue #1014.
+// UI-core + mutex-held (or pre-mutex boot phase). #1058 / F-LO-6.
 inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(xPortGetCoreID() == TASK_CORE_UI);
     configASSERT(g_lvglMutex != nullptr);
@@ -28,11 +22,9 @@ inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());
 }
 
-// Drive the indicator's start angle; the bg-angle window keeps the same span
-// (kArcSpan), so changing only the start makes the segment chase its tail
-// around the ring — standard LVGL 8.3 spinner pattern when LV_USE_SPINNER=0.
-constexpr uint16_t kArcSpan = 80;     // degrees of visible indicator
-constexpr uint16_t kArcPeriod = 1100; // ms per full rotation
+// Standard LVGL 8.3 spinner pattern when LV_USE_SPINNER=0.
+constexpr uint16_t kArcSpan = 80;
+constexpr uint16_t kArcPeriod = 1100;
 
 void arcAnimCb(void *var, int32_t value) {
     auto *arc = static_cast<lv_obj_t *>(var);
@@ -41,8 +33,6 @@ void arcAnimCb(void *var, int32_t value) {
     lv_arc_set_angles(arc, start, end);
 }
 
-// Tear down any existing overlay state — animations, timers, and the root
-// container. Caller must hold g_lvglMutex.
 void teardownOverlay() {
     if (s_errorTimer) {
         lv_timer_del(s_errorTimer);
@@ -58,16 +48,11 @@ void teardownOverlay() {
     }
 }
 
-// Build the full-screen black backdrop on lv_layer_top. Returns the root.
-// Shared by show() (spinner state) and showError() (error state).
 lv_obj_t *createRoot() {
     lv_obj_t *root = lv_obj_create(lv_layer_top());
     lv_obj_set_size(root, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_pos(root, 0, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
-    // Solid black backdrop — read as a deliberate "system busy" state rather
-    // than a translucent veil that lets the old config show through and looks
-    // like a half-broken render.
     lv_obj_set_style_bg_color(root, lv_color_hex(0x000000), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(root, 0, LV_PART_MAIN);

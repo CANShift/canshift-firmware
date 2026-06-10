@@ -1,5 +1,3 @@
-// heap_stats.cpp — see header.
-
 #include "heap_stats.h"
 
 #include "hal/usb/usb_comm.h"
@@ -20,8 +18,7 @@ Snapshot s_latest = {};
 uint32_t s_lastEmitMs = 0;
 bool s_warmedUp = false;
 
-// PSRAM totalsize is zero on WROOM, non-zero on WROVER. Cache the verdict so
-// every sample doesn't pay the IDF lookup. Refreshed once on first call.
+// Cache the IDF lookup — refreshed once on first call.
 bool s_psramProbed = false;
 bool s_hasPsram = false;
 

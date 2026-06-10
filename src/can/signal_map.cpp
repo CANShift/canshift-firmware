@@ -1,15 +1,6 @@
-// signal_map.cpp — Signal name → SignalId lookup table
-//
-// Single source of truth for mapping the string keys used in dashboard.json
-// (and CfgWidget.signalId / CfgTopBarItem.signalId) to the numeric SignalIds
-// used in SignalStore. Add new signals here and in signal_map.h together.
-//
-// When `USE_RUST_SIGNAL_MAP=1` is set in the PIO build, the body of
-// `signalIdFromName` delegates to the Rust port (issue #1177 R-4). Keep
-// `rust/signal-map/src/lib.rs` `NAME_TO_ID` in lockstep with `kNameToId`
-// below — `cargo test -p signal-map` locks the IDs down, but the names
-// have to be updated on both sides for new signals.
-
+// kNameToId is the SoT for dashboard.json signal-name lookup. When new
+// signals are added, the Rust port (rust/signal-map/src/lib.rs NAME_TO_ID)
+// must mirror the new entry — cargo test enforces IDs but not names.
 #include "signal_map.h"
 
 #include <string.h>
@@ -25,9 +16,8 @@ struct NameToId {
     SignalId id;
 };
 
-// Extend this table when adding a signal — it is the only place the mapping
-// lives. Ordering does not matter (linear scan). Compiled even when the
-// Rust path is active so a future "compare both backends in CI" smoke can
+// Linear-scan lookup; ordering doesn't matter. Compiled even with the Rust
+// backend enabled so a future "compare backends" smoke can
 // pull it back in without resurrecting the table.
 constexpr NameToId kNameToId[] = {
     {"rpm", SignalIds::RPM},

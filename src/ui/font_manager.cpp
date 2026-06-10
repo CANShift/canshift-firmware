@@ -1,11 +1,3 @@
-// font_manager.cpp — Loads dashboard fonts from SPIFFS at boot (issue #431).
-//
-// Each .bin lives at `S:/fonts/orbitron_<weight>_<N>.bin` (lv_font_conv
-// output). Loaded once into per-intent cached lookup tables; freed via
-// shutdown(). On load failure for any size, the accessor falls back to the
-// built-in `lv_font_orbitron_medium_14_nk` linked into flash so the UI always
-// renders something readable.
-
 #include "font_manager.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
@@ -16,43 +8,17 @@
 #include <stdio.h>
 #include <string.h>
 
-// In-flash Orbitron Black 32 + 48 px — declared here (not in lv_conf.h, which
-// already exposes the 14 px Medium twin via LV_FONT_CUSTOM_DECLARE). The
-// symbols live in src/ui/fonts/lv_font_orbitron_black_{32,48}_nk.c. Both
-// primary sizes ship in-flash because the 80 KB LVGL pool is shared with the
-// LVGL draw buffers (~25 KB) — there is no room to host the 43 KB 48 px Black
-// binary in pool alongside the bold/medium SPIFFS loads (issue #664, PR #665).
+// Black 32 + 48 ship in-flash because the 80 KB LVGL pool (shared with
+// draw buffers + bold/medium SPIFFS loads) can't host the 43 KB 48 px binary.
 LV_FONT_DECLARE(lv_font_orbitron_black_32_nk);
 LV_FONT_DECLARE(lv_font_orbitron_black_48_nk);
 
 namespace {
 
-// Sizes shipped per tier. Driven by actual call sites (see issues #431 + #487
-// + #664):
-//   primary   — gauge/timer/gear at full panel height, label_widget large
-//   secondary — gauge/timer mid-band, gear mid, burn_overlay icon
-//   label     — top bar text, signal headers, settings, error bar, dot/icon
-//
-// Restoration of the sizes dropped in PR #487 (issue #664):
-//   - 32 px Black stays declared as a primary size, linked in-flash
-//     (lv_font_orbitron_black_32_nk in src/ui/fonts/) instead of loaded from
-//     SPIFFS.
-//   - 48 px Black is restored as a primary size, also linked in-flash
-//     (lv_font_orbitron_black_48_nk in src/ui/fonts/). Hosting it in the LVGL
-//     pool was attempted first but failed at boot: the 80 KB pool is shared
-//     with the LVGL draw buffers (~25 KB) and widget runtime state, leaving
-//     ~50 KB for fonts — not enough for the 43 KB 48 px binary alongside the
-//     bold/medium loads. Flash linkage sidesteps the pool entirely.
-//   - 28 px Bold was reintroduced earlier on this branch then dropped:
-//     even with both primary sizes in flash, adding the 15 KB 28 px Bold on
-//     top of the existing bold/medium SPIFFS budget pushes the pool past its
-//     working ceiling. 28 stays dropped (secondary text snaps to 24 px).
-constexpr uint8_t kPrimarySizes[] = {32, 48};   // both in-flash
-constexpr uint8_t kSecondarySizes[] = {20, 24}; // 28 dropped — pool too tight
-// 8 + 10 added for widget labels — Studio renders them at 6-9 px (#1207 follow-up,
-// 2026-06-01 user feedback); the 12 px floor used to make them ~30 % wider than
-// Studio. Each new bin is ~2-3 KB so the SPIFFS + LVGL-pool budget stays well
-// inside its working ceiling.
+// 28 px Bold dropped — even with primary in flash, adding 15 KB to the
+// SPIFFS/pool budget pushed past the working ceiling. Secondary snaps to 24.
+constexpr uint8_t kPrimarySizes[] = {32, 48};
+constexpr uint8_t kSecondarySizes[] = {20, 24};
 constexpr uint8_t kLabelSizes[] = {8, 10, 12, 14, 16};
 
 constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);

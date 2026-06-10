@@ -1,8 +1,3 @@
-// track_store.cpp — Atomic latch for Track-mode telemetry (#844).
-//
-// Implementation mirrors `signal_store` — a portMUX spinlock around a fixed
-// state struct. The critical section never allocates and never logs.
-
 #include "track_store.h"
 
 #include <Arduino.h>

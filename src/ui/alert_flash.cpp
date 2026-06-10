@@ -1,5 +1,3 @@
-// alert_flash.cpp — implementation of the red threshold-flash overlay.
-
 #include "alert_flash.h"
 
 #include <cmath>
@@ -8,9 +6,9 @@ namespace AlertFlash {
 
 namespace {
 
-constexpr uint32_t FLASH_RGB = 0xFF2222; // Bright red, leans saturated for contrast
-constexpr uint8_t FLASH_PEAK_OPA = 180;  // ~70 % opacity at the peak of each pulse
-constexpr uint16_t HALF_CYCLE_MS = 500;  // 500 ms up + 500 ms down = 1 Hz pulse
+constexpr uint32_t FLASH_RGB = 0xFF2222;
+constexpr uint8_t FLASH_PEAK_OPA = 180;
+constexpr uint16_t HALF_CYCLE_MS = 500;
 constexpr uint32_t LABEL_ALERT_RGB = 0xFFFFFF;
 
 void overlayOpaCb(void *obj, int32_t v) {

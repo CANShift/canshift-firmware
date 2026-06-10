@@ -1,7 +1,3 @@
-// widget_styles.cpp — Shared LVGL style helpers + per-frame write guards.
-//
-// See widget_styles.h for the API contract and threading rules.
-
 #include "widget_styles.h"
 
 namespace WidgetStyles {

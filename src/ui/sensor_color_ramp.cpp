@@ -1,5 +1,3 @@
-// sensor_color_ramp.cpp — implementation. See header for contract.
-
 #include "sensor_color_ramp.h"
 
 #include <cmath>
@@ -13,7 +11,6 @@
 
 namespace {
 
-// Channel-wise lerp between two RGB ints. `t` clamped to [0,1] by the caller.
 uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
     if (t < 0.0f)
         t = 0.0f;
@@ -34,15 +31,12 @@ uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
             return 0u;
         if (v > 255.0f)
             return 255u;
-        // Use std::lround to avoid the bias of (int)(v + 0.5f) on negative
-        // values + the rounding-toward-zero bug clang-tidy flagged
-        // (bugprone-incorrect-roundings). Input clamped above so cast is safe.
+        // std::lround avoids bugprone-incorrect-roundings flagged on (int)(v + 0.5f).
         return static_cast<uint32_t>(std::lround(v));
     };
     return (mix(ar, br) << 16) | (mix(ag, bg) << 8) | mix(ab, bb);
 }
 
-// Lower-cased strstr — case-insensitive substring search.
 bool containsCi(const char *haystack, const char *needle) {
     if (!haystack || !needle)
         return false;
@@ -71,8 +65,8 @@ struct NameRule {
     SensorKind kind;
 };
 
-// Mirror of NAME_HEURISTICS in canshift-core/src/sensorDefaults.ts. Order
-// matters — more specific patterns must come first.
+// Mirrors NAME_HEURISTICS in canshift-core/src/sensorDefaults.ts.
+// Specific patterns first.
 constexpr NameRule kNameRules[] = {
     {"coolant", SensorKind::Coolant},
     {"oil_press", SensorKind::OilPress},
@@ -94,20 +88,13 @@ constexpr NameRule kNameRules[] = {
     {"exhaust_temp", SensorKind::Egt},
 };
 
-// Helper to assemble a stop array literal at compile time. The unused tail of
-// `stops` is zero-initialised by the implicit aggregate rules.
 constexpr CfgRampStop S(float v, uint32_t c) {
     return CfgRampStop{v, c};
 }
 
 } // namespace
 
-// Default catalog — index aligns with SensorKind. Hex literals chosen to match
-// SENSOR_DEFAULT_RAMPS in canshift-core/src/sensorDefaults.ts.
-//
-// CfgColorRamp / CfgRampStop are POD aggregates; the initializer is
-// non-throwing in practice. clang-tidy can't prove noexcept on the implicit
-// ctor chain because the structs don't declare `noexcept` explicitly.
+// Mirrors SENSOR_DEFAULT_RAMPS in canshift-core/src/sensorDefaults.ts.
 // NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const CfgColorRamp kSensorDefaultRamps[kSensorKindCount] = {
     // Coolant
@@ -186,7 +173,6 @@ uint32_t colorAtValue(const CfgColorRamp &ramp, float value) {
     if (value >= last.value)
         return last.color;
 
-    // Step mode: walk forward, the highest stop with value <= input wins.
     if (ramp.interpolate == CfgRampInterp::Step) {
         uint32_t active = first.color;
         for (uint8_t i = 0; i < ramp.count; ++i) {
@@ -198,7 +184,6 @@ uint32_t colorAtValue(const CfgColorRamp &ramp, float value) {
         return active;
     }
 
-    // Linear: find bracketing pair, lerp.
     for (uint8_t i = 0; i + 1 < ramp.count; ++i) {
         const CfgRampStop &lower = ramp.stops[i];
         const CfgRampStop &upper = ramp.stops[i + 1];

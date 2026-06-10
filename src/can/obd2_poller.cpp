@@ -1,10 +1,3 @@
-// obd2_poller.cpp — OBD-II request/response poller (issue #841)
-//
-// One static `PollSlot` per signal that carries a `polling` block in
-// signals.json. The scheduler fires a request frame at `intervalMs` and the
-// RX hook decodes the matching response into SignalStore via the same
-// generic byte decoder CanParser uses for broadcast frames.
-
 #include "obd2_poller.h"
 
 #include "can/can_manager.h"
@@ -16,24 +9,20 @@
 #include "diag/logger.h"
 #include "app_config.h"
 
-#include <Arduino.h> // millis()
+#include <Arduino.h>
 #include <string.h>
 
 namespace {
 
-// One polling slot — populated from `CfgSignalDef` entries that carry a
-// non-zero `pollIntervalMs`. The decoder fields (startByte/byteLength/etc.)
-// are copied here so the RX hook does not have to chase `ConfigLoader`
-// during the hot path.
+// Decode fields are copied from CfgSignalDef so OnRxFrame doesn't reach back
+// into ConfigLoader on the hot path.
 struct PollSlot {
     SignalId signalId;
-    uint8_t mode; // OBD-II mode byte (0x01 for v1)
+    uint8_t mode;
     uint8_t pid;
     uint32_t intervalMs;
     uint32_t nextPollMs;
     uint32_t lastResponseMs;
-    // Decode fields — mirrors CfgSignalDef so OnRxFrame doesn't reach back
-    // into ConfigLoader for every response.
     uint8_t startByte;
     uint8_t byteLength;
     bool bigEndian;

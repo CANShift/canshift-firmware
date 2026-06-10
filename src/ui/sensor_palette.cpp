@@ -1,9 +1,4 @@
-// sensor_palette.cpp — implementation. See header for contract.
-//
-// Table mirrors SENSOR_PALETTE in canshift-core/src/sensor-palette.ts. Each
-// entry stores the OK colour (always defined) and the warning colour
-// (0 = sensor has no semantic upper warning).
-
+// Table mirrors SENSOR_PALETTE in canshift-core/src/sensor-palette.ts.
 #include "sensor_palette.h"
 
 #include <cmath>
@@ -14,9 +9,7 @@ namespace {
 constexpr uint32_t RED = 0xCC3333u;
 constexpr uint32_t AMBER = 0xFFA000u;
 
-// Index aligns with the SensorIconName Zod enum order — keep both lists in
-// lockstep. New sensors require a new row here AND in canshift-core; the
-// native test against the JSON fixture catches drift.
+// Order matches the SensorIconName Zod enum — drift caught by JSON-fixture test.
 constexpr SensorPaletteEntry kEntries[] = {
     {"rpm", 0x00ACC1u, RED},
     {"speed", 0xECEFF1u, SensorPalette::kSentinelNoWarning},

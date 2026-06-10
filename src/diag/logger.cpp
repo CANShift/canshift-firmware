@@ -1,26 +1,5 @@
-// logger.cpp — JSON-line log emitter with UART0 mutex.
-//
-// Every LOG_* call funnels through Logger::emit(), which serializes the line
-// as `{"log":1,"lvl":"X","tag":"...","msg":"..."}\n` and writes it under a
-// FreeRTOS mutex shared with the wire-protocol producer (UsbComm). This keeps
-// log lines from interleaving with telemetry / can / ack frames on UART0.
-//
-// The mutex is recursive so re-entrant logger calls from the same task — e.g.
-// an assert / panic handler invoking LOG_ERROR while the task already holds
-// the lock via UsbComm::lockUart() — cannot deadlock and silently drop the
-// line that triggered the assert (F-HI-6, umbrella #1014).
-//
-// Pre-init window: between Serial.begin() and Logger::init() — both in
-// setup() on the Arduino loopTask — s_uartMutex is still null. The static
-// buffers below are then unprotected; we rely on the invariant that no other
-// task exists yet and assert it via configASSERT(xPortGetCoreID() ==
-// TASK_CORE_UI) so a future caller from a second task surfaces immediately
-// instead of silently corrupting the buffers (F-HI-6).
-//
-// Pre-init boot text from the Arduino core / ESP-IDF can still land on UART0
-// before Logger::init() runs — the studio drops malformed JSON silently, so
-// this is non-fatal and intentionally not addressed here.
-
+// Mutex is recursive so a task holding it via UsbComm::lockUart() can still
+// LOG_* re-entrantly without deadlocking (F-HI-6, #1014).
 #include "logger.h"
 #include "board_config.h"
 
@@ -28,31 +7,19 @@
 #include <stdio.h>
 #include <string.h>
 
-// freertos/task.h supplies xPortGetCoreID() for the pre-init assert below.
-// Native unit tests do not shim it (host is single-threaded so the assert is
-// gated out there entirely — see emit()).
 #ifndef UNIT_TEST
     #include <freertos/task.h>
 #endif
 
 namespace {
 
-// One recursive mutex shared with all UART0 writers. Created in Logger::init().
-// Recursive so a task already holding the lock (e.g. UsbComm streaming a
-// multi-call frame) can still log from a nested call site without deadlocking.
 SemaphoreHandle_t s_uartMutex = nullptr;
 
-// Stack-allocated buffers in emit() are sized for the worst case:
-//  - 256 B for the formatted message text (truncated beyond)
-//  - 512 B for the JSON-escaped message (every byte → \u00XX = 6× expansion)
-//  - 640 B for the final envelope (escape + small framing overhead)
+// 512 B = 256 B input × worst-case 6× JSON expansion (\u00XX).
 constexpr size_t MSG_BUF_SIZE = 256;
 constexpr size_t ESC_BUF_SIZE = 512;
 constexpr size_t LINE_BUF_SIZE = 640;
 
-// JSON-escape `src` (NUL-terminated) into `dst` of capacity `dstCap`.
-// Always NUL-terminates `dst` and never writes past it. Truncates the input
-// rather than failing if the destination is too small.
 void escapeJson(const char *src, char *dst, size_t dstCap) {
     if (dstCap == 0)
         return;

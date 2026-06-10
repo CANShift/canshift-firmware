@@ -1,9 +1,3 @@
-// widget_label.cpp — Implementation of the auto signal-name header.
-//
-// See widget_label.h for the API contract. Bodies live here so the header
-// can stay slim (no <lvgl.h> include) and the heavy LVGL drawing path
-// touches LVGL only when actually used.
-
 #include "widget_label.h"
 
 #include "ui/font_manager.h"
@@ -49,10 +43,7 @@ void drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
 
 } // namespace
 
-// Curated short labels — must mirror the Studio dictionary in
-// canshift-studio-web/src/utils/signalLabels.ts. The unit shown alongside
-// the value disambiguates metric type (OIL + 80°C = temp, OIL + 3.5 bar =
-// press), so labels stay short and the value remains the focal point.
+// Mirrors the Studio dictionary in canshift-studio-web/src/utils/signalLabels.ts.
 const char *displayLabelForSignal(const char *signalId) {
     if (!signalId || signalId[0] == '\0')
         return nullptr;

@@ -1,5 +1,3 @@
-// icon_assets.cpp — Sensor icon name → LVGL asset source (baked dsc or SPIFFS path).
-
 #include "icon_assets.h"
 #include "app_config.h"
 #include "config/config_loader.h"
@@ -11,24 +9,16 @@
 #include <lvgl.h>
 #include <string.h>
 
-// `_lv_img_cache_open` is declared transitively through `<lvgl.h>` (the
-// umbrella pulls in `src/draw/lv_img_cache.h`). Calling it with a path
-// opens the image via the decoder and pins the decoded data in the cache
-// until evicted — see preload() below.
-
 namespace IconAssets {
 
 namespace {
 
 struct IconEntry {
     const char *name;
-    const char *path; // SPIFFS path
+    const char *path;
 };
 
-// SensorIconName values (canshift-core/src/types/dashboard.ts).
-// .bin assets are expected at "S:/assets/sensor_<name>.bin" on SPIFFS;
-// when missing the widget skips the icon entirely (see #681 — the LVGL
-// symbol fallback was removed because Orbitron does not cover that range).
+// Mirrors SensorIconName values in canshift-core/src/types/dashboard.ts.
 constexpr IconEntry kIcons[] = {
     {"rpm", "S:/assets/sensor_rpm.bin"},
     {"speed", "S:/assets/sensor_speed.bin"},

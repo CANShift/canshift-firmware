@@ -1,16 +1,3 @@
-// config_loader.cpp — Orchestrator for the ConfigLoader public API (#1207).
-//
-// Owns the file-static config storage (`s_dashboard`, `s_signals`, `s_device`,
-// `s_inputs`), the rollback snapshot buffer (PSRAM/BSS selection), and the
-// thin public entry points that drive the four file loaders defined in
-// `config_parser.cpp`. JSON primitives live in `json_helpers.cpp`; string-to-
-// enum decoders + the schema-version check live in `config_validators.cpp`;
-// the optional Rust FFI sits behind `config_loader_rust_bridge.h`.
-//
-// Splitting this file is purely a maintainability refactor — the public API
-// in `config_loader.h` is byte-identical and the call graph from
-// `ConfigLoader::loadAll()` down through the per-file loaders is unchanged.
-
 #include "config_loader.h"
 
 #include "app_config.h"
@@ -25,12 +12,6 @@
     #include <esp_heap_caps.h>
 #endif
 
-// ---------------------------------------------------------------------------
-// File-static config storage (declared `extern` in config_loader_internal.h
-// so the helper TUs can mutate / read it without re-routing every parser
-// through a getter).
-// ---------------------------------------------------------------------------
-
 namespace ConfigLoaderInternal {
 
 CfgDashboard s_dashboard = {};
@@ -38,34 +19,11 @@ CfgSignalConfig s_signals = {};
 CfgDeviceConfig s_device = {};
 CfgInputBindings s_inputs = {};
 
-// Transactional reload snapshot (issue #458, audit F-HI-3 / umbrella #1014).
-// Previously these snapshots were heap-allocated on each load* entry and freed
-// on exit (~22 KB + ~5 KB of malloc/free churn per reload), which fragmented
-// the LVGL pool when fonts/SPIFFS loaded right after boot (related to #895 /
-// #976). They were then moved to a single BSS-resident buffer so load*() never
-// touches the heap.
-//
-// loadDashboard() and loadSignals() run sequentially on the same task
-// (ConfigLoader::loadAll drives them in order) and each completes before the
-// next begins, so a single shared buffer sized to the larger of the two types
-// is enough. The static_assert pins the invariant so a future struct growth
-// on the other type can't silently underflow this buffer.
-//
-// Storage selection (issue #1073):
-//   - BOARD_HAS_PSRAM builds (crowpanel_28 / crowpanel_28_wifi) prefer a
-//     one-shot PSRAM allocation. On a WROVER module this reclaims ~5 KB of
-//     `dram0_0_seg` — exactly the room `crowpanel_28_wifi` needs to fit the
-//     WiFi / mDNS / lwip BSS that the dash-hosted Studio WS bridge brings in
-//     (issues #1073, #1108; the env link-overflowed by ~1.7 KB before this
-//     change). On a WROOM module the runtime PSRAM probe in
-//     `hal/memory/psram.cpp` reports 0 bytes, the alloc returns null, and
-//     the rollback feature degrades to a no-op (parse failures no longer
-//     restore the prior in-memory state — same risk profile as the pre-#458
-//     single-buffer path, documented in the #1073 PR body).
-//   - Non-PSRAM builds (host / native test, `[env:native]`) keep the BSS
-//     buffer so unit tests still exercise the rollback path byte-for-byte.
+// Single shared rollback snapshot buffer — sized for the larger struct (#458,
+// F-HI-3). loadDashboard/loadSignals run sequentially so a shared buffer is
+// enough. PSRAM-backed on WROVER to reclaim ~5 KB DRAM (#1073).
 static_assert(sizeof(CfgDashboard) >= sizeof(CfgSignalConfig),
-              "rollback snapshot buffer must fit CfgDashboard (the larger of the two)");
+              "rollback snapshot buffer must fit CfgDashboard");
 namespace {
 constexpr size_t kRollbackSnapshotSize = sizeof(CfgDashboard);
 
@@ -74,10 +32,7 @@ alignas(CfgDashboard) uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
 #endif
 } // namespace
 
-// Returns the snapshot buffer or nullptr when no backing storage is available.
-//   - BOARD_HAS_PSRAM: lazy-allocate from PSRAM on first call; nullptr on the
-//     WROOM no-PSRAM runtime path so callers skip the snapshot step.
-//   - Otherwise: returns the BSS reservation (cannot fail).
+// nullptr when the WROOM no-PSRAM path can't back the snapshot — callers skip.
 uint8_t *acquireRollbackSnapshot() {
 #ifdef BOARD_HAS_PSRAM
     static uint8_t *s_rollback_snapshot_psram = nullptr;

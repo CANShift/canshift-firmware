@@ -1,10 +1,3 @@
-// action_dispatcher.cpp — Shared action dispatch for LVGL + GPIO button inputs.
-//
-// Extracted from `ui/widgets/button_widget.cpp` so the physical-button input
-// task in `runtime/input_buttons.cpp` runs the exact same execution path
-// (issue #833). Behaviour preserved verbatim — review `button_widget.cpp`
-// git history for the rationale behind each branch.
-
 #include "action_dispatcher.h"
 
 #include "app_config.h"
@@ -24,7 +17,7 @@ namespace ActionDispatcher {
 
 namespace {
 
-// Standard / extended CAN ID bounds — mirrored from config_loader.cpp.
+// Mirrored from config_loader.cpp.
 constexpr uint32_t CAN_STANDARD_ID_MAX = 0x7FFu;
 
 const char *cruiseOpName(CfgCruiseOp op) {
@@ -49,17 +42,10 @@ const char *cruiseOpName(CfgCruiseOp op) {
     }
 }
 
-// Pending-nav ring (issue #876). dispatchNavPage can be invoked concurrently
-// from two tasks: the UI task (on-screen button click, holds LVGL mutex) and
-// the input task (physical GPIO press in input_buttons.cpp, no LVGL mutex). A
-// single static buffer would race — both callers strlcpy into the same memory
-// before the lv_async_call payload pointer is dereferenced, and the async
-// would navigate to whichever pageId arrived second.
-//
-// Each dispatch claims its own slot via atomic head increment. NAV_RING_SIZE
-// matches LVGL's default async-queue depth (LV_ASYNC_CALL_SIZE = 8), so the
-// async callback always runs before the ring index wraps back to the same
-// slot under realistic press cadence.
+// Per-dispatch slot prevents the UI-task vs input-task race that would let
+// the second strlcpy overwrite the first before lv_async_call dereferences
+// it. NAV_RING_SIZE matches LV_ASYNC_CALL_SIZE so the ring never wraps before
+// the callback fires (#876).
 constexpr size_t NAV_RING_SIZE = 8;
 struct NavSlot {
     char pageId[CFG_MAX_ID_LEN];
@@ -70,10 +56,8 @@ std::atomic<size_t> s_navHead{0};
 void dispatchNavPage(const CfgButtonAction &a) {
     if (a.pageId[0] == '\0')
         return;
-    // Defer navigateTo to the next LVGL tick: it can synchronously free the
-    // screen this button lives on (lazy-build path releases the departing
-    // page), and the event loop would otherwise return into freed memory.
-    // Closes the re-entrant navigation path in #717.
+    // navigateTo can synchronously free the current screen — defer via
+    // lv_async_call so the event loop doesn't return into freed memory (#717).
     const size_t idx = s_navHead.fetch_add(1, std::memory_order_relaxed) % NAV_RING_SIZE;
     char *slot = s_navRing[idx].pageId;
     strlcpy(slot, a.pageId, CFG_MAX_ID_LEN);

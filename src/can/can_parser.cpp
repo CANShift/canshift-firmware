@@ -1,11 +1,3 @@
-// can_parser.cpp — CAN frame parser implementation
-//
-// When `USE_RUST_CAN_PARSER=1` is set in the PIO build, the body of
-// `detail::decodeBytes` delegates to the Rust port (issue #1177 R-1).
-// `parseFrame` and `loadSignalDefinitions` stay C++ — they touch
-// SignalStore, Logger, ArduinoJson via ConfigLoader, none of which are
-// pure-logic candidates per the issue's non-candidate list.
-
 #include "can_parser.h"
 #include "app_config.h"
 #include "signal_map.h"
@@ -19,22 +11,17 @@
 
 #include <algorithm>
 
-// ---------------------------------------------------------------------------
-// Internal state — runtime signal dispatch table
-// ---------------------------------------------------------------------------
-
 namespace {
 
-// One entry per decoded signal — built from signals.json at runtime
 struct RuntimeSignal {
     uint32_t canFrameId;
     uint8_t startByte;
-    uint8_t byteLength; // 1, 2, or 4
+    uint8_t byteLength;
     bool bigEndian;
     bool isSigned;
     float scale;
     float offset;
-    uint8_t bitMask; // 0 = full value; non-zero = boolean flag extracted from mask
+    uint8_t bitMask;
     SignalId signalId;
 };
 
@@ -43,11 +30,6 @@ static uint8_t s_runtimeCount = 0;
 static bool s_runtimeLoaded = false;
 
 } // namespace
-
-// ---------------------------------------------------------------------------
-// Generic multi-byte decoder — lives in CanParser::detail so unit tests
-// can link against it. Production callers reach it through `parseFrame`.
-// ---------------------------------------------------------------------------
 
 float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
                                      bool bigEndian, bool isSigned, uint8_t bitMask, float scale,

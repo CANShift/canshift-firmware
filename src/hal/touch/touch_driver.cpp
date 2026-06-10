@@ -1,7 +1,3 @@
-// touch_driver.cpp — XPT2046 resistive touch HAL (LovyanGFX backend)
-// XPT2046 via the shared LGFX panel.
-// Calibration data persisted in NVS (namespace "touch", key "cal", 16 bytes).
-
 #include "touch_driver.h"
 #include "app_config.h"
 #include "diag/logger.h"
@@ -21,12 +17,10 @@ static lv_indev_drv_t s_indevDrv;
 
 static constexpr char NVS_NS[] = "touch";
 static constexpr char NVS_KEY_CAL[] = "cal";
-// LovyanGFX calibration: 8 uint16_t (4 corner pairs). Old TFT_eSPI builds
-// stored 10 bytes (5 uint16_t) — those entries fail this size check and
-// fall back to defaults, prompting the user to recalibrate once.
-static constexpr size_t CAL_DATA_SIZE = 8 * sizeof(uint16_t); // 16 bytes
+// 8 uint16_t = 4 corner pairs (LovyanGFX). Pre-LovyanGFX builds stored 10 B
+// (TFT_eSPI) — that mismatch trips the size check and triggers a re-cal.
+static constexpr size_t CAL_DATA_SIZE = 8 * sizeof(uint16_t);
 
-// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
 void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) {
     int32_t x = 0, y = 0;
     const bool pressed = s_lcd.getTouch(&x, &y);
@@ -39,9 +33,8 @@ void TouchDriver::readCallback(lv_indev_drv_t * /*drv*/, lv_indev_data_t *data) 
     s_wasPressed = pressed;
 
     if (pressed) {
-        // Calibration can overshoot at the edges (e.g. x=353 / y=-8 when
-        // pressing top-right corner), causing edge widgets like the gear
-        // button to never receive events. Snap to the nearest pixel.
+        // Calibration can overshoot at the edges — snap to the nearest pixel
+        // so edge widgets stay reachable.
         if (x < 0)
             x = 0;
         if (y < 0)
@@ -72,10 +65,8 @@ void TouchDriver::init() {
     }
     p.end();
 
-    // Without a valid calibration the panel returns raw ADC values that
-    // never match screen coords — the user cannot reach Settings to
-    // calibrate manually. Run the interactive routine on first boot so
-    // the device is usable out of the box.
+    // First-boot fallback — raw ADC values are unusable, user can't reach
+    // Settings to fix it manually.
     if (!hasCalibration) {
         LOG_WARN("TOUCH", "No NVS calibration — running first-boot calibration");
         calibrate();
@@ -89,14 +80,8 @@ void TouchDriver::init() {
 
     lv_indev_drv_register(&s_indevDrv);
 
-    // Global click listener: bubble-up LV_EVENT_CLICKED from any screen lands
-    // here so we can close the press → click latency loop. Attaching to
-    // lv_layer_top() works because that layer's event tree sees every
-    // dispatched click on the active display.
-    //
-    // The lambda always fires the production-shipped warn-on-slow path
-    // (issue #1256), and feeds the full histogram on dev builds via the
-    // existing APP_PROFILE_UI gate.
+    // lv_layer_top sees every dispatched click — closes the press → click
+    // latency loop without needing per-page wiring (#1256).
     lv_obj_add_event_cb(
         lv_layer_top(),
         [](lv_event_t * /*e*/) {

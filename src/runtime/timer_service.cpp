@@ -1,6 +1,3 @@
-// canshift-firmware/src/runtime/timer_service.cpp
-// Implements TimerService — see header for the threading contract.
-
 #include "timer_service.h"
 
 #include "diag/logger.h"
@@ -11,18 +8,14 @@
 
 namespace {
 
-// Mutex acquisition timeout — long enough to cover render-task contention
-// without freezing the touch handler if something else holds the lock.
 constexpr TickType_t TIMER_LOCK_TIMEOUT = pdMS_TO_TICKS(10);
 
 struct ServiceState {
     SemaphoreHandle_t mutex = nullptr;
-
     TimerService::State state = TimerService::State::Reset;
-    int64_t lastStartUs = 0;   ///< esp_timer_get_time() at last start/resume.
-    int64_t accumulatedUs = 0; ///< Frozen elapsed at last pause.
+    int64_t lastStartUs = 0;
+    int64_t accumulatedUs = 0;
     uint32_t version = 0;
-
     bool initialized = false;
 };
 

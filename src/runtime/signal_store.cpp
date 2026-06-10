@@ -18,10 +18,6 @@
     #include <freertos/FreeRTOS.h>
     #include <freertos/portmacro.h>
 #else
-// Native test env (no FreeRTOS): the harness is single-threaded so the
-// critical-section macros become no-ops. portMUX_TYPE is reduced to a
-// tag so the existing call sites compile unchanged. See PR fixing
-// post-#752 native test build break.
 typedef int portMUX_TYPE;
     #define portMUX_INITIALIZER_UNLOCKED 0
     #define portENTER_CRITICAL(mux) ((void)(mux))
@@ -29,16 +25,8 @@ typedef int portMUX_TYPE;
 #endif
 #include <string.h>
 
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
-
 static SignalStore::SignalValue s_signals[SIGNAL_STORE_MAX_SIGNALS];
 static portMUX_TYPE s_signalsMux = portMUX_INITIALIZER_UNLOCKED;
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 namespace {
 
@@ -48,13 +36,8 @@ inline bool idValid(SignalId id) {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void SignalStore::init() {
-    // Initialize all signals to invalid state
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    // NO LOG / NO ALLOC / NO LOCK inside the critical section — see file header.
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         s_signals[i] = {.raw = 0.0f,
@@ -74,17 +57,12 @@ void SignalStore::update(SignalId id, float value) {
 
     uint32_t now = millis();
 
-    // Hold the lock across the entire read-modify-write so concurrent writers
-    // to the same SignalId (CAN task on core 0 + optimistic UI write from a
-    // button widget on core 1, sim engine, etc.) cannot clobber each other's
-    // EMA result with a stale prevSmoothed snapshot. See #1008. FP math under
-    // the spinlock is precedented by setTimeout / checkTimeouts below.
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    // Lock spans the read-modify-write so concurrent writers don't clobber
+    // each other's EMA with a stale prevSmoothed (#1008).
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
     const float new_smoothed =
-        sig.valid ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * sig.smoothed)
-                  : value; // First value — initialize smoothed to raw value
+        sig.valid ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * sig.smoothed) : value;
     sig.raw = value;
     sig.smoothed = new_smoothed;
     sig.lastUpdateMs = now;
@@ -98,11 +76,7 @@ void SignalStore::set(SignalId id, float value) {
 
     uint32_t now = millis();
 
-    // Canonical overwrite — raw and smoothed both receive `value` verbatim,
-    // bypassing the EMA. Used for synthetic toggle writes (#1285) where the
-    // caller's value IS the truth, not a sample. Lock held for the whole
-    // write so concurrent CAN updates can't interleave a stale smoothed.
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
+    // Canonical overwrite — caller's value IS the truth (synthetic toggle #1285).
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
     sig.raw = value;
@@ -116,7 +90,6 @@ float SignalStore::read(SignalId id, float defaultValue) {
     if (!idValid(id))
         return defaultValue;
 
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     float result = s_signals[id].valid ? s_signals[id].smoothed : defaultValue;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -127,7 +100,6 @@ bool SignalStore::isValid(SignalId id) {
     if (!idValid(id))
         return false;
 
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     bool result = s_signals[id].valid;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -156,7 +128,6 @@ void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
     if (out == nullptr)
         return;
 
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     memcpy(out, s_signals, sizeof(SignalValue) * SIGNAL_STORE_MAX_SIGNALS);
     portEXIT_CRITICAL(&s_signalsMux);
@@ -166,7 +137,6 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
     if (!idValid(id))
         return;
 
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     s_signals[id].timeoutMs = timeoutMs;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -175,7 +145,6 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
 void SignalStore::checkTimeouts() {
     uint32_t now = millis();
 
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         if (s_signals[i].valid) {

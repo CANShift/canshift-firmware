@@ -1,5 +1,3 @@
-// perf_counters.cpp — UI performance instrumentation (issue #95)
-
 #include "perf_counters.h"
 
 #if APP_PROFILE_UI
@@ -13,16 +11,9 @@
 
 namespace {
 
-// Sample reservoir per metric. p95 is computed by sorting a copy of the live
-// window — exact for the size below, plenty good enough for an ESP32 dev
-// telemetry. Bigger windows would burn DRAM and slow the sort, smaller windows
-// would lose tail visibility.
 constexpr uint16_t SAMPLES_PER_METRIC = 96;
-constexpr uint32_t REPORT_INTERVAL_US = 1000UL * 1000UL; // 1 Hz
-
-// Mutex-wait warning threshold — long lock contention is the smoking gun for
-// UI lag. Threshold matches the existing 10 ms xSemaphoreTake() timeout so a
-// crossing means the UI task is at risk of skipping its own frame.
+constexpr uint32_t REPORT_INTERVAL_US = 1000UL * 1000UL;
+// Half the UI mutex timeout — crossing means the UI task is at risk of skipping.
 constexpr uint32_t PERF_MUTEX_WAIT_WARN_US = 5000;
 
 const char *metricName(PerfCounters::Metric m) {
@@ -71,20 +62,15 @@ uint32_t s_flushFrameCount = 0;
 bool s_mutexWarnEmittedThisWindow = false;
 int64_t s_lastReportUs = 0;
 
-// Touch press → click latency latch.
 volatile bool s_touchPressArmed = false;
 volatile int64_t s_touchPressUs = 0;
 
-// Page transition start timestamp.
 int64_t s_pageXStartUs = 0;
 
 void appendSample(Window &w, uint32_t durationUs) {
     if (w.count < SAMPLES_PER_METRIC) {
         w.samples[w.count++] = durationUs;
     } else {
-        // Reservoir-style overwrite when full. Cheap and keeps memory bounded;
-        // the 1 Hz tick clears the window before this can run twice for any
-        // sane UI load.
         w.samples[w.count % SAMPLES_PER_METRIC] = durationUs;
     }
     w.sumUs += durationUs;
@@ -184,8 +170,6 @@ void tick() {
     const int64_t windowUs = now - s_lastReportUs;
     s_lastReportUs = now;
 
-    // Build a single line: PERF lock=mean/p95/max widgets=… frame=… fps=N miss=N
-    // Keep each metric to 32 chars max to stay under the logger's line budget.
     char buf[256];
     int written = 0;
     for (uint8_t i = 0; i < METRIC_COUNT; ++i) {

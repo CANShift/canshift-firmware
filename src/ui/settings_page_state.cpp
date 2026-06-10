@@ -1,16 +1,3 @@
-// settings_page_state.cpp — Persistence + brightness / BLE / WIFI AP state
-// machine for the on-device settings page. Split from settings_page.cpp
-// during the #1207 refactor.
-//
-// This translation unit owns the *state* the settings page reads & writes:
-//   - NVS load / save under the "screen_cfg" namespace.
-//   - LVGL event callbacks (slider drag, segmented buttons, full buttons).
-//   - Re-syncing the widget tree when a value changes (updateBr/Ble/WifiAp).
-//
-// It deliberately does NOT build the widget tree — that lives in
-// settings_page_ui.cpp. Widget *pointers* are read from shared storage
-// declared in settings_page_internal.h.
-
 #include "settings_page_internal.h"
 
 #include "settings_page.h"
@@ -27,29 +14,12 @@
 
 namespace SettingsPageInternal {
 
-// ---------------------------------------------------------------------------
-// NVS namespace and key names
-// ---------------------------------------------------------------------------
-
 static constexpr char NVS_NS[] = "screen_cfg";
-static constexpr char KEY_BRIGHTNESS[] = "brightness"; // uint8  (10–100 %)
-static constexpr char KEY_BLE_ENABLED[] = "ble_en";    // uint8  (0/1)
+static constexpr char KEY_BRIGHTNESS[] = "brightness";
+static constexpr char KEY_BLE_ENABLED[] = "ble_en";
 
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-// DEFAULT_BRIGHTNESS is declared in settings_page_internal.h so the
-// orchestrator's applyFromUsb() can clamp invalid USB pushes to the same
-// fallback used here.
-//
-// Tracks `BLE_DEFAULT_ENABLED` in app_config.h — keep both in sync so the
-// Settings page reset button and the NVS-load fallback agree (issue #878).
+// Tracks BLE_DEFAULT_ENABLED in app_config.h — keep in sync.
 static constexpr bool DEFAULT_BLE_ENABLED = (BLE_DEFAULT_ENABLED != 0);
-
-// ---------------------------------------------------------------------------
-// Shared mutable state — declared extern in settings_page_internal.h
-// ---------------------------------------------------------------------------
 
 uint8_t s_brightness = DEFAULT_BRIGHTNESS;
 bool s_bleEnabled = DEFAULT_BLE_ENABLED;
@@ -63,15 +33,9 @@ bool s_open = false;
 bool s_dragging = false;
 uint32_t s_lastOpenMs = 0;
 
-// Resolved during init() — the y the panel sits at when visible, and the y
-// it sits at when fully tucked off-screen (just above the top bar).
 int16_t s_openY = 0;
 int16_t s_closedY = 0;
 int16_t s_panelHeight = 0;
-
-// ---------------------------------------------------------------------------
-// NVS helpers
-// ---------------------------------------------------------------------------
 
 void nvsLoad() {
     Preferences p;
@@ -93,10 +57,6 @@ void nvsSave() {
     LOG_INFO("Settings", "Saved — brightness=%d%% ble=%d", s_brightness, s_bleEnabled ? 1 : 0);
 }
 
-// ---------------------------------------------------------------------------
-// Apply helpers
-// ---------------------------------------------------------------------------
-
 static inline uint8_t brightnessToBacklight(uint8_t pct) {
     return static_cast<uint8_t>((static_cast<uint16_t>(pct) * 255u) / 100u);
 }
@@ -114,7 +74,7 @@ void updateBrValue() {
 }
 
 void updateBleButtons() {
-    const bool active[2] = {s_bleEnabled, !s_bleEnabled}; // ON=idx0, OFF=idx1
+    const bool active[2] = {s_bleEnabled, !s_bleEnabled};
     for (uint8_t i = 0; i < 2; ++i) {
         if (!s_bleBtns[i])
             continue;
@@ -128,10 +88,6 @@ void updateBleButtons() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Event callbacks
-// ---------------------------------------------------------------------------
-
 void onBrightnessChanged(lv_event_t *e) {
     lv_obj_t *slider = lv_event_get_target(e);
     s_brightness = static_cast<uint8_t>(lv_slider_get_value(slider));
@@ -141,7 +97,6 @@ void onBrightnessChanged(lv_event_t *e) {
 
 void onBleBtn(lv_event_t *e) {
     uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-    // idx 0 = ON, idx 1 = OFF
     s_bleEnabled = (idx == 0);
     updateBleButtons();
 #if APP_BLE_ENABLED
@@ -150,15 +105,13 @@ void onBleBtn(lv_event_t *e) {
 }
 
 void onCalibrateTouch(lv_event_t * /*e*/) {
-    // Close settings so calibration crosshairs are unobstructed
+    // Close so the calibration crosshairs are unobstructed.
     SettingsPage::close();
     TouchDriver::calibrate();
 }
 
 void onResetTouchCal(lv_event_t * /*e*/) {
-    // Wipes the saved offsets — next boot falls back to board defaults and
-    // re-runs first-boot calibration. The current session keeps the cached
-    // offsets so the user can still navigate the UI to reboot.
+    // Wipes saved offsets; this session keeps cached offsets until reboot.
     TouchDriver::resetCalibration();
     LOG_INFO("Settings", "Touch calibration reset — reboot to apply defaults");
 }
@@ -166,7 +119,7 @@ void onResetTouchCal(lv_event_t * /*e*/) {
 void onSave(lv_event_t * /*e*/) {
     LOG_INFO("Settings", "SAVE button clicked");
     nvsSave();
-    SettingsPage::close(); // close after saving — matches user expectation
+    SettingsPage::close();
 }
 
 void onReset(lv_event_t * /*e*/) {

@@ -1,5 +1,3 @@
-// widget_factory.cpp — Widget instantiation and update dispatch
-
 #include "widget_factory.h"
 #include "widgets/gauge_widget.h"
 #include "widgets/label_widget.h"
@@ -15,26 +13,18 @@
 #include <lvgl.h>
 #include <stdint.h>
 
-// ---------------------------------------------------------------------------
-// Widget registry
-// ---------------------------------------------------------------------------
-
 namespace {
 
-// Maximum widgets tracked across all pages (adjust if needed)
 static constexpr uint8_t MAX_TRACKED_WIDGETS = CONFIG_MAX_PAGES * CONFIG_MAX_WIDGETS_PER_PAGE;
 
+// `cfg` borrows from ConfigLoader::s_dashboard (program lifetime). Reload paths
+// route through clearAll() before updateAll() runs (#677).
 struct WidgetEntry {
-    lv_obj_t *parent; // Owning page screen
-    lv_obj_t *obj;    // LVGL object
+    lv_obj_t *parent;
+    lv_obj_t *obj;
     WidgetType type;
-    SignalId signalId;    // Resolved once at create time — SIGNAL_COUNT means none
-    const CfgWidget *cfg; // Borrowed pointer into ConfigLoader::s_dashboard.pages[].widgets[]
-                          // (issue #677). Lifetime spans every UI render cycle: the dashboard
-                          // struct lives in BSS for the program lifetime, and any reload path
-                          // that mutates its contents (theme toggle / PUT_CONFIG) routes through
-                          // PageManager::rebuildAllPages → WidgetFactory::clearAll BEFORE any
-                          // further updateAll() can dereference these pointers.
+    SignalId signalId;
+    const CfgWidget *cfg;
 };
 
 static WidgetEntry s_widgets[MAX_TRACKED_WIDGETS];
@@ -74,7 +64,7 @@ lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
 
 void updateWidget(WidgetEntry &entry,
                   const SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS]) {
-    // Button badge update is driven by MAP_NUMBER, not the widget's own signal
+    // Button badge tracks MAP_NUMBER, not the widget's own signal.
     if (entry.type == WidgetType::BUTTON) {
         ButtonWidget::update(entry.obj);
         return;

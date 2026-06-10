@@ -47,11 +47,10 @@ void PageManager::init() {
     s_pageCount = 0;
     s_currentIdx = 0;
 
-    // Reclaim the splash-screen pool space before widget allocations below —
+    // Reclaim splash-pool space before widget allocations below.
     lv_obj_clean(lv_scr_act());
 
-    // Init error bar first so errors pushed during boot (config load, CAN init)
-    // are visible regardless of whether a valid dashboard config exists.
+    // ErrorBar first — boot errors must show even without a valid dashboard.
     ErrorBar::init();
     // Must follow ErrorBar — both share lv_layer_top (#635).
     DiagDrawer::init();
@@ -65,8 +64,7 @@ void PageManager::init() {
     ThemeManager::init();
     TopBar::init();
 
-    // Only the default page is built eagerly — others are built lazily on
-    // first navigation, keeping the LVGL pool from OOMing on gauge-heavy configs.
+    // Only the default page is built eagerly — others lazily, to avoid LVGL-pool OOM.
     const char *defaultId = dash.defaultPageId;
     for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
         if (!dash.pages[i].visible) {
@@ -85,8 +83,7 @@ void PageManager::init() {
         s_pageCount++;
     }
 
-    // Default page missing → build the first visible page so we always boot
-    // into a usable screen.
+    // Default missing → build the first visible page so we always boot a screen.
     if (s_pageCount > 0 && !s_pages[0].screen) {
         for (uint8_t i = 0; i < s_pageCount; ++i) {
             if (!s_pages[i].screen) {
@@ -152,7 +149,7 @@ void PageManager::requestReload() {
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 
-    // Reload supersedes rebuild — must clear both to avoid double-rebuild.
+    // Reload supersedes rebuild — clear both to avoid double-rebuild.
     if (s_reloadRequested) {
         s_reloadRequested = false;
         s_rebuildRequested = false;

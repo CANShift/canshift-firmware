@@ -1,6 +1,3 @@
-// display_driver.cpp — ILI9341 display HAL (LovyanGFX backend)
-// LGFX (custom panel class) with double-buffered DMA flush.
-
 #include "display_driver.h"
 #include "app_config.h"
 #include "hardware_profile.h"
@@ -14,9 +11,8 @@
 static_assert(HW_DISPLAY_WIDTH == 320 && HW_DISPLAY_HEIGHT == 240,
               "expected CrowPanel 2.8\" 320×240 — override BoardProfile if changing");
 
-// Derive the LVGL draw-buffer line count from the per-board RAM budget so a
-// new BoardProfile only has to set HW_LVGL_DRAW_BUDGET_BYTES. Floor at 8
-// lines so absurdly tight budgets still yield a usable buffer.
+// New BoardProfiles only need HW_LVGL_DRAW_BUDGET_BYTES — the line count
+// derives from that, with an 8-line floor for tight budgets.
 namespace {
 constexpr size_t kLvglBytesPerPixel = HW_DISPLAY_COLOR_DEPTH / 8U;
 constexpr size_t kLvglNumBuffers = 2U;
@@ -44,7 +40,6 @@ static LGFX s_lcd;
 static lv_color_t *s_buf1 = nullptr;
 static lv_color_t *s_buf2 = nullptr;
 
-// Invoked from lv_task_handler() — the UI-task caller already holds g_lvglMutex.
 void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
                                   lv_color_t *colorMap) {
     const uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
@@ -56,8 +51,7 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
     s_lcd.endWrite();
 
 #if APP_PROFILE_UI
-    // Count completed frames (last region of the refresh) only — partial
-    // flush regions inflate the FPS metric otherwise.
+    // Count last-region only — partial flushes inflate the FPS metric.
     if (lv_disp_flush_is_last(disp)) {
         PERF_RECORD_FLUSH_FRAME();
     }

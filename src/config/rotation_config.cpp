@@ -1,5 +1,3 @@
-// rotation_config.cpp — NVS-backed rotation override implementation.
-
 #include "rotation_config.h"
 #include "app_config.h"
 #include "hardware_profile.h"
@@ -10,7 +8,7 @@
 #include <esp_system.h>
 
 static constexpr char NVS_NS[] = "display_cfg";
-static constexpr char NVS_KEY_OFFSET[] = "rot_offset"; // uint16, degrees (0 or 180)
+static constexpr char NVS_KEY_OFFSET[] = "rot_offset";
 
 static constexpr char TOUCH_NVS_NS[] = "touch";
 static constexpr char TOUCH_NVS_KEY_CAL[] = "cal";
@@ -39,9 +37,7 @@ void applyAndReboot(uint16_t offsetDeg) {
     p.putUShort(NVS_KEY_OFFSET, normalized);
     p.end();
 
-    // Touch calibration data is rotation-dependent — clearing it forces the
-    // first-boot calibration crosshairs to run again so coordinates match the
-    // new orientation.
+    // Touch cal is rotation-dependent — clear it so first-boot cal runs again.
     Preferences cal;
     cal.begin(TOUCH_NVS_NS, /*readOnly=*/false);
     cal.remove(TOUCH_NVS_KEY_CAL);
