@@ -1,21 +1,5 @@
-// default_fonts.cpp — Embed + write baked-in Orbitron .bin fonts on first boot.
-//
-// Symbol naming: PlatformIO's embed_files generates `_binary_<munged_path>`
-// where the munged path is the file path with non-identifier characters
-// replaced by underscores. Embed sources live under `data/fonts/` (see
-// platformio.ini), giving e.g. `_binary_data_fonts_orbitron_bold_20_bin_start`.
-//
-// Font payloads are linked in via PlatformIO `board_build.embed_files`. Each
-// embedded blob exposes `_binary_<munged_path>_start` / `_end` symbols. We
-// reference them with `extern "C"` declarations and let the linker fill in
-// the addresses (see https://docs.platformio.org/en/latest/platforms/espressif32.html).
-//
-// Mirror of src/config/default_config.cpp — same provisioning pattern, applied
-// to the 7 SPIFFS-resident font files shipped by FontManager (the two Black
-// primary sizes ship in-flash; issues #467 + #487 + #664). The 8 + 10 px
-// Medium bakes were added on 2026-06-01 so widget labels can render close to
-// Studio's 6-9 px target instead of the old 12 px floor.
-
+// Mirror of default_config.cpp — provisions the 7 SPIFFS Orbitron .bin fonts
+// on first boot. Black primary sizes ship in-flash (#467 / #487 / #664).
 #include "default_fonts.h"
 
 #include "diag/error_store.h"
@@ -50,10 +34,10 @@ extern const uint8_t kFontMedium16End[] asm("_binary_data_fonts_orbitron_medium_
 namespace {
 
 struct EmbeddedFont {
-    const char *path; // Canonical SPIFFS path (StorageDriver expects no "S:" prefix)
+    const char *path;
     const uint8_t *start;
     const uint8_t *end;
-    const char *label; // Short human-readable name for logs
+    const char *label;
 };
 
 const EmbeddedFont kEmbeddedFonts[] = {
@@ -66,7 +50,6 @@ const EmbeddedFont kEmbeddedFonts[] = {
     {"/fonts/orbitron_medium_16.bin", kFontMedium16Start, kFontMedium16End, "orbitron_medium_16"},
 };
 
-// Write one embedded blob to its canonical path. Returns true on success.
 bool writeOne(const EmbeddedFont &font) {
     const size_t length = static_cast<size_t>(font.end - font.start);
     if (length == 0) {

@@ -1,15 +1,3 @@
-// page_manager_anim.cpp — Page transitions + lazy build pump + swipe gesture
-//
-// Split out of page_manager.cpp during the #1207 refactor. Owns:
-//   - showPage(): the main navigation entry point, including the deferred
-//     lazy-build path (lv_async_call → asyncDoLazyBuild) that ensures
-//     lv_obj_del never fires inside an LVGL event callback
-//   - onSwipe(): the swipe→navigate adapter registered with GestureController
-//
-// State (s_pages, s_currentIdx, s_pendingFreeIdx, s_pendingLazyBuildIdx,
-// s_pendingLazyBuildMs) is owned by page_manager.cpp; this TU reaches in via
-// page_manager_internal.h.
-
 #include "page_manager_internal.h"
 
 #include "app_config.h"
@@ -25,12 +13,8 @@ namespace PageManagerInternal {
 
 namespace {
 
-// Deferred lazy-build callback — invoked by lv_async_call() at the start of
-// the next lv_timer_handler() iteration, outside any event callback. This
-// avoids the use-after-free that occurs when lv_obj_del(dep.screen) is called
-// synchronously from within a button click handler: lv_obj_del fires
-// LV_EVENT_DELETE on the button, which frees its tag, and the click handler
-// then continues with a dangling pointer.
+// Deferred — lv_obj_del inside an LVGL event handler frees the handler's tag
+// (use-after-free). lv_async_call runs us at the next timer iteration.
 void asyncDoLazyBuild(void * /*unused*/) {
     const uint8_t idx = s_pendingLazyBuildIdx;
     s_pendingLazyBuildIdx = 0xFF;
@@ -74,15 +58,8 @@ void asyncDoLazyBuild(void * /*unused*/) {
 
 } // namespace
 
-// Page transitions on the ESP32:
-//  - OVER_LEFT/RIGHT: new screen slides over old, old stays static. Only the
-//    moving screen is repainted each frame — cheapest per-pixel option without
-//    a GPU. Used for swipe gestures (issue #64, restoring PR #59's choice
-//    after #331 swapped it for MOVE_* which redraws both screens every frame
-//    and dominated the per-frame budget during transitions).
-//  - FADE_IN: alpha-blended cross-fade. Costly per pixel on a 320×240 panel
-//    without a GPU; we keep it short. Used for programmatic navigation where
-//    no direction is implied.
+// OVER_LEFT/RIGHT for swipes (only the moving screen repaints — #64);
+// FADE_IN for programmatic nav.
 void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
     if (idx >= s_pageCount) {
         LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
@@ -90,9 +67,7 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
     }
     LOG_INFO("UI", "showPage: %u -> %u anim=%d", s_currentIdx, idx, static_cast<int>(anim));
 
-    // Release the page that finished its last animation. Do this BEFORE building
-    // the new page so the freed pool space is available. Skip if the user
-    // navigated back to the very page that was scheduled for release.
+    // Release before building so the freed pool is available.
     if (s_pendingFreeIdx < s_pageCount && s_pendingFreeIdx != idx) {
         Page &old = s_pages[s_pendingFreeIdx];
         if (old.screen) {
@@ -105,16 +80,8 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
         s_pendingFreeIdx = 0xFF;
     }
 
-    // Lazy build: schedule via lv_async_call so lv_obj_del never fires from
-    // within an event callback (button click → navigateTo → showPage).
-    // asyncDoLazyBuild() runs at the start of the next lv_timer_handler()
-    // iteration, safely outside the call stack of any event handler.
-    //
-    // Coalesce concurrent requests: if a lazy build is already scheduled but
-    // the async callback has not yet drained, overwrite the pending idx with
-    // the latest request (latest-wins debounce) and skip the second
-    // lv_async_call. This prevents a stale enqueue and matches typical UI
-    // debounce semantics — the user's most recent navigation intent wins.
+    // Lazy build via lv_async_call — see asyncDoLazyBuild comment. Coalesce
+    // pending requests latest-wins so a stale enqueue doesn't fire.
     if (!s_pages[idx].screen) {
         if (s_pendingLazyBuildIdx != 0xFF) {
             LOG_DEBUG("UI", "Lazy build already pending for idx=%u; coalescing new request idx=%u",
@@ -130,12 +97,9 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
     }
 
     PERF_RECORD_PAGE_XSTART();
-    lv_scr_load_anim(s_pages[idx].screen, anim, durationMs, 0, false /* keep old screen */);
+    lv_scr_load_anim(s_pages[idx].screen, anim, durationMs, 0, false);
 
 #if APP_PROFILE_UI
-    // Schedule a one-shot LVGL timer at the animation end so the PERF
-    // aggregator gets a wall-clock sample. lv_timer_create + repeat count 1
-    // is the canonical pattern for one-shots in LVGL 8.3.
     lv_timer_t *t = lv_timer_create(
         [](lv_timer_t *self) {
             PERF_RECORD_PAGE_XEND();
@@ -146,9 +110,7 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
         lv_timer_set_repeat_count(t, 1);
 #endif
 
-    // Schedule the departing page for pool release on the next navigation.
-    // It must stay alive for the current animation window so LVGL can render
-    // the cross-fade/slide; we free it at the top of the next showPage() call.
+    // Defer release until next showPage — still needed for the current anim.
     if (s_currentIdx != idx) {
         s_pendingFreeIdx = s_currentIdx;
     }
@@ -161,27 +123,16 @@ void showPage(uint8_t idx) {
     showPage(idx, LV_SCR_LOAD_ANIM_FADE_IN, 120);
 }
 
-// ---------------------------------------------------------------------------
-// Gesture handling — extracted to gesture_controller (#704). PageManager
-// receives swipe events via the callback registered in init().
-// ---------------------------------------------------------------------------
-
 void onSwipe(lv_dir_t dir) {
     if (s_pageCount <= 1)
         return;
-    // If the touch that produced this swipe started on a clickable widget
-    // (a button), treat the input as a tap attempt with finger drift — NOT
-    // a navigation. Same finger drift that crosses LVGL's 40 px gesture
-    // threshold otherwise yanks the user off the page mid-press. Swipes
-    // that start in non-clickable background area (e.g. gaps between
-    // widgets) still navigate as before.
+    // Drift on a clickable widget reads as tap intent, not navigation.
     lv_obj_t *pressed = lv_indev_get_obj_act();
     if (pressed && lv_obj_has_flag(pressed, LV_OBJ_FLAG_CLICKABLE)) {
         return;
     }
     switch (dir) {
         case LV_DIR_LEFT:
-            // Next page enters from the right, slides left — matches finger motion.
             showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, SWIPE_ANIM_MS);
             LOG_VDEBUG("UI", "Gesture: swipe left → next page");
             break;

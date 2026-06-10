@@ -20,8 +20,7 @@ constexpr int16_t PANEL_H = 240;
 constexpr int16_t PANEL_PAD = 6;
 constexpr int16_t ROW_H = 18;
 
-// Sized for XPT2046 resistive jitter (~10 px centroid spread) — paired with
-// lv_obj_set_ext_click_area for an even larger hit rect.
+// Sized for XPT2046 jitter (~10 px); ext_click_area widens further.
 constexpr int16_t CLOSE_BTN_SIZE = 36;
 constexpr int16_t CLOSE_BTN_EXT_CLICK_PAD = 12;
 
@@ -41,16 +40,12 @@ constexpr uint32_t COL_FLAG_INACTIVE = 0x444444;
 constexpr uint32_t COL_ERROR_CODE = 0xCC4444;
 constexpr uint32_t COL_ERROR_MSG = 0xDDAAAA;
 
-// Wire format matches signals.json names.
-
 struct FlagRow {
     const char *label;
     SignalId signalId;
 };
 
-// Mirrors the FRAME 0x374 status bitmask laid out in signals.json. Adding a
-// new flag = one row here + the matching signal in signals.json + a SignalId
-// constant in signal_map.h.
+// Mirrors the FRAME 0x374 status bitmask in signals.json.
 const FlagRow s_flags[FLAGS_COUNT] = {
     {"MIL", SignalIds::FLAG_MIL},
     {"Launch", SignalIds::FLAG_LAUNCH_CTRL},
@@ -123,11 +118,7 @@ void buildFlagsSection(lv_obj_t *parent) {
         lv_obj_set_style_pad_column(row, 6, LV_PART_MAIN);
 
         lv_obj_t *badge = lv_obj_create(row);
-        // 12×12 (was 8×8) — at 8 px the rounded-corner mask was too tight for
-        // LVGL's draw-mask resolver to render a visible circle, so the badge
-        // looked like a small coloured square. 12 px is large enough that
-        // LV_RADIUS_CIRCLE produces a clearly circular dot at the same row
-        // height (ROW_H=18).
+        // 12 px — LV_RADIUS_CIRCLE renders a square below 10 px.
         lv_obj_set_size(badge, 12, 12);
         lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         lv_obj_set_style_bg_color(badge, lv_color_hex(COL_FLAG_INACTIVE), LV_PART_MAIN);
@@ -146,8 +137,6 @@ void buildFlagsSection(lv_obj_t *parent) {
 
 void buildScalarsSection(lv_obj_t *parent) {
     sectionHeader(parent, "STATUS");
-    // 2×2 grid — two rows of two scalars each. Each cell is a label+value
-    // pair laid out as `LABEL: VALUE unit`.
     for (uint8_t r = 0; r < 2; ++r) {
         lv_obj_t *row = lv_obj_create(parent);
         applyRowReset(row);
@@ -206,7 +195,6 @@ void buildErrorsSection(lv_obj_t *parent) {
         lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
         s_errorRows[i] = row;
     }
-    // Friendly empty-state label so the section never looks broken.
     lv_obj_t *empty = lv_label_create(parent);
     lv_label_set_text(empty, "no firmware errors");
     lv_obj_set_style_text_font(empty, FONT_SM(), 0);
@@ -227,38 +215,16 @@ const char *errorSrcLabel(ErrorSource src) {
 }
 
 void onCloseReleased(lv_event_t * /*e*/) {
-    // Listen on LV_EVENT_RELEASED (not LV_EVENT_CLICKED) because the panel
-    // is LV_OBJ_FLAG_SCROLLABLE and resistive-touch jitter routinely starts
-    // a scroll. From lv_indev.c (LVGL 8.3, line 973):
-    //     /*Send CLICK if no scrolling*/
-    //     if(scroll_obj == NULL) { … SHORT_CLICKED … CLICKED … }
-    // — i.e. CLICKED and SHORT_CLICKED are BOTH suppressed once any scroll
-    // begins. RELEASED is the only release event guaranteed to fire on the
-    // currently-pressed object regardless of scroll state, and combined
-    // with LV_OBJ_FLAG_PRESS_LOCK (which keeps the press anchored on this
-    // button) it gives a reliable tap-to-close on a noisy touch panel.
+    // RELEASED — LVGL suppresses CLICKED once scroll starts on the panel.
     LOG_INFO("DIAG_DRAWER", "close release");
     close();
 }
 
 void onClosePressed(lv_event_t * /*e*/) {
-    // Diagnostic shim — fires before any scroll arbitration so we can
-    // distinguish two failure modes on device:
-    //   1. "press" line absent  → touch is NOT reaching the button at all
-    //      (hit-area, z-order, or coord/clip issue — H5)
-    //   2. "press" line present but "release" line absent → press arrived
-    //      but RELEASED never reached the button (PRESS_LOCK is unset or
-    //      the indev re-resolved act_obj — H1/H3)
-    // Leave this log in until a user-confirmed close cycle is observed on
-    // the hardware build; then it can be removed in a follow-up.
     LOG_INFO("DIAG_DRAWER", "close press");
 }
 
 void onVerticalSwipe(lv_dir_t dir) {
-    // Registered with GestureController. Swipe-up anywhere opens the
-    // drawer; swipe-down inside the open drawer closes it (the panel
-    // already has its own swipe-down handler for that case, but routing
-    // both through here keeps the code obvious for a future reader).
     if (dir == LV_DIR_TOP && !s_open) {
         open();
     }
@@ -293,50 +259,25 @@ void init() {
     lv_obj_set_style_pad_row(s_panel, 2, LV_PART_MAIN);
     lv_obj_set_scroll_dir(s_panel, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(s_panel, LV_SCROLLBAR_MODE_AUTO);
-    // FLAG_SCROLLABLE is default-on for `lv_obj_create`, but other code in
-    // PR #952 cleared it on row containers via `applyRowReset`; keep it
-    // explicit here so a future copy-paste from the row helper doesn't
-    // disable it on the panel itself. Without this flag the section list
-    // (flags + scalars + errors) overflows past PANEL_H and the user can't
-    // reach the bottom rows.
+    // Explicit so a stray applyRowReset copy doesn't strip scroll on the panel.
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(s_panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(s_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    // Swipe down anywhere on the panel collapses it back. Tapping the
-    // handle (which is hidden while the panel is open) is not available.
     lv_obj_add_event_cb(s_panel, onPanelGesture, LV_EVENT_GESTURE, nullptr);
 
     buildFlagsSection(s_panel);
     buildScalarsSection(s_panel);
     buildErrorsSection(s_panel);
 
-    // -------- Close button -------------------------------------------------
-    // Child of s_panel (not lv_layer_top()) so the panel intercepts every
-    // touch in its area and the topbar (sibling on lv_layer_top, lower in z)
-    // can never receive a click while the drawer is open. Earlier the close
-    // btn lived on lv_layer_top at TOP_RIGHT and shared coordinates with the
-    // top bar's day/night toggle — a slightly off-target tap would close the
-    // drawer AND flip the theme. FLOATING keeps the btn out of the panel's
-    // flex-column layout so it doesn't stack between sections.
+    // Child of s_panel (FLOATING) so the panel covers the topbar — earlier
+    // sharing lv_layer_top let stray taps flip the day/night toggle.
     s_closeBtn = lv_btn_create(s_panel);
     lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_FLOATING);
-    // PRESS_LOCK keeps the press anchored to the button even when the touch
-    // coordinate slides a few px (XPT2046 resistive panels jitter ±5-10 px).
-    // Without it `lv_indev` re-resolves `indev_obj_act` each tick, the panel
-    // wins because it's bigger, scrolling starts, and the eventual release
-    // gets routed to s_panel — so LV_EVENT_CLICKED on the button never fires.
-    // See lv_indev.c:837 (LVGL 8.3) for the press-lock branch.
+    // PRESS_LOCK survives XPT2046 ±5-10 px jitter that would re-route to s_panel.
     lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_PRESS_LOCK);
-    // SCROLL_ON_FOCUS would scroll s_panel to bring the focused close-btn
-    // into view, racing the touch resolution. The btn is always at the top
-    // edge so this scroll is never useful; disable it explicitly.
     lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
-    // Extra hit area beyond the visible 36×36 — gives the user a ~60×60 px
-    // tap target without the visual weight of a 60 px button on a 320 px
-    // screen. `lv_obj_set_ext_click_area` grows the click rectangle on all
-    // sides by the same amount.
     lv_obj_set_ext_click_area(s_closeBtn, CLOSE_BTN_EXT_CLICK_PAD);
     lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, 0, 0);
     lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(COL_HANDLE_BG), LV_PART_MAIN);
@@ -346,22 +287,16 @@ void init() {
     lv_obj_set_style_radius(s_closeBtn, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_closeBtn, 0, LV_PART_MAIN);
     lv_obj_add_event_cb(s_closeBtn, onCloseReleased, LV_EVENT_RELEASED, nullptr);
-    // Diagnostic — see onClosePressed comment. Lets the user disambiguate
-    // hit-test failure vs. event-routing failure on hardware.
     lv_obj_add_event_cb(s_closeBtn, onClosePressed, LV_EVENT_PRESSED, nullptr);
 
     lv_obj_t *closeLabel = lv_label_create(s_closeBtn);
-    // Plain "X" — LV_SYMBOL_CLOSE (U+F00D, FontAwesome PUA) is not in our
-    // Orbitron font and would render as a placeholder + flood LVGL warnings.
+    // Plain "X" — LV_SYMBOL_CLOSE is not in our Orbitron font.
     lv_label_set_text(closeLabel, "X");
     lv_obj_set_style_text_font(closeLabel, FONT_SM(), 0);
     lv_obj_set_style_text_color(closeLabel, lv_color_hex(COL_VALUE), 0);
     lv_obj_center(closeLabel);
 
     s_initDone = true;
-    // Diagnostic stamp — bumped each time this PR's bug-batch lands so the
-    // user can confirm at boot that the device is actually running the new
-    // build (vs. a stale upload). Grep the serial log for "DIAG_DRAWER".
     LOG_INFO("DIAG_DRAWER",
              "init done — close-btn v3: press-lock + ext-click + RELEASED + press/release logs");
 }
@@ -370,17 +305,10 @@ void open() {
     if (!s_panel)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    // Top bar lives on lv_layer_top too and was init'd AFTER us by
-    // PageManager::init, so it sits z-above the drawer panel by default —
-    // visually covering the close X and making the drawer untappable.
-    // Push the panel (and its FLOATING close-btn child) to the foreground
-    // on every open so the topbar is hidden behind the panel as intended.
+    // Topbar init'd after us → defaults z-above; foreground on every open.
     lv_obj_move_foreground(s_panel);
-    // Close btn is a child of s_panel — hidden flag on the parent already
-    // propagates, no separate show/hide call needed.
     s_open = true;
-    // Force the next update() to refresh the error rows even if the version
-    // hasn't moved since the last open.
+    // Force a refresh even if the error version hasn't moved.
     s_lastErrorVersion = UINT32_MAX;
     update();
 }

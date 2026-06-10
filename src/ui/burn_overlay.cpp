@@ -22,7 +22,7 @@ inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());
 }
 
-// Standard LVGL 8.3 spinner pattern when LV_USE_SPINNER=0.
+// LVGL 8.3 spinner pattern when LV_USE_SPINNER=0.
 constexpr uint16_t kArcSpan = 80;
 constexpr uint16_t kArcPeriod = 1100;
 
@@ -82,10 +82,8 @@ const char *errorHintFor(BurnOverlay::ErrorReason reason) {
     return "Retry from studio";
 }
 
-// lv_timer callback — runs inside lv_task_handler(), which the UI task
-// only invokes while already holding g_lvglMutex. Safe to touch LVGL state.
 void errorHoldExpiredCb(lv_timer_t *timer) {
-    s_errorTimer = nullptr; // timer auto-deletes after this returns (one-shot)
+    s_errorTimer = nullptr;
     (void)timer;
     BurnOverlay::hide();
 }
@@ -99,8 +97,6 @@ void BurnOverlay::show() {
 
     lv_obj_t *root = createRoot();
 
-    // Animated arc — LV_USE_SPINNER is off in this build, so we drive an
-    // lv_arc directly with an lv_anim that sweeps the indicator angle.
     static constexpr int16_t kArcSize = 56;
     lv_obj_t *arc = lv_arc_create(root);
     lv_obj_set_size(arc, kArcSize, kArcSize);
@@ -109,13 +105,10 @@ void BurnOverlay::show() {
     lv_arc_set_bg_angles(arc, 0, 360);
     lv_arc_set_angles(arc, 0, kArcSpan);
     lv_arc_set_rotation(arc, 0);
-    // Dim background ring + accent indicator (CANShift orange — matches the
-    // studio modal tone).
     lv_obj_set_style_arc_color(arc, lv_color_hex(0x222222), LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc, 4, LV_PART_MAIN);
     lv_obj_set_style_arc_color(arc, lv_color_hex(0xE08030), LV_PART_INDICATOR);
     lv_obj_set_style_arc_width(arc, 4, LV_PART_INDICATOR);
-    // Hide the draggable knob — we only want the rotating segment.
     lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
 
     lv_anim_t a;
@@ -128,7 +121,6 @@ void BurnOverlay::show() {
     lv_anim_set_exec_cb(&a, arcAnimCb);
     lv_anim_start(&a);
 
-    // Status text
     lv_obj_t *title = lv_label_create(root);
     lv_label_set_text(title, "Saving config…");
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
@@ -144,24 +136,11 @@ void BurnOverlay::show() {
     s_overlay = root;
     s_arc = arc;
 
-    // Force a synchronous redraw so the overlay actually paints before the
-    // caller starts the long storage write that would otherwise block all
-    // rendering for the duration of the transfer.
-    //
-    // Task-coupling invariant — read before editing either side:
-    //   lv_refr_now() drives DisplayDriver::flushCallback (see
-    //   src/hal/display/display_driver.cpp:51) inline on the *calling* task.
-    //   In the PUT_CONFIG path that caller is the USB task, not the UI task
-    //   (see handlePutConfig in src/hal/usb/usb_comm.cpp). This is safe today
-    //   because LVGL is single-threaded as long as g_lvglMutex is held, and
-    //   handlePutConfig explicitly takes the mutex before calling show(); SPI
-    //   writes from the USB task work the same as from the UI task.
-    //
-    //   If LVGL is ever reworked for partial-buffer + SPI-DMA, the
-    //   flush-complete semaphore would become bound to the calling task and
-    //   this assumption breaks — revisit both show() and handlePutConfig at
-    //   that point (likely by setting overlay state here and letting the UI
-    //   task render on the next tick instead of forcing lv_refr_now).
+    // Force sync redraw before the caller's long storage write blocks rendering.
+    // Task-coupling: lv_refr_now drives DisplayDriver::flushCallback on the
+    // *calling* task (USB task for PUT_CONFIG). Safe because handlePutConfig
+    // holds g_lvglMutex around show(). If LVGL ever moves to partial-buffer +
+    // SPI-DMA, revisit both call sites.
     lv_refr_now(nullptr);
 }
 
@@ -173,13 +152,10 @@ void BurnOverlay::hide() {
 }
 
 void BurnOverlay::showError(ErrorReason reason) {
-    // Drop the spinner state but keep the same backdrop colour so the swap
-    // doesn't flash through to the dashboard underneath.
     teardownOverlay();
 
     lv_obj_t *root = createRoot();
 
-    // Big warning glyph at the top — built-in LVGL symbol, no extra font.
     lv_obj_t *icon = lv_label_create(root);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xE04040), 0);
@@ -200,9 +176,6 @@ void BurnOverlay::showError(ErrorReason reason) {
 
     s_overlay = root;
 
-    // One-shot teardown — the timer fires from inside lv_task_handler(),
-    // which only runs while the UI task holds g_lvglMutex, so the callback
-    // is implicitly thread-safe with respect to LVGL state.
     s_errorTimer = lv_timer_create(errorHoldExpiredCb, BURN_OVERLAY_ERROR_HOLD_MS, nullptr);
     if (s_errorTimer) {
         lv_timer_set_repeat_count(s_errorTimer, 1);
