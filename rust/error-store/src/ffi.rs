@@ -1,37 +1,18 @@
-// ffi.rs — C ABI shim for the error-store crate. The C++ wrapper in
-// `error_store.cpp` calls these symbols from INSIDE the portMUX critical
-// section — Rust assumes exclusive access and never tries to take a lock
-// of its own.
-//
-// All three exported functions take raw pointers to the C++-owned ring
-// buffer and state globals. The shim rebuilds Rust slices + references
-// over those pointers and dispatches to the safe lib.rs functions.
-
 use core::ffi::c_char;
 use core::slice;
 
 use crate::{dismiss_at, get_all, push, FwError, CODE_LEN, MESSAGE_LEN};
 
-// Compile-time guard against drift between the C++ `FwError` layout
-// (`uint8_t source; char code[12]; char message[52];` = 65 bytes) and the
-// Rust mirror. If the C side ever bumps either field width, this fires at
-// crate build time.
 const _: () = assert!(core::mem::size_of::<FwError>() == 1 + CODE_LEN + MESSAGE_LEN);
 
-// Length cap for the FFI strncpy-equivalent. C strings on this path are
-// `<=52` bytes long in practice; cap at 64 so we don't walk past the end
-// of a malformed input that lacks a NUL.
+// Defends against a missing NUL on a hostile input.
 const MAX_INPUT_LEN: usize = 64;
 
-// `ErrorStore::push` core. Caller must hold the portMUX. Mutates the ring,
-// `head`, `count`, `version` in place. See `lib.rs::push` for the contract.
-//
+// Caller must hold the portMUX. See lib.rs::push.
 // # Safety
-// - `ring` points to `ring_size` writable `FwError` entries.
-// - `head`, `count`, `version` point to writable storage.
-// - `code` / `message` are NUL-terminated C strings (or null). Reads are
-//   capped at `MAX_INPUT_LEN` regardless to defend against a missing
-//   terminator on a hostile input.
+// - `ring` points to `ring_size` writable entries.
+// - `head`/`count`/`version` are writable.
+// - `code`/`message` are NUL-terminated or null (capped at MAX_INPUT_LEN).
 #[no_mangle]
 pub unsafe extern "C" fn error_store_push_rs(
     ring: *mut FwError,
@@ -65,13 +46,7 @@ pub unsafe extern "C" fn error_store_push_rs(
     );
 }
 
-// `ErrorStore::getAll` core. Caller must hold the portMUX. Read-only on the
-// ring + state; writes up to `max_count` entries into `out` (newest first)
-// and returns the number written.
-//
-// # Safety
-// - `ring` points to `ring_size` readable `FwError` entries.
-// - `out` points to at least `max_count` writable `FwError` entries.
+// # Safety: caller must hold portMUX; `ring` readable, `out` writable for max_count.
 #[no_mangle]
 pub unsafe extern "C" fn error_store_get_all_rs(
     ring: *const FwError,
@@ -89,11 +64,7 @@ pub unsafe extern "C" fn error_store_get_all_rs(
     get_all(ring_slice, head, count, out_slice)
 }
 
-// `ErrorStore::dismissAt` core. Caller must hold the portMUX. Mutates the
-// ring + state. Out-of-range `row` is a silent no-op.
-//
-// # Safety
-// Same as `error_store_push_rs`.
+// # Safety: same as error_store_push_rs. Out-of-range row is a no-op.
 #[no_mangle]
 pub unsafe extern "C" fn error_store_dismiss_at_rs(
     ring: *mut FwError,
@@ -121,8 +92,6 @@ pub unsafe extern "C" fn error_store_dismiss_at_rs(
     );
 }
 
-// Walk a NUL-terminated C string, capping at `cap` bytes so a missing
-// terminator can't run off the end of the readable region.
 unsafe fn c_str_bounded<'a>(ptr: *const c_char, cap: usize) -> &'a [u8] {
     if ptr.is_null() {
         return &[];
@@ -238,8 +207,6 @@ mod tests {
                 msg.as_ptr() as *const c_char,
             );
         }
-        // Pushed with empty code — the entry exists but its code field is
-        // all-zero (NUL-only).
         assert_eq!(count, 1);
         assert_eq!(ring[0].code[0], 0);
     }
@@ -265,7 +232,6 @@ mod tests {
                 );
             }
         }
-        // row = count - 1 = 2 → oldest
         unsafe {
             error_store_dismiss_at_rs(
                 ring.as_mut_ptr(),

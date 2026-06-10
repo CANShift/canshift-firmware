@@ -1,205 +1,95 @@
 #pragma once
-// app_config.h — Application-level configuration flags and constants
-//
-// Hardware pin assignments → board_config.h
-// LVGL settings          → lv_conf.h
-// Board capabilities     → hardware_profile.h
+// Companions: board_config.h (pins), lv_conf.h (LVGL), hardware_profile.h (caps).
 
 #include <stddef.h>
 #include <stdint.h>
 
-// ---------------------------------------------------------------------------
-// Version
-// ---------------------------------------------------------------------------
-// APP_VERSION_STR is injected at build time by scripts/extra_targets.py from
-// canshift-firmware/package.json — single source of truth across the release.
-// The fallback below only triggers if the script fails (and prints a warning).
+// Injected at build time by scripts/extra_targets.py from package.json.
 #ifndef APP_VERSION_STR
     #define APP_VERSION_STR "0.0.0-unset"
 #endif
 
-// ---------------------------------------------------------------------------
-// Build mode flags
-// These are set either here or via platformio.ini build_flags.
-// platformio.ini overrides take precedence (defined before this header).
-// ---------------------------------------------------------------------------
-
-// Debug build — enables extra logging and assertions
 #ifndef APP_DEBUG_BUILD
     #define APP_DEBUG_BUILD 0
 #endif
 
-// Secure-boot v2 + flash-encryption build — set by [env:secure] in
-// platformio.ini. Off in every other env. The macro is exposed for
-// downstream gating (e.g., a future boot-log line confirming the running
-// image is the signed/encrypted variant). No runtime behaviour change yet —
-// the actual fuse-burn happens host-side via scripts/secure_boot_first_flash.sh.
-// See docs/secure-boot-setup.md.
+// Secure-boot v2 + flash-encryption build — fuse-burn is host-side via
+// scripts/secure_boot_first_flash.sh.
 #ifndef APP_SECURE_BOOT_BUILD
     #define APP_SECURE_BOOT_BUILD 0
 #endif
 
-// ---------------------------------------------------------------------------
-// FreeRTOS task configuration
-// Adjust stack sizes if you see stack overflow panics (guru meditation error).
-// ---------------------------------------------------------------------------
-
-// Task stack sizes (bytes) — override via build_flags if needed
 #ifndef TASK_STACK_UI
-    #define TASK_STACK_UI 8192 // LVGL + UI render
+    #define TASK_STACK_UI 8192
 #endif
 #ifndef TASK_STACK_CAN
-    #define TASK_STACK_CAN 4096 // CAN frame read + parse
+    #define TASK_STACK_CAN 4096
 #endif
 #ifndef TASK_STACK_USB
-    #define TASK_STACK_USB 4096 // USB serial config sync
+    #define TASK_STACK_USB 4096
 #endif
-// Task priorities (0=lowest, configMAX_PRIORITIES-1=highest)
-// ESP32 Arduino framework default configMAX_PRIORITIES is 25.
-#define TASK_PRIO_UI 10   // UI rendering — moderate priority
-#define TASK_PRIO_CAN 15  // CAN parsing — higher, time-sensitive
-#define TASK_PRIO_USB 8   // USB sync — lower, not time-critical
-#define TASK_PRIO_INPUT 7 // GPIO button polling — below UI (#833)
+#define TASK_PRIO_UI 10
+#define TASK_PRIO_CAN 15
+#define TASK_PRIO_USB 8
+#define TASK_PRIO_INPUT 7
 
-// Task core pinning — ESP32 has 2 cores (0 and 1)
-// Core 1 (APP_CPU) is typically used for Arduino loop/app code
-// Core 0 (PRO_CPU) runs the WiFi/BT stack; avoid if using wireless
 #define TASK_CORE_UI 1
 #define TASK_CORE_CAN 0
 #define TASK_CORE_USB 1
-#define TASK_CORE_INPUT 0 // Pinned to core 0 to keep UI core jitter-free (#833)
+// Pinned to core 0 to keep UI core jitter-free (#833).
+#define TASK_CORE_INPUT 0
 
 #ifndef TASK_STACK_INPUT
-    #define TASK_STACK_INPUT 2048 // GPIO polling + dispatch — tiny stack
+    #define TASK_STACK_INPUT 2048
 #endif
 
-// Watchdog timeout for UI/CAN/USB tasks. Long enough to survive page
-// rebuild (#717 instrumentation showed up to ~1.5s on cold cache) and
-// SPIFFS-backed font load (~600ms each, 6 fonts).
+// Long enough for page rebuild (~1.5s cold) + SPIFFS font loads (~600 ms × 6).
 #define TASK_WDT_TIMEOUT_MS 8000U
 
-// Pre-`esp_restart()` flush delay. Gives the UART TX FIFO / NimBLE notify
-// queue / WiFi OTA response a deterministic window to drain before the
-// MCU resets. 200 ms is the largest historical value across the three
-// reboot sites (rotation save, BLE reboot cmd, OTA finalize) and is now
-// the single source of truth (F-ME-10).
+// Drain window for UART/NimBLE/OTA before esp_restart() — largest historical
+// value across the three reboot sites (F-ME-10).
 #define PRE_RESTART_FLUSH_DELAY_MS 200U
 
-// ---------------------------------------------------------------------------
-// USB task tracing (issue #976)
-// ---------------------------------------------------------------------------
-//
-// Lightweight instrumentation around the USB task tick to localise the WDT
-// timeout reported in #976. Off by default — flip via `-D APP_USB_TICK_TRACE=1`
-// in platformio.ini (or `build_flags` on a custom env) when reproducing.
-//
-// When enabled, the task loop logs:
-//   - the interval between two consecutive `UsbComm::tick()` calls (gap),
-//   - the body duration of each tick,
-// each gated by a threshold so the log surface stays quiet under steady state.
-
+// Instrumentation around USB tick to localise the WDT timeout (#976).
 #ifndef APP_USB_TICK_TRACE
     #define APP_USB_TICK_TRACE 0
 #endif
 
-// Warn when `UsbComm::tick()` body takes longer than this (µs). 1 s leaves
-// 7 s of WDT headroom — plenty of margin to surface a hang before the
-// watchdog actually fires.
+// 1 s leaves 7 s WDT headroom.
 #define USB_TICK_DURATION_WARN_US 1000000UL
 
-// Warn when the gap between two USB-tick entries exceeds this (µs). The
-// nominal cadence is 20 ms (`vTaskDelay(pdMS_TO_TICKS(20))`); 200 ms = 10×
-// nominal, which is well below the watchdog threshold but high enough to
-// flag genuine starvation rather than scheduler jitter.
+// 10× the 20 ms nominal cadence — flags starvation, not jitter.
 #define USB_TICK_INTERVAL_WARN_US 200000UL
 
-// Abort the firmware when CAN-scan queue allocation fails so the failure
-// surfaces as an explicit panic instead of a silent degraded state where
-// `s_canScanQueue` stays nullptr (issue #976 smoking gun #1). Off by default
-// — only enable during repro runs because every queue alloc failure now
-// crashes the device.
+// Crashes loudly on CAN-scan queue alloc failure — repro only (#976).
 #ifndef APP_USB_CAN_SCAN_FAIL_LOUD
     #define APP_USB_CAN_SCAN_FAIL_LOUD 0
 #endif
 
-// ---------------------------------------------------------------------------
-// LVGL timing
-// ---------------------------------------------------------------------------
+#define LVGL_TICK_MS 5
 
-// LVGL tick rate in milliseconds — drives lv_tick_inc()
-// Higher = smoother animations but more CPU load
-// Used by the esp_timer periodic callback installed in setup() (main.cpp).
-#define LVGL_TICK_MS 5 // 5ms = 200 Hz tick
-
-// LVGL task period — how often lv_task_handler() is called.
-// Keep this ≥ LVGL_TICK_MS. 10 ms = ~100 Hz UI loop, which gives the touch
-// layer twice as many opportunities to dispatch click events per second
-// (issue #95, fix F2). With the F1 bulk SignalStore snapshot in place the
-// per-iteration cost is well below 10 ms in steady state.
+// Keep ≥ LVGL_TICK_MS. 10 ms ≈ 100 Hz gives touch 2x dispatch budget (#95 F2).
 #define LVGL_HANDLER_PERIOD_MS 10
 
-// Horizontal travel (in px) that reclassifies a press as a swipe and cancels
-// any pending button click underneath the finger (issue #640). Tuned just
-// above the expected jitter of a stationary tap on the resistive XPT2046
-// (~4 px) so even a short flick of the finger across a button-filled page
-// commits to a swipe (issue #1262). The gesture is also fired directly from
-// the cancel path so a tap that crosses this threshold navigates without
-// waiting for LVGL's slower cumulative gesture_limit.
+// Just above XPT2046 stationary jitter (~4 px) so flicks commit to swipe (#640, #1262).
 #define SWIPE_CANCEL_THRESHOLD_PX 8
 
-// Grace window (ms) after a toggle button click during which update() must
-// NOT overwrite the local latch from the bound signal. Lets the ECU echo
-// arrive without flickering or re-arming on re-tap. See issue #658.
+// Lets ECU echo arrive without flickering the toggle (#658).
 #define BUTTON_SIGNAL_SYNC_GRACE_MS 500
 
-// Touch-press → click latency warn threshold (µs). Crossing this fires a
-// single `LOG_WARN("TOUCH", "press→click slow: …")` for the offending click.
-// Always compiled (issue #1256) — the full APP_PROFILE_UI histogram still
-// only runs in dev builds. 80 ms covers two LVGL handler periods plus
-// generous slack for a normal mutex-take + draw cycle, so a healthy
-// dashboard never trips. The destructive theme-toggle rebuild used to push
-// press→click past 200 ms; #1257's in-place reskin brings it to sub-ms,
-// leaving the budget for genuine regressions.
+// Healthy dashboards stay sub-ms after #1257; 80 ms catches genuine regressions (#1256).
 #ifndef APP_TOUCH_LATENCY_WARN_US
     #define APP_TOUCH_LATENCY_WARN_US 80000U
 #endif
 
-// Suppression window (ms) after Settings opens during which a click on the
-// top bar must NOT close it. A swipe-down that opens Settings is followed by
-// LVGL's click event for the same touch — without this guard the panel
-// opens and immediately closes again (issue #909).
+// Guards against the open-then-close-on-same-touch flicker (#909).
 #define SETTINGS_OPEN_TAP_GUARD_MS 300
 
-// ---------------------------------------------------------------------------
-// LVGL display buffers
-// Two draw buffers allow double-buffered rendering.
-// Each buffer is (width * height * bytes_per_pixel) for full-screen.
-// For 320x240x2 bytes = 153,600 bytes per full buffer — too large for IRAM.
-// Use partial buffers: N lines × width × 2 bytes.
-// ---------------------------------------------------------------------------
-// LVGL draw-buffer line count is derived from HW_LVGL_DRAW_BUDGET_BYTES +
-// HW_DISPLAY_WIDTH in display_driver.cpp::computeLvglBufLines
+// Draw-buffer line count derived in display_driver.cpp::computeLvglBufLines.
 
-// Minimum largest-free-block to allow an LVGL FS open. Below this, return
-// nullptr to keep newlib __sfp out of abort() territory. See issue #651.
-// Empirically, newlib's real abort threshold is ~256-512 bytes (FILE struct
-// + recursive mutex). 512 sits at the upper bound of the abort range with
-// no extra safety margin — bumped down from 768 (#1242) because the prior
-// margin was conservative enough to refuse legitimate icon loads whenever
-// `largest_free` dipped just under 768 B mid-buildPage, leaving button
-// icons + the day/night toggle blank on the user-visible controls page.
-// `icon_assets.cpp::preloadDashboardAssets()` uses the same constant so
-// preload and on-demand loads agree on the gate threshold; previously the
-// two paths disagreed (preload: 512, widget: 768) which caused an icon to
-// be preloaded into the cache only to have the widget refuse to render it
-// against the same heap a few ms later. If the abort threshold turns out
-// to be higher on a future newlib bump, raise this back. The threshold is
-// only relevant on no-PSRAM ESP32 — boards with PSRAM have `largest_free`
-// in the hundreds of KB throughout.
-// Lowered 512→256 after observing CAN_NO_MEM at boot starves heap and the
-// 512 gate refused every icon preload (2026-06-02). The newlib __sfp abort
-// risk is real but on this device the actual abort threshold is around 200 B
-// internal-cap free, so 256 keeps a margin while letting icons load.
+// Below this, refuse FS open to keep newlib __sfp out of abort() (#651).
+// Lowered 512→256 after CAN_NO_MEM at boot starved icon preload — abort
+// threshold sits around 200 B internal-cap free, 256 keeps a margin.
 #ifdef __cplusplus
 static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 256;
 #else
@@ -217,134 +107,61 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 256;
 // mark the signal as invalid/stale
 #define SIGNAL_DEFAULT_TIMEOUT_MS 1000
 
-// Signal smoothing — simple exponential moving average weight (0.0-1.0)
-// Higher = faster response, lower = smoother (more filtering)
-// Applied to gauge-type widgets. Label and warning widgets use raw values.
+// EMA weight applied to gauge widgets only — label/warning use raw values.
 #define SIGNAL_EMA_ALPHA 0.2f
 
-// ---------------------------------------------------------------------------
-// CAN / TWAI
-// ---------------------------------------------------------------------------
-
-// CAN classic frame payload cap (bytes). Used by the parser, manager TX
-// path, and signals.json validation to clamp/reject out-of-range byte
-// offsets. CAN FD would lift this to 64 — also fits in uint8_t.
-// Promoted from three local copies (one of which was uint16_t) so every
-// site shares a single source of truth (F-LO-3).
+// Single source of truth across parser, TX, and JSON validation (F-LO-3).
 #ifdef __cplusplus
 static constexpr uint8_t kCanFrameMaxBytes = 8;
 #else
     #define CAN_FRAME_MAX_BYTES 8U
 #endif
 
-// CAN receive queue depth (frames)
 #define CAN_RX_QUEUE_DEPTH 32
 
-// Yield delay applied at the end of each taskCAN iteration (FreeRTOS ticks).
-// Required because twai_receive returns immediately on a busy bus, which
-// otherwise starves IDLE0 at TASK_PRIO_CAN=15 and trips the Task Watchdog
-// Timer. 1 tick (~1 ms at configTICK_RATE_HZ=1000) is enough for IDLE0
-// to run while staying well below typical ECU group cadence (issue #200 —
-// originally tuned against MaxxECU; applies equally to other CAN-bus ECUs).
+// Yields so IDLE0 can feed the WDT — twai_receive returns immediately on busy bus (#200).
 #define CAN_TASK_YIELD_TICKS 1
 
-// TWAI init retry policy (issue #652). When initHardware() fails at boot
-// (typically ESP_ERR_NO_MEM from a tight heap), the CAN manager retries on a
-// timer instead of leaving the driver uninstalled and spamming
-// ESP_ERR_INVALID_STATE from twai_receive() at tick rate. Defined as macros so
-// app_config.h stays C-compatible (it is included from a few C translation
-// units alongside C++).
+// TWAI driver retries init on a timer instead of spamming INVALID_STATE (#652).
 #define TWAI_INIT_RETRY_MS 5000U
 #define TWAI_INIT_MAX_RETRIES 6U
 
-// ---------------------------------------------------------------------------
-// OBD-II polling (issue #841 — phase 3 of #556)
-// ---------------------------------------------------------------------------
-
-// Standard OBD-II frame IDs for the v1 single-ECU path. The dash broadcasts
-// requests on the functional ID and decodes responses from the ECM at 0x7E8.
-// Multi-ECU (0x7E9..0x7EF) + ISO-TP multi-frame are deferred.
+// v1 single-ECU path: 0x7DF request, 0x7E8 response (ECM).
+// Multi-ECU + ISO-TP deferred (#841).
 #define OBD2_REQUEST_FRAME_ID 0x7DFU
 #define OBD2_RESPONSE_FRAME_ID 0x7E8U
 
-// Mirror of canshift-core OBD2_{MIN,MAX}_INTERVAL_MS. Kept in lockstep so
-// the config_loader can reject out-of-range JSON locally rather than waiting
-// for the Studio validator. _FW suffix avoids colliding with a future
-// auto-generated header that might define the same name.
+// Mirror of canshift-core OBD2_{MIN,MAX}_INTERVAL_MS.
 #define OBD2_MIN_INTERVAL_MS_FW 100U
 #define OBD2_MAX_INTERVAL_MS_FW 60000U
 
-// Maximum number of distinct polling slots the firmware tracks. The poller
-// uses one slot per signal that carries a `polling` block — caps at
-// `CONFIG_MAX_SIGNALS` since a single signal cannot have more than one
-// polling configuration. Promoted to a named constant so the static storage
-// in obd2_poller.cpp stays in sync with the upstream signal cap.
 #define OBD2_MAX_POLL_SLOTS CONFIG_MAX_SIGNALS
 
-// ---------------------------------------------------------------------------
-// Config loading
-// ---------------------------------------------------------------------------
-
-// Maximum JSON document size for each config file (bytes)
-// Sized for realistic configs (4 pages × 12 widgets, schema v1.11+) plus
-// growth headroom. The dashboard buffer also doubles as the USB receive
-// buffer for CMD_PUT_CONFIG (single-line burn from Studio); a real-world
-// burn at schema v1.11 is ~13 KB, so the previous 6 KB cap caused buffer
-// overflow → parse_error. Bumped to 16 KB.
+// dashboard.json doubles as the USB rxBuf for CMD_PUT_CONFIG — real burns at
+// v1.11 land ~13 KB, so 16 KB clears the overflow.
 #define CONFIG_JSON_DOC_DASHBOARD 16384
 #define CONFIG_JSON_DOC_SIGNALS 4096
 
-// Maximum number of pages, widgets, and signals
-// NOTE: CfgDashboard and CfgPage are statically sized arrays in BSS.
-// Each CfgWidget is ~264 bytes; each page reserves CONFIG_MAX_WIDGETS_PER_PAGE
-// of them → ~6.2 KB BSS per page. The cap evolved through:
-//   - 4 (pre-#1351): too tight for cruise_control + 4 free-form pages.
-//   - 8 (#1357): jumped +25 KB BSS, OOM'd CAN init + USB rxBuf at boot (#1358 revert).
-//   - 5 (now, #1360): minimal bump that fits the demo seed (4 pages) + 1 cruise.
-//     Costs +6.2 KB BSS vs the 4-page baseline — well inside the post-#1351
-//     WiFi-removal headroom (~80 KB). The 25 KB jump from 4→8 was what hit
-//     fragmentation; +6.2 KB is comfortably below the cliff.
-// Heap-allocating the page array (issue #1359) is the durable fix and would
-// retire this static cap entirely.
+// Static BSS arrays. 4→8 OOM'd CAN+USB init (+25 KB); 5 fits demo + cruise (#1357/#1360).
+// Heap-allocating the page array would retire this static cap (#1359).
 #define CONFIG_MAX_PAGES 5
 #define CONFIG_MAX_WIDGETS_PER_PAGE 12
 #define CONFIG_MAX_SIGNALS 32
 
-// Maximum stops a per-signal `colorRamp` may carry. Mirrored from
-// canshift-core MAX_RAMP_STOPS (issue #430). 8 stops easily covers
-// blue→green→amber→red gradients with extra hues while keeping the per-signal
-// CfgColorRamp fixed-size and value-copyable into widget tags.
+// Mirrors canshift-core MAX_RAMP_STOPS (#430).
 #define CFG_MAX_RAMP_STOPS 8
 
-// First-boot provisioning of the embedded default configs to SPIFFS (issue
-// #173). When 1, BootSequence checks for missing canonical config files
-// after storage mounts and writes the firmware-baked defaults. Existing user
-// data is never overwritten. The defaults are linked in via
-// `board_build.embed_files`.
+// Writes firmware-baked defaults on first boot when target is missing (#173).
 #ifndef DEFAULT_CONFIG_PROVISION_ENABLED
     #define DEFAULT_CONFIG_PROVISION_ENABLED 1
 #endif
 
-// ---------------------------------------------------------------------------
-// Error store
-// ---------------------------------------------------------------------------
-
-// Depth of the firmware-side error ring buffer (diag/error_store.cpp).
-// Promoted from a local constexpr so the Studio Error Bar UI and any other
-// cross-package consumer can stay in sync with a single source of truth
-// (F-ME-12). Raising this also widens FwError[] copies inside critical
-// sections — keep small (≤16).
+// Raising widens FwError[] copies inside critical sections — keep ≤16 (F-ME-12).
 #define ERROR_STORE_RING_SIZE 6U
 
-// ---------------------------------------------------------------------------
-// Alert engine
-// ---------------------------------------------------------------------------
-
-// Rev limiter flash effect
-// Flash the screen red when RPM exceeds this percentage of the configured limit
-#define ALERT_REVLIMIT_WARN_PCT 95   // Warning: 95% of rev limit
-#define ALERT_REVLIMIT_FLASH_PCT 100 // Full flash: at/over rev limit
-#define ALERT_REVLIMIT_FLASH_HZ 8    // Flash frequency
+#define ALERT_REVLIMIT_WARN_PCT 95
+#define ALERT_REVLIMIT_FLASH_PCT 100
+#define ALERT_REVLIMIT_FLASH_HZ 8
 
 // Battery voltage alert fallbacks — used only when signals.json does not
 // configure per-signal thresholds for `battery_volts`. Defaults match the

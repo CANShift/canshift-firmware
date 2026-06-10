@@ -21,8 +21,7 @@ namespace {
 
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
-// Mirrors widget-previews/Button.tsx::computeButtonPreviewMetrics. Hardcoded
-// against v1 320×240 — future screen profiles will need ScreenProfile scaling.
+// Mirrors widget-previews/Button.tsx — needs ScreenProfile scaling for larger panels.
 constexpr int16_t BUTTON_PAD_X = 6;
 constexpr int16_t BUTTON_PAD_Y = 4;
 constexpr int16_t BUTTON_ROW_GAP = 2;
@@ -75,51 +74,43 @@ const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
 static constexpr int16_t MAP_BADGE_DIAMETER = 7;
 static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44;
 
-// Mirrors Studio's idle/active alpha tints (normalColor + '18', + '55').
+// Mirrors Studio (normalColor + '18'/'55').
 constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_10;
 constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = 0x55;
 constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC;
 constexpr int16_t BUTTON_BORDER_WIDTH = 1;
 
 struct ButtonTag {
-    const CfgWidget *cfg; // For style.primaryColor when computing derived toggle visuals (#838)
+    const CfgWidget *cfg;
     const CfgButtonParams *params;
-    lv_obj_t *iconImg;                 // nullptr when no asset is rendered
-    lv_obj_t *labelObj;                // nullptr when label is hidden
-    bool toggleActive;                 // only meaningful when params->isToggle == true
-    char lvglPath[LVGL_PATH_LEN];      // resolved LVGL FS path for the icon, "" if none
-    lv_obj_t *activeBadge;             // green dot overlay, nullptr if not a map_switch button
-    uint8_t mapSwitchIndex;            // mapIndex of the MAP_SWITCH action, 0 = none
-    char signalId[CFG_MAX_SIGNAL_LEN]; // signal driving toggle state; "" = use local latch
-    uint32_t signalSyncIgnoreUntilMs;  // ms tick before which update() must skip signal-driven sync
+    lv_obj_t *iconImg;
+    lv_obj_t *labelObj;
+    bool toggleActive;
+    char lvglPath[LVGL_PATH_LEN];
+    lv_obj_t *activeBadge;
+    uint8_t mapSwitchIndex;
+    char signalId[CFG_MAX_SIGNAL_LEN];
+    // Suppresses signal-driven sync for a short window after a local toggle.
+    uint32_t signalSyncIgnoreUntilMs;
 };
 
-// Resolve the icon source for `p`. Tagged result: `dsc` is non-null when the
-// icon is baked into flash (preferred — zero FS / cache / heap risk); else
-// `path` holds the SPIFFS path string and `dsc` stays null. When both are
-// empty no icon will be drawn (see #681 — the LVGL symbol fallback was gone).
-// Prefers user-provided `iconPath` over the built-in `iconName` lookup.
-//
-// SPIFFS branches probe the underlying file before returning: LVGL silently
-// no-ops on lv_img_set_src for a missing file, so without the probe the
-// widget would render an empty box.
+// dsc non-null when baked in flash; else path holds SPIFFS path. User iconPath
+// wins over iconName. SPIFFS branches probe — LVGL silently no-ops on missing.
 struct IconSource {
-    const lv_img_dsc_t *dsc; // nullptr when no baked dsc is available
-    const char *path;        // non-empty SPIFFS path, or "" when no SPIFFS asset
+    const lv_img_dsc_t *dsc;
+    const char *path;
 };
 
 IconSource resolveIconAsset(const CfgButtonParams &p, char *pathBuf, size_t pathBufLen) {
     pathBuf[0] = '\0';
     IconSource result{nullptr, pathBuf};
     if (p.iconPath[0] != '\0') {
-        // Studio supplies SPIFFS paths with a leading slash already.
         const char *prefix = (p.iconPath[0] == '/') ? "" : "/";
         snprintf(pathBuf, pathBufLen, "S:%s%s", prefix, p.iconPath);
         if (!IconAssets::exists(pathBuf))
             pathBuf[0] = '\0';
         return result;
     }
-    // Prefer the baked flash dsc when one exists for this iconName.
     result.dsc = IconAssetsBaked::resolve(p.iconName);
     if (result.dsc != nullptr)
         return result;
@@ -129,12 +120,8 @@ IconSource resolveIconAsset(const CfgButtonParams &p, char *pathBuf, size_t path
     return result;
 }
 
-// Brighten an RGB colour by a fixed per-channel delta (saturating). Used to
-// derive an "active" tint from a toggle button's resting colour when the
-// dashboard config did not provide an explicit `colors{normal,active}` block
-// (issue #838). Keeps the resting appearance untouched and only shifts the
-// pressed state, so existing dashboards don't suddenly look different.
-constexpr uint32_t TOGGLE_DERIVED_ACTIVE_DELTA = 0x40; // ~25 % brighter
+// Derives an "active" tint when the config lacks an explicit colors block (#838).
+constexpr uint32_t TOGGLE_DERIVED_ACTIVE_DELTA = 0x40;
 
 uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
     const uint32_t r = (rgb >> 16) & 0xFF;
@@ -146,11 +133,6 @@ uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
     return (rL << 16) | (gL << 8) | bL;
 }
 
-// Resting / active visual for a button. Mirrors Studio's per-state palette
-// (widget-previews/Button.tsx): translucent bg, 1-px border in stateColor /
-// secondaryColor, icon + label tinted with the matching stateColor. The
-// derived-active path (no explicit `colors` block) still lightens primary
-// for legacy two-state behaviour from #838.
 struct ButtonVisual {
     uint32_t bgColor;
     lv_opa_t bgOpa;
@@ -183,10 +165,8 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     lv_obj_set_style_bg_opa(btn, v.bgOpa, LV_PART_MAIN);
     lv_obj_set_style_border_color(btn, lv_color_hex(v.borderColor), LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
-    // Don't re-apply icon recolor on state change — the redraw triggers an
-    // lv_img reload that falls back to the LVGL "No data" placeholder when
-    // it can't allocate the recolor layer (a known pressed-state regression
-    // surfaced after #1247 / #1252). Initial recolor is set once at create.
+    // Skip icon recolor on state change — recolor-layer alloc fails under
+    // fragmentation and falls back to "No data" placeholder (#1247 / #1252).
     (void)tag;
     if (tag.labelObj) {
         lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
@@ -215,14 +195,7 @@ void btnClickHandler(lv_event_t *e) {
         applyToggleVisualState(btn, *tag);
         tag->signalSyncIgnoreUntilMs = millis() + BUTTON_SIGNAL_SYNC_GRACE_MS;
 
-        // Optimistic SignalStore write — mirror the new local latch into the
-        // signal the button is bound to so any other widget reading that
-        // signal (DiagDrawer ECU FLAGS row, status indicators, etc.) reflects
-        // the press immediately instead of waiting for the ECU to echo back
-        // through CAN. When CAN feedback arrives, `SignalStore::update`
-        // overrides this value with the ground truth — no flicker because
-        // the values match. With CAN unavailable (bench testing, bus off)
-        // the local value is the only feedback the user gets.
+        // Optimistic write — CAN echo overrides on arrival, no flicker.
         if (tag->signalId[0] != '\0') {
             const SignalId sid = signalIdFromName(tag->signalId);
             if (sid < SignalIds::SIGNAL_COUNT) {
@@ -243,8 +216,6 @@ void btnClickHandler(lv_event_t *e) {
 
 lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *btn = lv_btn_create(parent);
-    // Design-space → physical coordinate scaling (issues #17, #18). Identity
-    // on the only v1 profile (`crowpanel-28`), so output is byte-identical.
     const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
     const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
     lv_obj_set_pos(btn, px, py);
@@ -257,8 +228,6 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     lv_obj_set_style_pad_hor(btn, BUTTON_PAD_X, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(btn, BUTTON_PAD_Y, LV_PART_MAIN);
 
-    // Column layout (icon on top, label below) mirroring Studio's
-    // widget-previews/Button.tsx column flex.
     const bool hasIcon = p.showIcon && (p.iconPath[0] != '\0' || p.iconName[0] != '\0');
     const bool hasLabel = p.showLabel && p.label[0] != '\0';
 
@@ -269,9 +238,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_set_style_pad_row(btn, BUTTON_ROW_GAP, LV_PART_MAIN);
     }
 
-    // RAII slot guard (#1207): any early return between here and
-    // attachTagDeleter() below releases the slot deterministically. After
-    // commit() LVGL owns destruction via LV_EVENT_DELETE.
+    // RAII slot guard (#1207).
     WidgetTagPool::Slot<ButtonTag> tagSlot;
     ButtonTag *tag = tagSlot.get();
     if (!tag) {
@@ -293,7 +260,6 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
     tag->signalSyncIgnoreUntilMs = 0;
 
-    // Resolve map_switch index before layout so badge creation can reference it
     for (uint8_t i = 0; i < p.actionsCount; ++i) {
         if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
             tag->mapSwitchIndex = p.actions[i].mapIndex;
@@ -308,10 +274,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     if (hasIcon) {
         const IconSource icon = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
-        // Heap guard ONLY applies to the SPIFFS path. Baked icons live in
-        // flash — no decoder allocation, no FS open, no cache life math —
-        // so they bypass the gate entirely and survive any page-rebuild
-        // cycle that could starve a SPIFFS reload (issue #1261).
+        // Heap guard only applies to SPIFFS — baked icons bypass it (#1261).
         const bool heapOk = icon.dsc != nullptr || heap_caps_get_largest_free_block(
                                                        MALLOC_CAP_8BIT) >= LVGL_FS_MIN_HEAP_BYTES;
         const bool hasSrc = icon.dsc != nullptr || tag->lvglPath[0] != '\0';
@@ -322,34 +285,14 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             } else {
                 lv_img_set_src(tag->iconImg, tag->lvglPath);
             }
-            // Pin the layout slot to the Studio-computed target size. lv_img
-            // defaults to `LV_SIZE_CONTENT`, reporting its self-size as the
-            // *unzoomed* native dims under `LV_IMG_SIZE_MODE_VIRTUAL`. Inside
-            // a column flex parent that left the layout slot decoupled from
-            // the zoomed rendered size, so when the SPIFFS decode in
-            // `lv_img_set_src` failed silently (heap-low FS gate, missing
-            // header) `img->w` stayed at 0 and the slot collapsed — icon
-            // never appeared (#1242). Forcing the size also guarantees the
-            // flex parent reserves exactly the painted region regardless of
-            // when the .bin header is decoded.
-            // No zoom and no explicit size — let LVGL use LV_SIZE_CONTENT (the
-            // image's native dims). Diagnostic step: if icons appear at native
-            // 32x32 in the button cell, the SPIFFS load works and the previous
-            // zoom path (#1247) is what was breaking rendering. If icons stay
-            // invisible at this point, the root cause is upstream of LVGL's
-            // transform path (e.g. cache, decoder, or fs gate).
             (void)targetIconSize;
         } else if (hasSrc && !heapOk) {
-            // Asset is on disk but heap is too fragmented to load it — skip
-            // and log once. The button still renders its label/colour cues.
-            // Baked icons can't hit this branch (they short-circuit heapOk
-            // to true above).
+            // Skip — button still renders its label/colour cues.
             LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
                      static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
             tag->lvglPath[0] = '\0';
         }
-        // No glyph fallback (#681): Orbitron does not cover the LVGL symbol
-        // range, so an "empty" label just consumed layout slots for nothing.
+        // No glyph fallback (#681) — Orbitron lacks the LVGL symbol range.
     }
 
     if (hasLabel) {
@@ -360,26 +303,17 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         tag->labelObj = label;
     }
 
-    // Apply idle visual (translucent bg + 1-px border + recoloured icon/label).
-    // computeButtonVisual mirrors Studio's idle/active per-state palette so
-    // toggle clicks (applyToggleVisualState) and PRESSED feedback below stay
-    // consistent.
     {
         const ButtonVisual idle = computeButtonVisual(cfg, p, false);
         applyButtonVisual(btn, *tag, idle);
-        // Apply the icon recolor ONCE here, at create time. Re-applying on
-        // every state change (in applyButtonVisual) triggered an lv_img
-        // redecode that fell back to the LVGL "No data" placeholder when
-        // memory was tight (2026-06-02). Single static recolor avoids it.
+        // Recolor ONCE at create — re-apply triggered lv_img redecode under
+        // memory pressure and fell back to the "No data" placeholder.
         if (tag->iconImg) {
             lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(idle.textColor), 0);
             lv_obj_set_style_img_recolor_opa(tag->iconImg, BUTTON_ICON_OPA, 0);
         }
         if (!p.isToggle) {
-            // Momentary buttons still flash via LVGL's PRESSED state so the
-            // user gets immediate feedback on tap. Toggle buttons drive the
-            // active visual themselves from the latched flag (see
-            // applyToggleVisualState) and ignore PRESSED.
+            // Toggle drives active state from the latch — only momentary uses PRESSED.
             const ButtonVisual pressed = computeButtonVisual(cfg, p, true);
             lv_obj_set_style_bg_color(btn, lv_color_hex(pressed.bgColor),
                                       LV_PART_MAIN | LV_STATE_PRESSED);

@@ -1,38 +1,10 @@
-// sensor-color-ramp — Rust port of CANShift sensor color ramp logic.
-//
-// Originally lived in `canshift-firmware/src/ui/sensor_color_ramp.cpp` with a
-// near-byte-for-byte duplicate in `canshift-core/src/sensor-defaults.ts`. The
-// firmware-side port (this crate) is the first half of #1177 R-3 — once
-// wasm-bindgen + a build-time wasm bundle land in canshift-core, the TS twin
-// can be deleted and both consumers will read from the same Rust source.
-//
-// What stays C++ for now:
-//   - The LVGL widget code that calls the firmware ramps (gauge / bar / etc.).
-//   - The `CfgColorRampDef` / `CfgRampStopDef` aggregates in
-//     `src/config/config_types.h` — they're shared with the JSON parser and
-//     touched on the hot rendering path. The Rust port mirrors them at the
-//     FFI boundary so callers stay byte-for-byte compatible.
-//
-// What moves to Rust:
-//   - The numeric core: `color_at_value`, the channel-wise RGB lerp, the
-//     case-insensitive name match, the default ramp catalog, and the
-//     `sensor_kind_from_name` heuristic table.
-//
-// The existing `test/test_sensor_color_ramp/` Unity suite is the parity gate;
-// it already anchors `kSensorDefaultRamps` to the JSON fixture exported from
-// canshift-core. Nothing changes on that side — the C++ table becomes a thin
-// `static const CfgColorRamp[]` initialised from the Rust catalog at compile
-// time, and the FFI shims preserve identical observable behaviour.
-
+// Rust port of sensor_color_ramp.cpp (#1177 R-3).
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Panic handler — required for `no_std + staticlib`. Halts forever. Same
-// strategy as the other ports. All public functions return well-defined
-// fallback values on bad input; reaching this means an internal invariant
-// break.
+// Required for no_std staticlib — reaching here means invariant break.
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -41,11 +13,9 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     }
 }
 
-// Mirrors `CFG_MAX_RAMP_STOPS` in `canshift-firmware/include/app_config.h`.
-// Keep in sync — bumping this requires growing the FFI struct on both sides.
+// Mirror of CFG_MAX_RAMP_STOPS — bumping requires growing the FFI struct.
 pub const MAX_RAMP_STOPS: usize = 8;
 
-/// Mirror of `CfgRampInterp` from `config_types.h`. Stored as `u8` underlying.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RampInterp {
@@ -53,7 +23,6 @@ pub enum RampInterp {
     Step = 1,
 }
 
-/// Mirror of `CfgRampStopDef` from `config_types.h`. 8 bytes, 4-byte aligned.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct RampStop {
@@ -62,9 +31,7 @@ pub struct RampStop {
     pub color: u32,
 }
 
-/// Mirror of `CfgColorRampDef` from `config_types.h`. The trailing stops
-/// array is sized to `MAX_RAMP_STOPS`; only the first `count` entries are
-/// valid.
+/// Only the first `count` entries of `stops` are valid.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ColorRamp {
@@ -74,9 +41,6 @@ pub struct ColorRamp {
     pub stops: [RampStop; MAX_RAMP_STOPS],
 }
 
-/// Built-in catalog discriminant — mirrors the C++ `SensorKind` enum and the
-/// TS `SensorKind` string union. Values are u8 so they can round-trip
-/// through the FFI.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SensorKind {
@@ -89,22 +53,10 @@ pub enum SensorKind {
     Boost = 6,
     IntakeTemp = 7,
     Egt = 8,
-    /// Sentinel — the input didn't match any rule. Also used as a "count" by
-    /// callers iterating the named kinds via `SENSOR_KIND_COUNT`.
     Unknown = 9,
 }
 
-/// Number of named sensor kinds — indexes into `SENSOR_DEFAULT_RAMPS`.
-/// `Unknown` is excluded.
 pub const SENSOR_KIND_COUNT: usize = 9;
-
-// ---------------------------------------------------------------------------
-// Default catalog — mirrors `SENSOR_DEFAULT_RAMPS` in canshift-core and
-// `kSensorDefaultRamps` in canshift-firmware. The C++ side anchors the
-// runtime table to `sensor_defaults.json` exported from the TS twin; this
-// table is the third copy in the chain, also anchored by the parity tests
-// below.
-// ---------------------------------------------------------------------------
 
 const fn stop(value: f32, color: u32) -> RampStop {
     RampStop { value, color }
@@ -252,13 +204,7 @@ pub const SENSOR_DEFAULT_RAMPS: [ColorRamp; SENSOR_KIND_COUNT] = [
     ),
 ];
 
-// ---------------------------------------------------------------------------
-// Name → SensorKind heuristic
-// ---------------------------------------------------------------------------
-
-/// One row of the heuristic table. Order matters at the table level — more
-/// specific patterns must come before more general ones (e.g. `oil_temp`
-/// before `oil`).
+/// Specific patterns must come before general ones (`oil_temp` before `oil`).
 struct NameRule {
     pattern: &'static [u8],
     kind: SensorKind,
@@ -285,9 +231,7 @@ const NAME_RULES: &[NameRule] = &[
     NameRule { pattern: b"exhaust_temp", kind: SensorKind::Egt },
 ];
 
-/// Case-insensitive (ASCII) substring search. Returns true when `needle` is
-/// found in `haystack`. Empty `needle` returns true (matches the C++
-/// `containsCi` contract).
+/// ASCII case-insensitive contains. Empty needle returns true (mirrors C++).
 fn contains_ci(haystack: &[u8], needle: &[u8]) -> bool {
     if needle.is_empty() {
         return true;
@@ -310,9 +254,7 @@ fn contains_ci(haystack: &[u8], needle: &[u8]) -> bool {
     false
 }
 
-/// Map a free-form signal name (e.g. `"coolant_temp_c"`) to a `SensorKind`.
-/// First match wins per `NAME_RULES` ordering. Empty input returns
-/// `SensorKind::Unknown`.
+/// First match wins per NAME_RULES order. Empty input → Unknown.
 #[must_use]
 pub fn sensor_kind_from_name(signal_name: &[u8]) -> SensorKind {
     if signal_name.is_empty() {
@@ -326,13 +268,7 @@ pub fn sensor_kind_from_name(signal_name: &[u8]) -> SensorKind {
     SensorKind::Unknown
 }
 
-// ---------------------------------------------------------------------------
-// Color sampling
-// ---------------------------------------------------------------------------
-
-/// Channel-wise lerp between two RGB ints. `t` is clamped to `[0, 1]`.
-/// Rounding matches the C++ `std::lround` semantics (round half-away-zero)
-/// so the firmware-side parity tests don't drift by ±1 LSB.
+/// half-away-from-zero rounding for ±1 LSB parity with std::lround.
 #[must_use]
 pub fn lerp_rgb(a: u32, b: u32, t: f32) -> u32 {
     let t = t.clamp(0.0, 1.0);
@@ -346,18 +282,12 @@ pub fn lerp_rgb(a: u32, b: u32, t: f32) -> u32 {
     let mix = |x: i32, y: i32| -> u32 {
         let v = (x as f32) + (y as f32 - x as f32) * t;
         let clamped = v.clamp(0.0, 255.0);
-        // Round half-away-from-zero to match C++ `std::lround`. f32::round()
-        // is also half-away-from-zero on positive values, which is all we
-        // see here (clamped above).
         clamped.round() as u32
     };
     (mix(ar, br) << 16) | (mix(ag, bg) << 8) | mix(ab, bb)
 }
 
-/// Sample the ramp at `value`. Returns `0x00RRGGBB`. O(count), no allocation.
-/// Below the first stop returns the first color; above the last returns the
-/// last. Empty ramps return `0x000000` (defensive — the JSON validator
-/// already forbids empty ramps at config load).
+/// Below first stop → first color; above last → last; empty ramp → 0x000000.
 #[must_use]
 pub fn color_at_value(ramp: &ColorRamp, value: f32) -> u32 {
     if ramp.count == 0 {
@@ -375,7 +305,6 @@ pub fn color_at_value(ramp: &ColorRamp, value: f32) -> u32 {
         return last.color;
     }
 
-    // Step mode: walk forward, highest stop with value <= input wins.
     if ramp.interpolate == RampInterp::Step {
         let mut active = first.color;
         for s in stops {
@@ -388,7 +317,6 @@ pub fn color_at_value(ramp: &ColorRamp, value: f32) -> u32 {
         return active;
     }
 
-    // Linear: find bracketing pair, lerp.
     for window in stops.windows(2) {
         let lower = window[0];
         let upper = window[1];

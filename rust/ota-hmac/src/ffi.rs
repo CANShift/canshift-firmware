@@ -1,36 +1,13 @@
-//! C ABI bridge for the OTA HMAC verifier.
-//!
-//! Exposes a minimal set of `extern "C"` entry points so C++ callers
-//! (`canshift-firmware/src/hal/wifi/ota_hmac_bridge.cpp`, Phase 3) can use
-//! the Rust verifier without touching `unsafe` themselves.
-//!
-//! Memory ownership:
-//!   - All state lives in a single C-opaque `OtaHmacRs` struct.
-//!   - The struct is allocated on the C++ stack (caller passes a pointer to
-//!     a zero-initialised buffer of `ota_hmac_rs_sizeof()` bytes) — keeps
-//!     the Rust side completely no-`alloc` even on `staticlib` builds.
-//!   - Slices on the C side are passed as `(ptr, len)` pairs.
-//!
-//! Return-value convention:
-//!   - 0 on success, non-zero on failure. Matches the C++ original's
-//!     `bool` semantics (which Phase 1 already mirrors).
-//!
-//! Why not `bindgen`-generated headers? The surface is 6 functions of
-//! primitive types; a hand-written `ota_hmac_rs.h` is 30 lines, versioned,
-//! and avoids dragging `libclang` + a `build.rs` into the firmware build.
+//! State lives in an opaque OtaHmacRs on the C++ stack — Rust stays no-alloc.
+//! Return convention: 0 on success, non-zero on failure.
 
-#![allow(unsafe_code)] // FFI shim — the whole point is the C boundary
+#![allow(unsafe_code)]
 
 use core::slice;
 
 use crate::{HmacBackend, OtaHmacVerifier, RustCryptoBackend, Sink, HMAC_LEN, MAX_SECRET_LEN};
 
-// ---------------------------------------------------------------------------
-// Sink shim — bridges `extern "C"` callbacks to the Rust `Sink` trait.
-// ---------------------------------------------------------------------------
-
-/// C-callable sink callback. Receives a pointer + length and an opaque
-/// user pointer. Returns non-zero on failure (matches C++ `OtaSinkFn`).
+/// Matches C++ OtaSinkFn — non-zero on failure.
 pub type SinkCallback =
     Option<unsafe extern "C" fn(data: *const u8, len: usize, user: *mut core::ffi::c_void) -> i32>;
 
@@ -42,9 +19,6 @@ struct CSink {
 impl Sink for CSink {
     fn write(&mut self, data: &[u8]) -> Result<(), ()> {
         let cb = self.callback.ok_or(())?;
-        // SAFETY: the caller guarantees `cb` is a valid C function for the
-        // verifier's lifetime, `user` is the opaque pointer it expects, and
-        // `data` lives as long as this call.
         let rc = unsafe { cb(data.as_ptr(), data.len(), self.user) };
         if rc == 0 {
             Ok(())
@@ -54,28 +28,17 @@ impl Sink for CSink {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Opaque verifier wrapper. Sized + aligned so the C++ caller can drop one
-// on the stack via a fixed-size byte buffer; Phase 3's bridge cpp uses
-// `alignas(alignof(max_align_t)) uint8_t buf[ota_hmac_rs_sizeof()]`.
-// ---------------------------------------------------------------------------
-
-/// FFI opaque struct. NOT to be inspected from C — callers treat it as an
-/// opaque blob. The layout is intentionally `#[repr(C)]` so its size +
-/// alignment are stable across Rust toolchain versions.
+/// Opaque to C — repr(C) keeps size + alignment stable across toolchain versions.
 #[repr(C)]
 pub struct OtaHmacRs {
     inner: Option<OtaHmacVerifier<RustCryptoBackend, CSink>>,
 }
 
-/// Returns the size (bytes) of `OtaHmacRs` so the C side can reserve
-/// storage. Const-eval friendly — callers can compile-time-assert.
 #[no_mangle]
 pub extern "C" fn ota_hmac_rs_sizeof() -> usize {
     core::mem::size_of::<OtaHmacRs>()
 }
 
-/// Returns the alignment requirement of `OtaHmacRs` in bytes.
 #[no_mangle]
 pub extern "C" fn ota_hmac_rs_alignof() -> usize {
     core::mem::align_of::<OtaHmacRs>()

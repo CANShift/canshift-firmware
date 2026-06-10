@@ -1,30 +1,10 @@
-// ffi.rs — C ABI shim for the usb-envelope crate. Mirrors the C++ surface in
-// `canshift-firmware/src/hal/usb/usb_envelope.h` so the existing caller and
-// Unity tests link unchanged when `USE_RUST_USB_ENVELOPE=1` is set.
-//
-// Both functions take raw pointers + lengths from C and return pointers that
-// index into the caller's input buffer. The Rust impl computes offsets; the
-// shim adds them to the input base pointer. No bytes are copied and no
-// allocation happens — the buffer's lifetime is the caller's problem (same
-// as the C++ original).
-
 use core::ptr;
 use core::slice;
 
 use crate::{find_needle, find_payload_slice};
 
-// Returns a pointer into `haystack` at the first occurrence of `needle`, or
-// `null` if no match. Matches `UsbEnvelope::findNeedle` byte-for-byte:
-//   - `needle_len == 0` returns null.
-//   - `haystack_len < needle_len` returns null.
-//   - Either pointer being null also returns null (defensive — the C++
-//     version dereferenced; we tighten the contract).
-//
-// # Safety
-// `haystack` must point to a readable buffer of at least `haystack_len`
-// bytes (or be null), and `needle` to one of at least `needle_len` bytes
-// (or be null). The returned pointer aliases into `haystack` and is only
-// valid while the caller's buffer is live.
+/// # Safety: both pointers null OR readable for their length. Tightens vs C++ —
+/// null returns null instead of dereferencing.
 #[no_mangle]
 pub unsafe extern "C" fn find_needle_rs(
     haystack: *const u8,
@@ -43,19 +23,7 @@ pub unsafe extern "C" fn find_needle_rs(
     }
 }
 
-// Locate the `"payload"` value object inside a top-level JSON envelope.
-// On success: writes the slice length into `*out_len` and returns a pointer
-// to the opening `{`. On failure: writes 0 into `*out_len` (when non-null)
-// and returns `null`.
-//
-// Mirrors `UsbEnvelope::findPayloadSlice` — see the C++ header for the full
-// contract. The Rust impl ignores embedded NULs by design (length-bounded
-// scan).
-//
-// # Safety
-// `json_line` must point to a readable buffer of at least `line_len` bytes
-// (or be null). `out_len` may be null. The returned pointer aliases into
-// `json_line` and is only valid while the caller's buffer is live.
+/// # Safety: `json_line` null or readable for `line_len`; `out_len` may be null.
 #[no_mangle]
 pub unsafe extern "C" fn find_payload_slice_rs(
     json_line: *const u8,
@@ -106,7 +74,7 @@ mod tests {
         unsafe {
             let p = find_payload_slice_rs(line.as_ptr(), line.len(), &mut out_len);
             assert!(!p.is_null());
-            assert_eq!(out_len, 7); // {"a":1}
+            assert_eq!(out_len, 7);
             let got = slice::from_raw_parts(p, out_len);
             assert_eq!(got, b"{\"a\":1}");
         }

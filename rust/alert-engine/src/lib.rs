@@ -1,39 +1,11 @@
-// alert-engine — Rust port of AlertEngine threshold-eval helpers.
-//
-// Lives in `canshift-firmware/src/runtime/alert_engine.cpp` originally:
-// six anonymous-namespace `eval*` functions that classify a single signal
-// value (`tempC`, `pressBar`, `volts`, `rpm`) against per-signal thresholds
-// loaded from the dashboard config. The functions are pure given the
-// threshold inputs — they touch no globals, no I/O, no LVGL state.
-//
-// What stays C++:
-//   - Module-level static thresholds (`s_coolantWarnC`, `s_oilTempCritC`, …)
-//     loaded by `init()` from `signals.json` at boot.
-//   - `tick()` orchestration — reads signals via `SignalStore`, calls each
-//     `eval*` helper, writes `s_state`, manages the flash-effect phase.
-//   - The `AlertState` snapshot and the rev-limiter flash UI helpers.
-//
-// What moves to Rust:
-//   - The six per-signal `eval*` helpers. Each is a small if/else chain
-//     over (mostly NaN-aware) float comparisons. This is exactly the
-//     pattern where C++ `value > NaN`-returns-false silently lets a
-//     sensor-failure value (NaN) escape the alert chain — Rust pattern
-//     matching makes the NaN behaviour visible and locked-down by the
-//     parity tests.
-//
-// The crate exposes ONE entry point shape: `(value, …thresholds) ->
-// AlertLevel`. The C++ wrapper passes its static thresholds at the call
-// site.
-
+// Rust port of AlertEngine eval* helpers — pure (value, thresholds) → AlertLevel.
+// NaN value → Normal; NaN threshold → disabled (mirrors C++ via `>` semantics).
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Panic handler — required for `no_std + staticlib`. Halts forever. Same
-// strategy as the other ports. All public functions return `AlertLevel`
-// (no failure mode) on any input; reaching the handler means an internal
-// invariant break.
+// Required for no_std staticlib — reaching here means invariant break.
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -42,9 +14,7 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     }
 }
 
-// Mirror of `AlertEngine::AlertLevel` from `alert_engine.h`. `#[repr(u8)]`
-// is load-bearing — the C++ side stores this in a `uint8_t` underlying
-// enum, and the FFI shim returns it directly.
+// repr(u8) is load-bearing — C++ enum is uint8_t.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum AlertLevel {
@@ -55,8 +25,6 @@ pub enum AlertLevel {
 }
 
 impl AlertLevel {
-    // Mirror of the C++ unnamed-namespace `maxLevel` helper. Returns the
-    // more severe of `self` and `other`. Uses `Ord` on the discriminant.
     #[inline]
     #[must_use]
     pub fn max(self, other: Self) -> Self {
@@ -68,14 +36,6 @@ impl AlertLevel {
     }
 }
 
-// Behaviour preserved from C++ — both `evalHighSide` operands match the
-// `>` operator, so:
-//   - NaN value → returns NORMAL (NaN > anything is false). This is the
-//     "sensor failure → silent" case documented in the impl comment.
-//   - NaN threshold → "disabled" (the explicit `!isnan(threshold)` guard).
-//
-// Returns the highest matching level. `high_crit` outranks `high_warn`
-// when both fire.
 #[must_use]
 pub fn eval_high_side(value: f32, high_warn: f32, high_crit: f32) -> AlertLevel {
     if !high_crit.is_nan() && value > high_crit {
@@ -87,10 +47,6 @@ pub fn eval_high_side(value: f32, high_warn: f32, high_crit: f32) -> AlertLevel 
     AlertLevel::Normal
 }
 
-// Rev limiter: `warn_pct` / `flash_pct` are integer percentages of
-// `rev_limit_rpm`. Mirrors `evalRevLimiter` byte-for-byte.
-//
-// `>=` semantics (not `>`) — at the exact flash percent the alert fires.
 #[must_use]
 pub fn eval_rev_limiter(rpm: f32, rev_limit_rpm: f32, warn_pct: u8, flash_pct: u8) -> AlertLevel {
     let warn_rpm = rev_limit_rpm * (warn_pct as f32 / 100.0);
@@ -104,12 +60,7 @@ pub fn eval_rev_limiter(rpm: f32, rev_limit_rpm: f32, warn_pct: u8, flash_pct: u
     AlertLevel::Normal
 }
 
-// Coolant temperature: 4-level chain (NORMAL → CAUTION → WARNING →
-// CRITICAL). The CAUTION band is `warn_c - 5.0` — a magic constant in the
-// C++ original (a hard-coded 5 °C "approaching warning" pre-band). Preserved
-// here for byte-for-byte parity. If the value lands in CRITICAL via the
-// `>=` chain, the high-side helper can still escalate further but never
-// downgrade (`max_level` is monotonic).
+// CAUTION pre-band is `warn_c - 5°C` (mirrors C++ hard-coded constant).
 #[must_use]
 pub fn eval_coolant_temp(
     temp_c: f32,
@@ -130,8 +81,6 @@ pub fn eval_coolant_temp(
     base.max(eval_high_side(temp_c, high_warn_c, high_crit_c))
 }
 
-// Oil temperature: 3-level chain (no CAUTION pre-band). Otherwise same
-// shape as `eval_coolant_temp`.
 #[must_use]
 pub fn eval_oil_temp(
     temp_c: f32,
@@ -150,9 +99,7 @@ pub fn eval_oil_temp(
     base.max(eval_high_side(temp_c, high_warn_c, high_crit_c))
 }
 
-// Oil pressure: LOW side is the primary alert (cranking failure / pump
-// failure). Optional high-side via `high_warn_bar` / `high_crit_bar`.
-// `<=` semantics on the low side: at the exact crit value, fire.
+// LOW side is primary (cranking/pump failure); high-side optional.
 #[must_use]
 pub fn eval_oil_pressure(
     press_bar: f32,
@@ -171,12 +118,7 @@ pub fn eval_oil_pressure(
     base.max(eval_high_side(press_bar, high_warn_bar, high_crit_bar))
 }
 
-// Battery voltage: low side is dominant (cranking failure). The C++
-// returns CRITICAL immediately on `volts < low_crit_v` without checking
-// the high side — preserved here to match the existing semantics. High
-// side is only consulted when the value is above the low-warn band.
-//
-// `<` semantics (not `<=`) on the low side — preserves C++ original.
+// Low-side critical short-circuits — high side is only consulted above low-warn.
 #[must_use]
 pub fn eval_battery(
     volts: f32,
@@ -200,16 +142,12 @@ pub fn eval_battery(
 mod tests {
     use super::*;
 
-    // --- AlertLevel::max -----------------------------------------------------
-
     #[test]
     fn max_level_picks_more_severe() {
         assert_eq!(AlertLevel::Warning.max(AlertLevel::Normal), AlertLevel::Warning);
         assert_eq!(AlertLevel::Critical.max(AlertLevel::Warning), AlertLevel::Critical);
         assert_eq!(AlertLevel::Caution.max(AlertLevel::Caution), AlertLevel::Caution);
     }
-
-    // --- eval_high_side ------------------------------------------------------
 
     #[test]
     fn high_side_under_warn_is_normal() {
@@ -228,23 +166,18 @@ mod tests {
 
     #[test]
     fn high_side_nan_threshold_is_disabled() {
-        // High-warn NaN, high-crit NaN → no escalation regardless of value.
         assert_eq!(eval_high_side(999.0, f32::NAN, f32::NAN), AlertLevel::Normal);
     }
 
     #[test]
     fn high_side_only_crit_configured() {
-        // High-warn NaN, high-crit 100 — over crit fires CRITICAL, below stays NORMAL.
         assert_eq!(eval_high_side(50.0, f32::NAN, 100.0), AlertLevel::Normal);
         assert_eq!(eval_high_side(150.0, f32::NAN, 100.0), AlertLevel::Critical);
     }
 
     #[test]
     fn high_side_nan_value_is_normal_documented_quirk() {
-        // NaN > anything → false. C++ `evalHighSide` silently returns NORMAL on
-        // a NaN sensor reading; we preserve that. The fix lives at the caller —
-        // tick() should drop NaN signals before classifying them. This test
-        // locks the contract so we don't accidentally change it in a refactor.
+        // NaN > anything → false; caller must drop NaN before classifying.
         assert_eq!(eval_high_side(f32::NAN, 100.0, 110.0), AlertLevel::Normal);
     }
 

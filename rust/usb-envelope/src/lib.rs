@@ -1,31 +1,11 @@
-// usb-envelope — Rust port of UsbEnvelope::{findNeedle, findPayloadSlice}.
-//
-// Originally lived in canshift-firmware/src/hal/usb/usb_envelope.cpp. The C++
-// version was extracted from `usb_comm.cpp` (#912) so the host test
-// environment could exercise it in isolation without dragging in ArduinoJson /
-// NimBLE / LVGL / the storage driver. This crate is the next step:
-// pure-logic Rust with a thin C ABI shim so the firmware can opt in via
-// `USE_RUST_USB_ENVELOPE=1` and the parity Unity tests
-// (`test/test_usb_envelope/`) continue to gate behaviour byte-for-byte.
-//
-// Why Rust here:
-//   - The C++ has a hand-rolled brace-balance + string-state machine. That's
-//     where #884 (embedded NUL short-circuit) and #576 (oversized JsonDocument
-//     OOM) both lived. A typed Rust port nails down the contract at compile
-//     time and removes a class of pointer-arithmetic bugs.
-//
-// Allocation: zero. Both functions return offsets into the caller's input
-// slice — the FFI shim translates them to pointers without moving any bytes.
-
+// Rust port of UsbEnvelope::{findNeedle, findPayloadSlice}. Zero-alloc;
+// offsets into the input slice translate to pointers in the FFI shim.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Panic handler — required for `no_std + staticlib`. Halts forever (same
-// strategy as the other ports). `find_needle` / `find_payload_slice` both
-// return `None` on bad input rather than panicking; reaching the handler
-// means an internal invariant break.
+// Required for no_std staticlib — reaching here means invariant break.
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -34,13 +14,8 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     }
 }
 
-// `find_needle` — length-bounded substring search. Returns the offset of the
-// first occurrence of `needle` inside `haystack`, or `None`. Mirrors the C++
-// `findNeedle` (used in place of `strstr` so an embedded NUL byte cannot
-// short-circuit the search — #884).
-//
-// A zero-length needle is treated as the error condition and returns `None`,
-// not "matches everywhere". This matches the existing C++ contract.
+/// Length-bounded substring search. Empty needle → None (matches C++ contract).
+/// Avoids strstr — embedded NUL can't short-circuit (#884).
 #[must_use]
 pub fn find_needle(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
@@ -57,26 +32,13 @@ pub fn find_needle(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     None
 }
 
-// `find_payload_slice` — locate the value substring of the `"payload"` key
-// inside a top-level JSON object. Returns `Some((start_offset, length))` where
-// `start_offset` indexes the opening `{` and `length` covers through the
-// matching closing `}` inclusive. Returns `None` when:
-//
-//   - the input is empty or the `"payload"` key is missing,
-//   - the value following the key is not a JSON object,
-//   - the input is truncated and the object never closes.
-//
-// The function is allocation-free and string-aware: `{` / `}` inside JSON
-// string values do not affect the depth counter, and `\"` (escaped quote)
-// keeps the string-state active so a closing `"` inside the escape is not
-// mistaken for the end of the string.
+/// Brace-balanced slice of `"payload": { ... }`. None on missing key, non-object,
+/// or truncated input. String-aware: `{`/`}` inside strings ignored, `\"` honoured.
 #[must_use]
 pub fn find_payload_slice(json_line: &[u8]) -> Option<(usize, usize)> {
     const NEEDLE: &[u8] = b"\"payload\"";
     let needle_off = find_needle(json_line, NEEDLE)?;
 
-    // Skip past `"payload"`, then optional whitespace, then the `:` separator,
-    // then optional whitespace, then expect `{`.
     let mut cursor = needle_off + NEEDLE.len();
     cursor = skip_ws(json_line, cursor);
     if cursor >= json_line.len() || json_line[cursor] != b':' {
@@ -146,8 +108,6 @@ mod tests {
         core::str::from_utf8(&s.as_bytes()[range.0..range.0 + range.1]).unwrap()
     }
 
-    // --- find_needle ---------------------------------------------------------
-
     #[test]
     fn find_needle_basic_match() {
         assert_eq!(find_needle(b"the quick brown fox", b"quick"), Some(4));
@@ -183,8 +143,6 @@ mod tests {
     fn find_needle_match_at_end() {
         assert_eq!(find_needle(b"abcdef", b"def"), Some(3));
     }
-
-    // --- find_payload_slice --------------------------------------------------
 
     #[test]
     fn payload_happy_path() {

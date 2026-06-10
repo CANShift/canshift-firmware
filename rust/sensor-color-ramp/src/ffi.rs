@@ -1,12 +1,3 @@
-// ffi.rs — C ABI shim for the sensor-color-ramp crate. Surface matches the
-// existing `ui/sensor_color_ramp.h` so the firmware callers (gauge / bar /
-// widget renderers) keep working unchanged when `USE_RUST_SENSOR_COLOR_RAMP=1`
-// is set.
-//
-// The `ColorRamp` / `RampStop` repr(C) layouts are byte-for-byte identical
-// to `CfgColorRampDef` / `CfgRampStopDef` in `config_types.h` — see the
-// compile-time `assert!` blocks below for the guard.
-
 use core::ffi::c_char;
 use core::slice;
 
@@ -15,20 +6,12 @@ use crate::{
     MAX_RAMP_STOPS,
 };
 
-// Compile-time guard — drift between the C++ `CfgColorRampDef` layout and
-// the Rust `ColorRamp` mirror would silently corrupt the gauge color path.
-// Bump CFG_MAX_RAMP_STOPS or change CfgRampStopDef and this fires at crate
-// build time.
+// Compile-time layout guard against C++ CfgColorRampDef drift.
 const _: () = assert!(core::mem::size_of::<RampStop>() == 8);
 const _: () = assert!(core::mem::size_of::<ColorRamp>() == 4 + MAX_RAMP_STOPS * 8);
 
-// Defensive cap on the signal-name scan — config_loader keeps names under
-// `CFG_MAX_SIGNAL_LEN`, but a hostile / corrupted JSON could feed a longer
-// string. The cap is generous (twice the firmware limit).
 const MAX_NAME_LEN: usize = 64;
 
-/// Read up to `MAX_NAME_LEN` bytes from a C string, capped at the first NUL.
-/// Returns an empty slice when `ptr` is null.
 unsafe fn c_str_slice<'a>(ptr: *const c_char) -> &'a [u8] {
     if ptr.is_null() {
         return &[];
@@ -43,30 +26,16 @@ unsafe fn c_str_slice<'a>(ptr: *const c_char) -> &'a [u8] {
     unsafe { slice::from_raw_parts(ptr as *const u8, len) }
 }
 
-/// `SensorKind::Unknown` discriminant for the C side — mirrors the
-/// `SensorKind::Unknown = 9` constant in `ui/sensor_color_ramp.h`.
 pub const SENSOR_KIND_UNKNOWN_RS: u8 = SensorKind::Unknown as u8;
 
-/// Resolve a free-form signal name to a `SensorKind` discriminant. Returns
-/// `SENSOR_KIND_UNKNOWN_RS` (9) on null / empty / no-match inputs. Caller
-/// casts to the C++ `SensorKind` enum.
-///
-/// # Safety
-/// `name` must be null or a NUL-terminated C string whose readable length is
-/// at most `MAX_NAME_LEN`. Strings longer than the cap are treated as if
-/// truncated at the cap.
+/// # Safety: `name` null or NUL-terminated. Capped at MAX_NAME_LEN.
 #[no_mangle]
 pub unsafe extern "C" fn sensor_kind_from_name_rs(name: *const c_char) -> u8 {
     let slice = unsafe { c_str_slice(name) };
     sensor_kind_from_name(slice) as u8
 }
 
-/// Sample the ramp at `value`. Returns `0x00RRGGBB`. See `color_at_value` in
-/// lib.rs for the contract.
-///
-/// # Safety
-/// `ramp` must point to a valid `CfgColorRampDef` (== `ColorRamp` after the
-/// layout asserts above).
+/// # Safety: `ramp` valid CfgColorRampDef (or null → 0).
 #[no_mangle]
 pub unsafe extern "C" fn color_at_value_rs(ramp: *const ColorRamp, value: f32) -> u32 {
     if ramp.is_null() {
@@ -75,15 +44,8 @@ pub unsafe extern "C" fn color_at_value_rs(ramp: *const ColorRamp, value: f32) -
     color_at_value(unsafe { &*ramp }, value)
 }
 
-/// Resolve the active ramp for a widget. Mirrors the C++ `resolveRamp`
-/// surface: returns a pointer into either `per_signal` (when its `count > 0`)
-/// or the static default catalog (when the name resolves), or null when
-/// neither path applies.
-///
-/// # Safety
-/// `per_signal` must point to a valid `CfgColorRampDef`. `signal_name` may
-/// be null or a NUL-terminated C string (same rules as
-/// `sensor_kind_from_name_rs`).
+/// per_signal wins when count > 0; else falls through to default catalog.
+/// # Safety: `per_signal` valid; `signal_name` null or NUL-terminated.
 #[no_mangle]
 pub unsafe extern "C" fn resolve_ramp_rs(
     per_signal: *const ColorRamp,
@@ -191,7 +153,7 @@ mod tests {
         assert!(!p.is_null());
         assert_eq!(n, 9);
         unsafe {
-            assert_eq!((*p).count, 4); // Coolant — 4 stops
+            assert_eq!((*p).count, 4);
             assert_eq!((*p).stops[0].color, 0x4A90E2);
         }
     }

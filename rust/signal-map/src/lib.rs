@@ -1,34 +1,12 @@
-//! Rust port of `canshift-firmware/src/can/signal_map.cpp` (issue #1177 R-4).
-//!
-//! Single source of truth for mapping the string keys used in
-//! `dashboard.json` (`CfgWidget.signalId`, `CfgTopBarItem.signalId`) to the
-//! numeric `SignalId` values used in `SignalStore`. The C++ original is a
-//! 22-entry linear scan over a `constexpr NameToId[]` table; this port keeps
-//! the same shape so adding a signal stays a one-line edit on each side.
-//!
-//! Why R-4 was chosen as the first port post-#1130:
-//! - **Smallest meaningful surface** — one function, one FFI symbol, zero
-//!   crypto / heap / threading concerns.
-//! - **Catches a real bug class** — `strcmp` on a possibly-null pointer or
-//!   a non-NUL-terminated buffer is the kind of thing Rust slices reject
-//!   at the type level. The C++ original guards `name == nullptr` but not
-//!   the missing-NUL case; Rust takes a `&[u8]` + length and that's just
-//!   not expressible.
-//! - **Drop-in replacement** — same `(const char *) -> uint8_t` ABI as
-//!   the C++ function, so `signal_map.cpp` can delegate via the FFI shim
-//!   without touching any call site.
+//! Rust port of signal_map.cpp (#1177 R-4). Linear scan over a 22-entry table —
+//! same shape as the C++ original so adding a signal stays a one-line edit.
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
-// Panic handler — required for `no_std + staticlib`. Halts forever. The
-// only path that can reach a panic in this crate is an internal invariant
-// break (the table is `&'static`, the lookup never indexes out of range),
-// so the strategy matches `ota-hmac`'s: spin loop and rely on the C
-// caller's error return path (we return `SIGNAL_COUNT` on miss, never
-// panic on the happy path).
+// Required for no_std staticlib — reaching here means invariant break.
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -37,61 +15,39 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     }
 }
 
-/// Numeric signal identifier. Mirrors the C++ `SignalId = uint8_t` alias.
 pub type SignalId = u8;
 
-/// Sentinel returned for an unknown signal name. Mirrors
-/// `SignalIds::SIGNAL_COUNT` in `signal_map.h` — callers must check before
-/// indexing into `SignalStore`. Keep in lockstep with the C++ constant.
+/// Sentinel for unknown name. Must mirror SignalIds::SIGNAL_COUNT in signal_map.h.
 pub const SIGNAL_COUNT: SignalId = 64;
 
-// ---------------------------------------------------------------------------
-// Well-known signal IDs — must match `signal_map.h` exactly (audit C-CS-1).
-// ---------------------------------------------------------------------------
-//
-// Tests in `tests/parity.rs` lock the values down so a drift on either side
-// surfaces in CI before it ships. The numeric gaps (15..=19, 25..=29,
-// 32..=39, 41..=63) are intentional — they leave room for future signals in
-// each semantic band without renumbering.
-
+// Numeric gaps (15..=19, 25..=29, 32..=39, 41..=63) reserve room per band.
+// Locked against drift by tests/parity.rs.
 pub mod ids {
     use super::SignalId;
-    // Engine
     pub const RPM: SignalId = 0;
     pub const THROTTLE_POS: SignalId = 1;
     pub const MAP_KPA: SignalId = 2;
     pub const BOOST_BAR: SignalId = 3;
     pub const IAT_C: SignalId = 4;
-    // Temperatures
     pub const COOLANT_TEMP_C: SignalId = 5;
     pub const OIL_TEMP_C: SignalId = 6;
-    // Pressures
     pub const OIL_PRESS_BAR: SignalId = 7;
     pub const FUEL_PRESS_BAR: SignalId = 8;
-    // Fueling
     pub const LAMBDA_1: SignalId = 9;
     pub const AFR_1: SignalId = 10;
-    // Vehicle
     pub const SPEED_KPH: SignalId = 11;
     pub const GEAR: SignalId = 12;
-    // Electrical
     pub const BATTERY_VOLTS: SignalId = 13;
-    // ECU status flags
     pub const FLAG_MIL: SignalId = 20;
     pub const FLAG_LAUNCH_CTRL: SignalId = 21;
     pub const FLAG_FLAT_SHIFT: SignalId = 22;
     pub const FLAG_ANTI_LAG: SignalId = 23;
     pub const FLAG_TRACTION_CUT: SignalId = 24;
-    // ECU map/profile info
     pub const MAP_NUMBER: SignalId = 30;
     pub const MAP_NAME_IDX: SignalId = 31;
-    // Lap timer
     pub const LAP_TIMER_MS: SignalId = 40;
 }
 
-/// Static name → id table. Linear scan over 22 entries — same shape as the
-/// C++ `kNameToId[]`. Linear works fine at this size; switching to a
-/// `phf::Map` would buy us nothing the C++ scan doesn't already pay for.
 const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("rpm", ids::RPM),
     ("throttle_pos", ids::THROTTLE_POS),
@@ -117,8 +73,7 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("lap_timer_ms", ids::LAP_TIMER_MS),
 ];
 
-/// Resolve a signal name to its `SignalId`. Returns `SIGNAL_COUNT` on
-/// unknown name or empty input. Public for `cargo test` parity checks.
+/// Returns SIGNAL_COUNT on unknown name or empty input.
 #[must_use]
 pub fn signal_id_from_name(name: &str) -> SignalId {
     if name.is_empty() {
@@ -147,15 +102,12 @@ mod tests {
     fn unknown_returns_sentinel() {
         assert_eq!(signal_id_from_name("nope"), SIGNAL_COUNT);
         assert_eq!(signal_id_from_name(""), SIGNAL_COUNT);
-        // Mid-string + suffix variants — must not partial-match.
         assert_eq!(signal_id_from_name("rpm_extra"), SIGNAL_COUNT);
-        assert_eq!(signal_id_from_name("RPM"), SIGNAL_COUNT); // case-sensitive
+        assert_eq!(signal_id_from_name("RPM"), SIGNAL_COUNT);
     }
 
     #[test]
     fn table_covers_every_id_in_module() {
-        // Every constant we expose has to appear in the lookup table — if
-        // someone adds a new SignalId without a name, this catches it.
         let known_ids: &[SignalId] = &[
             ids::RPM,
             ids::THROTTLE_POS,

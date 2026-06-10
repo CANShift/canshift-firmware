@@ -44,8 +44,7 @@ extern SemaphoreHandle_t g_lvglMutex;
 #include <esp_task_wdt.h>
 #include <lvgl.h>
 
-// MALLOC_CAP_INTERNAL is the pool LVGL allocates from — the metric that
-// actually tracks UI headroom.
+// MALLOC_CAP_INTERNAL is LVGL's pool — the real UI-headroom metric.
 static void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
@@ -85,9 +84,7 @@ static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
 } // namespace
 
-// Build the dark splash background.
-// FontManager::init() must have run before this is called so the logo renders
-// at Orbitron Black 32 from the very first frame (no two-phase appearance).
+// Requires FontManager::init() so the logo renders Orbitron Black from frame 1.
 static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
@@ -158,9 +155,7 @@ static void showSplash() {
     lv_task_handler();
 }
 
-// Advance the bar and update the status text between init steps.
-// lv_refr_now flushes synchronously so the bar visibly progresses even when
-// boot stages take only a few ms.
+// lv_refr_now flushes synchronously — bar visibly progresses on short stages.
 static void updateSplash(const char *status, uint8_t pct) {
     if (s_splashBar)
         lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
@@ -169,10 +164,7 @@ static void updateSplash(const char *status, uint8_t pct) {
     lv_refr_now(NULL);
 }
 
-// Returns true if the storage came up cleanly. On failure the boot continues
-// with built-in defaults — the device stays reachable over USB.
-// NOTE: Does NOT call LvglFsDriver::init() — that requires lv_init() to have
-// run first (lv_fs_drv_register) and is called separately after LVGL is up.
+// Does NOT call LvglFsDriver::init() — that needs lv_init() to have run.
 static bool initStorage() {
     return StorageDriver::init();
 }
@@ -195,28 +187,18 @@ static void buildUI() {
     LOG_INFO("BOOT", "Initializing PageManager...");
     PageManager::init();
     LOG_INFO("BOOT", "Navigating to default page...");
-    // navigateTo has an LVGL_ASSERT_LOCKED canary. Boot is single-threaded
-    // (taskUI not spawned yet) so no race is possible, but the assert can't
-    // distinguish boot from steady-state — hold the mutex briefly to honour
-    // the contract.
+    // navigateTo's LVGL_ASSERT_LOCKED can't tell boot from steady-state.
     xSemaphoreTake(g_lvglMutex, portMAX_DELAY);
     PageManager::navigateTo(PageManager::getDefaultPageId());
     xSemaphoreGive(g_lvglMutex);
 
-    // Log LVGL pool stats — useful to verify fonts + widgets fit in the pool.
     lv_mem_monitor_t mon;
     lv_mem_monitor(&mon);
     LOG_INFO("LVGL", "pool: total=%u free=%u frag=%u%% largest=%u",
              static_cast<unsigned>(mon.total_size), static_cast<unsigned>(mon.free_size),
              static_cast<unsigned>(mon.frag_pct), static_cast<unsigned>(mon.free_biggest_size));
 
-    // Drive LVGL through the initial page-transition animation so the
-    // display shows the dashboard before the UI task takes over. Without
-    // this, the "Ready" splash frame persists until lv_task_handler ticks.
-    // lv_refr_now() at t=0 of a FADE_IN renders a black frame (new screen
-    // is transparent). Ticking past the animation duration completes it.
-    // Use lv_task_handler() (the public API) not lv_timer_handler() —
-    // lv_task_handler drives the display-refresh path correctly.
+    // Drive past the FADE_IN — lv_refr_now at t=0 renders a black frame.
     for (uint8_t i = 0; i < 8; i++) {
         lv_tick_inc(20);
         lv_task_handler();
@@ -224,17 +206,8 @@ static void buildUI() {
     LOG_INFO("BOOT", "UI ready");
 }
 
-// Mark the running OTA slot as valid so the bootloader cancels its pending
-// rollback. No-op when the running partition is not in PENDING_VERIFY state
-// (factory boot, or already-marked slot from an earlier boot).
-//
-// Originally fired once from BootSequence::run() right after [BOOT] Ready —
-// "if we reached this point the UI is built, so the image is healthy". That
-// criterion was too optimistic: a crash inside the first lv_task_handler()
-// call (font decode, page rebuild, theme apply) happens AFTER the mark and
-// therefore never triggers rollback. F-ME-8 (#1014) moved the call into
-// taskUI, gated on N successfully rendered frames (see UI_OTA_VALID_FRAMES
-// in main.cpp). Issue #674.
+// Caller is taskUI gated on UI_OTA_VALID_FRAMES (#1014) — crashes during the
+// first frames still trigger rollback (#674).
 void BootSequence::markOtaSlotValidIfPending() {
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
@@ -255,24 +228,17 @@ void BootSequence::markOtaSlotValidIfPending() {
     }
 }
 
-// Demote nvs ERROR → WARN so first-boot NOT_FOUND noise is gone but real
-// NVS errors stay visible.
+// Hides first-boot NOT_FOUND noise without silencing real NVS errors.
 static void silenceNvsLogNoise() {
     esp_log_level_set("nvs", ESP_LOG_WARN);
 }
 
-// Must precede any allocation so DisplayDriver can offload LVGL draw buffers
-// to SPIRAM on WROVER boards.
+// Must precede any alloc — DisplayDriver offloads draw buffers to SPIRAM.
 static void initPsramAndLogEntry() {
     canshift::hal::memory::initPsram();
     logHeap("entry");
 }
 
-// Registered tasks must call esp_task_wdt_reset() each loop iteration or the
-// panic handler resets the device.
-//
-// arduino-esp32 ships IDF v4 TWDT API
-// (seconds + bool, idempotent — re-init updates the existing config).
 static void initTaskWatchdog() {
     constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
     const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, /*panic=*/true);
@@ -284,10 +250,7 @@ static void initTaskWatchdog() {
     }
 }
 
-// BLE early init — NimBLE needs ~50 KB contiguous DRAM. After LovyanGFX
-// init the largest free block shrinks to ~16 KB, making BLE impossible.
-// Initializing the stack here, before the display, guarantees the
-// allocation succeeds while the heap is still large and unfragmented.
+// Must precede LovyanGFX — NimBLE needs ~50 KB contiguous DRAM.
 static void initBleEarlyIfEnabled() {
 #if APP_BLE_ENABLED
     BleServer::earlyInit();
@@ -295,10 +258,7 @@ static void initBleEarlyIfEnabled() {
 #endif
 }
 
-// Storage mount — no LVGL dependency; runs before lv_init() so config
-// can be parsed while the heap still has a large contiguous block.
-// LvglFsDriver::init() is intentionally deferred until after lv_init().
-// Returns true if SPIFFS mounted successfully.
+// Runs before lv_init() so config parse has a large contiguous heap.
 static bool mountStorageOrLogError() {
     const bool storageOk = initStorage();
     if (storageOk) {
@@ -311,9 +271,7 @@ static bool mountStorageOrLogError() {
     return storageOk;
 }
 
-// Provision default configs on a fresh / empty SPIFFS before
-// loadConfig reads. Writes only when target is missing AND no .bak
-// exists, or when target is empty. Never overwrites user data.
+// Writes only when target is missing — never overwrites user data.
 static void provisionDefaultConfigsIfNeeded(bool storageOk) {
 #if DEFAULT_CONFIG_PROVISION_ENABLED
     if (!storageOk)
@@ -333,10 +291,7 @@ static void provisionDefaultConfigsIfNeeded(bool storageOk) {
 #endif
 }
 
-// Config — must run BEFORE lv_init() because ArduinoJSON's stream
-// parser needs ~20 KB contiguous heap. After lv_init() takes its 80 KB
-// pool the largest free block drops to ~15 KB causing NoMemory parse
-// failures. At this point the heap has ~120 KB contiguous — ample.
+// Must run BEFORE lv_init() — ArduinoJSON needs ~20 KB contiguous heap.
 static void loadConfigWithHeapBracket() {
     logHeap("before loadConfig");
     loadConfig();
@@ -356,9 +311,7 @@ static void initLvglFsIfStorageOk(bool storageOk) {
     }
 }
 
-// Provision the 8 Orbitron .bin fonts on a fresh / empty SPIFFS
-// BEFORE FontManager::init() so lv_font_load() finds them. Writes
-// only when target is missing — never overwrites existing files.
+// Must run BEFORE FontManager::init() so lv_font_load() finds the .bin files.
 static void provisionDefaultFontsIfNeeded(bool storageOk) {
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default fonts (if needed)...");
@@ -375,9 +328,7 @@ static void provisionDefaultFontsIfNeeded(bool storageOk) {
     logHeap("before FontManager");
 }
 
-// Load SPIFFS-backed fonts before showSplash() so the logo renders at the
-// active family's primary size from the very first frame — no two-phase
-// appearance.
+// Must precede showSplash() so the logo renders at full size from frame 1.
 static void initFontManagerWithHeapLog() {
     LOG_INFO("BOOT", "Initializing FontManager...");
     FontManager::init();
@@ -385,20 +336,13 @@ static void initFontManagerWithHeapLog() {
     logHeap("after FontManager");
 }
 
-// Preload dashboard icons + theme icons while the heap still has a
-// contiguous block large enough for the SPIFFS reads. Once page
-// widgets start allocating against the same pool the largest free
-// block drops below the FS-open threshold and on-demand icon
-// loads fail (#956). Preloaded entries live in the LVGL image
-// cache (LV_IMG_CACHE_DEF_SIZE) and survive page rebuilds + theme
-// toggles without re-touching SPIFFS.
+// Preload while heap still has the contiguous block — pool drops too low later (#956).
 static void preloadIconsWithHeapLog() {
     LOG_INFO("BOOT", "Preloading dashboard icons...");
     IconAssets::preloadDashboardAssets();
     logHeap("after icon preload");
 }
 
-// Show splash — fonts loaded, logo at full size from first frame.
 static void showSplashWithInitialUpdates() {
     LOG_INFO("BOOT", "Showing splash...");
     showSplash();
@@ -424,11 +368,7 @@ static void initRuntimeServices() {
 
 static void initCanHardwarePhase() {
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
-    // Capture init result (#1224). Boot continues even on failure so the UI
-    // and USB remain usable for config edits; the in-driver retry loop in
-    // can_manager.cpp::tick() will keep re-attempting installation. We
-    // surface the failure through ErrorStore so the top bar / diag drawer
-    // can show it instead of silently reading 0 fps forever.
+    // Boot continues on failure — tick() retries, ErrorStore surfaces it (#1224).
     const esp_err_t err = CanManager::initHardware();
     if (err != ESP_OK) {
         LOG_ERROR("BOOT", "CAN init failed: %s — degraded mode", esp_err_to_name(err));
@@ -447,11 +387,7 @@ static void initUsbCommPhase() {
     updateSplash("USB ready", 90);
 }
 
-// Build the UI from config.
-// updateSplash("Ready") must happen BEFORE buildUI() because
-// PageManager::init() calls lv_obj_clean(lv_scr_act()) to free the
-// splash objects from the LVGL pool before building page widgets.
-// Any call to updateSplash after that point would dereference freed objects.
+// updateSplash MUST run before buildUI — PageManager::init frees splash objs.
 static void buildUiWithHeapBracket() {
     updateSplash("Ready", 100);
     logHeap("before buildUI");
@@ -459,20 +395,10 @@ static void buildUiWithHeapBracket() {
     logHeap("dashboard ready");
 }
 
-// Minimum splash visibility — boot tends to finish in < 1 s, which feels
-// twitchy and gives the user no time to read the version. Hold at least this
-// long before handing the screen over to the dashboard.
 static constexpr uint32_t SPLASH_MIN_MS = 2000;
-
-// Splash wait quantum — short enough that the IDLE task / WDT / lv_timer_handler
-// (via tick interrupt) keep ticking through the hold (#1207).
+// Short enough that WDT + lv_timer_handler keep ticking through the hold (#1207).
 static constexpr uint32_t SPLASH_WAIT_STEP_MS = 50;
 
-// Hold the splash for at least SPLASH_MIN_MS so the user can read the
-// version + final progress state before the dashboard takes over.
-// Uses an explicit yielding vTaskDelay loop (rather than the Arduino
-// delay() shim) so the scheduler keeps running other tasks during the
-// hold and the granularity is visible to readers (#1207).
 static void holdSplashUntilMin(uint32_t bootStartMs) {
     while (true) {
         const uint32_t bootElapsed = millis() - bootStartMs;
@@ -484,9 +410,7 @@ static void holdSplashUntilMin(uint32_t bootStartMs) {
     }
 }
 
-// Final boot logs + CI smoke-test marker.
-// The "[BOOT] Ready" line is asserted by .github/workflows/firmware-boot-smoke.yml
-// (issue #486) — it must appear exactly once at the end of a successful boot.
+// "[BOOT] Ready" is asserted by firmware-boot-smoke.yml — must appear exactly once (#486).
 static void logBootCompleteAndReady(uint32_t bootStartMs) {
     logHeap("boot complete");
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",

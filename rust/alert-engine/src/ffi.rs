@@ -1,23 +1,9 @@
-// ffi.rs — C ABI shim for the alert-engine crate.
-//
-// Six exported functions, one per `eval*` helper in
-// `canshift-firmware/src/runtime/alert_engine.cpp`. All take primitives and
-// return a `uint8_t`-compatible `AlertLevel`. No struct passing, no
-// pointers (except the lifetime-free `f32` values) — the C++ wrapper
-// dereferences its module-level thresholds at the call site and forwards.
-
 use crate::{
     eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure, eval_oil_temp,
     eval_rev_limiter, AlertLevel,
 };
 
-// Compile-time guard: `AlertLevel` lives in a `uint8_t` on the C++ side.
-// Drift would mean a wrong return type and an undefined-behaviour call.
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
-
-// All six FFI fns: take primitives, return `u8` (the `repr(u8)` enum
-// discriminant). Keeping the FFI surface in `u8` rather than `AlertLevel`
-// dodges the awkwardness of declaring the enum twice on both sides.
 
 #[no_mangle]
 pub extern "C" fn alert_eval_high_side_rs(value: f32, high_warn: f32, high_crit: f32) -> u8 {
@@ -94,7 +80,6 @@ mod tests {
 
     #[test]
     fn ffi_battery_low_critical_path() {
-        // 10.0 < 11.0 (low_crit_v) → CRITICAL = 3
         assert_eq!(alert_eval_battery_rs(10.0, 11.5, 11.0, f32::NAN, f32::NAN), 3);
     }
 
