@@ -1,9 +1,3 @@
-// widget_helpers.cpp — Shared widget drawing helpers.
-//
-// See widget_helpers.h for the API contract. config_loader.h is included
-// here (rather than in the header) so the public surface stays slim and
-// widget headers don't transitively pull in the full config layer.
-
 #include "widget_helpers.h"
 
 #include "config/config_loader.h"
@@ -49,10 +43,8 @@ int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, 
     if (!out || outLen == 0)
         return 0;
     out[0] = '\0';
-    // Firmware overrides newlib's float printf with the integer-only variant
-    // (see util/no_float_printf.c) — any `%f` in a runtime format string is
-    // mis-parsed and corrupts va_args, which previously NULL-deref'd in
-    // strlen on the next `%s`. Compose the string manually via FloatFormat.
+    // Compose manually via FloatFormat — runtime %f corrupts va_args under
+    // no_float_printf.cpp (#305 / #405).
     const char *p = prefix ? prefix : "";
     const char *s = suffix ? suffix : "";
 
@@ -96,8 +88,7 @@ const CfgColorRamp *resolveSignalRamp(const char *signalId) {
 }
 
 const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
-    // Explicit per-widget override wins so existing dashboards keep their
-    // hand-picked unit string (e.g. "MPH" instead of the signal's "km/h").
+    // Per-widget override wins so dashboards can pick e.g. "MPH" over "km/h".
     if (configSuffix && configSuffix[0] != '\0')
         return configSuffix;
     if (!signalId || signalId[0] == '\0')
@@ -110,11 +101,7 @@ void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool h
                    uint32_t borderRgb) {
     if (!cont)
         return;
-    // Treat layout.x/y/w/h as design-space coords (issues #17, #18). On v1 the
-    // active screen profile is `crowpanel-28` whose design dims equal the
-    // physical panel, so the scale helpers are identity and output matches
-    // pre-scaffold firmware byte-for-byte. yOffset is the top-bar reservation
-    // already in physical pixels — scale only the design-space y coord.
+    // layout.x/y/w/h are design-space (#17, #18); yOffset is already physical.
     const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
     const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
     lv_obj_set_pos(cont, px, py);

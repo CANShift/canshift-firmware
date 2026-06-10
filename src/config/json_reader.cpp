@@ -1,5 +1,3 @@
-// json_reader.cpp — Single-instantiation ArduinoJson parse wrapper.
-
 #include "json_reader.h"
 
 namespace JsonReader {

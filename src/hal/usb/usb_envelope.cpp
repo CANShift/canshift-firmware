@@ -1,12 +1,5 @@
-// usb_envelope.cpp — JSON envelope helpers for the USB PUT_CONFIG path.
-//
-// Why this lives outside `usb_comm.cpp`: parsing a 12 KB envelope into a
-// JsonDocument grew the pool to ~21 KB, which couldn't be satisfied after
-// the LV_MEM_SIZE bump in #555 (issue #576). Skipping the full parse keeps
-// the PUT_CONFIG path heap-allocation-free. Extracting these helpers into
-// their own TU lets the host test environment exercise them in isolation
-// without dragging in the rest of the USB stack (#912).
-
+// Heap-free brace walk over the PUT_CONFIG envelope — full JSON parse would
+// grow the pool to ~21 KB and OOM after the LV_MEM_SIZE bump (#555 / #576).
 #include "usb_envelope.h"
 
 #include <string.h>
@@ -20,10 +13,6 @@ namespace UsbEnvelope {
 const char *findNeedle(const char *haystack, size_t haystackLen, const char *needle,
                        size_t needleLen) {
 #if USE_RUST_USB_ENVELOPE
-    // Delegate to the Rust port. The Rust shim tightens the null-pointer
-    // contract (returns nullptr for null haystack / needle) — the existing
-    // Unity suite never exercised that path, so the change is observable but
-    // unreachable in practice.
     return reinterpret_cast<const char *>(
         find_needle_rs(reinterpret_cast<const uint8_t *>(haystack), haystackLen,
                        reinterpret_cast<const uint8_t *>(needle), needleLen));
@@ -48,16 +37,13 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
         return nullptr;
     *outLen = 0;
 
-    // Plain-text needle is acceptable here: the studio always emits the
-    // envelope with the literal key `"payload"` and never inside a nested
-    // string by accident — the surrounding `{"cmd":2,...}` frame is fixed.
+    // Plain-text needle — the envelope frame `{"cmd":2,...}` is fixed.
     static constexpr char kNeedle[] = "\"payload\"";
     static constexpr size_t kNeedleLen = sizeof(kNeedle) - 1;
     const char *needle = findNeedle(jsonLine, lineLen, kNeedle, kNeedleLen);
     if (!needle)
         return nullptr;
 
-    // Skip past `"payload"` then optional whitespace then the `:` separator.
     const char *cursor = needle + kNeedleLen;
     const char *end = jsonLine + lineLen;
     while (cursor < end &&
@@ -72,8 +58,7 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
     if (cursor >= end || *cursor != '{')
         return nullptr;
 
-    // Brace-balance walk. Strings are honoured so we don't count `{` / `}`
-    // inside JSON string values. Escapes inside strings are skipped.
+    // Brace walk — honours strings + escapes.
     const char *valueStart = cursor;
     int depth = 0;
     bool inString = false;
@@ -81,7 +66,7 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
         const char c = *cursor;
         if (inString) {
             if (c == '\\') {
-                ++cursor; // skip the escaped byte verbatim
+                ++cursor;
                 if (cursor < end)
                     ++cursor;
                 continue;

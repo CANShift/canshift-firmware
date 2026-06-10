@@ -1,11 +1,5 @@
-// image_widget.cpp — Static BMP image widget loaded from SPIFFS
-//
-// Requires the LVGL SPIFFS FS driver to be registered (lvgl_fs_driver.cpp).
-// Images must be stored in SPIFFS under /images/ as 24-bit BMP files.
-//
-// Path stored in cfg.image.imagePath is a SPIFFS path (e.g. "/images/bg.bmp").
-// This is prefixed with "S:" to form the LVGL FS path "S:/images/bg.bmp".
-
+// 24-bit BMPs under SPIFFS /images/; cfg.image.imagePath is the SPIFFS path,
+// prefixed with "S:" for the LVGL FS driver.
 #include "image_widget.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
@@ -18,31 +12,18 @@
 #include <string.h>
 #include <stdio.h>
 
-// ---------------------------------------------------------------------------
-// Tag (stores the path string used as LVGL img src)
-// ---------------------------------------------------------------------------
-
 namespace {
 
-// Maximum LVGL path length including "S:" prefix
 static constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
 struct ImageTag {
-    char lvglPath[LVGL_PATH_LEN]; // e.g. "S:/images/bg.bmp"
+    char lvglPath[LVGL_PATH_LEN];
 };
-
-// ImageTag storage comes from the shared WidgetTagPool slab (#1031
-// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
-    // Design-space → physical scaling (issues #17, #18). Identity on v1.
     const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
     const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
     lv_obj_set_pos(cont, px, py);
@@ -56,8 +37,6 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         return cont;
     }
 
-    // Build LVGL FS path: "S:" + SPIFFS path
-    // SPIFFS path already has leading slash (e.g. "/images/bg.bmp")
     // RAII slot guard (#1207).
     WidgetTagPool::Slot<ImageTag> tagSlot;
     ImageTag *tag = tagSlot.get();
@@ -72,8 +51,6 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_img_set_src(img, tag->lvglPath);
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
 
-    // Scale image to fit widget dimensions (LVGL 8.3 integer scale factor)
-    // lv_img_set_zoom uses 256 = 1:1. Scale to fit if needed.
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<ImageTag>, LV_EVENT_DELETE,
                         tagSlot.commit());

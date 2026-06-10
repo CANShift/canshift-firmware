@@ -1,5 +1,3 @@
-// psram.cpp — Runtime PSRAM detection (issue #563).
-
 #include "psram.h"
 #include "app_config.h"
 #include "diag/logger.h"
@@ -21,9 +19,7 @@ void initPsram() {
     }
     s_initialized = true;
 
-    // ESP.getPsramSize() is the canonical Arduino-core probe. On a WROOM
-    // chip with -DBOARD_HAS_PSRAM set, the IDF psram init fails silently
-    // at boot and this returns 0 — exactly the runtime-detect path we want.
+    // WROOM with BOARD_HAS_PSRAM returns 0 — IDF init silently fails (#563).
     s_totalBytes = ESP.getPsramSize();
     s_available = s_totalBytes > 0;
 

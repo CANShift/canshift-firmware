@@ -1,15 +1,5 @@
-// default_config.cpp — Embed + write baked-in default configs on first boot.
-//
-// Symbol naming: PlatformIO's embed_files generates `_binary_<munged_path>`
-// where the munged path is the file path with non-identifier characters
-// replaced by underscores. Embed sources live under `data/config/` (see
-// platformio.ini), giving e.g. `_binary_data_config_dashboard_json_start`.
-//
-// JSON payloads are linked in via PlatformIO `board_build.embed_files`. Each
-// embedded blob exposes `_binary_<munged_path>_start` / `_end` symbols. We
-// reference them with `extern "C"` declarations and let the linker fill in
-// the addresses (see https://docs.platformio.org/en/latest/platforms/espressif32.html).
-
+// PlatformIO `board_build.embed_files` exposes each blob via
+// `_binary_<munged_path>_start` / `_end`; we link in those symbols below.
 #include "default_config.h"
 
 #include "app_config.h"
@@ -22,20 +12,13 @@
 #include <Arduino.h>
 #include <string.h>
 
-// Suffix used by writeFileAtomic for the rotated previous version of a file.
-// Mirrored from config_loader.cpp's kBakSuffix — kept local here to avoid
-// a cross-translation-unit include for a 4-byte constant.
+// Mirrors writeFileAtomic's rotation suffix in config_loader.cpp.
 static constexpr const char *kBakSuffix = ".bak";
-// CFG_MAX_PATH_LEN + ".bak" (4) + null terminator (1).
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
-// dashboard.json stays embedded — its absence at first boot left PageManager
-// with zero pages and the UI build crashed (`Guru Meditation LoadProhibited`
-// post-lv_init in QEMU smoke). dashboard.json is small (~17 KB) and the
-// baseline layout is a useful first-flash experience even if the flasher
-// later overwrites it. signals.json IS dropped: loadSignals() handles the
-// empty case (widgets fall back to "--") and the flasher injects the right
-// ECU profile per the canshift-flasher#189 catalog.
+// dashboard.json stays embedded — without it PageManager has 0 pages and
+// the UI build crashes post-lv_init. signals.json is dropped; the flasher
+// injects the per-ECU catalog (canshift-flasher#189).
 
 extern "C" {
 extern const uint8_t kDefaultDashboardStart[] asm("_binary_data_config_dashboard_json_start");

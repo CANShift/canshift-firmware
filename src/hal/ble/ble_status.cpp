@@ -1,15 +1,3 @@
-// ble_status.cpp — STATUS characteristic payload builder + notify helper.
-//
-// Split out of `ble_server.cpp` per the canshift-firmware Medium-Refactor
-// entry in #1207 ("BLE transport vs telemetry"). The STATUS characteristic
-// surfaces firmware version + CAN health + day/night + WiFi AP state to
-// subscribers; this TU owns the payload encoding and the
-// `BleServer::pushStatusNotify()` public-API implementation.
-//
-// Lifetime: the STATUS characteristic pointer (`s_pStatus`) lives in
-// `ble_server.cpp` — this TU snapshots it locally per call to dodge the race
-// against `BleServer::stop()` documented in #1283 / #1035.
-
 #include "app_config.h"
 #if APP_BLE_ENABLED
 
@@ -27,11 +15,8 @@
 namespace BleServerInternal {
 
 void updateStatus() {
-    // Snapshot the file-scope pointer to a local — BleServer::stop() can null
-    // s_pStatus on a different task between the entry check and the setValue
-    // call below. The earlyInit() GATT-preserved path keeps the underlying
-    // characteristic object alive for the lifetime of the process, so the
-    // snapshot remains valid even if the global is cleared mid-call (#1035).
+    // Snapshot the global — stop() can null s_pStatus on another task; the
+    // underlying characteristic stays alive via earlyInit()'s GATT path (#1035).
     auto *pStatus = BleServerInternal::s_pStatus;
     if (!pStatus)
         return;
@@ -40,9 +25,7 @@ void updateStatus() {
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     char buf[128];
-    // ArduinoJson silently truncates when the output buffer is too small;
-    // a truncated STATUS payload is invalid JSON and crashes the mobile
-    // parser. Detect and skip rather than push junk over the wire (#936).
+    // ArduinoJson truncates silently — a partial payload crashes the mobile parser (#936).
     const size_t len = serializeJson(doc, buf, sizeof(buf));
     if (len == 0 || len >= sizeof(buf)) {
         LOG_WARN("BLE", "STATUS payload truncated (len=%u, cap=%u) — skipping notify",
@@ -53,10 +36,6 @@ void updateStatus() {
 }
 
 } // namespace BleServerInternal
-
-// ---------------------------------------------------------------------------
-// Public API — STATUS push
-// ---------------------------------------------------------------------------
 
 void BleServer::pushStatusNotify() {
     BleServerInternal::updateStatus();

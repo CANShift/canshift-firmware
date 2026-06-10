@@ -1,7 +1,3 @@
-// widget_tag_pool.cpp — Single shared slab of widget Tag storage.
-//
-// See widget_tag_pool.h for the design rationale.
-
 #include "ui/widgets/widget_tag_pool.h"
 
 #include "app_config.h"
@@ -24,17 +20,9 @@ alignas(
 
 bool s_busy[WidgetTagPool::kPoolSlots] = {};
 
-// Pool bookkeeping is non-atomic (linear scan + mark/clear). The header
-// documents that every caller must run on the UI task with g_lvglMutex held;
-// the assertion catches a stray BLE/USB/sim caller before the silent
-// corruption fires (#1039).
-//
-// The "holder is null" branch exists for the boot phase: BootSequence::run
-// (and the PageManager::init() it calls) run synchronously from the Arduino
-// loopTask BEFORE the UI task — and therefore before anyone takes the LVGL
-// mutex. No concurrent task is running yet so the pool ops are safe even
-// though no one is recorded as the holder (#1061, regression from the
-// strict assertion in #1058).
+// Non-atomic pool — every caller must run on UI core with g_lvglMutex held
+// (#1039). The null-holder branch tolerates BootSequence::run, which runs
+// synchronously from loopTask before the UI task exists (#1061).
 inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(xPortGetCoreID() == TASK_CORE_UI);
     configASSERT(g_lvglMutex != nullptr);

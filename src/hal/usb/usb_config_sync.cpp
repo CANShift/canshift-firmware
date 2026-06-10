@@ -1,22 +1,6 @@
-// usb_config_sync.cpp — Typed config GET / PUT handlers for the USB CDC
-// layer. Carved out of usb_comm.cpp during the #1207 refactor.
-//
-// Scope: device.json + input_bindings.json round-trips.
-//
-//   CMD_GET_DEVICE_CONFIG  / CMD_GET_INPUT_BINDINGS  -> sendTypedConfigGet
-//   CMD_PUT_DEVICE_CONFIG                            -> handlePutDeviceConfig
-//   CMD_PUT_INPUT_BINDINGS                           -> handlePutInputBindings
-//
-// CMD_GET_CONFIG (dashboard.json — large, sized at runtime against the file
-// size) lives in usb_dispatch.cpp because it does not share the typed
-// response-buffer sizing contract.
-//
-// Memory: typed GET / PUT handlers heap-allocate their staging buffer per
-// request and free it before returning. The BSS pool from #1320 was reverted
-// in #1332 because its 8 KB allocation pushed WROOM boot heap consumption
-// past the budget needed for NimBLE / USB CDC / FreeRTOS object inits.
-// See follow-up #1335 for re-attempt options (smaller pool or PSRAM-only).
-
+// Typed GET/PUT for device.json + input_bindings.json. Dashboard.json (sized
+// at runtime against file size) lives in usb_dispatch.cpp.
+// BSS staging pool reverted in #1332 — heap-on-demand is the only option (#1335).
 #include "usb_comm_internal.h"
 
 #include "app_config.h"
@@ -36,20 +20,12 @@
 
 namespace {
 
-// lockResponseBuffer / unlockResponseBuffer are vestigial stubs from the
-// reverted #1320 BSS pool. Retained so the call sites stay diff-minimal
-// against #1320's surface; future cleanup can inline them away once #1335
-// settles on the re-attempt shape.
+// Vestigial stubs from the reverted #1320 BSS pool — inline once #1335 lands.
 bool lockResponseBuffer() {
     return false;
 }
 void unlockResponseBuffer() {}
 
-// Persist a typed-config payload to `path`, then reboot. The caller has
-// already validated that `subValue` is non-null and matches the expected
-// JSON shape (object for device.json, array for input_bindings.json). The
-// stored file is `{"<fieldKey>": <subValue>}` so the boot-time loaders see
-// the same wrapping shape they expect from a hand-edited file.
 void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
                                  JsonVariantConst subValue) {
     JsonDocument out;
@@ -63,9 +39,6 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
         return;
     }
 
-    // Heap-on-demand staging — the BSS pool was removed (see file header
-    // comment); on this tight-DRAM board the heap-fallback path is the only
-    // option. malloc/free per call accepts the fragmentation risk.
     uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
     if (!buf) {
         LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
@@ -87,7 +60,7 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
     UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
 #ifdef ARDUINO
     Serial.flush();
-    esp_restart(); // never returns
+    esp_restart();
 #endif
 }
 
@@ -95,22 +68,11 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
 
 namespace UsbCommInternal {
 
-void initResponseBufferMutex() {
-    // No-op since the BSS pool was removed — heap-fallback only on WROOM.
-}
+void initResponseBufferMutex() {}
 
-// Send a `{"status":"ok","<key>":<value>}` envelope by parsing the on-disk
-// JSON file and lifting `unwrapKey` out of it (when non-null) before
-// embedding the result under `fieldKey`. The unwrap is needed for
-// input_bindings.json — on disk the file is `{"input_bindings":[...]}` but
-// the wire envelope expects the bare array under the same key so the
-// studio-side wire schema (`InputBindingsConfigWireSchema`) parses cleanly.
-// For device.json the file body is already the flat shape the studio
-// expects, so callers pass unwrapKey=nullptr to send it verbatim.
-//
-// On a missing file: sends `{"status":"error","message":"config_not_found"}`.
-// Feeds the assembled response through `UsbComm::sendLine` so WS / TCP / USB
-// sinks all receive it.
+// `unwrapKey` lifts the body out for input_bindings (disk wraps it under
+// "input_bindings", wire envelope expects the bare array). device.json passes
+// nullptr — its on-disk shape already matches the wire schema.
 void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey) {
     if (!StorageDriver::fileExists(path)) {
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
@@ -138,9 +100,7 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     resp["status"] = "ok";
     resp[fieldKey] = body;
 
-    const size_t needed = measureJson(resp) + 1; // payload + NUL terminator
-    // Heap-on-demand staging — see file header comment for why the BSS pool
-    // was removed.
+    const size_t needed = measureJson(resp) + 1;
     char *buf = static_cast<char *>(malloc(needed));
     if (!buf) {
         LOG_ERROR("USB", "GET %s: response buffer alloc (%u B) failed", path,

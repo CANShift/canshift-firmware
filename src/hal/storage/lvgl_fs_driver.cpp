@@ -1,13 +1,5 @@
-// lvgl_fs_driver.cpp — LVGL FS driver backed by SPIFFS
-//
-// Registers drive letter 'S' so LVGL can load fonts and images from SPIFFS.
-// Requires SPIFFS to be mounted via StorageDriver::init() before calling init().
-//
-// Path mapping:
-//   LVGL src string:   "S:/fonts/orbitron_black_32.bin"
-//   LVGL strips "S:"   → callback receives "/fonts/orbitron_black_32.bin"
-//   Opened on SPIFFS   → SPIFFS.open("/fonts/orbitron_black_32.bin", "r")
-
+// Registers drive 'S' for LVGL fonts/images. Requires StorageDriver::init()
+// to have mounted SPIFFS first.
 #include "lvgl_fs_driver.h"
 #include "app_config.h"
 #include "board_config.h"
@@ -18,39 +10,18 @@
 #include <cstddef>
 #include <esp_heap_caps.h>
 
-// ---------------------------------------------------------------------------
-// FS callbacks (static pool — no heap alloc on the LVGL load path)
-// ---------------------------------------------------------------------------
-
 namespace {
 
-// Fixed pool of Arduino `File` slots used as the LVGL handle storage. Sized
-// to cover the LVGL image cache (`LV_IMG_CACHE_DEF_SIZE = 24` in lv_conf.h)
-// because the built-in BIN decoder leaves the source file OPEN for the entire
-// cached lifetime of every TRUE_COLOR / TRUE_COLOR_ALPHA image — files are
-// only closed when the cache evicts the entry. Sizing the pool below the
-// cache size guarantees slot exhaustion as soon as more icons are preloaded
-// than the pool can hold (#1242 root cause: with 19 dashboard icon refs +
-// 2 theme icons against a 4-slot pool, the 5th preload onward silently fails
-// in `fs_open`, the image cache returns NULL, and `lv_img_set_src` silently
-// no-ops → buttons render label-only and the day/night toggle stays blank).
-//
-// 16 covers the demo dashboard's 14 unique icons + 2 theme icons with no
-// headroom for fonts/SPA assets; bumped from 4. Each `File` wrapper is small
-// (~24 B on Arduino-ESP32 — internal ref-counted descriptor pointer), so the
-// 16 × 24 B = 384 B static cost is negligible. The SPIFFS-side per-open
-// state is allocated by `SPIFFS.open()` on demand and freed by `f.close()`;
-// SPIFFS `maxOpenFiles` is bumped to match (storage_driver.cpp).
+// Sized to cover the demo dashboard's icon refs + theme icons. The LVGL BIN
+// decoder keeps source files OPEN for the cache lifetime — slot exhaustion
+// silently breaks lv_img_set_src (#1242). SPIFFS maxOpenFiles tracks this.
 constexpr size_t kFsPoolSize = 16;
 File s_filePool[kFsPoolSize];
 bool s_slotBusy[kFsPoolSize] = {};
 
-// Always called under the LVGL mutex (UI task) — no extra synchronisation
-// needed for the pool bookkeeping.
+// Always called under the LVGL mutex — pool bookkeeping is unsynchronised.
 void *fs_open(lv_fs_drv_t * /*drv*/, const char *path, lv_fs_mode_t mode) {
-    // Heap guard: under fragmentation, newlib's __sfp() can abort() inside
-    // fopen() when extending _iob[]. Refuse the open early — LVGL treats
-    // nullptr as a load failure and renders an empty image. See issue #651.
+    // Heap guard — newlib's __sfp() can abort() inside fopen() on fragmentation (#651).
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     if (largest < LVGL_FS_MIN_HEAP_BYTES) {
         LOG_WARN("FS", "Refused open of %s (largest=%u) — heap too low", path, (unsigned)largest);

@@ -1,8 +1,3 @@
-// warning_widget.cpp — Threshold-driven alert with icon + signal label.
-// Mirrors studio's WarningPreview (canshift-studio-web/src/components/editor/
-// WidgetPreview.tsx) at runtime: translucent critical background that blinks
-// when active, an icon at the top, and the signal name underneath.
-
 #include "warning_widget.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
@@ -21,16 +16,13 @@ namespace {
 constexpr uint32_t BLINK_PERIOD_MS = 1000;
 
 struct WarningTag {
-    lv_obj_t *root;    // colored background container
-    lv_obj_t *iconImg; // nullptr when no .bin asset is available on SPIFFS
+    lv_obj_t *root;
+    lv_obj_t *iconImg;
     lv_obj_t *signalLabel;
     lv_anim_t blinkAnim;
     bool wasActive;
-    uint32_t bgColor; // criticalColor (RGB)
+    uint32_t bgColor;
 };
-
-// WarningTag storage comes from the shared WidgetTagPool slab (#1031
-// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 void blinkAnimCb(void *target, int32_t v) {
     auto *root = static_cast<lv_obj_t *>(target);
@@ -40,9 +32,7 @@ void blinkAnimCb(void *target, int32_t v) {
 void startBlink(WarningTag *tag) {
     lv_anim_init(&tag->blinkAnim);
     lv_anim_set_var(&tag->blinkAnim, tag->root);
-    // Hard ON/OFF — step path makes the value snap rather than ease, so the
-    // widget actually flashes instead of pulsing softly. 0x00 fully clears the
-    // bg so the alarm reads as a real blink, not a glow.
+    // Step path — flash, not pulse.
     lv_anim_set_values(&tag->blinkAnim, 0x00, 0xCC);
     lv_anim_set_path_cb(&tag->blinkAnim, lv_anim_path_step);
     lv_anim_set_time(&tag->blinkAnim, BLINK_PERIOD_MS / 2);
@@ -54,7 +44,6 @@ void startBlink(WarningTag *tag) {
 
 void stopBlink(WarningTag *tag) {
     lv_anim_del(tag->root, blinkAnimCb);
-    // When inactive: keep a faint bg so the widget remains visible
     lv_obj_set_style_bg_opa(tag->root, 0x18, LV_PART_MAIN);
 }
 
@@ -62,7 +51,6 @@ void stopBlink(WarningTag *tag) {
 
 lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *root = lv_obj_create(parent);
-    // Design-space → physical scaling (issues #17, #18). Identity on v1.
     const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
     const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
     lv_obj_set_pos(root, px, py);
@@ -80,9 +68,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
     const uint32_t critRgb = cfg.style.criticalColor.rgb;
 
-    // Render the .bin asset when present; widget is icon-less when missing.
-    // Glyph fallback was removed in #681 because Orbitron does not cover the
-    // LVGL symbol range — an "empty" label only consumed layout space.
+    // Glyph fallback was removed in #681 — Orbitron lacks the LVGL symbol range.
     lv_obj_t *iconImg = nullptr;
     const void *iconSrc = IconAssets::resolveSource(cfg.warning.iconName);
     if (iconSrc != nullptr) {
@@ -92,11 +78,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
     }
 
-    // Signal name below the icon — dropped entirely on very small layouts
-    // where there is no room for it.
-    // TODO(#18): 28 / 56 px thresholds + 12/14 px font sizes are calibrated
-    // against the v1 320×240 canvas — scale with `ScreenProfile::scaleYVal`
-    // and pick proportional FontManager::label sizes on larger panels.
+    // TODO(#18): thresholds/font sizes hardcoded for the 320×240 canvas.
     lv_obj_t *signalLabel = nullptr;
     if (cfg.layout.h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
@@ -105,15 +87,13 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_label_set_text(signalLabel, labelBuf);
         const uint8_t sigFontSize = cfg.layout.h >= 56 ? 14 : 12;
         lv_obj_set_style_text_font(signalLabel, FontManager::label(sigFontSize), 0);
-        // Studio uses criticalColor + 99 alpha — at runtime LVGL doesn't blend
-        // the text against the bg, so use a dimmer composite tone instead.
+        // LVGL doesn't blend text against bg — pre-mix a dimmer composite.
         uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
         lv_obj_set_style_text_color(signalLabel, lv_color_hex(labelRgb), 0);
         lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
     }
 
-    // RAII slot guard (#1207): early returns between here and attachTagDeleter
-    // release the slot deterministically.
+    // RAII slot guard (#1207) — releases the slot on early-return paths.
     WidgetTagPool::Slot<WarningTag> tagSlot;
     WarningTag *tag = tagSlot.get();
     if (!tag) {
@@ -128,10 +108,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     tag->wasActive = false;
     tag->bgColor = critRgb;
     lv_obj_set_user_data(root, tag);
-    // attachTagDeleter wipes every animation bound to the object before
-    // releasing the slot — closes the queued-anim-after-tag-release race
-    // (issue #886) and keeps button + warning on the same delete path
-    // (F-LO-5).
+    // Wipes pending anims before slot release — closes the queued-anim race (#886).
     WidgetHelpers::attachTagDeleter(root, tagSlot.commit());
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
@@ -146,9 +123,7 @@ void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidg
     if (!tag)
         return;
 
-    // A missing/timed-out signal is treated as an active alert: the driver
-    // should know when a fault flag stops reporting (wiring break, ECU drop)
-    // rather than silently see a calm widget. Same blink as a tripped alert.
+    // Missing/timed-out → blink. Calm widget would hide ECU/wiring faults.
     bool active;
     if (!valid) {
         active = true;
