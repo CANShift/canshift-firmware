@@ -1,15 +1,3 @@
-// label_widget.cpp — Numeric value widget (displayStyle=numeric).
-//
-// Layout:
-//   ┌────────────────────────────┐
-//   │ COOLANT  ← auto header     │  (signal name, dim caps, top-left)
-//   │                            │
-//   │         78°C               │  (value + suffix concatenated, coloured)
-//   │                            │
-//   └────────────────────────────┘
-// Custom widget labels were removed in issue #1244. The auto signal-name
-// header is the only label path; suffix sits inline with the value.
-
 #include "label_widget.h"
 #include "diag/logger.h"
 #include "ui/alert_flash.h"
@@ -27,15 +15,8 @@
 
 namespace {
 
-// Scale the value font to the available band, capped to 52 % of widget width
-// so a wide number ("12345") never overflows. Snapped by FontManager to a
-// cached size in the appropriate Orbitron tier.
-//
-// TODO(#18): the 12..48 px clamp is calibrated against the v1 320×240 canvas
-// — when a larger physical panel ships, the lower bound stays at 12 (Orbitron
-// readability floor) but the upper bound should grow proportionally to the
-// vertical scale factor. FontManager will also need to bake a wider tier of
-// sizes (or swap families) once the upper bound exceeds 48 px.
+// 12..48 calibrated against v1 320×240 — will need ScreenProfile scaling
+// when a larger panel ships (#18).
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
     const int byWidth = (widgetW * 52) / 100;
@@ -47,9 +28,6 @@ uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     return static_cast<uint8_t>(s);
 }
 
-// Route a numeric size to the right Orbitron weight. Primary (Black) for the
-// large value bands, secondary (Bold) mid-range, label (Medium) for the small
-// auto-fit cells where the band is too narrow for a heavy weight.
 const lv_font_t *valueFontFor(uint8_t size) {
     if (size >= 32)
         return FontManager::primary(size);
@@ -59,25 +37,17 @@ const lv_font_t *valueFontFor(uint8_t size) {
 }
 
 struct LabelTag {
-    lv_obj_t *valueLabel; // Integer-part label (left of decimal point).
-    lv_obj_t *fracLabel;  // Fractional-part label ".X" at ~70 % of the
-                          // integer font. nullptr when decimalPlaces==0.
-    lv_obj_t *unitLabel;  // Optional small grey suffix anchored to the
-                          // value baseline. nullptr when no suffix.
-    float alertThreshold; // NaN = disabled (issue #133)
+    lv_obj_t *valueLabel;
+    lv_obj_t *fracLabel;
+    lv_obj_t *unitLabel;
+    float alertThreshold;
     AlertFlash::State alert;
-    // Cached numeric value & validity — short-circuits the per-tick snprintf
-    // and lv_label_set_text reallocation when nothing has changed (issue #236).
     // Sentinel: lastValid=false + isnan(lastValue) forces the first paint.
     float lastValue;
     bool lastValid;
-    // Active color ramp (issue #430). When non-null, the value text is tinted
-    // from the ramp on each update; otherwise the static text colour stays.
     const CfgColorRamp *ramp;
-    uint32_t baseTextRgb; // Base/static text colour when no ramp applies.
-    // Cached tint pushed to LVGL — guards skip the redundant style write when
-    // the ramp resolves to the same colour two ticks in a row. Init to
-    // 0xFFFFFFFFu so the first update() always paints.
+    uint32_t baseTextRgb;
+    // 0xFFFFFFFFu sentinel ensures the first update() paints.
     uint32_t lastTintRgb;
 };
 

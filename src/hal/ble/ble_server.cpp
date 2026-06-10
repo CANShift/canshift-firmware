@@ -1,15 +1,3 @@
-// ble_server.cpp — BLE GATT server (NimBLE stack)
-//
-// Orchestrator after the #1207 split: owns the NimBLE stack lifecycle,
-// advertising, GATT service tree, the SETTINGS and CMD callback classes,
-// and the public `BleServer::` API surface. Status-payload encoding lives
-// in `ble_status.cpp`; telemetry frame encoding + emit pump lives in
-// `ble_telemetry.cpp`. Cross-TU forward decls + state externs are in
-// `ble_server_internal.h`.
-//
-// The AP_PWD characteristic + start_wifi_ap/stop_wifi_ap commands were
-// removed alongside the WiFi stack — see #1351.
-
 #include "app_config.h"
 #if APP_BLE_ENABLED
 
@@ -34,15 +22,7 @@
     #include <freertos/semphr.h>
     #include <string.h>
 
-// ---------------------------------------------------------------------------
-// LVGL mutex (defined in main.cpp)
-// ---------------------------------------------------------------------------
-
 extern SemaphoreHandle_t g_lvglMutex;
-
-// ---------------------------------------------------------------------------
-// UUIDs
-// ---------------------------------------------------------------------------
 
 static constexpr char SVC_UUID[] = "4fa0b6a0-0000-0000-0000-000000000001";
 static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
@@ -50,31 +30,15 @@ static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
 static constexpr char SETTINGS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000004";
 static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
-// Pre-init heap floor — promoted to app_config.h so board profiles can override.
 static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
-// Hard cap on BLE write payloads parsed as JSON (issue #897). Both the
-// SETTINGS and CMD characteristics carry tiny control objects — the largest
-// real payload today (`{"cmd":"set_day_night","day":true}`) is well under 64
-// bytes. 256 leaves comfortable headroom while denying a peer the ability to
-// push MTU-sized (≤512) deeply-nested JSON into ArduinoJson's allocator on
-// the BLE task. Any oversized write is dropped before `JsonReader::parse`
-// touches the buffer.
+// Cap deeply-nested JSON exploit pressure on the BLE task (#897). Real
+// payloads today are well under 64 bytes; 256 is generous headroom.
 static constexpr size_t BLE_MAX_WRITE_LEN = 256U;
 
-// s_stackInited: NimBLEDevice::init() has run (stack allocated).
-// s_gattInited:  GATT service + characteristics are set up and advertising started.
-//                True after earlyInit() or a successful runtime startStack().
 static bool s_stackInited = false;
 static bool s_gattInited = false;
 
-// Defined here, declared `extern` in `ble_server_internal.h` so the status +
-// telemetry TUs can reach in. Ownership stays in the orchestrator — the helper
-// TUs only read these pointers (snapshotting locally per call per #1283).
 namespace BleServerInternal {
 NimBLECharacteristic *s_pTele = nullptr;
 NimBLECharacteristic *s_pStatus = nullptr;
@@ -89,16 +53,11 @@ static bool s_enabled = false;
 // pending flags live in `runtime/pending_actions.h` (shared with USB).
 static std::atomic<int8_t> s_pendingEnabled{-1};
 
-// ---------------------------------------------------------------------------
-// Server callbacks — connection lifecycle
-// ---------------------------------------------------------------------------
-
 namespace {
 
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override {
         BleServerInternal::s_connected = true;
-        // Request faster connection interval for smoother telemetry
         pServer->updateConnParams(desc->conn_handle, 12, 24, 0, 400);
         LOG_INFO("BLE", "Client connected: %s",
                  NimBLEAddress(desc->peer_ota_addr).toString().c_str());
@@ -106,26 +65,13 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer *pServer) override {
         BleServerInternal::s_connected = false;
         LOG_INFO("BLE", "Client disconnected — restarting advertising");
-        // Tear down any lingering passkey overlay so the dashboard returns
-        // immediately if pairing was abandoned mid-flow.
         PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
         NimBLEDevice::startAdvertising();
     }
 
-    // Called by NimBLE when a central initiates pairing and we are configured
-    // with IOCap DISPLAY_ONLY. We mint a fresh 6-digit code per pairing
-    // attempt, hand it to the UI task for on-screen display, and return it to
-    // NimBLE so the central can match the value the user types in the mobile
-    // app (issue #873).
+    // Rejection sampling avoids the modulo bias of `esp_random() % 1_000_000`
+    // and the 0 reserved value (carrier sentinel for "nothing pending"). #1283.
     uint32_t onPassKeyRequest() override {
-        // Unbiased rejection sampling: a plain `esp_random() % 1_000_000`
-        // would bias the low 705_032_704 values of the 2^32 draw space (#1283).
-        // Reject draws inside the residual band so every 6-digit code is
-        // equiprobable. The 0 reserved value (carrier "nothing pending") is
-        // also rejected here so the value displayed to the user matches what
-        // NimBLE will compare against — previously the carrier was bumped to
-        // 1 while NimBLE kept receiving 0, breaking pairing on the 1-in-1M
-        // draw (#1283).
         constexpr uint32_t PASSKEY_RANGE = 1000000u;
         constexpr uint32_t REJECTION_LIMIT = UINT32_MAX - (UINT32_MAX % PASSKEY_RANGE);
         uint32_t passkey;
@@ -151,14 +97,6 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
     }
 };
-
-// ---------------------------------------------------------------------------
-// SETTINGS read/write callback
-// Payload (read & write): {"brightness":80,"sleep":30}
-//
-// onRead refreshes the characteristic value just-in-time so the mobile app
-// can populate its Settings UI on open without guessing defaults (#26 / #29).
-// ---------------------------------------------------------------------------
 
 class SettingsCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic *pChar) override {
@@ -198,13 +136,8 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonDocument doc;
         doc["brightness"] = SettingsPage::getBrightness();
         char buf[64];
-        // Truncation guard: never push a half-serialised payload to a
-        // subscriber (#936). Pre-#1341 we returned here without writing,
-        // which left the peer reading whatever the prior call had put on the
-        // characteristic — a stale-data bug as soon as anyone bumps the
-        // payload schema past 63 bytes. Write a canary instead so the peer
-        // sees an explicit error sentinel and can decide to refetch / surface
-        // it to the user.
+        // Emit an explicit canary on truncation so the peer doesn't read stale
+        // characteristic state (#936, fix #1341).
         const size_t len = serializeJson(doc, buf, sizeof(buf));
         if (len == 0 || len >= sizeof(buf)) {
             LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",
@@ -239,12 +172,9 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         const char *cmd = doc["cmd"] | "";
 
         if (strcmp(cmd, "toggle_day_night") == 0) {
-            // Deferred to UI task — ThemeManager requires LVGL mutex from UI context
             PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: day/night toggle queued");
         } else if (strcmp(cmd, "set_day_night") == 0) {
-            // Explicit, idempotent variant. Payload: {"cmd":"set_day_night","day":<bool>}.
-            // Deferred to UI task — ThemeManager requires LVGL mutex from UI context.
             JsonVariantConst dayVar = doc["day"];
             if (dayVar.isNull() || !dayVar.is<bool>()) {
                 LOG_WARN("BLE", "set_day_night missing 'day' bool — ignoring");
@@ -254,20 +184,14 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
                 LOG_INFO("BLE", "CMD: day/night set queued — %s", day ? "day" : "night");
             }
         } else if (strcmp(cmd, "start_calibration") == 0) {
-            // Deferred to UI task — calibrate() is blocking (user taps crosshairs)
             PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration queued");
         } else if (strcmp(cmd, "reset_calibration") == 0) {
-            // Deferred to UI task — keeps NVS access on a single task thread,
-            // matching the calibrate path. Reset wipes the persisted offsets;
-            // next boot falls back to board defaults + first-boot calibration.
             PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration reset queued");
         } else if (strcmp(cmd, "track_state") == 0) {
-            // Track-mode telemetry pushed by canshift-mobile. Mirrors the
-            // `TrackTelemetrySchema` in canshift-core (#843). Bounds are
-            // already enforced TS-side, but we re-clamp the wide ints to
-            // the embedded-side struct widths defensively. Issue #844.
+            // Defensive re-clamp to the embedded struct widths — bounds are
+            // already TS-enforced (TrackTelemetrySchema, #843).
             TrackStore::State next = {};
             next.trackMode = doc["trackMode"] | false;
             next.currentLapMs = doc["currentLapMs"] | 0;
@@ -289,14 +213,8 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
-// Build the GATT service tree and start advertising.
-// Called from earlyInit() (pre-lv_init, heap ~100 KB) or from startStack()
-// at runtime (heap may be fragmented — guarded by kGattMinHeap check).
 void setupGatt() {
-    // Callbacks are stateless dispatchers — file-scope statics so NimBLE can
-    // retain the same instances across deinit/init cycles without leaking
-    // (issue #883). Function-local statics keep construction lazy and
-    // thread-safe (C++11 magic statics).
+    // C++11 magic statics — survive deinit/init cycles without leaking (#883).
     static ServerCallbacks s_serverCb;
     static SettingsCallbacks s_settingsCb;
     static CmdCallbacks s_cmdCb;
@@ -306,24 +224,15 @@ void setupGatt() {
 
     NimBLEService *pSvc = pServer->createService(SVC_UUID);
 
-    // All characteristics require an encrypted link for reads/writes. Pre-#873
-    // the GATT surface was wide-open: any BLE-capable device within range
-    // could subscribe to telemetry, read the WiFi AP password, and write
-    // arbitrary commands. The `_ENC` permissions push that gate into the
-    // NimBLE stack itself so callbacks never fire on unauthenticated peers.
-    //
-    // NOTIFY is intentionally NOT paired with `_ENC` — the encryption check
-    // happens when the peer writes the CCCD to subscribe (CCCD inherits the
-    // characteristic's permissions), so the notification stream is gated at
-    // subscribe time without needing a non-standard flag here.
+    // _ENC permission gates callbacks at the NimBLE stack so they never fire
+    // on unauthenticated peers (#873). NOTIFY inherits via CCCD permissions.
     BleServerInternal::s_pTele =
         pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
     BleServerInternal::s_pTele->setValue("{}");
 
     BleServerInternal::s_pStatus = pSvc->createCharacteristic(
         STATUS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    // Real values not available yet at earlyInit() call site — set minimal placeholder.
-    // BleServer::init() calls updateStatus() once all subsystems are up.
+    // Placeholder until BleServer::init() runs updateStatus() once subsystems are up.
     BleServerInternal::s_pStatus->setValue("{\"ver\":\"" APP_VERSION_STR
                                            "\",\"can\":0,\"is_day\":0}");
 
@@ -331,10 +240,6 @@ void setupGatt() {
         SETTINGS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
     pSettings->setCallbacks(&s_settingsCb);
 
-    // WRITE_NR (write-without-response) is kept for low-latency commands
-    // (e.g. `track_state` from canshift-mobile) but the matching `_ENC`
-    // permission applies to both response and no-response paths because the
-    // permission lives on the attribute, not the GATT op.
     NimBLECharacteristic *pCmd = pSvc->createCharacteristic(
         CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
     pCmd->setCallbacks(&s_cmdCb);

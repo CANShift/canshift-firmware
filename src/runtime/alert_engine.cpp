@@ -1,5 +1,3 @@
-// alert_engine.cpp — Warning and alert state machine implementation
-
 #include "alert_engine.h"
 #include "signal_store.h"
 #include "can/signal_map.h"
@@ -16,23 +14,14 @@
     #include "alert_engine_rs.h"
 #endif
 
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
-
 static AlertEngine::AlertState s_state = {};
 static uint32_t s_lastFlashToggleMs = 0;
 static bool s_flashPhase = false;
 
-// Rev limiter RPM (loaded from dashboard.json at boot)
 static float s_revLimitRpm = 7200.0f;
 
-// Signal thresholds — loaded from signals.json at init(), with compile-time fallbacks.
-// Per-signal semantics:
-//   warningLevel/dangerLevel: low-side for battery/oil-press (alert when value drops),
-//                              high-side for coolant/oil-temp (alert when value climbs).
-//   highWarningLevel/highDangerLevel: optional ADDITIONAL high-side thresholds — apply
-//                                     to every signal below; NaN = disabled.
+// warning/danger = low-side for battery/oil-press, high-side for temps.
+// highWarning/highDanger = optional additional high-side; NaN = disabled.
 static float s_coolantWarnC = 100.0f;
 static float s_coolantCritC = 110.0f;
 static float s_coolantHighWarnC = NAN;
@@ -50,12 +39,7 @@ static float s_batteryLowCritV = BATTERY_DEFAULT_LOW_CRIT_V;
 static float s_batteryHighWarnV = BATTERY_DEFAULT_HIGH_WARN_V;
 static float s_batteryHighCritV = BATTERY_DEFAULT_HIGH_CRIT_V;
 
-// Flash period in milliseconds
 static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2);
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 namespace {
 
@@ -63,9 +47,8 @@ AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLe
     return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
 }
 
-// Evaluate optional high-side thresholds. NaN = disabled. Returns NORMAL when
-// neither threshold is configured, so callers can safely max() with their
-// existing per-signal verdict.
+// NaN = disabled. Returns NORMAL when neither threshold is configured so
+// callers can safely max() with their existing per-signal verdict.
 AlertEngine::AlertLevel evalHighSide(float value, float highWarn, float highCrit) {
 #if USE_RUST_ALERT_ENGINE
     return static_cast<AlertEngine::AlertLevel>(alert_eval_high_side_rs(value, highWarn, highCrit));

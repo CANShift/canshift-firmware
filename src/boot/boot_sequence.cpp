@@ -1,5 +1,3 @@
-// boot_sequence.cpp — Power-on initialization sequence
-
 #include "boot_sequence.h"
 #include "app_config.h"
 #include "board_config.h"
@@ -46,12 +44,8 @@ extern SemaphoreHandle_t g_lvglMutex;
 #include <esp_task_wdt.h>
 #include <lvgl.h>
 
-// Diagnostic — log free heap, largest contiguous LVGL-relevant block, and
-// the lifetime low-watermark at a named boot stage. Helps pinpoint memory
-// pressure without needing a debugger. MALLOC_CAP_INTERNAL is the pool LVGL
-// allocates from, so it is the metric that actually tracks UI headroom.
-// When PSRAM is present the free-PSRAM byte count is appended so field
-// reports show the WROVER headroom win at a glance (issue #563).
+// MALLOC_CAP_INTERNAL is the pool LVGL allocates from — the metric that
+// actually tracks UI headroom.
 static void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
@@ -67,16 +61,9 @@ static void logHeap(const char *stage) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 static void initDisplayAndLVGL() {
-    // lv_init() allocates the LVGL pool (LV_MEM_SIZE) via malloc(). It must
-    // run BEFORE DisplayDriver::init() because LovyanGFX's s_lcd.init()
-    // fragments the heap such that a large contiguous block is no longer
-    // available afterwards. lv_init() does not need the display; only
-    // registerWithLVGL() does (it calls lv_disp_drv_register).
+    // lv_init() must precede DisplayDriver::init() — LovyanGFX's s_lcd.init()
+    // fragments the heap such that LVGL's pool malloc no longer fits.
     LOG_INFO("BOOT", "Calling lv_init()...");
     lv_init();
     LOG_INFO("BOOT", "lv_init() returned");
@@ -92,11 +79,6 @@ static void initDisplayAndLVGL() {
 
     LOG_INFO("BOOT", "Display + LVGL ready");
 }
-
-// ---------------------------------------------------------------------------
-// Splash screen — title + version + progress bar + status label.
-// No banner image (looked off on this small panel) — text-only is enough.
-// ---------------------------------------------------------------------------
 
 namespace {
 static lv_obj_t *s_splashBar = nullptr;
@@ -273,37 +255,23 @@ void BootSequence::markOtaSlotValidIfPending() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Phase helpers — one per logical boot stage. BootSequence::run() below is the
-// orchestrator that calls these in fixed order. Each helper preserves its
-// stage's original LOG_INFO traces verbatim so QEMU smoke-test markers and the
-// pre-existing field-debug log layout are unchanged (issue #1014 — function
-// length cap split).
-// ---------------------------------------------------------------------------
-
-// Silence ESP-IDF NVS error logs on first boot. Preferences::begin(ns,
-// /*readOnly=*/true) on a namespace that doesn't yet exist (touch cal,
-// settings) emits "[E] nvs_open failed: NOT_FOUND" via ESP-IDF's NVS log
-// tag. The read-fail is expected and the caller already handles it with a
-// sensible default — the ERROR-level log is just noise. Demoting the tag
-// to WARN keeps real NVS errors visible (#42).
+// Demote nvs ERROR → WARN so first-boot NOT_FOUND noise is gone but real
+// NVS errors stay visible.
 static void silenceNvsLogNoise() {
     esp_log_level_set("nvs", ESP_LOG_WARN);
 }
 
-// Detect PSRAM before any allocation so the display driver can offload
-// its LVGL draw buffers to SPIRAM when the chip is a WROVER (issue #563).
+// Must precede any allocation so DisplayDriver can offload LVGL draw buffers
+// to SPIRAM on WROVER boards.
 static void initPsramAndLogEntry() {
     canshift::hal::memory::initPsram();
     logHeap("entry");
 }
 
-// Task Watchdog Timer — initialised here, before any task is spawned in
-// main.cpp::createAllTasks(). Registered tasks (UI/CAN/USB) must call
-// esp_task_wdt_reset() each loop iteration or the panic handler resets
-// the device. Issue #666.
+// Registered tasks must call esp_task_wdt_reset() each loop iteration or the
+// panic handler resets the device.
 //
-// The arduino-esp32 SDK pinned here ships the IDF v4 TWDT API
+// arduino-esp32 ships IDF v4 TWDT API
 // (seconds + bool, idempotent — re-init updates the existing config).
 static void initTaskWatchdog() {
     constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
@@ -526,20 +494,7 @@ static void logBootCompleteAndReady(uint32_t bootStartMs) {
     LOG_INFO("BOOT", "[BOOT] Ready");
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void BootSequence::run() {
-    // Boot is single-threaded — taskUI is created in main.cpp after this
-    // returns, so LVGL calls below run race-free. Calls that hit an
-    // LVGL_ASSERT_LOCKED canary still need a mutex take/give pair to honour
-    // the assert contract (see navigateTo in buildUI).
-    //
-    // OTA rollback handshake (markOtaSlotValidIfPending) is no longer fired
-    // from this orchestrator — taskUI calls it after UI_OTA_VALID_FRAMES
-    // successful frames so a first-paint crash still triggers rollback
-    // (F-ME-8, #1014).
     silenceNvsLogNoise();
     const uint32_t bootStartMs = millis();
     initPsramAndLogEntry();
@@ -549,10 +504,6 @@ void BootSequence::run() {
     const bool storageOk = mountStorageOrLogError();
     provisionDefaultConfigsIfNeeded(storageOk);
     loadConfigWithHeapBracket();
-    // Compute design→physical scale factors from the just-parsed dashboard's
-    // targetProfile (issues #17, #18). Must run after loadConfig and before
-    // buildUI so widget builders read non-default factors when a future
-    // non-crowpanel-28 profile lands. v1 → identity (scale=1.0).
     ScreenProfile::initFromDashboard();
 
     initDisplayAndLVGL();

@@ -1,20 +1,3 @@
-// canshift-firmware/src/ui/widgets/timer_widget.cpp
-// Lap/session timer widget — UI shell over runtime/TimerService.
-//
-// Touch:
-//   - Short tap: Reset → start, Running → pause, Paused → resume.
-//   - Long press (>= 600 ms): reset (regardless of state).
-// Lap capture is NOT bound to touch in v1 — phone is the lap input surface.
-//
-// Visuals (applied on state transitions only — never per frame):
-//   - Reset    → dim text, no border accent.
-//   - Running  → primary text, 2 px green border.
-//   - Paused   → primary text, 2 px orange border, blinking colon (mm:ss only).
-//
-// All timer state lives in `runtime/TimerService`. The widget keeps purely
-// local touch bookkeeping plus a render cache (lastText) so the per-frame
-// `lv_label_set_text` call from #236 still hits its short-circuit.
-
 #include "timer_widget.h"
 #include "runtime/timer_service.h"
 #include "ui/font_manager.h"
@@ -31,36 +14,25 @@
 #include <stdio.h>
 #include <string.h>
 
-// ---------------------------------------------------------------------------
-// Tag
-// ---------------------------------------------------------------------------
-
 namespace {
 
 struct TimerTag {
     lv_obj_t *cont;
     lv_obj_t *timeLabel;
-    bool formatMsec;               // true = "ss.mmm", false = "mm:ss"
-    uint32_t pressStartMs;         // millis() when touch pressed
-    bool longPressFired;           // True once the long-press fired this cycle
-    TimerService::State lastState; // Last state we styled for — drives transition redraws
-    uint32_t textRgb;              // Cached effective text color for current theme
-    char lastText[12];             // #236 cache — skips lv_label_set_text re-allocs
+    bool formatMsec;
+    uint32_t pressStartMs;
+    bool longPressFired;
+    TimerService::State lastState;
+    uint32_t textRgb;
+    char lastText[12];
 };
 
-// TimerTag storage comes from the shared WidgetTagPool slab (#1031
-// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
-
 constexpr uint32_t LONG_PRESS_MS = 600;
-constexpr uint32_t BLINK_PERIOD_MS = 1000; // Half-on, half-off → 500 ms each phase.
+constexpr uint32_t BLINK_PERIOD_MS = 1000;
 
-// Border accents — reuse the dashboard's automotive palette so the
-// running/paused cues are consistent with bar/gauge zone colors.
-constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kZoneNormalRgb; // green
-constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kZoneWarningRgb; // orange
+constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kZoneNormalRgb;
+constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kZoneWarningRgb;
 constexpr uint8_t kStateBorderWidth = 2;
-// Reset-state text dimming — kept simple; theme manager picks the base color
-// (white for night, black for day) and we tint it down at constant alpha.
 constexpr lv_opa_t kResetTextOpa = LV_OPA_60;
 
 void formatTime(char *buf, size_t len, uint32_t elapsedMs, bool msec, bool blinkOn) {

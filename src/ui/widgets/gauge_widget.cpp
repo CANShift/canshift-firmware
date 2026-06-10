@@ -1,5 +1,3 @@
-// gauge_widget.cpp — Arc-based gauge widget (270° sweep, Studio-aligned).
-
 #include "gauge_widget.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
@@ -20,33 +18,20 @@
 #include <stdio.h>
 #include <string.h>
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 namespace {
 
-// Palette for the colored arc sectors. Zone tints come from the shared
-// helper palette so bar + gauge stay in lockstep.
-static constexpr uint32_t kColorBgDim = 0x222222; // Dark grey — no-threshold bg track
-// Gradient base track (issue #175) — slightly lighter than the no-threshold
-// track so the value arc reads cleanly on top of it.
+static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 
-// Arc geometry — matches Studio's gauge-math.ts (SoT per #1183):
-// START_DEG = 135 (lower-left), SWEEP_DEG = 270 (clockwise to lower-right).
+// Matches Studio's gauge-math.ts (SoT per #1183).
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
 static constexpr uint16_t kArcRotation = 135;
 
-// Minimum arc diameter clamp — protects against degenerate gauge configs.
 static constexpr int32_t kMinArcDiam = 40;
-// Padding subtracted from min(w, h) when sizing the arc inside its container.
 static constexpr int32_t kArcContainerPadding = 8;
 
-// Stroke width — mirrors Studio's `Math.max(5, r * 0.24)` (GaugeArc.tsx:69)
-// where `r = Math.min(w*0.45, h*0.46)`. Both background track and value arc
-// share the same width so the value tint fully covers the dark base.
+// Mirrors GaugeArc.tsx:69 `Math.max(5, r * 0.24)` with r = Math.min(w*0.45, h*0.46).
 static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
     const float r = std::min(static_cast<float>(cfg.layout.w) * 0.45f,
                              static_cast<float>(cfg.layout.h) * 0.46f);
@@ -54,8 +39,6 @@ static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
     return static_cast<uint8_t>(w < 5.0f ? 5.0f : w);
 }
 
-// Linear interpolation between two RGB colours, channel-wise.
-// Returns a 0x00RRGGBB integer suitable for lv_color_hex.
 static uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
     if (t < 0.0f)
         t = 0.0f;
@@ -78,10 +61,6 @@ static uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
     return (r << 16) | (g << 8) | bch;
 }
 
-// Map a [0,1] percentage to the green→orange→red gradient (issue #175).
-// 0..0.5 lerps green→orange, 0.5..1.0 lerps orange→red. The pivot at 0.5
-// keeps the orange "warning" colour visible at mid-range so drivers can read
-// the gauge intuitively without configuring thresholds.
 static uint32_t interpolateGreenOrangeRed(float pct) {
     if (pct < 0.0f)
         pct = 0.0f;
@@ -94,7 +73,6 @@ static uint32_t interpolateGreenOrangeRed(float pct) {
                    (pct - 0.5f) * 2.0f);
 }
 
-// Map a signal value to arc angle [0..kArcSweep]
 static uint16_t valueToAngle(float value, float minVal, float maxVal) {
     return static_cast<uint16_t>(WidgetHelpers::clampPct(value, minVal, maxVal) * kArcSweep);
 }
@@ -237,11 +215,6 @@ inline float effectiveAlertThreshold(const GaugeTag &tag) {
     return NAN;
 }
 
-// ---------------------------------------------------------------------------
-// create() phase helpers
-// ---------------------------------------------------------------------------
-
-// Arc diameter: smallest of w/h, minus padding, floored to kMinArcDiam.
 static int32_t computeArcDiameter(const CfgWidget &cfg) {
     int32_t diam =
         (cfg.layout.w < cfg.layout.h ? cfg.layout.w : cfg.layout.h) - kArcContainerPadding;
@@ -507,10 +480,6 @@ static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg
 }
 
 } // namespace
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);

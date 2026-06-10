@@ -1,29 +1,3 @@
-// usb_comm.cpp — USB serial transport + orchestrator layer.
-//
-// Protocol: JSON lines over USB serial (UART0 / CP210x bridge), 115200 baud.
-// Each message is one JSON object followed by \n.
-//
-// Desktop → device: {"cmd": <id>, ...fields}\n
-// Device → desktop (command response): {"status":"ok"} or {"status":"error","message":"..."}\n
-// Device → desktop (telemetry, proactive every ~200ms): {"tele":1,"v":{"rpm":...}}\n
-//
-// Static memory: only s_rxBuf (USB_RX_BUF_SIZE bytes, see app_config.h).
-//   handlePutConfig (in usb_dispatch.cpp) reuses s_rxBuf for serialization after
-//   parsing — safe because ArduinoJson 7 copies all values into the JsonDocument
-//   during parsing.
-//
-// Implementation split (#1207 refactor):
-//   - usb_comm.cpp        — this file: transport + public API surface.
-//                           Sink fan-out (sendLine / setAuxSink / hasAuxSink),
-//                           handleLine, RX accumulator, telemetry emit, CAN
-//                           scan drain, host-activity tracking, init/tick.
-//   - usb_dispatch.cpp    — command parsing + per-command handlers.
-//   - usb_config_sync.cpp — typed device.json / input_bindings.json handlers
-//                           backed by the pre-allocated response buffer.
-//   - usb_comm_internal.h — cross-module forward decls.
-//
-// The PUBLIC API in usb_comm.h is byte-identical to pre-refactor.
-
 #include "usb_comm.h"
 #include "usb_comm_internal.h"
 
@@ -44,10 +18,6 @@
 #include <stdint.h>
 #include <string.h>
 
-// ---------------------------------------------------------------------------
-// Telemetry signal table
-// ---------------------------------------------------------------------------
-
 namespace {
 
 struct TeleEntry {
@@ -55,7 +25,7 @@ struct TeleEntry {
     const char *name;
 };
 
-// All signals exposed over USB telemetry (must match signals.json)
+// Must match signals.json.
 const TeleEntry TELE_SIGNALS[] = {
     {SignalIds::RPM, "rpm"},
     {SignalIds::THROTTLE_POS, "throttle_pos"},
@@ -78,33 +48,13 @@ const TeleEntry TELE_SIGNALS[] = {
 
 constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
 
-// ---------------------------------------------------------------------------
-// Output sink — abstracts UART0 vs. an alternate transport (WiFi TCP / WS).
-//
-// `s_sink` defaults to the Serial sink and is used as the fallback target
-// for proactive telemetry (sendLine() called outside any handleLine()
-// dispatch). Command replies are routed through a per-task thread_local
-// `t_dispatchSink` set by handleLine() for the duration of one command, so
-// concurrent dispatches on different transports never block each other on
-// the sink mutex. The aux sink, when non-null, receives a parallel copy of
-// every sendLine() write so telemetry / acks reach both transports
-// concurrently — used by the WiFi TCP / WS servers to mirror the proactive
-// telemetry stream out to a connected Studio.
-//
-// A single mutex serialises every sink read/write. Held only across the brief
-// pointer snapshot or the aux-sink registration, never across user-supplied
-// I/O that may block (no nested logger locks inside the critical section)
-// and never across handleCommand() (#1286).
-// ---------------------------------------------------------------------------
-
 #ifdef ARDUINO
+// Logger mutex protects against interleaving with LOG_* from other tasks;
+// drop through on failure so a busy logger doesn't lose a command ack.
 void serialSink(const char *data, size_t len) {
     if (!data || len == 0)
         return;
     const bool needsNewline = data[len - 1] != '\n';
-    // Logger mutex protects against interleaving with LOG_* from other tasks;
-    // dropping it through on failure keeps a command ack from being silently
-    // lost when the logger is busy (same trade-off the pre-sink sendLine made).
     const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
     Serial.write(reinterpret_cast<const uint8_t *>(data), len);
     if (needsNewline)
@@ -113,9 +63,7 @@ void serialSink(const char *data, size_t len) {
         Logger::unlockUart();
 }
 #else
-void serialSink(const char *, size_t) {
-    // Native test build — no Serial. Tests exercise handlers via injected sinks.
-}
+void serialSink(const char *, size_t) {}
 #endif
 
 // Recursive — kept recursive so a handler that calls sendLine() while a
@@ -144,8 +92,7 @@ UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
 // to the correct caller. Issue #1286.
 thread_local UsbComm::SendSink t_dispatchSink = nullptr;
 
-// Acquire / release the sink mutex with a bounded timeout. Returns true on
-// success; callers fall through unprotected on timeout to mirror the
+// Bounded timeout — fall through unprotected on timeout to keep the
 // degrade-don't-drop policy of the legacy Logger::lockUart path.
 bool lockSink() {
     if (!s_sinkMutex)
@@ -158,39 +105,22 @@ void unlockSink() {
         xSemaphoreGiveRecursive(s_sinkMutex);
 }
 
-// Single RX buffer — also reused as TX buffer in handlePutConfig after parsing.
-// Size defined in app_config.h: CONFIG_JSON_DOC_DASHBOARD + 256.
-//
-// F-LO-2: pin the sizing contract at compile time so a future raise of
-// CONFIG_JSON_DOC_DASHBOARD (the worst-case payload that streams in-place
-// out of this buffer on the TX path) without a matching bump of
-// USB_RX_BUF_SIZE is caught at build instead of at runtime. The +256 is the
-// envelope overhead `{"cmd":2,"payload":...}` that the host wraps around
-// the dashboard JSON before sending it down the wire.
+// s_rxBuf doubles as TX scratch in handlePutConfig — must fit the worst-case
+// dashboard payload + the `{"cmd":2,"payload":...}` envelope.
 static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
               "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
 
 size_t s_rxPos = 0;
 
-// Set when an overflowing line is in progress — subsequent bytes are
-// dropped until the next newline so the partial buffer isn't reused as a
-// fresh command and a `line_too_long` error has time to flush back to the
-// host (#1341).
+// Drop everything until the next newline so a partial buffer can't be reused
+// as a fresh command and the line_too_long error has time to flush back.
 bool s_rxDraining = false;
 
-// Tick counter for telemetry scheduling (tick() runs every 20ms)
 uint8_t s_tickCount = 0;
-
-// How many tick() calls between telemetry pushes: 10 × 20ms = 200ms
 constexpr uint8_t TELE_PERIOD_TICKS = 10;
 
-// ---------------------------------------------------------------------------
-// CAN health stats
-// ---------------------------------------------------------------------------
-
-// Written by CAN task (core 0), read by USB task (core 1).
-// A portMUX spinlock guards both writes and the snapshot read so the
-// two-word struct is never torn across a core boundary (#1160).
+// Written by CAN task (core 0), read by USB task (core 1) under portMUX
+// so the two-word struct isn't torn across a core boundary.
 struct CanHealthStats {
     uint32_t fpsX10;
     uint32_t errors;
@@ -199,13 +129,6 @@ CanHealthStats s_canStats = {0, 0};
 portMUX_TYPE s_canStatsMux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_canStatsPending = false;
 
-// ---------------------------------------------------------------------------
-// Telemetry
-// ---------------------------------------------------------------------------
-
-// Telemetry buffer lives on the stack (768 B, fits in USB task 4096 B stack).
-// Format: {"tele":1,"v":{"rpm":1234.5,...}}\n
-// Only valid (non-timed-out) signals are included.
 constexpr size_t TELE_BUF_SIZE = 768;
 
 void sendTelemetry() {
@@ -233,9 +156,8 @@ void sendTelemetry() {
         }
         first = false;
 
-        // Compose `"<name>":<number>` without `%f`/`%g` so the firmware can
-        // drop newlib's float printf family. FloatFormat::formatGeneral mimics
-        // `%.3g` (significant digits, trailing zeros stripped).
+        // FloatFormat::formatGeneral mimics %.3g without pulling in newlib's
+        // float printf family.
         int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":", TELE_SIGNALS[i].name);
         if (n <= 0 || p + n >= end)
             break;

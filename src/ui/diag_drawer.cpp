@@ -1,11 +1,3 @@
-// diag_drawer.cpp — Bottom diagnostic panel (#635).
-//
-// Owns three sections rendered as static rows so the UI hot path never
-// touches the heap: ECU fault flags (driven by `flag_*` signals), a 2×2 ECU
-// scalar grid (RPM, TPS, coolant, battery), and a firmware error list
-// forwarded from `ErrorStore`. Refreshes are version-gated where possible
-// (errors) or skipped when hidden (flags/scalars).
-
 #include "diag_drawer.h"
 
 #include "can/signal_map.h"
@@ -24,43 +16,18 @@ namespace DiagDrawer {
 
 namespace {
 
-// ---------------------------------------------------------------------------
-// Geometry
-// ---------------------------------------------------------------------------
-
-// Swipe-up access — no UI element. The drawer hooks into the global
-// `GestureController` polling path: any LV_DIR_TOP gesture anywhere on
-// screen calls `open()`. The previous transparent-zone approach relied on
-// LV_EVENT_GESTURE event routing through `lv_layer_top()`, which never
-// fired on device — the polling path here is the one already used by
-// page-nav swipes and `error_bar`, so we know it works.
-
-// Drawer panel covers the full screen height when open. Earlier versions
-// used a partial-height (180 px) drawer that overlapped the dashboard;
-// going full-screen gives the user enough room to scan errors + signals
-// without the dash showing through, and matches the close-button UX.
-// CrowPanel 2.8" is 320×240, hardcoded everywhere else (board_config.h).
 constexpr int16_t PANEL_H = 240;
 constexpr int16_t PANEL_PAD = 6;
 constexpr int16_t ROW_H = 18;
 
-// Close button — visible "X" tap target at the panel's top-right. Replaces
-// the swipe-down-to-close gesture which was undiscoverable on the
-// resistive touch panel. Sized for XPT2046 resistive jitter (~10 px around
-// the centroid); paired with `lv_obj_set_ext_click_area` below for an even
-// larger hit rectangle than the visible bounds.
+// Sized for XPT2046 resistive jitter (~10 px centroid spread) — paired with
+// lv_obj_set_ext_click_area for an even larger hit rect.
 constexpr int16_t CLOSE_BTN_SIZE = 36;
 constexpr int16_t CLOSE_BTN_EXT_CLICK_PAD = 12;
 
-// Section heights computed from row counts so they stay in sync with the
-// row arrays below.
 constexpr int16_t FLAGS_COUNT = 5;
 constexpr int16_t SCALARS_COUNT = 4;
-constexpr int16_t ERRORS_MAX_ROWS = 4; // Soft cap — panel scrolls beyond it.
-
-// ---------------------------------------------------------------------------
-// Colours
-// ---------------------------------------------------------------------------
+constexpr int16_t ERRORS_MAX_ROWS = 4;
 
 constexpr uint32_t COL_HANDLE_BG = 0x1A1A22;
 constexpr uint32_t COL_HANDLE_TXT = 0x666688;
@@ -74,9 +41,7 @@ constexpr uint32_t COL_FLAG_INACTIVE = 0x444444;
 constexpr uint32_t COL_ERROR_CODE = 0xCC4444;
 constexpr uint32_t COL_ERROR_MSG = 0xDDAAAA;
 
-// ---------------------------------------------------------------------------
-// Flag + scalar declarations — wire format matches signals.json names.
-// ---------------------------------------------------------------------------
+// Wire format matches signals.json names.
 
 struct FlagRow {
     const char *label;
@@ -108,10 +73,6 @@ const ScalarRow s_scalars[SCALARS_COUNT] = {
     {"Battery", SignalIds::BATTERY_VOLTS, "V", 1},
 };
 
-// ---------------------------------------------------------------------------
-// LVGL handles
-// ---------------------------------------------------------------------------
-
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_closeBtn = nullptr;
 lv_obj_t *s_flagBadges[FLAGS_COUNT] = {nullptr};
@@ -132,10 +93,6 @@ const lv_font_t *FONT_SM() {
 const lv_font_t *FONT_HDR() {
     return FontManager::label(12);
 }
-
-// ---------------------------------------------------------------------------
-// Layout helpers
-// ---------------------------------------------------------------------------
 
 void applyRowReset(lv_obj_t *row) {
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -317,22 +274,12 @@ void onPanelGesture(lv_event_t *e) {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void init() {
     if (s_initDone)
         return;
 
-    // No swipe-up obj on the dashboard — the open trigger goes through
-    // GestureController's polling handler registered below. That polling
-    // path is the same one used by page-nav and error_bar, so we know
-    // gestures actually fire there (the previous transparent-overlay obj
-    // approach silently never received LV_EVENT_GESTURE on device).
     GestureController::setVerticalSwipeHandler(onVerticalSwipe);
 
-    // -------- Panel --------------------------------------------------------
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_panel, LV_HOR_RES, PANEL_H);
     lv_obj_align(s_panel, LV_ALIGN_BOTTOM_MID, 0, 0);

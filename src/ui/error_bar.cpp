@@ -1,5 +1,3 @@
-// error_bar.cpp — Persistent bottom error overlay (lv_layer_top).
-
 #include "error_bar.h"
 #include "app_config.h"
 #include "diag/error_store.h"
@@ -11,72 +9,48 @@
 #include <stdio.h>
 #include <string.h>
 
-// Minimum largest-free-block needed before we let an LVGL-touching dismiss
-// handler run. The dismiss path eventually rehides `s_container`, which
-// triggers LVGL invalidate + layout reflow; both allocate from the LVGL
-// pool. Under the heap fragmentation that follows a theme toggle / page
-// rebuild (issue #973), those allocations fail and the assert handler
-// resets the ESP. Below this floor we bail the visual update and only
-// clear the store — `ErrorBar::update()` will retry the visual on the
-// next tick once the heap has recovered.
+// Below this floor the dismiss visual is deferred — LVGL invalidate +
+// layout reflow allocate from the LVGL pool, which can trip the assert
+// handler under post-theme-toggle fragmentation (#973).
 static constexpr size_t DISMISS_MIN_HEAP_BYTES = 1024;
 
 static inline bool heapHealthyForLvglUpdate() {
     return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= DISMISS_MIN_HEAP_BYTES;
 }
 
-// ---------------------------------------------------------------------------
-// Layout constants
-// ---------------------------------------------------------------------------
-
-static constexpr int16_t BAR_H = 20; // Collapsed height (px)
-static constexpr int16_t ROW_H = 20; // Height of each expanded row
-// Mirrors the ErrorStore ring capacity (`RING_SIZE` in `error_store.cpp`).
-// Pre-allocating exactly that many detail rows means we never touch the heap
-// on the UI hot path while still showing every error the store can hold.
-// Issue #642.
+static constexpr int16_t BAR_H = 20;
+static constexpr int16_t ROW_H = 20;
+// Must match ErrorStore RING_SIZE — pre-allocating exactly that many rows
+// means the UI hot path never hits the heap (#642).
 static constexpr uint8_t MAX_ROWS = 6;
-// Detail panel cap — beyond this LVGL scrolls the rows vertically.
-// 120 = 6 rows × 20 px; the cap exists so future ring-size bumps can't push
-// the drawer past the dashboard's visible area.
 static constexpr int16_t DETAIL_MAX_H = 120;
 
-static constexpr uint32_t COL_BG = 0x160808;     // Very dark red background
-static constexpr uint32_t COL_BORDER = 0xCC3333; // Left accent
-static constexpr uint32_t COL_CODE = 0xCC4444;   // Source:code text
-static constexpr uint32_t COL_MSG = 0xDDAAAA;    // Message text
-static constexpr uint32_t COL_DIM = 0x664444;    // Dimmed / dismiss button
+static constexpr uint32_t COL_BG = 0x160808;
+static constexpr uint32_t COL_BORDER = 0xCC3333;
+static constexpr uint32_t COL_CODE = 0xCC4444;
+static constexpr uint32_t COL_MSG = 0xDDAAAA;
+static constexpr uint32_t COL_DIM = 0x664444;
 
-// Lazy accessor — file-scope static initializers run before FontManager::init()
-// in boot_sequence, so caching the pointer at static-init time would freeze it
-// to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
+// Lazy — file-scope static init runs before FontManager::init().
 static inline const lv_font_t *FONT() {
     return FontManager::label(12);
 }
 
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
+static lv_obj_t *s_container = nullptr;
+static lv_obj_t *s_headerRow = nullptr;
+static lv_obj_t *s_codeLabel = nullptr;
+static lv_obj_t *s_msgLabel = nullptr;
+static lv_obj_t *s_countLabel = nullptr;
+static lv_obj_t *s_dismissBtn = nullptr;
 
-static lv_obj_t *s_container = nullptr;  // Outer container (the bar itself)
-static lv_obj_t *s_headerRow = nullptr;  // Always-visible first row
-static lv_obj_t *s_codeLabel = nullptr;  // "⚠ SRC:CODE"
-static lv_obj_t *s_msgLabel = nullptr;   // Truncated message
-static lv_obj_t *s_countLabel = nullptr; // "+N more" badge
-static lv_obj_t *s_dismissBtn = nullptr; // × button on header row
-
-static lv_obj_t *s_detailPanel = nullptr;            // Expanded panel
-static lv_obj_t *s_detailRows[MAX_ROWS] = {nullptr}; // Row containers
-static lv_obj_t *s_detailCode[MAX_ROWS] = {nullptr}; // SRC:CODE per row
-static lv_obj_t *s_detailMsg[MAX_ROWS] = {nullptr};  // Message per row
-static lv_obj_t *s_detailDism[MAX_ROWS] = {nullptr}; // × per row
+static lv_obj_t *s_detailPanel = nullptr;
+static lv_obj_t *s_detailRows[MAX_ROWS] = {nullptr};
+static lv_obj_t *s_detailCode[MAX_ROWS] = {nullptr};
+static lv_obj_t *s_detailMsg[MAX_ROWS] = {nullptr};
+static lv_obj_t *s_detailDism[MAX_ROWS] = {nullptr};
 
 static bool s_expanded = false;
-static uint32_t s_lastVersion = UINT32_MAX; // Force first render
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+static uint32_t s_lastVersion = UINT32_MAX;
 
 static const char *srcLabel(ErrorSource src) {
     switch (src) {

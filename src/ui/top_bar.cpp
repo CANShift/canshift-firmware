@@ -1,16 +1,3 @@
-// top_bar.cpp — Persistent top status bar
-//
-// Default layout (left to right):
-//   [• CAN]  ......  BLE  USB  |  ☀
-//
-// Settings is opened by swiping down from the top of the screen — there is no
-// dedicated gear button (#50, redundant given the gesture).
-//
-// Status sources:
-//   CAN dot: green when at least one CAN signal has been received recently
-//   BLE:     blue = client connected; dim blue = advertising; gray = disabled
-//   USB:     green when UsbComm reports a recent host command (studio attached)
-
 #include "top_bar.h"
 #include "app_config.h"
 #include "icon_assets.h"
@@ -33,25 +20,17 @@
 #include <stdio.h>
 #include <string.h>
 
-// ---------------------------------------------------------------------------
-// TopBar proportion table — MIRROR OF canshift-core/src/topbar-metrics.ts
-//
-// Both the Studio preview and this renderer must agree pixel-for-pixel given
-// the same bar height. The TS file is the canonical source of truth — if you
-// edit a ratio here, edit it there too (and bump the canshift-core unit test).
-// ---------------------------------------------------------------------------
-
+// Mirror of canshift-core/src/topbar-metrics.ts — canonical SoT lives there.
 namespace TopBarMetrics {
-constexpr float DOT_RATIO = 0.30f;       // status-dot diameter / bar height
-constexpr float FONT_SIZE_RATIO = 0.45f; // label font size / bar height
-constexpr float SEPARATOR_RATIO = 0.55f; // separator glyph height / bar height
-constexpr float GAP_RATIO = 0.25f;       // inter-item gap / bar height
-constexpr float PADDING_RATIO = 0.40f;   // outer pad inside the bar / bar height
-constexpr float ICON_SIZE_RATIO = 1.15f; // icon font size / label font size
+constexpr float DOT_RATIO = 0.30f;
+constexpr float FONT_SIZE_RATIO = 0.45f;
+constexpr float SEPARATOR_RATIO = 0.55f;
+constexpr float GAP_RATIO = 0.25f;
+constexpr float PADDING_RATIO = 0.40f;
+constexpr float ICON_SIZE_RATIO = 1.15f;
 } // namespace TopBarMetrics
 
-// Match Studio's Math.round (round-half-away-from-zero). C++ lroundf is the
-// correct primitive — std::round() returns float, lroundf returns long.
+// lroundf gives round-half-away-from-zero (matches Studio's Math.round).
 static inline int16_t metricRound(float v) {
     return static_cast<int16_t>(lroundf(v));
 }
@@ -74,27 +53,16 @@ static inline int16_t derivedIconSize(int16_t fontSize) {
     return metricRound(static_cast<float>(fontSize) * TopBarMetrics::ICON_SIZE_RATIO);
 }
 
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
-
 static lv_obj_t *s_bar = nullptr;
-
-// Theme toggle handle — captured during layout build so reapplyTheme() can
-// swap the icon source without rebuilding the bar.
 static lv_obj_t *s_themeIcon = nullptr;
-
 static int16_t s_height = 30;
 
-// Dynamic item table — populated when `topBar.layout` drives the rendering.
-// Each entry stores the LVGL handle plus the metadata needed for update().
 struct DynItem {
     TopBarItemKind kind;
-    lv_obj_t *obj; // primary lv object (label / dot)
+    lv_obj_t *obj;
     char signalId[CFG_MAX_SIGNAL_LEN];
     char format[16];
-    // Cached last-rendered values — updates are skipped when nothing changed,
-    // so unchanged frames cost only a few comparisons (issue #95, fix F3).
+    // Cached last-rendered values — updates skipped when nothing changed.
     char lastText[16];
     uint32_t lastColor;
     bool lastSeenValid;

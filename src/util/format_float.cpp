@@ -1,8 +1,4 @@
-// format_float.cpp — see format_float.h
-//
-// All routines avoid `%f`/`%g` on purpose so the linker keeps the integer-only
-// `_vfiprintf_r` family and drops `_vfprintf_r` + `_dtoa_r` (~30 KB).
-
+// All routines avoid %f/%g so the linker drops _vfprintf_r + _dtoa_r (~30 KB).
 #include "format_float.h"
 
 #include <math.h>
@@ -19,15 +15,11 @@ namespace {
 constexpr int kMaxDecimals = 9;
 constexpr int kMaxSigDigits = 9;
 
-// 10^n for n in [0, 9]. int64_t to keep room for the largest scaled value.
 constexpr int64_t POW10[] = {
     1LL, 10LL, 100LL, 1000LL, 10000LL, 100000LL, 1000000LL, 10000000LL, 100000000LL, 1000000000LL,
 };
 static_assert(sizeof(POW10) / sizeof(POW10[0]) == kMaxDecimals + 1, "POW10 table size");
 
-// Write a decimal integer into `buf` (most-significant digit first). Caller
-// must ensure `buf` has room for at least `digits + 1` bytes (no nul written).
-// Returns the number of characters written.
 size_t writeFixedWidthInt(char *buf, int64_t value, int digits) {
     for (int i = digits - 1; i >= 0; --i) {
         buf[i] = static_cast<char>('0' + (value % 10));
@@ -36,8 +28,6 @@ size_t writeFixedWidthInt(char *buf, int64_t value, int digits) {
     return static_cast<size_t>(digits);
 }
 
-// Render a non-negative integer in `value` into `buf` as decimal. Returns the
-// length written. Caller is responsible for sizing.
 size_t writeUnsignedInt(char *buf, int64_t value) {
     if (value == 0) {
         buf[0] = '0';
@@ -55,7 +45,6 @@ size_t writeUnsignedInt(char *buf, int64_t value) {
     return static_cast<size_t>(n);
 }
 
-// Copy as much of `src` as fits, always nul-terminating if `size > 0`.
 size_t copyTerminated(char *buf, size_t size, const char *src) {
     if (size == 0)
         return 0;
@@ -66,10 +55,7 @@ size_t copyTerminated(char *buf, size_t size, const char *src) {
     return srcLen;
 }
 
-// Format `value` as `<int>.<frac>` using `decimals` digits after the point.
-// Writes into `buf` starting at offset 0, nul-terminating. Returns the total
-// length that would have been written (snprintf-style). Buffer overflow is
-// handled by truncation; the nul is always placed inside `size`.
+// Snprintf-style return; truncation always nul-terminates inside `size`.
 size_t formatFixedSigned(char *buf, size_t size, float value, int decimals) {
     if (decimals < 0)
         decimals = 0;
@@ -85,15 +71,13 @@ size_t formatFixedSigned(char *buf, size_t size, float value, int decimals) {
     if (negative)
         value = -value;
 
-    // Round to the requested precision, scaled into integer space.
     const int64_t scale = POW10[decimals];
     int64_t scaled = static_cast<int64_t>(value * static_cast<float>(scale) + 0.5f);
 
     const int64_t whole = scaled / scale;
     const int64_t frac = scaled % scale;
 
-    // Compose into a scratch buffer so we can compute the full length even if
-    // it overruns `size`. Worst case: sign + 11 whole digits + '.' + 9 frac + nul.
+    // Worst case: sign + 11 whole digits + '.' + 9 frac + nul.
     char scratch[32];
     size_t pos = 0;
     if (negative)

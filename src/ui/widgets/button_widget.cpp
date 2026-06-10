@@ -1,5 +1,3 @@
-// button_widget.cpp — Tap-action button (page nav, ECU map switch, raw CAN, …)
-
 #include "button_widget.h"
 #include "config/config_loader.h"
 #include "runtime/action_dispatcher.h"
@@ -21,22 +19,16 @@
 
 namespace {
 
-// Maximum LVGL FS path length including the "S:" SPIFFS drive prefix.
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
-// Studio reference (widget-previews/Button.tsx::computeButtonPreviewMetrics):
-// column layout, icon on top sized to fill ~0.75 of the cell, label below at
-// Medium 500 weight, font driven by width budget (not height).
-// TODO(#18): thresholds + font snap target are hard-coded against the v1
-// 320×240 canvas. When a second screen profile lands, scale with
-// `ScreenProfile::scaleYVal` and grow the Orbitron ladder in FontManager.
-
+// Mirrors widget-previews/Button.tsx::computeButtonPreviewMetrics. Hardcoded
+// against v1 320×240 — future screen profiles will need ScreenProfile scaling.
 constexpr int16_t BUTTON_PAD_X = 6;
 constexpr int16_t BUTTON_PAD_Y = 4;
 constexpr int16_t BUTTON_ROW_GAP = 2;
 constexpr int16_t ICON_MIN_PX = 18;
 constexpr int16_t ICON_MAX_PX = 56;
-constexpr int16_t ICON_H_BUDGET_DROP = 14; // matches Studio's `h - 14` term
+constexpr int16_t ICON_H_BUDGET_DROP = 14;
 constexpr float ICON_H_RATIO = 0.75f;
 constexpr float ICON_W_RATIO = 0.70f;
 constexpr float LABEL_NO_ICON_VBUDGET_RATIO = 0.48f;
@@ -44,7 +36,7 @@ constexpr float LABEL_WITH_ICON_VBUDGET_RATIO = 0.20f;
 constexpr float LABEL_ICON_FRACTION = 0.40f;
 constexpr float LABEL_W_RATIO = 0.22f;
 constexpr int16_t LABEL_FONT_MIN = 8;
-constexpr int16_t LABEL_BUDGET_PAD = 12; // matches Studio's `w - 12`
+constexpr int16_t LABEL_BUDGET_PAD = 12;
 
 int16_t computeIconSize(int16_t w, int16_t h) {
     int16_t budget = static_cast<int16_t>(h * ICON_H_RATIO);
@@ -71,10 +63,7 @@ int16_t computeLabelFontSize(int16_t w, int16_t h, bool showIcon, int16_t iconSi
     return static_cast<int16_t>(fontSize);
 }
 
-// Pick the nearest baked Medium tier {12, 14, 16} for the target px size.
-// FontManager::label() snaps DOWN, so we round to nearest explicitly: any
-// target ≥ 15 picks 16, ≥ 13 picks 14, otherwise 12. Studio always uses
-// fontWeight: 500 (Medium) so we stay in the label tier regardless of size.
+// FontManager::label() snaps DOWN — round to nearest explicitly.
 const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
     if (targetPx >= 15)
         return FontManager::label(16);
@@ -84,19 +73,14 @@ const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
 }
 
 static constexpr int16_t MAP_BADGE_DIAMETER = 7;
-static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44; // green
+static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44;
 
-// Translucency to mirror Studio's idle/active alpha tints
-// (normalColor + '18' ≈ 9 %, activeColor + '55' ≈ 33 %).
-// LV_OPA_10 (= 25 ≈ 0x19) is the closest baked tier to 0x18; the active
-// tint uses a raw 0x55 because LV_OPA_30 (= 76) snaps below the Studio value.
+// Mirrors Studio's idle/active alpha tints (normalColor + '18', + '55').
 constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_10;
 constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = 0x55;
-constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC; // matches Studio textColor + 'CC'
+constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC;
 constexpr int16_t BUTTON_BORDER_WIDTH = 1;
 
-// Per-button runtime state — owns the latched toggle flag and a pointer back
-// to the const config (kept alive by the dashboard singleton).
 struct ButtonTag {
     const CfgWidget *cfg; // For style.primaryColor when computing derived toggle visuals (#838)
     const CfgButtonParams *params;

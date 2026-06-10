@@ -1,9 +1,3 @@
-// gesture_controller.cpp — Page-nav swipe, settings-panel drag, and
-// swipe-click cancellation. Extracted from `page_manager.cpp` (issue #704);
-// behaviour preserved verbatim, only the swipe path becomes callback-driven
-// so PageManager owns "which page to show next" without coupling the
-// gesture TU back into page lifecycle.
-
 #include "gesture_controller.h"
 
 #include "app_config.h"
@@ -17,26 +11,18 @@ namespace GestureController {
 
 namespace {
 
-// y-coordinate band that triggers the drag from the closed state. Picked to
-// be a hair larger than the top bar so a finger landing on the bar can still
-// initiate the gesture without needing pixel-perfect aim.
+// Top-bar plus a small overshoot so finger placement on the bar still triggers.
 constexpr int16_t DRAG_HOTZONE_PX = 40;
-
-// Movement (in px) below which a press isn't a drag. Below the LVGL gesture
-// threshold so we settle ambiguity before the swipe path fires.
+// Below LVGL's gesture threshold so we settle ambiguity before swipe fires.
 constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 
 SwipeHandler s_swipeHandler = nullptr;
 VerticalSwipeHandler s_verticalSwipeHandler = nullptr;
 
-// LVGL 8.3 gesture recognition lives in the indev layer, not in the object
-// event system. Reading lv_indev_get_gesture_dir() after lv_task_handler has
-// run is the reliable path — it works even when buttons or sliders absorb
-// the touch event and prevent LV_EVENT_GESTURE from reaching the screen.
-
+// LVGL 8.3 gesture detection lives in the indev layer — reading
+// lv_indev_get_gesture_dir() after lv_task_handler is the reliable path even
+// when buttons absorb the touch event and prevent LV_EVENT_GESTURE bubbling.
 void onGesture(lv_dir_t dir) {
-    // Settings drag is handled by the drag tracker — ignore swipe gestures
-    // when the panel is open or in motion so we don't double-fire close().
     if (SettingsPage::isOpen() || SettingsPage::isDragging())
         return;
 
@@ -49,12 +35,6 @@ void onGesture(lv_dir_t dir) {
             break;
         case LV_DIR_TOP:
         case LV_DIR_BOTTOM:
-            // Vertical gestures: forward to the registered handler (used by
-            // DiagDrawer to open on swipe-up). The settings drag tracker
-            // also reads vertical motion, but through `updateDrag` polling
-            // the indev directly — these two paths don't conflict because
-            // the drag tracker handles state during press while this
-            // dispatch only fires once on the indev's gesture latch.
             if (s_verticalSwipeHandler) {
                 s_verticalSwipeHandler(dir);
             }

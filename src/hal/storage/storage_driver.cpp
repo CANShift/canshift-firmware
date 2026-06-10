@@ -1,9 +1,7 @@
-// storage_driver.cpp — SPIFFS filesystem implementation.
-
 #include "storage_driver.h"
 #include "board_config.h"
-#include "config/config_types.h" // CFG_MAX_PATH_LEN
-#include "config/json_reader.h"  // single-instantiation parse wrapper
+#include "config/config_types.h"
+#include "config/json_reader.h"
 #include "diag/logger.h"
 
 #include <Arduino.h>
@@ -14,21 +12,14 @@
 #include <sys/stat.h>
 
 namespace {
-// Tracks the most recent init() outcome so callers (boot UI, USB status)
-// can surface a meaningful state instead of a bare bool.
 StorageDriver::InitStatus s_initStatus = StorageDriver::InitStatus::NotInitialized;
 
-// SPIFFS is mounted by SPIFFS.begin(formatOnFail=true) at the Arduino default
-// mountpoint "/spiffs". stat() needs the absolute VFS path; the Arduino
-// wrappers prepend the mountpoint internally, but ::stat() does not.
+// ::stat() doesn't prepend the SPIFFS mountpoint — Arduino wrappers do.
 constexpr const char *kSpiffsMount = "/spiffs";
-constexpr size_t kSpiffsMountLen = 7; // strlen("/spiffs")
+constexpr size_t kSpiffsMountLen = 7;
 } // namespace
 
-// Suffix length: ".tmp" / ".bak" = 4 chars + null terminator.
 static constexpr size_t kAtomicSuffixLen = 4;
-// Buffer holding "<path>" + suffix + '\0'. Bounded to refuse paths that don't
-// fit in the storage driver's path budget.
 static constexpr size_t kSuffixedPathLen = CFG_MAX_PATH_LEN + kAtomicSuffixLen + 1;
 
 namespace {
@@ -46,9 +37,7 @@ bool buildSuffixedPath(char *out, size_t outLen, const char *base, const char *s
     return true;
 }
 
-// Promote "<path>.tmp" to "<path>", rotating the previous "<path>" through
-// "<path>.bak". On rename failure mid-rotation the previous file is restored
-// from the .bak when possible. Returns true on success.
+// On rename failure mid-rotation the previous file is restored from .bak.
 bool finalizeAtomicSwap(const char *path) {
     char tmpPath[kSuffixedPathLen];
     char bakPath[kSuffixedPathLen];
@@ -58,26 +47,22 @@ bool finalizeAtomicSwap(const char *path) {
         return false;
     }
 
-    // Drop any stale .bak from a previous rotation.
     if (SPIFFS.exists(bakPath)) {
         if (!SPIFFS.remove(bakPath)) {
             LOG_WARN("STORAGE", "Failed to remove stale %s — proceeding", bakPath);
         }
     }
 
-    // Rotate the live file aside, if it exists (first-install case is fine).
     bool hadOriginal = false;
     if (SPIFFS.exists(path)) {
         if (!SPIFFS.rename(path, bakPath)) {
             LOG_ERROR("STORAGE", "Rotate %s -> %s failed", path, bakPath);
-            // Drop the staged .tmp so we don't leak it.
             SPIFFS.remove(tmpPath);
             return false;
         }
         hadOriginal = true;
     }
 
-    // Promote the staged .tmp into place.
     if (!SPIFFS.rename(tmpPath, path)) {
         LOG_ERROR("STORAGE", "Promote %s -> %s failed", tmpPath, path);
         // Best-effort restore so the device still boots with the prior config.
@@ -98,9 +83,6 @@ bool finalizeAtomicSwap(const char *path) {
 } // namespace
 
 bool StorageDriver::init() {
-    // Resolve the SPIFFS partition up front so the attempt log carries the
-    // partition geometry and the failure path can classify "missing" vs
-    // "present but unmountable" without a second lookup.
     const esp_partition_t *part = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
     if (part != nullptr) {
@@ -111,15 +93,8 @@ bool StorageDriver::init() {
         LOG_INFO("STORAGE", "Backend=SPIFFS partition=spiffs offset=? size=? attempting mount...");
     }
 
-    // maxOpenFiles raised from the Arduino default (10) to 16 so SPIFFS can
-    // hold as many file descriptors open as the LVGL FS driver pool admits
-    // (`kFsPoolSize = 16` in lvgl_fs_driver.cpp). LVGL's built-in BIN image
-    // decoder leaves the source file open for the cached lifetime of every
-    // TRUE_COLOR / TRUE_COLOR_ALPHA image; with the demo dashboard preloading
-    // ~16 icons (14 sensor + 2 theme), SPIFFS' default 10-slot table would
-    // otherwise refuse opens past the 10th and the corresponding icons would
-    // silently fail to render (#1242 secondary cause behind the LVGL pool
-    // exhaustion).
+    // 16 matches lvgl_fs_driver.cpp's kFsPoolSize — LVGL's BIN decoder keeps
+    // the source file open for every cached image.
     constexpr uint8_t kSpiffsMaxOpenFiles = 16;
     if (!SPIFFS.begin(true /* formatOnFail */, kSpiffsMount, kSpiffsMaxOpenFiles)) {
         const char *reason =
@@ -134,8 +109,6 @@ bool StorageDriver::init() {
              static_cast<unsigned>(total), static_cast<unsigned>(used),
              static_cast<unsigned>(total - used));
 
-    // Sweep orphan .tmp files left behind by a power-cut mid-write so the
-    // next atomic rotation starts from a clean slate.
     sweepOrphanTmp(CONFIG_PATH_DASHBOARD);
     sweepOrphanTmp(CONFIG_PATH_SIGNALS);
 
@@ -158,13 +131,8 @@ DeserializationError StorageDriver::parseJsonFile(const char *path, JsonDocument
     }
     const size_t size = file.size();
 
-    // Slurp the file into a buffer and route the parse through JsonReader::parse
-    // so the binary ships a single `JsonDeserializer<BoundedReader<const char*>>`
-    // instantiation. Previously this path called `deserializeJson(doc, file)`,
-    // adding a second `JsonDeserializer<Reader<fs::File>>` instantiation worth
-    // ~9 KB flash on production (#1249 F-2). PSRAM is preferred so the
-    // allocation lands off the constrained internal DRAM heap that #576 was
-    // about; internal DRAM is the fallback on WROOM boards / native tests.
+    // Slurp + JsonReader::parse keeps the binary down to a single
+    // JsonDeserializer<BoundedReader<const char*>> instantiation (#1249 F-2).
     char *buf = static_cast<char *>(heap_caps_malloc(size + 1, MALLOC_CAP_SPIRAM));
     if (!buf) {
         buf =
@@ -215,9 +183,6 @@ size_t StorageDriver::streamFileTo(const char *path, Print &out, bool replaceNew
         LOG_WARN("STORAGE", "Cannot open file for streaming: %s", path);
         return 0;
     }
-    // 256 B buffer trades RAM for syscall count: a 20 KB file finishes in 80
-    // chunks. The buffer lives on the stack (USB task has 4 KB) so it adds no
-    // pressure to the heap that the OOM bug is about.
     constexpr size_t kStreamChunk = 256;
     uint8_t buf[kStreamChunk];
     size_t total = 0;
@@ -245,7 +210,6 @@ bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_
         return false;
     }
 
-    // If a previous attempt left a stale .tmp behind, drop it before retrying.
     if (SPIFFS.exists(tmpPath)) {
         SPIFFS.remove(tmpPath);
     }
@@ -274,15 +238,10 @@ bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_
 }
 
 bool StorageDriver::fileExists(const char *path) {
-    // Avoid SPIFFS.exists() (wraps fopen+fclose) — under heap pressure newlib's
-    // __sfp() can abort() during FILE-slot mutex init. stat() goes through VFS
-    // directly without touching newlib stdio. See issue #651.
-    //
-    // Arduino's SPIFFS wrappers prepend the mountpoint ("/spiffs") before
-    // calling into the VFS; ::stat() does not, so a bare "/config/foo.json"
-    // resolves outside any registered mount and always returns -1. Prepend
-    // the mountpoint here, plus guard against null / non-absolute paths and
-    // snprintf truncation so silent false-negatives don't mask future bugs.
+    // ::stat() through VFS instead of SPIFFS.exists() — fopen-based exists()
+    // can abort() during newlib FILE-slot mutex init under heap pressure
+    // (#651). Arduino wrappers prepend the SPIFFS mountpoint; ::stat() needs
+    // it added explicitly or the path resolves outside any mount.
     if (!path || path[0] != '/')
         return false;
     char full[kSpiffsMountLen + CFG_MAX_PATH_LEN + 1];
@@ -322,10 +281,6 @@ void StorageDriver::sweepOrphanTmp(const char *path) {
         LOG_WARN("STORAGE", "Failed to remove orphan %s", tmpPath);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Chunked write
-// ---------------------------------------------------------------------------
 
 namespace {
 File s_chunkFile;

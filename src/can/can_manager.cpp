@@ -1,5 +1,3 @@
-// can_manager.cpp — TWAI hardware manager
-
 #include "can_manager.h"
 #include "can_parser.h"
 #include "obd2_poller.h"
@@ -16,41 +14,27 @@
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 #include <Arduino.h>
-#include <string.h> // memcpy
-
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
+#include <string.h>
 
 static uint32_t s_errorCount = 0;
 
-// Health stats — frame rate window (reset every STAT_INTERVAL_MS)
 static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
 static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
-// TWAI install / retry state (issue #652). When initHardware() returns
-// non-OK at boot, tick() must not call twai_receive() — that yields
-// ESP_ERR_INVALID_STATE every iteration and floods the log. Instead, the
-// manager retries installation on a timer up to TWAI_INIT_MAX_RETRIES.
+// tick() must skip twai_receive() when not installed — it would otherwise
+// flood the log with ESP_ERR_INVALID_STATE every iteration (#652).
 static bool s_twaiInstalled = false;
 static uint32_t s_lastRetryMs = 0;
 static uint8_t s_retryAttempts = 0;
 static bool s_permanentlyDownWarned = false;
 
-// ---------------------------------------------------------------------------
-// TWAI configuration helpers
-// ---------------------------------------------------------------------------
-
 static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
 static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
 static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
 
-// Pre-reserved stack + TCB for the one-shot `twai_init` task. See
-// reserveInitTaskStack() above and #1376. NULL stack pointer means
-// reserveInitTaskStack() was never called (or alloc failed); initHardware()
-// falls back to the dynamic xTaskCreatePinnedToCore path in that case so
-// historical behaviour is preserved.
+// NULL stack → reserveInitTaskStack() never called; initHardware() falls
+// back to the dynamic xTaskCreatePinnedToCore path.
 static StackType_t *s_initTaskStack = nullptr;
 static StaticTask_t s_initTaskTCB;
 
@@ -72,8 +56,7 @@ twai_timing_config_t getTimingConfig(uint16_t kbps) {
 }
 
 twai_filter_config_t getFilterConfig() {
-    // Accept all frames — CAN scanner mode requires full bus visibility and
-    // signal IDs are user-configurable, so a fixed ID range filter would break both.
+    // Scanner mode needs full bus visibility; signal IDs are user-configurable.
     return TWAI_FILTER_CONFIG_ACCEPT_ALL();
 }
 
@@ -117,12 +100,8 @@ esp_err_t installAndStartOnThisCore() {
         return err;
     }
 
-    // Load dynamic signal definitions from config
     CanParser::loadSignalDefinitions();
-    // Wire any `polling`-flagged signals into the OBD-II request scheduler.
-    // Safe no-op when nothing in signals.json carries a polling block — keeps
-    // legacy broadcast-only configs unchanged. Must run after the parser load
-    // so SignalIds are mappable from signal names (issue #841).
+    // Must run after parser load — SignalIds are mappable from signal names.
     Obd2Poller::init();
 
     LOG_INFO("CAN", "TWAI driver started successfully");
@@ -144,10 +123,6 @@ void twaiInitTaskFn(void *arg) {
 }
 
 } // namespace
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 bool CanManager::isAvailable() {
     return s_twaiInstalled;
@@ -178,9 +153,7 @@ esp_err_t CanManager::initHardware() {
                                                &ctx, TWAI_INIT_TASK_PRIO, s_initTaskStack,
                                                &s_initTaskTCB, 0 /* core 0 */);
     } else {
-        // Fallback when reserveInitTaskStack() was skipped or failed — restores
-        // the pre-#1376 behaviour. Will likely OOM on no-PSRAM WROOM, but the
-        // log warning above explains why.
+        // Fallback for skipped/failed reserve — will likely OOM on no-PSRAM WROOM.
         BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
                                                 &ctx, TWAI_INIT_TASK_PRIO, &handle, 0 /* core 0 */);
         if (ok != pdPASS) {
@@ -205,9 +178,6 @@ esp_err_t CanManager::initHardware() {
 }
 
 bool CanManager::tick() {
-    // Guard: if the driver was never installed (e.g. ESP_ERR_NO_MEM at boot),
-    // do not call twai_receive() — it would return ESP_ERR_INVALID_STATE at
-    // every tick (~100 Hz) and flood the log. Schedule retries on a timer.
     if (!s_twaiInstalled) {
         const uint32_t nowMs = millis();
         if (s_retryAttempts < TWAI_INIT_MAX_RETRIES &&
@@ -229,37 +199,24 @@ bool CanManager::tick() {
     }
 
     twai_message_t message;
-
-    // Block for up to 10ms waiting for a frame
     esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(10));
 
     if (err == ESP_OK) {
         s_windowFrames++;
 
         if (!(message.rtr)) {
-            // Data frame (not remote frame). Clamp DLC to 8: twai_message_t
-            // carries a 4-bit data_length_code, but the classic-CAN data array
-            // is only 8 bytes. A non-conforming peer can report DLC 9..15
-            // while the buffer past `message.data[8]` is undefined memory.
-            // Without this clamp, parseFrame's bounds check (start+len ≤ DLC)
-            // would accept reads past index 8, and the memcpy below would
-            // overflow CanScanFrame::data[8].
+            // Clamp DLC to 8 — a non-conforming peer can advertise 9..15.
             const uint8_t safeLen =
                 static_cast<uint8_t>(message.data_length_code < 8 ? message.data_length_code : 8);
 
-            // OBD-II response intercept (issue #841). When Obd2Poller has a
-            // pending PID query that matches this frame's ID and PID echo, it
-            // decodes the payload into SignalStore and returns true — we
-            // skip the broadcast parser to avoid double-decoding a passive
-            // entry that happens to share the response ID. When the frame is
-            // unrelated to polling, the parser handles it as before.
+            // Skip the broadcast parser when Obd2Poller decodes the response —
+            // avoids double-decoding a passive entry that shares the ID.
             const bool consumedByPoller =
                 Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
             if (!consumedByPoller) {
                 CanParser::parseFrame(message.identifier, message.data, safeLen);
             }
 
-            // Forward raw frame to USB scan queue if scanner is active (best-effort, no lock)
             UsbComm::CanScanFrame sf;
             sf.id = message.identifier;
             sf.len = safeLen;
@@ -267,13 +224,11 @@ bool CanManager::tick() {
             UsbComm::pushCanFrame(sf);
         }
     } else if (err == ESP_ERR_TIMEOUT) {
-        // Normal — no frame arrived within timeout window
-        // This happens when ECU is not sending or CAN bus is quiet
+        // Quiet bus — no frame in the window.
     } else {
         s_errorCount++;
-        // Rate-limit the receive-error log to at most once per second. If the
-        // driver state is ever lost at runtime, this prevents 100 Hz log spam
-        // while still surfacing the failure (belt-and-braces for issue #652).
+        // Rate-limit the receive-error log to 1 Hz — driver-state loss at
+        // runtime would otherwise flood at the tick rate.
         static uint32_t s_lastErrLogMs = 0;
         const uint32_t nowErrLog = millis();
         if (nowErrLog - s_lastErrLogMs >= 1000) {

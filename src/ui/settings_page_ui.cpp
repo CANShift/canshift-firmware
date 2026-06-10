@@ -1,15 +1,3 @@
-// settings_page_ui.cpp — LVGL widget tree construction for the on-device
-// settings page. Split from settings_page.cpp during the #1207 refactor.
-//
-// This translation unit owns the *layout* the settings page paints:
-//   - Panel geometry + the scrollable container itself.
-//   - Each labelled section row (brightness / WiFi AP / calibrate / reset).
-//   - The shared button / slider primitives.
-//   - The snap animation that hops the panel between open and closed Y.
-//
-// Event behaviour for those widgets — what happens when the slider moves or
-// a segmented button is tapped — lives in settings_page_state.cpp.
-
 #include "settings_page_internal.h"
 
 #include "ui/font_manager.h"
@@ -23,9 +11,7 @@ namespace SettingsPageInternal {
 
 namespace {
 
-// Lazy accessors — file-scope static initializers run before FontManager::init()
-// in boot_sequence, so caching the pointer at static-init time would freeze it
-// to LV_FONT_DEFAULT instead of the actual size 12 loaded from SPIFFS.
+// Lazy — file-scope static init runs before FontManager::init().
 inline const lv_font_t *FONT_LG() {
     return FontManager::label(12);
 }
@@ -70,8 +56,6 @@ lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_eve
     return btn;
 }
 
-// Full-width labeled button used for calibrate / reset-touch-cal / reset / save.
-// All four share identical box styling — only colors and the label string differ.
 lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, uint32_t bdrColor,
                          uint32_t textColor, lv_event_cb_t cb) {
     lv_obj_t *btn = lv_btn_create(parent);
