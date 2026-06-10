@@ -1,26 +1,5 @@
-# build_rust.py — PlatformIO pre-build hook that compiles the firmware Rust
-# crates and adds the resulting staticlibs to the linker inputs. Each crate
-# is opt-in via a `USE_RUST_<NAME>=1` build_flag so CI (which doesn't carry
-# the `esp` toolchain) keeps passing on the default envs.
-#
-# Why opt-in:
-#   - CI runs without `espup` installed and would fail otherwise.
-#   - Until device-side validation lands on every port, the C++ path stays
-#     the default and the Rust path lives in a dedicated env.
-#
-# To exercise a Rust port locally:
-#   pio run -e crowpanel_28_rust              # ota-hmac
-#   pio run -e crowpanel_28_rust_signal_map   # signal-map
-#   pio run -e crowpanel_28_rust_can_parser   # can-parser
-#   pio run -e crowpanel_28_rust_usb_envelope # usb-envelope
-#   pio run -e crowpanel_28_rust_config_loader # config-loader
-#   pio run -e crowpanel_28_rust_format_float  # format-float
-#   pio run -e crowpanel_28_rust_error_store   # error-store
-#   pio run -e crowpanel_28_rust_alert_engine  # alert-engine
-#   pio run -e crowpanel_28_rust_sensor_color_ramp # sensor-color-ramp
-#
-# Adding a new crate is one entry in `CRATES` below.
-
+# PlatformIO pre-build: each USE_RUST_<NAME>=1 build_flag opts in one crate;
+# CI without `espup` keeps passing on the default envs.
 import os
 import shutil
 import subprocess
@@ -32,29 +11,19 @@ PROJECT_DIR = env["PROJECT_DIR"]  # noqa: F821
 RUST_DIR = os.path.join(PROJECT_DIR, "rust")
 TARGET_TRIPLE = "xtensa-esp32-none-elf"
 
-# Catalog of Rust crates the hook knows how to build. Each entry maps a
-# build_flag (e.g. `USE_RUST_OTA_HMAC=1`) to the manifest path and the
-# expected staticlib name. The hook walks this list, builds whichever
-# crates have their flag enabled, and adds each `.a` + its C header dir to
-# the link / include path.
+# `include=None` means the header lives under canshift-firmware/include/
+# (already on the -I path). ota-hmac is the legacy in-crate header path.
 CRATES = (
     {
         "flag": "USE_RUST_OTA_HMAC=1",
         "manifest": os.path.join(RUST_DIR, "ota-hmac", "Cargo.toml"),
         "libfile": "libota_hmac.a",
-        # ota-hmac keeps its header next to the crate; the script adds the
-        # path to CPPPATH below. Newer crates ship the header under
-        # canshift-firmware/include/ (always on -I) instead, so they leave
-        # this key out — see signal-map for the pattern.
         "include": os.path.join(RUST_DIR, "ota-hmac", "include"),
     },
     {
         "flag": "USE_RUST_SIGNAL_MAP=1",
         "manifest": os.path.join(RUST_DIR, "signal-map", "Cargo.toml"),
         "libfile": "libsignal_map.a",
-        # Header lives in canshift-firmware/include/signal_map_rs.h per
-        # #1177 spec — it's already on the firmware -I path, so no
-        # CPPPATH append needed.
         "include": None,
     },
     {

@@ -1,7 +1,3 @@
-// test_main.cpp — Unity tests for the parseU32Strict helper (parse_utils.h).
-//
-// The helper lives in a header so it can be included directly here without
-// going through config_loader's internal linkage.
 
 #include "config/parse_utils.h"
 

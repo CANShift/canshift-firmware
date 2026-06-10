@@ -1,15 +1,3 @@
-// test_main.cpp — Pins down the Logger::lockUart recursive-mutex contract.
-//
-// Background (issue #1037): PR #1027 swapped Logger's binary mutex for
-// xSemaphoreCreateRecursiveMutex so a task holding lockUart() can still
-// LOG_* without deadlocking. The contract is documented but was not tested,
-// so a future refactor that downgrades Take/GiveRecursive back to the binary
-// API would silently re-introduce the deadlock.
-//
-// These tests exercise the recursive path against the native FreeRTOS shim
-// (test/native/shim/freertos/semphr.h) which counts Take/Give depth. If
-// logger.cpp ever calls the wrong primitive, the depth counter goes negative
-// (or never reaches 2 during nested emit) and the assertions trip.
 
 // Relative include bypasses the test/native/shim/diag/logger.h no-op shim
 // that other native tests rely on — this one is specifically exercising the

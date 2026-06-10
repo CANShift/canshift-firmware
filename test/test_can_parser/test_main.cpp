@@ -1,30 +1,16 @@
-// test_main.cpp — Unity tests for CanParser::detail::decodeBytes.
-//
-// Covers the three decoder modes the parser dispatches on:
-//   - little-endian unsigned with scale + offset
-//   - big-endian signed with negative result (sign-extension path)
-//   - bit-mask flag extraction
-//
-// The decoder lives in CanParser::detail because it has no SignalStore
-// or CAN-frame coupling — tests can call it as a pure function.
-
 #include "can/can_parser.h"
 
 #include <unity.h>
 
 namespace {
 
-// 2-byte payload, little-endian: 0x34 at byte 0, 0x12 at byte 1 → raw 0x1234.
-// scale 0.1f, offset 0.0f, no bit mask, unsigned.
 constexpr uint8_t kLittleEndianFrame[] = {0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 constexpr float kLittleEndianScale = 0.1f;
-constexpr float kLittleEndianExpected = 466.0f; // 0x1234 == 4660 → * 0.1
+constexpr float kLittleEndianExpected = 466.0f;
 
-// 2-byte payload, big-endian, signed: 0xFFEC == -20 in two's complement.
 constexpr uint8_t kBigEndianSignedFrame[] = {0xFF, 0xEC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 constexpr float kBigEndianSignedExpected = -20.0f;
 
-// 1-byte bit-flag payload — extract bit 6 (mask 0x40 → set, mask 0x01 → clear).
 constexpr uint8_t kFlagsFrame[] = {0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 constexpr uint8_t kMaskBit6 = 0x40;
 constexpr uint8_t kMaskBit0 = 0x01;

@@ -1,13 +1,5 @@
 #pragma once
-// board.h — Selects the active board profile from the BOARD_* build flag.
-//
-// Each supported board ships an include/boards/<board>.h that:
-//   - defines `constexpr canshift::boards::BoardProfile kActiveBoard`
-//   - declares the `LGFX` class for that board's panel + touch + backlight.
-//
-// Add a new board by adding an `#elif defined(BOARD_<YOUR_BOARD>)` clause
-// below and a matching env in platformio.ini.
-
+// Each boards/<board>.h defines kActiveBoard + the LGFX class.
 #include "board_profile.h"
 
 #if defined(BOARD_CROWPANEL_28)

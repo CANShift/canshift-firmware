@@ -1,21 +1,6 @@
 #pragma once
-// boards/crowpanel_28.h — Elecrow CrowPanel 2.8" ESP32 board profile.
-//
-// Provides:
-//   - kActiveBoard: constexpr BoardProfile populated with the literal
-//     pin / driver / size values for this board.
-//   - LGFX: LovyanGFX panel class for ILI9341 + XPT2046 + PWM backlight.
-//
-// IMPORTANT: kActiveBoard is intentionally self-contained — it does NOT
-// reference the PIN_* / HW_* macros from board_config.h. Keeping the
-// profile literal here means a future board can be added without circular
-// include risk between board_config.h and the board profile system.
-//
-// The LGFX class still uses the existing PIN_TFT_*, PIN_TOUCH_*, BL_*,
-// TFT_SPI_FREQ_HZ, TOUCH_SPI_FREQ_HZ macros from board_config.h plus the
-// HW_PANEL_NATIVE_* / HW_TOUCH_RAW_* macros from hardware_profile.h (#546),
-// so the runtime behaviour is bit-identical to the pre-refactor build.
-
+// Profile (kActiveBoard) is self-contained — does NOT reference board_config.h
+// macros — so a future board can drop in without circular includes.
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 
@@ -100,7 +85,7 @@ class LGFX : public lgfx::LGFX_Device {
     LGFX() {
         {
             auto cfg = _bus.config();
-            cfg.spi_host = HSPI_HOST; // pins 12-15 are HSPI on ESP32
+            cfg.spi_host = HSPI_HOST;
             cfg.spi_mode = 0;
             cfg.freq_write = TFT_SPI_FREQ_HZ;
             cfg.freq_read = 16000000;
@@ -128,11 +113,12 @@ class LGFX : public lgfx::LGFX_Device {
             cfg.offset_rotation = 0;
             cfg.dummy_read_pixel = 8;
             cfg.dummy_read_bits = 1;
-            cfg.readable = false; // MISO not wired on this board
+            // MISO not wired; touch shares the SPI bus.
+            cfg.readable = false;
             cfg.invert = false;
             cfg.rgb_order = false;
             cfg.dlen_16bit = false;
-            cfg.bus_shared = true; // touch shares the SPI bus
+            cfg.bus_shared = true;
             _panel.config(cfg);
         }
         {

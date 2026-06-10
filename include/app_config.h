@@ -197,133 +197,69 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 // WiFi-AP-based OTA flow (started on demand from BLE). Phase 1 ships firmware
 // over USB (esptool) so we don't need the AP / HTTP / Update.h infrastructure.
 // When 0, wifi_ap.cpp ships only stubs and the WiFi / WebServer / Update Arduino
-// libs are not linked — saves ~80 KB flash. Re-enable when phase 3 (BLE-driven
-// OTA) needs it (issue #48).
+// WiFi OTA — 0 drops WiFi/WebServer/Update libs (~80 KB flash) (#48).
 #ifndef APP_WIFI_OTA_ENABLED
     #define APP_WIFI_OTA_ENABLED 0
 #endif
 
-// Dash-hosted Studio SPA — when 1, wifi_ap.cpp registers a static-file
-// route table that serves the gzipped browser bundle embedded via
-// board_build.embed_files. When 0, the SPA routes drop out (no embed
-// symbols pulled in, no flash cost). Requires APP_WIFI_OTA_ENABLED=1 to
-// have a WebServer to attach to — gated at compile time in wifi_ap.cpp.
-// Issue #1077 phase 4.
+// Requires APP_WIFI_OTA_ENABLED=1 to have a WebServer (#1077).
 #ifndef APP_SPA_SERVE
     #define APP_SPA_SERVE 0
 #endif
 
 #ifndef TASK_STACK_BLE
-    #define TASK_STACK_BLE 5120 // NimBLE + ArduinoJson telemetry serialization
+    #define TASK_STACK_BLE 5120
 #endif
 #define TASK_PRIO_BLE 6
 #define TASK_CORE_BLE 1
 
-// WiFi AP task (started on demand for OTA)
 #ifndef TASK_STACK_WIFI
     #define TASK_STACK_WIFI 4096
 #endif
 #define TASK_PRIO_WIFI 5
 #define TASK_CORE_WIFI 1
 
-// WiFi TCP server task (started/stopped alongside the AP via WifiAp::start/stop).
-// Lives on core 1 alongside the AP HTTP server task; both share the same
-// Arduino-WiFi stack. 4 KB stack matches the AP task — single-client polling
-// loop with a USB_RX_BUF_SIZE line buffer in BSS, so the stack only carries
-// FreeRTOS overhead + a handful of locals. Issue #1071.
 #ifndef TASK_STACK_WIFI_TCP
     #define TASK_STACK_WIFI_TCP 4096
 #endif
 #define TASK_PRIO_WIFI_TCP 5
 #define TASK_CORE_WIFI_TCP 1
 
-// WiFi WebSocket server task (started/stopped alongside the AP via
-// WifiAp::start/stop). Mirrors the TCP server's footprint — single-client
-// polling loop driven by WebSocketsServer::loop(); the library carries its
-// own per-client buffers in BSS, so the FreeRTOS stack only needs room for
-// the event dispatcher + Arduino String header parsing. Issue #1105.
 #ifndef TASK_STACK_WIFI_WS
     #define TASK_STACK_WIFI_WS 4096
 #endif
 #define TASK_PRIO_WIFI_WS 5
 #define TASK_CORE_WIFI_WS 1
 
-// BLE telemetry notify interval
-#define BLE_TELE_INTERVAL_MS 100 // 10Hz
+#define BLE_TELE_INTERVAL_MS 100
 
-// BLE heap thresholds — empirically tuned for the CrowPanel 2.8" reference
-// board. Pre-init guard ensures NimBLE has room for the stack + advertising
-// state; GATT-setup guard covers createServer + 4 characteristics + start().
-// Promoted from `ble_server.cpp` so a board profile with a different DRAM
-// budget can override per-env via build_flags (issue #909).
+// Pre-init guard for NimBLE + advertising; GATT guard covers server + 4 chars (#909).
 #define BLE_MIN_HEAP_BYTES (50U * 1024U)
 #define BLE_GATT_MIN_HEAP_BYTES (24U * 1024U)
 
-// WiFi AP configuration
-// Password is per-device, generated on first boot and persisted in NVS
-// (namespace "wifi_ap", key "pwd"). Surfaced via BLE STATUS field "ap_password".
-#define BLE_WIFI_AP_TIMEOUT_MS (5UL * 60UL * 1000UL) // 5 minutes
+#define BLE_WIFI_AP_TIMEOUT_MS (5UL * 60UL * 1000UL)
 
-// ---------------------------------------------------------------------------
-// OTA upload integrity (issue #205 part 2)
-// ---------------------------------------------------------------------------
-
-// Require an HMAC-SHA256 trailer on every OTA upload. The trailer is the
-// last 32 bytes of the upload and must equal HMAC_SHA256(firmware, secret).
-// Production builds ALWAYS require the trailer: the firmware will reject any
-// OTA payload that is either missing the trailer or that carries a bad HMAC,
-// returning HTTP 500 with reason="hmac" and aborting Update.write. Combined
-// with the per-request bearer token derived from the AP password in
-// wifi_ap.cpp, this closes issue #667 (unauthenticated firmware writes on
-// the device's softAP). Overriding to 0 is intentionally not supported via
-// the public build envs — secrets.ini hard-fails the build if the OTA secret
-// is the dev placeholder for prod flavours (scripts/extra_targets.py).
+// HMAC-SHA256 trailer required on every OTA upload (#205, #667).
 #ifndef APP_OTA_REQUIRE_HMAC
     #define APP_OTA_REQUIRE_HMAC 1
 #endif
 
-// Build-time shared secret used to verify OTA HMAC trailers. The real value
-// is injected via secrets.ini (gitignored) by scripts/extra_targets.py; the
-// fallback below is the dev placeholder and MUST NOT be used in production
-// builds — replace it before any release that flips APP_OTA_REQUIRE_HMAC=1.
-// extra_targets.py warns loudly when the fallback is hit.
+// Injected via secrets.ini (gitignored). Replace before prod (#205).
 #ifndef OTA_HMAC_SECRET
     #define OTA_HMAC_SECRET "DEV_INSECURE_REPLACE_BEFORE_PROD"
 #endif
 
-// ---------------------------------------------------------------------------
-// USB config sync (Phase 1)
-// ---------------------------------------------------------------------------
-
-// USB RX buffer — must fit the largest inbound command.
-// PUT_CONFIG wraps dashboard JSON plus {"cmd":2,"payload":} framing (~256 B overhead).
-// Reusing this buffer for TX serialization in handlePutConfig avoids a second large static.
+// PUT_CONFIG wraps dashboard JSON + ~256 B envelope.
 #define USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256)
 
-// Protocol version — increment when USB wire protocol changes
-// v2: LOG_* macros now emit `{"log":1,...}` envelopes instead of `[I][TAG]`
-//     plain text; UART0 writes from logger and wire protocol are serialized
-//     under a shared mutex (issue #199).
+// v2: LOG_* emit {"log":1,...} envelopes; UART0 + wire share a mutex (#199).
 #define USB_PROTOCOL_VERSION 2
 
-// How long the burn-overlay error state stays visible before it tears
-// itself down and uncovers the dashboard underneath. Long enough for the
-// driver to read the message at a glance, short enough that nothing
-// important is hidden if they look away (issue #189).
+// Long enough for the driver to glance; short enough not to hide the dash (#189).
 #define BURN_OVERLAY_ERROR_HOLD_MS 3000
 
-// ---------------------------------------------------------------------------
-// Diagnostics / logging
-// ---------------------------------------------------------------------------
-
-// Log level: 0=none, 1=error, 2=warn, 3=info, 4=debug, 5=verbose
-// Release default is 1 (error) — the firmware CLAUDE.md mandates zero
-// serial output in release builds, and the previous default of 3 (info)
-// streamed signal lifecycle / status lines over UART0 / USB-CDC that a
-// race team would consider PII (rpm, throttle, gear, lambda, …). Bumping
-// to error means the device only speaks when something actually broke.
-// Issue #899. Debug builds keep `debug` so developer instrumentation
-// stays visible without editing build flags.
+// 0=none, 1=error, 2=warn, 3=info, 4=debug, 5=verbose. Release stays at
+// `error` — info previously leaked rpm/throttle/lambda over UART (#899).
 #ifndef APP_LOG_LEVEL
     #if APP_DEBUG_BUILD
         #define APP_LOG_LEVEL 4
@@ -332,27 +268,13 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
     #endif
 #endif
 
-// Log tag max length
 #define LOG_TAG_MAX_LEN 16
 
-// APP_PROFILE_UI — enables per-frame UI instrumentation: mutex wait, widget
-// updates, LVGL handler dt, frame-total, FPS, frame-misses. Aggregated and
-// emitted as a single 1 Hz LOG_INFO("PERF", …) line by PerfCounters::tick().
-// Set via [env:debug-perf] in platformio.ini. See also APP_LV_TASK_LOG below
-// for a lighter-weight subset.
-
-// Optional lv_task_handler() duration logging — emits a 1 Hz "lv_task: avg/max/n"
-// line from the UI task. Orthogonal to APP_PROFILE_UI; both can be enabled
-// simultaneously. Off by default — zero overhead when disabled.
 #ifndef APP_LV_TASK_LOG
     #define APP_LV_TASK_LOG 0
 #endif
 
-// Verbose per-event debug logs. Kept off in release so per-touch / per-gesture /
-// per-signal-timeout chatter doesn't flood UART0. Enabled in [env:debug] so
-// developers see the full stream while iterating. Independent of
-// APP_LOG_LEVEL — when off, individual LOG_VDEBUG() call-sites collapse to
-// no-ops at preprocess time even if APP_LOG_LEVEL >= 4.
+// Off-by-default — LOG_VDEBUG sites collapse at preprocess time even if level≥4.
 #ifndef APP_VERBOSE_DEBUG_LOGS
     #if APP_DEBUG_BUILD
         #define APP_VERBOSE_DEBUG_LOGS 1

@@ -1,14 +1,3 @@
-// test_main.cpp — Coverage extensions for CanParser::detail::decodeBytes (#912).
-//
-// The base suite in test_can_parser/ covers the three "happy-path" modes
-// (LE unsigned, BE signed 2-byte, bit-mask). These tests close the gaps
-// flagged in the audit:
-//   - 4-byte signed negative (sign-extension path that uses the int32_t cast
-//     directly because the byteLen<4 mask would shift by 32, which is UB).
-//   - 3-byte big-endian unsigned (the 24-bit BE walk has no other coverage).
-//   - byteLen == 0 boundary (must return 0 without touching `data`).
-//   - LE/BE round-trip on the same raw value (locks endianness handling).
-//   - Out-of-range start+byteLen rejection.
 
 #include "can/can_parser.h"
 

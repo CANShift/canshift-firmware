@@ -1,9 +1,3 @@
-// test_main.cpp — Unity tests for ScreenProfile (issues #17, #18).
-//
-// Targets the v1 scaffold: lookup is identity for the only known profile,
-// unknowns degrade to the default, and the public scale helpers emit values
-// equal to their inputs when design dims == physical dims.
-
 #include "board_config.h"
 #include "config/config_loader.h"
 #include "hal/storage/storage_driver.h"
@@ -15,8 +9,6 @@
 
 namespace {
 
-// Minimal dashboard with an explicit targetProfile so initFromDashboard()
-// reads a stable id rather than the default fallback.
 constexpr const char *kDashboardCrowpanel28 = R"({
   "version": "1.0.0",
   "name": "Profile Smoke",

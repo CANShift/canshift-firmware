@@ -1,11 +1,3 @@
-// test_main.cpp — Unity tests for the thread-safe SignalStore.
-//
-// SignalStore relies on `millis()` for timeout detection. The host shim's
-// `mockSetMillis` / `mockAdvanceMillis` helpers make this deterministic.
-//
-// The Arduino + FreeRTOS shims reduce the mutex to a no-op in single-threaded
-// host runs, so these tests exercise the value lifecycle (write, read,
-// timeout) without spinning a real scheduler.
 
 #include "runtime/signal_store.h"
 

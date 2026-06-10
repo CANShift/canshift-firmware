@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-# png_to_lvgl_bin.py — Convert a PNG into LVGL 8.x .bin
-#
-# Two pixel formats:
-#   default        → LV_IMG_CF_TRUE_COLOR        (RGB565 LE, 2 bytes/px)
-#   --alpha        → LV_IMG_CF_TRUE_COLOR_ALPHA  (RGB565 LE + 1 alpha byte, 3 bytes/px)
-#
-# Usage:
-#   python3 png_to_lvgl_bin.py INPUT.png OUTPUT.bin --width 280 --height 140
-#   python3 png_to_lvgl_bin.py INPUT.png OUTPUT.bin --width 32 --height 32 --alpha
-#
-# The output is a 4-byte LVGL header followed by raw pixel data, ready to be
-# loaded with lv_img_set_src("S:/path/to/file.bin"). Pairs with
-# LV_COLOR_16_SWAP=0 + flush byte-swap in display_driver.cpp.
-#
-# Use --alpha for icons that will be runtime-recoloured: only the opaque pixels
-# get tinted, transparent pixels stay transparent. Without alpha, the whole
-# rectangle becomes a flat tint and the icon shape is lost.
 
 import argparse
 import struct

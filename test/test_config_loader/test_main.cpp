@@ -1,9 +1,3 @@
-// test_main.cpp — Unity tests for ConfigLoader::loadAll().
-//
-// Strategy: stage fixture JSON in the in-memory storage shim, then call the
-// public `loadAll()`. Observable state on the returned config structs lets us
-// verify both the happy path and the schema-version mismatch path without
-// relying on log scraping.
 
 #include "board_config.h"
 #include "config/config_loader.h"

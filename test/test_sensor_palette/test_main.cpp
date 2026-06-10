@@ -1,7 +1,3 @@
-// test_main.cpp — Unity tests for the semantic two-zone sensor palette
-// (issue #954). Lock the lookup / fillColor contract and the few entries
-// that are most likely to be relied on by the studio + firmware.
-
 #include "ui/sensor_palette.h"
 
 #include <math.h>

@@ -61,10 +61,6 @@ uint32_t parseHexLiteral(const char *hex) {
 void setUp() {}
 void tearDown() {}
 
-// ---------------------------------------------------------------------------
-// colorAtValue behaviour
-// ---------------------------------------------------------------------------
-
 void test_colorAtValue_belowFirstStop_returnsFirstColor() {
     const CfgColorRamp &ramp = rampFor(SensorKind::Coolant);
     TEST_ASSERT_EQUAL_HEX32(ramp.stops[0].color, colorAtValue(ramp, 30.0f));
@@ -107,10 +103,6 @@ void test_colorAtValue_step_returnsLowerColorBetweenStops() {
     TEST_ASSERT_EQUAL_HEX32(0xCC3333u, colorAtValue(ramp, 100.0f));
 }
 
-// ---------------------------------------------------------------------------
-// sensorKindFromName — heuristic mirrors TypeScript
-// ---------------------------------------------------------------------------
-
 void test_sensorKindFromName_matchesCommonAliases() {
     TEST_ASSERT_TRUE(sensorKindFromName("coolant_temp_c") == SensorKind::Coolant);
     TEST_ASSERT_TRUE(sensorKindFromName("oil_pressure_bar") == SensorKind::OilPress);
@@ -133,10 +125,6 @@ void test_sensorKindFromName_unknownReturnsUnknown() {
 void test_sensorKindFromName_isCaseInsensitive() {
     TEST_ASSERT_TRUE(sensorKindFromName("COOLANT_TEMP_C") == SensorKind::Coolant);
 }
-
-// ---------------------------------------------------------------------------
-// Anchor — kSensorDefaultRamps matches the JSON fixture byte-for-byte
-// ---------------------------------------------------------------------------
 
 void test_kSensorDefaultRamps_matchesCoreFixture() {
     JsonDocument doc;

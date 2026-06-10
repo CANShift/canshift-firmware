@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# sign_release_artifacts.py — Ed25519-sign each path passed on argv.
-#
-# Reads the private key from FIRMWARE_SIGNING_PRIVATE_KEY (base64-encoded
-# PKCS8 PEM). For each input file the script writes a detached 64-byte
-# binary signature to `<input>.sig` next to the artifact. Exits non-zero
-# on any failure so the CI step fails loudly rather than uploading
-# silently-unsigned binaries.
-#
-# The flasher (`canshift.tmbk.ch` / canshift-flasher#61) verifies each
-# `.sig` against its embedded Ed25519 public key before calling
-# `writeFlash`. Closes #1259.
 
 from __future__ import annotations
 

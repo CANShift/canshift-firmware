@@ -1,14 +1,3 @@
-// test_main.cpp — Ring-buffer wrap behaviour for ErrorStore (#912).
-//
-// The base suite in test_error_store/ exercises dismissAt's per-row semantics.
-// This suite locks the wrap-around contract:
-//   - Capacity is RING_SIZE (6) — push #7 evicts the oldest, push #8 evicts
-//     the next-oldest, etc.
-//   - getCount stays at RING_SIZE once full — never grows past capacity.
-//   - getAll's newest-first order keeps holding after wrap (the most recent
-//     RING_SIZE pushes are visible, oldest first dropped).
-//   - Duplicate source+code updates in place — pushing the same key past
-//     capacity does NOT evict anything; the ring stays the same shape.
 
 #include "diag/error_store.h"
 

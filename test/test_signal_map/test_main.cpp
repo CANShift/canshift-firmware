@@ -1,14 +1,3 @@
-// test_main.cpp — Unity tests for signalIdFromName.
-//
-// Locks the C++ name→id table down so a future change on either side
-// (C++ `kNameToId[]` or the Rust port's `NAME_TO_ID` in
-// `rust/signal-map/src/lib.rs`) surfaces here before it can drift through
-// the build. Mirrors the Rust-side `cargo test -p signal-map` suite —
-// keep the two in lockstep when adding signals.
-//
-// Tests run against the C++ implementation by default. When CI ever wires
-// up the Xtensa toolchain on the native env, the same fixtures will
-// exercise the Rust-backed path via `USE_RUST_SIGNAL_MAP=1`.
 
 #include "can/signal_map.h"
 

@@ -1,10 +1,5 @@
-// storage_driver_fake.cpp — in-memory implementation of StorageDriver for
-// host unit tests. Tests stage file contents via `fakeWrite()` before they
-// invoke ConfigLoader; parseJsonFile() then deserializes from the staged buffer.
-//
-// The implementation deliberately keeps a fixed-size table — host tests need
-// at most three config files at once, so dynamic allocation is overkill.
-
+// In-memory StorageDriver for host tests. Tests stage via fakeWrite() then
+// invoke ConfigLoader; parseJsonFile() reads from the staged buffer.
 #include "hal/storage/storage_driver.h"
 
 #include "config/json_reader.h"
@@ -17,8 +12,6 @@ namespace StorageDriver {
 namespace {
 
 constexpr size_t kMaxFiles = 8;
-// 32 KB is the largest CONFIG_JSON_DOC_DASHBOARD plus headroom — more than
-// any host-test fixture we plan to load.
 constexpr size_t kMaxFileBytes = 32 * 1024;
 
 struct FakeFile {

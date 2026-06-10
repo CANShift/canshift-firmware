@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-# canshift-firmware/scripts/regen_orbitron_fonts.py
-#
-# Regenerates the Orbitron font set (issue #431):
-#   - SPIFFS .bin files under data/fonts/      (loaded at boot by FontManager)
-#   - One in-flash .c source under src/ui/fonts/lv_font_orbitron_medium_14_nk.c
-#     (used as the FontManager fallback when SPIFFS load fails — also
-#     `LV_FONT_DEFAULT` in include/lv_conf.h)
-#
-# Three weights × the actually-consumed sizes — the matrix mirrors
-# `FontManager::primary/secondary/label` in src/ui/font_manager.cpp.
-#
-# Inputs are pulled from a writable tmp dir. Provide the static TTFs (one per
-# weight) instanced from the upstream Orbitron variable font ahead of time —
-# see canshift-firmware/data/fonts/SOURCES.md for the pinned commit and the
-# `fonttools varLib.instancer` invocations.
-#
-# Run from canshift-firmware/:
-#   python3 scripts/regen_orbitron_fonts.py /path/to/orbitron-static-ttfs
 
 from __future__ import annotations
 

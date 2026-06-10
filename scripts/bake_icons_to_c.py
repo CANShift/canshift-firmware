@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-# bake_icons_to_c.py — Bake selected LVGL .bin icons into a C++ source file.
-#
-# Reads the listed .bin files under data/assets and emits a single
-# `src/ui/icon_assets_baked.cpp` that exposes one `const lv_img_dsc_t` per
-# icon plus a name -> dsc lookup helper. Baked icons are read-only flash
-# pointers — no SPIFFS access, no decoder allocation, no image-cache life
-# math, no heap gate. Resolves the page-rebuild "icon vanished" bug for
-# the dashboard buttons (issue #1261).
-#
-# Source format (LVGL 8.x):
-#   bytes 0..3 : packed lv_img_header_t (cf:5 | w:11 | h:11 | reserved:5)
-#   bytes 4..  : pixel payload
-#
-# We only generate `cf = LV_IMG_CF_TRUE_COLOR_ALPHA` (5) — every shipped
-# icon was rendered with the alpha pipeline (build_sensor_icons.py).
 
 from __future__ import annotations
 

@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-# build_ui_icons.py — Render every UI SVG → PNG → LVGL .bin
-#
-# Pipeline:
-#   icon_sources/ui/<name>.svg
-#     → render via rsvg-convert (white stroke, transparent bg, 12×12 PNG)
-#     → png_to_lvgl_bin.py --alpha (LV_IMG_CF_TRUE_COLOR_ALPHA, 12×12)
-#     → data/assets/icon_<name>.bin
-#
-# Sibling of build_sensor_icons.py — UI icons (day/night toggle, etc.) are
-# rendered at 12×12 with cf=5 so the runtime can tint opaque pixels without
-# losing transparency, matching the sensor icon pipeline.
-#
-# Output paths must match canshift-firmware/src/ui/top_bar.cpp consumers
-# (lv_img_set_src("S:/assets/icon_<name>.bin")).
-#
-# Requirements: rsvg-convert (`brew install librsvg`) + Pillow.
 
 import shutil
 import subprocess

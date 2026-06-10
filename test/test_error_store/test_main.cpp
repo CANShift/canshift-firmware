@@ -1,8 +1,3 @@
-// test_main.cpp — Unity tests for the firmware error ring buffer
-// (issue #898). Locks the per-row dismiss contract: `dismissAt(row)` uses
-// the same newest-first row indexing as `getAll`, including across ring
-// wrap when the head has moved.
-
 #include "diag/error_store.h"
 
 #include <stdio.h>

@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# build_sensor_icons.py — Render every sensor SVG → PNG → LVGL .bin
-#
-# Pipeline:
-#   icon_sources/sensors/<name>.svg
-#     → render via rsvg-convert (white stroke, transparent bg, 32×32 PNG)
-#     → png_to_lvgl_bin.py --alpha (LV_IMG_CF_TRUE_COLOR_ALPHA, 32×32)
-#     → data/assets/sensor_<name>.bin
-#
-# The output paths must match canshift-firmware/src/ui/icon_assets.cpp.
-#
-# Requirements: rsvg-convert (`brew install librsvg`) + Pillow.
 
 import shutil
 import subprocess

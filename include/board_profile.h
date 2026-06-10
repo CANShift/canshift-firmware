@@ -1,15 +1,5 @@
 #pragma once
-// board_profile.h — Board capability descriptors for multi-board support.
-//
-// Defines a hardware-agnostic schema (BoardProfile + sub-profiles) that any
-// supported board populates with its concrete pins, drivers, and limits.
-// The active profile is selected at compile time via a BOARD_* build flag
-// (see board.h). Adding a new board means: create
-// include/boards/<board>.h that defines kActiveBoard, gate it in board.h,
-// and add a PlatformIO env that sets the right BOARD_* flag.
-//
-// This file holds STRUCT DEFINITIONS ONLY — no instances, no driver classes.
-
+// Hardware-agnostic schema. Active profile picked via BOARD_* in board.h.
 #include <stdint.h>
 
 namespace canshift::boards {

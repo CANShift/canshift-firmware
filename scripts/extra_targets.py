@@ -1,18 +1,5 @@
-# extra_targets.py — PlatformIO extra_scripts
-# - Injects APP_VERSION_STR from canshift-firmware/package.json so the
-#   firmware splash, BLE STATUS char, and /status endpoint report the same
-#   version the release workflow tags (issue #37). The source-of-truth moved
-#   here from canshift-studio/package.json once the Electron Studio package
-#   was decommissioned — firmware is now the only artifact in releases.
-# - Injects CONFIG_SCHEMA_VERSION mirrored from canshift-core
-#   (CURRENT_SCHEMA_VERSION in src/index.ts) so firmware and shared-core can
-#   never disagree on the schema version (issue #203).
-# - Injects OTA_HMAC_SECRET from canshift-firmware/secrets.ini (gitignored)
-#   so the OTA HMAC trailer can be verified at upload time. Hard-fails the
-#   build on prod flavours when secrets.ini is missing or still holds the
-#   placeholder string (issue #667). Dev flavours (env name contains "debug",
-#   "sim", or "native") accept the placeholder with a loud WARN line.
-
+# PlatformIO extra_scripts — injects APP_VERSION_STR (#37), CONFIG_SCHEMA_VERSION
+# from canshift-core/index.ts (#203), and OTA_HMAC_SECRET from secrets.ini (#667).
 Import("env")
 import configparser
 import json
@@ -21,14 +8,8 @@ import os
 
 
 def read_firmware_version():
-    """Single source of truth: canshift-firmware/package.json `version`. The
-    release workflow keys off the same file, so the release tag and the
-    APP_VERSION_STR baked into the binary can never disagree as long as this
-    script runs.
-
-    Fails the build loudly on any read/parse error — a silent fallback
-    macro (e.g. "0.0.0-unset") would brick the splash version with no way
-    for the user to spot it on the device (issue #101)."""
+    """Source of truth: package.json. Fails loudly — silent fallback bricks
+    the splash version with no way to spot it on device (#101)."""
     pkg = os.path.join(env["PROJECT_DIR"], "package.json")
     try:
         with open(pkg, "r") as fh:
@@ -45,12 +26,8 @@ def read_firmware_version():
 
 
 def read_core_schema_version():
-    """Single source of truth: canshift-core/src/index.ts
-    `CURRENT_SCHEMA_VERSION`. Mirrored into firmware so the C++ side and the
-    TypeScript side cannot drift (issue #203).
-
-    Fails the build loudly on any read/parse error — silently falling back to
-    a stale literal would defeat the whole point of the alignment."""
+    """Mirrors CURRENT_SCHEMA_VERSION from canshift-core/index.ts (#203).
+    Fails loudly — a stale literal would defeat the alignment."""
     ts_path = os.path.join(
         env["PROJECT_DIR"], "..", "canshift-core", "src", "index.ts"
     )
@@ -72,52 +49,24 @@ def read_core_schema_version():
     return match.group(1)
 
 
-# Placeholder secret literal from include/app_config.h fallback. Kept in sync
-# manually — if you rename the placeholder, update both sites.
+# Must match the include/app_config.h fallback literal.
 PLACEHOLDER_SECRET = "DEV_INSECURE_REPLACE_BEFORE_PROD"
-
-# Example string shipped in secrets.ini.example. Treated as "not configured".
 EXAMPLE_SECRET = "REPLACE_WITH_OUTPUT_OF_openssl_rand_hex_32"
 
-# Build flavours that may use the placeholder secret. Issue #910 — moved from
-# substring matching (`"debug" in "crowpanel_28_debug_perf"` was true) to an
-# exact-match set. A maintainer accidentally tagging a release built from
-# `crowpanel_28_debug_…` no longer slips a placeholder OTA secret into a
-# production artifact. Add new dev envs explicitly — fail-closed wins over
-# fail-open every time.
+# Exact-match set — substring matching let `crowpanel_28_debug_perf` slip
+# through as a dev build (#910).
 DEV_ENV_NAMES = frozenset(("sim", "debug", "native"))
 
 
 def is_dev_build():
-    """Return True iff the current PlatformIO env name marks a dev build.
-
-    The discriminator is the env name (PIOENV) — simpler than threading a new
-    APP_BUILD_FLAVOR env var through the build, and it matches the way the
-    existing envs are already split (production = crowpanel_28 / debug-perf /
-    secure; dev = sim / debug / native).
-
-    GitHub Actions pull_request CI is NO LONGER auto-allowed (#910). The PR
-    workflow must set OTA_HMAC_SECRET to the same value as the release
-    workflow (or to a deliberate test value) — that way the PR build either
-    produces a binary safe to flash, or fails loud. Auto-accepting the
-    placeholder on PR CI meant a malicious PR could land a binary built with
-    a known secret on every reviewer's machine."""
+    """PR CI must set OTA_HMAC_SECRET explicitly — auto-accepting placeholder
+    let malicious PRs ship a known-secret binary to reviewers (#910)."""
     pio_env = env.get("PIOENV", "") or ""
     return pio_env.lower() in DEV_ENV_NAMES
 
 
 def read_ota_hmac_secret():
-    """Read OTA_HMAC_SECRET from canshift-firmware/secrets.ini.
-
-    Returns (secret, is_fallback). The caller decides whether a fallback is
-    tolerable based on the current build flavour: dev builds accept the
-    placeholder with a WARN, prod builds hard-fail (issue #667 — the
-    placeholder must never reach a production binary silently).
-
-    secrets.ini format:
-        [ota]
-        hmac_secret = <hex or ascii string, no quotes>
-    """
+    """Returns (secret, is_fallback). secrets.ini format: [ota] hmac_secret = ..."""
     ini_path = os.path.join(env["PROJECT_DIR"], "secrets.ini")
     if not os.path.isfile(ini_path):
         return None, True
@@ -136,8 +85,6 @@ def read_ota_hmac_secret():
     if not secret:
         return None, True
 
-    # The example value is not a real secret — surface it the same way as a
-    # missing file so the prod gate fires.
     if secret == EXAMPLE_SECRET or secret == PLACEHOLDER_SECRET:
         return secret, True
 
@@ -145,9 +92,7 @@ def read_ota_hmac_secret():
 
 
 def enforce_ota_secret_policy(secret, is_fallback):
-    """Gate the build on the OTA secret. Prod flavours must have a real
-    secret in secrets.ini; dev flavours may keep the placeholder with a loud
-    WARN. Issue #667."""
+    """Prod hard-fails on placeholder; dev WARNs (#667)."""
     if not is_fallback:
         return
 
@@ -171,20 +116,12 @@ def enforce_ota_secret_policy(secret, is_fallback):
     )
 
 
-# Inject all three macros. Quotes need to survive shell + compiler — use the
-# escaped-quote form PlatformIO expects.
-#
-# CRITICAL: PlatformIO has two SCons envs. `env` flows to framework + lib_deps;
-# `projenv` flows to project src/. We must append to both, otherwise
-# src/boot/boot_sequence.cpp falls back to "0.0.0-unset" from app_config.h
-# even though framework/library code sees the right macro (issue #233).
+# PlatformIO has two SCons envs — `env` (framework + lib_deps) and `projenv`
+# (project src/). Both need the defines or src/ falls back (#233).
 _firmware_version = read_firmware_version()
 _schema_version = read_core_schema_version()
 _ota_secret, _ota_fallback = read_ota_hmac_secret()
 
-# Hard-fail prod builds before we even hand defines to the compiler, so a
-# misconfigured secrets.ini cannot produce a flashable binary that silently
-# trusts the placeholder OTA key (issue #667).
 enforce_ota_secret_policy(_ota_secret, _ota_fallback)
 
 _defines = [

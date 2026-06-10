@@ -1,15 +1,3 @@
-// test_main.cpp — Unity tests for UsbEnvelope::findPayloadSlice (#912).
-//
-// Locks the contract of the allocation-free JSON envelope locator used by
-// the PUT_CONFIG path. The function is hot (every config push runs through
-// it) and historically tricky:
-//   - #576: must work on inputs too large for an in-place JsonDocument.
-//   - #884: must not be fooled by an embedded NUL in the wire data
-//           (strstr() would short-circuit at the first NUL).
-//
-// Tests exercise the three modes flagged in the issue: embedded NUL,
-// missing key, malformed JSON — plus a few boundary cases (nested objects,
-// braces inside string values, whitespace tolerance).
 
 #include "hal/usb/usb_envelope.h"
 
