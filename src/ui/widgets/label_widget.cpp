@@ -15,8 +15,7 @@
 
 namespace {
 
-// 12..48 calibrated against v1 320×240 — will need ScreenProfile scaling
-// when a larger panel ships (#18).
+// Range calibrated for 320×240 — needs ScreenProfile scaling for larger panels (#18).
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
     const int byWidth = (widgetW * 52) / 100;
@@ -42,61 +41,39 @@ struct LabelTag {
     lv_obj_t *unitLabel;
     float alertThreshold;
     AlertFlash::State alert;
-    // Sentinel: lastValid=false + isnan(lastValue) forces the first paint.
     float lastValue;
     bool lastValid;
     const CfgColorRamp *ramp;
     uint32_t baseTextRgb;
-    // 0xFFFFFFFFu sentinel ensures the first update() paints.
     uint32_t lastTintRgb;
 };
-
-// LabelTag storage comes from the shared WidgetTagPool slab (#1031
-// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 } // namespace
 
 lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
     if (!cont) {
-        // LVGL pool is exhausted (LV_USE_LOG=0 silences LVGL's own warning).
-        // Bail out instead of letting the next LVGL call deref NULL and panic.
         LOG_ERROR("WF", "lv_obj_create failed for '%s' — LVGL pool OOM", cfg.id);
         return nullptr;
     }
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    // Auto signal header sits at the top of the cell. Font sizing intentionally
-    // uses the FULL widget height — the value row is centred with a +8 px
-    // downward bias (see `lv_obj_align` below) which keeps the glyph cap line
-    // clear of the ~14 px header band even at the upper font tiers. Subtracting
-    // the band height here would shrink the headline number on L cells from
-    // primary(32) down to secondary(20–24) — the regression that surfaced when
-    // the previous `hasUserLabel ? 0 : 14` branch collapsed into a uniform 14
-    // alongside #1244.
+    // Use full widget height — the value row's +8 px Y bias keeps it clear of
+    // the 14 px header band, and shrinking here drops L cells out of primary(32).
     const int16_t valueLineH = cfg.layout.h;
 
     const lv_font_t *valueFont = valueFontFor(pickValueFontSize(valueLineH, cfg.layout.w));
 
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
-    // Layout strategy: a flex row centered horizontally holds [int][frac][unit]
-    // so the three labels stay baseline-aligned with a tight gap and the whole
-    // group remains centered regardless of the integer / fractional widths.
-    // Before this refactor the value was a single label and decimals rendered
-    // at the same font size as the integer part; users wanted AFR / voltage /
-    // lambda / pressure decimals to read clearly subordinate to the headline
-    // number (matches the studio preview after PR #967).
+    // [int][frac][unit] flex row — frac renders smaller as a visual subordinate.
     lv_obj_t *valueRow = lv_obj_create(cont);
     if (!valueRow) {
         LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
         lv_obj_del(cont);
         return nullptr;
     }
-    // Width = full widget so the flex row can centre its children
-    // horizontally; height = SIZE_CONTENT so the row shrinks to the tallest
-    // label and we can centre the whole row vertically inside the widget.
     lv_obj_set_size(valueRow, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
@@ -104,18 +81,9 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_pad_column(valueRow, 3, LV_PART_MAIN);
     lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
-    // END on the cross axis keeps int / frac / unit baseline-aligned at the
-    // bottom of the row — matches the visual baseline of the integer text.
+    // END cross-axis keeps int/frac/unit baseline-aligned.
     lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    // Centre the row vertically in the widget. When there's an auto signal
-    // header (sigHeaderH > 0) bias the row downward by half the header so
-    // the value text sits at the visual centre of the FREE space below the
-    // header, not the centre of the whole widget (which would clip into the
-    // header). Matches the original layout users expect from before the
-    // flex-row refactor.
-    // Push the value row down a fixed +8 px so it sits clearly below the
-    // top label band (auto-header, ~14 px tall). User feedback 2026-06-01:
-    // value + unit need to be "un peu contre le bas" relative to the label.
+    // +8 px clears the auto signal header band above (user feedback 2026-06-01).
     lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 8);
 
     lv_obj_t *label = lv_label_create(valueRow);
@@ -134,16 +102,12 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_label_set_text(label, buf);
     }
 
-    // Fractional-part label (".X", ".XX", …). Created only when the widget
-    // actually has decimals; for integer-only signals (RPM, speed) the label
-    // is omitted so we don't burn an LVGL obj on a permanently empty slot.
     lv_obj_t *fracLabel = nullptr;
     if (cfg.label.decimalPlaces > 0) {
         fracLabel = lv_label_create(valueRow);
         if (fracLabel) {
             const uint8_t intSize = pickValueFontSize(valueLineH, cfg.layout.w);
-            // ~70 % of the integer font, mirroring the studio FRAC_FONT_SCALE.
-            // Clamped low so the smallest cells still get a readable size.
+            // ~70 % of int, mirrors Studio FRAC_FONT_SCALE.
             uint8_t fracSize = static_cast<uint8_t>((intSize * 7) / 10);
             if (fracSize < 12)
                 fracSize = 12;
@@ -153,10 +117,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         }
     }
 
-    // Unit label — small grey, sits to the right of the value (frac) in the
-    // same flex row so the row stays centered as the unit string changes.
-    // Resolved from the bound signal's `unit` (signals.json) by default;
-    // explicit `cfg.label.suffix` wins as a manual override.
     lv_obj_t *unitLabel = nullptr;
     const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
     if (unit[0] != '\0') {
@@ -168,8 +128,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         }
     }
 
-    // RAII slot guard (#1207): early returns from AlertFlash::attach or future
-    // setup steps release the slot before LVGL takes ownership.
+    // RAII slot guard (#1207).
     WidgetTagPool::Slot<LabelTag> tagSlot;
     LabelTag *tag = tagSlot.get();
     if (!tag) {

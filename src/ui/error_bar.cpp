@@ -9,9 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// Below this floor the dismiss visual is deferred — LVGL invalidate +
-// layout reflow allocate from the LVGL pool, which can trip the assert
-// handler under post-theme-toggle fragmentation (#973).
+// LVGL invalidate/layout reflow can trip the assert under fragmentation (#973).
 static constexpr size_t DISMISS_MIN_HEAP_BYTES = 1024;
 
 static inline bool heapHealthyForLvglUpdate() {
@@ -20,8 +18,7 @@ static inline bool heapHealthyForLvglUpdate() {
 
 static constexpr int16_t BAR_H = 20;
 static constexpr int16_t ROW_H = 20;
-// Must match ErrorStore RING_SIZE — pre-allocating exactly that many rows
-// means the UI hot path never hits the heap (#642).
+// Must match ErrorStore RING_SIZE — UI never hits the heap (#642).
 static constexpr uint8_t MAX_ROWS = 6;
 static constexpr int16_t DETAIL_MAX_H = 120;
 
@@ -73,13 +70,8 @@ static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
 
 static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *btn = lv_btn_create(parent);
-    // Wider than tall so the right-edge tap target is comfortable on the
-    // resistive touch panel. The previous 20×20 hit area was both small and
-    // sat flush against the screen edge where calibration is least accurate
-    // — users frequently reported "the X doesn't close the error" because
-    // the tap landed outside the button bounds.
+    // Wider hit area — resistive panel + screen-edge calibration is fuzzy here.
     lv_obj_set_size(btn, 32, BAR_H);
-    // Subtle filled background so the target is visible, not just the glyph.
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A1010), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
@@ -88,8 +80,6 @@ static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_set_style_radius(btn, 2, LV_PART_MAIN);
 
     lv_obj_t *lbl = lv_label_create(btn);
-    // Uppercase X is wider and renders clearly in the bundled Orbitron font
-    // (lowercase "x" was too thin to read against a dark error background).
     lv_label_set_text(lbl, "X");
     lv_obj_set_style_text_font(lbl, FONT(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(COL_MSG), 0);
@@ -107,10 +97,6 @@ static void applyRowStyle(lv_obj_t *row) {
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 }
 
-// ---------------------------------------------------------------------------
-// Expand / collapse
-// ---------------------------------------------------------------------------
-
 static void setExpanded(bool expand) {
     s_expanded = expand;
     if (!s_detailPanel)
@@ -122,13 +108,7 @@ static void setExpanded(bool expand) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// init() phase helpers
-// ---------------------------------------------------------------------------
-
-// Swipe up = expand, swipe down = collapse (issue #642). The container sits
-// on `lv_layer_top()` above the pages, so its gesture handler runs before
-// PageManager's horizontal swipe — UP/DOWN never conflict with page LEFT/RIGHT.
+// Sits on lv_layer_top so UP/DOWN run before PageManager's horizontal swipe.
 static void onContainerGesture(lv_event_t *e) {
     const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
     if (dir == LV_DIR_TOP) {
@@ -139,25 +119,21 @@ static void onContainerGesture(lv_event_t *e) {
     (void)e;
 }
 
-// Dismiss button: clear all errors and stop propagation (don't toggle expand).
-// Heap-guarded so a tap doesn't reboot the ESP when the post-rebuild pool
-// is too fragmented for LVGL's cascaded invalidate to allocate (#973).
+// Heap-guarded so a tap doesn't reboot under post-rebuild fragmentation (#973).
 static void onHeaderDismissClicked(lv_event_t *e) {
     lv_event_stop_bubbling(e);
     if (!heapHealthyForLvglUpdate()) {
         LOG_WARN("ERRBAR", "dismiss deferred — heap.largest=%u below floor",
                  static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-        ErrorStore::clear(); // State-only; ErrorBar::update retries on next tick.
+        // State-only; update() retries on next tick.
+        ErrorStore::clear();
         return;
     }
     ErrorStore::clear();
     setExpanded(false);
 }
 
-// Per-row dismiss buttons. `getAll` returns newest-first into the same row
-// slots, so the `i` index baked into the lambda's user_data maps directly to
-// ErrorStore's newest-first row index (issue #898). Same heap guard as the
-// header dismiss (#973).
+// Row index maps to ErrorStore's newest-first ordering (#898). Same heap guard (#973).
 static void onRowDismissClicked(lv_event_t *e) {
     lv_event_stop_bubbling(e);
     const uintptr_t row = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
@@ -172,10 +148,6 @@ static void onRowDismissClicked(lv_event_t *e) {
         setExpanded(false);
 }
 
-// Outer container — flush to the bottom of lv_layer_top(). Height tracks the
-// detail panel's visibility (LV_SIZE_CONTENT) so the collapsed bar is always
-// exactly BAR_H and the expanded variant grows just enough to show its
-// scrollable rows (#642).
 static lv_obj_t *createContainer() {
     lv_obj_t *c = lv_obj_create(lv_layer_top());
     lv_obj_set_width(c, LV_HOR_RES);
@@ -192,13 +164,11 @@ static lv_obj_t *createContainer() {
     lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(c, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-    lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN); // Hidden until first error
+    lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(c, onContainerGesture, LV_EVENT_GESTURE, nullptr);
     return c;
 }
 
-// Header row — always visible when bar is shown. Populates the file-scope
-// label/button slots so `update()` and the dismiss callback can reach them.
 static void buildHeaderRow(lv_obj_t *parent) {
     s_headerRow = lv_obj_create(parent);
     lv_obj_set_size(s_headerRow, LV_PCT(100), BAR_H);
@@ -227,9 +197,7 @@ static void buildHeaderRow(lv_obj_t *parent) {
     lv_obj_add_event_cb(s_dismissBtn, onHeaderDismissClicked, LV_EVENT_CLICKED, nullptr);
 }
 
-// Detail panel — shown when expanded. Caps rendered height so the drawer never
-// pushes past the dashboard; beyond DETAIL_MAX_H the rows scroll inside the
-// panel (#642).
+// Capped height — rows scroll inside the panel past DETAIL_MAX_H (#642).
 static lv_obj_t *createDetailPanel(lv_obj_t *parent) {
     lv_obj_t *p = lv_obj_create(parent);
     lv_obj_set_width(p, LV_PCT(100));
@@ -249,9 +217,6 @@ static lv_obj_t *createDetailPanel(lv_obj_t *parent) {
     return p;
 }
 
-// One detail row + its labels + per-row dismiss button. Index `i` is wired to
-// the dismiss callback's user_data in `ErrorBar::init` so it maps to the same
-// newest-first slot used by `update()` when calling `ErrorStore::dismissAt(i)`.
 static void buildDetailRow(lv_obj_t *panel, uint8_t i) {
     s_detailRows[i] = lv_obj_create(panel);
     lv_obj_set_size(s_detailRows[i], LV_PCT(100), ROW_H);
@@ -271,13 +236,8 @@ static void buildDetailRow(lv_obj_t *panel, uint8_t i) {
     lv_label_set_long_mode(s_detailMsg[i], LV_LABEL_LONG_DOT);
     lv_obj_set_flex_grow(s_detailMsg[i], 1);
 
-    // Per-row dismiss button — captures row index via static array offset
     s_detailDism[i] = makeDismissBtn(s_detailRows[i]);
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 void ErrorBar::init() {
     s_container = createContainer();
@@ -287,8 +247,6 @@ void ErrorBar::init() {
     for (uint8_t i = 0; i < MAX_ROWS; i++) {
         buildDetailRow(s_detailPanel, i);
     }
-    // Wire per-row dismiss callbacks in a second pass — keeps row construction
-    // and event wiring as separable phases.
     for (uint8_t i = 0; i < MAX_ROWS; i++) {
         lv_obj_add_event_cb(s_detailDism[i], onRowDismissClicked, LV_EVENT_CLICKED,
                             reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
@@ -301,12 +259,10 @@ void ErrorBar::update() {
 
     const uint32_t version = ErrorStore::getVersion();
     if (version == s_lastVersion)
-        return; // Nothing changed
+        return;
 
-    // Defer the visual sync when the LVGL pool is too fragmented to safely
-    // reflow (#973). Leave `s_lastVersion` untouched so the next tick (or
-    // the one after, once the heap has coalesced enough) picks the new
-    // version up and finishes the visual update.
+    // Defer the visual sync when the LVGL pool is too fragmented (#973).
+    // Leaving s_lastVersion untouched lets the next tick retry.
     if (!heapHealthyForLvglUpdate())
         return;
 
@@ -323,14 +279,10 @@ void ErrorBar::update() {
     // Show bar
     lv_obj_clear_flag(s_container, LV_OBJ_FLAG_HIDDEN);
 
-    // Fetch all errors (newest first)
     FwError errors[MAX_ROWS];
     uint8_t fetched = 0;
     ErrorStore::getAll(errors, &fetched, MAX_ROWS);
 
-    // ---------------------------------------------------------------------------
-    // Update header (latest = errors[0])
-    // ---------------------------------------------------------------------------
     {
         char codeBuf[20];
         snprintf(codeBuf, sizeof(codeBuf), "%s:%s", srcLabel(errors[0].source), errors[0].code);
@@ -347,9 +299,6 @@ void ErrorBar::update() {
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Update detail rows
-    // ---------------------------------------------------------------------------
     for (uint8_t i = 0; i < MAX_ROWS; i++) {
         if (!s_detailRows[i])
             continue;
@@ -364,7 +313,6 @@ void ErrorBar::update() {
         }
     }
 
-    // Re-align to bottom after the LV_SIZE_CONTENT-driven height change so
-    // the bar stays flush with the bottom edge regardless of row count.
+    // Re-align after the SIZE_CONTENT height change.
     lv_obj_align(s_container, LV_ALIGN_BOTTOM_MID, 0, 0);
 }
