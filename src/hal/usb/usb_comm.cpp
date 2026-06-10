@@ -49,8 +49,7 @@ const TeleEntry TELE_SIGNALS[] = {
 constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
 
 #ifdef ARDUINO
-// Logger mutex protects against interleaving with LOG_* from other tasks;
-// drop through on failure so a busy logger doesn't lose a command ack.
+// Drops through on lock failure so a busy logger can't lose a command ack.
 void serialSink(const char *data, size_t len) {
     if (!data || len == 0)
         return;
@@ -66,34 +65,20 @@ void serialSink(const char *data, size_t len) {
 void serialSink(const char *, size_t) {}
 #endif
 
-// Recursive — kept recursive so a handler that calls sendLine() while a
-// caller already holds the lock (e.g. nested error paths inside an aux-sink
-// registration window) never self-deadlocks. The lock is no longer held
-// across handleCommand() since #1286 — see t_dispatchSink below — but the
-// recursive semantics stay so future call paths remain safe by construction.
+// Recursive — nested error paths in aux-sink registration can self-invoke.
 SemaphoreHandle_t s_sinkMutex = nullptr;
 UsbComm::SendSink s_sink = &serialSink;
 UsbComm::SendSink s_auxSink = nullptr;
 
-// BurnOverlay observer callbacks (#1207 #1314). Slots are written by
-// UsbComm::setBurnOverlayShow{,Error}Callback and read by
-// UsbCommInternal::invokeBurnOverlay{Show,ShowError}. Single writer (boot
-// setup), multiple readers (any task that drives a PUT_CONFIG dispatch), and
-// pointer-sized so the relaxed read is torn-free on ESP32 — no extra mutex.
+// Single writer at boot, pointer-sized reads are torn-free on ESP32 (#1207, #1314).
 UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
 UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
 
-// Per-task dispatch sink — set by handleLine() while a command is in flight on
-// the current task. sendLine() consults this BEFORE the global s_sink so we no
-// longer need to hold the sink mutex across the whole handler dispatch (which
-// could block other tasks' sendLine for the ~100-200 ms a PUT_CONFIG burn
-// takes to acquire the LVGL mutex). thread_local gives each FreeRTOS task its
-// own pointer so two transports dispatching concurrently route their replies
-// to the correct caller. Issue #1286.
+// Per-task dispatch sink — consulted before s_sink so we don't hold the mutex
+// across handleCommand()'s ~200 ms LVGL wait during PUT_CONFIG (#1286).
 thread_local UsbComm::SendSink t_dispatchSink = nullptr;
 
-// Bounded timeout — fall through unprotected on timeout to keep the
-// degrade-don't-drop policy of the legacy Logger::lockUart path.
+// Degrade-don't-drop — fall through unprotected on timeout.
 bool lockSink() {
     if (!s_sinkMutex)
         return false;
@@ -112,15 +97,13 @@ static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
 
 size_t s_rxPos = 0;
 
-// Drop everything until the next newline so a partial buffer can't be reused
-// as a fresh command and the line_too_long error has time to flush back.
+// Drains to next newline so a partial buffer can't be misread as a command.
 bool s_rxDraining = false;
 
 uint8_t s_tickCount = 0;
 constexpr uint8_t TELE_PERIOD_TICKS = 10;
 
-// Written by CAN task (core 0), read by USB task (core 1) under portMUX
-// so the two-word struct isn't torn across a core boundary.
+// portMUX guards the two-word read against CAN-task (core 0) writes.
 struct CanHealthStats {
     uint32_t fpsX10;
     uint32_t errors;
@@ -134,7 +117,7 @@ constexpr size_t TELE_BUF_SIZE = 768;
 void sendTelemetry() {
     char buf[TELE_BUF_SIZE];
     char *p = buf;
-    const char *end = buf + TELE_BUF_SIZE - 2; // reserve \n\0
+    const char *end = buf + TELE_BUF_SIZE - 2;
 
     const char *prefix = "{\"tele\":1,\"v\":{";
     size_t prefixLen = strlen(prefix);
@@ -156,8 +139,6 @@ void sendTelemetry() {
         }
         first = false;
 
-        // FloatFormat::formatGeneral mimics %.3g without pulling in newlib's
-        // float printf family.
         int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":", TELE_SIGNALS[i].name);
         if (n <= 0 || p + n >= end)
             break;
@@ -179,19 +160,14 @@ void sendTelemetry() {
     }
 }
 
-// Drain queued CAN scan frames and write them to Serial.
-// Each frame is serialized as: {"can":1,"id":<id>,"len":<n>,"d":[b0,...,bn]}\n
-// Called from tick() on the USB task — single writer, safe to call Serial.print().
+// Cap at 32 frames/tick so telemetry isn't starved.
 void drainCanScanQueue() {
     UsbComm::CanScanFrame frame;
-    // Drain at most 32 frames per tick to avoid blocking telemetry
     uint8_t drained = 0;
     while (drained < 32 && UsbCommInternal::canScanQueueTryReceive(frame)) {
-        // Max line length: {"can":1,"id":536870911,"len":8,"d":[255,255,255,255,255,255,255,255]}
-        // ≈ 70 chars — 96-byte buffer is safe.
         char buf[96];
         char *p = buf;
-        const char *limit = buf + sizeof(buf) - 4; // reserve \n\0
+        const char *limit = buf + sizeof(buf) - 4;
 
         p += snprintf(p, static_cast<size_t>(limit - p), "{\"can\":1,\"id\":%lu,\"len\":%u,\"d\":[",
                       static_cast<unsigned long>(frame.id), static_cast<unsigned>(frame.len));
@@ -218,32 +194,17 @@ void drainCanScanQueue() {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Cross-module storage owned by this TU — declared in usb_comm_internal.h so
-// usb_dispatch.cpp + usb_config_sync.cpp can reach the RX buffer and the
-// host-activity timestamp without going through accessor calls on the hot
-// path.
-// ---------------------------------------------------------------------------
-
+// Reached directly by usb_dispatch.cpp + usb_config_sync.cpp on the hot path.
 namespace UsbCommInternal {
 char *s_rxBuf = nullptr;
 volatile uint32_t s_lastHostCmdMs = 0;
 } // namespace UsbCommInternal
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void UsbComm::reserveRxBuf() {
     if (UsbCommInternal::s_rxBuf) {
         return;
     }
-    // Prefer PSRAM (16 KB is cheap there) so internal DRAM stays available
-    // for the WiFi / NimBLE stacks. Fall back to internal DRAM on no-PSRAM
-    // boards (WROOM) — the per-byte Serial.read() in tick() can absorb the
-    // small PSRAM cache penalty. Halt on alloc failure: USB is a hard
-    // dependency for provisioning and silently degrading would lock the
-    // user out.
+    // PSRAM first — keeps internal DRAM for NimBLE. Falls back on WROOM.
     UsbCommInternal::s_rxBuf =
         static_cast<char *>(heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_SPIRAM));
     if (!UsbCommInternal::s_rxBuf) {
@@ -251,11 +212,7 @@ void UsbComm::reserveRxBuf() {
             heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     }
     if (!UsbCommInternal::s_rxBuf) {
-        // Used to halt here, but on heap-starved boots the BLE realloc fails
-        // afterwards anyway. Logging + leaving rxBuf NULL lets the rest of
-        // the system boot; init()/tick() degrade the USB receive path
-        // silently so the user can still reach Settings via BLE and recover.
-        // Should not trip post-#1351 (WiFi stack removed → ~80 KB more heap).
+        // init()/tick() degrade silently — user can still reach Settings via BLE.
         LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", USB_RX_BUF_SIZE);
     }
 }
@@ -264,31 +221,21 @@ void UsbComm::init() {
     s_rxPos = 0;
     s_rxDraining = false;
     s_tickCount = 0;
-    // Defensive — happy path is reserveRxBuf() from setup() before lv_init();
-    // this fallback only fires if main.cpp skipped that call.
+    // Happy path is reserveRxBuf() from setup() before lv_init().
     if (!UsbCommInternal::s_rxBuf) {
         reserveRxBuf();
     }
     if (!UsbCommInternal::s_rxBuf) {
-        // Heap exhausted (WROOM + missing SPIFFS) — skip rest of init; tick()
-        // will short-circuit on null rxBuf too.
         return;
     }
     memset(UsbCommInternal::s_rxBuf, 0, USB_RX_BUF_SIZE);
     if (!s_sinkMutex) {
         s_sinkMutex = xSemaphoreCreateRecursiveMutex();
         if (!s_sinkMutex) {
-            // No fatal halt — sendLine() falls back to the unprotected sink
-            // call on lock failure, so a missing mutex degrades to "no
-            // serialisation against handleLine()" which is still correct as
-            // long as TCP and USB never dispatch concurrently.
             LOG_WARN("USB", "Sink mutex alloc failed — TCP/USB will not serialise");
         }
     }
     UsbCommInternal::initResponseBufferMutex();
-    // s_canScanQueue (owned by usb_dispatch.cpp) is allocated lazily on first
-    // CMD_CAN_SCAN_START so we don't carry ~1 KB of DRAM for a feature that's
-    // rarely used (#976).
     LOG_INFO("USB", "USB comm initialized");
 }
 
@@ -297,24 +244,11 @@ void UsbComm::sendLine(const char *line) {
         return;
     const size_t len = strlen(line);
 
-    // Per-task dispatch sink shortcut: if the current task is inside a
-    // handleLine() dispatch, route the reply to that caller's sink directly.
-    // Reading a thread_local pointer is race-free without the sink mutex,
-    // which lets the dispatch hold no global locks across the command body
-    // (#1286 — was a 50 ms tail on every other transport's telemetry).
+    // Per-task dispatch sink avoids global locks across command body (#1286).
     const SendSink dispatch = t_dispatchSink;
 
-    // Snapshot the global sink pointers under the sink mutex so a concurrent
-    // setAuxSink() never exposes a half-written value. The actual sink
-    // invocations run AFTER releasing the mutex so a slow sink (e.g. a TCP
-    // write to a saturated client) cannot block another task's logger
-    // output behind us.
-    //
-    // On lock-timeout we drop the message rather than reading s_sink /
-    // s_auxSink unprotected. A concurrent setAuxSink() write could otherwise
-    // expose a torn / alien pointer to other tasks during one dispatch
-    // window. Dropping one telemetry tick is preferable to invoking a sink
-    // we cannot prove is current. Issue #1286.
+    // Snapshot under mutex, invoke after release — slow sink can't block others.
+    // Drop on timeout rather than reading torn pointers.
     if (!lockSink()) {
         LOG_DEBUG("USB", "sendLine: sink lock timeout — dropping (%u B)",
                   static_cast<unsigned>(len));
@@ -334,14 +268,8 @@ void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
     if (!line || len == 0 || !sink)
         return;
 
-    // Record the per-call sink in a thread_local so sendLine() routes replies
-    // back to this caller without us having to hold the sink mutex across the
-    // whole command body. Previously we swapped the global s_sink under the
-    // mutex and kept it locked until handleCommand() returned — that put a
-    // 100-200 ms tail on every other transport's sendLine when a PUT_CONFIG
-    // hit the LVGL mutex. The thread_local is per-task (USB tick vs WiFi
-    // TCP/WS tasks each get their own pointer) so concurrent dispatches do
-    // not stomp each other. Issue #1286.
+    // thread_local lets sendLine() route replies without holding the sink mutex
+    // across the command body — was a 100-200 ms tail per PUT_CONFIG (#1286).
     const SendSink saved = t_dispatchSink;
     t_dispatchSink = sink;
 
@@ -349,7 +277,7 @@ void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
 
     t_dispatchSink = saved;
 
-    (void)len; // reserved for future length-aware dispatch paths
+    (void)len;
 }
 
 bool UsbComm::hasAuxSink() {
