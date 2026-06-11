@@ -570,13 +570,13 @@
       "showTopBar": true,
       "widgets": [
         {
-          "id": "btn_map1",
+          "id": "btn_map_cycle",
           "type": "button",
           "signal": "",
           "layout": {
             "x": 0,
             "y": 0,
-            "w": 160,
+            "w": 320,
             "h": 112,
             "zOrder": 0
           },
@@ -590,63 +590,42 @@
           },
           "config": {
             "type": "button",
-            "mode": "single",
-            "label": "MAP 1",
+            "mode": "cycle",
+            "label": "MAP",
             "iconName": "map_icon",
             "showLabel": true,
             "showIcon": true,
-            "isToggle": false,
             "colors": {
               "normal": "#3A1212",
               "active": "#FF4444"
             },
-            "actions": [
+            "states": [
               {
-                "category": "ecu",
-                "type": "map_switch",
-                "mapIndex": 1
-              }
-            ]
-          }
-        },
-        {
-          "id": "btn_map2",
-          "type": "button",
-          "signal": "",
-          "layout": {
-            "x": 160,
-            "y": 0,
-            "w": 160,
-            "h": 112,
-            "zOrder": 0
-          },
-          "style": {
-            "primaryColor": "#FF4444",
-            "secondaryColor": "#1A1A1A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 16
-          },
-          "config": {
-            "type": "button",
-            "mode": "single",
-            "label": "MAP 2",
-            "iconName": "map_icon",
-            "showLabel": true,
-            "showIcon": true,
-            "isToggle": false,
-            "colors": {
-              "normal": "#3A1212",
-              "active": "#FF4444"
-            },
-            "actions": [
+                "label": "MAP 1",
+                "action": {
+                  "category": "ecu",
+                  "type": "map_switch",
+                  "mapIndex": 1
+                }
+              },
               {
-                "category": "ecu",
-                "type": "map_switch",
-                "mapIndex": 2
+                "label": "MAP 2",
+                "action": {
+                  "category": "ecu",
+                  "type": "map_switch",
+                  "mapIndex": 2
+                }
+              },
+              {
+                "label": "MAP 3",
+                "action": {
+                  "category": "ecu",
+                  "type": "map_switch",
+                  "mapIndex": 3
+                }
               }
-            ]
+            ],
+            "initialActiveIndex": 0
           }
         },
         {
