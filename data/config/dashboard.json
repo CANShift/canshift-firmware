@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift demo dashboard — coherent 4-page layout (overview, engine, fluids, controls). Sizes restricted to L (160×56) and XL (160×112) per issue #131; horizontal bars use H-FULL (320×28). Gauges pin `iconName` to opt into the semantic two-zone sensor palette (#954).",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
   "defaultPageId": "overview",
@@ -590,6 +590,7 @@
           },
           "config": {
             "type": "button",
+            "mode": "single",
             "label": "MAP 1",
             "iconName": "map_icon",
             "showLabel": true,
@@ -629,6 +630,7 @@
           },
           "config": {
             "type": "button",
+            "mode": "single",
             "label": "MAP 2",
             "iconName": "map_icon",
             "showLabel": true,
@@ -668,6 +670,7 @@
           },
           "config": {
             "type": "button",
+            "mode": "single",
             "label": "Launch",
             "iconName": "launch",
             "showLabel": true,
@@ -709,6 +712,7 @@
           },
           "config": {
             "type": "button",
+            "mode": "single",
             "label": "Anti-lag",
             "iconName": "flame",
             "showLabel": true,
