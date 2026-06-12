@@ -125,20 +125,41 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
 }
 
 // Mirrors label_widget.cpp's helper. Fractional output includes the dot.
+// When the value has no decimal but more than 3 integer digits, splits the
+// tail (last 3 digits) into fracOut so the small font scales those — matches
+// the tuner's wide-int RPM rendering (5200 → "5" + "200").
 static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
                          size_t fracCap) {
+    if (fracCap > 0)
+        fracOut[0] = '\0';
     const char *dot = strchr(in, '.');
-    if (!dot) {
-        strlcpy(intOut, in, intCap);
-        if (fracCap > 0)
-            fracOut[0] = '\0';
+    if (dot) {
+        const size_t intLen = static_cast<size_t>(dot - in);
+        const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
+        memcpy(intOut, in, copyInt);
+        intOut[copyInt] = '\0';
+        strlcpy(fracOut, dot, fracCap);
         return;
     }
-    const size_t intLen = static_cast<size_t>(dot - in);
-    const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
-    memcpy(intOut, in, copyInt);
-    intOut[copyInt] = '\0';
-    strlcpy(fracOut, dot, fracCap);
+    const size_t total = strlen(in);
+    const char *digits = in;
+    size_t digitCount = total;
+    bool negative = false;
+    if (total > 0 && in[0] == '-') {
+        negative = true;
+        digits = in + 1;
+        digitCount = total - 1;
+    }
+    if (digitCount > 3 && fracCap >= 4) {
+        const size_t headLen = digitCount - 3;
+        const size_t copyHead = headLen + (negative ? 1u : 0u);
+        const size_t safeHead = copyHead < intCap - 1 ? copyHead : intCap - 1;
+        memcpy(intOut, in, safeHead);
+        intOut[safeHead] = '\0';
+        strlcpy(fracOut, digits + headLen, fracCap);
+        return;
+    }
+    strlcpy(intOut, in, intCap);
 }
 
 struct GaugeTag {
@@ -239,9 +260,8 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
     return FontManager::secondary(20);
 }
 
-// Negative Y nudge keeps value clear of bottom-anchored widget label (#1241).
-static constexpr int16_t kValueRowYOffset = -8;
-static constexpr int16_t kUnitLabelYOffset = 16;
+static constexpr int16_t kValueRowYOffset = 0;
+static constexpr int16_t kUnitLabelYOffset = 22;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
@@ -268,9 +288,17 @@ static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint
     return label;
 }
 
+static bool canBeWideInt(const CfgWidget &cfg) {
+    if (cfg.gauge.decimalPlaces != 0)
+        return false;
+    if (cfg.gauge.prefix != nullptr && cfg.gauge.prefix[0] != '\0')
+        return false;
+    return cfg.gauge.maxValue >= 1000.0f || cfg.gauge.minValue <= -1000.0f;
+}
+
 static lv_obj_t *buildFracLabel(lv_obj_t *valueRow, const CfgWidget &cfg, uint8_t intFontSize,
                                 uint32_t textRgb) {
-    if (cfg.gauge.decimalPlaces == 0)
+    if (cfg.gauge.decimalPlaces == 0 && !canBeWideInt(cfg))
         return nullptr;
     lv_obj_t *fracLabel = lv_label_create(valueRow);
     if (!fracLabel)
@@ -353,7 +381,7 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t tex
     outUnit = buildUnitLabel(cont, unitText, textRgb);
     // Auto signal header is the only label path on arc gauges (#1244).
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
-                                          WidgetLabelOverlay::HeaderPos::BOTTOM_LEFT);
+                                          WidgetLabelOverlay::HeaderPos::TOP_LEFT);
     (void)textRgb;
 }
 

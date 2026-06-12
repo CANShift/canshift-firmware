@@ -103,7 +103,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     lv_obj_t *fracLabel = nullptr;
-    if (cfg.label.decimalPlaces > 0) {
+    const bool wantsFrac = cfg.label.decimalPlaces > 0 || cfg.label.prefix[0] == '\0';
+    if (wantsFrac) {
         fracLabel = lv_label_create(valueRow);
         if (fracLabel) {
             const uint8_t intSize = pickValueFontSize(valueLineH, cfg.layout.w);
@@ -165,20 +166,41 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 // concatenated visually. Either output may be empty (no fraction → frac
 // is "", no integer-before-dot is impossible by construction of
 // `formatValue`). Sized to the same 40-char buffers used upstream.
+// When the value has no decimal but more than 3 integer digits, splits the
+// tail (last 3 digits) into fracOut so the small font scales them — mirrors
+// the tuner's wide-int rendering (5200 → "5" + "200").
 static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
                          size_t fracCap) {
+    if (fracCap > 0)
+        fracOut[0] = '\0';
     const char *dot = strchr(in, '.');
-    if (!dot) {
-        strlcpy(intOut, in, intCap);
-        if (fracCap > 0)
-            fracOut[0] = '\0';
+    if (dot) {
+        const size_t intLen = static_cast<size_t>(dot - in);
+        const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
+        memcpy(intOut, in, copyInt);
+        intOut[copyInt] = '\0';
+        strlcpy(fracOut, dot, fracCap);
         return;
     }
-    const size_t intLen = static_cast<size_t>(dot - in);
-    const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
-    memcpy(intOut, in, copyInt);
-    intOut[copyInt] = '\0';
-    strlcpy(fracOut, dot, fracCap);
+    const size_t total = strlen(in);
+    const char *digits = in;
+    size_t digitCount = total;
+    bool negative = false;
+    if (total > 0 && in[0] == '-') {
+        negative = true;
+        digits = in + 1;
+        digitCount = total - 1;
+    }
+    if (digitCount > 3 && fracCap >= 4) {
+        const size_t headLen = digitCount - 3;
+        const size_t copyHead = headLen + (negative ? 1u : 0u);
+        const size_t safeHead = copyHead < intCap - 1 ? copyHead : intCap - 1;
+        memcpy(intOut, in, safeHead);
+        intOut[safeHead] = '\0';
+        strlcpy(fracOut, digits + headLen, fracCap);
+        return;
+    }
+    strlcpy(intOut, in, intCap);
 }
 
 void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
