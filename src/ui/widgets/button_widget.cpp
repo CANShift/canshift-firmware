@@ -92,6 +92,7 @@ struct ButtonTag {
     char signalId[CFG_MAX_SIGNAL_LEN];
     // Suppresses signal-driven sync for a short window after a local toggle.
     uint32_t signalSyncIgnoreUntilMs;
+    uint8_t cycleIndex;
 };
 
 // dsc non-null when baked in flash; else path holds SPIFFS path. User iconPath
@@ -181,6 +182,48 @@ void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
     applyButtonVisual(btn, tag, v);
 }
 
+uint32_t cycleNormalColor(const CfgWidget &cfg, const CfgButtonParams &p, const CfgButtonState &s) {
+    if (s.hasColors)
+        return s.colorNormal.rgb;
+    if (p.hasColors)
+        return p.colorNormal.rgb;
+    return cfg.style.primaryColor.rgb;
+}
+
+uint32_t cycleActiveColor(const CfgWidget &cfg, const CfgButtonParams &p, const CfgButtonState &s) {
+    if (s.hasColors)
+        return s.colorActive.rgb;
+    if (p.hasColors)
+        return p.colorActive.rgb;
+    return lightenRgb(cfg.style.primaryColor.rgb, TOGGLE_DERIVED_ACTIVE_DELTA);
+}
+
+void applyCycleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
+    if (!tag.cfg || !tag.params || tag.params->mode != CfgButtonMode::CYCLE)
+        return;
+    if (tag.cycleIndex >= tag.params->statesCount)
+        return;
+    const CfgButtonState &state = tag.params->states[tag.cycleIndex];
+    const uint32_t normalRgb = cycleNormalColor(*tag.cfg, *tag.params, state);
+    const uint32_t activeRgb = cycleActiveColor(*tag.cfg, *tag.params, state);
+
+    ButtonVisual idle;
+    idle.bgColor = normalRgb;
+    idle.bgOpa = BUTTON_BG_OPA_IDLE;
+    idle.borderColor = tag.cfg->style.secondaryColor.rgb;
+    idle.textColor = tag.cfg->style.textColor.rgb;
+    applyButtonVisual(btn, tag, idle);
+
+    lv_obj_set_style_bg_color(btn, lv_color_hex(activeRgb), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(btn, BUTTON_BG_OPA_ACTIVE, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(btn, lv_color_hex(activeRgb), LV_PART_MAIN | LV_STATE_PRESSED);
+
+    if (tag.labelObj) {
+        const char *labelText = state.label[0] != '\0' ? state.label : tag.params->label;
+        lv_label_set_text(tag.labelObj, labelText);
+    }
+}
+
 void btnClickHandler(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED)
         return;
@@ -189,6 +232,15 @@ void btnClickHandler(lv_event_t *e) {
     auto *tag = static_cast<ButtonTag *>(lv_obj_get_user_data(btn));
     if (!tag || !tag->params)
         return;
+
+    if (tag->params->mode == CfgButtonMode::CYCLE) {
+        if (tag->params->statesCount == 0)
+            return;
+        tag->cycleIndex = static_cast<uint8_t>((tag->cycleIndex + 1) % tag->params->statesCount);
+        applyCycleVisualState(btn, *tag);
+        ActionDispatcher::dispatchAction(tag->params->states[tag->cycleIndex].action, true);
+        return;
+    }
 
     if (tag->params->isToggle) {
         tag->toggleActive = !tag->toggleActive;
@@ -259,11 +311,14 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->mapSwitchIndex = 0;
     strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
     tag->signalSyncIgnoreUntilMs = 0;
+    tag->cycleIndex = p.mode == CfgButtonMode::CYCLE ? p.initialActiveIndex : 0;
 
-    for (uint8_t i = 0; i < p.actionsCount; ++i) {
-        if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
-            tag->mapSwitchIndex = p.actions[i].mapIndex;
-            break;
+    if (p.mode == CfgButtonMode::SINGLE) {
+        for (uint8_t i = 0; i < p.actionsCount; ++i) {
+            if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
+                tag->mapSwitchIndex = p.actions[i].mapIndex;
+                break;
+            }
         }
     }
 
@@ -321,6 +376,10 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             lv_obj_set_style_border_color(btn, lv_color_hex(pressed.borderColor),
                                           LV_PART_MAIN | LV_STATE_PRESSED);
         }
+    }
+
+    if (p.mode == CfgButtonMode::CYCLE) {
+        applyCycleVisualState(btn, *tag);
     }
 
     // Active-map badge — green dot in top-right corner, shown when MAP_NUMBER

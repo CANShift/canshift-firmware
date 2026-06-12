@@ -301,6 +301,50 @@ void applyLegacyTargetPageId(JsonObjectConst cfg, CfgButtonParams *out) {
     out->actionsCount = 1;
 }
 
+void parseButtonState(JsonObjectConst stateJson, const char *widgetId, uint8_t stateIndex,
+                      CfgButtonState *out) {
+    strlcpy(out->label, stateJson["label"] | "", CFG_MAX_NAME_LEN);
+    const char *iconName = stateJson["iconName"] | "";
+    out->hasIconName = iconName[0] != '\0';
+    strlcpy(out->iconName, iconName, sizeof(out->iconName));
+
+    JsonObjectConst colors = stateJson["colors"];
+    out->hasColors = !colors.isNull();
+    if (out->hasColors) {
+        parseColor(colors["normal"] | "#FFFFFF", &out->colorNormal);
+        parseColor(colors["active"] | "#FFFFFF", &out->colorActive);
+    } else {
+        out->colorNormal.rgb = 0x000000;
+        out->colorActive.rgb = 0x000000;
+    }
+
+    CfgButtonAction parsed{};
+    parseButtonAction(stateJson["action"], &parsed);
+    if (parsed.type == CfgButtonActionType::UNKNOWN) {
+        LOG_WARN("BTN", "cycle button '%s' state[%u]: unknown action type — coerced to no-op",
+                 widgetId, static_cast<unsigned>(stateIndex));
+    }
+    out->action = parsed;
+}
+
+void parseCycleStates(JsonArrayConst statesArr, const char *widgetId, CfgButtonParams *out) {
+    out->statesCount = 0;
+    if (statesArr.isNull())
+        return;
+    const size_t total = statesArr.size();
+    if (total > CFG_MAX_CYCLE_STATES) {
+        LOG_WARN(
+            "BTN", "cycle button '%s': %u states exceed CFG_MAX_CYCLE_STATES=%u — extras ignored",
+            widgetId, static_cast<unsigned>(total), static_cast<unsigned>(CFG_MAX_CYCLE_STATES));
+    }
+    for (JsonObjectConst stateJson : statesArr) {
+        if (out->statesCount >= CFG_MAX_CYCLE_STATES)
+            break;
+        parseButtonState(stateJson, widgetId, out->statesCount, &out->states[out->statesCount]);
+        out->statesCount++;
+    }
+}
+
 void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParams *out) {
     strlcpy(out->label, cfg["label"] | "", CFG_MAX_NAME_LEN);
     strlcpy(out->iconPath, cfg["iconPath"] | "", CFG_MAX_PATH_LEN);
@@ -309,7 +353,26 @@ void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParam
     out->showIcon = cfg["showIcon"] | true;
     out->showLabel = cfg["showLabel"] | true;
     parseButtonColors(cfg, out);
+
+    const char *modeStr = cfg["mode"] | "single";
+    out->mode = strcmp(modeStr, "cycle") == 0 ? CfgButtonMode::CYCLE : CfgButtonMode::SINGLE;
+
     out->actionsCount = 0;
+    out->statesCount = 0;
+    out->initialActiveIndex = 0;
+
+    if (out->mode == CfgButtonMode::CYCLE) {
+        parseCycleStates(cfg["states"], widgetId, out);
+        const int initial = cfg["initialActiveIndex"] | 0;
+        const uint8_t clamped = out->statesCount == 0 ? 0
+                                : initial < 0         ? 0
+                                : initial >= out->statesCount
+                                    ? static_cast<uint8_t>(out->statesCount - 1)
+                                    : static_cast<uint8_t>(initial);
+        out->initialActiveIndex = clamped;
+        return;
+    }
+
     parseButtonActionsArray(cfg["actions"], widgetId, out);
     if (out->actionsCount == 0)
         applyLegacyTargetPageId(cfg, out);

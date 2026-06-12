@@ -26,6 +26,8 @@
 // Studio writes ButtonWidgetConfig.actions[]; firmware drops any beyond this cap.
 #define CFG_MAX_BUTTON_ACTIONS 4
 
+#define CFG_MAX_CYCLE_STATES 4
+
 // Maximum string lengths for config values
 #define CFG_MAX_ID_LEN 32
 #define CFG_MAX_NAME_LEN 32
@@ -189,7 +191,23 @@ struct CfgButtonAction {
     uint8_t cruiseStepKmh;
 };
 
+enum class CfgButtonMode : uint8_t {
+    SINGLE = 0,
+    CYCLE = 1,
+};
+
+struct CfgButtonState {
+    char label[CFG_MAX_NAME_LEN];
+    char iconName[16];
+    bool hasIconName;
+    bool hasColors;
+    CfgColor colorNormal;
+    CfgColor colorActive;
+    CfgButtonAction action;
+};
+
 struct CfgButtonParams {
+    CfgButtonMode mode;
     char label[CFG_MAX_NAME_LEN];
     char iconPath[CFG_MAX_PATH_LEN];
     char iconName[16]; // SensorIconName key, "" = none
@@ -201,6 +219,9 @@ struct CfgButtonParams {
     CfgColor colorActive; // Pressed / hover / triggered tint
     uint8_t actionsCount;
     CfgButtonAction actions[CFG_MAX_BUTTON_ACTIONS];
+    uint8_t statesCount;
+    uint8_t initialActiveIndex;
+    CfgButtonState states[CFG_MAX_CYCLE_STATES];
 };
 
 struct CfgTimerParams {
