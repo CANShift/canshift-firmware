@@ -1,8 +1,8 @@
 {
-  "_comment": "CANShift demo dashboard — 4-page layout. Engine top row is an RPM sweep (320×112); all other gauges are arcs/numerics. Controls use a cycle button (MAP 1/2/3).",
+  "_comment": "CANShift demo dashboard — 4 pages (overview, engine, fluids, controls). Arcs/numerics only; controls use a 3-state MAP cycle button plus launch + anti-lag toggles.",
   "version": "1.23.0",
   "name": "CANShift Demo",
-  "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
+  "description": "Coherent 4-page demo — overview, engine, fluids, controls",
   "defaultPageId": "overview",
   "revLimitRpm": 7200,
   "topBar": {
@@ -59,10 +59,33 @@
           }
         },
         {
-          "id": "coolant_arc",
+          "id": "rpm_arc",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 28
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "rpm",
+            "minValue": 0,
+            "maxValue": 8000,
+            "dangerLevel": 7000,
+            "decimalPlaces": 0
+          }
+        },
+        {
+          "id": "coolant_l",
           "type": "gauge",
           "signal": "coolant_temp_c",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#44AAFF",
             "secondaryColor": "#2A2A2A",
@@ -73,35 +96,12 @@
           },
           "config": {
             "type": "gauge",
-            "displayStyle": "arc",
+            "displayStyle": "numeric",
             "iconName": "coolant",
             "minValue": 0,
             "maxValue": 120,
             "dangerLevel": 110,
             "decimalPlaces": 0
-          }
-        },
-        {
-          "id": "oil_press_l",
-          "type": "gauge",
-          "signal": "oil_press_bar",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF8800",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "iconName": "oil_pressure",
-            "minValue": 0,
-            "maxValue": 6,
-            "dangerLevel": 0.5,
-            "decimalPlaces": 1
           }
         },
         {
@@ -126,6 +126,44 @@
             "dangerLevel": 10.5,
             "decimalPlaces": 1
           }
+        },
+        {
+          "id": "oil_press_l",
+          "type": "gauge",
+          "signal": "oil_press_bar",
+          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "oil_pressure",
+            "minValue": 0,
+            "maxValue": 6,
+            "dangerLevel": 0.5,
+            "decimalPlaces": 1
+          }
+        },
+        {
+          "id": "gear_l",
+          "type": "gear",
+          "signal": "gear",
+          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 32
+          },
+          "config": { "type": "gear", "decimalPlaces": 0 }
         }
       ]
     },
@@ -136,33 +174,10 @@
       "showTopBar": true,
       "widgets": [
         {
-          "id": "rpm_sweep",
-          "type": "gauge",
-          "signal": "rpm",
-          "layout": { "x": 0, "y": 0, "w": 320, "h": 112, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF4444",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "sweep",
-            "iconName": "rpm",
-            "minValue": 0,
-            "maxValue": 8000,
-            "dangerLevel": 7000,
-            "decimalPlaces": 0
-          }
-        },
-        {
           "id": "boost_arc",
           "type": "gauge",
           "signal": "map_kpa",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -185,7 +200,7 @@
           "id": "gear_xl",
           "type": "gear",
           "signal": "gear",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -194,8 +209,97 @@
             "textColor": "#FFFFFF",
             "fontSize": 48
           },
+          "config": { "type": "gear", "decimalPlaces": 0 }
+        },
+        {
+          "id": "rpm_l",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
           "config": {
-            "type": "gear",
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "rpm",
+            "minValue": 0,
+            "maxValue": 8000,
+            "dangerLevel": 7000,
+            "decimalPlaces": 0
+          }
+        },
+        {
+          "id": "tps_l",
+          "type": "gauge",
+          "signal": "throttle_pos",
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FB8C00",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "throttle",
+            "minValue": 0,
+            "maxValue": 100,
+            "dangerLevel": 95,
+            "decimalPlaces": 0
+          }
+        },
+        {
+          "id": "lambda_l",
+          "type": "gauge",
+          "signal": "lambda_1",
+          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44CC88",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "afr",
+            "minValue": 0.7,
+            "maxValue": 1.3,
+            "dangerLevel": 1.2,
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "id": "iat_l",
+          "type": "gauge",
+          "signal": "iat_c",
+          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#4FC3F7",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "iat",
+            "minValue": -20,
+            "maxValue": 80,
+            "dangerLevel": 60,
             "decimalPlaces": 0
           }
         }
@@ -208,10 +312,33 @@
       "showTopBar": true,
       "widgets": [
         {
-          "id": "fluids_oil_press_arc",
+          "id": "coolant_arc",
+          "type": "gauge",
+          "signal": "coolant_temp_c",
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44AAFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "coolant",
+            "minValue": 0,
+            "maxValue": 120,
+            "dangerLevel": 110,
+            "decimalPlaces": 0
+          }
+        },
+        {
+          "id": "oil_press_arc",
           "type": "gauge",
           "signal": "oil_press_bar",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -226,35 +353,12 @@
             "iconName": "oil_pressure",
             "minValue": 0,
             "maxValue": 6,
-            "dangerLevel": 5.5,
+            "dangerLevel": 0.5,
             "decimalPlaces": 1
           }
         },
         {
-          "id": "fluids_fuel_press_arc",
-          "type": "gauge",
-          "signal": "fuel_press_bar",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF8800",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "arc",
-            "iconName": "fuel",
-            "minValue": 0,
-            "maxValue": 6,
-            "dangerLevel": 5.5,
-            "decimalPlaces": 1
-          }
-        },
-        {
-          "id": "fluids_oil_temp_l",
+          "id": "oil_temp_l",
           "type": "gauge",
           "signal": "oil_temp_c",
           "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
@@ -277,12 +381,12 @@
           }
         },
         {
-          "id": "fluids_iat_l",
+          "id": "fuel_press_l",
           "type": "gauge",
-          "signal": "iat_c",
+          "signal": "fuel_press_bar",
           "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
-            "primaryColor": "#FFFFFF",
+            "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
             "warningColor": "#FF8800",
             "criticalColor": "#FF4444",
@@ -292,11 +396,11 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
-            "iconName": "iat",
-            "minValue": -20,
-            "maxValue": 80,
-            "dangerLevel": 60,
-            "decimalPlaces": 0
+            "iconName": "fuel",
+            "minValue": 0,
+            "maxValue": 6,
+            "dangerLevel": 5.5,
+            "decimalPlaces": 1
           }
         }
       ]
@@ -327,24 +431,12 @@
             "iconName": "map_icon",
             "showLabel": true,
             "showIcon": true,
-            "colors": {
-              "normal": "#3A1212",
-              "active": "#FF4444"
-            },
+            "colors": { "normal": "#3A1212", "active": "#FF4444" },
             "initialActiveIndex": 0,
             "states": [
-              {
-                "label": "MAP 1",
-                "action": { "category": "ecu", "type": "map_switch", "mapIndex": 1 }
-              },
-              {
-                "label": "MAP 2",
-                "action": { "category": "ecu", "type": "map_switch", "mapIndex": 2 }
-              },
-              {
-                "label": "MAP 3",
-                "action": { "category": "ecu", "type": "map_switch", "mapIndex": 3 }
-              }
+              { "label": "MAP 1", "action": { "category": "ecu", "type": "map_switch", "mapIndex": 1 } },
+              { "label": "MAP 2", "action": { "category": "ecu", "type": "map_switch", "mapIndex": 2 } },
+              { "label": "MAP 3", "action": { "category": "ecu", "type": "map_switch", "mapIndex": 3 } }
             ]
           }
         },
@@ -369,18 +461,9 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": true,
-            "colors": {
-              "normal": "#1F1F1F",
-              "active": "#43A047"
-            },
+            "colors": { "normal": "#1F1F1F", "active": "#43A047" },
             "actions": [
-              {
-                "category": "ecu",
-                "type": "can_raw",
-                "frameId": 1312,
-                "data": "01",
-                "dataOff": "00"
-              }
+              { "category": "ecu", "type": "can_raw", "frameId": 1312, "data": "01", "dataOff": "00" }
             ]
           }
         },
@@ -405,18 +488,9 @@
             "showLabel": true,
             "showIcon": true,
             "isToggle": true,
-            "colors": {
-              "normal": "#1F1F1F",
-              "active": "#FF6F00"
-            },
+            "colors": { "normal": "#1F1F1F", "active": "#FF6F00" },
             "actions": [
-              {
-                "category": "ecu",
-                "type": "can_raw",
-                "frameId": 1313,
-                "data": "01",
-                "dataOff": "00"
-              }
+              { "category": "ecu", "type": "can_raw", "frameId": 1313, "data": "01", "dataOff": "00" }
             ]
           }
         }
