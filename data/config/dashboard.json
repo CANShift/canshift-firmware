@@ -1,5 +1,5 @@
 {
-  "_comment": "CANShift demo dashboard — 4-page layout (overview, engine, fluids, controls). Per-page signal dedupe; engine + fluids feature a sweep gauge (320×112) showcase. Controls use a cycle button (MAP 1/2/3).",
+  "_comment": "CANShift demo dashboard — 4-page layout. Engine top row is an RPM sweep (320×112); all other gauges are arcs/numerics. Controls use a cycle button (MAP 1/2/3).",
   "version": "1.23.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo dashboard — overview, engine, fluids, controls",
@@ -82,33 +82,10 @@
           }
         },
         {
-          "id": "iat_overview_l",
-          "type": "gauge",
-          "signal": "iat_c",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#4FC3F7",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "iconName": "iat",
-            "minValue": -20,
-            "maxValue": 80,
-            "dangerLevel": 60,
-            "decimalPlaces": 0
-          }
-        },
-        {
           "id": "oil_press_l",
           "type": "gauge",
           "signal": "oil_press_bar",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -131,7 +108,7 @@
           "id": "battery_l",
           "type": "gauge",
           "signal": "battery_volts",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
             "primaryColor": "#FBC02D",
             "secondaryColor": "#2A2A2A",
@@ -159,10 +136,33 @@
       "showTopBar": true,
       "widgets": [
         {
-          "id": "boost_sweep",
+          "id": "rpm_sweep",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 0, "y": 0, "w": 320, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "sweep",
+            "iconName": "rpm",
+            "minValue": 0,
+            "maxValue": 8000,
+            "dangerLevel": 7000,
+            "decimalPlaces": 0
+          }
+        },
+        {
+          "id": "boost_arc",
           "type": "gauge",
           "signal": "map_kpa",
-          "layout": { "x": 0, "y": 0, "w": 320, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -173,7 +173,7 @@
           },
           "config": {
             "type": "gauge",
-            "displayStyle": "sweep",
+            "displayStyle": "arc",
             "iconName": "boost",
             "minValue": 0,
             "maxValue": 300,
@@ -182,90 +182,21 @@
           }
         },
         {
-          "id": "rpm_l",
-          "type": "gauge",
-          "signal": "rpm",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FF4444",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "iconName": "rpm",
-            "minValue": 0,
-            "maxValue": 8000,
-            "dangerLevel": 7000,
-            "decimalPlaces": 0
-          }
-        },
-        {
-          "id": "gear_l",
+          "id": "gear_xl",
           "type": "gear",
           "signal": "gear",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
             "warningColor": "#FF8800",
             "criticalColor": "#FF4444",
             "textColor": "#FFFFFF",
-            "fontSize": 28
+            "fontSize": 48
           },
           "config": {
             "type": "gear",
             "decimalPlaces": 0
-          }
-        },
-        {
-          "id": "tps_l",
-          "type": "gauge",
-          "signal": "throttle_pos",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#FB8C00",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "iconName": "throttle",
-            "minValue": 0,
-            "maxValue": 100,
-            "dangerLevel": 95,
-            "decimalPlaces": 0
-          }
-        },
-        {
-          "id": "lambda_l",
-          "type": "gauge",
-          "signal": "lambda_1",
-          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
-          "style": {
-            "primaryColor": "#44CC88",
-            "secondaryColor": "#2A2A2A",
-            "warningColor": "#FF8800",
-            "criticalColor": "#FF4444",
-            "textColor": "#FFFFFF",
-            "fontSize": 22
-          },
-          "config": {
-            "type": "gauge",
-            "displayStyle": "numeric",
-            "iconName": "afr",
-            "minValue": 0.7,
-            "maxValue": 1.3,
-            "dangerLevel": 1.2,
-            "decimalPlaces": 2
           }
         }
       ]
@@ -277,10 +208,10 @@
       "showTopBar": true,
       "widgets": [
         {
-          "id": "oil_press_sweep",
+          "id": "fluids_oil_press_arc",
           "type": "gauge",
           "signal": "oil_press_bar",
-          "layout": { "x": 0, "y": 0, "w": 320, "h": 112, "zOrder": 0 },
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -291,8 +222,31 @@
           },
           "config": {
             "type": "gauge",
-            "displayStyle": "sweep",
+            "displayStyle": "arc",
             "iconName": "oil_pressure",
+            "minValue": 0,
+            "maxValue": 6,
+            "dangerLevel": 5.5,
+            "decimalPlaces": 1
+          }
+        },
+        {
+          "id": "fluids_fuel_press_arc",
+          "type": "gauge",
+          "signal": "fuel_press_bar",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "fuel",
             "minValue": 0,
             "maxValue": 6,
             "dangerLevel": 5.5,
@@ -323,12 +277,12 @@
           }
         },
         {
-          "id": "fluids_fuel_press_l",
+          "id": "fluids_iat_l",
           "type": "gauge",
-          "signal": "fuel_press_bar",
+          "signal": "iat_c",
           "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
           "style": {
-            "primaryColor": "#FF8800",
+            "primaryColor": "#FFFFFF",
             "secondaryColor": "#2A2A2A",
             "warningColor": "#FF8800",
             "criticalColor": "#FF4444",
@@ -338,11 +292,11 @@
           "config": {
             "type": "gauge",
             "displayStyle": "numeric",
-            "iconName": "fuel",
-            "minValue": 0,
-            "maxValue": 6,
-            "dangerLevel": 5.5,
-            "decimalPlaces": 1
+            "iconName": "iat",
+            "minValue": -20,
+            "maxValue": 80,
+            "dangerLevel": 60,
+            "decimalPlaces": 0
           }
         }
       ]
