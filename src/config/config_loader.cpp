@@ -14,21 +14,16 @@
 
 namespace ConfigLoaderInternal {
 
-CfgDashboard s_dashboard = {};
+CfgDashboard *s_dashboard = nullptr;
 CfgSignalConfig s_signals = {};
 CfgDeviceConfig s_device = {};
 CfgInputBindings s_inputs = {};
 
-// Single shared rollback snapshot buffer — sized for the larger struct (#458,
-// F-HI-3). loadDashboard/loadSignals run sequentially so a shared buffer is
-// enough. PSRAM-backed on WROVER to reclaim ~5 KB DRAM (#1073).
-static_assert(sizeof(CfgDashboard) >= sizeof(CfgSignalConfig),
-              "rollback snapshot buffer must fit CfgDashboard");
 namespace {
-constexpr size_t kRollbackSnapshotSize = sizeof(CfgDashboard);
+constexpr size_t kRollbackSnapshotSize = sizeof(CfgSignalConfig);
 
 #ifndef BOARD_HAS_PSRAM
-alignas(CfgDashboard) uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
+alignas(CfgSignalConfig) uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
 #endif
 } // namespace
 
@@ -80,7 +75,8 @@ ConfigLoader::LoadResult ConfigLoader::loadAll() {
 }
 
 const CfgDashboard &ConfigLoader::getDashboardConfig() {
-    return ConfigLoaderInternal::s_dashboard;
+    static const CfgDashboard kEmpty{};
+    return ConfigLoaderInternal::s_dashboard ? *ConfigLoaderInternal::s_dashboard : kEmpty;
 }
 const CfgSignalConfig &ConfigLoader::getSignalConfig() {
     return ConfigLoaderInternal::s_signals;

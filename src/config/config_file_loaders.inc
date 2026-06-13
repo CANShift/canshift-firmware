@@ -22,59 +22,45 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <new>
 
 namespace ConfigLoaderInternal {
 
 bool loadDashboard() {
-    // Snapshot the previous in-memory state into the rollback buffer before
-    // touching s_dashboard so we can roll back atomically on any parse failure
-    // (issue #458, audit F-HI-3 / umbrella #1014). All subsequent mutations
-    // write directly into s_dashboard; on failure the snapshot is copied back,
-    // leaving observable state byte-identical to the pre-call value.
-    //
-    // acquireRollbackSnapshot() can return nullptr once PSRAM-backed storage
-    // lands (issue #1073) and the PSRAM alloc fails on a no-PSRAM WROOM
-    // module. Today the BSS-only backend cannot fail; the null guard is the
-    // forward-compatibility hook so the follow-up doesn't need to touch this
-    // function. When snapshot storage is unavailable, parse failures bypass
-    // the memcpy-restore step — the load proceeds with whatever fields got
-    // written, which is the same risk profile as the pre-#458 single-buffer
-    // path (issue #1073 PR body documents the trade-off).
-    uint8_t *snapshot = acquireRollbackSnapshot();
-    if (snapshot) {
-        memcpy(snapshot, &s_dashboard, sizeof(CfgDashboard));
-    }
-
-    JsonDocument doc; // ArduinoJson v7 — dynamic, no capacity() needed
-    if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
-        LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
-        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json unreadable");
-        if (snapshot) {
-            memcpy(&s_dashboard, snapshot, sizeof(CfgDashboard));
-        }
+    auto *out = new (std::nothrow) CfgDashboard{};
+    if (!out) {
+        LOG_ERROR("CFG", "loadDashboard: staging alloc (%u B) failed",
+                  static_cast<unsigned>(sizeof(CfgDashboard)));
+        ErrorStore::push(ERROR_SRC_CONFIG, "OOM", "dashboard staging alloc failed");
         return false;
     }
 
-    strlcpy(s_dashboard.version, doc["version"] | "", sizeof(s_dashboard.version));
-    checkSchemaVersion("dashboard.json", s_dashboard.version);
-    strlcpy(s_dashboard.name, doc["name"] | "", sizeof(s_dashboard.name));
-    strlcpy(s_dashboard.defaultPageId, doc["defaultPageId"] | "",
-            sizeof(s_dashboard.defaultPageId));
-    s_dashboard.revLimitRpm = doc["revLimitRpm"] | 7200.0f;
+    JsonDocument doc;
+    if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
+        LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
+        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json unreadable");
+        delete out;
+        return false;
+    }
+
+    strlcpy(out->version, doc["version"] | "", sizeof(out->version));
+    checkSchemaVersion("dashboard.json", out->version);
+    strlcpy(out->name, doc["name"] | "", sizeof(out->name));
+    strlcpy(out->defaultPageId, doc["defaultPageId"] | "", sizeof(out->defaultPageId));
+    out->revLimitRpm = doc["revLimitRpm"] | 7200.0f;
     // Target screen profile (issues #17, #18). Optional in JSON — pre-#1128
     // dashboards omit it; resolveScreenProfile() in canshift-core treats
     // missing as DEFAULT_SCREEN_PROFILE_ID. Mirror that here so the
     // downstream scale computation (ui/screen_profile.cpp) reads a stable
     // non-empty id and never has to special-case the empty string.
-    strlcpy(s_dashboard.targetProfile, doc["targetProfile"] | "crowpanel-28",
-            sizeof(s_dashboard.targetProfile));
+    strlcpy(out->targetProfile, doc["targetProfile"] | "crowpanel-28", sizeof(out->targetProfile));
     JsonObjectConst topBar = doc["topBar"];
-    s_dashboard.topBar.height = topBar["height"] | 30;
-    parseColor(topBar["bgColor"] | "#111111", &s_dashboard.topBar.bgColor);
-    parseColor(topBar["textColor"] | "#AAAAAA", &s_dashboard.topBar.textColor);
+    out->topBar.height = topBar["height"] | 30;
+    parseColor(topBar["bgColor"] | "#111111", &out->topBar.bgColor);
+    parseColor(topBar["textColor"] | "#AAAAAA", &out->topBar.textColor);
 
     JsonArrayConst topBarLayout = topBar["layout"];
-    s_dashboard.topBar.itemCount = 0;
+    out->topBar.itemCount = 0;
     if (!topBarLayout.isNull()) {
         const size_t total = topBarLayout.size();
         if (total > CFG_MAX_TOPBAR_ITEMS) {
@@ -83,7 +69,7 @@ bool loadDashboard() {
                      static_cast<unsigned>(total), CFG_MAX_TOPBAR_ITEMS);
         }
         for (JsonObjectConst item : topBarLayout) {
-            if (s_dashboard.topBar.itemCount >= CFG_MAX_TOPBAR_ITEMS)
+            if (out->topBar.itemCount >= CFG_MAX_TOPBAR_ITEMS)
                 break;
             CfgTopBarItem tmp{};
             tmp.kind = parseTopBarItemKind(item["type"] | "");
@@ -93,19 +79,19 @@ bool loadDashboard() {
             strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
             if (tmp.kind == TopBarItemKind::UNKNOWN) {
                 LOG_WARN("CFG", "topBar.layout[%u]: unknown type — item dropped",
-                         static_cast<unsigned>(s_dashboard.topBar.itemCount));
+                         static_cast<unsigned>(out->topBar.itemCount));
                 continue; // slot untouched — no stale data risk
             }
-            s_dashboard.topBar.items[s_dashboard.topBar.itemCount++] = tmp;
+            out->topBar.items[out->topBar.itemCount++] = tmp;
         }
     } else {
         // No layout in config — mirror canshift-core DEFAULT_TOP_BAR_LAYOUT
         LOG_INFO("CFG", "topBar.layout missing — applying default layout");
-        uint8_t &n = s_dashboard.topBar.itemCount;
-        auto &items = s_dashboard.topBar.items;
+        uint8_t &n = out->topBar.itemCount;
+        auto &items = out->topBar.items;
         auto addItem = [&](TopBarItemKind kind, TopBarItemPos pos, const char *sig,
                            const char *txt) {
-            // `n` is the ref-captured s_dashboard.topBar.itemCount, set to 0
+            // `n` is the ref-captured out->topBar.itemCount, set to 0
             // above. clang-analyzer's path tracking loses the initialisation
             // across the lambda capture and reports a false-positive
             // uninitialised-deref on the read below.
@@ -129,13 +115,13 @@ bool loadDashboard() {
 
     // Optional day theme (hasDayTheme = false when key absent)
     JsonObjectConst dayThemeJson = doc["dayTheme"];
-    s_dashboard.hasDayTheme = !dayThemeJson.isNull();
-    if (s_dashboard.hasDayTheme) {
-        parseColor(dayThemeJson["bgColor"] | "#DDDDDD", &s_dashboard.dayTheme.bgColor);
+    out->hasDayTheme = !dayThemeJson.isNull();
+    if (out->hasDayTheme) {
+        parseColor(dayThemeJson["bgColor"] | "#DDDDDD", &out->dayTheme.bgColor);
     }
 
     JsonArrayConst pages = doc["pages"];
-    s_dashboard.pageCount = 0;
+    out->pageCount = 0;
     const size_t totalPages = pages.size();
     if (totalPages > CONFIG_MAX_PAGES) {
         LOG_WARN("CFG", "dashboard.json: %u pages exceed CONFIG_MAX_PAGES=%u — extras ignored",
@@ -143,10 +129,10 @@ bool loadDashboard() {
     }
 
     for (JsonObjectConst page : pages) {
-        if (s_dashboard.pageCount >= CONFIG_MAX_PAGES)
+        if (out->pageCount >= CONFIG_MAX_PAGES)
             break;
 
-        CfgPage &p = s_dashboard.pages[s_dashboard.pageCount++];
+        CfgPage &p = out->pages[out->pageCount++];
         strlcpy(p.id, page["id"] | "", CFG_MAX_ID_LEN);
         strlcpy(p.bgImagePath, page["backgroundImage"] | "", CFG_MAX_PATH_LEN);
         parseColor(page["backgroundColor"] | "#1A1A1A", &p.bgColor);
@@ -181,8 +167,11 @@ bool loadDashboard() {
         }
     }
 
-    s_dashboard.loaded = true;
-    LOG_INFO("CFG", "dashboard.json loaded: %d pages", s_dashboard.pageCount);
+    out->loaded = true;
+    LOG_INFO("CFG", "dashboard.json loaded: %d pages", out->pageCount);
+    CfgDashboard *prev = s_dashboard;
+    s_dashboard = out;
+    delete prev;
     return true;
 }
 

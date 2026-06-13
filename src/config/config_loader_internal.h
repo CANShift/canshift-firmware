@@ -30,7 +30,7 @@ namespace ConfigLoaderInternal {
 // Shared config storage (defined in config_loader.cpp)
 // ---------------------------------------------------------------------------
 
-extern CfgDashboard s_dashboard;
+extern CfgDashboard *s_dashboard;
 extern CfgSignalConfig s_signals;
 extern CfgDeviceConfig s_device;
 extern CfgInputBindings s_inputs;
