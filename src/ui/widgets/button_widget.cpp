@@ -21,7 +21,6 @@ namespace {
 
 constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
 
-// Mirrors widget-previews/Button.tsx — needs ScreenProfile scaling for larger panels.
 constexpr int16_t BUTTON_PAD_X = 6;
 constexpr int16_t BUTTON_PAD_Y = 4;
 constexpr int16_t BUTTON_ROW_GAP = 2;
@@ -62,7 +61,6 @@ int16_t computeLabelFontSize(int16_t w, int16_t h, bool showIcon, int16_t iconSi
     return static_cast<int16_t>(fontSize);
 }
 
-// FontManager::label() snaps DOWN — round to nearest explicitly.
 const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
     if (targetPx >= 15)
         return FontManager::label(16);
@@ -74,7 +72,6 @@ const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
 static constexpr int16_t MAP_BADGE_DIAMETER = 7;
 static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44;
 
-// Mirrors Studio (normalColor + '18'/'55').
 constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_10;
 constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = 0x55;
 constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC;
@@ -90,13 +87,10 @@ struct ButtonTag {
     lv_obj_t *activeBadge;
     uint8_t mapSwitchIndex;
     char signalId[CFG_MAX_SIGNAL_LEN];
-    // Suppresses signal-driven sync for a short window after a local toggle.
     uint32_t signalSyncIgnoreUntilMs;
     uint8_t cycleIndex;
 };
 
-// dsc non-null when baked in flash; else path holds SPIFFS path. User iconPath
-// wins over iconName. SPIFFS branches probe — LVGL silently no-ops on missing.
 struct IconSource {
     const lv_img_dsc_t *dsc;
     const char *path;
@@ -121,7 +115,6 @@ IconSource resolveIconAsset(const CfgButtonParams &p, char *pathBuf, size_t path
     return result;
 }
 
-// Derives an "active" tint when the config lacks an explicit colors block (#838).
 constexpr uint32_t TOGGLE_DERIVED_ACTIVE_DELTA = 0x40;
 
 uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
@@ -166,8 +159,6 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     lv_obj_set_style_bg_opa(btn, v.bgOpa, LV_PART_MAIN);
     lv_obj_set_style_border_color(btn, lv_color_hex(v.borderColor), LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
-    // Skip icon recolor on state change — recolor-layer alloc fails under
-    // fragmentation and falls back to "No data" placeholder (#1247 / #1252).
     (void)tag;
     if (tag.labelObj) {
         lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
@@ -247,7 +238,6 @@ void btnClickHandler(lv_event_t *e) {
         applyToggleVisualState(btn, *tag);
         tag->signalSyncIgnoreUntilMs = millis() + BUTTON_SIGNAL_SYNC_GRACE_MS;
 
-        // Optimistic write — CAN echo overrides on arrival, no flicker.
         if (tag->signalId[0] != '\0') {
             const SignalId sid = signalIdFromName(tag->signalId);
             if (sid < SignalIds::SIGNAL_COUNT) {
@@ -260,9 +250,6 @@ void btnClickHandler(lv_event_t *e) {
         ActionDispatcher::dispatchAction(tag->params->actions[i], tag->toggleActive);
     }
 }
-
-// ButtonTag storage comes from the shared WidgetTagPool slab (#1031
-// F-HI-2 follow-up). See ui/widgets/widget_tag_pool.h.
 
 } // namespace
 
@@ -290,7 +277,6 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_set_style_pad_row(btn, BUTTON_ROW_GAP, LV_PART_MAIN);
     }
 
-    // RAII slot guard (#1207).
     WidgetTagPool::Slot<ButtonTag> tagSlot;
     ButtonTag *tag = tagSlot.get();
     if (!tag) {
@@ -329,7 +315,6 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     if (hasIcon) {
         const IconSource icon = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
-        // Heap guard only applies to SPIFFS — baked icons bypass it (#1261).
         const bool heapOk = icon.dsc != nullptr || heap_caps_get_largest_free_block(
                                                        MALLOC_CAP_8BIT) >= LVGL_FS_MIN_HEAP_BYTES;
         const bool hasSrc = icon.dsc != nullptr || tag->lvglPath[0] != '\0';
@@ -342,12 +327,10 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             }
             (void)targetIconSize;
         } else if (hasSrc && !heapOk) {
-            // Skip — button still renders its label/colour cues.
             LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
                      static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
             tag->lvglPath[0] = '\0';
         }
-        // No glyph fallback (#681) — Orbitron lacks the LVGL symbol range.
     }
 
     if (hasLabel) {
@@ -361,14 +344,11 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     {
         const ButtonVisual idle = computeButtonVisual(cfg, p, false);
         applyButtonVisual(btn, *tag, idle);
-        // Recolor ONCE at create — re-apply triggered lv_img redecode under
-        // memory pressure and fell back to the "No data" placeholder.
         if (tag->iconImg) {
             lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(idle.textColor), 0);
             lv_obj_set_style_img_recolor_opa(tag->iconImg, BUTTON_ICON_OPA, 0);
         }
         if (!p.isToggle) {
-            // Toggle drives active state from the latch — only momentary uses PRESSED.
             const ButtonVisual pressed = computeButtonVisual(cfg, p, true);
             lv_obj_set_style_bg_color(btn, lv_color_hex(pressed.bgColor),
                                       LV_PART_MAIN | LV_STATE_PRESSED);
@@ -382,8 +362,6 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         applyCycleVisualState(btn, *tag);
     }
 
-    // Active-map badge — green dot in top-right corner, shown when MAP_NUMBER
-    // matches this button's mapIndex. Only created for map_switch buttons.
     if (tag->mapSwitchIndex != 0) {
         lv_obj_t *badge = lv_obj_create(btn);
         lv_obj_set_size(badge, MAP_BADGE_DIAMETER, MAP_BADGE_DIAMETER);
@@ -411,10 +389,6 @@ void ButtonWidget::update(lv_obj_t *btn) {
     if (!tag)
         return;
 
-    // Signal-driven toggle: sync visual state from ECU signal so it survives
-    // page changes (the local latch resets on widget destruction). The grace
-    // window after a click keeps the local latch authoritative until the ECU
-    // echo can catch up — prevents flicker and re-arm on re-tap (issue #658).
     if (tag->params && tag->params->isToggle && tag->signalId[0] != '\0' &&
         millis() >= tag->signalSyncIgnoreUntilMs) {
         const SignalId sid = signalIdFromName(tag->signalId);
@@ -426,7 +400,6 @@ void ButtonWidget::update(lv_obj_t *btn) {
         }
     }
 
-    // Active-map badge for map_switch buttons.
     if (!tag->activeBadge || tag->mapSwitchIndex == 0)
         return;
 

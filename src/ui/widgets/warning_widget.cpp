@@ -32,7 +32,6 @@ void blinkAnimCb(void *target, int32_t v) {
 void startBlink(WarningTag *tag) {
     lv_anim_init(&tag->blinkAnim);
     lv_anim_set_var(&tag->blinkAnim, tag->root);
-    // Step path — flash, not pulse.
     lv_anim_set_values(&tag->blinkAnim, 0x00, 0xCC);
     lv_anim_set_path_cb(&tag->blinkAnim, lv_anim_path_step);
     lv_anim_set_time(&tag->blinkAnim, BLINK_PERIOD_MS / 2);
@@ -68,7 +67,6 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
     const uint32_t critRgb = cfg.style.criticalColor.rgb;
 
-    // Glyph fallback was removed in #681 — Orbitron lacks the LVGL symbol range.
     lv_obj_t *iconImg = nullptr;
     const void *iconSrc = IconAssets::resolveSource(cfg.warning.iconName);
     if (iconSrc != nullptr) {
@@ -78,7 +76,6 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
     }
 
-    // TODO(#18): thresholds/font sizes hardcoded for the 320×240 canvas.
     lv_obj_t *signalLabel = nullptr;
     if (cfg.layout.h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
@@ -86,13 +83,11 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         signalLabel = lv_label_create(root);
         lv_label_set_text(signalLabel, labelBuf);
         lv_obj_set_style_text_font(signalLabel, FontManager::label(10), 0);
-        // LVGL doesn't blend text against bg — pre-mix a dimmer composite.
         uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
         lv_obj_set_style_text_color(signalLabel, lv_color_hex(labelRgb), 0);
         lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
     }
 
-    // RAII slot guard (#1207) — releases the slot on early-return paths.
     WidgetTagPool::Slot<WarningTag> tagSlot;
     WarningTag *tag = tagSlot.get();
     if (!tag) {
@@ -107,7 +102,6 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     tag->wasActive = false;
     tag->bgColor = critRgb;
     lv_obj_set_user_data(root, tag);
-    // Wipes pending anims before slot release — closes the queued-anim race (#886).
     WidgetHelpers::attachTagDeleter(root, tagSlot.commit());
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
@@ -122,7 +116,6 @@ void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidg
     if (!tag)
         return;
 
-    // Missing/timed-out → blink. Calm widget would hide ECU/wiring faults.
     bool active;
     if (!valid) {
         active = true;

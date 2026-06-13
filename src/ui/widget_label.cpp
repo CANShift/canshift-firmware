@@ -43,7 +43,6 @@ void drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
 
 } // namespace
 
-// Mirrors the Studio dictionary in canshift-studio-web/src/utils/signalLabels.ts.
 const char *displayLabelForSignal(const char *signalId) {
     if (!signalId || signalId[0] == '\0')
         return nullptr;

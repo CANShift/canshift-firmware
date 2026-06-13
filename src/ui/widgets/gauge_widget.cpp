@@ -23,7 +23,6 @@ namespace {
 static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 
-// Matches Studio's gauge-math.ts (SoT per #1183).
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
 static constexpr uint16_t kArcRotation = 135;
@@ -31,7 +30,6 @@ static constexpr uint16_t kArcRotation = 135;
 static constexpr int32_t kMinArcDiam = 40;
 static constexpr int32_t kArcContainerPadding = 8;
 
-// Mirrors GaugeArc.tsx:69 `Math.max(5, r * 0.24)` with r = Math.min(w*0.45, h*0.46).
 static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
     const float r = std::min(static_cast<float>(cfg.layout.w) * 0.45f,
                              static_cast<float>(cfg.layout.h) * 0.46f);
@@ -135,10 +133,6 @@ static int32_t scaleForDisplay(float value, uint8_t decimals) {
     return static_cast<int32_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
 }
 
-// Mirrors label_widget.cpp's helper. Fractional output includes the dot.
-// When the value has no decimal but more than 3 integer digits, splits the
-// tail (last 3 digits) into fracOut so the small font scales those — matches
-// the tuner's wide-int RPM rendering (5200 → "5" + "200").
 static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
                          size_t fracCap) {
     if (fracCap > 0)
@@ -182,7 +176,6 @@ struct GaugeTag {
     float maxValue;
     float lastValue;
     float alertThreshold;
-    // Stored as revLimitRpm - 1.0f so AlertFlash's `>` test triggers at the limit (#263).
     float revFlashThreshold;
     uint16_t dangerAngle;
     bool hasDanger;
@@ -192,16 +185,12 @@ struct GaugeTag {
     const SensorPaletteEntry *palette;
     float dangerLevel;
     AlertFlash::State alert;
-    // 0xFFFFFFFFu sentinel — guarantees first paint (alpha never in 0x00RRGGBB).
     uint32_t lastLabelRgb;
     uint32_t lastFillRgb;
-    // Caches the last pushed angle so EMA noise can't trigger redundant
-    // lv_arc_set_angles invalidations (#1342). 0xFFFFu sentinel.
     uint16_t lastAngle;
     int32_t lastDisplayScaled;
 };
 
-// Lower of alertThreshold (#133) and revFlashThreshold (#263) wins.
 inline float effectiveAlertThreshold(const GaugeTag &tag) {
     const bool hasAlert = !std::isnan(tag.alertThreshold);
     const bool hasRev = !std::isnan(tag.revFlashThreshold);
@@ -223,7 +212,6 @@ static int32_t computeArcDiameter(const CfgWidget &cfg) {
     return diam;
 }
 
-// Palette + gradient modes use a lighter base so the value arc tints cleanly.
 static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, bool paletteMode, bool gradientMode,
                                   uint8_t strokeW) {
     const uint32_t color = (paletteMode || gradientMode) ? kColorGradientBg : kColorBgDim;
@@ -242,18 +230,6 @@ static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
     return fillArc;
 }
 
-// Pick the integer-tier font size by container height. Studio uses the
-// continuous formula `max(11, min(r*0.55, h*0.3, 42))` with `r = min(w*0.45,
-// h*0.46)` (GaugeArc.tsx:77); firmware can only emit baked tiers (20/24
-// Bold, 32/48 Black — 28 Bold was dropped, see font_manager.cpp:46-49).
-// Thresholds picked so each tier minimises the absolute pixel-size delta
-// to Studio at typical widget heights — see PR body for the residual
-// (h≈110: Studio 27 px Black, firmware 24 px Bold — 3 px size delta plus
-// the Bold→Black weight drift the audit lists separately as `med`).
-//
-// TODO(#18): hard-coded against the v1 design canvas (320×240). When a
-// second screen profile lands the thresholds must be scaled with
-// `ScreenProfile::scaleYVal` and the baked sizes must follow.
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
     const int16_t h = cfg.layout.h;
     if (h >= 165) {
@@ -337,7 +313,6 @@ static lv_obj_t *buildUnitLabel(lv_obj_t *cont, const char *unitText, uint32_t t
     return unitLabel;
 }
 
-// `- 1.0f` makes AlertFlash's strict `>` test fire on the limit RPM (#263).
 static float resolveRevFlashThreshold(const CfgWidget &cfg) {
     if (!cfg.gauge.revFlash)
         return NAN;
@@ -359,11 +334,9 @@ static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
     GaugeArcModes m{};
     const float minV = cfg.gauge.minValue;
     const float maxV = cfg.gauge.maxValue;
-    // Real danger threshold requires dangerLevel strictly inside (min, max) (#965).
     m.hasDanger = !std::isnan(cfg.gauge.dangerLevel) && cfg.gauge.dangerLevel > minV &&
                   cfg.gauge.dangerLevel < maxV;
     m.dangerAngle = m.hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
-    // Palette wins over zone tinting when iconName matches (#954).
     m.paletteEntry = SensorPalette::lookup(cfg.gauge.iconName);
     m.paletteMode = m.paletteEntry != nullptr;
     m.gradientMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::GRADIENT);
@@ -391,13 +364,11 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t tex
     outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
     outFrac = buildFracLabel(valueRow, cfg, intFontSize, valueRgb);
     outUnit = buildUnitLabel(cont, unitText, textRgb);
-    // Auto signal header is the only label path on arc gauges (#1244).
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
                                           WidgetLabelOverlay::HeaderPos::TOP_LEFT);
     (void)textRgb;
 }
 
-// Palette wins over per-signal ramp wins over legacy static colors (#430).
 static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built) {
     tag->valueLabel = built.label;
     tag->fracLabel = built.fracLabel;
@@ -405,7 +376,6 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->fillArc = built.fillArc;
     tag->minValue = cfg.gauge.minValue;
     tag->maxValue = cfg.gauge.maxValue;
-    // NaN sentinel forces a first paint even when value happens to be 0.0.
     tag->lastValue = NAN;
     tag->alertThreshold = cfg.gauge.alertThreshold;
     tag->dangerAngle = built.dangerAngle;
@@ -422,7 +392,6 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->revFlashThreshold = resolveRevFlashThreshold(cfg);
 }
 
-// Mount last so it sits above arcs + labels. Tracked labels repaint in lockstep.
 static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg,
                              uint32_t textRgb) {
     AlertFlash::attach(tag->alert, cont);
@@ -458,7 +427,6 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_t *unitLabel = nullptr;
     buildValueCluster(cont, cfg, textRgb, label, fracLabel, unitLabel);
 
-    // RAII slot guard (#1207).
     WidgetTagPool::Slot<GaugeTag> tagSlot;
     GaugeTag *tag = tagSlot.get();
     if (!tag) {
@@ -491,7 +459,6 @@ void GaugeWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     if (tag->unitLabel) {
         lv_obj_set_style_text_color(tag->unitLabel, lv_color_hex(textRgb & 0x888888u), 0);
     }
-    // Invalidate so the next update() repaints across a theme flip.
     tag->lastLabelRgb = 0xFFFFFFFFu;
 }
 
@@ -506,7 +473,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const float displayValue = valid ? value : 0.0f;
 
     if (!valid) {
-        // No signal → "0" placeholder; skip realloc when already shown (#236).
         if (tag->lastValid || !std::isnan(tag->lastValue) || tag->lastValue != 0.0f) {
             char buf[24];
             WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
@@ -527,7 +493,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb,
                                                 cfg.style.primaryColor.rgb);
         }
-        // Cache guarded so sustained-invalid doesn't dirty the arc each tick (#1342).
         if (tag->fillArc && tag->lastAngle != 0u) {
             lv_arc_set_angles(tag->fillArc, 0, 0);
             tag->lastAngle = 0u;
@@ -543,7 +508,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValue = value;
     tag->lastValid = true;
 
-    // Cache the palette/ramp lookup — label + arc previously scanned twice (#1342).
     uint32_t sharedColor = 0;
     bool hasSharedColor = false;
     if (tag->palette) {
@@ -554,8 +518,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         hasSharedColor = true;
     }
 
-    // Skip when AlertFlash owns the colour. No-palette/no-ramp matches
-    // Studio's GaugeArc.tsx: primaryColor below danger, criticalColor above.
     if (!tag->alert.active) {
         uint32_t labelColor;
         if (hasSharedColor) {
@@ -572,10 +534,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         }
     }
 
-    // palette > ramp > gradient > two-zone > white (#965).
     if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
-        // EMA noise rarely flips the uint16_t — cache skips redundant invalidations (#1342).
         if (angle != tag->lastAngle) {
             lv_arc_set_angles(tag->fillArc, 0, angle);
             tag->lastAngle = angle;
@@ -615,8 +575,5 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastDisplayScaled = displayScaled;
     }
 
-    // Drive the threshold flash from the live value (NaN threshold = disabled).
-    // The effective threshold merges alertThreshold (#133) with revFlash (#263);
-    // either trigger pulses the same overlay.
     AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
 }

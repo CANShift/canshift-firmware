@@ -15,7 +15,6 @@
 
 namespace {
 
-// Range calibrated for 320×240 — needs ScreenProfile scaling for larger panels (#18).
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
     const int byWidth = (widgetW * 52) / 100;
@@ -59,15 +58,12 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    // Use full widget height — the value row's +8 px Y bias keeps it clear of
-    // the 14 px header band, and shrinking here drops L cells out of primary(32).
     const int16_t valueLineH = cfg.layout.h;
 
     const lv_font_t *valueFont = valueFontFor(pickValueFontSize(valueLineH, cfg.layout.w));
 
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
-    // [int][frac][unit] flex row — frac renders smaller as a visual subordinate.
     lv_obj_t *valueRow = lv_obj_create(cont);
     if (!valueRow) {
         LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
@@ -81,9 +77,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_pad_column(valueRow, 3, LV_PART_MAIN);
     lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
-    // END cross-axis keeps int/frac/unit baseline-aligned.
     lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    // +8 px clears the auto signal header band above (user feedback 2026-06-01).
     lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 8);
 
     lv_obj_t *label = lv_label_create(valueRow);
@@ -108,7 +102,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         fracLabel = lv_label_create(valueRow);
         if (fracLabel) {
             const uint8_t intSize = pickValueFontSize(valueLineH, cfg.layout.w);
-            // ~70 % of int, mirrors Studio FRAC_FONT_SCALE.
             uint8_t fracSize = static_cast<uint8_t>((intSize * 7) / 10);
             if (fracSize < 12)
                 fracSize = 12;
@@ -129,7 +122,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         }
     }
 
-    // RAII slot guard (#1207).
     WidgetTagPool::Slot<LabelTag> tagSlot;
     LabelTag *tag = tagSlot.get();
     if (!tag) {
@@ -160,15 +152,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     return cont;
 }
 
-// Split a formatted value buffer at the first '.' into integer and
-// fractional substrings. The fractional output includes the dot itself
-// (".3", ".09") so the value reads naturally when the two labels are
-// concatenated visually. Either output may be empty (no fraction → frac
-// is "", no integer-before-dot is impossible by construction of
-// `formatValue`). Sized to the same 40-char buffers used upstream.
-// When the value has no decimal but more than 3 integer digits, splits the
-// tail (last 3 digits) into fracOut so the small font scales them — mirrors
-// the tuner's wide-int rendering (5200 → "5" + "200").
 static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
                          size_t fracCap) {
     if (fracCap > 0)
@@ -211,11 +194,6 @@ void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
         return;
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    // Refresh the static base colour so the next update() sees the new theme
-    // when no ramp / palette override applies. Push the same colour straight
-    // through the `setTextColorIfChanged` cache so the static "0" placeholder
-    // visible while the signal is invalid repaints immediately, without
-    // waiting for a signal-driven tick.
     tag->baseTextRgb = textRgb;
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, textRgb);
     if (tag->fracLabel) {
@@ -231,15 +209,8 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!tag || !tag->valueLabel)
         return;
 
-    // Invalid signals render as "0" so the widget stays visible at all times
-    // (issue #1243) — matches the Studio preview which never blanks. The
-    // previous `hideWhenInvalid` opt-in was dropped in schema 1.20 because
-    // users mistook a hidden voltage / pressure readout for a flashing bug.
     const float displayValue = valid ? value : 0.0f;
 
-    // Skip snprintf + lv_label_set_text when nothing has changed. The text
-    // formatting is purely a function of (displayValue, valid) — same inputs
-    // mean an identical buffer, so the realloc is pure waste.
     const bool unchanged =
         tag->lastValid == valid && !std::isnan(tag->lastValue) && displayValue == tag->lastValue;
     if (!unchanged) {
@@ -259,18 +230,14 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastValid = valid;
     }
 
-    // Tint the value when a ramp is configured (issue #430). Skip during an
-    // alert flash — AlertFlash owns the colour for the duration of the pulse.
     if (tag->ramp && !tag->alert.active) {
         const uint32_t tint = valid ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tint);
         if (tag->fracLabel) {
-            // Re-use the same cached tint so both labels track in lockstep.
             uint32_t fracLast = tag->lastTintRgb;
             WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, tint);
         }
     }
 
-    // Drive the threshold flash from the live value (NaN threshold = disabled).
     AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
 }

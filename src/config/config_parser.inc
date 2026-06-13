@@ -1,10 +1,3 @@
-// config_parser.cpp — Per-type JSON → CfgX struct parsers shared by the file
-// loaders in `config_file_loaders.cpp` (#1207).
-//
-// Extracted from `config_loader.cpp`. Pure transformations: every helper here
-// reads from a JSON node and writes into a caller-owned CfgX struct without
-// touching the shared `s_dashboard` / `s_signals` / etc. storage or doing any
-// I/O. The file loaders drive the per-widget / per-signal walks.
 
 #include "config_loader_internal.h"
 
@@ -18,10 +11,6 @@
 #include <cstring>
 
 namespace ConfigLoaderInternal {
-
-// ---------------------------------------------------------------------------
-// Button-action parser — shared between dashboard buttons and input bindings
-// ---------------------------------------------------------------------------
 
 void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     const char *category = src["category"] | "";
@@ -52,9 +41,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
             break;
         }
         case CfgButtonActionType::CAN_RAW: {
-            // frameId may arrive as int or hex string in studio writes; ArduinoJson
-            // surfaces both as the JSON variant — read as uint32_t when numeric,
-            // otherwise parse the string.
             JsonVariantConst fv = src["frameId"];
             if (fv.is<uint32_t>()) {
                 out->canFrameId = fv.as<uint32_t>();
@@ -62,10 +48,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
                 const char *fs = fv.as<const char *>();
                 out->canFrameId = fs ? static_cast<uint32_t>(strtoul(fs, nullptr, 0)) : 0;
             }
-            // Extended (29-bit) ID flag — issue #319. Optional; default false.
-            // Auto-promote to extended when the configured ID exceeds the
-            // standard 11-bit range so legacy configs that omit the flag but
-            // use a >0x7FF ID still transmit a valid frame.
             const bool extendedFlag = src["extended"] | false;
             const bool needsExtended = out->canFrameId > kCanStandardIdMax;
             out->canExtended = extendedFlag || needsExtended;
@@ -77,9 +59,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
                 out->canExtended = false;
                 break;
             }
-            // Decode hex payload up to 8 bytes. Empty string is allowed and
-            // yields canDataLen=0 (legal DLC=0 frame). Anything malformed or
-            // oversized is demoted to UNKNOWN so the caller skips this action.
             const char *hex = src["data"] | "";
             if (!decodeHexBytes(hex, out->canData, sizeof(out->canData), &out->canDataLen)) {
                 LOG_WARN("CFG", "can_raw: invalid data='%s' (must be ≤16 even-length hex chars)",
@@ -88,7 +67,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
                 out->canDataLen = 0;
                 memset(out->canData, 0, sizeof(out->canData));
             }
-            // Optional disarm payload (toggle-off). Missing = no disarm frame sent.
             const char *hexOff = src["dataOff"] | "";
             if (hexOff[0] != '\0') {
                 if (!decodeHexBytes(hexOff, out->canDataOff, sizeof(out->canDataOff),
@@ -125,10 +103,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Color ramp — used by the signals loader
-// ---------------------------------------------------------------------------
-
 void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef *out) {
     out->count = 0;
     out->interpolate = CfgRampInterp::Linear;
@@ -157,23 +131,13 @@ void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef
         dst.color = parseHexColorValue(color);
         ++out->count;
     }
-    // A single-stop ramp is meaningless — drop it so the renderer falls back
-    // to the default lookup. The validator rejects this in studio, but we
-    // stay defensive against hand-edited JSON.
     if (out->count < 2) {
         out->count = 0;
     }
 }
 
-// ---------------------------------------------------------------------------
-// Widget tree (private helpers in anon namespace, dispatcher exported)
-// ---------------------------------------------------------------------------
-
 namespace {
 
-// alertThreshold: optional NaN sentinel = disabled (issue #133). Several
-// widget config blocks read the same field — factor it out so the per-type
-// parsers stay focused on the fields unique to each widget.
 float readAlertThreshold(JsonObjectConst cfg) {
     return cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
 }
@@ -197,8 +161,6 @@ void parseWidgetStyle(JsonObjectConst style, CfgStyle *out) {
     out->hasBorder = (borderHex != nullptr);
     if (out->hasBorder)
         parseColor(borderHex, &out->borderColor);
-    // respectDayMode default = true preserves the v0.7.0 contract (#171).
-    // Absent or non-bool JSON falls back to true. Issue #191.
     out->respectDayMode = style["respectDayMode"] | true;
 }
 
@@ -223,18 +185,13 @@ void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThres
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
 }
 
-// Gauge widgets in dashboard.json use displayStyle "numeric" / "arc" to encode
-// sub-types — reclassify the outgoing WidgetType here so downstream renderers
-// can stay simple and dispatch on a single enum.
 void parseGaugeWidget(JsonObjectConst cfg, CfgWidget *w) {
     const char *displayStyle = cfg["displayStyle"] | "arc";
     const float alertThreshold = readAlertThreshold(cfg);
     if (strcmp(displayStyle, "numeric") == 0) {
-        // Large numeric readout — render as a label widget.
         w->type = WidgetType::LABEL;
         parseLabelParams(cfg, &w->label, alertThreshold);
     } else {
-        // "arc" or unrecognised — arc gauge keeps WidgetType::GAUGE.
         parseArcGaugeParams(cfg, &w->gauge);
     }
 }
@@ -257,8 +214,6 @@ void parseButtonColors(JsonObjectConst cfg, CfgButtonParams *out) {
     }
 }
 
-// Walk the `actions[]` JSON array, drop UNKNOWN entries with a warning, and
-// cap at CFG_MAX_BUTTON_ACTIONS. `widgetId` is only used for log context.
 void parseButtonActionsArray(JsonArrayConst actionsArr, const char *widgetId,
                              CfgButtonParams *out) {
     if (actionsArr.isNull())
@@ -272,7 +227,7 @@ void parseButtonActionsArray(JsonArrayConst actionsArr, const char *widgetId,
     for (JsonObjectConst a : actionsArr) {
         if (out->actionsCount >= CFG_MAX_BUTTON_ACTIONS)
             break;
-        CfgButtonAction parsed{}; // value-init — parser zero-fills before switching on JSON
+        CfgButtonAction parsed{};
         parseButtonAction(a, &parsed);
         if (parsed.type == CfgButtonActionType::UNKNOWN) {
             LOG_WARN("BTN", "button '%s': unknown action type '%s' — skipped", widgetId,
@@ -283,9 +238,6 @@ void parseButtonActionsArray(JsonArrayConst actionsArr, const char *widgetId,
     }
 }
 
-// Synthesise a single NAV_PAGE action from the deprecated `targetPageId`
-// field so legacy configs (pre-#673) keep navigating. Caller guarantees
-// actionsCount==0 on entry.
 void applyLegacyTargetPageId(JsonObjectConst cfg, CfgButtonParams *out) {
     const char *legacy = cfg["targetPageId"] | "";
     if (legacy[0] == '\0')
@@ -387,9 +339,6 @@ void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
     strlcpy(out->imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
 }
 
-// Gear indicator reuses the label params for prefix/suffix. Kept separate
-// because decimalPlaces is forced to 0 (the firmware always renders a single
-// character) and alertThreshold isn't part of the schema.
 void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
     out->decimalPlaces = 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
