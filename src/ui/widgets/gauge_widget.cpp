@@ -124,6 +124,17 @@ static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicato
     return arc;
 }
 
+static int32_t scaleForDisplay(float value, uint8_t decimals) {
+    static constexpr float kPow10[] = {1.0f, 10.0f, 100.0f, 1000.0f};
+    const uint8_t cappedDecimals = decimals > 3 ? 3 : decimals;
+    const float scaled = value * kPow10[cappedDecimals];
+    if (scaled >= 2147483640.0f)
+        return 2147483640;
+    if (scaled <= -2147483640.0f)
+        return -2147483640;
+    return static_cast<int32_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+}
+
 // Mirrors label_widget.cpp's helper. Fractional output includes the dot.
 // When the value has no decimal but more than 3 integer digits, splits the
 // tail (last 3 digits) into fracOut so the small font scales those — matches
@@ -187,6 +198,7 @@ struct GaugeTag {
     // Caches the last pushed angle so EMA noise can't trigger redundant
     // lv_arc_set_angles invalidations (#1342). 0xFFFFu sentinel.
     uint16_t lastAngle;
+    int32_t lastDisplayScaled;
 };
 
 // Lower of alertThreshold (#133) and revFlashThreshold (#263) wins.
@@ -403,6 +415,7 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastLabelRgb = 0xFFFFFFFFu;
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->lastAngle = 0xFFFFu;
+    tag->lastDisplayScaled = INT32_MIN;
     tag->palette = built.paletteEntry;
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->ramp = built.paletteEntry ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
@@ -585,18 +598,21 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
                                            LV_PART_INDICATOR);
     }
 
-    // strcmp guard — different float can collapse to same string after rounding.
-    char buf[24];
-    WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces, value,
-                               nullptr);
-    if (tag->fracLabel) {
-        char intPart[16];
-        char fracPart[12];
-        splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
-        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
-        WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
-    } else {
-        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+    const int32_t displayScaled = scaleForDisplay(value, cfg.gauge.decimalPlaces);
+    if (displayScaled != tag->lastDisplayScaled) {
+        char buf[24];
+        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
+                                   value, nullptr);
+        if (tag->fracLabel) {
+            char intPart[16];
+            char fracPart[12];
+            splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
+            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
+            WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
+        } else {
+            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+        }
+        tag->lastDisplayScaled = displayScaled;
     }
 
     // Drive the threshold flash from the live value (NaN threshold = disabled).
