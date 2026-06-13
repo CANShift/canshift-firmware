@@ -202,16 +202,18 @@ void handlePutConfig(const char *jsonLine) {
 }
 
 void handleScreenSettings(const JsonObjectConst &obj) {
-    uint8_t brightness = obj["brightness"] | 80;
-
-    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_USB);
-        SettingsPage::applyFromUsb(brightness);
-        xSemaphoreGive(g_lvglMutex);
-    } else {
-        LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
-        return;
+    JsonVariantConst brightnessVar = obj["brightness"];
+    if (!brightnessVar.isNull()) {
+        const uint8_t brightness = brightnessVar.as<uint8_t>();
+        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_USB);
+            SettingsPage::applyFromUsb(brightness);
+            xSemaphoreGive(g_lvglMutex);
+        } else {
+            LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
+            return;
+        }
     }
 
     JsonVariantConst rotationVar = obj["rotation"];

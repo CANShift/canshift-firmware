@@ -106,14 +106,16 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
-        uint8_t brightness = doc["brightness"] | 80;
-
-        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_BLE);
-            SettingsPage::applyFromUsb(brightness);
-            xSemaphoreGive(g_lvglMutex);
+        JsonVariantConst brightnessVar = doc["brightness"];
+        if (!brightnessVar.isNull()) {
+            const uint8_t brightness = brightnessVar.as<uint8_t>();
+            if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_BLE);
+                SettingsPage::applyFromUsb(brightness);
+                xSemaphoreGive(g_lvglMutex);
+            }
+            LOG_DEBUG("BLE", "Settings applied via BLE");
         }
-        LOG_DEBUG("BLE", "Settings applied via BLE");
 
         JsonVariantConst rotationVar = doc["rotation"];
         if (!rotationVar.isNull()) {
