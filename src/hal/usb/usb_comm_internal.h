@@ -23,8 +23,6 @@ void handlePutInputBindings(const JsonObjectConst &obj);
 
 constexpr size_t kTypedPutMaxPayloadBytes = 8192;
 
-void initResponseBufferMutex();
-
 bool canScanModeActive();
 bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame);
 bool canScanQueueTryReceive(UsbComm::CanScanFrame &out);

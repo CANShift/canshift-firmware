@@ -19,11 +19,6 @@
 
 namespace {
 
-bool lockResponseBuffer() {
-    return false;
-}
-void unlockResponseBuffer() {}
-
 class ChunkedAtomicWriter : public Print {
   public:
     size_t write(uint8_t b) override {
@@ -80,8 +75,6 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
 } // namespace
 
 namespace UsbCommInternal {
-
-void initResponseBufferMutex() {}
 
 void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey) {
     if (!StorageDriver::fileExists(path)) {

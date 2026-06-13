@@ -227,7 +227,6 @@ void UsbComm::init() {
             LOG_WARN("USB", "Sink mutex alloc failed — TCP/USB will not serialise");
         }
     }
-    UsbCommInternal::initResponseBufferMutex();
     LOG_INFO("USB", "USB comm initialized");
 }
 

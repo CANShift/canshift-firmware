@@ -135,52 +135,16 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
     #define BLE_DEFAULT_ENABLED 1
 #endif
 
-#ifndef APP_WIFI_OTA_ENABLED
-    #define APP_WIFI_OTA_ENABLED 0
-#endif
-
-#ifndef APP_SPA_SERVE
-    #define APP_SPA_SERVE 0
-#endif
-
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120
 #endif
 #define TASK_PRIO_BLE 6
 #define TASK_CORE_BLE 1
 
-#ifndef TASK_STACK_WIFI
-    #define TASK_STACK_WIFI 4096
-#endif
-#define TASK_PRIO_WIFI 5
-#define TASK_CORE_WIFI 1
-
-#ifndef TASK_STACK_WIFI_TCP
-    #define TASK_STACK_WIFI_TCP 4096
-#endif
-#define TASK_PRIO_WIFI_TCP 5
-#define TASK_CORE_WIFI_TCP 1
-
-#ifndef TASK_STACK_WIFI_WS
-    #define TASK_STACK_WIFI_WS 4096
-#endif
-#define TASK_PRIO_WIFI_WS 5
-#define TASK_CORE_WIFI_WS 1
-
 #define BLE_TELE_INTERVAL_MS 100
 
 #define BLE_MIN_HEAP_BYTES (50U * 1024U)
 #define BLE_GATT_MIN_HEAP_BYTES (24U * 1024U)
-
-#define BLE_WIFI_AP_TIMEOUT_MS (5UL * 60UL * 1000UL)
-
-#ifndef APP_OTA_REQUIRE_HMAC
-    #define APP_OTA_REQUIRE_HMAC 1
-#endif
-
-#ifndef OTA_HMAC_SECRET
-    #define OTA_HMAC_SECRET "DEV_INSECURE_REPLACE_BEFORE_PROD"
-#endif
 
 #define USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256)
 
