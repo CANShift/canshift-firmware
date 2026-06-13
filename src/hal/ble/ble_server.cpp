@@ -106,6 +106,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         if (val.length() > BLE_MAX_WRITE_LEN) {
             LOG_WARN("BLE", "SETTINGS write %u bytes exceeds cap %u — dropping",
                      static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+            pChar->setValue("{\"err\":\"too_long\"}");
             return;
         }
 
