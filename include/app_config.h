@@ -142,10 +142,9 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define CONFIG_JSON_DOC_DASHBOARD 16384
 #define CONFIG_JSON_DOC_SIGNALS 4096
 
-// Static BSS arrays. 4→8 OOM'd CAN+USB init (+25 KB); 5 fits demo + cruise (#1357/#1360).
-// Heap-allocating the page array would retire this static cap (#1359).
-#define CONFIG_MAX_PAGES 5
+#define CONFIG_MAX_PAGES 8
 #define CONFIG_MAX_WIDGETS_PER_PAGE 12
+#define CONFIG_DASHBOARD_HEAP_BUDGET_BYTES (32u * 1024u)
 #define CONFIG_MAX_SIGNALS 32
 
 // Mirrors canshift-core MAX_RAMP_STOPS (#430).
