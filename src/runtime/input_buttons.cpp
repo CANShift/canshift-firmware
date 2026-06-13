@@ -8,6 +8,7 @@
 #include "runtime/signal_store.h"
 
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <string.h>
@@ -106,9 +107,10 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
 void taskInput(void *) {
     TickType_t lastWake = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(INPUT_POLL_PERIOD_MS);
+    const CfgInputBindings &cfg = ConfigLoader::getInputBindings();
 
     while (true) {
-        const CfgInputBindings &cfg = ConfigLoader::getInputBindings();
+        esp_task_wdt_reset();
         const uint32_t nowMs = millis();
         for (size_t i = 0; i < cfg.count && i < CFG_MAX_INPUT_BINDINGS; ++i) {
             const CfgInputBinding &b = cfg.bindings[i];
@@ -147,10 +149,15 @@ void init() {
                  cfg.bindings[i].pin, static_cast<unsigned>(cfg.bindings[i].debounceMs));
     }
 
+    TaskHandle_t inputHandle = nullptr;
     const BaseType_t ok = xTaskCreatePinnedToCore(taskInput, "input", TASK_STACK_INPUT, nullptr,
-                                                  TASK_PRIO_INPUT, nullptr, TASK_CORE_INPUT);
+                                                  TASK_PRIO_INPUT, &inputHandle, TASK_CORE_INPUT);
     if (ok != pdPASS) {
         LOG_ERROR("INPUT", "xTaskCreatePinnedToCore(input) failed");
+    } else if (inputHandle) {
+        const esp_err_t wdtErr = esp_task_wdt_add(inputHandle);
+        if (wdtErr != ESP_OK)
+            LOG_WARN("INPUT", "WDT add(input) failed: %d", static_cast<int>(wdtErr));
     }
     s_initDone = true;
 }
