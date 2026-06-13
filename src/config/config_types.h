@@ -194,7 +194,8 @@ struct CfgPage {
     bool visible;
     CfgPageTemplate templateKind;
     uint8_t widgetCount;
-    CfgWidget widgets[CONFIG_MAX_WIDGETS_PER_PAGE];
+    uint8_t widgetCapacity;
+    CfgWidget *widgets;
 };
 
 enum class TopBarItemKind : uint8_t {
@@ -248,6 +249,16 @@ struct CfgDashboard {
     uint8_t pageCount;
     CfgPage pages[CONFIG_MAX_PAGES];
     bool loaded;
+
+    ~CfgDashboard() {
+        for (auto &page : pages) {
+            delete[] page.widgets;
+            page.widgets = nullptr;
+        }
+    }
+    CfgDashboard() = default;
+    CfgDashboard(const CfgDashboard &) = delete;
+    CfgDashboard &operator=(const CfgDashboard &) = delete;
 };
 
 enum class CfgRampInterp : uint8_t {
