@@ -48,12 +48,16 @@ size_t buildTelemetryPayload(char *buf, size_t bufSize) {
     char *p = buf;
     char *const end = buf + bufSize - 1;
 
+    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::snapshotAll(snap);
+
     *p++ = '{';
     bool first = true;
     for (size_t i = 0; i < BLE_TELE_SIGNAL_COUNT; i++) {
-        if (!SignalStore::isValid(BLE_TELE_SIGNALS[i].id))
+        const SignalId id = BLE_TELE_SIGNALS[i].id;
+        if (!snap[id].valid)
             continue;
-        const float val = SignalStore::read(BLE_TELE_SIGNALS[i].id);
+        const float val = snap[id].smoothed;
 
         if (!first) {
             if (p >= end)

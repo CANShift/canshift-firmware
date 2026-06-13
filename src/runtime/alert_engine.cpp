@@ -217,12 +217,17 @@ void AlertEngine::init() {
 }
 
 void AlertEngine::tick() {
-    float rpm = SignalStore::read(SignalIds::RPM, 0.0f);
-    float coolant = SignalStore::read(SignalIds::COOLANT_TEMP_C, 0.0f);
-    float oilTemp = SignalStore::read(SignalIds::OIL_TEMP_C, 0.0f);
-    float oilPres = SignalStore::read(SignalIds::OIL_PRESS_BAR, 5.0f);
-    float volts = SignalStore::read(SignalIds::BATTERY_VOLTS, 13.0f);
-    float mil = SignalStore::read(SignalIds::FLAG_MIL, 0.0f);
+    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::snapshotAll(snap);
+    const auto readSnap = [&snap](SignalId id, float def) {
+        return snap[id].valid ? snap[id].smoothed : def;
+    };
+    float rpm = readSnap(SignalIds::RPM, 0.0f);
+    float coolant = readSnap(SignalIds::COOLANT_TEMP_C, 0.0f);
+    float oilTemp = readSnap(SignalIds::OIL_TEMP_C, 0.0f);
+    float oilPres = readSnap(SignalIds::OIL_PRESS_BAR, 5.0f);
+    float volts = readSnap(SignalIds::BATTERY_VOLTS, 13.0f);
+    float mil = readSnap(SignalIds::FLAG_MIL, 0.0f);
 
     s_state.revLimiter = evalRevLimiter(rpm);
     s_state.coolantTemp = evalCoolantTemp(coolant);
