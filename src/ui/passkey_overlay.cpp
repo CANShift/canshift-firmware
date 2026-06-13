@@ -7,7 +7,6 @@ namespace {
 
 lv_obj_t *s_overlay = nullptr;
 
-// Caller must hold g_lvglMutex.
 lv_obj_t *createRoot() {
     lv_obj_t *root = lv_obj_create(lv_layer_top());
     lv_obj_set_size(root, LV_HOR_RES, LV_VER_RES);
@@ -42,7 +41,6 @@ void PasskeyOverlay::show(uint32_t passkey) {
     lv_obj_set_style_text_font(prompt, FontManager::label(12), 0);
     lv_obj_align(prompt, LV_ALIGN_CENTER, 0, -48);
 
-    // Zero-pad to 6 digits to match the mobile pairing UI.
     char buf[16];
     const uint32_t shown = passkey % 1000000u;
     snprintf(buf, sizeof(buf), "%06u", static_cast<unsigned>(shown));

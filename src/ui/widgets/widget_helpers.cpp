@@ -43,8 +43,7 @@ int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, 
     if (!out || outLen == 0)
         return 0;
     out[0] = '\0';
-    // Compose manually via FloatFormat — runtime %f corrupts va_args under
-    // no_float_printf.cpp (#305 / #405).
+
     const char *p = prefix ? prefix : "";
     const char *s = suffix ? suffix : "";
 
@@ -88,7 +87,7 @@ const CfgColorRamp *resolveSignalRamp(const char *signalId) {
 }
 
 const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
-    // Per-widget override wins so dashboards can pick e.g. "MPH" over "km/h".
+
     if (configSuffix && configSuffix[0] != '\0')
         return configSuffix;
     if (!signalId || signalId[0] == '\0')
@@ -101,7 +100,7 @@ void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool h
                    uint32_t borderRgb) {
     if (!cont)
         return;
-    // layout.x/y/w/h are design-space (#17, #18); yOffset is already physical.
+
     const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
     const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
     lv_obj_set_pos(cont, px, py);

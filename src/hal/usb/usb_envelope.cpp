@@ -1,5 +1,4 @@
-// Heap-free brace walk over the PUT_CONFIG envelope — full JSON parse would
-// grow the pool to ~21 KB and OOM after the LV_MEM_SIZE bump (#555 / #576).
+
 #include "usb_envelope.h"
 
 #include <string.h>
@@ -37,7 +36,6 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
         return nullptr;
     *outLen = 0;
 
-    // Plain-text needle — the envelope frame `{"cmd":2,...}` is fixed.
     static constexpr char kNeedle[] = "\"payload\"";
     static constexpr size_t kNeedleLen = sizeof(kNeedle) - 1;
     const char *needle = findNeedle(jsonLine, lineLen, kNeedle, kNeedleLen);
@@ -58,7 +56,6 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
     if (cursor >= end || *cursor != '{')
         return nullptr;
 
-    // Brace walk — honours strings + escapes.
     const char *valueStart = cursor;
     int depth = 0;
     bool inString = false;

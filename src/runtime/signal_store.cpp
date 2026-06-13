@@ -1,14 +1,3 @@
-// signal_store.cpp — Thread-safe signal value store
-//
-// CRITICAL-SECTION INVARIANT (issue #877):
-// All portENTER_CRITICAL / portEXIT_CRITICAL pairs below guard
-// s_signals against cross-core access. On ESP32 the IDF implementation
-// is a spinlock plus IRQ-disable on the current core. Inside any such
-// pair you MUST NOT:
-//   - call LOG_* (can block / take another mutex / alloc),
-//   - allocate (new/delete/malloc/free, String, snprintf to heap),
-//   - take any other lock (mutex / semaphore / lv_lock).
-// Violations deadlock or trip the IDF crit-section assert at runtime.
 
 #include "signal_store.h"
 #include "diag/logger.h"
@@ -39,7 +28,7 @@ inline bool idValid(SignalId id) {
 } // namespace
 
 void SignalStore::init() {
-    // NO LOG / NO ALLOC / NO LOCK inside the critical section — see file header.
+
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         s_signals[i] = {.raw = 0.0f,
@@ -60,8 +49,6 @@ void SignalStore::update(SignalId id, float value) {
 
     uint32_t now = millis();
 
-    // Lock spans the read-modify-write so concurrent writers don't clobber
-    // each other's EMA with a stale prevSmoothed (#1008).
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
     const float new_smoothed =
@@ -80,7 +67,6 @@ void SignalStore::set(SignalId id, float value) {
 
     uint32_t now = millis();
 
-    // Canonical overwrite — caller's value IS the truth (synthetic toggle #1285).
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
     sig.raw = value;
@@ -115,8 +101,6 @@ bool SignalStore::anyValid(const SignalId *ids, size_t count) {
     if (ids == nullptr || count == 0)
         return false;
 
-    // NO LOG / NO ALLOC / NO LOCK inside this critical section — see file header (#877).
-    // `idValid()` is a pure compile-time bound check, so it's lock-safe here.
     portENTER_CRITICAL(&s_signalsMux);
     for (size_t i = 0; i < count; ++i) {
         const SignalId id = ids[i];

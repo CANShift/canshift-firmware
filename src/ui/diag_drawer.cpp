@@ -20,7 +20,6 @@ constexpr int16_t PANEL_H = 240;
 constexpr int16_t PANEL_PAD = 6;
 constexpr int16_t ROW_H = 18;
 
-// Sized for XPT2046 jitter (~10 px); ext_click_area widens further.
 constexpr int16_t CLOSE_BTN_SIZE = 36;
 constexpr int16_t CLOSE_BTN_EXT_CLICK_PAD = 12;
 
@@ -45,7 +44,6 @@ struct FlagRow {
     SignalId signalId;
 };
 
-// Mirrors the FRAME 0x374 status bitmask in signals.json.
 const FlagRow s_flags[FLAGS_COUNT] = {
     {"MIL", SignalIds::FLAG_MIL},
     {"Launch", SignalIds::FLAG_LAUNCH_CTRL},
@@ -118,7 +116,7 @@ void buildFlagsSection(lv_obj_t *parent) {
         lv_obj_set_style_pad_column(row, 6, LV_PART_MAIN);
 
         lv_obj_t *badge = lv_obj_create(row);
-        // 12 px — LV_RADIUS_CIRCLE renders a square below 10 px.
+
         lv_obj_set_size(badge, 12, 12);
         lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         lv_obj_set_style_bg_color(badge, lv_color_hex(COL_FLAG_INACTIVE), LV_PART_MAIN);
@@ -214,13 +212,13 @@ const char *errorSrcLabel(ErrorSource src) {
     return "?";
 }
 
-void onCloseReleased(lv_event_t * /*e*/) {
-    // RELEASED — LVGL suppresses CLICKED once scroll starts on the panel.
+void onCloseReleased(lv_event_t *) {
+
     LOG_INFO("DIAG_DRAWER", "close release");
     close();
 }
 
-void onClosePressed(lv_event_t * /*e*/) {
+void onClosePressed(lv_event_t *) {
     LOG_INFO("DIAG_DRAWER", "close press");
 }
 
@@ -259,7 +257,7 @@ void init() {
     lv_obj_set_style_pad_row(s_panel, 2, LV_PART_MAIN);
     lv_obj_set_scroll_dir(s_panel, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(s_panel, LV_SCROLLBAR_MODE_AUTO);
-    // Explicit so a stray applyRowReset copy doesn't strip scroll on the panel.
+
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(s_panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(s_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
@@ -270,11 +268,9 @@ void init() {
     buildScalarsSection(s_panel);
     buildErrorsSection(s_panel);
 
-    // Child of s_panel (FLOATING) so the panel covers the topbar — earlier
-    // sharing lv_layer_top let stray taps flip the day/night toggle.
     s_closeBtn = lv_btn_create(s_panel);
     lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_FLOATING);
-    // PRESS_LOCK survives XPT2046 ±5-10 px jitter that would re-route to s_panel.
+
     lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
@@ -290,7 +286,7 @@ void init() {
     lv_obj_add_event_cb(s_closeBtn, onClosePressed, LV_EVENT_PRESSED, nullptr);
 
     lv_obj_t *closeLabel = lv_label_create(s_closeBtn);
-    // Plain "X" — LV_SYMBOL_CLOSE is not in our Orbitron font.
+
     lv_label_set_text(closeLabel, "X");
     lv_obj_set_style_text_font(closeLabel, FONT_SM(), 0);
     lv_obj_set_style_text_color(closeLabel, lv_color_hex(COL_VALUE), 0);
@@ -305,10 +301,10 @@ void open() {
     if (!s_panel)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    // Topbar init'd after us → defaults z-above; foreground on every open.
+
     lv_obj_move_foreground(s_panel);
     s_open = true;
-    // Force a refresh even if the error version hasn't moved.
+
     s_lastErrorVersion = UINT32_MAX;
     update();
 }
@@ -324,13 +320,8 @@ void update() {
     if (!s_panel || !s_open)
         return;
 
-    // Reaffirm z-top every tick while the drawer is open. open() alone is not
-    // enough — any subsequent z-touching operation on a same-layer sibling
-    // (top bar item rebuild, settings panel show/hide, …) can leave the panel
-    // below the top bar visually, making the X tap target unreachable.
     lv_obj_move_foreground(s_panel);
 
-    // Flags
     for (uint8_t i = 0; i < FLAGS_COUNT; ++i) {
         if (!s_flagBadges[i])
             continue;
@@ -341,7 +332,6 @@ void update() {
         lv_obj_set_style_bg_color(s_flagBadges[i], lv_color_hex(col), LV_PART_MAIN);
     }
 
-    // Scalars
     for (uint8_t i = 0; i < SCALARS_COUNT; ++i) {
         if (!s_scalarValues[i])
             continue;
@@ -360,7 +350,6 @@ void update() {
         lv_label_set_text(s_scalarValues[i], buf);
     }
 
-    // Errors — only re-render when ErrorStore's version moved.
     const uint32_t errVersion = ErrorStore::getVersion();
     if (errVersion != s_lastErrorVersion) {
         s_lastErrorVersion = errVersion;

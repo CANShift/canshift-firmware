@@ -16,8 +16,6 @@
 
 namespace {
 
-// Stack-only serializer (#891) — JsonDocument is heap-backed and would
-// fragment the post-LVGL heap at 10 Hz.
 struct BleTeleEntry {
     SignalId id;
     const char *key;
@@ -44,12 +42,11 @@ constexpr size_t BLE_TELE_SIGNAL_COUNT = sizeof(BLE_TELE_SIGNALS) / sizeof(BLE_T
 
 constexpr int BLE_TELE_SIG_DIGITS = 4;
 
-// Returns bytes written (excluding NUL) or 0 on overflow.
 size_t buildTelemetryPayload(char *buf, size_t bufSize) {
     if (bufSize < 4)
         return 0;
     char *p = buf;
-    char *const end = buf + bufSize - 1; // reserve \0
+    char *const end = buf + bufSize - 1;
 
     *p++ = '{';
     bool first = true;
@@ -86,7 +83,6 @@ size_t buildTelemetryPayload(char *buf, size_t bufSize) {
     return static_cast<size_t>(p - buf);
 }
 
-// Persists across stop()/start() — STATUS refresh interval is wall-clock.
 uint8_t s_statusDiv = 0;
 
 } // namespace
@@ -94,7 +90,7 @@ uint8_t s_statusDiv = 0;
 namespace BleServerInternal {
 
 void emitTelemetry() {
-    // Snapshot — mirrors updateStatus() (#1283).
+
     auto *pTele = BleServerInternal::s_pTele;
     if (!pTele)
         return;
@@ -119,4 +115,4 @@ void emitTelemetry() {
 
 } // namespace BleServerInternal
 
-#endif // APP_BLE_ENABLED
+#endif

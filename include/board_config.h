@@ -1,6 +1,4 @@
 #pragma once
-// Pinout for Elecrow CrowPanel 2.8" ESP32 HMI (ILI9341 + XPT2046 + WROOM).
-// TWAI uses expansion-header GPIO 25/32 (#237).
 
 #define PIN_TFT_MOSI 13
 #define PIN_TFT_MISO 12
@@ -10,7 +8,6 @@
 #define PIN_TFT_RST (-1)
 #define PIN_TFT_BL 27
 
-// Opt-in 40 MHz — only after validating no flicker / flush errors (#95 F6).
 #ifndef HW_TFT_FAST_SPI
     #define HW_TFT_FAST_SPI 0
 #endif
@@ -24,7 +21,6 @@
 #define PIN_TOUCH_CS 33
 #define PIN_TOUCH_IRQ (-1)
 
-// GPIO 25/32 — bi-directional, outside flash-SPI range, strapping-safe.
 #define PIN_TWAI_TX 25
 #define PIN_TWAI_RX 32
 

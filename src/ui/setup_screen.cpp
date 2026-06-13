@@ -15,7 +15,6 @@ void animBreath(void *obj, int32_t v) {
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0);
 }
 
-// LV_SYMBOL_USB is unavailable — Orbitron lacks the FontAwesome range (#577).
 lv_obj_t *createUsbIcon(lv_obj_t *parent, uint32_t color) {
     constexpr int16_t SLEEVE_W = 18;
     constexpr int16_t SLEEVE_H = 24;

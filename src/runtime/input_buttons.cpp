@@ -41,7 +41,6 @@ bool isPressedNow(const CfgInputBinding &b) {
     return raw == HIGH;
 }
 
-// SignalStore::set bypasses the EMA — toggles are truth, not samples (#1285).
 void syncSharedSignal(const CfgInputBinding &b) {
     if (b.signal[0] == '\0')
         return;
@@ -52,13 +51,12 @@ void syncSharedSignal(const CfgInputBinding &b) {
     SignalStore::set(sid, current != 0.0f ? 0.0f : 1.0f);
 }
 
-// Resolve press kind and (when it matches the binding) fire the action.
 void firePress(const CfgInputBinding &b, CfgInputPressKind detected) {
     if (b.kind != detected)
         return;
     LOG_INFO("INPUT", "binding=%s pin=%d kind=%d → action", b.id, b.pin,
              static_cast<int>(detected));
-    // Momentary press — toggle latching is the widget's job.
+
     ActionDispatcher::dispatchAction(b.action, true);
     syncSharedSignal(b);
 }
@@ -86,7 +84,7 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
             firePress(b, CfgInputPressKind::DOUBLE);
             s.pendingDoubleArmed = false;
         } else if (!wasLong) {
-            // Defer SHORT until the double-tap window expires.
+
             s.pendingDoubleArmed = true;
         }
         s.lastReleaseMs = nowMs;
@@ -98,7 +96,6 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
         }
     }
 
-    // Settle pending SHORT AFTER edge handling — never races with DOUBLE.
     if (s.pendingDoubleArmed && !s.debouncedPressed &&
         nowMs - s.lastReleaseMs > DOUBLE_TAP_GAP_MS) {
         firePress(b, CfgInputPressKind::SHORT);

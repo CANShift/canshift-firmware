@@ -1,6 +1,5 @@
 #pragma once
-// Profile (kActiveBoard) is self-contained — does NOT reference board_config.h
-// macros — so a future board can drop in without circular includes.
+
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 
@@ -11,69 +10,69 @@
 namespace canshift::boards {
 
 constexpr BoardProfile kActiveBoard = {
-    /* board_id   */ "crowpanel_28",
-    /* board_name */ "Elecrow CrowPanel 2.8\" ESP32",
-    /* lcd */
+    "crowpanel_28",
+    "Elecrow CrowPanel 2.8\" ESP32",
+
     {
-        /* driver                */ LcdDriver::ILI9341,
-        /* pin_mosi              */ 13,
-        /* pin_miso              */ 12,
-        /* pin_sclk              */ 14,
-        /* pin_cs                */ 15,
-        /* pin_dc                */ 2,
-        /* pin_rst               */ -1,
-        /* pin_bl                */ 27,
-        /* freq_write_hz         */ 27000000UL,
-        /* panel_width           */ 240,
-        /* panel_height          */ 320,
-        /* memory_width          */ 240,
-        /* memory_height         */ 320,
-        /* default_rotation      */ 3,
-        /* rgb_order_bgr         */ false,
-        /* invert                */ false,
-        /* bus_shared_with_touch */ true,
-        /* readable              */ false,
-        /* color_depth           */ 16,
+        LcdDriver::ILI9341,
+        13,
+        12,
+        14,
+        15,
+        2,
+        -1,
+        27,
+        27000000UL,
+        240,
+        320,
+        240,
+        320,
+        3,
+        false,
+        false,
+        true,
+        false,
+        16,
     },
-    /* backlight */
+
     {
-        /* present       */ true,
-        /* pwm_channel   */ 0,
-        /* pwm_freq_hz   */ 5000,
-        /* default_duty  */ 200,
-        /* invert        */ false,
+        true,
+        0,
+        5000,
+        200,
+        false,
     },
-    /* touch */
+
     {
-        /* driver             */ TouchDriver::XPT2046,
-        /* pin_cs             */ 33,
-        /* pin_irq            */ -1,
-        /* freq_hz            */ 2500000UL,
-        /* needs_calibration  */ true,
+        TouchDriver::XPT2046,
+        33,
+        -1,
+        2500000UL,
+        true,
     },
-    /* can */
+
     {
-        /* controller         */ CanController::EspTwai,
-        /* pin_tx             */ 25,
-        /* pin_rx             */ 32,
-        /* default_speed_kbps */ 500,
+        CanController::EspTwai,
+        25,
+        32,
+        500,
     },
-    /* storage */
+
     {
-        /* spiffs_present  */ true,
-        /* spiffs_size_kb  */ 1024,
-        /* sd_present      */ false,
-        /* sd_pin_cs       */ -1,
+        true,
+        1024,
+        false,
+        -1,
     },
-    /* conn */
+
     {
-        /* wifi_supported */ true,
-        /* ble_supported  */ true,
-        /* psram_present  */ false,
+        true,
+        true,
+        false,
     },
 };
 
-} // namespace canshift::boards
+}
 
 class LGFX : public lgfx::LGFX_Device {
     lgfx::Panel_ILI9341 _panel;
@@ -113,7 +112,7 @@ class LGFX : public lgfx::LGFX_Device {
             cfg.offset_rotation = 0;
             cfg.dummy_read_pixel = 8;
             cfg.dummy_read_bits = 1;
-            // MISO not wired; touch shares the SPI bus.
+
             cfg.readable = false;
             cfg.invert = false;
             cfg.rgb_order = false;

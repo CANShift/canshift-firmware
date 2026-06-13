@@ -11,15 +11,13 @@ namespace GestureController {
 
 namespace {
 
-// Top-bar plus a small overshoot so finger placement on the bar still triggers.
 constexpr int16_t DRAG_HOTZONE_PX = 40;
-// Below LVGL's gesture threshold so we settle ambiguity before swipe fires.
+
 constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 
 SwipeHandler s_swipeHandler = nullptr;
 VerticalSwipeHandler s_verticalSwipeHandler = nullptr;
 
-// Reading via the indev layer survives buttons absorbing LV_EVENT_GESTURE.
 void onGesture(lv_dir_t dir) {
     if (SettingsPage::isOpen() || SettingsPage::isDragging())
         return;
@@ -64,7 +62,6 @@ void onDragRelease() {
         return;
     }
 
-    // Issue spec: snap to open/closed based on whether drag crossed midpoint.
     const int16_t closedY = SettingsPage::getClosedY();
     const bool startedClosed = (s_drag.startPanelY == closedY);
 
@@ -91,8 +88,7 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
         if (s_drag.active) {
             const bool wasTracking = s_drag.tracking;
             onDragRelease();
-            // Clear LVGL's gesture latch — else a settings-close swipe also opens
-            // diag drawer (both react to LV_DIR_TOP).
+
             if (wasTracking) {
                 lv_indev_reset_long_press(indev);
                 lv_indev_reset(indev, nullptr);
@@ -101,7 +97,6 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
         return;
     }
 
-    // Pressed.
     if (!s_drag.active) {
         s_drag.active = true;
         s_drag.tracking = false;
@@ -109,7 +104,7 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
         s_dragCrossedThreshold = false;
 
         const bool isOpen = SettingsPage::isOpen();
-        // Drag only arms in the top hot-zone — elsewhere the panel handles clicks/scroll.
+
         if (p.y > DRAG_HOTZONE_PX) {
             s_drag.active = false;
             return;
@@ -123,7 +118,6 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
 
     const int16_t deltaY = p.y - s_drag.startY;
 
-    // Below threshold is treated as a tap so widgets inside the panel work.
     if (!s_drag.tracking) {
         if (abs(deltaY) < DRAG_START_THRESHOLD_PX)
             return;
@@ -149,12 +143,8 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
     s_dragCrossedThreshold = startedClosed ? (targetY >= midpointY) : (targetY <= midpointY);
 }
 
-// Cleared on release. Read by checkGestures to skip LVGL's gesture re-fire
-// that would otherwise navigate twice for the same finger motion.
 bool s_swipeFiredThisPress = false;
 
-// Past threshold: clear pressed state so click doesn't fire (#640) AND fire
-// the page swipe directly to close the dead zone vs LVGL gesture_limit (#1262).
 void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     static int16_t s_pressStartX = 0;
     static bool s_pressActive = false;
@@ -181,7 +171,6 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (s_pressCancelled)
         return;
 
-    // Defer to settings drag tracker — its hot-zone press conflicts (#1262 fu).
     if (SettingsPage::isOpen() || SettingsPage::isDragging())
         return;
 
@@ -190,12 +179,10 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
         return;
 
-    // Terminates the touch cycle so LV_EVENT_CLICKED doesn't fire on release.
     lv_indev_reset_long_press(indev);
     lv_indev_reset(indev, nullptr);
     s_pressCancelled = true;
 
-    // Fire immediately — feels snappier than LVGL's own gesture commit (#1262).
     if (!s_swipeFiredThisPress && s_swipeHandler) {
         const lv_dir_t dir = signedTravelX < 0 ? LV_DIR_LEFT : LV_DIR_RIGHT;
         s_swipeFiredThisPress = true;

@@ -1,5 +1,4 @@
-// Mirror of default_config.cpp — provisions the 7 SPIFFS Orbitron .bin fonts
-// on first boot. Black primary sizes ship in-flash (#467 / #487 / #664).
+
 #include "default_fonts.h"
 
 #include "diag/error_store.h"

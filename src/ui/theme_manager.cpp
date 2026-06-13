@@ -27,7 +27,7 @@ void ThemeManager::init() {
     }
 
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/true);
+    p.begin(NVS_NS, true);
     s_isDayMode = p.getBool(KEY_DAY_MODE, false);
     p.end();
 
@@ -46,7 +46,7 @@ void ThemeManager::toggleDayMode() {
     s_isDayMode = !s_isDayMode;
 
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/false);
+    p.begin(NVS_NS, false);
     p.putBool(KEY_DAY_MODE, s_isDayMode);
     p.end();
 
@@ -64,7 +64,7 @@ void ThemeManager::setDayMode(bool day) {
     s_isDayMode = day;
 
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/false);
+    p.begin(NVS_NS, false);
     p.putBool(KEY_DAY_MODE, s_isDayMode);
     p.end();
 
@@ -82,7 +82,7 @@ CfgColor ThemeManager::getEffectiveBgColor(const CfgColor &nightBg) {
 }
 
 uint32_t ThemeManager::getEffectiveTextColor() {
-    // Day → black on grey, night → white on black. Per-widget overrides collapsed (#171).
+
     return s_isDayMode ? 0x000000u : 0xFFFFFFu;
 }
 

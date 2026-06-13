@@ -20,7 +20,6 @@
 #include <stdio.h>
 #include <string.h>
 
-// Mirror of canshift-core/src/topbar-metrics.ts — canonical SoT lives there.
 namespace TopBarMetrics {
 constexpr float DOT_RATIO = 0.30f;
 constexpr float FONT_SIZE_RATIO = 0.45f;
@@ -30,7 +29,6 @@ constexpr float PADDING_RATIO = 0.40f;
 constexpr float ICON_SIZE_RATIO = 1.15f;
 } // namespace TopBarMetrics
 
-// lroundf gives round-half-away-from-zero (matches Studio's Math.round).
 static inline int16_t metricRound(float v) {
     return static_cast<int16_t>(lroundf(v));
 }
@@ -62,25 +60,20 @@ struct DynItem {
     lv_obj_t *obj;
     char signalId[CFG_MAX_SIGNAL_LEN];
     char format[16];
-    // Cached last-rendered values — updates skipped when nothing changed.
+
     char lastText[16];
     uint32_t lastColor;
     bool lastSeenValid;
-    // modeFlag/separator visibility coupling (#653). For MODE_FLAG entries this
-    // mirrors the LVGL hidden flag so we can skip redundant style writes. For
-    // SEPARATOR entries we hide when the linked preceding flag is hidden —
-    // tag-based collapse is cheaper than recomputing the bar layout.
+
     bool hidden;
-    int8_t linkedFlagIdx; // SEPARATOR only: index of preceding MODE_FLAG in s_dynItems, -1 if none
-    int8_t nextFlagIdx;   // SEPARATOR only: index of following MODE_FLAG in same bucket, -1 if none
+    int8_t linkedFlagIdx;
+    int8_t nextFlagIdx;
 };
 static DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
 static uint8_t s_dynCount = 0;
 
-// Reset in init() — theme rebuild must not leak stale seen-state (#660).
 static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 
-// Mirror of canshift-core/src/topbar-colors.ts — keep both in sync.
 static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;
 static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800;
 static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
@@ -111,7 +104,7 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_obj_t *lbl = lv_label_create(parent);
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
-    // 12 px fixed — derivedFontSize snapped to 8 px which was unreadable.
+
     (void)derivedFontSize;
     lv_obj_set_style_text_font(lbl, FontManager::label(12), 0);
     return lbl;
@@ -126,7 +119,6 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
     return lbl;
 }
 
-// Batched call takes the IRQ lock once instead of three times (#1342).
 static bool anySignalValid() {
     static constexpr SignalId kAnyIds[] = {SignalIds::RPM, SignalIds::COOLANT_TEMP_C,
                                            SignalIds::BATTERY_VOLTS};
@@ -160,7 +152,6 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         }
     };
 
-    // Inter-item gap is height-derived (matches Studio's TopBarMetrics.gapRatio).
     const int16_t gap = derivedGap(s_height);
 
     switch (item.kind) {
@@ -176,25 +167,20 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         }
         case TopBarItemKind::SEPARATOR: {
             obj = makeBarSeparator(s_bar, COLOR_MUTED);
-            // Hidden until updateLinkedSeparator resolves both adjacent flags
-            // (#659). Avoids a one-frame flicker when the next flag is hidden.
+
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
         }
         case TopBarItemKind::SIGNAL: {
-            // Start hidden — `updateDynSignal` reveals the item the first time
-            // the bound signal goes valid. Without this hide-by-default, the
-            // top bar shows a misleading `--.-` placeholder for any signal
-            // that's never been received this boot (CAN bus disconnected,
-            // wrong frame id, …) and clutters the bar permanently.
+
             obj = makeBarLabel(s_bar, "", COLOR_LABEL);
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
         }
         case TopBarItemKind::USB_ICON: {
-            // Retired in #1077 — kept the case so legacy configs render nothing.
+
             return;
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, "USB");
@@ -213,7 +199,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         }
         case TopBarItemKind::MODE_FLAG: {
             obj = makeBarLabel(s_bar, item.text, COLOR_MODE_ACTIVE);
-            // Hidden at boot until update() sees signal valid + non-zero (#653).
+
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
@@ -231,11 +217,11 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             anchor(obj, 0);
             if (hasDayTheme) {
                 lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-                // 10 px ext-click — 12 px icon on 16 px bar is too small to tap (#93).
+
                 lv_obj_set_ext_click_area(obj, 10);
                 lv_obj_add_event_cb(
-                    obj, [](lv_event_t * /*e*/) { ThemeManager::toggleDayMode(); },
-                    LV_EVENT_CLICKED, nullptr);
+                    obj, [](lv_event_t *) { ThemeManager::toggleDayMode(); }, LV_EVENT_CLICKED,
+                    nullptr);
             } else {
                 lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             }
@@ -249,7 +235,6 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
 
     prevByPos[static_cast<uint8_t>(item.position)] = obj;
 
-    // Separators tracked too when they trail a MODE_FLAG (#653).
     const uint8_t posIdx = static_cast<uint8_t>(item.position);
     const int8_t prevFlagIdx = lastModeFlagIdxByPos[posIdx];
     bool needsUpdate =
@@ -267,30 +252,25 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         d.lastText[0] = '\0';
         d.lastColor = 0;
         d.lastSeenValid = false;
-        // Hidden at boot (#653, #659) — prevents flicker before separator resolves.
+
         d.hidden =
             (item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::SEPARATOR);
         d.linkedFlagIdx = (item.kind == TopBarItemKind::SEPARATOR) ? prevFlagIdx : -1;
         d.nextFlagIdx = -1;
         if (item.kind == TopBarItemKind::MODE_FLAG) {
             lastModeFlagIdxByPos[posIdx] = static_cast<int8_t>(myIdx);
-            // Back-fill: pending separator binds forward to this MODE_FLAG (#659).
+
             const int8_t pendingSepIdx = pendingSepNeedingNextByPos[posIdx];
             if (pendingSepIdx >= 0 && pendingSepIdx < static_cast<int8_t>(s_dynCount)) {
                 s_dynItems[pendingSepIdx].nextFlagIdx = static_cast<int8_t>(myIdx);
             }
             pendingSepNeedingNextByPos[posIdx] = -1;
         } else if (item.kind == TopBarItemKind::SEPARATOR) {
-            // Register this separator as awaiting a following MODE_FLAG. If
-            // none arrives before a chain-breaker, it stays orphaned (-1) and
-            // updateLinkedSeparator will keep it permanently hidden.
+
             pendingSepNeedingNextByPos[posIdx] = static_cast<int8_t>(myIdx);
         }
     }
 
-    // Any non-MODE_FLAG, non-SEPARATOR item breaks the linked-separator chain
-    // so a separator further down in the same bucket can't bind to an earlier
-    // flag across an unrelated intervening element.
     if (item.kind != TopBarItemKind::MODE_FLAG && item.kind != TopBarItemKind::SEPARATOR) {
         lastModeFlagIdxByPos[posIdx] = -1;
         pendingSepNeedingNextByPos[posIdx] = -1;
@@ -300,7 +280,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
 void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     s_dynCount = 0;
     lv_obj_t *prevByPos[3] = {nullptr, nullptr, nullptr};
-    // -1 = none yet — separator binds to preceding/following MODE_FLAG (#653/#659).
+
     int8_t lastModeFlagIdxByPos[3] = {-1, -1, -1};
     int8_t pendingSepNeedingNextByPos[3] = {-1, -1, -1};
 
@@ -312,7 +292,6 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
         }
     }
 
-    // Right items reverse — last anchors to RIGHT_MID, earlier ones grow left (#480).
     for (int i = cfg.itemCount - 1; i >= 0; --i) {
         if (cfg.items[i].position == TopBarItemPos::RIGHT) {
             buildItem(cfg.items[i], prevByPos, lastModeFlagIdxByPos, pendingSepNeedingNextByPos,
@@ -338,7 +317,7 @@ void TopBar::init() {
     lv_obj_set_style_pad_hor(s_bar, derivedPadding(s_height), LV_PART_MAIN);
     lv_obj_set_style_pad_ver(s_bar, 0, LV_PART_MAIN);
     lv_obj_clear_flag(s_bar, LV_OBJ_FLAG_SCROLLABLE);
-    // Tappable — closes Settings (alongside swipe-up).
+
     lv_obj_add_flag(s_bar, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(
         s_bar,
@@ -347,7 +326,7 @@ void TopBar::init() {
                 return;
             if (!SettingsPage::isOpen())
                 return;
-            // Guards against the same-touch open-then-close flicker.
+
             if (millis() - SettingsPage::lastOpenMs() < SETTINGS_OPEN_TAP_GUARD_MS)
                 return;
             LOG_INFO("UI", "Top bar tapped — closing Settings");
@@ -405,7 +384,6 @@ static void updateDynSignalLabel(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
     const bool valid = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid);
 
-    // Hide on missing — a placeholder reads as "incoming" when the bus is dead.
     if (!valid) {
         if (!lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
             lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
@@ -475,7 +453,6 @@ static void updateModeFlag(DynItem &d) {
     d.lastColor = color;
 }
 
-// Long enough that a momentary mobile dropout doesn't clear the badge mid-lap.
 static constexpr uint32_t TRACK_BADGE_TIMEOUT_MS = 5000;
 
 static void updateTrackBadge(DynItem &d) {
@@ -491,7 +468,6 @@ static void updateTrackBadge(DynItem &d) {
     d.hidden = wantHidden;
 }
 
-// Visible only when BOTH adjacent flags are visible (#653, #659).
 static void updateLinkedSeparator(DynItem &d) {
     if (d.linkedFlagIdx < 0 || d.linkedFlagIdx >= static_cast<int8_t>(s_dynCount))
         return;

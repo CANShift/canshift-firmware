@@ -1,6 +1,4 @@
 #pragma once
-// warning_widget.h — Warning indicator light (boolean signal)
-// Displays a colored circle/LED indicator that turns on when a threshold is crossed.
 
 #include <lvgl.h>
 #include "config/config_types.h"

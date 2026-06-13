@@ -32,8 +32,6 @@ static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
 
 static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
-// Cap deeply-nested JSON exploit pressure on the BLE task (#897). Real
-// payloads today are well under 64 bytes; 256 is generous headroom.
 static constexpr size_t BLE_MAX_WRITE_LEN = 256U;
 
 static bool s_stackInited = false;
@@ -47,10 +45,6 @@ bool s_connected = false;
 
 static bool s_enabled = false;
 
-// Pending BLE enable/disable from the settings page: -1 = none, 0 = disable, 1 = enable.
-// Stays local to ble_server — it's BLE-stack lifecycle state, not a user
-// command channelable through other transports. Day/night + calibration
-// pending flags live in `runtime/pending_actions.h` (shared with USB).
 static std::atomic<int8_t> s_pendingEnabled{-1};
 
 namespace {
@@ -69,8 +63,6 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         NimBLEDevice::startAdvertising();
     }
 
-    // Rejection sampling avoids the modulo bias of `esp_random() % 1_000_000`
-    // and the 0 reserved value (carrier sentinel for "nothing pending"). #1283.
     uint32_t onPassKeyRequest() override {
         constexpr uint32_t PASSKEY_RANGE = 1000000u;
         constexpr uint32_t REJECTION_LIMIT = UINT32_MAX - (UINT32_MAX % PASSKEY_RANGE);
@@ -128,7 +120,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
             const uint16_t rotation = rotationVar.as<uint16_t>();
             if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
                 LOG_INFO("BLE", "Rotation change requested: %u° — rebooting", rotation);
-                RotationConfig::applyAndReboot(rotation); // never returns
+                RotationConfig::applyAndReboot(rotation);
             }
         }
     }
@@ -137,8 +129,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonDocument doc;
         doc["brightness"] = SettingsPage::getBrightness();
         char buf[64];
-        // Emit an explicit canary on truncation so the peer doesn't read stale
-        // characteristic state (#936, fix #1341).
+
         const size_t len = serializeJson(doc, buf, sizeof(buf));
         if (len == 0 || len >= sizeof(buf)) {
             LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",
@@ -149,11 +140,6 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         pChar->setValue(buf);
     }
 };
-
-// ---------------------------------------------------------------------------
-// CMD write callback
-// Payload: {"cmd":"reboot"} | {"cmd":"toggle_day_night"} | ...
-// ---------------------------------------------------------------------------
 
 class CmdCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic *pChar) override {
@@ -191,8 +177,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("BLE", "CMD: calibration reset queued");
         } else if (strcmp(cmd, "track_state") == 0) {
-            // Defensive re-clamp to the embedded struct widths — bounds are
-            // already TS-enforced (TrackTelemetrySchema, #843).
+
             TrackStore::State next = {};
             next.trackMode = doc["trackMode"] | false;
             next.currentLapMs = doc["currentLapMs"] | 0;
@@ -215,7 +200,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 void setupGatt() {
-    // C++11 magic statics — survive deinit/init cycles without leaking (#883).
+
     static ServerCallbacks s_serverCb;
     static SettingsCallbacks s_settingsCb;
     static CmdCallbacks s_cmdCb;
@@ -225,15 +210,13 @@ void setupGatt() {
 
     NimBLEService *pSvc = pServer->createService(SVC_UUID);
 
-    // _ENC permission gates callbacks at the NimBLE stack so they never fire
-    // on unauthenticated peers (#873). NOTIFY inherits via CCCD permissions.
     BleServerInternal::s_pTele =
         pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
     BleServerInternal::s_pTele->setValue("{}");
 
     BleServerInternal::s_pStatus = pSvc->createCharacteristic(
         STATUS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    // Placeholder until BleServer::init() runs updateStatus() once subsystems are up.
+
     BleServerInternal::s_pStatus->setValue("{\"ver\":\"" APP_VERSION_STR
                                            "\",\"can\":0,\"is_day\":0}");
 
@@ -259,12 +242,9 @@ void setupGatt() {
              NimBLEDevice::getAddress().toString().c_str());
 }
 
-// Bring up BLE advertising. If GATT was already set up by earlyInit(), simply
-// restarts advertising (no heap allocation). Otherwise does a full init with
-// a heap guard to prevent bad_alloc on a fragmented post-boot heap.
 bool startStack() {
     if (s_gattInited) {
-        // earlyInit() already built the GATT tree — just restart advertising.
+
         NimBLEDevice::getAdvertising()->start();
         s_enabled = true;
         LOG_INFO("BLE", "BLE advertising restarted — %s",
@@ -273,7 +253,7 @@ bool startStack() {
     }
 
     if (!s_stackInited) {
-        // earlyInit() did not run (BLE disabled at boot, or runtime re-enable).
+
         const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
         if (avail < BLE_MIN_HEAP) {
             LOG_WARN("BLE", "Insufficient contiguous DRAM for BLE stack (%u B < %u B) — skipped",
@@ -282,20 +262,12 @@ bool startStack() {
         }
         NimBLEDevice::init("CANShift");
         NimBLEDevice::setPower(ESP_PWR_LVL_P9);
-        // bond=true: persist the LTK across reboots so a paired phone
-        // reconnects without re-prompting.
-        // mitm=true + sc=true: require Secure Connections with man-in-the-middle
-        // protection (passkey entry), defeating the "open GATT to anyone in
-        // range" surface that #873 documents.
+
         NimBLEDevice::setSecurityAuth(true, true, true);
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
         s_stackInited = true;
     }
 
-    // GATT setup on fragmented post-boot heap — guard against bad_alloc.
-    // BLE_GATT_MIN_HEAP_BYTES is the empirical minimum that covers
-    // createServer + 4 characteristics + start() (promoted to app_config.h
-    // so board profiles can override).
     const size_t heapFree = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     if (heapFree < BLE_GATT_MIN_HEAP_BYTES) {
         LOG_WARN("BLE", "Heap too low for GATT setup (%u B < %u B) — BLE disabled",
@@ -309,16 +281,10 @@ bool startStack() {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void BleServer::earlyInit() {
-    // Read the BLE-enabled preference directly from NVS — SettingsPage (and
-    // LVGL) are not yet initialized at this call site. Default is ON so a
-    // fresh device advertises for the mobile app pairing.
+
     Preferences p;
-    p.begin("screen_cfg", /*readOnly=*/true);
+    p.begin("screen_cfg", true);
     const bool enabled = p.getUChar("ble_en", BLE_DEFAULT_ENABLED) != 0;
     p.end();
 
@@ -336,18 +302,13 @@ void BleServer::earlyInit() {
 
     NimBLEDevice::init("CANShift");
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
-    // Same Secure-Connections + bonding + MITM (passkey entry) configuration
-    // as the runtime-init path in startStack() — see that branch for rationale
-    // (issue #873).
+
     NimBLEDevice::setSecurityAuth(true, true, true);
     NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
     s_stackInited = true;
     LOG_INFO("BLE", "BLE stack initialized (%u B available) — building GATT tree",
              static_cast<unsigned>(avail));
 
-    // Build GATT service tree now, while heap is large and unfragmented.
-    // After lv_init() claims 80 KB, the remaining heap is too fragmented for
-    // NimBLE's C++ new[] allocations (issue confirmed: bad_alloc → terminate).
     setupGatt();
 }
 
@@ -372,27 +333,17 @@ void BleServer::stop() {
     if (!s_enabled)
         return;
     if (s_gattInited) {
-        // GATT was built in earlyInit — stop advertising only. Keeping the GATT
-        // tree alive avoids a re-init that would fail on the fragmented post-boot heap.
+
         NimBLEDevice::stopAdvertising();
         BleServerInternal::s_connected = false;
         s_enabled = false;
         LOG_INFO("BLE", "BLE advertising stopped (GATT preserved)");
     } else {
-        // Runtime-started stack — full deinit to free the heap.
-        //
-        // Pointer-null happens BEFORE `deinit(true)`: any callback that
-        // snapshots the file-scope pointer (#1283 pattern) AFTER this point
-        // sees nullptr and short-circuits. `NimBLEDevice::deinit(true)` then
-        // stops the NimBLE host task — which drains any callback already
-        // in-flight holding a pre-null snapshot — BEFORE freeing the
-        // characteristic objects. The prior ordering (deinit then null) left
-        // a window where a fresh snapshot could read a non-null pointer that
-        // had just been freed (#1336).
+
         BleServerInternal::s_pTele = nullptr;
         BleServerInternal::s_pStatus = nullptr;
         BleServerInternal::s_connected = false;
-        // Make the null stores visible across cores before the deinit handshake.
+
         std::atomic_thread_fence(std::memory_order_release);
         NimBLEDevice::deinit(true);
         s_enabled = false;
@@ -423,4 +374,4 @@ bool BleServer::isConnected() {
     return BleServerInternal::s_connected;
 }
 
-#endif // APP_BLE_ENABLED
+#endif

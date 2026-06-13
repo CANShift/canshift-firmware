@@ -15,8 +15,7 @@
 namespace BleServerInternal {
 
 void updateStatus() {
-    // Snapshot the global — stop() can null s_pStatus on another task; the
-    // underlying characteristic stays alive via earlyInit()'s GATT path (#1035).
+
     auto *pStatus = BleServerInternal::s_pStatus;
     if (!pStatus)
         return;
@@ -25,7 +24,7 @@ void updateStatus() {
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     char buf[128];
-    // ArduinoJson truncates silently — a partial payload crashes the mobile parser (#936).
+
     const size_t len = serializeJson(doc, buf, sizeof(buf));
     if (len == 0 || len >= sizeof(buf)) {
         LOG_WARN("BLE", "STATUS payload truncated (len=%u, cap=%u) — skipping notify",
@@ -44,4 +43,4 @@ void BleServer::pushStatusNotify() {
         pStatus->notify();
 }
 
-#endif // APP_BLE_ENABLED
+#endif

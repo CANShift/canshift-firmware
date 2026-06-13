@@ -1,15 +1,3 @@
-// error_store.cpp — Thread-safe firmware error ring buffer
-//
-// CRITICAL-SECTION INVARIANT (issue #877):
-// All portENTER_CRITICAL / portEXIT_CRITICAL pairs below guard the
-// s_ring buffer against cross-core access. On ESP32 the IDF
-// implementation is a spinlock plus IRQ-disable on the current core.
-// Inside any such pair you MUST NOT:
-//   - call LOG_* (can block / take another mutex / alloc),
-//   - allocate (new/delete/malloc/free, String, snprintf to heap),
-//   - take any other lock (mutex / semaphore / lv_lock).
-// Violations deadlock or trip the IDF crit-section assert at runtime.
-// Note: strncpy / memcpy on fixed-size buffers below is fine — no heap.
 
 #include "error_store.h"
 
@@ -111,7 +99,7 @@ void ErrorStore::dismissAt(uint8_t row) {
     error_store_dismiss_at_rs(s_ring, RING_SIZE, &s_head, &s_count, &s_version, row);
 #else
     if (row < s_count) {
-        // `row` is newest-first (matches getAll); convert to oldest-first index.
+
         const uint8_t pos = static_cast<uint8_t>(s_count - 1 - row);
         if (pos == 0) {
             s_head = static_cast<uint8_t>((s_head + 1) % RING_SIZE);

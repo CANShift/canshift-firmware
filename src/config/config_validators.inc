@@ -1,11 +1,3 @@
-// config_validators.cpp — Schema-version checks + string-to-enum decoders for
-// the ConfigLoader translation units (#1207).
-//
-// Extracted from `config_loader.cpp`. These helpers are deliberately small
-// and pure: each maps a JSON string to a firmware enum (with a documented
-// fallback for unknown values) or runs a single cross-field invariant. The
-// `parseMajorVersion` backend selector lives in `config_loader_rust_bridge.h`
-// so the FFI surface stays isolated; `checkSchemaVersion` here drives it.
 
 #include "config_loader_internal.h"
 #include "config_loader_rust_bridge.h"
@@ -106,8 +98,6 @@ CfgCruiseOp parseCruiseOp(const char *op) {
     return CfgCruiseOp::UNKNOWN;
 }
 
-// Parse arcFillStyle (issue #175). Defaults to ZONES so legacy configs and
-// unknown values keep the previous warn/danger sector tinting behaviour.
 CfgArcFillStyle parseArcFillStyle(const char *str) {
     if (!str)
         return CfgArcFillStyle::ZONES;
@@ -152,9 +142,6 @@ CfgInputPressKind parseInputPressKind(const char *str) {
     return CfgInputPressKind::SHORT;
 }
 
-// Reject pins already claimed by the active TWAI config. Display/touch pins
-// are baked into board_config.h and a fuller cross-check belongs in a
-// follow-up alongside hardware_profile.h.
 bool isPinConflict(int8_t pin) {
     const CfgDeviceConfig &dev = s_device;
     if (!dev.loaded)
@@ -162,4 +149,4 @@ bool isPinConflict(int8_t pin) {
     return pin == dev.twaiTxPin || pin == dev.twaiRxPin;
 }
 
-} // namespace ConfigLoaderInternal
+}

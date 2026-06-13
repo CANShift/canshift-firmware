@@ -1,6 +1,4 @@
-// kNameToId is the SoT for dashboard.json signal-name lookup. When new
-// signals are added, the Rust port (rust/signal-map/src/lib.rs NAME_TO_ID)
-// must mirror the new entry — cargo test enforces IDs but not names.
+
 #include "signal_map.h"
 
 #include <string.h>
@@ -16,9 +14,6 @@ struct NameToId {
     SignalId id;
 };
 
-// Linear-scan lookup; ordering doesn't matter. Compiled even with the Rust
-// backend enabled so a future "compare backends" smoke can
-// pull it back in without resurrecting the table.
 constexpr NameToId kNameToId[] = {
     {"rpm", SignalIds::RPM},
     {"throttle_pos", SignalIds::THROTTLE_POS},
@@ -48,9 +43,7 @@ constexpr NameToId kNameToId[] = {
 
 SignalId signalIdFromName(const char *name) {
 #if USE_RUST_SIGNAL_MAP
-    // Delegate to the Rust port. `signal_id_from_name_rs` already handles
-    // null / empty / missing-NUL defensively, so the wrapper here is a
-    // one-liner — matches the function signature exactly.
+
     return signal_id_from_name_rs(name);
 #else
     if (name == nullptr || name[0] == '\0')

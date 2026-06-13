@@ -1,235 +1,67 @@
 #pragma once
-// usb_comm.h — USB serial communication layer (Phase 1 config sync)
-//
-// Protocol: JSON lines over USB serial (UART0 / CP210x bridge), 115200 baud.
-// Each message is one JSON object followed by \n.
-//
-//   Commands from desktop → device:
-//     CMD_GET_CONFIG         0x01 — Read dashboard.json
-//     CMD_PUT_CONFIG         0x02 — Push new dashboard.json content
-//     CMD_GET_DEVICE_CONFIG  0x03 — Read device.json (CAN speed + TWAI pins)
-//     CMD_PUT_DEVICE_CONFIG  0x04 — Push device.json (reboots on success)
-//     CMD_SCREEN_SETTINGS    0x05 — Push display settings (brightness, sleep)
-//     CMD_PUT_FILE           0x06 — Stream a file to storage in base64-encoded chunks
-//     CMD_TOGGLE_DAY_NIGHT   0x07 — Flip the day/night theme on the device
-//     CMD_CALIBRATE_TOUCH    0x08 — Run the on-device touch calibration crosshairs
-//     CMD_RESET_TOUCH_CAL    0x0A — Clear saved touch calibration (revert to defaults on next boot)
-//     CMD_GET_INPUT_BINDINGS 0x0B — Read input_bindings.json
-//     CMD_PUT_INPUT_BINDINGS 0x0C — Push input_bindings.json (reboots on success)
-//     CMD_GET_STATUS         0x10 — Query firmware version, protocol, is_day flag
-//     CMD_CAN_SCAN_START     0x20 — Start forwarding raw CAN frames over USB
-//     CMD_CAN_SCAN_STOP      0x21 — Stop forwarding raw CAN frames
-//
-//   Responses from device → desktop:
-//     {"status":"ok"}
-//     {"status":"error","message":"..."}
-//
-//   Telemetry pushed by device every ~200ms (proactive, no request needed):
-//     {"tele":1,"v":{"rpm":1234.5,"coolant_temp_c":89.2,...}}
-//     Only valid (non-timed-out) signals are included.
-//
-//   CAN scan frames (pushed when scan mode active, one per received frame):
-//     {"can":1,"id":291,"len":8,"d":[0,1,2,3,4,5,6,7]}
-//     id is the raw CAN frame identifier (decimal).
-//     Frames are queued from the CAN task and drained in tick().
 
 #include <stdint.h>
 #include <stddef.h>
 
 namespace UsbComm {
 
-/**
-     * Reserve the USB rx buffer. MUST be called once early in setup() —
-     * before lv_init() — so the ~16 KB allocation finds contiguous heap
-     * on no-PSRAM boards (WROOM) where post-lv_init() heap fragmentation
-     * makes a late-boot alloc fail. Idempotent. Halts on alloc failure
-     * (USB is required for provisioning + recovery).
-     */
 void reserveRxBuf();
 
-/**
-     * Initialize USB serial communication.
-     * Sets up the receive buffer, state machine, and CAN scan queue.
-     */
 void init();
 
-/**
-     * Process incoming bytes from Serial and dispatch commands.
-     * Also drains the CAN scan queue and sends queued frames.
-     * Call from the USB comm task at ~20ms intervals.
-     */
 void tick();
 
-// ---------------------------------------------------------------------------
-// Command IDs
-// ---------------------------------------------------------------------------
 static constexpr uint8_t CMD_GET_CONFIG = 0x01;
 static constexpr uint8_t CMD_PUT_CONFIG = 0x02;
-// Read the on-device `/config/device.json` as a typed envelope.
-// Response: {"status":"ok","device_config":{...}} or
-//           {"status":"error","message":"config_not_found"}
+
 static constexpr uint8_t CMD_GET_DEVICE_CONFIG = 0x03;
-// Write a new `/config/device.json`. Payload: {"cmd":4,"device_config":{...}}.
-// Validates JSON shape, persists atomically, reboots on success because the
-// TWAI pins / CAN speed are read at boot only.
+
 static constexpr uint8_t CMD_PUT_DEVICE_CONFIG = 0x04;
-// Push screen display settings (brightness, sleep)
-// Payload: {"brightness":80,"sleep":0}
+
 static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
-// Stream a file to storage in chunks. One JSON line per chunk:
-//   {"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}
-// idx=0 truncates / creates the target file. idx=total-1 closes it.
-// Each chunk is ack'd; out-of-sequence chunks abort the transfer.
+
 static constexpr uint8_t CMD_PUT_FILE = 0x06;
-// Flip the day/night theme on the device. Deferred to the UI task because
-// ThemeManager::toggleDayMode() rebuilds LVGL pages and must hold g_lvglMutex.
-// Payload: {"cmd":7}
+
 static constexpr uint8_t CMD_TOGGLE_DAY_NIGHT = 0x07;
-// Run the on-device touch calibration crosshairs. Deferred to the UI task —
-// calibrate() blocks while the user taps the four corners and draws via TFT_eSPI
-// directly (not LVGL), so it must NOT hold g_lvglMutex.
-// Payload: {"cmd":8}
+
 static constexpr uint8_t CMD_CALIBRATE_TOUCH = 0x08;
-// Set the day/night theme explicitly (idempotent). Deferred to the UI task.
-// Payload: {"cmd":9,"day":true|false}
-// Preferred over CMD_TOGGLE_DAY_NIGHT because tapping "Day" while already in
-// day mode no longer flips the theme (issue #225).
+
 static constexpr uint8_t CMD_SET_DAY_NIGHT = 0x09;
-// Clear the persisted touch calibration data from NVS. On next boot the
-// firmware falls back to the board_config.h defaults and re-runs the
-// interactive calibration routine (because no NVS entry is present).
-// Deferred to the UI task: TouchDriver::resetCalibration() only touches NVS,
-// but pairing it with the same flag handler keeps the action sequenced after
-// any pending calibrate request. Payload: {"cmd":10}.
+
 static constexpr uint8_t CMD_RESET_TOUCH_CAL = 0x0A;
-// Read the on-device `/config/input_bindings.json` as a typed envelope.
-// Response: {"status":"ok","input_bindings":[...]} or
-//           {"status":"error","message":"config_not_found"}
+
 static constexpr uint8_t CMD_GET_INPUT_BINDINGS = 0x0B;
-// Write a new `/config/input_bindings.json`. Payload:
-//   {"cmd":12,"input_bindings":[...]}.
-// Validates JSON shape, persists atomically, reboots on success — the
-// InputButtons polling task latches the binding table at boot and exposes no
-// runtime reload API, so a reboot is the only way new bindings take effect.
+
 static constexpr uint8_t CMD_PUT_INPUT_BINDINGS = 0x0C;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_PING = 0x11;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
 
-// ---------------------------------------------------------------------------
-// CAN scan frame — pushed from CAN task into the USB send queue
-// ---------------------------------------------------------------------------
-
 struct CanScanFrame {
-    uint32_t id; ///< Raw CAN frame identifier (11-bit or 29-bit)
-    uint8_t len; ///< Data length code (0-8)
+    uint32_t id;
+    uint8_t len;
     uint8_t data[8];
 };
 
-/**
- * Enqueue a raw CAN frame for USB forwarding.
- * Called from the CAN task (core 0). Thread-safe via FreeRTOS queue.
- * Returns false if scan mode is inactive or the queue is full (frame is dropped).
- */
 bool pushCanFrame(const CanScanFrame &frame);
 
-/**
- * Update the CAN health stats to be emitted on the next tick().
- * Called from the CAN task (core 0). Written with volatile — safe for our use case
- * (worst case: one stale read on the USB task side, acceptable for a status display).
- *
- * fpsX10: frames per second multiplied by 10 (e.g. 125 → 12.5 fps)
- * errors: total TWAI receive errors since boot
- */
 void updateCanStats(uint32_t fpsX10, uint32_t errors);
 
-/**
- * Returns true if the desktop host has sent any command in the last few seconds.
- * Used by the top bar to show a "host connected" icon.
- */
 bool isHostActive();
 
-// Day/night + touch-calibration pending flags moved to
-// `runtime/pending_actions.h` (#893) — drained by main.cpp from one shared
-// location regardless of which transport queued the command.
-
-/**
- * Write a single wire-protocol line to UART0 under the logger mutex.
- * `line` must be a complete JSON object terminated with '\n'.
- * Used internally by every ack / telemetry / can / can_stat write so logger
- * emits from other tasks can never fragment the line.
- *
- * Implementation note: writes through the currently active sink — by default
- * Serial/UART0, but transports such as WiFi TCP can temporarily redirect the
- * sink via handleLine() for the duration of one command dispatch.
- */
 void sendLine(const char *line);
 
-/**
- * Sink signature used by handleLine() to retarget command-response and
- * telemetry output to a non-Serial transport (e.g. a TCP socket on WiFi).
- * `data` is a NUL-terminated byte sequence already shaped as a complete
- * wire-protocol line; the implementation must write the full `len` bytes
- * and append '\n' iff `data[len-1] != '\n'`.
- */
 using SendSink = void (*)(const char *data, size_t len);
 
-/**
- * Dispatch a single, already-buffered, NUL-terminated JSON line through the
- * USB command handler with `sink` temporarily installed as the active output
- * sink. Used by alternate transports (WiFi TCP) so a single dispatcher
- * implementation drives every reply / ack / telemetry write.
- *
- * Thread-safety: a single internal mutex serialises competing callers, so
- * a USB-task tick() will not race with a WiFi-task TCP write — but TCP
- * callers should still drive the dispatch from a single task to keep
- * line-ordering deterministic on the wire.
- *
- * `line` must be NUL-terminated. `len` is `strlen(line)` and is accepted as
- * a parameter so the caller can pass it along when already known.
- */
 void handleLine(const char *line, size_t len, SendSink sink);
 
-/**
- * True iff sendTelemetry should be mirrored to an alternate transport
- * in addition to UART0. Used by the TCP server module to register itself
- * as a secondary output for the proactive telemetry stream.
- */
 bool hasAuxSink();
 
-/**
- * Register/clear the auxiliary output sink. When non-null, every sendLine
- * write fans out to BOTH the default Serial sink and the auxiliary sink,
- * so a TCP-connected Studio sees the same telemetry / can_stat / ack
- * stream as a USB-connected one. nullptr clears it.
- *
- * Thread-safety: protected by the same mutex as handleLine().
- */
 void setAuxSink(SendSink sink);
-
-// ---------------------------------------------------------------------------
-// BurnOverlay observer (#1207 #1314) — decouples the USB transport from the
-// LVGL widget that paints the "Saving config…" overlay during CMD_PUT_CONFIG.
-// Pre-refactor, usb_dispatch.cpp called BurnOverlay::show() / showError()
-// inline on the USB task and used a vTaskPrioritySet flip to keep the
-// LVGL build + lv_refr_now() responsive. That tied the transport directly
-// to the UI widget and starved equally-prioritised core-1 tasks during the
-// storage write. The two callbacks below are invoked from the dispatch path
-// instead; the boot code wires them to a "set PendingActions flag + notify
-// UI task" handler so BurnOverlay::show() runs at TASK_PRIO_UI.
-//
-// Both setters are idempotent; nullptr clears the slot. Called once from
-// main.cpp::setup() after createAllTasks() so the UI task handle is in scope.
-// ---------------------------------------------------------------------------
 
 using BurnOverlayShowCb = void (*)();
 
-/**
- * Reason code passed to BurnOverlayShowErrorCb. Mirrors BurnOverlay::ErrorReason
- * (0 = WriteFailed, 1 = ReloadFailed). Kept as a plain int so usb_comm.h has
- * zero #include dependency on the LVGL UI layer.
- */
 using BurnOverlayShowErrorCb = void (*)(int reason);
 
 void setBurnOverlayShowCallback(BurnOverlayShowCb cb);

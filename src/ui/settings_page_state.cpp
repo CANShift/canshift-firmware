@@ -18,7 +18,6 @@ static constexpr char NVS_NS[] = "screen_cfg";
 static constexpr char KEY_BRIGHTNESS[] = "brightness";
 static constexpr char KEY_BLE_ENABLED[] = "ble_en";
 
-// Tracks BLE_DEFAULT_ENABLED in app_config.h — keep in sync.
 static constexpr bool DEFAULT_BLE_ENABLED = (BLE_DEFAULT_ENABLED != 0);
 
 uint8_t s_brightness = DEFAULT_BRIGHTNESS;
@@ -39,7 +38,7 @@ int16_t s_panelHeight = 0;
 
 void nvsLoad() {
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/true);
+    p.begin(NVS_NS, true);
     s_brightness = p.getUChar(KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
     s_bleEnabled = p.getUChar(KEY_BLE_ENABLED, DEFAULT_BLE_ENABLED ? 1 : 0) != 0;
     p.end();
@@ -50,7 +49,7 @@ void nvsLoad() {
 
 void nvsSave() {
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/false);
+    p.begin(NVS_NS, false);
     p.putUChar(KEY_BRIGHTNESS, s_brightness);
     p.putUChar(KEY_BLE_ENABLED, s_bleEnabled ? 1 : 0);
     p.end();
@@ -104,25 +103,25 @@ void onBleBtn(lv_event_t *e) {
 #endif
 }
 
-void onCalibrateTouch(lv_event_t * /*e*/) {
-    // Close so the calibration crosshairs are unobstructed.
+void onCalibrateTouch(lv_event_t *) {
+
     SettingsPage::close();
     TouchDriver::calibrate();
 }
 
-void onResetTouchCal(lv_event_t * /*e*/) {
-    // Wipes saved offsets; this session keeps cached offsets until reboot.
+void onResetTouchCal(lv_event_t *) {
+
     TouchDriver::resetCalibration();
     LOG_INFO("Settings", "Touch calibration reset — reboot to apply defaults");
 }
 
-void onSave(lv_event_t * /*e*/) {
+void onSave(lv_event_t *) {
     LOG_INFO("Settings", "SAVE button clicked");
     nvsSave();
     SettingsPage::close();
 }
 
-void onReset(lv_event_t * /*e*/) {
+void onReset(lv_event_t *) {
     s_brightness = DEFAULT_BRIGHTNESS;
     s_bleEnabled = DEFAULT_BLE_ENABLED;
 

@@ -345,7 +345,7 @@ void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
 }
 
-} // namespace
+}
 
 void parseWidget(JsonObjectConst src, CfgWidget *w) {
     strlcpy(w->id, src["id"] | "", CFG_MAX_ID_LEN);
@@ -384,4 +384,4 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     }
 }
 
-} // namespace ConfigLoaderInternal
+}

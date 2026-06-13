@@ -17,8 +17,6 @@ namespace {
 
 static constexpr uint8_t MAX_TRACKED_WIDGETS = CONFIG_MAX_PAGES * CONFIG_MAX_WIDGETS_PER_PAGE;
 
-// `cfg` borrows from ConfigLoader::s_dashboard (program lifetime). Reload paths
-// route through clearAll() before updateAll() runs (#677).
 struct WidgetEntry {
     lv_obj_t *parent;
     lv_obj_t *obj;
@@ -64,7 +62,7 @@ lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
 
 void updateWidget(WidgetEntry &entry,
                   const SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS]) {
-    // Button badge tracks MAP_NUMBER, not the widget's own signal.
+
     if (entry.type == WidgetType::BUTTON) {
         ButtonWidget::update(entry.obj);
         return;
@@ -91,7 +89,7 @@ void updateWidget(WidgetEntry &entry,
             WarningWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::BUTTON:
-            // Handled above before signalId check
+
             break;
         case WidgetType::GEAR_IND:
             GearWidget::update(entry.obj, rawValue, valid, *entry.cfg);
@@ -100,7 +98,7 @@ void updateWidget(WidgetEntry &entry,
             TimerWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::IMAGE:
-            // Static image — no per-frame update needed
+
             break;
         default:
             break;
@@ -108,10 +106,6 @@ void updateWidget(WidgetEntry &entry,
 }
 
 } // namespace
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     if (s_widgetCount >= MAX_TRACKED_WIDGETS) {
@@ -153,19 +147,11 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         return nullptr;
     }
 
-    // Resolve the signal name once here so updateAll() (called per render
-    // tick) does no string work. Empty signalId is legal — button/image
-    // widgets carry none, and signalIdFromName returns SIGNAL_COUNT for them
-    // without warning. Warn only for genuinely unknown non-empty names.
     SignalId resolved = signalIdFromName(cfg.signalId);
     if (resolved >= SignalIds::SIGNAL_COUNT && cfg.signalId[0] != '\0') {
         LOG_WARN("WF", "Unknown signal name: %s", cfg.signalId);
     }
 
-    // Register in tracking table. Borrow the caller's CfgWidget by address —
-    // it lives in ConfigLoader::s_dashboard for the program lifetime, and the
-    // existing clearAll/rebuild path drops every entry before the dashboard
-    // contents can change again (issue #677).
     WidgetEntry &entry = s_widgets[s_widgetCount++];
     entry.parent = parent;
     entry.obj = obj;
@@ -180,9 +166,7 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 }
 
 void WidgetFactory::updateAll(lv_obj_t *parent) {
-    // One mutex take per frame instead of one per (widget × {smoothed, raw,
-    // valid}) — was the dominant source of UI-core lock traffic and the
-    // primary lever for touch responsiveness (issue #95, fix F1).
+
     SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
 
@@ -216,9 +200,7 @@ void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
             case WidgetType::WARNING:
             case WidgetType::BUTTON:
             case WidgetType::IMAGE:
-                // No theme-driven styles to refresh — warning uses
-                // criticalColor, button uses its own colours block, image
-                // is a static asset.
+
                 break;
             default:
                 break;
@@ -226,10 +208,6 @@ void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
     }
 }
 
-// Drop every entry whose parent matches `parent` and compact the array in place.
-// Called from PageManager::rebuildAllPages() before each page screen is deleted —
-// without this, the registry grows unbounded across theme toggles and eventually
-// hits MAX_TRACKED_WIDGETS, silently refusing to create further widgets (#57).
 void WidgetFactory::clearAll(lv_obj_t *parent) {
     uint8_t out = 0;
     for (uint8_t in = 0; in < s_widgetCount; ++in) {

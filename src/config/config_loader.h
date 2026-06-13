@@ -1,9 +1,4 @@
 #pragma once
-// config_loader.h — Load and parse all config JSON files from storage
-//
-// Reads dashboard.json and signals.json from SPIFFS.
-// Parses JSON using ArduinoJson and populates the CfgDashboard and CfgSignalConfig
-// structs. Falls back to built-in defaults on parse failure.
 
 #include "config_types.h"
 
@@ -16,51 +11,18 @@ struct LoadResult {
     bool inputsOk;
 };
 
-/**
-     * Load all config files.
-     * Returns status for each file.
-     * On failure, the corresponding cfg struct has .loaded = false and
-     * callers should use built-in defaults.
-     */
 [[nodiscard]] LoadResult loadAll();
 
-/**
-     * Access the loaded dashboard config.
-     * Returns a reference valid for the firmware lifetime.
-     */
 [[nodiscard]] const CfgDashboard &getDashboardConfig();
 
-/**
-     * Access the loaded signal config.
-     */
 [[nodiscard]] const CfgSignalConfig &getSignalConfig();
 
-/**
-     * Access the loaded device hardware config.
-     * If device.json was absent, returns a struct with .loaded = false
-     * and callers should fall back to board_config.h defaults.
-     */
 [[nodiscard]] const CfgDeviceConfig &getDeviceConfig();
 
-/**
-     * Access the loaded physical-button bindings (issue #833).
-     * Returns a struct with .count=0 / .loaded=false when
-     * input_bindings.json is absent or malformed.
-     */
 [[nodiscard]] const CfgInputBindings &getInputBindings();
 
-/**
-     * Reload all configs from storage and rebuild the UI.
-     * Called after USB comm receives a PUT_CONFIG command.
-     * NOTE: Must be called from the UI task context (holds LVGL mutex).
-     */
 [[nodiscard]] bool reloadAll();
 
-/**
-     * Find a signal definition by name. Returns nullptr if no matching
-     * signal is loaded. Used by widget renderers to pull per-signal
-     * metadata (color ramp, etc.) at construction time.
-     */
 [[nodiscard]] const CfgSignalDef *findSignal(const char *name);
 
 } // namespace ConfigLoader

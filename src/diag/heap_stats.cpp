@@ -18,7 +18,6 @@ Snapshot s_latest = {};
 uint32_t s_lastEmitMs = 0;
 bool s_warmedUp = false;
 
-// Cache the IDF lookup — refreshed once on first call.
 bool s_psramProbed = false;
 bool s_hasPsram = false;
 

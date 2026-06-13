@@ -14,7 +14,6 @@ lv_obj_t *s_overlay = nullptr;
 lv_obj_t *s_arc = nullptr;
 lv_timer_t *s_errorTimer = nullptr;
 
-// UI-core + mutex-held (or pre-mutex boot phase). #1058 / F-LO-6.
 inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(xPortGetCoreID() == TASK_CORE_UI);
     configASSERT(g_lvglMutex != nullptr);
@@ -22,7 +21,6 @@ inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());
 }
 
-// LVGL 8.3 spinner pattern when LV_USE_SPINNER=0.
 constexpr uint16_t kArcSpan = 80;
 constexpr uint16_t kArcPeriod = 1100;
 
@@ -92,7 +90,7 @@ void errorHoldExpiredCb(lv_timer_t *timer) {
 
 void BurnOverlay::show() {
     assertUiThreadHoldsLvglMutex();
-    // Re-show is allowed — tear down any previous instance first.
+
     teardownOverlay();
 
     lv_obj_t *root = createRoot();
@@ -136,11 +134,6 @@ void BurnOverlay::show() {
     s_overlay = root;
     s_arc = arc;
 
-    // Force sync redraw before the caller's long storage write blocks rendering.
-    // Task-coupling: lv_refr_now drives DisplayDriver::flushCallback on the
-    // *calling* task (USB task for PUT_CONFIG). Safe because handlePutConfig
-    // holds g_lvglMutex around show(). If LVGL ever moves to partial-buffer +
-    // SPI-DMA, revisit both call sites.
     lv_refr_now(nullptr);
 }
 

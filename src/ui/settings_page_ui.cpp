@@ -11,7 +11,6 @@ namespace SettingsPageInternal {
 
 namespace {
 
-// Lazy — file-scope static init runs before FontManager::init().
 inline const lv_font_t *FONT_LG() {
     return FontManager::label(12);
 }
@@ -78,15 +77,8 @@ lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, 
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Init phase helpers — each builds one logical section of the page.
-// Helpers that flow content vertically take `y` by reference and advance it.
-// ---------------------------------------------------------------------------
-
 void computePanelGeometry(int16_t yOffset, int16_t height) {
-    // Panel geometry: visible at yOffset (just below the top bar); hidden by
-    // translating up by its own height so it sits flush with the top bar's
-    // bottom edge but off-screen. Drag tracker interpolates between the two.
+
     s_openY = yOffset;
     s_panelHeight = height;
     s_closedY = static_cast<int16_t>(yOffset - height);
@@ -147,12 +139,6 @@ void buildBrightnessRow(int16_t &y, int16_t rowW) {
     y += SLIDER_H;
 }
 
-// Labeled "MOBILE PAIRING" so a user lands here understands the toggle
-// gates the canshift-mobile companion app, not generic Bluetooth audio
-// or arbitrary BLE peripherals (#878).
-//
-// Currently unwired from init() — kept as a hidden surface so the row can
-// be reintroduced without re-deriving the layout.
 void buildBleRow(int16_t &y, int16_t rowW) {
     lv_obj_t *lbl = lv_label_create(s_panel);
     lv_label_set_text(lbl, "MOBILE PAIRING");
@@ -190,25 +176,16 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
     y += BTN_H;
 }
 
-// Actions row — both SAVE and RESET removed per user request
-// (2026-06-02). Writes are immediate via per-control change handlers, and the
-// destructive RESET path is no longer needed in the settings UI surface.
 void buildActionsRow(int16_t y, int16_t rowW) {
     (void)y;
     (void)rowW;
 }
 
-// ---------------------------------------------------------------------------
-// Snap animation — animation hops written for both open and close because
-// the executor needs a plain `void(void*, int32_t)` signature and we want to
-// commit the final state once the animation finishes.
-// ---------------------------------------------------------------------------
-
 void animSetY(void *obj, int32_t v) {
     lv_obj_set_y(static_cast<lv_obj_t *>(obj), static_cast<lv_coord_t>(v));
 }
 
-void onSnapOpenDone(lv_anim_t * /*a*/) {
+void onSnapOpenDone(lv_anim_t *) {
     if (!s_panel)
         return;
     lv_obj_set_y(s_panel, s_openY);
@@ -219,7 +196,7 @@ void onSnapOpenDone(lv_anim_t * /*a*/) {
     }
 }
 
-void onSnapClosedDone(lv_anim_t * /*a*/) {
+void onSnapClosedDone(lv_anim_t *) {
     if (!s_panel)
         return;
     lv_obj_set_y(s_panel, s_closedY);
@@ -234,12 +211,9 @@ void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb) {
     if (!s_panel)
         return;
     int16_t fromY = lv_obj_get_y(s_panel);
-    // Cancel any in-flight snap on this object so a fast user motion doesn't
-    // stack two animations fighting for the same y.
+
     lv_anim_del(s_panel, animSetY);
 
-    // Distance-proportional duration — short hops feel snappier without
-    // capping how much motion the user can see in one gesture.
     uint32_t deltaPx = static_cast<uint32_t>(abs(targetY - fromY));
     uint32_t panelH = static_cast<uint32_t>(s_panelHeight > 0 ? s_panelHeight : 1);
     uint32_t durationMs = (SNAP_ANIM_MS * deltaPx) / panelH;

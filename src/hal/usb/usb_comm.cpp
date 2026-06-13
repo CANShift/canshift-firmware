@@ -25,7 +25,6 @@ struct TeleEntry {
     const char *name;
 };
 
-// Must match signals.json.
 const TeleEntry TELE_SIGNALS[] = {
     {SignalIds::RPM, "rpm"},
     {SignalIds::THROTTLE_POS, "throttle_pos"},
@@ -49,7 +48,7 @@ const TeleEntry TELE_SIGNALS[] = {
 constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
 
 #ifdef ARDUINO
-// Drops through on lock failure so a busy logger can't lose a command ack.
+
 void serialSink(const char *data, size_t len) {
     if (!data || len == 0)
         return;
@@ -65,20 +64,15 @@ void serialSink(const char *data, size_t len) {
 void serialSink(const char *, size_t) {}
 #endif
 
-// Recursive — nested error paths in aux-sink registration can self-invoke.
 SemaphoreHandle_t s_sinkMutex = nullptr;
 UsbComm::SendSink s_sink = &serialSink;
 UsbComm::SendSink s_auxSink = nullptr;
 
-// Single writer at boot, pointer-sized reads are torn-free on ESP32 (#1207, #1314).
 UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
 UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
 
-// Per-task dispatch sink — consulted before s_sink so we don't hold the mutex
-// across handleCommand()'s ~200 ms LVGL wait during PUT_CONFIG (#1286).
 thread_local UsbComm::SendSink t_dispatchSink = nullptr;
 
-// Degrade-don't-drop — fall through unprotected on timeout.
 bool lockSink() {
     if (!s_sinkMutex)
         return false;
@@ -90,20 +84,16 @@ void unlockSink() {
         xSemaphoreGiveRecursive(s_sinkMutex);
 }
 
-// s_rxBuf doubles as TX scratch in handlePutConfig — must fit the worst-case
-// dashboard payload + the `{"cmd":2,"payload":...}` envelope.
 static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
               "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
 
 size_t s_rxPos = 0;
 
-// Drains to next newline so a partial buffer can't be misread as a command.
 bool s_rxDraining = false;
 
 uint8_t s_tickCount = 0;
 constexpr uint8_t TELE_PERIOD_TICKS = 10;
 
-// portMUX guards the two-word read against CAN-task (core 0) writes.
 struct CanHealthStats {
     uint32_t fpsX10;
     uint32_t errors;
@@ -160,7 +150,6 @@ void sendTelemetry() {
     }
 }
 
-// Cap at 32 frames/tick so telemetry isn't starved.
 void drainCanScanQueue() {
     UsbComm::CanScanFrame frame;
     uint8_t drained = 0;
@@ -194,7 +183,6 @@ void drainCanScanQueue() {
 
 } // namespace
 
-// Reached directly by usb_dispatch.cpp + usb_config_sync.cpp on the hot path.
 namespace UsbCommInternal {
 char *s_rxBuf = nullptr;
 volatile uint32_t s_lastHostCmdMs = 0;
@@ -204,7 +192,7 @@ void UsbComm::reserveRxBuf() {
     if (UsbCommInternal::s_rxBuf) {
         return;
     }
-    // PSRAM first — keeps internal DRAM for NimBLE. Falls back on WROOM.
+
     UsbCommInternal::s_rxBuf =
         static_cast<char *>(heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_SPIRAM));
     if (!UsbCommInternal::s_rxBuf) {
@@ -212,7 +200,7 @@ void UsbComm::reserveRxBuf() {
             heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     }
     if (!UsbCommInternal::s_rxBuf) {
-        // init()/tick() degrade silently — user can still reach Settings via BLE.
+
         LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", USB_RX_BUF_SIZE);
     }
 }
@@ -221,7 +209,7 @@ void UsbComm::init() {
     s_rxPos = 0;
     s_rxDraining = false;
     s_tickCount = 0;
-    // Happy path is reserveRxBuf() from setup() before lv_init().
+
     if (!UsbCommInternal::s_rxBuf) {
         reserveRxBuf();
     }
@@ -244,11 +232,8 @@ void UsbComm::sendLine(const char *line) {
         return;
     const size_t len = strlen(line);
 
-    // Per-task dispatch sink avoids global locks across command body (#1286).
     const SendSink dispatch = t_dispatchSink;
 
-    // Snapshot under mutex, invoke after release — slow sink can't block others.
-    // Drop on timeout rather than reading torn pointers.
     if (!lockSink()) {
         LOG_DEBUG("USB", "sendLine: sink lock timeout — dropping (%u B)",
                   static_cast<unsigned>(len));
@@ -268,8 +253,6 @@ void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
     if (!line || len == 0 || !sink)
         return;
 
-    // thread_local lets sendLine() route replies without holding the sink mutex
-    // across the command body — was a 100-200 ms tail per PUT_CONFIG (#1286).
     const SendSink saved = t_dispatchSink;
     t_dispatchSink = sink;
 
@@ -304,8 +287,7 @@ void UsbComm::setBurnOverlayShowErrorCallback(BurnOverlayShowErrorCb cb) {
 }
 
 void UsbCommInternal::invokeBurnOverlayShow() {
-    // Snapshot to a local so a concurrent setter never races a non-null check
-    // against a tear-down. Pointer reads are atomic on ESP32; no mutex needed.
+
     const UsbComm::BurnOverlayShowCb cb = s_burnOverlayShowCb;
     if (cb)
         cb();
@@ -335,39 +317,23 @@ void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
     if (!UsbCommInternal::canScanModeActive())
         return false;
-    // Hold the spinlock across xQueueSend so CMD_CAN_SCAN_STOP on the USB task
-    // cannot vQueueDelete the handle between our null-check and our send
-    // (#1042 — closes the residual µs window #1041 left). Safe because
-    // xQueueSend with timeout=0 never yields, and ESP-IDF's queue internal
-    // spinlock is acquired strictly *after* this outer MUX in both paths
-    // (here and in CMD_CAN_SCAN_STOP's vQueueDelete) — same nesting order,
-    // no AB-BA. drainCanScanQueue's xQueueReceive only takes the inner queue
-    // spinlock, so it can never block while holding a lock we also need.
+
     return UsbCommInternal::canScanQueueTrySend(frame);
 }
 
 void UsbComm::tick() {
-    // USB CDC config push disabled (rxBuf alloc failed at boot). Stay silent
-    // — the BLE / WiFi paths remain available for user recovery.
+
     if (!UsbCommInternal::s_rxBuf) {
         return;
     }
 
-    // Abort any chunked transfer that has stalled (host crashed mid-stream
-    // or unplugged) — leaves storage in a clean state. Driven from the
-    // dispatch module which owns the chunk-transfer state.
     UsbCommInternal::tickChunkTransferTimeout();
 
     while (Serial.available() > 0) {
         char c = static_cast<char>(Serial.read());
-        // Update host activity on any byte received, not just complete commands.
-        // This keeps the top-bar USB icon green while the studio's serial port
-        // is open even between command lines.
+
         UsbCommInternal::s_lastHostCmdMs = millis();
 
-        // Drain mode: an earlier byte tripped the buffer cap. Skip everything
-        // until the next newline so the leftover tail of the oversized line
-        // isn't interpreted as a fresh command (#1341).
         if (s_rxDraining) {
             if (c == '\n') {
                 s_rxDraining = false;
@@ -384,11 +350,7 @@ void UsbComm::tick() {
         } else if (s_rxPos < USB_RX_BUF_SIZE - 1) {
             UsbCommInternal::s_rxBuf[s_rxPos++] = c;
         } else {
-            // Overflow: emit an explicit protocol error so the host can
-            // distinguish "command silently dropped" from "command accepted",
-            // then drain the rest of the line. Pre-#1341 we reset `s_rxPos` and
-            // started overwriting from byte 0, which interleaved tail-of-A with
-            // head-of-B and the host got no signal that anything went wrong.
+
             LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
                      static_cast<unsigned>(USB_RX_BUF_SIZE - 1));
             UsbComm::sendLine("{\"status\":\"error\",\"message\":\"line_too_long\"}");
@@ -397,17 +359,11 @@ void UsbComm::tick() {
         }
     }
 
-    // Drain CAN scan queue — send queued frames before telemetry
     drainCanScanQueue();
 
-    // Emit CAN health stats if the CAN task pushed new data
     if (s_canStatsPending) {
         s_canStatsPending = false;
-        // Format: {"can_stat":1,"fps":12.5,"errors":0}\n
-        // Worst-case with all UINT32_MAX operands:
-        //   prefix 20 + fpsX10/10 (9) + '.' (1) + fpsX10%10 (1)
-        //   + "," "errors":"  (10) + errors (10) + "}\n" (2) + '\0' (1) = 54
-        // 72 bytes gives headroom for future protocol additions (#1161).
+
         static constexpr size_t CAN_STAT_BUF_WORST_CASE = 54;
         static_assert(72 >= CAN_STAT_BUF_WORST_CASE,
                       "statBuf too small for worst-case can_stat payload");

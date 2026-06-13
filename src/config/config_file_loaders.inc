@@ -1,13 +1,3 @@
-// config_file_loaders.cpp — Per-file (`dashboard` / `signals` / `device` /
-// `input_bindings`) loaders driven by ConfigLoader::loadAll() (#1207).
-//
-// Extracted from `config_loader.cpp`. Each `loadX()` here pulls its document
-// through the shared `readAndParseWithBak` helper (in `json_helpers.cpp`),
-// validates schema-level invariants via `config_validators.cpp`, hands per-
-// widget / per-signal nodes off to the parsers in `config_parser.cpp`, and
-// writes into the file-static config storage exposed by
-// `config_loader_internal.h`. Rollback snapshots are taken/restored against
-// the orchestrator-owned `acquireRollbackSnapshot()` buffer.
 
 #include "config_loader_internal.h"
 
@@ -48,11 +38,7 @@ bool loadDashboard() {
     strlcpy(out->name, doc["name"] | "", sizeof(out->name));
     strlcpy(out->defaultPageId, doc["defaultPageId"] | "", sizeof(out->defaultPageId));
     out->revLimitRpm = doc["revLimitRpm"] | 7200.0f;
-    // Target screen profile (issues #17, #18). Optional in JSON — pre-#1128
-    // dashboards omit it; resolveScreenProfile() in canshift-core treats
-    // missing as DEFAULT_SCREEN_PROFILE_ID. Mirror that here so the
-    // downstream scale computation (ui/screen_profile.cpp) reads a stable
-    // non-empty id and never has to special-case the empty string.
+
     strlcpy(out->targetProfile, doc["targetProfile"] | "crowpanel-28", sizeof(out->targetProfile));
     JsonObjectConst topBar = doc["topBar"];
     out->topBar.height = topBar["height"] | 30;
@@ -80,21 +66,18 @@ bool loadDashboard() {
             if (tmp.kind == TopBarItemKind::UNKNOWN) {
                 LOG_WARN("CFG", "topBar.layout[%u]: unknown type — item dropped",
                          static_cast<unsigned>(out->topBar.itemCount));
-                continue; // slot untouched — no stale data risk
+                continue;
             }
             out->topBar.items[out->topBar.itemCount++] = tmp;
         }
     } else {
-        // No layout in config — mirror canshift-core DEFAULT_TOP_BAR_LAYOUT
+
         LOG_INFO("CFG", "topBar.layout missing — applying default layout");
         uint8_t &n = out->topBar.itemCount;
         auto &items = out->topBar.items;
         auto addItem = [&](TopBarItemKind kind, TopBarItemPos pos, const char *sig,
                            const char *txt) {
-            // `n` is the ref-captured out->topBar.itemCount, set to 0
-            // above. clang-analyzer's path tracking loses the initialisation
-            // across the lambda capture and reports a false-positive
-            // uninitialised-deref on the read below.
+
             // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
             if (n >= CFG_MAX_TOPBAR_ITEMS)
                 return;
@@ -113,7 +96,6 @@ bool loadDashboard() {
         addItem(TopBarItemKind::THEME_TOGGLE, TopBarItemPos::RIGHT, "", "");
     }
 
-    // Optional day theme (hasDayTheme = false when key absent)
     JsonObjectConst dayThemeJson = doc["dayTheme"];
     out->hasDayTheme = !dayThemeJson.isNull();
     if (out->hasDayTheme) {
@@ -141,8 +123,7 @@ bool loadDashboard() {
 
         p.showTopBar = page["showTopBar"] | true;
         p.visible = page["visible"] | true;
-        // Page template (issue #451). Absent / "custom" / unknown → CUSTOM, so
-        // every pre-#451 config keeps rendering its widgets[] grid unchanged.
+
         const char *templateStr = page["template"] | "custom";
         if (strcmp(templateStr, "cruise_control") == 0) {
             p.templateKind = CfgPageTemplate::CRUISE_CONTROL;
@@ -206,17 +187,13 @@ bool loadDashboard() {
 }
 
 bool loadSignals() {
-    // Snapshot prior state into the rollback buffer for rollback on parse
-    // failure (issue #458, audit F-HI-3 / umbrella #1014) — same pattern as
-    // loadDashboard(). Boot-time config load is serial and loadDashboard has
-    // already returned, so the shared rollback buffer is free to reuse here.
-    // See loadDashboard() for the null-snapshot rationale (issue #1073).
+
     uint8_t *snapshot = acquireRollbackSnapshot();
     if (snapshot) {
         memcpy(snapshot, &s_signals, sizeof(CfgSignalConfig));
     }
 
-    JsonDocument doc; // ArduinoJson v7 — dynamic
+    JsonDocument doc;
     if (!readAndParseWithBak(CONFIG_PATH_SIGNALS, doc)) {
         LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
@@ -232,10 +209,6 @@ bool loadSignals() {
     s_signals.canSpeedKbps = doc["canSpeedKbps"] | 500;
     s_signals.signalCount = 0;
 
-    // Outbound frame overrides — issue #317. signals.json `out` block lets the
-    // user override baked frame IDs (currently just map_switch). Missing keys
-    // leave the field at zero so the dispatcher falls back to the compiled-in
-    // default. `extended` is auto-set when the ID exceeds the 11-bit range.
     s_signals.out.mapSwitchFrameId = 0;
     s_signals.out.mapSwitchExtended = false;
     JsonObjectConst outObj = doc["out"];
@@ -341,18 +314,8 @@ bool loadSignals() {
             }
         }
 
-        // Per-signal color ramp (issue #430). Optional — when absent, the
-        // widget renderer falls back to a default lookup keyed on the name.
         parseColorRamp(sig["colorRamp"], s.name, &s.colorRamp);
 
-        // OBD-II polling block (issue #841 — phase 3 of #556). Optional —
-        // when absent the signal stays in legacy passive-broadcast mode
-        // (`pollIntervalMs == 0`). When present, Obd2Poller sends a request
-        // frame at `pollIntervalMs` and decodes the response into this
-        // signal. v1 supports Mode 01 only — out-of-range modes/intervals
-        // are silently dropped (logged) so a malformed config keeps the
-        // signal usable as a passive entry rather than rejecting the whole
-        // catalog.
         s.pollMode = 0;
         s.pollPid = 0;
         s.pollIntervalMs = 0;
@@ -378,10 +341,6 @@ bool loadSignals() {
             }
         }
 
-        // ----- Validate decoder-critical fields (issues #197 / #198) -----
-        // CAN classic frames are 8 bytes; byteLength must be 1, 2, or 4 to
-        // produce a well-defined sign-extend and a bounded read.
-        // kCanFrameMaxBytes lives in app_config.h (F-LO-3).
         const bool byteLenValid = (s.byteLength == 1 || s.byteLength == 2 || s.byteLength == 4);
         const bool startInRange = (s.startByte < kCanFrameMaxBytes);
         const bool fitsInFrame =
@@ -402,11 +361,7 @@ bool loadSignals() {
 }
 
 bool loadDevice() {
-    // device.json is small (CfgDeviceConfig is ~8 bytes); snapshot lives on
-    // the stack. The rollback is defensive — today the only mutations live
-    // at the tail of this function, but keeping the pattern uniform with
-    // loadDashboard / loadSignals (issue #458) protects against future
-    // refactors that move assignments earlier.
+
     const CfgDeviceConfig prev = s_device;
 
     if (!StorageDriver::fileExists(CONFIG_PATH_DEVICE)) {
@@ -505,4 +460,4 @@ bool loadInputBindings() {
     return true;
 }
 
-} // namespace ConfigLoaderInternal
+}

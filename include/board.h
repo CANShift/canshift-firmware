@@ -1,5 +1,5 @@
 #pragma once
-// Each boards/<board>.h defines kActiveBoard + the LGFX class.
+
 #include "board_profile.h"
 
 #if defined(BOARD_CROWPANEL_28)

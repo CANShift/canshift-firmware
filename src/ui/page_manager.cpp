@@ -47,12 +47,10 @@ void PageManager::init() {
     s_pageCount = 0;
     s_currentIdx = 0;
 
-    // Reclaim splash-pool space before widget allocations below.
     lv_obj_clean(lv_scr_act());
 
-    // ErrorBar first — boot errors must show even without a valid dashboard.
     ErrorBar::init();
-    // Must follow ErrorBar — both share lv_layer_top (#635).
+
     DiagDrawer::init();
 
     if (!dash.loaded) {
@@ -64,7 +62,6 @@ void PageManager::init() {
     ThemeManager::init();
     TopBar::init();
 
-    // Only the default page is built eagerly — others lazily, to avoid LVGL-pool OOM.
     const char *defaultId = dash.defaultPageId;
     for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
         if (!dash.pages[i].visible) {
@@ -83,7 +80,6 @@ void PageManager::init() {
         s_pageCount++;
     }
 
-    // Default missing → build the first visible page so we always boot a screen.
     if (s_pageCount > 0 && !s_pages[0].screen) {
         for (uint8_t i = 0; i < s_pageCount; ++i) {
             if (!s_pages[i].screen) {
@@ -149,7 +145,6 @@ void PageManager::requestReload() {
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 
-    // Reload supersedes rebuild — clear both to avoid double-rebuild.
     if (s_reloadRequested) {
         s_reloadRequested = false;
         s_rebuildRequested = false;
@@ -167,7 +162,6 @@ void PageManager::updateWidgets() {
     if (s_pageCount == 0)
         return;
 
-    // Theme toggle takes the in-place reapply fast path (#1257).
     if (s_rebuildRequested) {
         reapplyThemeAllPages();
         return;

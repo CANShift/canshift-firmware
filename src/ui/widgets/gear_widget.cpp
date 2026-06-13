@@ -1,4 +1,4 @@
-// Special values: 0/invalid → "N", -1 → "R", 1–8 → "1"–"8".
+
 #include "gear_widget.h"
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
@@ -17,11 +17,8 @@ struct GearTag {
     uint32_t lastColorRgb;
 };
 
-// Mirrors label_widget's header band so gear + numeric reserve the same strip.
 constexpr int16_t kSigHeaderH = 14;
 
-// Studio always renders Orbitron Black; FontManager only bakes Black at 32/48,
-// so smaller cells fall through to Bold then Medium.
 const lv_font_t *selectFont(int16_t h, int16_t w) {
     const int byHeight = (h * 85) / 100;
     const int byWidth = (w * 72) / 100;
@@ -48,19 +45,17 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
-    // No label — the digit alone communicates the gear.
     const int16_t sigHeaderH = 0;
     const int16_t digitBandH = cfg.layout.h;
     (void)kSigHeaderH;
 
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, static_cast<int16_t>(sigHeaderH / 2));
-    // update() switches to cfg.style.primaryColor when value != 0.
+
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(label, selectFont(digitBandH, cfg.layout.w), 0);
     lv_label_set_text(label, "N");
 
-    // RAII slot guard (#1207).
     WidgetTagPool::Slot<GearTag> tagSlot;
     GearTag *tag = tagSlot.get();
     if (!tag) {
@@ -84,7 +79,7 @@ void GearWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     auto *tag = static_cast<GearTag *>(lv_obj_get_user_data(obj));
     if (!tag || !tag->label)
         return;
-    // Only the neutral colour is theme-dependent; update() repaints if needed.
+
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     WidgetStyles::setTextColorIfChanged(tag->label, tag->lastColorRgb, textRgb);

@@ -35,15 +35,11 @@ extern SemaphoreHandle_t g_lvglMutex;
 
 namespace {
 
-// CAN-task (core 0) producer + USB-task (core 1) consumer. The portMUX
-// serialises handle load/store so a free-then-send race deterministically
-// resolves to either "captured live handle" or "saw nullptr and bailed".
 constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
 QueueHandle_t s_canScanQueue = nullptr;
 portMUX_TYPE s_canScanQueueMux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_canScanMode = false;
 
-// Count of frames dropped due to a full scan queue since the last scan start.
 uint32_t s_scanDrops = 0;
 
 constexpr uint32_t CHUNK_TIMEOUT_MS = 10000;
@@ -66,7 +62,6 @@ void abortChunkTransfer(const char *reason) {
     s_chunk.total = 0;
 }
 
-// /config/ is intentionally absent — owned by CMD_PUT_CONFIG with schema check.
 const char *kAllowedPutPrefixes[] = {
     "/assets/",
     "/fonts/",
@@ -124,8 +119,6 @@ void handlePutFile(const JsonObjectConst &obj) {
         return;
     }
 
-    // Decode base64 in-place into s_rxBuf — ArduinoJson 7 has already copied
-    // path/data into the JsonDocument's pool, so the source line is free.
     size_t decoded = 0;
     const int rc = mbedtls_base64_decode(
         reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
@@ -164,9 +157,6 @@ void handlePutFile(const JsonObjectConst &obj) {
     UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
-// One LVGL_HANDLER_PERIOD_MS + safety margin — the UI task wakes from
-// xTaskNotify on TASK_PRIO_UI (10) > USB (8), paints the BurnOverlay under
-// g_lvglMutex, and releases the mutex before we take it for the flash write.
 constexpr uint32_t BURN_OVERLAY_RENDER_GRACE_MS = 20;
 
 void handlePutConfig(const char *jsonLine) {
@@ -187,9 +177,6 @@ void handlePutConfig(const char *jsonLine) {
     UsbCommInternal::invokeBurnOverlayShow();
     vTaskDelay(pdMS_TO_TICKS(BURN_OVERLAY_RENDER_GRACE_MS));
 
-    // Hold g_lvglMutex for the entire write — vTaskDelay(0) inside the
-    // SPIFFS driver would otherwise let lv_task_handler race a concurrent
-    // LVGL allocation against the flash write and OOM-panic mid-writeFileAtomic.
     if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
         LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
         UsbCommInternal::invokeBurnOverlayShowError(0);
@@ -201,7 +188,7 @@ void handlePutConfig(const char *jsonLine) {
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
         xSemaphoreGive(g_lvglMutex);
-        // 0 = BurnOverlay::ErrorReason::WriteFailed.
+
         UsbCommInternal::invokeBurnOverlayShowError(0);
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
@@ -211,12 +198,8 @@ void handlePutConfig(const char *jsonLine) {
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
     UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
     Serial.flush();
-    esp_restart(); // never returns
+    esp_restart();
 }
-
-// ---------------------------------------------------------------------------
-// CMD_SCREEN_SETTINGS (0x05)
-// ---------------------------------------------------------------------------
 
 void handleScreenSettings(const JsonObjectConst &obj) {
     uint8_t brightness = obj["brightness"] | 80;
@@ -231,7 +214,6 @@ void handleScreenSettings(const JsonObjectConst &obj) {
         return;
     }
 
-    // Only re-apply rotation when the value actually changed — apply reboots.
     JsonVariantConst rotationVar = obj["rotation"];
     if (!rotationVar.isNull()) {
         const uint16_t rotation = rotationVar.as<uint16_t>();
@@ -239,16 +221,13 @@ void handleScreenSettings(const JsonObjectConst &obj) {
             LOG_INFO("USB", "Rotation change requested: %u° — rebooting", rotation);
             UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
             Serial.flush();
-            RotationConfig::applyAndReboot(rotation); // never returns
+            RotationConfig::applyAndReboot(rotation);
         }
     }
 
     UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
-// Assembles the response in a single buffer so sendLine fans out via every
-// active sink (USB-CDC / TCP / WS) — three raw Serial.print writes bypass
-// the fan-out added in #1073.
 class BufferPrint : public Print {
   public:
     BufferPrint(char *dst, size_t cap) : dst_(dst), cap_(cap), used_(0) {}
@@ -302,11 +281,9 @@ void handleGetConfig() {
     constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
     memcpy(buf, kPrefix, kPrefixLen);
 
-    BufferPrint sink(buf + kPrefixLen, needed - kPrefixLen - 2 /* '}' + '\0' */);
-    const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink,
-                                                        true /* replaceNewlinesWithSpaces */);
-    // Either stream failure or partial fill — shipping a truncated body would
-    // silently corrupt the host's view of the device config.
+    BufferPrint sink(buf + kPrefixLen, needed - kPrefixLen - 2);
+    const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink, true);
+
     if (streamed == 0 || sink.used() == 0 || streamed != sink.used()) {
         free(buf);
         LOG_WARN("USB", "GET_CONFIG: stream mismatch for %s (streamed=%u, sink=%u)",
@@ -372,7 +349,6 @@ void handleCommand(const char *jsonLine) {
 
     const size_t jsonLen = strlen(jsonLine);
 
-    // Peek at cmd via filter — avoids loading the full PUT_CONFIG payload.
     JsonDocument cmdFilter;
     cmdFilter["cmd"] = true;
     JsonDocument peekDoc;
@@ -434,17 +410,14 @@ void handleCommand(const char *jsonLine) {
             handleGetConfig();
             break;
         case UsbComm::CMD_GET_DEVICE_CONFIG:
-            // device.json on disk is already the flat snake_case shape the
-            // wire schema expects — pass it through unwrapped.
+
             sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", nullptr);
             break;
         case UsbComm::CMD_PUT_DEVICE_CONFIG:
             handlePutDeviceConfig(doc.as<JsonObjectConst>());
             break;
         case UsbComm::CMD_GET_INPUT_BINDINGS:
-            // input_bindings.json wraps the array as `{"input_bindings":[...]}`
-            // — lift the inner array so the wire envelope carries the bare
-            // array under the same key (matches InputBindingsConfigWireSchema).
+
             sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", "input_bindings");
             break;
         case UsbComm::CMD_PUT_INPUT_BINDINGS:
@@ -483,31 +456,23 @@ void handleCommand(const char *jsonLine) {
             break;
         case UsbComm::CMD_CAN_SCAN_START: {
             s_scanDrops = 0;
-            // Allocate outside the critical section — xQueueCreate may take
-            // the heap mutex and must never run with interrupts disabled.
+
             QueueHandle_t fresh = nullptr;
             if (!s_canScanQueue) {
                 fresh = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
                 if (!fresh) {
                     LOG_ERROR("USB", "CAN scan start: queue alloc failed");
 #if APP_USB_CAN_SCAN_FAIL_LOUD
-                    // #976 reproducer hook — abort here so a fresh boot with
-                    // the queue present is easy to distinguish from one that
-                    // already started in a degraded state. Off in release.
+
                     abort();
 #endif
-                    // Surface to the on-screen error badge so a failed scan
-                    // start is not silent past the USB reply (F-HI-7).
+
                     ErrorStore::push(ERROR_SRC_SYSTEM, "SCAN_QUEUE", "CAN scan queue alloc failed");
                     UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
                     break;
                 }
             }
-            // Publish the new handle under the spinlock so the CAN task sees
-            // a fully constructed queue before s_canScanMode flips true. Kept
-            // symmetric with the STOP path even though the mode-gate dominates
-            // here, so the invariant "handle access is always serialised" is
-            // visibly upheld at every site.
+
             portENTER_CRITICAL(&s_canScanQueueMux);
             if (fresh) {
                 s_canScanQueue = fresh;
@@ -522,21 +487,13 @@ void handleCommand(const char *jsonLine) {
         }
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
-            // Atomically detach the queue handle so the CAN task either sees
-            // it (and finishes xQueueSend on a still-valid queue before we
-            // can re-enter and free it) or sees nullptr (and bails). The
-            // critical section disables interrupts on this core and prevents
-            // the other core from entering its matching section, giving us
-            // the deterministic ordering PR #1022's vTaskDelay only
-            // approximated (#1009).
+
             QueueHandle_t toDelete;
             portENTER_CRITICAL(&s_canScanQueueMux);
             toDelete = s_canScanQueue;
             s_canScanQueue = nullptr;
             portEXIT_CRITICAL(&s_canScanQueueMux);
-            // Free the queue back to the heap — scan mode is opt-in, the
-            // expected steady state is no queue at all. Keeps ~1 KB
-            // contiguous DRAM available for icon decodes / page rebuilds.
+
             if (toDelete) {
                 vQueueDelete(toDelete);
             }
@@ -554,11 +511,7 @@ void handleCommand(const char *jsonLine) {
             break;
         }
         default:
-            // Surface opcode drift loudly so a tuner built against a future
-            // protocol can't silently fall through with a fake `ok`. Old
-            // behaviour returned `{"status":"ok"}` here, which let the typed
-            // envelope drift between tuner and firmware without any signal
-            // until a downstream parser blew up (#1365).
+
             LOG_WARN("USB", "Unknown cmd: 0x%02X — replying unknown_command", cmd);
             UsbComm::sendLine("{\"status\":\"error\",\"message\":\"unknown_command\"}");
             break;

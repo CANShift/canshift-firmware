@@ -14,7 +14,6 @@
 namespace {
 StorageDriver::InitStatus s_initStatus = StorageDriver::InitStatus::NotInitialized;
 
-// ::stat() doesn't prepend the SPIFFS mountpoint — Arduino wrappers do.
 constexpr const char *kSpiffsMount = "/spiffs";
 constexpr size_t kSpiffsMountLen = 7;
 } // namespace
@@ -37,7 +36,6 @@ bool buildSuffixedPath(char *out, size_t outLen, const char *base, const char *s
     return true;
 }
 
-// On rename failure mid-rotation the previous file is restored from .bak.
 bool finalizeAtomicSwap(const char *path) {
     char tmpPath[kSuffixedPathLen];
     char bakPath[kSuffixedPathLen];
@@ -65,7 +63,7 @@ bool finalizeAtomicSwap(const char *path) {
 
     if (!SPIFFS.rename(tmpPath, path)) {
         LOG_ERROR("STORAGE", "Promote %s -> %s failed", tmpPath, path);
-        // Best-effort restore so the device still boots with the prior config.
+
         if (hadOriginal) {
             if (!SPIFFS.rename(bakPath, path)) {
                 LOG_ERROR("STORAGE", "Restore from %s failed — file lost", bakPath);
@@ -93,10 +91,8 @@ bool StorageDriver::init() {
         LOG_INFO("STORAGE", "Backend=SPIFFS partition=spiffs offset=? size=? attempting mount...");
     }
 
-    // 16 matches lvgl_fs_driver.cpp's kFsPoolSize — LVGL's BIN decoder keeps
-    // the source file open for every cached image.
     constexpr uint8_t kSpiffsMaxOpenFiles = 16;
-    if (!SPIFFS.begin(true /* formatOnFail */, kSpiffsMount, kSpiffsMaxOpenFiles)) {
+    if (!SPIFFS.begin(true, kSpiffsMount, kSpiffsMaxOpenFiles)) {
         const char *reason =
             (part == nullptr) ? "partition_missing" : "partition_corrupt_or_format_fail";
         LOG_ERROR("STORAGE", "Backend=SPIFFS mount=failed reason=%s", reason);
@@ -131,8 +127,6 @@ DeserializationError StorageDriver::parseJsonFile(const char *path, JsonDocument
     }
     const size_t size = file.size();
 
-    // Slurp + JsonReader::parse keeps the binary down to a single
-    // JsonDeserializer<BoundedReader<const char*>> instantiation (#1249 F-2).
     char *buf = static_cast<char *>(heap_caps_malloc(size + 1, MALLOC_CAP_SPIRAM));
     if (!buf) {
         buf =
@@ -238,10 +232,7 @@ bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_
 }
 
 bool StorageDriver::fileExists(const char *path) {
-    // ::stat() through VFS instead of SPIFFS.exists() — fopen-based exists()
-    // can abort() during newlib FILE-slot mutex init under heap pressure
-    // (#651). Arduino wrappers prepend the SPIFFS mountpoint; ::stat() needs
-    // it added explicitly or the path resolves outside any mount.
+
     if (!path || path[0] != '/')
         return false;
     char full[kSpiffsMountLen + CFG_MAX_PATH_LEN + 1];
@@ -287,18 +278,17 @@ File s_chunkFile;
 bool s_chunkOpen = false;
 bool s_chunkAtomic = false;
 char s_chunkAtomicPath[CFG_MAX_PATH_LEN] = {0};
-char s_chunkActualPath[kSuffixedPathLen] = {0}; // path actually opened (with .tmp if atomic)
+char s_chunkActualPath[kSuffixedPathLen] = {0};
 } // namespace
 
 bool StorageDriver::ensureParentDirs(const char *path) {
     if (!path || path[0] != '/')
         return false;
 
-    // Walk slashes, mkdir each prefix. Skip the final segment (the file name).
     char buf[128];
     strlcpy(buf, path, sizeof(buf));
 
-    char *cursor = buf + 1; // skip leading '/'
+    char *cursor = buf + 1;
     while (true) {
         char *slash = strchr(cursor, '/');
         if (!slash)
@@ -397,7 +387,7 @@ bool StorageDriver::endChunkedWrite() {
     if (s_chunkAtomic) {
         ok = finalizeAtomicSwap(s_chunkAtomicPath);
         if (!ok) {
-            // finalizeAtomicSwap already logged + cleaned up the .tmp.
+
             LOG_ERROR("STORAGE", "Atomic chunked finalize failed: %s", s_chunkAtomicPath);
         }
     }

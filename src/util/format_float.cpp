@@ -1,4 +1,4 @@
-// All routines avoid %f/%g so the linker drops _vfprintf_r + _dtoa_r (~30 KB).
+
 #include "format_float.h"
 
 #include <math.h>
@@ -55,7 +55,6 @@ size_t copyTerminated(char *buf, size_t size, const char *src) {
     return srcLen;
 }
 
-// Snprintf-style return; truncation always nul-terminates inside `size`.
 size_t formatFixedSigned(char *buf, size_t size, float value, int decimals) {
     if (decimals < 0)
         decimals = 0;
@@ -77,7 +76,6 @@ size_t formatFixedSigned(char *buf, size_t size, float value, int decimals) {
     const int64_t whole = scaled / scale;
     const int64_t frac = scaled % scale;
 
-    // Worst case: sign + 11 whole digits + '.' + 9 frac + nul.
     char scratch[32];
     size_t pos = 0;
     if (negative)
@@ -92,27 +90,23 @@ size_t formatFixedSigned(char *buf, size_t size, float value, int decimals) {
     return copyTerminated(buf, size, scratch);
 }
 
-// Inspect `spec` looking for `"%[.N]f"` token. On success: writes the whole
-// formatted result to `buf` and returns the length. On failure (no recognized
-// token): renders `value` with `%.1f` semantics and ignores `spec` entirely.
 size_t formatWithSpec(char *buf, size_t size, float value, const char *spec) {
     if (spec == nullptr || spec[0] == '\0')
         return formatFixedSigned(buf, size, value, 1);
 
-    // Find the first '%' that introduces a float conversion we recognize.
     const char *p = spec;
     const char *percent = nullptr;
     int decimals = -1;
     const char *afterSpec = nullptr;
     while (*p != '\0') {
         if (*p == '%' && *(p + 1) == '%') {
-            // Literal "%%". Skip both.
+
             p += 2;
             continue;
         }
         if (*p == '%') {
             const char *q = p + 1;
-            int dec = 1; // default precision when no `.N` present
+            int dec = 1;
             if (*q == '.') {
                 ++q;
                 int n = 0;
@@ -122,7 +116,7 @@ size_t formatWithSpec(char *buf, size_t size, float value, const char *spec) {
                     ++q;
                     ++parsed;
                     if (parsed > 2) {
-                        // Unreasonable precision — bail.
+
                         n = -1;
                         break;
                     }
@@ -139,7 +133,7 @@ size_t formatWithSpec(char *buf, size_t size, float value, const char *spec) {
                 afterSpec = q + 1;
                 break;
             }
-            // Not a float conversion we handle — keep scanning.
+
             p = q + 1;
             continue;
         }
@@ -147,12 +141,10 @@ size_t formatWithSpec(char *buf, size_t size, float value, const char *spec) {
     }
 
     if (percent == nullptr) {
-        // No `%f`-style token found. Treat `spec` as a plain prefix and append
-        // a default `%.1f` rendering — preserves intent for legacy configs.
+
         return formatFixedSigned(buf, size, value, 1);
     }
 
-    // Compose: <prefix><number><suffix>.
     char number[32];
     formatFixedSigned(number, sizeof(number), value, decimals);
 
@@ -220,9 +212,6 @@ size_t formatGeneral(char *buf, size_t size, float value, int sigDigits) {
     if (isinf(value))
         return copyTerminated(buf, size, value < 0 ? "-inf" : "inf");
 
-    // For telemetry we want a stable, JSON-safe number. Pick a decimal count
-    // based on the integer-part magnitude so the total significant digits
-    // matches `sigDigits` — but never produce empty fraction with no point.
     float abs = value < 0.0f ? -value : value;
 
     int intDigits = 1;
@@ -245,7 +234,6 @@ size_t formatGeneral(char *buf, size_t size, float value, int sigDigits) {
     if (len >= sizeof(scratch))
         return copyTerminated(buf, size, scratch);
 
-    // Strip trailing zeros after the decimal point (mirrors `%g` behavior).
     if (decimals > 0) {
         size_t end = len;
         while (end > 0 && scratch[end - 1] == '0')

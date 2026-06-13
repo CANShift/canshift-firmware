@@ -17,7 +17,7 @@ namespace RotationConfig {
 
 uint16_t getOffsetDeg() {
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/true);
+    p.begin(NVS_NS, true);
     uint16_t v = p.getUShort(NVS_KEY_OFFSET, 0);
     p.end();
     return (v == 180) ? 180 : 0;
@@ -33,13 +33,12 @@ void applyAndReboot(uint16_t offsetDeg) {
     const uint16_t normalized = (offsetDeg == 180) ? 180 : 0;
 
     Preferences p;
-    p.begin(NVS_NS, /*readOnly=*/false);
+    p.begin(NVS_NS, false);
     p.putUShort(NVS_KEY_OFFSET, normalized);
     p.end();
 
-    // Touch cal is rotation-dependent — clear it so first-boot cal runs again.
     Preferences cal;
-    cal.begin(TOUCH_NVS_NS, /*readOnly=*/false);
+    cal.begin(TOUCH_NVS_NS, false);
     cal.remove(TOUCH_NVS_KEY_CAL);
     cal.end();
 

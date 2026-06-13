@@ -20,8 +20,6 @@ static bool s_flashPhase = false;
 
 static float s_revLimitRpm = 7200.0f;
 
-// warning/danger = low-side for battery/oil-press, high-side for temps.
-// highWarning/highDanger = optional additional high-side; NaN = disabled.
 static float s_coolantWarnC = 100.0f;
 static float s_coolantCritC = 110.0f;
 static float s_coolantHighWarnC = NAN;
@@ -47,8 +45,6 @@ AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLe
     return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
 }
 
-// NaN = disabled. Returns NORMAL when neither threshold is configured so
-// callers can safely max() with their existing per-signal verdict.
 AlertEngine::AlertLevel evalHighSide(float value, float highWarn, float highCrit) {
 #if USE_RUST_ALERT_ENGINE
     return static_cast<AlertEngine::AlertLevel>(alert_eval_high_side_rs(value, highWarn, highCrit));
@@ -117,8 +113,7 @@ AlertEngine::AlertLevel evalOilPressure(float pressBar) {
         alert_eval_oil_pressure_rs(pressBar, s_oilPressWarnBar, s_oilPressCritBar,
                                    s_oilPressHighWarnBar, s_oilPressHighCritBar));
 #else
-    // Low oil pressure is dangerous — alert on LOW values via warningLevel/dangerLevel.
-    // Optional high-side via highWarningLevel/highDangerLevel (rare: over-pressure).
+
     AlertEngine::AlertLevel base;
     if (pressBar <= s_oilPressCritBar)
         base = AlertEngine::AlertLevel::CRITICAL;
@@ -135,7 +130,7 @@ AlertEngine::AlertLevel evalBattery(float volts) {
     return static_cast<AlertEngine::AlertLevel>(alert_eval_battery_rs(
         volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV, s_batteryHighCritV));
 #else
-    // Low side first (cranking failure dominates).
+
     if (volts < s_batteryLowCritV)
         return AlertEngine::AlertLevel::CRITICAL;
     AlertEngine::AlertLevel base = (volts < s_batteryLowWarnV) ? AlertEngine::AlertLevel::WARNING
@@ -146,10 +141,6 @@ AlertEngine::AlertLevel evalBattery(float volts) {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void AlertEngine::init() {
     s_state = {};
     s_lastFlashToggleMs = 0;
@@ -159,9 +150,6 @@ void AlertEngine::init() {
     if (dash.loaded && dash.revLimitRpm > 0.0f)
         s_revLimitRpm = dash.revLimitRpm;
 
-    // Load alert thresholds from signals.json — overrides compile-time fallbacks.
-    // Every signal evaluated below also honors highWarningLevel / highDangerLevel
-    // when set (NaN = disabled), in addition to the legacy warningLevel/dangerLevel.
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
     for (uint8_t i = 0; i < sigCfg.signalCount; i++) {
         const CfgSignalDef &def = sigCfg.signals[i];
@@ -184,8 +172,7 @@ void AlertEngine::init() {
             if (!isnan(def.highDangerLevel))
                 s_oilTempHighCritC = def.highDangerLevel;
         } else if (strcmp(def.name, "oil_press_bar") == 0) {
-            // Low-side alert: warningLevel = warn-below, dangerLevel = crit-below.
-            // Optional high-side (over-pressure) via highWarningLevel/highDangerLevel.
+
             if (!isnan(def.warningLevel))
                 s_oilPressWarnBar = def.warningLevel;
             if (!isnan(def.dangerLevel))
@@ -195,11 +182,7 @@ void AlertEngine::init() {
             if (!isnan(def.highDangerLevel))
                 s_oilPressHighCritBar = def.highDangerLevel;
         } else if (strcmp(def.name, "battery_volts") == 0) {
-            // Battery has BOTH low- and high-side thresholds:
-            //   warningLevel     -> low-warn (below = battery weak)
-            //   dangerLevel      -> low-crit (below = will not crank)
-            //   highWarningLevel -> high-warn (above = charging fault / overvoltage)
-            //   highDangerLevel  -> high-crit (above = regulator failure)
+
             if (!isnan(def.warningLevel))
                 s_batteryLowWarnV = def.warningLevel;
             if (!isnan(def.dangerLevel))
@@ -211,9 +194,6 @@ void AlertEngine::init() {
         }
     }
 
-    // Format integer + 2-decimal-fixed-point manually so this log doesn't
-    // pull newlib's float printf into the link (#405). `xN` suffix = value
-    // scaled by 100 for `%d.%02d` rendering.
     auto x100 = [](float v) { return static_cast<int>(lroundf(v * 100.0f)); };
     const int revLimit = static_cast<int>(lroundf(s_revLimitRpm));
     const int coolantWarn = static_cast<int>(lroundf(s_coolantWarnC));

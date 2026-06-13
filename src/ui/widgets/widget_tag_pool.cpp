@@ -20,9 +20,6 @@ alignas(
 
 bool s_busy[WidgetTagPool::kPoolSlots] = {};
 
-// Non-atomic pool — every caller must run on UI core with g_lvglMutex held
-// (#1039). The null-holder branch tolerates BootSequence::run, which runs
-// synchronously from loopTask before the UI task exists (#1061).
 inline void assertUiThreadHoldsLvglMutex() {
     configASSERT(xPortGetCoreID() == TASK_CORE_UI);
     configASSERT(g_lvglMutex != nullptr);

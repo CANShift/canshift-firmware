@@ -22,8 +22,6 @@ static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
 static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
-// tick() must skip twai_receive() when not installed — it would otherwise
-// flood the log with ESP_ERR_INVALID_STATE every iteration (#652).
 static bool s_twaiInstalled = false;
 static uint32_t s_lastRetryMs = 0;
 static uint8_t s_retryAttempts = 0;
@@ -33,8 +31,6 @@ static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
 static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
 static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
 
-// NULL stack → reserveInitTaskStack() never called; initHardware() falls
-// back to the dynamic xTaskCreatePinnedToCore path.
 static StackType_t *s_initTaskStack = nullptr;
 static StaticTask_t s_initTaskTCB;
 
@@ -56,14 +52,13 @@ twai_timing_config_t getTimingConfig(uint16_t kbps) {
 }
 
 twai_filter_config_t getFilterConfig() {
-    // Scanner mode needs full bus visibility; signal IDs are user-configurable.
+
     return TWAI_FILTER_CONFIG_ACCEPT_ALL();
 }
 
 esp_err_t installAndStartOnThisCore() {
     const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
 
-    // device.json overrides board_config.h for pins and speed
     const int txPin = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : PIN_TWAI_TX;
     const int rxPin = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : PIN_TWAI_RX;
     const uint16_t speedKbps =
@@ -101,7 +96,7 @@ esp_err_t installAndStartOnThisCore() {
     }
 
     CanParser::loadSignalDefinitions();
-    // Must run after parser load — SignalIds are mappable from signal names.
+
     Obd2Poller::init();
 
     LOG_INFO("CAN", "TWAI driver started successfully");
@@ -148,14 +143,14 @@ esp_err_t CanManager::initHardware() {
     }
     TaskHandle_t handle = nullptr;
     if (s_initTaskStack) {
-        // Happy path — fresh-heap pre-reserved in setup().
-        handle = xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
-                                               &ctx, TWAI_INIT_TASK_PRIO, s_initTaskStack,
-                                               &s_initTaskTCB, 0 /* core 0 */);
+
+        handle =
+            xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK, &ctx,
+                                          TWAI_INIT_TASK_PRIO, s_initTaskStack, &s_initTaskTCB, 0);
     } else {
-        // Fallback for skipped/failed reserve — will likely OOM on no-PSRAM WROOM.
+
         BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
-                                                &ctx, TWAI_INIT_TASK_PRIO, &handle, 0 /* core 0 */);
+                                                &ctx, TWAI_INIT_TASK_PRIO, &handle, 0);
         if (ok != pdPASS) {
             handle = nullptr;
         }
@@ -205,12 +200,10 @@ bool CanManager::tick() {
         s_windowFrames++;
 
         if (!(message.rtr)) {
-            // Clamp DLC to 8 — a non-conforming peer can advertise 9..15.
+
             const uint8_t safeLen =
                 static_cast<uint8_t>(message.data_length_code < 8 ? message.data_length_code : 8);
 
-            // Skip the broadcast parser when Obd2Poller decodes the response —
-            // avoids double-decoding a passive entry that shares the ID.
             const bool consumedByPoller =
                 Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
             if (!consumedByPoller) {
@@ -224,11 +217,10 @@ bool CanManager::tick() {
             UsbComm::pushCanFrame(sf);
         }
     } else if (err == ESP_ERR_TIMEOUT) {
-        // Quiet bus — no frame in the window.
+
     } else {
         s_errorCount++;
-        // Rate-limit the receive-error log to 1 Hz — driver-state loss at
-        // runtime would otherwise flood at the tick rate.
+
         static uint32_t s_lastErrLogMs = 0;
         const uint32_t nowErrLog = millis();
         if (nowErrLog - s_lastErrLogMs >= 1000) {
@@ -237,7 +229,6 @@ bool CanManager::tick() {
             s_lastErrLogMs = nowErrLog;
         }
 
-        // Check for bus-off condition
         twai_status_info_t status;
         if (twai_get_status_info(&status) == ESP_OK) {
             if (status.state == TWAI_STATE_BUS_OFF) {
@@ -247,7 +238,6 @@ bool CanManager::tick() {
             }
         }
 
-        // Rate-limit generic error pushes (TWAI errors can storm on noisy bus)
         static uint32_t s_lastErrPushMs = 0;
         const uint32_t nowPush = millis();
         if (nowPush - s_lastErrPushMs >= 1000) {
@@ -259,7 +249,6 @@ bool CanManager::tick() {
         }
     }
 
-    // Emit health stats every STAT_INTERVAL_MS — reads millis() which is safe from any task
     const uint32_t nowMs = millis();
     if (s_lastStatMs == 0) {
         s_lastStatMs = nowMs;
@@ -271,29 +260,16 @@ bool CanManager::tick() {
         s_lastStatMs = nowMs;
     }
 
-    // OBD-II poll scheduler tick (issue #841). Non-blocking — enqueues at
-    // most one request frame per active polling slot per tick. Lives at the
-    // end of the loop so the RX path above runs first (a response that
-    // arrives between two ticks is decoded before the next request fires).
     Obd2Poller::tick(nowMs);
 
-    // Report whether the RX queue had a frame for us. `err == ESP_OK` means
-    // `twai_receive` popped a slot (even RTR frames count — they short the
-    // decode path but still drain the queue). Caller uses this to drop the
-    // per-iteration 1 ms yield while the queue is being burned through.
     return err == ESP_OK;
 }
 
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
-    // Silent no-op when TWAI never came up — issue #1229. UI handlers wired to
-    // CAN-send buttons would otherwise fire twai_transmit on every tap, each
-    // returning ESP_ERR_INVALID_STATE and surfacing diagnostic noise.
+
     if (!s_twaiInstalled)
         return false;
 
-    // CAN classic frames carry at most 8 payload bytes — silently clamp to
-    // protect callers from transmitting garbage past the end of `data`.
-    // kCanFrameMaxBytes lives in app_config.h (F-LO-3).
     if (len > kCanFrameMaxBytes)
         len = kCanFrameMaxBytes;
 
@@ -305,8 +281,6 @@ bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool e
         memcpy(msg.data, data, len);
     }
 
-    // Non-blocking — pass timeout=0 so a backed-up TX queue surfaces an error
-    // rather than stalling the UI task that called us.
     esp_err_t err = twai_transmit(&msg, 0);
     if (err != ESP_OK) {
         LOG_WARN("CAN", "sendFrame failed id=0x%lX: %s", static_cast<unsigned long>(id),

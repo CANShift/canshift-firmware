@@ -44,7 +44,6 @@ extern SemaphoreHandle_t g_lvglMutex;
 #include <esp_task_wdt.h>
 #include <lvgl.h>
 
-// MALLOC_CAP_INTERNAL is LVGL's pool — the real UI-headroom metric.
 static void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
@@ -61,8 +60,7 @@ static void logHeap(const char *stage) {
 }
 
 static void initDisplayAndLVGL() {
-    // lv_init() must precede DisplayDriver::init() — LovyanGFX's s_lcd.init()
-    // fragments the heap such that LVGL's pool malloc no longer fits.
+
     LOG_INFO("BOOT", "Calling lv_init()...");
     lv_init();
     LOG_INFO("BOOT", "lv_init() returned");
@@ -84,7 +82,6 @@ static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
 } // namespace
 
-// Requires FontManager::init() so the logo renders Orbitron Black from frame 1.
 static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
@@ -155,7 +152,6 @@ static void showSplash() {
     lv_task_handler();
 }
 
-// lv_refr_now flushes synchronously — bar visibly progresses on short stages.
 static void updateSplash(const char *status, uint8_t pct) {
     if (s_splashBar)
         lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
@@ -164,7 +160,6 @@ static void updateSplash(const char *status, uint8_t pct) {
     lv_refr_now(NULL);
 }
 
-// Does NOT call LvglFsDriver::init() — that needs lv_init() to have run.
 static bool initStorage() {
     return StorageDriver::init();
 }
@@ -187,7 +182,7 @@ static void buildUI() {
     LOG_INFO("BOOT", "Initializing PageManager...");
     PageManager::init();
     LOG_INFO("BOOT", "Navigating to default page...");
-    // navigateTo's LVGL_ASSERT_LOCKED can't tell boot from steady-state.
+
     xSemaphoreTake(g_lvglMutex, portMAX_DELAY);
     PageManager::navigateTo(PageManager::getDefaultPageId());
     xSemaphoreGive(g_lvglMutex);
@@ -198,7 +193,6 @@ static void buildUI() {
              static_cast<unsigned>(mon.total_size), static_cast<unsigned>(mon.free_size),
              static_cast<unsigned>(mon.frag_pct), static_cast<unsigned>(mon.free_biggest_size));
 
-    // Drive past the FADE_IN — lv_refr_now at t=0 renders a black frame.
     for (uint8_t i = 0; i < 8; i++) {
         lv_tick_inc(20);
         lv_task_handler();
@@ -206,8 +200,6 @@ static void buildUI() {
     LOG_INFO("BOOT", "UI ready");
 }
 
-// Caller is taskUI gated on UI_OTA_VALID_FRAMES (#1014) — crashes during the
-// first frames still trigger rollback (#674).
 void BootSequence::markOtaSlotValidIfPending() {
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
@@ -228,12 +220,10 @@ void BootSequence::markOtaSlotValidIfPending() {
     }
 }
 
-// Hides first-boot NOT_FOUND noise without silencing real NVS errors.
 static void silenceNvsLogNoise() {
     esp_log_level_set("nvs", ESP_LOG_WARN);
 }
 
-// Must precede any alloc — DisplayDriver offloads draw buffers to SPIRAM.
 static void initPsramAndLogEntry() {
     canshift::hal::memory::initPsram();
     logHeap("entry");
@@ -241,7 +231,7 @@ static void initPsramAndLogEntry() {
 
 static void initTaskWatchdog() {
     constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
-    const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, /*panic=*/true);
+    const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, true);
     if (wdtErr != ESP_OK) {
         LOG_ERROR("BOOT", "Task WDT init failed: %d — continuing without WDT",
                   static_cast<int>(wdtErr));
@@ -250,7 +240,6 @@ static void initTaskWatchdog() {
     }
 }
 
-// Must precede LovyanGFX — NimBLE needs ~50 KB contiguous DRAM.
 static void initBleEarlyIfEnabled() {
 #if APP_BLE_ENABLED
     BleServer::earlyInit();
@@ -258,7 +247,6 @@ static void initBleEarlyIfEnabled() {
 #endif
 }
 
-// Runs before lv_init() so config parse has a large contiguous heap.
 static bool mountStorageOrLogError() {
     const bool storageOk = initStorage();
     if (storageOk) {
@@ -271,7 +259,6 @@ static bool mountStorageOrLogError() {
     return storageOk;
 }
 
-// Writes only when target is missing — never overwrites user data.
 static void provisionDefaultConfigsIfNeeded(bool storageOk) {
 #if DEFAULT_CONFIG_PROVISION_ENABLED
     if (!storageOk)
@@ -291,7 +278,6 @@ static void provisionDefaultConfigsIfNeeded(bool storageOk) {
 #endif
 }
 
-// Must run BEFORE lv_init() — ArduinoJSON needs ~20 KB contiguous heap.
 static void loadConfigWithHeapBracket() {
     logHeap("before loadConfig");
     loadConfig();
@@ -304,14 +290,12 @@ static void initTouchHardware() {
     LOG_INFO("BOOT", "Touch ready");
 }
 
-// LVGL filesystem driver — needs lv_init() (calls lv_fs_drv_register).
 static void initLvglFsIfStorageOk(bool storageOk) {
     if (storageOk) {
         LvglFsDriver::init();
     }
 }
 
-// Must run BEFORE FontManager::init() so lv_font_load() finds the .bin files.
 static void provisionDefaultFontsIfNeeded(bool storageOk) {
     if (storageOk) {
         LOG_INFO("BOOT", "Provisioning default fonts (if needed)...");
@@ -328,7 +312,6 @@ static void provisionDefaultFontsIfNeeded(bool storageOk) {
     logHeap("before FontManager");
 }
 
-// Must precede showSplash() so the logo renders at full size from frame 1.
 static void initFontManagerWithHeapLog() {
     LOG_INFO("BOOT", "Initializing FontManager...");
     FontManager::init();
@@ -336,7 +319,6 @@ static void initFontManagerWithHeapLog() {
     logHeap("after FontManager");
 }
 
-// Preload while heap still has the contiguous block — pool drops too low later (#956).
 static void preloadIconsWithHeapLog() {
     LOG_INFO("BOOT", "Preloading dashboard icons...");
     IconAssets::preloadDashboardAssets();
@@ -368,7 +350,7 @@ static void initRuntimeServices() {
 
 static void initCanHardwarePhase() {
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
-    // Boot continues on failure — tick() retries, ErrorStore surfaces it (#1224).
+
     const esp_err_t err = CanManager::initHardware();
     if (err != ESP_OK) {
         LOG_ERROR("BOOT", "CAN init failed: %s — degraded mode", esp_err_to_name(err));
@@ -387,7 +369,6 @@ static void initUsbCommPhase() {
     updateSplash("USB ready", 90);
 }
 
-// updateSplash MUST run before buildUI — PageManager::init frees splash objs.
 static void buildUiWithHeapBracket() {
     updateSplash("Ready", 100);
     logHeap("before buildUI");
@@ -396,7 +377,7 @@ static void buildUiWithHeapBracket() {
 }
 
 static constexpr uint32_t SPLASH_MIN_MS = 2000;
-// Short enough that WDT + lv_timer_handler keep ticking through the hold (#1207).
+
 static constexpr uint32_t SPLASH_WAIT_STEP_MS = 50;
 
 static void holdSplashUntilMin(uint32_t bootStartMs) {
@@ -410,7 +391,6 @@ static void holdSplashUntilMin(uint32_t bootStartMs) {
     }
 }
 
-// "[BOOT] Ready" is asserted by firmware-boot-smoke.yml — must appear exactly once (#486).
 static void logBootCompleteAndReady(uint32_t bootStartMs) {
     logHeap("boot complete");
     LOG_INFO("BOOT", "Boot sequence complete (splash held %lu ms)",

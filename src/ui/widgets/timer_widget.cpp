@@ -51,7 +51,6 @@ void formatTime(char *buf, size_t len, uint32_t elapsedMs, bool msec, bool blink
              static_cast<unsigned long>(s));
 }
 
-// Apply state-dependent style. Caller holds g_lvglMutex via the LVGL task.
 void applyStateStyle(TimerTag *t, TimerService::State state) {
     if (!t || !t->cont || !t->timeLabel)
         return;
@@ -118,10 +117,6 @@ void onTimerTouch(lv_event_t *e) {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void TimerWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     if (!obj)
         return;
@@ -141,20 +136,14 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    // Enable tap interaction.
     lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
 
-    // Time label.
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
-    // TODO(#18): font tier thresholds (80, 110 px) and the 20/24/32 Orbitron
-    // sizes are hard-coded against the v1 320×240 design canvas. When a
-    // second screen profile lands, thresholds need ScreenProfile::scaleYVal
-    // and the font sizes themselves must scale. Identity scale today.
     const lv_font_t *font = FontManager::secondary(20);
     if (cfg.layout.h >= 80)
         font = FontManager::secondary(24);
@@ -163,8 +152,6 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
-    // Allocate tag from the fixed pool (F-HI-2). RAII slot guard (#1207) so
-    // any early return below releases the slot before we hand off to LVGL.
     WidgetTagPool::Slot<TimerTag> tagSlot;
     TimerTag *tag = tagSlot.get();
     if (!tag) {
@@ -180,16 +167,11 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->longPressFired = false;
     tag->lastState = TimerService::State::Reset;
     tag->textRgb = textRgb;
-    // Seed cache with the placeholder we just painted so the first tick
-    // skips the realloc when elapsed still formats to the same string.
+
     strlcpy(tag->lastText, cfg.timer.formatMsec ? "00.000" : "00:00", sizeof(tag->lastText));
 
-    // Apply initial Reset visual (dimmed text, no border accent).
     applyStateStyle(tag, TimerService::State::Reset);
 
-    // autoStart honours config — the widget no longer owns running state, so
-    // we ask the service to start. Service is initialized at boot before any
-    // widget is created, so this is safe.
     if (cfg.timer.autoStart) {
         (void)TimerService::start();
     }
@@ -198,7 +180,6 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
 
-    // Register touch events for start / pause / resume / reset.
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
@@ -208,7 +189,7 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     return cont;
 }
 
-void TimerWidget::update(lv_obj_t *obj, float /*value*/, bool /*valid*/, const CfgWidget &cfg) {
+void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
     if (!obj)
         return;
     auto *tag = static_cast<TimerTag *>(lv_obj_get_user_data(obj));
@@ -217,17 +198,13 @@ void TimerWidget::update(lv_obj_t *obj, float /*value*/, bool /*valid*/, const C
 
     const TimerService::Snapshot snap = TimerService::snapshot();
 
-    // Apply visual transitions exactly once per state change.
     if (snap.state != tag->lastState) {
         applyStateStyle(tag, snap.state);
-        // Force a redraw of the text on transition (the strcmp guard would
-        // otherwise short-circuit a paused→running step that lands on the
-        // same formatted value).
+
         tag->lastText[0] = '\0';
         tag->lastState = snap.state;
     }
 
-    // Blinking colon — only meaningful in mm:ss while paused.
     bool blinkOn = true;
     if (snap.state == TimerService::State::Paused && !tag->formatMsec) {
         const uint32_t phase = static_cast<uint32_t>(

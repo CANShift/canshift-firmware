@@ -1,5 +1,4 @@
-// 24-bit BMPs under SPIFFS /images/; cfg.image.imagePath is the SPIFFS path,
-// prefixed with "S:" for the LVGL FS driver.
+
 #include "image_widget.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
@@ -37,7 +36,6 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         return cont;
     }
 
-    // RAII slot guard (#1207).
     WidgetTagPool::Slot<ImageTag> tagSlot;
     ImageTag *tag = tagSlot.get();
     if (!tag) {

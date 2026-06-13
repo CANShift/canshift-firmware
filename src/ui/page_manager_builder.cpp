@@ -1,5 +1,3 @@
-// State (s_pages, s_currentIdx, s_rebuildRequested, s_pendingFreeIdx) is
-// owned by page_manager.cpp; this TU reaches in via page_manager_internal.h.
 
 #include "page_manager_internal.h"
 
@@ -23,7 +21,6 @@ namespace PageManagerInternal {
 
 namespace {
 
-// Cruise control template — keep in lock-step with CruiseControlPreview.tsx.
 constexpr int16_t CRUISE_BUTTON_W = 140;
 constexpr int16_t CRUISE_BUTTON_H = 85;
 constexpr int16_t CRUISE_GAP_X = 12;
@@ -45,7 +42,6 @@ constexpr uint32_t CRUISE_BUTTON_STROKE_RGB = 0xE03030u;
 constexpr uint32_t CRUISE_CENTER_DIM_RGB = 0x888888u;
 constexpr uint32_t CRUISE_CENTER_VALUE_RGB = 0xFFFFFFu;
 
-// Prefixed to dodge collisions with xtensa specreg.h macros (TR, BR).
 enum class CruiseCorner : uint8_t { kTL = 0, kTR = 1, kBL = 2, kBR = 3 };
 
 static bool s_cruiseActive = false;
@@ -65,10 +61,6 @@ constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
     {"cruise_off", "OFF", CfgCruiseOp::OFF},
 };
 
-// L outline built as a polyline whose corners are quadratic-Bezier
-// approximations of arcs — LVGL 8.4's lv_draw_polygon is convex-only, so the
-// fill ships as two overlapping axis-aligned rectangles.
-
 inline lv_point_t cruiseBezierAt(int16_t x0, int16_t y0, int16_t xc, int16_t yc, int16_t x2,
                                  int16_t y2, float t) {
     const float omt = 1.0f - t;
@@ -78,15 +70,13 @@ inline lv_point_t cruiseBezierAt(int16_t x0, int16_t y0, int16_t xc, int16_t yc,
 
 inline void cruiseEmitBezier(lv_point_t *out, uint8_t &n, int16_t x0, int16_t y0, int16_t xc,
                              int16_t yc, int16_t x2, int16_t y2) {
-    // Skip i=0 — the previous polyline endpoint already sits there.
+
     for (uint8_t i = 1; i <= CRUISE_BEZIER_SEGS; ++i) {
         out[n++] =
             cruiseBezierAt(x0, y0, xc, yc, x2, y2, static_cast<float>(i) / CRUISE_BEZIER_SEGS);
     }
 }
 
-// Build the L outline (clockwise) for one button. Coordinates are absolute
-// screen pixels. Returns the vertex count.
 uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner corner) {
     const int16_t x = area.x1;
     const int16_t y = area.y1;
@@ -100,7 +90,7 @@ uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner co
 
     switch (corner) {
         case CruiseCorner::kTL:
-            // Notch at bottom-right.
+
             pts[n++] = {static_cast<lv_coord_t>(x + r), y};
             pts[n++] = {static_cast<lv_coord_t>(x + w - r), y};
             cruiseEmitBezier(pts, n, x + w - r, y, x + w, y, x + w, y + r);
@@ -120,7 +110,7 @@ uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner co
             cruiseEmitBezier(pts, n, x, y + r, x, y, x + r, y);
             break;
         case CruiseCorner::kTR:
-            // Notch at bottom-left.
+
             pts[n++] = {static_cast<lv_coord_t>(x + r), y};
             pts[n++] = {static_cast<lv_coord_t>(x + w - r), y};
             cruiseEmitBezier(pts, n, x + w - r, y, x + w, y, x + w, y + r);
@@ -137,7 +127,7 @@ uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner co
             cruiseEmitBezier(pts, n, x, y + r, x, y, x + r, y);
             break;
         case CruiseCorner::kBL:
-            // Notch at top-right.
+
             pts[n++] = {static_cast<lv_coord_t>(x + r), y};
             pts[n++] = {static_cast<lv_coord_t>(x + w - nW - ir), y};
             cruiseEmitBezier(pts, n, x + w - nW - ir, y, x + w - nW, y, x + w - nW, y + ir);
@@ -154,7 +144,7 @@ uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner co
             cruiseEmitBezier(pts, n, x, y + r, x, y, x + r, y);
             break;
         case CruiseCorner::kBR:
-            // Notch at top-left.
+
             pts[n++] = {static_cast<lv_coord_t>(x + nW + ir), y};
             pts[n++] = {static_cast<lv_coord_t>(x + w - r), y};
             cruiseEmitBezier(pts, n, x + w - r, y, x + w, y, x + w, y + r);
@@ -183,7 +173,7 @@ void buildCruiseLFillArms(const lv_area_t &btn, CruiseCorner corner, lv_area_t *
     const int16_t nH = CRUISE_NOTCH_H;
     switch (corner) {
         case CruiseCorner::kTL:
-            // Notch at BR — arms anchored at TL.
+
             *armH = {x, y, static_cast<lv_coord_t>(x + w - 1),
                      static_cast<lv_coord_t>(y + h - nH - 1)};
             *armV = {x, y, static_cast<lv_coord_t>(x + w - nW - 1),
@@ -341,7 +331,7 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
     a.canDataOffLen = 0;
     a.canExtended = false;
     a.cruiseOp = spec.op;
-    a.cruiseStepKmh = 0; // 0 = use firmware default
+    a.cruiseStepKmh = 0;
 
     return w;
 }
@@ -368,20 +358,16 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         const int16_t x = startX + col * (CRUISE_BUTTON_W + CRUISE_GAP_X);
         const int16_t y = startY + row * (CRUISE_BUTTON_H + CRUISE_GAP_Y);
         const CfgWidget w = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y);
-        lv_obj_t *btn = WidgetFactory::create(screen, w, /*yOffset=*/0);
+        lv_obj_t *btn = WidgetFactory::create(screen, w, 0);
         if (!btn)
             continue;
 
-        // Wipe every theme style — the factory's PRESSED-rect bleeds through
-        // anything less. Click dispatch lives in the event chain, not styles,
-        // so it survives. Geometry is style-backed in LVGL 8 so re-apply.
         lv_obj_remove_style_all(btn);
         lv_obj_set_pos(btn, x, y);
         lv_obj_set_size(btn, CRUISE_BUTTON_W, CRUISE_BUTTON_H);
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
-        // LVGL default theme re-applies state styles on transitions —
-        // explicit per-state zeros are the only thing that locks it out.
+
         for (lv_state_t st : {lv_state_t(LV_STATE_DEFAULT), lv_state_t(LV_STATE_PRESSED),
                               lv_state_t(LV_STATE_FOCUSED), lv_state_t(LV_STATE_FOCUS_KEY),
                               lv_state_t(LV_STATE_CHECKED), lv_state_t(LV_STATE_EDITED),
@@ -396,8 +382,7 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
 
         void *cornerData = reinterpret_cast<void *>(static_cast<uintptr_t>(i));
         lv_obj_add_event_cb(btn, cruiseLDrawCb, LV_EVENT_DRAW_MAIN_END, cornerData);
-        // After remove_style_all there's no style delta on STATE_PRESSED for
-        // LVGL to detect — drive the fill redraw manually.
+
         auto pressInvalidateCb = [](lv_event_t *ev) { lv_obj_invalidate(lv_event_get_target(ev)); };
         lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESSED, nullptr);
         lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_RELEASED, nullptr);
@@ -410,10 +395,7 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         constexpr int16_t LABEL_OFF_Y = CRUISE_NOTCH_H / 2;
         const int16_t shiftX = (col == 0) ? -LABEL_OFF_X : LABEL_OFF_X;
         const int16_t shiftY = (row == 0) ? -LABEL_OFF_Y : LABEL_OFF_Y;
-        // The button widget's internal label catches theme text-colour
-        // overrides we can't fully out-state. Hide it and float our own
-        // label as a sibling of the buttons (child of `screen`) so neither
-        // button state nor the theme observer can touch it.
+
         if (lv_obj_get_child_cnt(btn) > 0) {
             lv_obj_t *innerLabel = lv_obj_get_child(btn, 0);
             if (innerLabel) {
@@ -461,7 +443,7 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
     lv_obj_set_pos(setHeader, 0, 4);
 
     lv_obj_t *setValue = lv_label_create(center);
-    // Placeholder until #451 wires a real setpoint.
+
     lv_label_set_text(setValue, "0");
     lv_obj_set_style_text_color(setValue, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
     lv_obj_set_style_text_font(setValue, FontManager::primary(32), 0);
@@ -485,11 +467,8 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &e
     lv_obj_set_style_bg_color(screen, lv_color_hex(effectiveBg.rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
 
-    // Load background image from SPIFFS if set.
-    // Requires LvglFsDriver registered (boot_sequence.cpp).
-    // Path in cfg.bgImagePath is a SPIFFS path (e.g. "/images/bg.bmp").
     if (strlen(cfg.bgImagePath) > 0) {
-        // Build LVGL FS path: "S:" + SPIFFS path
+
         static char lvglPath[CFG_MAX_PATH_LEN + 4];
         snprintf(lvglPath, sizeof(lvglPath), "S:%s", cfg.bgImagePath);
 
@@ -512,22 +491,14 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
     Page &p = s_pages[idx];
     strlcpy(p.id, cfg.id, CFG_MAX_ID_LEN);
 
-    // Create an LVGL screen for each page
-    p.screen = lv_obj_create(nullptr); // nullptr = new screen
+    p.screen = lv_obj_create(nullptr);
     lv_obj_set_size(p.screen, LV_HOR_RES, LV_VER_RES);
     lv_obj_clear_flag(p.screen, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Apply theme-aware background (day vs night). Pass the resolved color
-    // by value to avoid copying the multi-kB CfgPage onto the stack.
     applyPageBackground(p.screen, cfg, ThemeManager::getEffectiveBgColor(cfg.bgColor));
 
-    // Adjust content area for top bar
     int16_t contentY = cfg.showTopBar ? TopBar::getHeight() : 0;
 
-    // Template-rendered pages (issue #451) bypass the free-form widgets[]
-    // array entirely. The procedural builder synthesises CfgWidgets in place
-    // and routes them through WidgetFactory::create so theming, click
-    // dispatch, and pool lifecycle stay shared with the custom path.
     if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
         buildCruiseControlTemplate(p.screen, cfg, contentY);
         p.built = true;
@@ -542,9 +513,6 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
         return;
     }
 
-    // Create all widgets for this page. Count successes so we surface a
-    // visible warning if any silently failed — this is the diagnostic hook
-    // for #57 ("some gauges not rendered").
     uint8_t created = 0;
     for (uint8_t w = 0; w < cfg.widgetCount; ++w) {
         const CfgWidget &wCfg = cfg.widgets[w];
@@ -567,12 +535,6 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
              static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 }
 
-// Theme-toggle fast path (issue #1257). Walks every built page screen and
-// re-applies the new day/night theme in place — no `lv_obj_del`, no
-// `WidgetFactory::clearAll`, no SPIFFS icon reloads, no LVGL pool churn.
-// Wall time is sub-millisecond instead of the hundred-or-so the destructive
-// rebuild paid. `rebuildAllPages()` stays the path for `requestReload()`
-// (PUT_CONFIG → real structural change).
 void reapplyThemeAllPages() {
     s_rebuildRequested = false;
 
@@ -594,31 +556,19 @@ void reapplyThemeAllPages() {
 
 void rebuildAllPages() {
     s_rebuildRequested = false;
-    s_pendingFreeIdx = 0xFF; // All pages are about to be deleted — nothing to defer.
+    s_pendingFreeIdx = 0xFF;
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (!dash.loaded || s_pageCount == 0)
         return;
 
-    // Pre-warm the image cache BEFORE the destructive teardown below. At this
-    // point the heap is still in its "between-rebuilds" state and any LVGL
-    // image cache entries that survived from the previous boot are still
-    // valid. Warming both theme icons + the dashboard asset set here means
-    // the rebuild's subsequent `lv_img_set_src` calls hit the cache rather
-    // than triggering an FS open that would fail under the fragmented heap
-    // we'll have AFTER the rebuild completes.
     IconAssets::preloadDashboardAssets();
 
     uint8_t savedIdx = s_currentIdx;
 
-    // Load a blank screen so we can safely delete all page screens
     lv_obj_t *dummy = lv_obj_create(nullptr);
     lv_scr_load(dummy);
 
-    // Destroy all existing page screens. Drop their widget entries from the
-    // factory registry first — otherwise the registry leaks one full set of
-    // entries per theme toggle and eventually overflows MAX_TRACKED_WIDGETS
-    // (#57: "some gauges not rendered" after a few day/night switches).
     for (uint8_t i = 0; i < s_pageCount; ++i) {
         if (s_pages[i].screen) {
             WidgetFactory::clearAll(s_pages[i].screen);
@@ -628,27 +578,17 @@ void rebuildAllPages() {
         }
     }
 
-    // Rebuild only the previously active page eagerly; all others are left
-    // lazy (screen == nullptr) and will be constructed on first navigation.
-    // This keeps at most one page in the LVGL pool during the rebuild.
     if (savedIdx < s_pageCount) {
         buildPage(savedIdx, dash.pages[s_pages[savedIdx].cfgIdx]);
     }
 
-    // Return to the page that was active before the rebuild, then delete the
-    // dummy. Order matters: `lv_obj_del(dummy)` MUST run only after a real
-    // page screen has been loaded as the active screen — deleting the active
-    // screen crashes LVGL (#1284). If `buildPage` above failed (e.g. heap
-    // exhaustion, font load), try the first page that survives a rebuild as
-    // a fallback. If every page fails, keep the dummy as the active screen
-    // — visually awkward but not a crash — and surface the failure.
     uint8_t loadedIdx = 0xFF;
     if (savedIdx < s_pageCount && s_pages[savedIdx].screen) {
         loadedIdx = savedIdx;
     } else {
         for (uint8_t i = 0; i < s_pageCount; ++i) {
             if (i == savedIdx)
-                continue; // already attempted above
+                continue;
             buildPage(i, dash.pages[s_pages[i].cfgIdx]);
             if (s_pages[i].screen) {
                 loadedIdx = i;
@@ -662,23 +602,13 @@ void rebuildAllPages() {
         s_currentIdx = loadedIdx;
         lv_obj_del(dummy);
     } else {
-        // Do NOT delete the dummy — it's still the active screen. Leaving it
-        // alive avoids the UAF; the blank screen is the visible symptom of a
-        // catastrophic rebuild failure (every page failed to build).
+
         LOG_ERROR("UI", "rebuildAllPages: no page could be rebuilt — staging "
                         "screen kept active to avoid LVGL UAF");
     }
 
-    // Re-warm the LVGL image cache BEFORE swapping the top bar icon. The
-    // theme-toggle rebuild has just thrashed the image cache (each new
-    // sensor icon evicts an older one), and the top bar's icon swap below
-    // will trigger an FS open for the new day/night icon — which fails
-    // under the heap fragmentation that follows the rebuild (#973). Re-
-    // warming here uses the same heap-guarded preload path as boot, so it
-    // bails gracefully when the pool is too starved instead of crashing.
     IconAssets::preloadDashboardAssets();
 
-    // Update top bar colors for the new theme
     TopBar::reapplyTheme();
 
     LOG_INFO("UI", "Pages rebuilt for theme toggle");

@@ -104,7 +104,7 @@ void SettingsPage::setPanelY(int16_t y) {
         y = s_closedY;
     if (y > s_openY)
         y = s_openY;
-    // Position before reveal — else the panel flashes one frame at its old y.
+
     lv_obj_set_y(s_panel, y);
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
         lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -116,7 +116,7 @@ void SettingsPage::snapOpen() {
     if (!s_panel)
         return;
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
-        // No drag preview — animate from closed rather than resting open.
+
         lv_obj_set_y(s_panel, s_closedY);
         lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(s_panel);

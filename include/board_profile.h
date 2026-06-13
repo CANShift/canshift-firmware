@@ -1,5 +1,5 @@
 #pragma once
-// Hardware-agnostic schema. Active profile picked via BOARD_* in board.h.
+
 #include <stdint.h>
 
 namespace canshift::boards {

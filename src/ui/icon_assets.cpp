@@ -18,7 +18,6 @@ struct IconEntry {
     const char *path;
 };
 
-// Mirrors SensorIconName values in canshift-core/src/types/dashboard.ts.
 constexpr IconEntry kIcons[] = {
     {"rpm", "S:/assets/sensor_rpm.bin"},
     {"speed", "S:/assets/sensor_speed.bin"},
@@ -55,24 +54,20 @@ const IconEntry *find(const char *iconName) {
     return nullptr;
 }
 
-// Strip the "S:" drive prefix (or "/<letter>:" variants we never use) so the
-// raw path can be probed via StorageDriver::fileExists. Returns nullptr when
-// the input doesn't start with the expected drive letter — defensive against
-// malformed config.
 const char *stripDriveLetter(const char *lvglPath) {
     if (!lvglPath || lvglPath[0] == '\0')
         return nullptr;
-    // Drive letter + ':' prefix (e.g. "S:/foo") — strip both, leaving "/foo".
+
     if (lvglPath[1] == ':')
         return lvglPath + 2;
-    // No prefix — assume it's already a raw FS path.
+
     return lvglPath;
 }
 
 } // namespace
 
 const void *resolveSource(const char *iconName) {
-    // Baked icons win — flash data is always present, no FS probe, no cache.
+
     if (const lv_img_dsc_t *baked = IconAssetsBaked::resolve(iconName))
         return baked;
     const char *p = path(iconName);
@@ -83,10 +78,7 @@ const char *path(const char *iconName) {
     const IconEntry *e = find(iconName);
     if (!e || e->path[0] == '\0')
         return "";
-    // Probe storage before returning the path: when the .bin isn't on
-    // SPIFFS the LVGL image draw silently no-ops, so the caller would
-    // render an empty box. Returning "" here lets the widget skip icon
-    // rendering instead. Cost: one SPIFFS stat per icon at UI build time.
+
     if (!exists(e->path))
         return "";
     return e->path;
@@ -101,19 +93,6 @@ bool exists(const char *lvglPath) {
 
 namespace {
 
-// Heap guard mirrors lvgl_fs_driver.cpp via the shared LVGL_FS_MIN_HEAP_BYTES
-// constant (include/app_config.h): if the largest free block is below the
-// FS-open threshold, decoding will fail anyway and may trip the newlib
-// __sfp() abort. Skip the preload in that case — the asset will be retried
-// on demand by the widget layer. Using the shared constant guarantees the
-// preload and on-demand paths agree on the gate threshold (#1242 — they
-// previously diverged, with preload at 512 and the widget gate at 768, so
-// a path could be preloaded into the cache only to have the widget refuse
-// to render it from the same heap moments later).
-
-// In-place "have we seen this name" tracker — avoids preloading the same
-// asset twice when several widgets reference it. Sized to the IconAssets
-// catalog (23) + a margin for free-form iconPath strings.
 constexpr uint8_t SEEN_CAP = 32;
 constexpr uint8_t SEEN_LEN = 24;
 
@@ -134,7 +113,7 @@ void preloadIconNameOnce(char seen[SEEN_CAP][SEEN_LEN], uint8_t &seenCount, cons
         return;
     if (!rememberSeen(seen, seenCount, iconName))
         return;
-    // Baked icons live in flash — no decode / cache work to warm up.
+
     if (IconAssetsBaked::resolve(iconName) != nullptr)
         return;
     preload(path(iconName));
@@ -151,17 +130,11 @@ void preload(const char *lvglPath) {
                  static_cast<unsigned>(largest));
         return;
     }
-    // `_lv_img_cache_open` opens the image via the decoder and leaves it in
-    // the cache. The entry stays alive until the cache evicts it to make
-    // room for a newer image. With LV_IMG_CACHE_DEF_SIZE sized to cover a
-    // typical dashboard, preloaded entries survive every page rebuild and
-    // theme toggle that follows.
+
     _lv_img_cache_open(lvglPath, lv_color_black(), 0);
 }
 
 void preloadDashboardAssets() {
-    // Theme icons are baked into flash (icon_assets_baked.cpp) so they no
-    // longer need a SPIFFS preload pass.
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (!dash.loaded)
@@ -180,9 +153,7 @@ void preloadDashboardAssets() {
                     break;
                 case WidgetType::BUTTON:
                     preloadIconNameOnce(seen, seenCount, widget.button.iconName);
-                    // Buttons can also reference a free-form iconPath in the
-                    // config — preload that too. The path stored in config
-                    // is the raw SPIFFS path; wrap in "S:" for LVGL FS.
+
                     if (widget.button.iconPath[0] != '\0') {
                         char lvglPath[64];
                         const char *prefix = (widget.button.iconPath[0] == '/') ? "" : "/";

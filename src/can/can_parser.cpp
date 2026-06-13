@@ -35,16 +35,10 @@ float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uin
                                      bool bigEndian, bool isSigned, uint8_t bitMask, float scale,
                                      float offset) {
 #if USE_RUST_CAN_PARSER
-    // Delegate to the Rust port — same signature, byte-for-byte parity
-    // gated by the test suite below. The Rust shim handles null `data`
-    // and out-of-range `startByte + byteLen` defensively, returning 0.0f
-    // exactly like the C++ original.
+
     return decode_bytes_rs(data, startByte, byteLen, bigEndian, isSigned, bitMask, scale, offset);
 #else
-    // kCanFrameMaxBytes lives in app_config.h (F-LO-3). uint16_t casts on
-    // the operands keep the addition well-defined even though the cap is
-    // uint8_t — startByte + byteLen could overflow uint8_t pre-comparison
-    // on a deliberately malformed config.
+
     if (byteLen == 0 ||
         static_cast<uint16_t>(startByte) + static_cast<uint16_t>(byteLen) > kCanFrameMaxBytes)
         return 0.0f;
@@ -58,16 +52,13 @@ float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uin
             raw |= static_cast<uint32_t>(data[startByte + i]) << (i * 8);
     }
 
-    // Boolean flag: apply bitmask and return 0 or 1
     if (bitMask != 0)
         return (raw & bitMask) ? 1.0f : 0.0f;
 
     float physical;
     if (isSigned) {
         const uint8_t bits = static_cast<uint8_t>(byteLen * 8);
-        // 64-bit math avoids UB when bits == 32 (shift width >= operand width).
-        // For byteLen == 4 the mask is 0 — raw already holds the correct
-        // two's-complement bit pattern; the int32_t cast does the reinterpret.
+
         if (byteLen < 4 && (raw & (1u << (bits - 1))))
             raw |= static_cast<uint32_t>(~((1ULL << bits) - 1ULL));
         physical = static_cast<float>(static_cast<int32_t>(raw));
@@ -78,23 +69,10 @@ float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uin
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
     if (!s_runtimeLoaded)
         return;
 
-    // Data-driven dispatch — processes all signals defined for this frame ID.
-    // Unknown frame IDs and partial-length frames (start+len > DLC) are
-    // silently dropped. No fallback to hardcoded handlers — decoding random
-    // frame IDs with assumed semantics produced more wrong data than the
-    // value of having any default at all (#682).
-    //
-    // s_runtime[] is sorted by canFrameId in loadSignalDefinitions(), so we
-    // binary-search the first matching entry then forward-scan contiguous
-    // matches. Avoids the O(N) walk per received frame (#885).
     const auto *begin = s_runtime;
     const auto *end = s_runtime + s_runtimeCount;
     const auto *it = std::lower_bound(
@@ -123,8 +101,6 @@ void CanParser::loadSignalDefinitions() {
     for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < CONFIG_MAX_SIGNALS; ++i) {
         const CfgSignalDef &def = cfg.signals[i];
 
-        // Resolve signal name string → firmware SignalId via the shared
-        // single-source-of-truth table in signal_map.cpp.
         const SignalId sid = signalIdFromName(def.name);
         if (sid == SignalIds::SIGNAL_COUNT) {
             LOG_WARN("CAN", "Unknown signal name '%s' in signals.json — skipping", def.name);
@@ -142,12 +118,9 @@ void CanParser::loadSignalDefinitions() {
         r.bitMask = def.bitMask;
         r.signalId = sid;
 
-        // Apply per-signal timeout from the config
         SignalStore::setTimeout(sid, def.timeoutMs);
     }
 
-    // Sort by canFrameId so parseFrame() can binary-search the dispatch table
-    // and forward-scan contiguous matches for multi-signal frames (#885).
     std::sort(
         s_runtime, s_runtime + s_runtimeCount,
         [](const RuntimeSignal &a, const RuntimeSignal &b) { return a.canFrameId < b.canFrameId; });

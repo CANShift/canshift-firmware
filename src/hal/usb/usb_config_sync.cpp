@@ -1,5 +1,4 @@
-// Typed GET/PUT for device.json + input_bindings.json. Dashboard.json (sized
-// at runtime against file size) lives in usb_dispatch.cpp.
+
 #include "usb_comm_internal.h"
 
 #include "app_config.h"
@@ -84,9 +83,6 @@ namespace UsbCommInternal {
 
 void initResponseBufferMutex() {}
 
-// `unwrapKey` lifts the body out for input_bindings (disk wraps it under
-// "input_bindings", wire envelope expects the bare array). device.json passes
-// nullptr — its on-disk shape already matches the wire schema.
 void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey) {
     if (!StorageDriver::fileExists(path)) {
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");

@@ -1,5 +1,4 @@
-// PlatformIO `board_build.embed_files` exposes each blob via
-// `_binary_<munged_path>_start` / `_end`; we link in those symbols below.
+
 #include "default_config.h"
 
 #include "app_config.h"
@@ -12,13 +11,8 @@
 #include <Arduino.h>
 #include <string.h>
 
-// Mirrors writeFileAtomic's rotation suffix in config_loader.cpp.
 static constexpr const char *kBakSuffix = ".bak";
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
-
-// dashboard.json stays embedded — without it PageManager has 0 pages and
-// the UI build crashes post-lv_init. signals.json is dropped; the flasher
-// injects the per-ECU catalog (canshift-flasher#189).
 
 extern "C" {
 extern const uint8_t kDefaultDashboardStart[] asm("_binary_data_config_dashboard_json_start");
@@ -51,30 +45,19 @@ bool buildBakPath(char *out, size_t outLen, const char *base) {
     return true;
 }
 
-// Returns true when `path` should be (re)provisioned with the embedded
-// default. Preserves any user data:
-//   - missing primary AND missing .bak  → provision
-//   - empty primary (size == 0)         → provision
-//   - anything else                     → skip
 bool needsProvision(const char *path) {
     if (!StorageDriver::fileExists(path)) {
         char bakPath[kBakPathLen];
         if (!buildBakPath(bakPath, sizeof(bakPath), path)) {
-            // Path too long for a .bak — fall back to "missing means provision"
-            // rather than risk clobbering. CFG_MAX_PATH_LEN already bounds
-            // every config path so this branch is defensive only.
+
             return true;
         }
         return !StorageDriver::fileExists(bakPath);
     }
 
-    // Primary exists — only provision when it's a zero-byte placeholder.
-    // Use the heap-free fileSize() probe so a 20 KB existing config doesn't
-    // trigger a contiguous malloc(20 KB) on a tight boot heap (issue #576).
     return StorageDriver::fileSize(path) == 0;
 }
 
-// Write one embedded blob to its canonical path. Returns true on success.
 bool writeOne(const EmbeddedBlob &blob) {
     const size_t length = static_cast<size_t>(blob.end - blob.start);
     if (length == 0) {

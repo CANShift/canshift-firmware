@@ -11,8 +11,6 @@
 static_assert(HW_DISPLAY_WIDTH == 320 && HW_DISPLAY_HEIGHT == 240,
               "expected CrowPanel 2.8\" 320×240 — override BoardProfile if changing");
 
-// New BoardProfiles only need HW_LVGL_DRAW_BUDGET_BYTES — the line count
-// derives from that, with an 8-line floor for tight budgets.
 namespace {
 constexpr size_t kLvglBytesPerPixel = HW_DISPLAY_COLOR_DEPTH / 8U;
 constexpr size_t kLvglNumBuffers = 2U;
@@ -47,11 +45,11 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
 
     s_lcd.startWrite();
     s_lcd.setAddrWindow(area->x1, area->y1, w, h);
-    s_lcd.writePixels(reinterpret_cast<uint16_t *>(colorMap), w * h, true /* swap */);
+    s_lcd.writePixels(reinterpret_cast<uint16_t *>(colorMap), w * h, true);
     s_lcd.endWrite();
 
 #if APP_PROFILE_UI
-    // Count last-region only — partial flushes inflate the FPS metric.
+
     if (lv_disp_flush_is_last(disp)) {
         PERF_RECORD_FLUSH_FRAME();
     }
@@ -65,10 +63,6 @@ void DisplayDriver::init() {
 
     const size_t bufBytes = HW_DISPLAY_WIDTH * kLvglBufLines * sizeof(lv_color_t);
 
-    // Offload LVGL draw buffers to PSRAM when the chip is a WROVER variant
-    // (issue #563). LovyanGFX handles PSRAM-resident pixel data via its DMA
-    // bus path. On a WROOM (no PSRAM), fall back to DMA-capable internal RAM
-    // — byte-identical to the pre-#563 behaviour.
     const bool offloadToPsram = canshift::hal::memory::isPsramAvailable();
     if (offloadToPsram) {
         s_buf1 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
@@ -77,8 +71,7 @@ void DisplayDriver::init() {
             LOG_INFO("DISP", "LVGL draw buffers allocated in PSRAM (%u bytes each)",
                      static_cast<unsigned>(bufBytes));
         } else {
-            // Free whatever did succeed and fall through to the DRAM path so
-            // the device still boots if PSRAM ran out unexpectedly.
+
             if (s_buf1) {
                 heap_caps_free(s_buf1);
                 s_buf1 = nullptr;
@@ -99,8 +92,7 @@ void DisplayDriver::init() {
                       static_cast<unsigned>(bufBytes));
             return;
         }
-        // Second buffer is optional — our flush callback is synchronous so
-        // single-buffer mode has no performance cost (no DMA overlap).
+
         s_buf2 = static_cast<lv_color_t *>(
             heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
         if (s_buf2) {

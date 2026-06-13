@@ -19,7 +19,6 @@ void initPsram() {
     }
     s_initialized = true;
 
-    // WROOM with BOARD_HAS_PSRAM returns 0 — IDF init silently fails (#563).
     s_totalBytes = ESP.getPsramSize();
     s_available = s_totalBytes > 0;
 

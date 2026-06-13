@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 
-// LVGL invalidate/layout reflow can trip the assert under fragmentation (#973).
 static constexpr size_t DISMISS_MIN_HEAP_BYTES = 1024;
 
 static inline bool heapHealthyForLvglUpdate() {
@@ -18,7 +17,7 @@ static inline bool heapHealthyForLvglUpdate() {
 
 static constexpr int16_t BAR_H = 20;
 static constexpr int16_t ROW_H = 20;
-// Must match ErrorStore RING_SIZE — UI never hits the heap (#642).
+
 static constexpr uint8_t MAX_ROWS = 6;
 static constexpr int16_t DETAIL_MAX_H = 120;
 
@@ -28,7 +27,6 @@ static constexpr uint32_t COL_CODE = 0xCC4444;
 static constexpr uint32_t COL_MSG = 0xDDAAAA;
 static constexpr uint32_t COL_DIM = 0x664444;
 
-// Lazy — file-scope static init runs before FontManager::init().
 static inline const lv_font_t *FONT() {
     return FontManager::label(12);
 }
@@ -70,7 +68,7 @@ static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
 
 static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *btn = lv_btn_create(parent);
-    // Wider hit area — resistive panel + screen-edge calibration is fuzzy here.
+
     lv_obj_set_size(btn, 32, BAR_H);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A1010), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
@@ -108,7 +106,6 @@ static void setExpanded(bool expand) {
     }
 }
 
-// Sits on lv_layer_top so UP/DOWN run before PageManager's horizontal swipe.
 static void onContainerGesture(lv_event_t *e) {
     const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
     if (dir == LV_DIR_TOP) {
@@ -119,13 +116,12 @@ static void onContainerGesture(lv_event_t *e) {
     (void)e;
 }
 
-// Heap-guarded so a tap doesn't reboot under post-rebuild fragmentation (#973).
 static void onHeaderDismissClicked(lv_event_t *e) {
     lv_event_stop_bubbling(e);
     if (!heapHealthyForLvglUpdate()) {
         LOG_WARN("ERRBAR", "dismiss deferred — heap.largest=%u below floor",
                  static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-        // State-only; update() retries on next tick.
+
         ErrorStore::clear();
         return;
     }
@@ -133,7 +129,6 @@ static void onHeaderDismissClicked(lv_event_t *e) {
     setExpanded(false);
 }
 
-// Row index maps to ErrorStore's newest-first ordering (#898). Same heap guard (#973).
 static void onRowDismissClicked(lv_event_t *e) {
     lv_event_stop_bubbling(e);
     const uintptr_t row = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
@@ -174,12 +169,11 @@ static void buildHeaderRow(lv_obj_t *parent) {
     lv_obj_set_size(s_headerRow, LV_PCT(100), BAR_H);
     applyRowStyle(s_headerRow);
     lv_obj_set_style_pad_left(s_headerRow, 4, LV_PART_MAIN);
-    // Stop header row clicks from reaching the container's expand toggle
+
     lv_obj_clear_flag(s_headerRow, LV_OBJ_FLAG_CLICKABLE);
 
     s_codeLabel = makeLabel(s_headerRow, COL_CODE);
-    // LV_SYMBOL_WARNING is in the default ROM font but not in the SPIFFS Orbitron
-    // binaries — use LV_FONT_DEFAULT so the symbol renders correctly.
+
     lv_obj_set_style_text_font(s_codeLabel, LV_FONT_DEFAULT, 0);
     lv_label_set_text(s_codeLabel, "");
     lv_obj_set_width(s_codeLabel, LV_SIZE_CONTENT);
@@ -197,7 +191,6 @@ static void buildHeaderRow(lv_obj_t *parent) {
     lv_obj_add_event_cb(s_dismissBtn, onHeaderDismissClicked, LV_EVENT_CLICKED, nullptr);
 }
 
-// Capped height — rows scroll inside the panel past DETAIL_MAX_H (#642).
 static lv_obj_t *createDetailPanel(lv_obj_t *parent) {
     lv_obj_t *p = lv_obj_create(parent);
     lv_obj_set_width(p, LV_PCT(100));
@@ -261,8 +254,6 @@ void ErrorBar::update() {
     if (version == s_lastVersion)
         return;
 
-    // Defer the visual sync when the LVGL pool is too fragmented (#973).
-    // Leaving s_lastVersion untouched lets the next tick retry.
     if (!heapHealthyForLvglUpdate())
         return;
 
@@ -276,7 +267,6 @@ void ErrorBar::update() {
         return;
     }
 
-    // Show bar
     lv_obj_clear_flag(s_container, LV_OBJ_FLAG_HIDDEN);
 
     FwError errors[MAX_ROWS];
@@ -313,6 +303,5 @@ void ErrorBar::update() {
         }
     }
 
-    // Re-align after the SIZE_CONTENT height change.
     lv_obj_align(s_container, LV_ALIGN_BOTTOM_MID, 0, 0);
 }

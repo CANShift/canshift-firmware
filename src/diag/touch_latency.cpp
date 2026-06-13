@@ -9,10 +9,9 @@ namespace TouchLatency {
 
 namespace {
 
-// Both producer + consumer run under g_lvglMutex — no atomics needed.
 int64_t s_pressUs = 0;
 
-} // namespace
+}
 
 void recordPressNow() {
     s_pressUs = esp_timer_get_time();

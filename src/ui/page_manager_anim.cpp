@@ -13,9 +13,7 @@ namespace PageManagerInternal {
 
 namespace {
 
-// Deferred — lv_obj_del inside an LVGL event handler frees the handler's tag
-// (use-after-free). lv_async_call runs us at the next timer iteration.
-void asyncDoLazyBuild(void * /*unused*/) {
+void asyncDoLazyBuild(void *) {
     const uint8_t idx = s_pendingLazyBuildIdx;
     s_pendingLazyBuildIdx = 0xFF;
 
@@ -58,8 +56,6 @@ void asyncDoLazyBuild(void * /*unused*/) {
 
 } // namespace
 
-// OVER_LEFT/RIGHT for swipes (only the moving screen repaints — #64);
-// FADE_IN for programmatic nav.
 void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
     if (idx >= s_pageCount) {
         LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
@@ -67,7 +63,6 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
     }
     LOG_INFO("UI", "showPage: %u -> %u anim=%d", s_currentIdx, idx, static_cast<int>(anim));
 
-    // Release before building so the freed pool is available.
     if (s_pendingFreeIdx < s_pageCount && s_pendingFreeIdx != idx) {
         Page &old = s_pages[s_pendingFreeIdx];
         if (old.screen) {
@@ -80,8 +75,6 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
         s_pendingFreeIdx = 0xFF;
     }
 
-    // Lazy build via lv_async_call — see asyncDoLazyBuild comment. Coalesce
-    // pending requests latest-wins so a stale enqueue doesn't fire.
     if (!s_pages[idx].screen) {
         if (s_pendingLazyBuildIdx != 0xFF) {
             LOG_DEBUG("UI", "Lazy build already pending for idx=%u; coalescing new request idx=%u",
@@ -110,7 +103,6 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
         lv_timer_set_repeat_count(t, 1);
 #endif
 
-    // Defer release until next showPage — still needed for the current anim.
     if (s_currentIdx != idx) {
         s_pendingFreeIdx = s_currentIdx;
     }
@@ -126,7 +118,7 @@ void showPage(uint8_t idx) {
 void onSwipe(lv_dir_t dir) {
     if (s_pageCount <= 1)
         return;
-    // Drift on a clickable widget reads as tap intent, not navigation.
+
     lv_obj_t *pressed = lv_indev_get_obj_act();
     if (pressed && lv_obj_has_flag(pressed, LV_OBJ_FLAG_CLICKABLE)) {
         return;

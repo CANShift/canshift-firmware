@@ -13,7 +13,7 @@ namespace {
 
 constexpr uint16_t SAMPLES_PER_METRIC = 96;
 constexpr uint32_t REPORT_INTERVAL_US = 1000UL * 1000UL;
-// Half the UI mutex timeout — crossing means the UI task is at risk of skipping.
+
 constexpr uint32_t PERF_MUTEX_WAIT_WARN_US = 5000;
 
 const char *metricName(PerfCounters::Metric m) {
@@ -86,7 +86,7 @@ uint32_t computeP95(Window &w) {
     const uint16_t n = (w.count < SAMPLES_PER_METRIC) ? w.count : SAMPLES_PER_METRIC;
     memcpy(buf, w.samples, sizeof(uint32_t) * n);
     std::sort(buf, buf + n);
-    // 95th percentile by nearest-rank.
+
     uint16_t idx = static_cast<uint16_t>((n * 95) / 100);
     if (idx >= n)
         idx = n - 1;
@@ -157,7 +157,7 @@ void recordPageTransitionEnd() {
     const int64_t now = esp_timer_get_time();
     const int64_t delta = now - s_pageXStartUs;
     s_pageXStartUs = 0;
-    if (delta > 0 && delta < 5000000) { // sanity cap at 5 s
+    if (delta > 0 && delta < 5000000) {
         appendSample(s_windows[PAGE_XSITION], static_cast<uint32_t>(delta));
     }
 }
@@ -187,8 +187,6 @@ void tick() {
         w.clear();
     }
 
-    // Normalize the FPS count to the actual window duration — vTaskDelay drift
-    // and tick() being called slightly late would otherwise undercount.
     const uint32_t fps =
         (windowUs > 0)
             ? static_cast<uint32_t>((static_cast<uint64_t>(s_flushFrameCount) * 1000000ULL) /
@@ -211,10 +209,10 @@ ScopedTimer::~ScopedTimer() {
     const int64_t end = esp_timer_get_time();
     const int64_t delta = end - m_startUs;
     if (delta < 0 || delta > 1000000)
-        return; // sanity cap (1 s) — discard runaway samples
+        return;
     appendSample(s_windows[m_metric], static_cast<uint32_t>(delta));
 }
 
 } // namespace PerfCounters
 
-#endif // APP_PROFILE_UI
+#endif

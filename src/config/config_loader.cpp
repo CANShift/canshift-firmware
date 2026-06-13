@@ -27,7 +27,6 @@ alignas(CfgSignalConfig) uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
 #endif
 } // namespace
 
-// nullptr when the WROOM no-PSRAM path can't back the snapshot — callers skip.
 uint8_t *acquireRollbackSnapshot() {
 #ifdef BOARD_HAS_PSRAM
     static uint8_t *s_rollback_snapshot_psram = nullptr;
@@ -59,17 +58,12 @@ uint8_t *acquireRollbackSnapshot() {
 
 } // namespace ConfigLoaderInternal
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 ConfigLoader::LoadResult ConfigLoader::loadAll() {
-    LoadResult r{}; // value-init — every member is assigned below
+    LoadResult r{};
     r.dashboardOk = ConfigLoaderInternal::loadDashboard();
     r.signalsOk = ConfigLoaderInternal::loadSignals();
     r.deviceOk = ConfigLoaderInternal::loadDevice();
-    // loadInputBindings depends on the parsed device config for pin-conflict
-    // detection, so it must run AFTER loadDevice.
+
     r.inputsOk = ConfigLoaderInternal::loadInputBindings();
     return r;
 }
@@ -91,7 +85,7 @@ bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();
     LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d inputs=%d", r.dashboardOk,
              r.signalsOk, r.inputsOk);
-    return r.dashboardOk; // Dashboard is mandatory
+    return r.dashboardOk;
 }
 
 const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
@@ -106,15 +100,6 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
     return nullptr;
 }
 
-// ---------------------------------------------------------------------------
-// Unity build — the helper TUs are pulled into this TU so the production
-// build (`-O2`, no `-flto`) can inline cross-helper calls. Splitting them as
-// separate `.cpp` files preserved logical separation but pushed flash usage
-// to 98.2% (#1207 split CI fail). Including them here keeps the file-level
-// boundaries intact while restoring the single-TU optimization surface.
-// Native tests compile this single TU too — `build_src_filter` no longer
-// lists the helpers individually since they are pulled in here.
-// ---------------------------------------------------------------------------
 #include "config_file_loaders.inc"
 #include "config_parser.inc"
 #include "config_validators.inc"

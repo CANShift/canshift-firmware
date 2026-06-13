@@ -1,11 +1,3 @@
-// json_helpers.cpp — Low-level JSON / hex / color primitives shared by the
-// ConfigLoader translation units (#1207).
-//
-// Extracted from `config_loader.cpp` so the orchestrator stays focused on
-// PSRAM/rollback management and the per-type parsers stay focused on schema
-// shape. Nothing here touches the shared `s_dashboard` / `s_signals` /
-// `s_device` / `s_inputs` storage — every helper is pure with respect to
-// inputs and outputs.
 
 #include "config_loader_internal.h"
 
@@ -23,10 +15,9 @@
 
 namespace ConfigLoaderInternal {
 
-// Suffix for the boot-time fallback copy written by atomic saves.
 namespace {
 constexpr const char *kBakSuffix = ".bak";
-// CFG_MAX_PATH_LEN + ".bak" + null terminator.
+
 constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 bool buildBakPath(char *out, size_t outLen, const char *base) {
@@ -41,7 +32,7 @@ bool buildBakPath(char *out, size_t outLen, const char *base) {
     out[baseLen + suffixLen] = '\0';
     return true;
 }
-} // namespace
+}
 
 void logLargestFreeBlock(const char *where) {
 #ifdef ARDUINO
@@ -52,10 +43,6 @@ void logLargestFreeBlock(const char *where) {
 #endif
 }
 
-// The implementation streams the SPIFFS File straight into the JsonDocument
-// (no contiguous file-sized malloc). This eliminates the ~21 KB readFile()
-// allocation that caused boot OOM with the LV_MEM_SIZE bump in #555
-// (issue #576).
 bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     logLargestFreeBlock(path);
 
@@ -63,9 +50,7 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
         DeserializationError err = StorageDriver::parseJsonFile(path, doc);
         if (!err)
             return true;
-        // Both branches below collapse to a no-op when LOG_WARN is compiled
-        // out (APP_LOG_LEVEL=1 in production + native env) but emit distinct
-        // messages otherwise — false positive under the no-op preprocess path.
+
         // NOLINTNEXTLINE(bugprone-branch-clone)
         if (err == DeserializationError::EmptyInput) {
             LOG_WARN("CFG", "%s could not be opened — falling back to .bak", path);
@@ -90,7 +75,7 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     }
 
     LOG_WARN("CFG", "%s recovered from .bak", path);
-    // Promote the .bak back into place so the next save creates a fresh .bak.
+
     if (!StorageDriver::renameFile(bakPath, path)) {
         LOG_WARN("CFG", "Could not rename %s back to %s — non-fatal", bakPath, path);
     }
@@ -105,22 +90,12 @@ void parseColor(const char *hex, CfgColor *out) {
     out->rgb = static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
 }
 
-// Parse a single hex color ("#RRGGBB"). Returns the unsigned 0x00RRGGBB
-// payload, or 0 on malformed input — callers tolerate fallback to black.
 uint32_t parseHexColorValue(const char *hex) {
     if (!hex || hex[0] != '#')
         return 0u;
     return static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
 }
 
-// Decode an even-length, lowercase-or-uppercase hex string into a byte buffer.
-// Returns true and writes `*outLen` on success. Returns false (without
-// touching `out`) on any of:
-//   - hex == nullptr
-//   - odd length
-//   - decoded length > maxLen
-//   - any non-hex character in `hex`
-// Empty input is allowed and yields *outLen == 0.
 bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outLen) {
     if (!hex || !out || !outLen)
         return false;
@@ -143,4 +118,4 @@ bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outL
     return true;
 }
 
-} // namespace ConfigLoaderInternal
+}

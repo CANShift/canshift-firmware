@@ -17,7 +17,6 @@ namespace ActionDispatcher {
 
 namespace {
 
-// Mirrored from config_loader.cpp.
 constexpr uint32_t CAN_STANDARD_ID_MAX = 0x7FFu;
 
 const char *cruiseOpName(CfgCruiseOp op) {
@@ -42,10 +41,6 @@ const char *cruiseOpName(CfgCruiseOp op) {
     }
 }
 
-// Per-dispatch slot prevents the UI-task vs input-task race that would let
-// the second strlcpy overwrite the first before lv_async_call dereferences
-// it. NAV_RING_SIZE matches LV_ASYNC_CALL_SIZE so the ring never wraps before
-// the callback fires (#876).
 constexpr size_t NAV_RING_SIZE = 8;
 struct NavSlot {
     char pageId[CFG_MAX_ID_LEN];
@@ -56,8 +51,7 @@ std::atomic<size_t> s_navHead{0};
 void dispatchNavPage(const CfgButtonAction &a) {
     if (a.pageId[0] == '\0')
         return;
-    // navigateTo can synchronously free the current screen — defer via
-    // lv_async_call so the event loop doesn't return into freed memory (#717).
+
     const size_t idx = s_navHead.fetch_add(1, std::memory_order_relaxed) % NAV_RING_SIZE;
     char *slot = s_navRing[idx].pageId;
     strlcpy(slot, a.pageId, CFG_MAX_ID_LEN);
@@ -91,8 +85,7 @@ void dispatchMapSwitch(const CfgButtonAction &a) {
 }
 
 void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {
-    // When disarming a toggle and a dataOff payload was configured, send the
-    // off-frame instead of the arm-frame.
+
     if (!isActive && a.canDataOffLen > 0) {
         (void)CanManager::sendFrame(a.canFrameId, a.canDataOff, a.canDataOffLen, a.canExtended);
     } else {
@@ -102,10 +95,7 @@ void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {
 }
 
 void dispatchCruiseControl(const CfgButtonAction &a) {
-    // Real CAN integration lands with #451 (cruise-control screen) once
-    // per-ECU support is confirmed. For now we log the request so the user
-    // can verify their physical buttons fire the right op — this also keeps
-    // the dispatch contract uniform across all action variants.
+
     LOG_INFO("BTN", "cruise_control op=%s stepKmh=%u (firmware integration pending #451)",
              cruiseOpName(a.cruiseOp), static_cast<unsigned>(a.cruiseStepKmh));
 }

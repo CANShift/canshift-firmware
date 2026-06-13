@@ -31,7 +31,7 @@ uint32_t lerpRgb(uint32_t a, uint32_t b, float t) {
             return 0u;
         if (v > 255.0f)
             return 255u;
-        // std::lround avoids bugprone-incorrect-roundings flagged on (int)(v + 0.5f).
+
         return static_cast<uint32_t>(std::lround(v));
     };
     return (mix(ar, br) << 16) | (mix(ag, bg) << 8) | mix(ab, bb);
@@ -65,8 +65,6 @@ struct NameRule {
     SensorKind kind;
 };
 
-// Mirrors NAME_HEURISTICS in canshift-core/src/sensorDefaults.ts.
-// Specific patterns first.
 constexpr NameRule kNameRules[] = {
     {"coolant", SensorKind::Coolant},
     {"oil_press", SensorKind::OilPress},
@@ -94,42 +92,41 @@ constexpr CfgRampStop S(float v, uint32_t c) {
 
 } // namespace
 
-// Mirrors SENSOR_DEFAULT_RAMPS in canshift-core/src/sensorDefaults.ts.
 // NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const CfgColorRamp kSensorDefaultRamps[kSensorKindCount] = {
-    // Coolant
+
     {4,
      CfgRampInterp::Linear,
      {S(60.0f, 0x4A90E2u), S(90.0f, 0x44CC66u), S(100.0f, 0xCC8800u), S(110.0f, 0xCC3333u)}},
-    // OilTemp
+
     {4,
      CfgRampInterp::Linear,
      {S(70.0f, 0x4A90E2u), S(95.0f, 0x44CC66u), S(120.0f, 0xCC8800u), S(135.0f, 0xCC3333u)}},
-    // OilPress
+
     {4,
      CfgRampInterp::Linear,
      {S(1.0f, 0xCC3333u), S(1.8f, 0xCC8800u), S(2.5f, 0x44CC66u), S(6.0f, 0x44CC66u)}},
-    // BatteryVolts
+
     {5,
      CfgRampInterp::Linear,
      {S(11.5f, 0xCC3333u), S(12.5f, 0xCC8800u), S(13.5f, 0x44CC66u), S(14.8f, 0xCC8800u),
       S(15.5f, 0xCC3333u)}},
-    // Rpm
+
     {4,
      CfgRampInterp::Linear,
      {S(1500.0f, 0x44CC66u), S(5500.0f, 0x44CC66u), S(6500.0f, 0xCC8800u), S(7000.0f, 0xCC3333u)}},
-    // Afr
+
     {5,
      CfgRampInterp::Linear,
      {S(10.5f, 0xCC3333u), S(11.8f, 0xCC8800u), S(13.0f, 0x44CC66u), S(14.7f, 0x44CC66u),
       S(16.0f, 0xCC8800u)}},
-    // Boost
+
     {4,
      CfgRampInterp::Linear,
      {S(0.0f, 0x44CC66u), S(1.0f, 0x44CC66u), S(1.4f, 0xCC8800u), S(1.7f, 0xCC3333u)}},
-    // IntakeTemp
+
     {3, CfgRampInterp::Linear, {S(20.0f, 0x44CC66u), S(50.0f, 0xCC8800u), S(65.0f, 0xCC3333u)}},
-    // Egt
+
     {3, CfgRampInterp::Linear, {S(600.0f, 0x44CC66u), S(850.0f, 0xCC8800u), S(950.0f, 0xCC3333u)}},
 };
 
