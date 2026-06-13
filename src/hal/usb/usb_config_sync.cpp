@@ -1,6 +1,5 @@
 // Typed GET/PUT for device.json + input_bindings.json. Dashboard.json (sized
 // at runtime against file size) lives in usb_dispatch.cpp.
-// BSS staging pool reverted in #1332 — heap-on-demand is the only option (#1335).
 #include "usb_comm_internal.h"
 
 #include "app_config.h"
@@ -9,6 +8,7 @@
 #include "hal/storage/storage_driver.h"
 
 #include <ArduinoJson.h>
+#include <esp_heap_caps.h>
 #include <esp_system.h>
 
 #ifdef ARDUINO
@@ -20,38 +20,52 @@
 
 namespace {
 
-// Vestigial stubs from the reverted #1320 BSS pool — inline once #1335 lands.
 bool lockResponseBuffer() {
     return false;
 }
 void unlockResponseBuffer() {}
+
+class ChunkedAtomicWriter : public Print {
+  public:
+    size_t write(uint8_t b) override {
+        return StorageDriver::appendChunk(&b, 1) ? 1 : 0;
+    }
+    size_t write(const uint8_t *buffer, size_t size) override {
+        return StorageDriver::appendChunk(buffer, size) ? size : 0;
+    }
+};
 
 void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
                                  JsonVariantConst subValue) {
     JsonDocument out;
     out[fieldKey] = subValue;
 
-    const size_t needed = measureJson(out);
-    if (needed == 0 || needed > UsbCommInternal::kTypedPutMaxPayloadBytes) {
+    const size_t projected = measureJson(out);
+    if (projected == 0 || projected > UsbCommInternal::kTypedPutMaxPayloadBytes) {
         LOG_WARN("USB", "PUT %s: serialized size %u out of bounds", path,
-                 static_cast<unsigned>(needed));
+                 static_cast<unsigned>(projected));
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"too_large\"}");
         return;
     }
 
-    uint8_t *buf = static_cast<uint8_t *>(malloc(needed));
-    if (!buf) {
-        LOG_ERROR("USB", "PUT %s: stage buffer alloc (%u B) failed", path,
-                  static_cast<unsigned>(needed));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+    if (!StorageDriver::beginChunkedWriteAtomic(path)) {
+        LOG_ERROR("USB", "PUT %s: open failed", path);
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
         return;
     }
-    const size_t written = serializeJson(out, buf, needed);
-    const bool ok = StorageDriver::writeFileAtomic(path, buf, written);
-    free(buf);
 
-    if (!ok) {
-        LOG_ERROR("USB", "PUT %s: storage write failed", path);
+    ChunkedAtomicWriter writer;
+    const size_t written = serializeJson(out, writer);
+    if (written != projected) {
+        StorageDriver::abortChunkedWrite();
+        LOG_ERROR("USB", "PUT %s: stream failed (%u/%u bytes)", path,
+                  static_cast<unsigned>(written), static_cast<unsigned>(projected));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        return;
+    }
+
+    if (!StorageDriver::endChunkedWrite()) {
+        LOG_ERROR("USB", "PUT %s: commit failed", path);
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
         return;
     }
@@ -101,7 +115,10 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     resp[fieldKey] = body;
 
     const size_t needed = measureJson(resp) + 1;
-    char *buf = static_cast<char *>(malloc(needed));
+    char *buf = static_cast<char *>(heap_caps_malloc(needed, MALLOC_CAP_SPIRAM));
+    if (!buf) {
+        buf = static_cast<char *>(heap_caps_malloc(needed, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    }
     if (!buf) {
         LOG_ERROR("USB", "GET %s: response buffer alloc (%u B) failed", path,
                   static_cast<unsigned>(needed));
@@ -111,7 +128,7 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     const size_t written = serializeJson(resp, buf, needed);
     buf[written] = '\0';
     UsbComm::sendLine(buf);
-    free(buf);
+    heap_caps_free(buf);
 }
 
 void handlePutDeviceConfig(const JsonObjectConst &obj) {
