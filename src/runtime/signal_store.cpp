@@ -23,10 +23,12 @@ typedef int portMUX_TYPE;
     #define portENTER_CRITICAL(mux) ((void)(mux))
     #define portEXIT_CRITICAL(mux) ((void)(mux))
 #endif
+#include <atomic>
 #include <string.h>
 
 static SignalStore::SignalValue s_signals[SIGNAL_STORE_MAX_SIGNALS];
 static portMUX_TYPE s_signalsMux = portMUX_INITIALIZER_UNLOCKED;
+static std::atomic<bool> s_anyValid{false};
 
 namespace {
 
@@ -47,6 +49,7 @@ void SignalStore::init() {
                         .timeoutMs = SIGNAL_DEFAULT_TIMEOUT_MS};
     }
     portEXIT_CRITICAL(&s_signalsMux);
+    s_anyValid.store(false, std::memory_order_relaxed);
 
     LOG_INFO("STORE", "Signal store initialized (%d slots)", SIGNAL_STORE_MAX_SIGNALS);
 }
@@ -68,6 +71,7 @@ void SignalStore::update(SignalId id, float value) {
     sig.lastUpdateMs = now;
     sig.valid = true;
     portEXIT_CRITICAL(&s_signalsMux);
+    s_anyValid.store(true, std::memory_order_relaxed);
 }
 
 void SignalStore::set(SignalId id, float value) {
@@ -84,6 +88,7 @@ void SignalStore::set(SignalId id, float value) {
     sig.lastUpdateMs = now;
     sig.valid = true;
     portEXIT_CRITICAL(&s_signalsMux);
+    s_anyValid.store(true, std::memory_order_relaxed);
 }
 
 float SignalStore::read(SignalId id, float defaultValue) {
@@ -143,16 +148,23 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
 }
 
 void SignalStore::checkTimeouts() {
+    if (!s_anyValid.load(std::memory_order_relaxed))
+        return;
+
     uint32_t now = millis();
 
+    bool stillValid = false;
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
         if (s_signals[i].valid) {
             uint32_t age = now - s_signals[i].lastUpdateMs;
             if (age > s_signals[i].timeoutMs) {
                 s_signals[i].valid = false;
+            } else {
+                stillValid = true;
             }
         }
     }
     portEXIT_CRITICAL(&s_signalsMux);
+    s_anyValid.store(stillValid, std::memory_order_relaxed);
 }
