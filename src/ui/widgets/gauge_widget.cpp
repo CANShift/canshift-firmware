@@ -261,7 +261,7 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
 }
 
 static constexpr int16_t kValueRowYOffset = 0;
-static constexpr int16_t kUnitLabelYOffset = 22;
+static constexpr int16_t kUnitLabelYOffset = 28;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);

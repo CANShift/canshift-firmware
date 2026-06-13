@@ -85,8 +85,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
         signalLabel = lv_label_create(root);
         lv_label_set_text(signalLabel, labelBuf);
-        const uint8_t sigFontSize = cfg.layout.h >= 56 ? 14 : 12;
-        lv_obj_set_style_text_font(signalLabel, FontManager::label(sigFontSize), 0);
+        lv_obj_set_style_text_font(signalLabel, FontManager::label(10), 0);
         // LVGL doesn't blend text against bg — pre-mix a dimmer composite.
         uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
         lv_obj_set_style_text_color(signalLabel, lv_color_hex(labelRgb), 0);

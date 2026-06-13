@@ -10,7 +10,7 @@ namespace WidgetLabelOverlay {
 namespace {
 
 constexpr int16_t kEdgeInsetX = 4;
-constexpr int16_t kEdgeInsetY = 1;
+constexpr int16_t kEdgeInsetY = 4;
 
 void alignHeader(lv_obj_t *lbl, HeaderPos pos) {
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, 0);
