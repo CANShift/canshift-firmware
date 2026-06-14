@@ -86,6 +86,7 @@ struct ButtonTag {
     char lvglPath[LVGL_PATH_LEN];
     lv_obj_t *activeBadge;
     uint8_t mapSwitchIndex;
+    bool hasMapSwitch;
     char signalId[CFG_MAX_SIGNAL_LEN];
     uint32_t signalSyncIgnoreUntilMs;
     uint8_t cycleIndex;
@@ -159,7 +160,6 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     lv_obj_set_style_bg_opa(btn, v.bgOpa, LV_PART_MAIN);
     lv_obj_set_style_border_color(btn, lv_color_hex(v.borderColor), LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
-    (void)tag;
     if (tag.labelObj) {
         lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
     }
@@ -295,6 +295,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     tag->lvglPath[0] = '\0';
     tag->activeBadge = nullptr;
     tag->mapSwitchIndex = 0;
+    tag->hasMapSwitch = false;
     strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
     tag->signalSyncIgnoreUntilMs = 0;
     tag->cycleIndex = p.mode == CfgButtonMode::CYCLE ? p.initialActiveIndex : 0;
@@ -303,6 +304,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         for (uint8_t i = 0; i < p.actionsCount; ++i) {
             if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
                 tag->mapSwitchIndex = p.actions[i].mapIndex;
+                tag->hasMapSwitch = true;
                 break;
             }
         }
@@ -362,7 +364,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         applyCycleVisualState(btn, *tag);
     }
 
-    if (tag->mapSwitchIndex != 0) {
+    if (tag->hasMapSwitch) {
         lv_obj_t *badge = lv_obj_create(btn);
         lv_obj_set_size(badge, MAP_BADGE_DIAMETER, MAP_BADGE_DIAMETER);
         lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
@@ -389,18 +391,19 @@ void ButtonWidget::update(lv_obj_t *btn) {
     if (!tag)
         return;
 
-    if (tag->params && tag->params->isToggle && tag->signalId[0] != '\0' &&
-        millis() >= tag->signalSyncIgnoreUntilMs) {
+    const int32_t graceDelta = static_cast<int32_t>(millis() - tag->signalSyncIgnoreUntilMs);
+    if (tag->params && tag->params->isToggle && tag->signalId[0] != '\0' && graceDelta >= 0) {
         const SignalId sid = signalIdFromName(tag->signalId);
-        const bool active = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid) &&
-                            SignalStore::read(sid, 0.0f) != 0.0f;
-        if (active != tag->toggleActive) {
-            tag->toggleActive = active;
-            applyToggleVisualState(btn, *tag);
+        if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
+            const bool active = SignalStore::read(sid, 0.0f) != 0.0f;
+            if (active != tag->toggleActive) {
+                tag->toggleActive = active;
+                applyToggleVisualState(btn, *tag);
+            }
         }
     }
 
-    if (!tag->activeBadge || tag->mapSwitchIndex == 0)
+    if (!tag->activeBadge || !tag->hasMapSwitch)
         return;
 
     const bool active =

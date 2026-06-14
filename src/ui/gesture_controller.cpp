@@ -149,11 +149,13 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     static int16_t s_pressStartX = 0;
     static bool s_pressActive = false;
     static bool s_pressCancelled = false;
+    static bool s_pressStartedOnClickable = false;
 
     if (state == LV_INDEV_STATE_RELEASED) {
         s_pressActive = false;
         s_pressCancelled = false;
         s_swipeFiredThisPress = false;
+        s_pressStartedOnClickable = false;
         return;
     }
 
@@ -165,6 +167,9 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
         s_pressCancelled = false;
         s_swipeFiredThisPress = false;
         s_pressStartX = p.x;
+        lv_obj_t *pressedObj = lv_indev_get_obj_act();
+        s_pressStartedOnClickable =
+            pressedObj != nullptr && lv_obj_has_flag(pressedObj, LV_OBJ_FLAG_CLICKABLE);
         return;
     }
 
@@ -177,6 +182,9 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     const int16_t signedTravelX = static_cast<int16_t>(p.x - s_pressStartX);
     const int16_t travelX = static_cast<int16_t>(abs(signedTravelX));
     if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
+        return;
+
+    if (s_pressStartedOnClickable)
         return;
 
     lv_indev_reset_long_press(indev);
