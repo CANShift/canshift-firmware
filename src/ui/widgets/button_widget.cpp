@@ -407,8 +407,8 @@ void ButtonWidget::update(lv_obj_t *btn) {
         const bool desiredActive = sigValid && SignalStore::read(sid, 0.0f) != 0.0f;
         if (desiredActive != tag->toggleActive) {
             LOG_DEBUG("BTN", "sync id=%s toggle %s->%s (signal=%s valid=%d)", btnId,
-                      tag->toggleActive ? "on" : "off", desiredActive ? "on" : "off",
-                      tag->signalId, sigValid ? 1 : 0);
+                      tag->toggleActive ? "on" : "off", desiredActive ? "on" : "off", tag->signalId,
+                      sigValid ? 1 : 0);
             tag->toggleActive = desiredActive;
             applyToggleVisualState(btn, *tag);
         }
