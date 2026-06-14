@@ -28,12 +28,13 @@ static constexpr uint16_t kArcSweepInt = 270;
 static constexpr uint16_t kArcRotation = 135;
 
 static constexpr int32_t kMinArcDiam = 40;
-static constexpr int32_t kArcContainerPadding = 8;
+static constexpr int32_t kArcContainerPadding = 4;
+static constexpr int16_t kArcYShift = 2;
 
 static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
-    const float r = std::min(static_cast<float>(cfg.layout.w) * 0.45f,
-                             static_cast<float>(cfg.layout.h) * 0.46f);
-    const float w = r * 0.24f;
+    const float r = std::min(static_cast<float>(cfg.layout.w) * 0.48f,
+                             static_cast<float>(cfg.layout.h) * 0.49f);
+    const float w = r * 0.30f;
     return static_cast<uint8_t>(w < 5.0f ? 5.0f : w);
 }
 
@@ -82,7 +83,7 @@ static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startA
 
     lv_obj_t *arc = lv_arc_create(parent);
     lv_obj_set_size(arc, diam, diam);
-    lv_obj_align(arc, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(arc, LV_ALIGN_CENTER, 0, kArcYShift);
     lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
     lv_arc_set_rotation(arc, kArcRotation);
     lv_arc_set_bg_angles(arc, startAngle, endAngle);
@@ -104,7 +105,7 @@ static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startA
 static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicatorWidth) {
     lv_obj_t *arc = lv_arc_create(parent);
     lv_obj_set_size(arc, diam, diam);
-    lv_obj_align(arc, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(arc, LV_ALIGN_CENTER, 0, kArcYShift);
     lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
     lv_arc_set_rotation(arc, kArcRotation);
     lv_arc_set_bg_angles(arc, 0, kArcSweepInt);
@@ -248,8 +249,8 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
     return FontManager::secondary(20);
 }
 
-static constexpr int16_t kValueRowYOffset = 0;
-static constexpr int16_t kUnitLabelYOffset = 28;
+static constexpr int16_t kValueRowYOffset = kArcYShift;
+static constexpr int16_t kUnitLabelYOffset = 28 + kArcYShift;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);

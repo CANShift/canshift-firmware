@@ -51,7 +51,7 @@ const char *displayLabelForSignal(const char *signalId) {
     if (strcmp(signalId, "speed_kph") == 0)
         return "SPEED";
     if (strcmp(signalId, "coolant_temp_c") == 0)
-        return "COOLANT";
+        return "WATER";
     if (strcmp(signalId, "oil_temp_c") == 0)
         return "OIL";
     if (strcmp(signalId, "oil_press_bar") == 0)
