@@ -22,6 +22,8 @@ namespace {
 
 static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
+static constexpr uint32_t kStaleTextRgb = 0x555555;
+static constexpr const char *kStalePlaceholder = "--";
 
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
@@ -266,14 +268,12 @@ static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     return valueRow;
 }
 
-static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint32_t textRgb,
-                                 const CfgWidget &cfg) {
+static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint32_t /*textRgb*/,
+                                 const CfgWidget & /*cfg*/) {
     lv_obj_t *label = lv_label_create(valueRow);
-    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(kStaleTextRgb), 0);
     lv_obj_set_style_text_font(label, font, 0);
-    char initBuf[24];
-    WidgetHelpers::formatValue(initBuf, sizeof(initBuf), cfg.gauge.prefix, 0, 0.0f, nullptr);
-    lv_label_set_text(label, initBuf);
+    lv_label_set_text(label, kStalePlaceholder);
     return label;
 }
 
@@ -382,8 +382,8 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->dangerAngle = built.dangerAngle;
     tag->hasDanger = built.hasDanger;
     tag->gradientMode = built.gradientMode;
-    tag->lastValid = true;
-    tag->lastLabelRgb = 0xFFFFFFFFu;
+    tag->lastValid = false;
+    tag->lastLabelRgb = kStaleTextRgb;
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->lastAngle = 0xFFFFu;
     tag->lastDisplayScaled = INT32_MIN;
@@ -474,25 +474,21 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const float displayValue = valid ? value : 0.0f;
 
     if (!valid) {
-        if (tag->lastValid || !std::isnan(tag->lastValue) || tag->lastValue != 0.0f) {
-            char buf[24];
-            WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
-                                       0.0f, nullptr);
+        if (tag->lastValid) {
+            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
             if (tag->fracLabel) {
-                char intPart[16];
-                char fracPart[12];
-                splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
-                WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
-                WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
-            } else {
-                WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+                WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, "");
             }
-            tag->lastValue = 0.0f;
+            tag->lastValue = NAN;
             tag->lastValid = false;
+            tag->lastDisplayScaled = INT32_MIN;
         }
         if (!tag->alert.active) {
-            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb,
-                                                cfg.style.primaryColor.rgb);
+            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, kStaleTextRgb);
+            if (tag->fracLabel) {
+                uint32_t fracLast = tag->lastLabelRgb;
+                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, kStaleTextRgb);
+            }
         }
         if (tag->fillArc && tag->lastAngle != 0u) {
             lv_arc_set_angles(tag->fillArc, 0, 0);

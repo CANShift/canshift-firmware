@@ -96,13 +96,20 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
-    if (!valid || value == 0.0f) {
+    static constexpr uint32_t kStaleTextRgb = 0x555555;
+
+    if (!valid) {
         WidgetHelpers::setLabelTextIfChanged(label, "N");
-        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
+        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, kStaleTextRgb);
         return;
     }
 
     int32_t gear = static_cast<int32_t>(value);
+    if (gear == 0) {
+        WidgetHelpers::setLabelTextIfChanged(label, "N");
+        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
+        return;
+    }
     if (gear < 0) {
         WidgetHelpers::setLabelTextIfChanged(label, "R");
         WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, cfg.style.warningColor.rgb);

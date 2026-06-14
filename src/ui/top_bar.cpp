@@ -7,6 +7,7 @@
 #include "config/config_loader.h"
 #include "runtime/signal_store.h"
 #include "runtime/track_store.h"
+#include "can/can_manager.h"
 #include "can/signal_map.h"
 #include "hal/usb/usb_comm.h"
 #if APP_BLE_ENABLED
@@ -119,9 +120,13 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
     return lbl;
 }
 
+static constexpr uint32_t CAN_BUS_LIVE_THRESHOLD_MS = 2000;
+
 static bool anySignalValid() {
     static constexpr SignalId kAnyIds[] = {SignalIds::RPM, SignalIds::COOLANT_TEMP_C,
                                            SignalIds::BATTERY_VOLTS};
+    if (CanManager::msSinceLastRx() > CAN_BUS_LIVE_THRESHOLD_MS)
+        return false;
     return SignalStore::anyValid(kAnyIds, sizeof(kAnyIds) / sizeof(kAnyIds[0]));
 }
 

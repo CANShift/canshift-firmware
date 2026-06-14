@@ -20,6 +20,7 @@ static uint32_t s_errorCount = 0;
 
 static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
+static uint32_t s_lastRxMs = 0;
 static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
 static bool s_twaiInstalled = false;
@@ -123,6 +124,12 @@ bool CanManager::isAvailable() {
     return s_twaiInstalled;
 }
 
+uint32_t CanManager::msSinceLastRx() {
+    if (s_lastRxMs == 0)
+        return UINT32_MAX;
+    return millis() - s_lastRxMs;
+}
+
 void CanManager::reserveInitTaskStack() {
     if (s_initTaskStack) {
         return;
@@ -198,6 +205,7 @@ bool CanManager::tick() {
 
     if (err == ESP_OK) {
         s_windowFrames++;
+        s_lastRxMs = millis();
 
         if (!(message.rtr)) {
 

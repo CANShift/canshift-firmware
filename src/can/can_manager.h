@@ -12,6 +12,8 @@ void reserveInitTaskStack();
 
 [[nodiscard]] bool isAvailable();
 
+[[nodiscard]] uint32_t msSinceLastRx();
+
 [[nodiscard]] bool tick();
 
 bool sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended = false);
