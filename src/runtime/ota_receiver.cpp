@@ -82,8 +82,7 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
     resetShaContext();
     s_state = State::Receiving;
 
-    LOG_INFO("OTA", "begin: target='%s' size=%u", target->label,
-             static_cast<unsigned>(totalSize));
+    LOG_INFO("OTA", "begin: target='%s' size=%u", target->label, static_cast<unsigned>(totalSize));
     return {true, nullptr};
 }
 
@@ -99,8 +98,8 @@ WriteResult writeChunk(uint32_t offset, const uint8_t *data, size_t len) {
 
     const esp_err_t err = esp_ota_write(s_otaHandle, data, len);
     if (err != ESP_OK) {
-        LOG_ERROR("OTA", "esp_ota_write failed at offset=%u: %s",
-                  static_cast<unsigned>(offset), esp_err_to_name(err));
+        LOG_ERROR("OTA", "esp_ota_write failed at offset=%u: %s", static_cast<unsigned>(offset),
+                  esp_err_to_name(err));
         teardownOtaHandle();
         s_state = State::Failed;
         return {false, "ota_write_failed", s_writtenSize};

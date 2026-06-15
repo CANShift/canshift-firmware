@@ -153,9 +153,8 @@ void handleOtaWrite(const JsonObjectConst &obj) {
         OtaReceiver::abort("b64_decode");
         return;
     }
-    const OtaReceiver::WriteResult result =
-        OtaReceiver::writeChunk(offset, reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf),
-                                decoded);
+    const OtaReceiver::WriteResult result = OtaReceiver::writeChunk(
+        offset, reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf), decoded);
     if (!result.ok) {
         char resp[96];
         snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\",\"written\":%u}",
