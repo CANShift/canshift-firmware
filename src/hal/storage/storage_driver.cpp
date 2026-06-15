@@ -126,33 +126,11 @@ DeserializationError StorageDriver::parseJsonFile(const char *path, JsonDocument
         return DeserializationError::EmptyInput;
     }
     const size_t size = file.size();
-
-    char *buf = static_cast<char *>(heap_caps_malloc(size + 1, MALLOC_CAP_SPIRAM));
-    if (!buf) {
-        buf =
-            static_cast<char *>(heap_caps_malloc(size + 1, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-    }
-    if (!buf) {
-        file.close();
-        LOG_WARN("STORAGE", "JSON buffer alloc (%u B) failed for %s",
-                 static_cast<unsigned>(size + 1), path);
-        if (outSize)
-            *outSize = size;
-        return DeserializationError::NoMemory;
-    }
-    const size_t read = file.readBytes(buf, size);
-    file.close();
     if (outSize)
         *outSize = size;
-    if (read != size) {
-        free(buf);
-        LOG_WARN("STORAGE", "Short read on %s: %u/%u bytes", path, static_cast<unsigned>(read),
-                 static_cast<unsigned>(size));
-        return DeserializationError::IncompleteInput;
-    }
-    buf[size] = '\0';
-    DeserializationError err = JsonReader::parse(doc, buf, size);
-    free(buf);
+
+    DeserializationError err = deserializeJson(doc, file);
+    file.close();
     if (err) {
         LOG_WARN("STORAGE", "Parse %s failed: %s (size=%u)", path, err.c_str(),
                  static_cast<unsigned>(size));
