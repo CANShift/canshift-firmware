@@ -474,6 +474,23 @@ void tickChunkTransferTimeout() {
     }
 }
 
+struct CmdHeapGuard {
+    uint8_t cmd;
+    uint32_t largestBefore;
+    explicit CmdHeapGuard(uint8_t c)
+        : cmd(c), largestBefore(static_cast<uint32_t>(
+                      heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT))) {}
+    ~CmdHeapGuard() {
+        const uint32_t after = static_cast<uint32_t>(
+            heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        if (largestBefore > after && (largestBefore - after) > 1024) {
+            LOG_DEBUG("HEAP", "cmd=0x%02x largest %lu -> %lu (-%lu)", static_cast<unsigned>(cmd),
+                      static_cast<unsigned long>(largestBefore), static_cast<unsigned long>(after),
+                      static_cast<unsigned long>(largestBefore - after));
+        }
+    }
+};
+
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
@@ -485,6 +502,7 @@ void handleCommand(const char *jsonLine) {
     JsonDocument peekDoc;
     JsonReader::parseFiltered(peekDoc, jsonLine, jsonLen, cmdFilter);
     uint8_t cmd = peekDoc["cmd"] | 0;
+    CmdHeapGuard heapGuard{cmd};
 
     if (cmd == UsbComm::CMD_PUT_CONFIG) {
         handlePutConfig(jsonLine);

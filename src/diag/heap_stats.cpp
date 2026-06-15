@@ -11,12 +11,13 @@ namespace HeapStats {
 
 namespace {
 
-constexpr uint32_t EMIT_INTERVAL_MS = 30 * 1000;
-constexpr size_t FRAME_BUF_SIZE = 160;
+constexpr uint32_t EMIT_INTERVAL_MS = 5 * 1000;
+constexpr size_t FRAME_BUF_SIZE = 192;
 
 Snapshot s_latest = {};
 uint32_t s_lastEmitMs = 0;
 bool s_warmedUp = false;
+size_t s_minLargestInternal = SIZE_MAX;
 
 bool s_psramProbed = false;
 bool s_hasPsram = false;
@@ -39,6 +40,9 @@ Snapshot sampleInternal() {
         s.freePsram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
         s.largestPsram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
     }
+    if (s.largestInternal < s_minLargestInternal) {
+        s_minLargestInternal = s.largestInternal;
+    }
     return s;
 }
 
@@ -48,17 +52,21 @@ void emitFrame(const Snapshot &s) {
     if (s.hasPsram) {
         n = snprintf(buf, sizeof(buf),
                      "{\"heap_stats\":1,\"ts\":%lu,\"free_int\":%lu,\"largest_int\":%lu,"
+                     "\"min_largest_int\":%lu,"
                      "\"free_psram\":%lu,\"largest_psram\":%lu}",
                      static_cast<unsigned long>(s.tsMs), static_cast<unsigned long>(s.freeInternal),
                      static_cast<unsigned long>(s.largestInternal),
+                     static_cast<unsigned long>(s_minLargestInternal),
                      static_cast<unsigned long>(s.freePsram),
                      static_cast<unsigned long>(s.largestPsram));
     } else {
         n = snprintf(buf, sizeof(buf),
                      "{\"heap_stats\":1,\"ts\":%lu,\"free_int\":%lu,\"largest_int\":%lu,"
+                     "\"min_largest_int\":%lu,"
                      "\"free_psram\":null,\"largest_psram\":null}",
                      static_cast<unsigned long>(s.tsMs), static_cast<unsigned long>(s.freeInternal),
-                     static_cast<unsigned long>(s.largestInternal));
+                     static_cast<unsigned long>(s.largestInternal),
+                     static_cast<unsigned long>(s_minLargestInternal));
     }
     if (n <= 0 || static_cast<size_t>(n) >= sizeof(buf)) {
         LOG_WARN("HEAP", "heap_stats payload truncated (n=%d, cap=%u)", n,
