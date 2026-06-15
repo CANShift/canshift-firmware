@@ -3,6 +3,7 @@
 
 #include "burn_overlay.h"
 #include "diag_drawer.h"
+#include "ota_overlay.h"
 #include "error_bar.h"
 #include "gesture_controller.h"
 #include "screen_profile.h"
@@ -144,6 +145,9 @@ void PageManager::requestReload() {
 
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
+
+    if (OtaOverlay::isActive())
+        return;
 
     if (s_reloadRequested) {
         s_reloadRequested = false;

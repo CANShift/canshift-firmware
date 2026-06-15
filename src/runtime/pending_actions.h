@@ -21,6 +21,10 @@ inline std::atomic<bool> burnOverlayShow{false};
 
 inline std::atomic<int8_t> burnOverlayShowError{-1};
 
+inline std::atomic<uint32_t> otaOverlayShowSize{0};
+
+inline std::atomic<bool> otaOverlayHide{false};
+
 inline bool takeDayNightToggle() {
     return dayNightToggle.exchange(false, std::memory_order_relaxed);
 }
@@ -51,6 +55,14 @@ inline bool takeBurnOverlayShow() {
 
 inline int8_t takeBurnOverlayShowError() {
     return burnOverlayShowError.exchange(-1, std::memory_order_relaxed);
+}
+
+inline uint32_t takeOtaOverlayShowSize() {
+    return otaOverlayShowSize.exchange(0, std::memory_order_relaxed);
+}
+
+inline bool takeOtaOverlayHide() {
+    return otaOverlayHide.exchange(false, std::memory_order_relaxed);
 }
 
 } // namespace PendingActions
