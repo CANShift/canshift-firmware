@@ -619,6 +619,12 @@ void handleCommand(const char *jsonLine) {
             LOG_INFO("USB", "CMD: calibration reset queued");
             UsbComm::sendLine("{\"status\":\"ok\"}");
             break;
+        case UsbComm::CMD_REBOOT:
+            LOG_INFO("USB", "CMD_REBOOT — restarting");
+            UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
+            delay(50);
+            esp_restart();
+            break;
         case UsbComm::CMD_CAN_SCAN_START: {
             s_scanDrops = 0;
 

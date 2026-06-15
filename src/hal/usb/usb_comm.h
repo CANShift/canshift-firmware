@@ -42,6 +42,8 @@ static constexpr uint8_t CMD_OTA_BEGIN = 0x30;
 static constexpr uint8_t CMD_OTA_WRITE = 0x31;
 static constexpr uint8_t CMD_OTA_END = 0x32;
 
+static constexpr uint8_t CMD_REBOOT = 0xF0;
+
 struct CanScanFrame {
     uint32_t id;
     uint8_t len;

@@ -244,12 +244,13 @@ void UsbComm::sendLine(const char *line) {
     }
     const SendSink primary = dispatch ? dispatch : s_sink;
     const SendSink aux = s_auxSink;
-    unlockSink();
 
     if (primary)
         primary(line, len);
     if (aux && aux != primary)
         aux(line, len);
+
+    unlockSink();
 }
 
 void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
