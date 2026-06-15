@@ -398,16 +398,17 @@ void handleGetConfig() {
     }
     static constexpr size_t kEnvelopeOverhead = 32;
     const size_t needed = fileBytes + kEnvelopeOverhead;
-    char *buf = static_cast<char *>(heap_caps_malloc(needed, MALLOC_CAP_SPIRAM));
-    if (!buf) {
-        buf = static_cast<char *>(heap_caps_malloc(needed, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-    }
-    if (!buf) {
-        LOG_ERROR("USB", "GET_CONFIG: response buffer alloc (%u B) failed",
-                  static_cast<unsigned>(needed));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"oom\"}");
+    if (needed > USB_RX_BUF_SIZE) {
+        LOG_ERROR("USB", "GET_CONFIG: response %u B exceeds rxBuf %u B",
+                  static_cast<unsigned>(needed), static_cast<unsigned>(USB_RX_BUF_SIZE));
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"too_large\"}");
         return;
     }
+    if (UsbCommInternal::s_rxBuf == nullptr) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"rxbuf_unavailable\"}");
+        return;
+    }
+    char *buf = UsbCommInternal::s_rxBuf;
     static const char kPrefix[] = "{\"status\":\"ok\",\"config\":";
     constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
     memcpy(buf, kPrefix, kPrefixLen);
@@ -416,7 +417,6 @@ void handleGetConfig() {
     const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink, true);
 
     if (streamed == 0 || sink.used() == 0 || streamed != sink.used()) {
-        free(buf);
         LOG_WARN("USB", "GET_CONFIG: stream mismatch for %s (streamed=%u, sink=%u)",
                  CONFIG_PATH_DASHBOARD, static_cast<unsigned>(streamed),
                  static_cast<unsigned>(sink.used()));
@@ -427,7 +427,6 @@ void handleGetConfig() {
     buf[pos++] = '}';
     buf[pos] = '\0';
     UsbComm::sendLine(buf);
-    free(buf);
 
     LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
 }
