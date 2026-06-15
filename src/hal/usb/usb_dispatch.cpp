@@ -491,17 +491,23 @@ struct CmdHeapGuard {
     }
 };
 
+uint8_t extractCmdByte(const char *jsonLine) {
+    const char *cmdKey = strstr(jsonLine, "\"cmd\":");
+    if (cmdKey == nullptr)
+        return 0;
+    char *endPtr = nullptr;
+    const long parsed = strtol(cmdKey + 6, &endPtr, 10);
+    if (endPtr == cmdKey + 6 || parsed < 0 || parsed > 0xFF)
+        return 0;
+    return static_cast<uint8_t>(parsed);
+}
+
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
 
     const size_t jsonLen = strlen(jsonLine);
-
-    JsonDocument cmdFilter;
-    cmdFilter["cmd"] = true;
-    JsonDocument peekDoc;
-    JsonReader::parseFiltered(peekDoc, jsonLine, jsonLen, cmdFilter);
-    uint8_t cmd = peekDoc["cmd"] | 0;
+    const uint8_t cmd = extractCmdByte(jsonLine);
     CmdHeapGuard heapGuard{cmd};
 
     if (cmd == UsbComm::CMD_PUT_CONFIG) {
