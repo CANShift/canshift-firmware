@@ -204,7 +204,6 @@ enum class TopBarItemKind : uint8_t {
     LABEL,
     SEPARATOR,
     SIGNAL,
-    USB_ICON,
     BLE_ICON,
     THEME_TOGGLE,
     MODE_FLAG,

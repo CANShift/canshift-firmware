@@ -40,8 +40,6 @@ TopBarItemKind parseTopBarItemKind(const char *str) {
         return TopBarItemKind::SEPARATOR;
     if (strcmp(str, "signal") == 0)
         return TopBarItemKind::SIGNAL;
-    if (strcmp(str, "usbIcon") == 0)
-        return TopBarItemKind::USB_ICON;
     if (strcmp(str, "bleIcon") == 0)
         return TopBarItemKind::BLE_ICON;
     if (strcmp(str, "themeToggle") == 0)

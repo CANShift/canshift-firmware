@@ -78,7 +78,6 @@ static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;
 static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800;
 static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
-static constexpr uint32_t COLOR_USB_OFF = 0x444444;
 static constexpr uint32_t COLOR_BLE_CONN = 0x4499FF;
 static constexpr uint32_t COLOR_BLE_ADV = 0x225588;
 static constexpr uint32_t COLOR_BLE_OFF = 0x444444;
@@ -184,16 +183,6 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             anchor(obj, gap);
             break;
         }
-        case TopBarItemKind::USB_ICON: {
-
-            return;
-            obj = lv_label_create(s_bar);
-            lv_label_set_text(obj, "USB");
-            lv_obj_set_style_text_color(obj, lv_color_hex(COLOR_USB_OFF), 0);
-            lv_obj_set_style_text_font(obj, FontManager::label(derivedFontSize(s_height)), 0);
-            anchor(obj, gap);
-            break;
-        }
         case TopBarItemKind::BLE_ICON: {
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, "BLE");
@@ -244,8 +233,8 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
     const int8_t prevFlagIdx = lastModeFlagIdxByPos[posIdx];
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
-         item.kind == TopBarItemKind::USB_ICON || item.kind == TopBarItemKind::BLE_ICON ||
-         item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::TRACK_BADGE ||
+         item.kind == TopBarItemKind::BLE_ICON || item.kind == TopBarItemKind::MODE_FLAG ||
+         item.kind == TopBarItemKind::TRACK_BADGE ||
          (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         const uint8_t myIdx = s_dynCount;
@@ -411,16 +400,6 @@ static void updateDynSignalLabel(DynItem &d) {
     }
 }
 
-static void updateUsbIcon(lv_obj_t *obj, DynItem *d) {
-    const bool active = UsbComm::isHostActive();
-    const uint32_t color = active ? COLOR_DOT_OK : COLOR_USB_OFF;
-    if (d != nullptr && color == d->lastColor)
-        return;
-    lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
-    if (d != nullptr)
-        d->lastColor = color;
-}
-
 static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
 #if APP_BLE_ENABLED
     const uint32_t color = BleServer::isConnected() ? COLOR_BLE_CONN
@@ -503,9 +482,6 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::SIGNAL:
                 updateDynSignalLabel(d);
-                break;
-            case TopBarItemKind::USB_ICON:
-                updateUsbIcon(d.obj, &d);
                 break;
             case TopBarItemKind::BLE_ICON:
                 updateBleIcon(d.obj, &d);
