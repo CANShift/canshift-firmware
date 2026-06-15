@@ -38,6 +38,10 @@ static constexpr uint8_t CMD_PING = 0x11;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
 static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
 
+static constexpr uint8_t CMD_OTA_BEGIN = 0x30;
+static constexpr uint8_t CMD_OTA_WRITE = 0x31;
+static constexpr uint8_t CMD_OTA_END = 0x32;
+
 struct CanScanFrame {
     uint32_t id;
     uint8_t len;

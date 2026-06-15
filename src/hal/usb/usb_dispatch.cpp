@@ -10,6 +10,7 @@
 #include "diag/logger.h"
 #include "diag/lvgl_lock_guard.h"
 #include "hal/storage/storage_driver.h"
+#include "runtime/ota_receiver.h"
 #include "runtime/pending_actions.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
@@ -89,6 +90,106 @@ bool isPathSafe(const char *path) {
             return true;
     }
     return false;
+}
+
+bool parseSha256Hex(const char *hex, uint8_t out[32]) {
+    if (hex == nullptr)
+        return false;
+    if (strlen(hex) != 64)
+        return false;
+    for (size_t i = 0; i < 32; ++i) {
+        char hi = hex[i * 2];
+        char lo = hex[i * 2 + 1];
+        auto nybble = [](char c) -> int {
+            if (c >= '0' && c <= '9')
+                return c - '0';
+            if (c >= 'a' && c <= 'f')
+                return 10 + (c - 'a');
+            if (c >= 'A' && c <= 'F')
+                return 10 + (c - 'A');
+            return -1;
+        };
+        int h = nybble(hi);
+        int l = nybble(lo);
+        if (h < 0 || l < 0)
+            return false;
+        out[i] = static_cast<uint8_t>((h << 4) | l);
+    }
+    return true;
+}
+
+void handleOtaBegin(const JsonObjectConst &obj) {
+    const uint32_t total = obj["total"] | 0u;
+    const char *shaHex = obj["sha256"];
+    uint8_t sha[32];
+    if (total == 0 || !parseSha256Hex(shaHex, sha)) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        return;
+    }
+    const OtaReceiver::BeginResult result = OtaReceiver::begin(total, sha);
+    if (!result.ok) {
+        char resp[80];
+        snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\"}",
+                 result.error != nullptr ? result.error : "begin_failed");
+        UsbComm::sendLine(resp);
+        return;
+    }
+    UsbComm::sendLine("{\"status\":\"ok\"}");
+}
+
+void handleOtaWrite(const JsonObjectConst &obj) {
+    const uint32_t offset = obj["offset"] | 0u;
+    const char *b64 = obj["data"];
+    if (b64 == nullptr) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        return;
+    }
+    size_t decoded = 0;
+    const int rc = mbedtls_base64_decode(
+        reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
+        reinterpret_cast<const unsigned char *>(b64), strlen(b64));
+    if (rc != 0 || decoded == 0) {
+        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
+        OtaReceiver::abort("b64_decode");
+        return;
+    }
+    const OtaReceiver::WriteResult result =
+        OtaReceiver::writeChunk(offset, reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf),
+                                decoded);
+    if (!result.ok) {
+        char resp[96];
+        snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\",\"written\":%u}",
+                 result.error != nullptr ? result.error : "write_failed",
+                 static_cast<unsigned>(result.writtenTotal));
+        UsbComm::sendLine(resp);
+        return;
+    }
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"written\":%u}",
+             static_cast<unsigned>(result.writtenTotal));
+    UsbComm::sendLine(resp);
+}
+
+void handleOtaEnd(const JsonObjectConst &obj) {
+    const char *action = obj["action"] | "abort";
+    if (strcmp(action, "commit") == 0) {
+        const OtaReceiver::CommitResult result = OtaReceiver::commit();
+        if (!result.ok) {
+            char resp[128];
+            snprintf(resp, sizeof(resp),
+                     "{\"status\":\"error\",\"message\":\"%s\",\"detail\":\"0x%x\"}",
+                     result.error != nullptr ? result.error : "commit_failed",
+                     static_cast<unsigned>(result.detailCode));
+            UsbComm::sendLine(resp);
+            return;
+        }
+        UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
+        delay(50);
+        esp_restart();
+        return;
+    }
+    OtaReceiver::abort("host_requested");
+    UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
 void handlePutFile(const JsonObjectConst &obj) {
@@ -375,6 +476,19 @@ void handleCommand(const char *jsonLine) {
         return;
     }
 
+    if (cmd == UsbComm::CMD_OTA_WRITE) {
+        JsonDocument doc;
+        DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
+        if (err) {
+            LOG_WARN("USB", "OTA_WRITE parse error: %s", err.c_str());
+            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
+            OtaReceiver::abort("parse_error");
+            return;
+        }
+        handleOtaWrite(doc.as<JsonObjectConst>());
+        return;
+    }
+
     JsonDocument doc;
     DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
     if (err) {
@@ -399,6 +513,12 @@ void handleCommand(const char *jsonLine) {
             UsbComm::sendLine(resp);
             break;
         }
+        case UsbComm::CMD_OTA_BEGIN:
+            handleOtaBegin(doc.as<JsonObjectConst>());
+            break;
+        case UsbComm::CMD_OTA_END:
+            handleOtaEnd(doc.as<JsonObjectConst>());
+            break;
         case UsbComm::CMD_PING: {
             char resp[48];
             const int n = snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"uptime_ms\":%lu}",
