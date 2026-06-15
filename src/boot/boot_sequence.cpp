@@ -59,13 +59,14 @@ static void logHeap(const char *stage) {
     }
 }
 
-static void initDisplayAndLVGL() {
-
+static void initLvglMemoryPool() {
     LOG_INFO("BOOT", "Calling lv_init()...");
     lv_init();
     LOG_INFO("BOOT", "lv_init() returned");
     logHeap("after lv_init");
+}
 
+static void initDisplayHardware() {
     LOG_INFO("BOOT", "Initializing display...");
     DisplayDriver::init();
     LOG_INFO("BOOT", "Display driver up");
@@ -403,6 +404,7 @@ void BootSequence::run() {
     const uint32_t bootStartMs = millis();
     initPsramAndLogEntry();
     initTaskWatchdog();
+    initLvglMemoryPool();
     initBleEarlyIfEnabled();
 
     const bool storageOk = mountStorageOrLogError();
@@ -410,7 +412,7 @@ void BootSequence::run() {
     loadConfigWithHeapBracket();
     ScreenProfile::initFromDashboard();
 
-    initDisplayAndLVGL();
+    initDisplayHardware();
     initTouchHardware();
     initLvglFsIfStorageOk(storageOk);
     provisionDefaultFontsIfNeeded(storageOk);
