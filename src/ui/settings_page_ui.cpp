@@ -1,6 +1,9 @@
 #include "settings_page_internal.h"
 
+#include "app_config.h"
+#include "config/config_loader.h"
 #include "ui/font_manager.h"
+#include "ui/theme_manager.h"
 #include "diag/logger.h"
 
 #include <lvgl.h>
@@ -173,6 +176,61 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
                                    onResetTouchCal);
     lv_obj_set_pos(btn, PAD_H, y);
     lv_obj_set_size(btn, rowW, BTN_H);
+    s_resetTouchCalBtn = btn;
+    y += BTN_H;
+}
+
+void buildDayModeRow(int16_t &y, int16_t rowW) {
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (!dash.hasDayTheme)
+        return;
+
+    lv_obj_t *lbl = lv_label_create(s_panel);
+    lv_label_set_text(lbl, "DISPLAY MODE");
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+    lv_obj_set_pos(lbl, PAD_H, y);
+    y += LABEL_H + GAP_INNER;
+
+    const int16_t gap = 4;
+    const int16_t btnW = (rowW - gap) / 2;
+    const bool dayOn = ThemeManager::isDayMode();
+    const char *const dayLabels[2] = {"DAY", "NIGHT"};
+    const bool active[2] = {dayOn, !dayOn};
+    for (uint8_t i = 0; i < 2; ++i) {
+        s_dayBtns[i] = makeSegButton(s_panel, dayLabels[i], active[i], onDayModeBtn,
+                                     reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+        lv_obj_set_pos(s_dayBtns[i], PAD_H + i * (btnW + gap), y);
+        lv_obj_set_size(s_dayBtns[i], btnW, BTN_H);
+    }
+    y += BTN_H;
+}
+
+void buildAboutRow(int16_t &y, int16_t rowW) {
+    (void)rowW;
+    lv_obj_t *lbl = lv_label_create(s_panel);
+    lv_label_set_text(lbl, "ABOUT");
+    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+    lv_obj_set_pos(lbl, PAD_H, y);
+    y += LABEL_H + GAP_INNER;
+
+    lv_obj_t *ver = lv_label_create(s_panel);
+    lv_label_set_text(ver, "CANShift v" APP_VERSION_STR);
+    lv_obj_set_style_text_font(ver, FONT_SM(), 0);
+    lv_obj_set_style_text_color(ver, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_set_pos(ver, PAD_H, y);
+    y += LABEL_H;
+}
+
+void buildRebootRow(int16_t &y, int16_t rowW) {
+    lv_obj_t *btn =
+        makeFullButton(s_panel, "HOLD 3 s TO REBOOT", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED, nullptr);
+    lv_obj_set_pos(btn, PAD_H, y);
+    lv_obj_set_size(btn, rowW, BTN_H);
+    lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_RELEASED, nullptr);
+    lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_PRESS_LOST, nullptr);
     y += BTN_H;
 }
 

@@ -73,6 +73,7 @@ void TouchDriver::init() {
     s_indevDrv.read_cb = readCallback;
     s_indevDrv.gesture_limit = 40;
     s_indevDrv.gesture_min_velocity = 3;
+    s_indevDrv.scroll_limit = 5;
 
     lv_indev_drv_register(&s_indevDrv);
 
