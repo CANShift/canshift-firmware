@@ -119,11 +119,16 @@ void onBrightnessChanged(lv_event_t *e) {
 
 void onBleBtn(lv_event_t *e) {
     uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-    s_bleEnabled = (idx == 0);
+    const bool wantEnabled = (idx == 0);
+    if (wantEnabled == s_bleEnabled)
+        return;
+    s_bleEnabled = wantEnabled;
     updateBleButtons();
+    nvsSave();
 #if APP_BLE_ENABLED
     BleServer::setPendingEnabled(s_bleEnabled);
 #endif
+    LOG_INFO("Settings", "BLE %s — reboot to apply", s_bleEnabled ? "enabled" : "disabled");
 }
 
 void onCalibrateTouch(lv_event_t *) {

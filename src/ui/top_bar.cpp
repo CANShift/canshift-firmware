@@ -402,17 +402,25 @@ static void updateDynSignalLabel(DynItem &d) {
 
 static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
 #if APP_BLE_ENABLED
-    const uint32_t color = BleServer::isConnected() ? COLOR_BLE_CONN
-                           : BleServer::isEnabled() ? COLOR_BLE_ADV
-                                                    : COLOR_BLE_OFF;
+    const bool connected = BleServer::isConnected();
+    const bool advertising = !connected && BleServer::isEnabled();
 #else
-    const uint32_t color = COLOR_BLE_OFF;
+    const bool connected = false;
+    const bool advertising = false;
 #endif
-    if (d != nullptr && color == d->lastColor)
+
+    const char *text = connected ? "BLE+" : advertising ? "BLE." : "BLE";
+    const uint32_t color = connected ? COLOR_BLE_CONN : advertising ? COLOR_BLE_ADV : COLOR_BLE_OFF;
+
+    if (d != nullptr && color == d->lastColor && strcmp(d->lastText, text) == 0)
         return;
+
+    lv_label_set_text(obj, text);
     lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
-    if (d != nullptr)
+    if (d != nullptr) {
         d->lastColor = color;
+        strlcpy(d->lastText, text, sizeof(d->lastText));
+    }
 }
 
 static void updateModeFlag(DynItem &d) {

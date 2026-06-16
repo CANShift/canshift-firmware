@@ -69,7 +69,7 @@ const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
     return FontManager::label(12);
 }
 
-static constexpr int16_t MAP_BADGE_DIAMETER = 7;
+static constexpr int16_t MAP_BADGE_DIAMETER = 12;
 static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44;
 
 constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_10;

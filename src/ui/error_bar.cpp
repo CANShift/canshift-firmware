@@ -15,17 +15,27 @@ static inline bool heapHealthyForLvglUpdate() {
     return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= DISMISS_MIN_HEAP_BYTES;
 }
 
-static constexpr int16_t BAR_H = 20;
-static constexpr int16_t ROW_H = 20;
+static constexpr int16_t BAR_H = 32;
+static constexpr int16_t ROW_H = 32;
+
+static constexpr int16_t DISMISS_W = 44;
+static constexpr int16_t DISMISS_H = 32;
+
+static constexpr int16_t SOURCE_STRIP_W = 4;
 
 static constexpr uint8_t MAX_ROWS = 6;
-static constexpr int16_t DETAIL_MAX_H = 120;
+static constexpr int16_t DETAIL_MAX_H = 160;
 
 static constexpr uint32_t COL_BG = 0x160808;
-static constexpr uint32_t COL_BORDER = 0xCC3333;
+static constexpr uint32_t COL_BORDER_CRITICAL = 0xCC3333;
+static constexpr uint32_t COL_BORDER_CONFIG = 0xCC8800;
 static constexpr uint32_t COL_CODE = 0xCC4444;
 static constexpr uint32_t COL_MSG = 0xDDAAAA;
 static constexpr uint32_t COL_DIM = 0x664444;
+
+static inline uint32_t sourceStripColor(ErrorSource src) {
+    return src == ERROR_SRC_CONFIG ? COL_BORDER_CONFIG : COL_BORDER_CRITICAL;
+}
 
 static inline const lv_font_t *FONT() {
     return FontManager::label(12);
@@ -36,6 +46,7 @@ static lv_obj_t *s_headerRow = nullptr;
 static lv_obj_t *s_codeLabel = nullptr;
 static lv_obj_t *s_msgLabel = nullptr;
 static lv_obj_t *s_countLabel = nullptr;
+static lv_obj_t *s_chevronLabel = nullptr;
 static lv_obj_t *s_dismissBtn = nullptr;
 
 static lv_obj_t *s_detailPanel = nullptr;
@@ -69,7 +80,7 @@ static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
 static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *btn = lv_btn_create(parent);
 
-    lv_obj_set_size(btn, 32, BAR_H);
+    lv_obj_set_size(btn, DISMISS_W, DISMISS_H);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A1010), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
@@ -150,10 +161,9 @@ static lv_obj_t *createContainer() {
     lv_obj_align(c, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(c, lv_color_hex(COL_BG), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(c, 0, LV_PART_MAIN);
     lv_obj_set_style_border_side(c, LV_BORDER_SIDE_LEFT, LV_PART_MAIN);
-    lv_obj_set_style_border_color(c, lv_color_hex(COL_BORDER), LV_PART_MAIN);
-    lv_obj_set_style_border_width(c, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_color(c, lv_color_hex(COL_BORDER_CRITICAL), LV_PART_MAIN);
+    lv_obj_set_style_border_width(c, SOURCE_STRIP_W, LV_PART_MAIN);
     lv_obj_set_style_pad_all(c, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(c, 0, LV_PART_MAIN);
     lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
@@ -186,6 +196,11 @@ static void buildHeaderRow(lv_obj_t *parent) {
     s_countLabel = makeLabel(s_headerRow, COL_CODE);
     lv_label_set_text(s_countLabel, "");
     lv_obj_set_width(s_countLabel, LV_SIZE_CONTENT);
+
+    s_chevronLabel = makeLabel(s_headerRow, COL_CODE);
+    lv_label_set_text(s_chevronLabel, "^");
+    lv_obj_set_width(s_chevronLabel, LV_SIZE_CONTENT);
+    lv_obj_add_flag(s_chevronLabel, LV_OBJ_FLAG_HIDDEN);
 
     s_dismissBtn = makeDismissBtn(s_headerRow);
     lv_obj_add_event_cb(s_dismissBtn, onHeaderDismissClicked, LV_EVENT_CLICKED, nullptr);
@@ -273,6 +288,9 @@ void ErrorBar::update() {
     uint8_t fetched = 0;
     ErrorStore::getAll(errors, &fetched, MAX_ROWS);
 
+    lv_obj_set_style_border_color(s_container, lv_color_hex(sourceStripColor(errors[0].source)),
+                                  LV_PART_MAIN);
+
     {
         char codeBuf[20];
         snprintf(codeBuf, sizeof(codeBuf), "%s:%s", srcLabel(errors[0].source), errors[0].code);
@@ -284,8 +302,10 @@ void ErrorBar::update() {
             snprintf(countBuf, sizeof(countBuf), "+%u", count - 1);
             lv_label_set_text(s_countLabel, countBuf);
             lv_obj_clear_flag(s_countLabel, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(s_chevronLabel, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(s_countLabel, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(s_chevronLabel, LV_OBJ_FLAG_HIDDEN);
         }
     }
 

@@ -432,8 +432,8 @@ void BootSequence::run() {
     const uint32_t bootStartMs = millis();
     initPsramAndLogEntry();
     initTaskWatchdog();
-    initLvglMemoryPool();
     initBleEarlyIfEnabled();
+    initLvglMemoryPool();
 
     const bool storageOk = mountStorageOrLogError();
     provisionDefaultConfigsIfNeeded(storageOk);

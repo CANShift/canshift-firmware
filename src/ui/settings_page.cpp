@@ -25,6 +25,8 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     y += GAP_ROW;
     buildDayModeRow(y, rowW);
     y += GAP_ROW;
+    buildBleRow(y, rowW);
+    y += GAP_ROW;
     buildCalibrateTouchRow(y, rowW);
     y += GAP_INNER;
     buildResetTouchCalRow(y, rowW);
