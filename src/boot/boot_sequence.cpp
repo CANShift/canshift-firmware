@@ -81,7 +81,22 @@ static void initDisplayHardware() {
 namespace {
 static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
+static lv_obj_t *s_splashError = nullptr;
 } // namespace
+
+static void renderSplashError() {
+    if (!s_splashError)
+        return;
+    FwError err;
+    if (!ErrorStore::peekLast(&err)) {
+        lv_obj_add_flag(s_splashError, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    char line[72];
+    snprintf(line, sizeof(line), "%s: %s", err.code, err.message);
+    lv_label_set_text(s_splashError, line);
+    lv_obj_clear_flag(s_splashError, LV_OBJ_FLAG_HIDDEN);
+}
 
 static lv_obj_t *buildSplashBase() {
     lv_obj_t *scr = lv_scr_act();
@@ -147,8 +162,20 @@ static void showSplash() {
     lv_obj_set_style_text_color(status, lv_color_hex(0x666666), 0);
     lv_obj_align(status, LV_ALIGN_CENTER, 0, 52);
 
+    lv_obj_t *err = lv_label_create(scr);
+    lv_label_set_long_mode(err, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(err, BAR_W);
+    lv_obj_set_style_text_align(err, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(err, lv_color_hex(0xFF4444), 0);
+    lv_label_set_text(err, "");
+    lv_obj_align(err, LV_ALIGN_CENTER, 0, 72);
+    lv_obj_add_flag(err, LV_OBJ_FLAG_HIDDEN);
+
     s_splashBar = bar;
     s_splashStatus = status;
+    s_splashError = err;
+
+    renderSplashError();
 
     lv_task_handler();
 }
@@ -158,6 +185,7 @@ static void updateSplash(const char *status, uint8_t pct) {
         lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
     if (s_splashStatus)
         lv_label_set_text(s_splashStatus, status);
+    renderSplashError();
     lv_refr_now(NULL);
 }
 

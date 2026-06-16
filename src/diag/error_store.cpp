@@ -84,6 +84,18 @@ uint32_t ErrorStore::getVersion() {
     return v;
 }
 
+bool ErrorStore::peekLast(FwError *out) {
+    portENTER_CRITICAL(&s_mux);
+    if (s_count == 0) {
+        portEXIT_CRITICAL(&s_mux);
+        return false;
+    }
+    const uint8_t idx = static_cast<uint8_t>((s_head + s_count - 1) % RING_SIZE);
+    *out = s_ring[idx];
+    portEXIT_CRITICAL(&s_mux);
+    return true;
+}
+
 void ErrorStore::dismissLatest() {
     portENTER_CRITICAL(&s_mux);
     if (s_count > 0) {

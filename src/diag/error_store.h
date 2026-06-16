@@ -22,6 +22,9 @@ void getAll(FwError *buf, uint8_t *count, uint8_t maxCount);
 
 uint8_t getCount();
 uint32_t getVersion();
+
+bool peekLast(FwError *out);
+
 void dismissLatest();
 
 void dismissAt(uint8_t row);
