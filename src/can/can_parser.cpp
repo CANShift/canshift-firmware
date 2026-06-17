@@ -4,10 +4,7 @@
 #include "runtime/signal_store.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
-
-#if USE_RUST_CAN_PARSER
-    #include "can_parser_rs.h"
-#endif
+#include "can_parser_rs.h"
 
 #include <algorithm>
 
@@ -34,39 +31,7 @@ static bool s_runtimeLoaded = false;
 float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
                                      bool bigEndian, bool isSigned, uint8_t bitMask, float scale,
                                      float offset) {
-#if USE_RUST_CAN_PARSER
-
     return decode_bytes_rs(data, startByte, byteLen, bigEndian, isSigned, bitMask, scale, offset);
-#else
-
-    if (byteLen == 0 ||
-        static_cast<uint16_t>(startByte) + static_cast<uint16_t>(byteLen) > kCanFrameMaxBytes)
-        return 0.0f;
-
-    uint32_t raw = 0;
-    if (bigEndian) {
-        for (uint8_t i = 0; i < byteLen; ++i)
-            raw = (raw << 8) | data[startByte + i];
-    } else {
-        for (uint8_t i = 0; i < byteLen; ++i)
-            raw |= static_cast<uint32_t>(data[startByte + i]) << (i * 8);
-    }
-
-    if (bitMask != 0)
-        return (raw & bitMask) ? 1.0f : 0.0f;
-
-    float physical;
-    if (isSigned) {
-        const uint8_t bits = static_cast<uint8_t>(byteLen * 8);
-
-        if (byteLen < 4 && (raw & (1u << (bits - 1))))
-            raw |= static_cast<uint32_t>(~((1ULL << bits) - 1ULL));
-        physical = static_cast<float>(static_cast<int32_t>(raw));
-    } else {
-        physical = static_cast<float>(raw);
-    }
-    return physical * scale + offset;
-#endif
 }
 
 void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {

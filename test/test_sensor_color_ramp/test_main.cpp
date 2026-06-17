@@ -21,8 +21,24 @@ namespace {
 
 constexpr float kFloatEps = 1e-4f;
 
+const char *kindToSignalName(SensorKind kind) {
+    switch (kind) {
+        case SensorKind::Coolant:      return "coolant_temp_c";
+        case SensorKind::OilTemp:      return "oil_temp_c";
+        case SensorKind::OilPress:     return "oil_press_bar";
+        case SensorKind::BatteryVolts: return "battery_volts";
+        case SensorKind::Rpm:          return "rpm";
+        case SensorKind::Afr:          return "afr_1";
+        case SensorKind::Boost:        return "boost_bar";
+        case SensorKind::IntakeTemp:   return "intake_temp_c";
+        case SensorKind::Egt:          return "egt_c";
+        default:                       return "";
+    }
+}
+
 const CfgColorRamp &rampFor(SensorKind kind) {
-    return kSensorDefaultRamps[static_cast<uint8_t>(kind)];
+    static const CfgColorRamp kEmpty = {};
+    return *resolveRamp(kEmpty, kindToSignalName(kind));
 }
 
 bool stringMatches(const char *kindStr, SensorKind expected) {

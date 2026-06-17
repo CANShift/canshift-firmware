@@ -282,7 +282,8 @@ pub fn lerp_rgb(a: u32, b: u32, t: f32) -> u32 {
     let mix = |x: i32, y: i32| -> u32 {
         let v = (x as f32) + (y as f32 - x as f32) * t;
         let clamped = v.clamp(0.0, 255.0);
-        clamped.round() as u32
+
+        (clamped + 0.5) as u32
     };
     (mix(ar, br) << 16) | (mix(ag, bg) << 8) | mix(ab, bb)
 }
