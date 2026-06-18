@@ -3,6 +3,8 @@
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+pub mod expr;
+
 #[cfg(feature = "ffi")]
 pub mod ffi;
 

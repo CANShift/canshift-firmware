@@ -314,6 +314,15 @@ bool loadSignals() {
 
         parseColorRamp(sig["colorRamp"], s.name, &s.colorRamp);
 
+        {
+            const char *exprStr = sig["expr"] | (const char *)nullptr;
+            if (exprStr) {
+                strlcpy(s.expr, exprStr, sizeof(s.expr));
+            } else {
+                s.expr[0] = '\0';
+            }
+        }
+
         s.pollMode = 0;
         s.pollPid = 0;
         s.pollIntervalMs = 0;

@@ -17,6 +17,7 @@
 #define CFG_MAX_ID_LEN 32
 #define CFG_MAX_NAME_LEN 32
 #define CFG_MAX_SIGNAL_LEN 64
+#define CFG_MAX_EXPR_LEN 128
 #define CFG_MAX_PROFILE_ID_LEN 24
 #define CFG_MAX_PATH_LEN 64
 #define CFG_MAX_COLOR_LEN 8
@@ -298,6 +299,7 @@ struct CfgSignalDef {
     uint8_t pollMode;
     uint8_t pollPid;
     uint32_t pollIntervalMs;
+    char expr[CFG_MAX_EXPR_LEN];
 };
 
 struct CfgSignalsOut {

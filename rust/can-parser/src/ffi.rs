@@ -1,3 +1,4 @@
+use crate::expr::{eval, EvalContext};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
@@ -18,6 +19,36 @@ pub unsafe extern "C" fn decode_bytes_rs(
     }
     let slice = unsafe { slice::from_raw_parts(data, CAN_FRAME_MAX_BYTES) };
     decode_bytes(slice, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset)
+}
+
+/// # Safety: `data` readable for CAN_FRAME_MAX_BYTES bytes; `expr` is a NUL-terminated
+/// C string of `expr_len` bytes (not counting NUL).
+#[no_mangle]
+pub unsafe extern "C" fn decode_with_expr_rs(
+    data: *const u8,
+    start_byte: u8,
+    byte_len: u8,
+    big_endian: bool,
+    is_signed: bool,
+    bit_mask: u8,
+    scale: f32,
+    offset: f32,
+    expr: *const u8,
+    expr_len: usize,
+) -> f32 {
+    if data.is_null() {
+        return 0.0;
+    }
+    let frame = unsafe { slice::from_raw_parts(data, CAN_FRAME_MAX_BYTES) };
+    let v = decode_bytes(
+        frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
+    );
+    if expr.is_null() || expr_len == 0 {
+        return v;
+    }
+    let expr_slice = unsafe { slice::from_raw_parts(expr, expr_len) };
+    let ctx = EvalContext { v, bytes: frame };
+    eval(expr_slice, &ctx)
 }
 
 #[cfg(test)]
