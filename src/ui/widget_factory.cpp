@@ -9,6 +9,7 @@
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "diag/logger.h"
+#include "diag/lvgl_assert_lock.h"
 
 #include <lvgl.h>
 #include <stdint.h>
@@ -108,6 +109,7 @@ void updateWidget(WidgetEntry &entry,
 } // namespace
 
 lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    LVGL_ASSERT_LOCKED();
     if (s_widgetCount >= MAX_TRACKED_WIDGETS) {
         LOG_ERROR("WF", "Widget registry full — cannot create widget '%s'", cfg.id);
         return nullptr;
@@ -166,7 +168,7 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 }
 
 void WidgetFactory::updateAll(lv_obj_t *parent) {
-
+    LVGL_ASSERT_LOCKED();
     SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
 
@@ -178,6 +180,7 @@ void WidgetFactory::updateAll(lv_obj_t *parent) {
 }
 
 void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
+    LVGL_ASSERT_LOCKED();
     for (uint8_t i = 0; i < s_widgetCount; ++i) {
         if (s_widgets[i].parent != parent)
             continue;
@@ -209,6 +212,7 @@ void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
 }
 
 void WidgetFactory::clearAll(lv_obj_t *parent) {
+    LVGL_ASSERT_LOCKED();
     uint8_t out = 0;
     for (uint8_t in = 0; in < s_widgetCount; ++in) {
         if (s_widgets[in].parent == parent)

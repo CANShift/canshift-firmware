@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "diag/logger.h"
+#include "diag/lvgl_assert_lock.h"
 
 #include <lvgl.h>
 #include <stdint.h>
@@ -10,6 +11,7 @@
 using namespace SettingsPageInternal;
 
 void SettingsPage::init(int16_t yOffset, int16_t height) {
+    LVGL_ASSERT_LOCKED();
     nvsLoad();
 
     const int16_t panelW = LV_HOR_RES;
@@ -42,6 +44,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
 }
 
 void SettingsPage::open() {
+    LVGL_ASSERT_LOCKED();
     if (!s_panel || s_open)
         return;
     lv_obj_set_y(s_panel, s_openY);
@@ -57,6 +60,7 @@ uint32_t SettingsPage::lastOpenMs() {
 }
 
 void SettingsPage::close() {
+    LVGL_ASSERT_LOCKED();
     if (!s_panel || !s_open)
         return;
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -106,6 +110,7 @@ void SettingsPage::setDragging(bool dragging) {
 }
 
 void SettingsPage::setPanelY(int16_t y) {
+    LVGL_ASSERT_LOCKED();
     if (!s_panel)
         return;
     if (y < s_closedY)
@@ -121,6 +126,7 @@ void SettingsPage::setPanelY(int16_t y) {
 }
 
 void SettingsPage::snapOpen() {
+    LVGL_ASSERT_LOCKED();
     if (!s_panel)
         return;
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
@@ -133,6 +139,7 @@ void SettingsPage::snapOpen() {
 }
 
 void SettingsPage::snapClosed() {
+    LVGL_ASSERT_LOCKED();
     if (!s_panel)
         return;
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN))
@@ -141,6 +148,7 @@ void SettingsPage::snapClosed() {
 }
 
 void SettingsPage::applyFromUsb(uint8_t brightness) {
+    LVGL_ASSERT_LOCKED();
     if (brightness < 10 || brightness > 100)
         brightness = DEFAULT_BRIGHTNESS;
 

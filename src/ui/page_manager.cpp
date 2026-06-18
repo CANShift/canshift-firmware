@@ -41,6 +41,7 @@ uint32_t s_pendingLazyBuildMs = 120;
 void PageManager::init() {
     using namespace PageManagerInternal;
 
+    LVGL_ASSERT_LOCKED();
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
 
     GestureController::setSwipeHandler(onSwipe);
@@ -117,6 +118,7 @@ bool PageManager::navigateTo(const char *pageId) {
 
 void PageManager::navigateNext() {
     using namespace PageManagerInternal;
+    LVGL_ASSERT_LOCKED();
     if (s_pageCount == 0)
         return;
     showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, SWIPE_ANIM_MS);
@@ -124,6 +126,7 @@ void PageManager::navigateNext() {
 
 void PageManager::navigatePrev() {
     using namespace PageManagerInternal;
+    LVGL_ASSERT_LOCKED();
     if (s_pageCount == 0)
         return;
     showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1, LV_SCR_LOAD_ANIM_OVER_RIGHT,
@@ -146,6 +149,7 @@ void PageManager::requestReload() {
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 
+    LVGL_ASSERT_LOCKED();
     if (OtaOverlay::isActive())
         return;
 
@@ -203,6 +207,7 @@ void PageManager::updateWidgets() {
 
 void PageManager::setRevLimiterOverlay(bool visible) {
     using namespace PageManagerInternal;
+    LVGL_ASSERT_LOCKED();
     if (!s_revOverlay)
         return;
     if (visible) {
