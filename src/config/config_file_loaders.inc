@@ -77,7 +77,6 @@ bool loadDashboard() {
         auto &items = out->topBar.items;
         auto addItem = [&](TopBarItemKind kind, TopBarItemPos pos, const char *sig,
                            const char *txt) {
-
             // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
             if (n >= CFG_MAX_TOPBAR_ITEMS)
                 return;
@@ -173,6 +172,26 @@ bool loadDashboard() {
             if (p.widgetCount >= p.widgetCapacity)
                 break;
             parseWidget(w, &p.widgets[p.widgetCount++]);
+        }
+    }
+
+    {
+        const ScreenProfile::DesignDimensions design =
+            ScreenProfile::lookupDesignDimensions(out->targetProfile);
+        uint16_t overflowing = 0;
+        for (uint8_t pi = 0; pi < out->pageCount; ++pi) {
+            const CfgPage &p = out->pages[pi];
+            for (uint8_t wi = 0; wi < p.widgetCount; ++wi) {
+                const CfgLayout &L = p.widgets[wi].layout;
+                if (L.x < 0 || L.y < 0 || L.x + L.w > design.width || L.y + L.h > design.height) {
+                    ++overflowing;
+                }
+            }
+        }
+        if (overflowing > 0) {
+            LOG_WARN("CFG",
+                     "dashboard.json: %u widget(s) overflow target profile '%s' (%ux%u) — clipped",
+                     overflowing, out->targetProfile, design.width, design.height);
         }
     }
 
@@ -467,4 +486,4 @@ bool loadInputBindings() {
     return true;
 }
 
-}
+} // namespace ConfigLoaderInternal
