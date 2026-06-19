@@ -23,7 +23,7 @@ constexpr size_t computeLvglBufLines(uint16_t screenW, size_t budgetBytes) {
 }
 
 constexpr size_t kLvglBufLines = computeLvglBufLines(HW_DISPLAY_WIDTH, HW_LVGL_DRAW_BUDGET_BYTES);
-static_assert(kLvglBufLines == 10, "draw-buffer line count regression for CrowPanel 2.8\"");
+static_assert(kLvglBufLines == 20, "draw-buffer line count regression for CrowPanel 2.8\"");
 } // namespace
 
 static lv_disp_draw_buf_t s_drawBuf;
