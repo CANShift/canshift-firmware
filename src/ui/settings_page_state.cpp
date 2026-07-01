@@ -5,6 +5,7 @@
 #include "hal/ble/ble_server.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
+#include "runtime/pending_actions.h"
 #include "ui/theme_manager.h"
 #include "diag/logger.h"
 
@@ -132,9 +133,10 @@ void onBleBtn(lv_event_t *e) {
 }
 
 void onCalibrateTouch(lv_event_t *) {
-
     SettingsPage::close();
-    TouchDriver::calibrate();
+    // Blocking calibration must not run inside lv_task_handler() while holding
+    // g_lvglMutex — defer to the UI task's pre-mutex drain, same as USB/BLE.
+    PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
 }
 
 static void clearTouchCalFeedback(lv_timer_t *t) {

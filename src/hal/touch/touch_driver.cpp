@@ -12,6 +12,7 @@ static lv_indev_drv_t s_indevDrv;
 #include "hardware_profile.h"
 #include "hal/display/display_driver.h"
 #include <Preferences.h>
+#include <esp_task_wdt.h>
 
 #define s_lcd DisplayDriver::getDisplay()
 
@@ -107,8 +108,19 @@ void TouchDriver::calibrate() {
     LOG_INFO("TOUCH", "Starting touch calibration...");
     uint16_t calData[8] = {};
 
+    // calibrateTouch() blocks until the user taps all 4 corners, with no hook to
+    // feed the WDT from inside — unsubscribe the calling task for the duration so
+    // a calibration taking longer than TASK_WDT_TIMEOUT_MS does not panic.
+    const bool wasWdtSubscribed = (esp_task_wdt_delete(nullptr) == ESP_OK);
+
     s_lcd.calibrateTouch(calData, TFT_WHITE, TFT_BLACK,
                          std::max(s_lcd.width(), s_lcd.height()) >> 3);
+
+    if (wasWdtSubscribed) {
+        const esp_err_t err = esp_task_wdt_add(nullptr);
+        if (err != ESP_OK)
+            LOG_WARN("TOUCH", "WDT re-subscribe failed: %d", static_cast<int>(err));
+    }
 
     Preferences p;
     p.begin(NVS_NS, false);
