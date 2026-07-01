@@ -14,6 +14,8 @@
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 #include <Arduino.h>
+#include <atomic>
+#include <new>
 #include <string.h>
 
 static uint32_t s_errorCount = 0;
@@ -104,17 +106,31 @@ esp_err_t installAndStartOnThisCore() {
     return ESP_OK;
 }
 
+// Heap-allocated; the second side to flip handedOff owns freeing ctx and its semaphore.
 struct InitContext {
-    SemaphoreHandle_t done;
-    esp_err_t result;
+    SemaphoreHandle_t done = nullptr;
+    esp_err_t result = ESP_FAIL;
+    std::atomic<bool> handedOff{false};
 };
+
+void freeInitContext(InitContext *ctx) {
+    vSemaphoreDelete(ctx->done);
+    delete ctx;
+}
 
 void twaiInitTaskFn(void *arg) {
     auto *ctx = static_cast<InitContext *>(arg);
     ctx->result = installAndStartOnThisCore();
     LOG_INFO("CAN", "TWAI init task done on core %d (err=%s)", xPortGetCoreID(),
              esp_err_to_name(ctx->result));
-    xSemaphoreGive(ctx->done);
+    if (ctx->handedOff.exchange(true)) {
+        if (ctx->result == ESP_OK) {
+            s_twaiInstalled = true;
+        }
+        freeInitContext(ctx);
+    } else {
+        xSemaphoreGive(ctx->done);
+    }
     vTaskDelete(NULL);
 }
 
@@ -143,8 +159,14 @@ void CanManager::reserveInitTaskStack() {
 }
 
 esp_err_t CanManager::initHardware() {
-    InitContext ctx{xSemaphoreCreateBinary(), ESP_FAIL};
-    if (!ctx.done) {
+    auto *ctx = new (std::nothrow) InitContext();
+    if (!ctx) {
+        LOG_ERROR("CAN", "Failed to allocate init context");
+        return ESP_ERR_NO_MEM;
+    }
+    ctx->done = xSemaphoreCreateBinary();
+    if (!ctx->done) {
+        delete ctx;
         LOG_ERROR("CAN", "Failed to create init semaphore");
         return ESP_ERR_NO_MEM;
     }
@@ -152,31 +174,35 @@ esp_err_t CanManager::initHardware() {
     if (s_initTaskStack) {
 
         handle =
-            xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK, &ctx,
+            xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK, ctx,
                                           TWAI_INIT_TASK_PRIO, s_initTaskStack, &s_initTaskTCB, 0);
     } else {
 
         BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
-                                                &ctx, TWAI_INIT_TASK_PRIO, &handle, 0);
+                                                ctx, TWAI_INIT_TASK_PRIO, &handle, 0);
         if (ok != pdPASS) {
             handle = nullptr;
         }
     }
     if (!handle) {
-        vSemaphoreDelete(ctx.done);
+        freeInitContext(ctx);
         LOG_ERROR("CAN", "Failed to spawn twai_init task");
         return ESP_ERR_NO_MEM;
     }
-    if (xSemaphoreTake(ctx.done, pdMS_TO_TICKS(TWAI_INIT_TIMEOUT_MS)) != pdTRUE) {
-        LOG_ERROR("CAN", "twai_init task timed out");
-        vSemaphoreDelete(ctx.done);
-        return ESP_ERR_TIMEOUT;
+    if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(TWAI_INIT_TIMEOUT_MS)) != pdTRUE) {
+        if (!ctx->handedOff.exchange(true)) {
+            LOG_ERROR("CAN", "twai_init task timed out");
+            return ESP_ERR_TIMEOUT;
+        }
+        // Task finished during the timeout race — its give is imminent.
+        xSemaphoreTake(ctx->done, portMAX_DELAY);
     }
-    vSemaphoreDelete(ctx.done);
-    if (ctx.result == ESP_OK) {
+    const esp_err_t result = ctx->result;
+    freeInitContext(ctx);
+    if (result == ESP_OK) {
         s_twaiInstalled = true;
     }
-    return ctx.result;
+    return result;
 }
 
 bool CanManager::tick() {
