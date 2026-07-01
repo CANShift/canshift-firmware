@@ -6,14 +6,9 @@
 #include "config/config_loader.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
-#include "ui/page_manager.h"
+#include "runtime/pending_actions.h"
 
-#include <lvgl.h>
 #include <stdio.h>
-#include <string.h>
-
-#include <atomic>
-#include <cstddef>
 
 namespace ActionDispatcher {
 
@@ -53,26 +48,12 @@ const char *cruiseOpName(CfgCruiseOp op) {
     }
 }
 
-constexpr size_t NAV_RING_SIZE = 8;
-struct NavSlot {
-    char pageId[CFG_MAX_ID_LEN];
-};
-NavSlot s_navRing[NAV_RING_SIZE];
-std::atomic<size_t> s_navHead{0};
-
+// Never touch LVGL here: this runs in the input task, and lv_async_call
+// mutates LVGL's timer list without g_lvglMutex. taskUI drains the slot.
 void dispatchNavPage(const CfgButtonAction &a) {
     if (a.pageId[0] == '\0')
         return;
-
-    const size_t idx = s_navHead.fetch_add(1, std::memory_order_relaxed) % NAV_RING_SIZE;
-    char *slot = s_navRing[idx].pageId;
-    strlcpy(slot, a.pageId, CFG_MAX_ID_LEN);
-    lv_async_call(
-        [](void *p) {
-            const char *id = static_cast<const char *>(p);
-            PageManager::navigateTo(id);
-        },
-        slot);
+    PendingActions::requestNavPage(a.pageId);
 }
 
 void dispatchMapSwitch(const CfgButtonAction &a) {

@@ -269,6 +269,13 @@ inline void uiDrainBurnOverlayActions() {
     }
 }
 
+inline void uiDrainNavActions() {
+    char pageId[CFG_MAX_ID_LEN];
+    if (PendingActions::takeNavPage(pageId, sizeof(pageId))) {
+        PageManager::navigateTo(pageId);
+    }
+}
+
 inline void uiDrainOtaOverlayActions() {
     const uint32_t showSize = PendingActions::takeOtaOverlayShowSize();
     if (showSize > 0) {
@@ -302,6 +309,7 @@ inline bool uiRunMutexBody() {
     uiDrainPasskeyActions();
     uiDrainBurnOverlayActions();
     uiDrainOtaOverlayActions();
+    uiDrainNavActions();
     PageManager::updateWidgets();
     uiRunLvTaskHandler();
     xSemaphoreGive(g_lvglMutex);
