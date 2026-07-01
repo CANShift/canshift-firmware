@@ -184,8 +184,8 @@ carry the old partition table baked into their bootloader region. An OTA
 from the old layout to the new layout is **unsafe** — the running bootloader
 writes the new firmware into a slot whose offset / size no longer matches
 what the new firmware expects on next boot, and SPIFFS lands in the wrong
-region. Until those dashes are USB-reflashed via the standalone
-`canshift-flasher`, OTA from a pre-#1117 image is blocked.
+region. Until those dashes are USB-reflashed via the Tuner's built-in
+USB flasher, OTA from a pre-#1117 image is blocked.
 
 Going forward (post-#1117), OTAs between #1117+ images are transparent:
 `esp_ota_get_next_update_partition()` reads the live partition table at
@@ -194,13 +194,10 @@ runtime, and the table is identical across `crowpanel_28` /
 
 **Known follow-ups (separate PRs):**
 
-- `canshift-flasher/src/constants.ts` (`SPIFFS_FLASH_OFFSET = 0x310000`) —
-  update to `0x370000`; this is what end-users will run from
-  `canshift.tmbk.ch`.
 - `scripts/secure_boot_first_flash.sh` — bumped to `0x370000` in #531 once
   `ota_4mb_secure.csv` was re-aligned to the post-#1117 `_wifi` layout.
-  Single SPIFFS offset across every flasher (canshift-flasher, this
-  script, the QEMU smoke harness).
+  Single SPIFFS offset across every flasher (the Tuner's built-in
+  flasher, this script, the QEMU smoke harness).
 - `.github/workflows/firmware-boot-smoke.yml` (`0x310000` argument to
   `esptool merge_bin`) — QEMU smoke harness will still boot (SPIFFS-mount
   failure is non-fatal pre-`[BOOT] Ready`) but the SPIFFS-resident default
@@ -611,7 +608,7 @@ via the WebSocket transport on port 81 (#1108) for live data.
 > of the 1728 KB app slot at link time. Moving them onto SPIFFS reclaims
 > ~185 KB of app-slot flash (now at ~96.8 %). The trade-off: a freshly
 > flashed dash needs the extra `pio run -t uploadfs` step (or the
-> equivalent SPIFFS image flash from `canshift-flasher`) before the
+> equivalent SPIFFS image flash from the Tuner's Firmware tab) before the
 > dash-hosted Studio loads. `/status`, `/ota`, BLE, and CAN are all
 > unaffected — the dash boots and behaves normally either way.
 
@@ -640,7 +637,7 @@ every `/` and `/a/*` request until the SPIFFS image is flashed:
 pio run -e crowpanel_28_wifi -t uploadfs
 ```
 
-The standalone `canshift-flasher` flashes both partitions in one pass via
+The Tuner's built-in USB flasher flashes both partitions in one pass via
 the merged firmware + SPIFFS bundle published per release, so end-users
 joining the dash from a fresh first-flash don't have to think about the
 two-step.
@@ -683,11 +680,9 @@ token and an HMAC trailer on the binary itself.
 
 > **Audience: mobile-only.** Studio no longer drives OTA — the dash-hosted
 > Studio (`canshift-studio-web/`) is served from the same firmware image it
-> would otherwise be updating, and the Electron Studio's flasher is being
-> retired in favour of the browser-based USB flasher at
-> [canshift.tmbk.ch](https://canshift.tmbk.ch) (separate repo
-> [`tburkhalterr/canshift-flasher`](https://github.com/tburkhalterr/canshift-flasher),
-> #1081). The mobile app retains the WiFi-OTA path via
+> would otherwise be updating, and the Electron Studio's flasher was
+> retired in favour of the Tuner's built-in browser-based USB flasher
+> (#1351). The mobile app retains the WiFi-OTA path via
 > `POST http://192.168.4.1/ota` so a user in the car can update without a
 > laptop.
 
@@ -762,7 +757,7 @@ devices reject the new binaries until they're flashed via USB.
 | Signing key | **Not yet generated** | One-time per-project. Run `scripts/generate_keys.sh --i-understand-this-is-irreversible` on a controlled workstation and place the result under offline custody (HSM / YubiKey / encrypted offline backup) |
 | Test signing key (CI) | **Not yet generated** | SEPARATE key from production, provisioned as `SECURE_BOOT_SIGNING_KEY_TEST` repo secret. Production key never enters CI |
 | First-flash on a real chip | **Not yet performed** | Gated on sacrificial-board QA per the issue's acceptance criteria |
-| Flasher compat (`canshift.tmbk.ch`) | **Not yet** | Today's `canshift-flasher` writes raw bytes via `esptool` — it has no `--encrypt` path and no signed-bootloader awareness. See "Flashing signed builds" below |
+| Flasher compat (Tuner Firmware tab) | **Not yet** | Today's built-in flasher writes raw bytes via `esptool-js` — it has no `--encrypt` path and no signed-bootloader awareness. See "Flashing signed builds" below |
 
 The `[env:secure]` env compiles on a developer workstation as soon as the
 project-wide signing key exists at
@@ -814,9 +809,8 @@ chip that boots the new image.
 
 ### Flashing signed builds
 
-The standalone [`canshift-flasher`](https://github.com/tburkhalterr/canshift-flasher)
-served from `canshift.tmbk.ch` writes raw binaries via esptool from the
-browser. It does **not** currently understand:
+The Tuner's built-in USB flasher writes raw binaries via `esptool-js` from
+the browser. It does **not** currently understand:
 
 - `write_flash --encrypt` (mandatory for chips in release-mode flash
   encryption — every write to an encrypted partition must be pre-encrypted
@@ -830,10 +824,10 @@ browser. It does **not** currently understand:
 For now, **signed builds are flashed exclusively via**
 `scripts/secure_boot_first_flash.sh` on a controlled workstation with
 PlatformIO + esptool installed locally. Browser-based flashing of signed
-builds is out of scope and tracked as separate follow-up work in the
-`canshift-flasher` repo. A future v2 of that flasher will need a signed-
-build mode that pre-encrypts the app + SPIFFS payloads on the host side
-before pushing them through Web Serial.
+builds is out of scope and tracked as separate follow-up work on the
+Tuner's flasher, which will need a signed-build mode that pre-encrypts
+the app + SPIFFS payloads on the host side before pushing them through
+Web Serial.
 
 ### First-flash procedure (one-time, irreversible)
 
@@ -1055,10 +1049,10 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
   triggers the WiFi softAP for OTA, and uploads firmware via
   `POST /update` on the AP. Pairs with the `ble_server.cpp` characteristics
   described above. Independent of the dash-hosted Studio.
-- **canshift-flasher** (separate repo) — browser-based esptool hosted at
-  [canshift.tmbk.ch](https://canshift.tmbk.ch). First-flash, recovery,
-  and pre-#1117 partition-layout migration. Reads the merged firmware +
-  SPIFFS images from the GitHub release feed.
+- **canshift-tuner (Firmware tab)** — built-in browser-based esptool
+  (`esptool-js`). First-flash, recovery, and pre-#1117 partition-layout
+  migration. Reads the merged firmware + SPIFFS images from the GitHub
+  release feed.
 - **canshift-core** — owns the JSON schema; the firmware mirrors it in
   `src/config/config_types.h`. `CONFIG_SCHEMA_VERSION` is injected at build
   time from `canshift-core/src/index.ts` by `scripts/extra_targets.py`, the
