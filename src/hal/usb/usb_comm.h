@@ -58,14 +58,6 @@ bool isHostActive();
 
 void sendLine(const char *line);
 
-using SendSink = void (*)(const char *data, size_t len);
-
-void handleLine(const char *line, size_t len, SendSink sink);
-
-bool hasAuxSink();
-
-void setAuxSink(SendSink sink);
-
 using BurnOverlayShowCb = void (*)();
 
 using BurnOverlayShowErrorCb = void (*)(int reason);

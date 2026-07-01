@@ -94,8 +94,6 @@ void TouchDriver::init() {
     LOG_INFO("TOUCH", "Touch driver registered");
 }
 
-void TouchDriver::poll() {}
-
 bool TouchDriver::isCalibrated() {
     Preferences p;
     p.begin(NVS_NS, true);

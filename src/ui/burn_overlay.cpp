@@ -33,13 +33,6 @@ void usbBreathCb(void *obj, int32_t v) {
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0);
 }
 
-void arcAnimCb(void *var, int32_t value) {
-    auto *arc = static_cast<lv_obj_t *>(var);
-    const auto start = static_cast<uint16_t>(value % 360);
-    const auto end = static_cast<uint16_t>((value + kArcSpan) % 360);
-    lv_arc_set_angles(arc, start, end);
-}
-
 void arcTimerCb(lv_timer_t *timer) {
     auto *arc = static_cast<lv_obj_t *>(timer->user_data);
     s_arcAngle = static_cast<uint16_t>((s_arcAngle + kArcAdvanceDeg) % 360);
@@ -60,10 +53,7 @@ void teardownOverlay() {
         lv_anim_del(s_breathAnimObj, usbBreathCb);
         s_breathAnimObj = nullptr;
     }
-    if (s_arc) {
-        lv_anim_del(s_arc, arcAnimCb);
-        s_arc = nullptr;
-    }
+    s_arc = nullptr;
     if (s_overlay) {
         lv_obj_del(s_overlay);
         s_overlay = nullptr;
@@ -140,8 +130,6 @@ const char *errorTitleFor(BurnOverlay::ErrorReason reason) {
     switch (reason) {
         case BurnOverlay::ErrorReason::WriteFailed:
             return "Storage write failed";
-        case BurnOverlay::ErrorReason::ReloadFailed:
-            return "Config reload failed";
     }
     return "Save failed";
 }
@@ -150,8 +138,6 @@ const char *errorHintFor(BurnOverlay::ErrorReason reason) {
     switch (reason) {
         case BurnOverlay::ErrorReason::WriteFailed:
             return "Retry from studio";
-        case BurnOverlay::ErrorReason::ReloadFailed:
-            return "Reboot to apply";
     }
     return "Retry from studio";
 }

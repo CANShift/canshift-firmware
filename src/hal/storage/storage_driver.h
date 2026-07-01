@@ -33,8 +33,6 @@ bool removeFile(const char *path);
 
 void getSpaceInfo(size_t *totalBytes, size_t *usedBytes);
 
-bool beginChunkedWrite(const char *path);
-
 bool beginChunkedWriteAtomic(const char *path);
 
 bool appendChunk(const uint8_t *data, size_t length);

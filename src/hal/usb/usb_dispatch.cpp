@@ -174,6 +174,10 @@ void handleOtaWriteRaw(const char *jsonLine) {
         UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
         return;
     }
+    // In-place decode aliases s_rxBuf: safe only while the output base stays below
+    // the b64 input, so the write index (3 B out per 4 B in) never overtakes the read.
+    configASSERT(b64 > UsbCommInternal::s_rxBuf &&
+                 b64 + b64Len <= UsbCommInternal::s_rxBuf + USB_RX_BUF_SIZE);
     size_t decoded = 0;
     const int rc = mbedtls_base64_decode(
         reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,

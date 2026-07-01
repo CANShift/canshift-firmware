@@ -304,7 +304,6 @@ inline void uiRunLvTaskHandler() {
 
 inline bool uiRunMutexBody() {
     LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_UI);
-    TouchDriver::poll();
     const bool didDayNightChange = uiDrainDayNightActions();
     uiDrainPasskeyActions();
     uiDrainBurnOverlayActions();

@@ -285,28 +285,6 @@ bool StorageDriver::ensureParentDirs(const char *path) {
     return true;
 }
 
-bool StorageDriver::beginChunkedWrite(const char *path) {
-    if (s_chunkOpen) {
-        LOG_WARN("STORAGE", "Replacing in-flight chunked write");
-        abortChunkedWrite();
-    }
-
-    if (!ensureParentDirs(path)) {
-        return false;
-    }
-
-    s_chunkFile = SPIFFS.open(path, "w");
-    if (!s_chunkFile) {
-        LOG_ERROR("STORAGE", "Open for chunked write failed: %s", path);
-        return false;
-    }
-    s_chunkOpen = true;
-    s_chunkAtomic = false;
-    s_chunkAtomicPath[0] = '\0';
-    strlcpy(s_chunkActualPath, path, sizeof(s_chunkActualPath));
-    return true;
-}
-
 bool StorageDriver::beginChunkedWriteAtomic(const char *path) {
     if (s_chunkOpen) {
         LOG_WARN("STORAGE", "Replacing in-flight chunked write");

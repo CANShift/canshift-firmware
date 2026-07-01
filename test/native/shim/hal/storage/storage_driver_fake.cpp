@@ -148,9 +148,6 @@ void getSpaceInfo(size_t *totalBytes, size_t *usedBytes) {
     }
 }
 
-bool beginChunkedWrite(const char * /*path*/) {
-    return false;
-}
 bool beginChunkedWriteAtomic(const char * /*path*/) {
     return false;
 }

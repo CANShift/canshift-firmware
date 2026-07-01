@@ -13,7 +13,6 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -64,25 +63,8 @@ void serialSink(const char *data, size_t len) {
 void serialSink(const char *, size_t) {}
 #endif
 
-SemaphoreHandle_t s_sinkMutex = nullptr;
-UsbComm::SendSink s_sink = &serialSink;
-UsbComm::SendSink s_auxSink = nullptr;
-
 UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
 UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
-
-thread_local UsbComm::SendSink t_dispatchSink = nullptr;
-
-bool lockSink() {
-    if (!s_sinkMutex)
-        return false;
-    return xSemaphoreTakeRecursive(s_sinkMutex, pdMS_TO_TICKS(50)) == pdTRUE;
-}
-
-void unlockSink() {
-    if (s_sinkMutex)
-        xSemaphoreGiveRecursive(s_sinkMutex);
-}
 
 static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
               "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
@@ -221,65 +203,13 @@ void UsbComm::init() {
         return;
     }
     memset(UsbCommInternal::s_rxBuf, 0, USB_RX_BUF_SIZE);
-    if (!s_sinkMutex) {
-        s_sinkMutex = xSemaphoreCreateRecursiveMutex();
-        if (!s_sinkMutex) {
-            LOG_WARN("USB", "Sink mutex alloc failed — TCP/USB will not serialise");
-        }
-    }
     LOG_INFO("USB", "USB comm initialized");
 }
 
 void UsbComm::sendLine(const char *line) {
     if (!line)
         return;
-    const size_t len = strlen(line);
-
-    const SendSink dispatch = t_dispatchSink;
-
-    if (!lockSink()) {
-        LOG_DEBUG("USB", "sendLine: sink lock timeout — dropping (%u B)",
-                  static_cast<unsigned>(len));
-        return;
-    }
-    const SendSink primary = dispatch ? dispatch : s_sink;
-    const SendSink aux = s_auxSink;
-
-    if (primary)
-        primary(line, len);
-    if (aux && aux != primary)
-        aux(line, len);
-
-    unlockSink();
-}
-
-void UsbComm::handleLine(const char *line, size_t len, SendSink sink) {
-    if (!line || len == 0 || !sink)
-        return;
-
-    const SendSink saved = t_dispatchSink;
-    t_dispatchSink = sink;
-
-    UsbCommInternal::handleCommand(line);
-
-    t_dispatchSink = saved;
-
-    (void)len;
-}
-
-bool UsbComm::hasAuxSink() {
-    const bool locked = lockSink();
-    const bool hasIt = (s_auxSink != nullptr);
-    if (locked)
-        unlockSink();
-    return hasIt;
-}
-
-void UsbComm::setAuxSink(SendSink sink) {
-    const bool locked = lockSink();
-    s_auxSink = sink;
-    if (locked)
-        unlockSink();
+    serialSink(line, strlen(line));
 }
 
 void UsbComm::setBurnOverlayShowCallback(BurnOverlayShowCb cb) {

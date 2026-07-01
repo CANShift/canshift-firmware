@@ -6,8 +6,6 @@ namespace TouchDriver {
 
 void init();
 
-void poll();
-
 void readCallback(lv_indev_drv_t *drv, lv_indev_data_t *data);
 
 bool isCalibrated();

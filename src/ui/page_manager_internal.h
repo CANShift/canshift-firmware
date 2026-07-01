@@ -24,7 +24,6 @@ extern uint8_t s_pageCount;
 extern uint8_t s_currentIdx;
 extern lv_obj_t *s_revOverlay;
 extern bool s_rebuildRequested;
-extern bool s_reloadRequested;
 
 extern uint8_t s_pendingFreeIdx;
 
@@ -34,8 +33,6 @@ extern uint32_t s_pendingLazyBuildMs;
 void buildPage(uint8_t idx, const CfgPage &cfg);
 
 void reapplyThemeAllPages();
-
-void rebuildAllPages();
 
 void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs);
 

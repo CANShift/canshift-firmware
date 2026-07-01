@@ -14,8 +14,6 @@ namespace ActionDispatcher {
 
 namespace {
 
-constexpr uint32_t CAN_STANDARD_ID_MAX = 0x7FFu;
-
 void sendControlFrame(uint32_t frameId, const uint8_t *data, uint8_t len, bool extended,
                       const char *what) {
     if (CanManager::sendFrame(frameId, data, len, extended))
@@ -84,7 +82,6 @@ void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {
     } else {
         sendControlFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended, "can_raw");
     }
-    (void)CAN_STANDARD_ID_MAX;
 }
 
 void dispatchCruiseControl(const CfgButtonAction &a) {

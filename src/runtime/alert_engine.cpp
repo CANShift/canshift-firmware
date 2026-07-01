@@ -79,47 +79,38 @@ void AlertEngine::init() {
     if (dash.loaded && dash.revLimitRpm > 0.0f)
         s_revLimitRpm = dash.revLimitRpm;
 
+    struct ThresholdBinding {
+        const char *name;
+        float *warn;
+        float *crit;
+        float *highWarn;
+        float *highCrit;
+    };
+    static constexpr ThresholdBinding kBindings[] = {
+        {"coolant_temp_c", &s_coolantWarnC, &s_coolantCritC, &s_coolantHighWarnC,
+         &s_coolantHighCritC},
+        {"oil_temp_c", &s_oilTempWarnC, &s_oilTempCritC, &s_oilTempHighWarnC, &s_oilTempHighCritC},
+        {"oil_press_bar", &s_oilPressWarnBar, &s_oilPressCritBar, &s_oilPressHighWarnBar,
+         &s_oilPressHighCritBar},
+        {"battery_volts", &s_batteryLowWarnV, &s_batteryLowCritV, &s_batteryHighWarnV,
+         &s_batteryHighCritV},
+    };
+
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
     for (uint8_t i = 0; i < sigCfg.signalCount; i++) {
         const CfgSignalDef &def = sigCfg.signals[i];
-        if (strcmp(def.name, "coolant_temp_c") == 0) {
+        for (const ThresholdBinding &b : kBindings) {
+            if (strcmp(def.name, b.name) != 0)
+                continue;
             if (!isnan(def.warningLevel))
-                s_coolantWarnC = def.warningLevel;
+                *b.warn = def.warningLevel;
             if (!isnan(def.dangerLevel))
-                s_coolantCritC = def.dangerLevel;
+                *b.crit = def.dangerLevel;
             if (!isnan(def.highWarningLevel))
-                s_coolantHighWarnC = def.highWarningLevel;
+                *b.highWarn = def.highWarningLevel;
             if (!isnan(def.highDangerLevel))
-                s_coolantHighCritC = def.highDangerLevel;
-        } else if (strcmp(def.name, "oil_temp_c") == 0) {
-            if (!isnan(def.warningLevel))
-                s_oilTempWarnC = def.warningLevel;
-            if (!isnan(def.dangerLevel))
-                s_oilTempCritC = def.dangerLevel;
-            if (!isnan(def.highWarningLevel))
-                s_oilTempHighWarnC = def.highWarningLevel;
-            if (!isnan(def.highDangerLevel))
-                s_oilTempHighCritC = def.highDangerLevel;
-        } else if (strcmp(def.name, "oil_press_bar") == 0) {
-
-            if (!isnan(def.warningLevel))
-                s_oilPressWarnBar = def.warningLevel;
-            if (!isnan(def.dangerLevel))
-                s_oilPressCritBar = def.dangerLevel;
-            if (!isnan(def.highWarningLevel))
-                s_oilPressHighWarnBar = def.highWarningLevel;
-            if (!isnan(def.highDangerLevel))
-                s_oilPressHighCritBar = def.highDangerLevel;
-        } else if (strcmp(def.name, "battery_volts") == 0) {
-
-            if (!isnan(def.warningLevel))
-                s_batteryLowWarnV = def.warningLevel;
-            if (!isnan(def.dangerLevel))
-                s_batteryLowCritV = def.dangerLevel;
-            if (!isnan(def.highWarningLevel))
-                s_batteryHighWarnV = def.highWarningLevel;
-            if (!isnan(def.highDangerLevel))
-                s_batteryHighCritV = def.highDangerLevel;
+                *b.highCrit = def.highDangerLevel;
+            break;
         }
     }
 

@@ -393,12 +393,8 @@ bool loadSignals() {
 }
 
 bool loadDevice() {
-
-    const CfgDeviceConfig prev = s_device;
-
     if (!StorageDriver::fileExists(CONFIG_PATH_DEVICE)) {
         LOG_INFO("CFG", "device.json not found — using board_config.h defaults");
-        s_device = prev;
         return false;
     }
 
@@ -406,17 +402,17 @@ bool loadDevice() {
 
     JsonDocument doc;
     DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_DEVICE, doc);
-
     if (err) {
         LOG_WARN("CFG", "device.json parse error: %s — using defaults", err.c_str());
-        s_device = prev;
         return false;
     }
 
-    s_device.canSpeedKbps = doc["can_speed_kbps"] | 0;
-    s_device.twaiTxPin = doc["twai_tx_pin"] | -1;
-    s_device.twaiRxPin = doc["twai_rx_pin"] | -1;
-    s_device.loaded = true;
+    CfgDeviceConfig parsed{};
+    parsed.canSpeedKbps = doc["can_speed_kbps"] | 0;
+    parsed.twaiTxPin = doc["twai_tx_pin"] | -1;
+    parsed.twaiRxPin = doc["twai_rx_pin"] | -1;
+    parsed.loaded = true;
+    s_device = parsed;
     LOG_INFO("CFG", "device.json loaded: CAN=%ukbps TX=GPIO%d RX=GPIO%d", s_device.canSpeedKbps,
              s_device.twaiTxPin, s_device.twaiRxPin);
     return true;

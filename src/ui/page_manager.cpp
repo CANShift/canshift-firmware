@@ -1,12 +1,10 @@
 #include "page_manager.h"
 #include "page_manager_internal.h"
 
-#include "burn_overlay.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
 #include "error_bar.h"
 #include "gesture_controller.h"
-#include "screen_profile.h"
 #include "setup_screen.h"
 #include "theme_manager.h"
 #include "top_bar.h"
@@ -30,7 +28,6 @@ uint8_t s_pageCount = 0;
 uint8_t s_currentIdx = 0;
 lv_obj_t *s_revOverlay = nullptr;
 bool s_rebuildRequested = false;
-bool s_reloadRequested = false;
 
 uint8_t s_pendingFreeIdx = 0xFF;
 uint8_t s_pendingLazyBuildIdx = 0xFF;
@@ -142,30 +139,12 @@ void PageManager::requestRebuild() {
     PageManagerInternal::s_rebuildRequested = true;
 }
 
-void PageManager::requestReload() {
-    PageManagerInternal::s_reloadRequested = true;
-}
-
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 
     LVGL_ASSERT_LOCKED();
     if (OtaOverlay::isActive())
         return;
-
-    if (s_reloadRequested) {
-        s_reloadRequested = false;
-        s_rebuildRequested = false;
-        if (ConfigLoader::reloadAll()) {
-            ScreenProfile::initFromDashboard();
-            rebuildAllPages();
-            BurnOverlay::hide();
-        } else {
-            LOG_ERROR("UI", "Config reload failed — keeping previous pages");
-            BurnOverlay::showError(BurnOverlay::ErrorReason::ReloadFailed);
-        }
-        return;
-    }
 
     if (s_pageCount == 0)
         return;

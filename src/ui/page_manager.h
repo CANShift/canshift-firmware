@@ -23,6 +23,4 @@ void setRevLimiterOverlay(bool visible);
 
 void requestRebuild();
 
-void requestReload();
-
 } // namespace PageManager

@@ -6,7 +6,6 @@ namespace BurnOverlay {
 
 enum class ErrorReason {
     WriteFailed,
-    ReloadFailed,
 };
 
 void show();
