@@ -4,10 +4,12 @@
 #include "can/can_manager.h"
 #include "can_signals_out.h"
 #include "config/config_loader.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "ui/page_manager.h"
 
 #include <lvgl.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <atomic>
@@ -18,6 +20,16 @@ namespace ActionDispatcher {
 namespace {
 
 constexpr uint32_t CAN_STANDARD_ID_MAX = 0x7FFu;
+
+void sendControlFrame(uint32_t frameId, const uint8_t *data, uint8_t len, bool extended,
+                      const char *what) {
+    if (CanManager::sendFrame(frameId, data, len, extended))
+        return;
+    LOG_WARN("BTN", "%s: sendFrame id=0x%lX dropped", what, static_cast<unsigned long>(frameId));
+    char msg[sizeof(FwError::message)];
+    snprintf(msg, sizeof(msg), "%s tx dropped id=0x%lX", what, static_cast<unsigned long>(frameId));
+    ErrorStore::push(ERROR_SRC_CAN, "TX_DROP", msg);
+}
 
 const char *cruiseOpName(CfgCruiseOp op) {
     switch (op) {
@@ -81,15 +93,15 @@ void dispatchMapSwitch(const CfgButtonAction &a) {
         return;
     }
     const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = {a.mapIndex};
-    (void)CanManager::sendFrame(frameId, payload, CAN_OUT_MAP_SWITCH_DLC, extended);
+    sendControlFrame(frameId, payload, CAN_OUT_MAP_SWITCH_DLC, extended, "map_switch");
 }
 
 void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {
 
     if (!isActive && a.canDataOffLen > 0) {
-        (void)CanManager::sendFrame(a.canFrameId, a.canDataOff, a.canDataOffLen, a.canExtended);
+        sendControlFrame(a.canFrameId, a.canDataOff, a.canDataOffLen, a.canExtended, "can_raw");
     } else {
-        (void)CanManager::sendFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended);
+        sendControlFrame(a.canFrameId, a.canData, a.canDataLen, a.canExtended, "can_raw");
     }
     (void)CAN_STANDARD_ID_MAX;
 }
