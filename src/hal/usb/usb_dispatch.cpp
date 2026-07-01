@@ -38,8 +38,12 @@ extern SemaphoreHandle_t g_lvglMutex;
 namespace {
 
 constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
-QueueHandle_t s_canScanQueue = nullptr;
-portMUX_TYPE s_canScanQueueMux = portMUX_INITIALIZER_UNLOCKED;
+// Created once on first scan start and never deleted (only reset), so a
+// producer holding a stale handle can never touch freed queue memory.
+// s_canScanQueue is null while scanning is stopped; s_canScanQueueStorage
+// keeps the handle for reuse.
+QueueHandle_t s_canScanQueueStorage = nullptr;
+std::atomic<QueueHandle_t> s_canScanQueue{nullptr};
 volatile bool s_canScanMode = false;
 
 uint32_t s_scanDrops = 0;
@@ -440,16 +444,10 @@ bool canScanModeActive() {
 }
 
 bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame) {
-    BaseType_t sent = pdFAIL;
-    portENTER_CRITICAL(&s_canScanQueueMux);
-    const bool hasQueue = (s_canScanQueue != nullptr);
-    if (hasQueue) {
-        sent = xQueueSend(s_canScanQueue, &frame, 0);
-    }
-    portEXIT_CRITICAL(&s_canScanQueueMux);
-    if (!hasQueue)
+    QueueHandle_t queue = s_canScanQueue.load(std::memory_order_acquire);
+    if (queue == nullptr)
         return false;
-    if (sent != pdTRUE) {
+    if (xQueueSend(queue, &frame, 0) != pdTRUE) {
         s_scanDrops++;
         return false;
     }
@@ -457,13 +455,10 @@ bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame) {
 }
 
 bool canScanQueueTryReceive(UsbComm::CanScanFrame &out) {
-    BaseType_t received = pdFAIL;
-    portENTER_CRITICAL(&s_canScanQueueMux);
-    if (s_canScanQueue != nullptr) {
-        received = xQueueReceive(s_canScanQueue, &out, 0);
-    }
-    portEXIT_CRITICAL(&s_canScanQueueMux);
-    return received == pdTRUE;
+    QueueHandle_t queue = s_canScanQueue.load(std::memory_order_acquire);
+    if (queue == nullptr)
+        return false;
+    return xQueueReceive(queue, &out, 0) == pdTRUE;
 }
 
 void tickChunkTransferTimeout() {
@@ -628,10 +623,10 @@ void handleCommand(const char *jsonLine) {
         case UsbComm::CMD_CAN_SCAN_START: {
             s_scanDrops = 0;
 
-            QueueHandle_t fresh = nullptr;
-            if (!s_canScanQueue) {
-                fresh = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
-                if (!fresh) {
+            if (!s_canScanQueueStorage) {
+                s_canScanQueueStorage =
+                    xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
+                if (!s_canScanQueueStorage) {
                     LOG_ERROR("USB", "CAN scan start: queue alloc failed");
 #if APP_USB_CAN_SCAN_FAIL_LOUD
 
@@ -644,13 +639,8 @@ void handleCommand(const char *jsonLine) {
                 }
             }
 
-            portENTER_CRITICAL(&s_canScanQueueMux);
-            if (fresh) {
-                s_canScanQueue = fresh;
-            }
-            QueueHandle_t toReset = s_canScanQueue;
-            portEXIT_CRITICAL(&s_canScanQueueMux);
-            xQueueReset(toReset);
+            xQueueReset(s_canScanQueueStorage);
+            s_canScanQueue.store(s_canScanQueueStorage, std::memory_order_release);
             s_canScanMode = true;
             LOG_INFO("USB", "CAN scan started");
             UsbComm::sendLine("{\"status\":\"ok\"}");
@@ -658,16 +648,7 @@ void handleCommand(const char *jsonLine) {
         }
         case UsbComm::CMD_CAN_SCAN_STOP: {
             s_canScanMode = false;
-
-            QueueHandle_t toDelete;
-            portENTER_CRITICAL(&s_canScanQueueMux);
-            toDelete = s_canScanQueue;
-            s_canScanQueue = nullptr;
-            portEXIT_CRITICAL(&s_canScanQueueMux);
-
-            if (toDelete) {
-                vQueueDelete(toDelete);
-            }
+            s_canScanQueue.store(nullptr, std::memory_order_release);
             LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
             char stopResp[64];
             const int stopN =

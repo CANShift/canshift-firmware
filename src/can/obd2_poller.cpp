@@ -44,6 +44,12 @@ constexpr uint8_t kRequestDlc = 8;
 
 constexpr uint8_t kResponseModeMask = 0x40;
 
+// Signed-delta comparison survives millis() wraparound (valid for
+// distances < 2^31 ms, ~24.8 days — far above any poll interval).
+bool timeReached(uint32_t nowMs, uint32_t dueMs) {
+    return static_cast<int32_t>(nowMs - dueMs) >= 0;
+}
+
 bool buildRequestFrame(uint8_t mode, uint8_t pid, uint8_t out[kRequestDlc]) {
     if (out == nullptr)
         return false;
@@ -114,15 +120,16 @@ void Obd2Poller::tick(uint32_t nowMs) {
     if (s_slotCount == 0)
         return;
 
-    if (nowMs < s_nextDueMs)
+    if (!timeReached(nowMs, s_nextDueMs))
         return;
 
     for (uint8_t i = 0; i < s_slotCount; ++i) {
         PollSlot &slot = s_slots[i];
-        if (nowMs < slot.nextPollMs)
+        if (!timeReached(nowMs, slot.nextPollMs))
             continue;
 
-        if (slot.lastResponseMs == 0 || slot.lastResponseMs < slot.nextPollMs - slot.intervalMs) {
+        const uint32_t prevPollMs = slot.nextPollMs - slot.intervalMs;
+        if (slot.lastResponseMs == 0 || !timeReached(slot.lastResponseMs, prevPollMs)) {
 
             if (s_pollsSent > 0)
                 ++s_responsesMissed;
@@ -146,9 +153,9 @@ void Obd2Poller::tick(uint32_t nowMs) {
         slot.nextPollMs = nowMs + slot.intervalMs;
     }
 
-    uint32_t nextDue = UINT32_MAX;
-    for (uint8_t i = 0; i < s_slotCount; ++i) {
-        if (s_slots[i].nextPollMs < nextDue)
+    uint32_t nextDue = s_slots[0].nextPollMs;
+    for (uint8_t i = 1; i < s_slotCount; ++i) {
+        if (static_cast<int32_t>(s_slots[i].nextPollMs - nextDue) < 0)
             nextDue = s_slots[i].nextPollMs;
     }
     s_nextDueMs = nextDue;

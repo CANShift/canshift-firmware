@@ -113,8 +113,12 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
                 LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_BLE);
                 SettingsPage::applyFromUsb(brightness);
                 xSemaphoreGive(g_lvglMutex);
+                LOG_DEBUG("BLE", "Settings applied via BLE");
+            } else {
+                LOG_WARN("BLE", "SETTINGS write: LVGL mutex busy — brightness dropped");
+                pChar->setValue("{\"err\":\"busy\"}");
+                return;
             }
-            LOG_DEBUG("BLE", "Settings applied via BLE");
         }
 
         JsonVariantConst rotationVar = doc["rotation"];

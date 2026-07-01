@@ -33,6 +33,7 @@ static bool s_permanentlyDownWarned = false;
 static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
 static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
 static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
+static constexpr uint32_t TWAI_RX_ERROR_BACKOFF_MS = 5;
 
 static StackType_t *s_initTaskStack = nullptr;
 static StaticTask_t s_initTaskTCB;
@@ -281,6 +282,10 @@ bool CanManager::tick() {
             ErrorStore::push(ERROR_SRC_CAN, "TWAI_ERR", msg);
             s_lastErrPushMs = nowPush;
         }
+
+        // Hard errors return immediately (no rx-timeout block) — without a
+        // backoff this priority-15 task starves core 0 during bus-off recovery.
+        vTaskDelay(pdMS_TO_TICKS(TWAI_RX_ERROR_BACKOFF_MS));
     }
 
     const uint32_t nowMs = millis();

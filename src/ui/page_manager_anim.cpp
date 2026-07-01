@@ -31,13 +31,18 @@ void asyncDoLazyBuild(void *) {
             lv_obj_set_style_bg_opa(blank, LV_OPA_COVER, LV_PART_MAIN);
             lv_scr_load(blank);
             placeholderActive = true;
+            WidgetFactory::clearAll(dep.screen);
+            lv_obj_del(dep.screen);
+            dep.screen = nullptr;
+            dep.built = false;
+            s_pendingFreeIdx = 0xFF;
+            LOG_INFO("UI", "Released page '%s' before lazy build of '%s'", dep.id, s_pages[idx].id);
+        } else {
+            // Deleting dep.screen while it is still the active screen would
+            // leave LVGL's active-screen pointer dangling.
+            LOG_WARN("UI", "asyncDoLazyBuild: placeholder alloc failed — keeping page '%s'",
+                     dep.id);
         }
-        WidgetFactory::clearAll(dep.screen);
-        lv_obj_del(dep.screen);
-        dep.screen = nullptr;
-        dep.built = false;
-        s_pendingFreeIdx = 0xFF;
-        LOG_INFO("UI", "Released page '%s' before lazy build of '%s'", dep.id, s_pages[idx].id);
     }
 
     LOG_INFO("UI", "Lazy-building page '%s' on first visit", s_pages[idx].id);
