@@ -1,6 +1,7 @@
 #include "page_manager.h"
 #include "page_manager_internal.h"
 
+#include "alert_banner.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
 #include "error_bar.h"
@@ -87,6 +88,8 @@ void PageManager::init() {
             }
         }
     }
+
+    AlertBanner::init();
 
     s_revOverlay = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_revOverlay, LV_HOR_RES, LV_VER_RES);
@@ -179,6 +182,7 @@ void PageManager::updateWidgets() {
 
     AlertEngine::tick();
     setRevLimiterOverlay(AlertEngine::isRevLimiterFlashOn());
+    AlertBanner::update();
 
     ErrorBar::update();
     DiagDrawer::update();
