@@ -283,6 +283,12 @@ bool loadSignals() {
                 --s_signals.signalCount;
                 continue;
             }
+            if (s.canFrameId > kCanExtendedIdMax) {
+                LOG_WARN("CFG", "signals.json: dropping '%s' — canFrameId 0x%lX exceeds 29-bit max",
+                         s.name, static_cast<unsigned long>(s.canFrameId));
+                --s_signals.signalCount;
+                continue;
+            }
         }
         s.startByte = sig["startByte"] | 0;
         s.byteLength = sig["byteLength"] | 1;
