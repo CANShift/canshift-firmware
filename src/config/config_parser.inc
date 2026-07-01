@@ -169,7 +169,6 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     out->maxValue = cfg["maxValue"] | 100.0f;
     out->dangerLevel = cfg["dangerLevel"] | 95.0f;
     out->alertThreshold = readAlertThreshold(cfg);
-    out->showArc = cfg["showArc"] | true;
     out->revFlash = cfg["revFlash"] | false;
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));

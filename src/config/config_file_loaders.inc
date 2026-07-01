@@ -99,6 +99,12 @@ bool loadDashboard() {
         parseColor(dayThemeJson["bgColor"] | "#DDDDDD", &out->dayTheme.bgColor);
     }
 
+    JsonObjectConst nightThemeJson = doc["nightTheme"];
+    out->hasNightTheme = !nightThemeJson.isNull();
+    if (out->hasNightTheme) {
+        parseColor(nightThemeJson["bgColor"] | "#1A1A1A", &out->nightTheme.bgColor);
+    }
+
     JsonArrayConst pages = doc["pages"];
     out->pageCount = 0;
     const size_t totalPages = pages.size();

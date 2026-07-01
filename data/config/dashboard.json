@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift demo dashboard — 4 pages (overview, engine, fluids, controls). Arcs/numerics only; controls use a 3-state MAP cycle button plus launch + anti-lag toggles.",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo — overview, engine, fluids, controls",
   "defaultPageId": "overview",

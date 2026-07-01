@@ -68,7 +68,6 @@ struct CfgGaugeParams {
     float maxValue;
     float dangerLevel;
     float alertThreshold;
-    bool showArc;
     bool revFlash;
     uint8_t decimalPlaces;
     char prefix[8];
@@ -233,7 +232,7 @@ struct CfgTopBar {
     CfgTopBarItem items[CFG_MAX_TOPBAR_ITEMS];
 };
 
-struct CfgDayTheme {
+struct CfgTheme {
     CfgColor bgColor;
 };
 
@@ -245,7 +244,9 @@ struct CfgDashboard {
     char targetProfile[CFG_MAX_PROFILE_ID_LEN];
     CfgTopBar topBar;
     bool hasDayTheme;
-    CfgDayTheme dayTheme;
+    CfgTheme dayTheme;
+    bool hasNightTheme;
+    CfgTheme nightTheme;
     uint8_t pageCount;
     CfgPage pages[CONFIG_MAX_PAGES];
     bool loaded;

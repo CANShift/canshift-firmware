@@ -78,6 +78,9 @@ CfgColor ThemeManager::getEffectiveBgColor(const CfgColor &nightBg) {
     if (s_isDayMode && dash.hasDayTheme) {
         return dash.dayTheme.bgColor;
     }
+    if (!s_isDayMode && dash.hasNightTheme) {
+        return dash.nightTheme.bgColor;
+    }
     return nightBg;
 }
 
