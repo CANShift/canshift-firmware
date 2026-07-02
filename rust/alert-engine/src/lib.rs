@@ -16,8 +16,9 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 // repr(u8) is load-bearing — C++ enum is uint8_t.
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub enum AlertLevel {
+    #[default]
     Normal = 0,
     Caution = 1,
     Warning = 2,
@@ -67,6 +68,52 @@ pub fn sensor_health_step(
     }
     h.prev_valid = valid;
     h
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub struct LevelHold {
+    pub level: AlertLevel,
+    pub raised_at_ms: u32,
+}
+
+#[must_use]
+pub fn level_hold_step(
+    mut h: LevelHold,
+    raw: AlertLevel,
+    sticky: AlertLevel,
+    now_ms: u32,
+    min_active_ms: u32,
+) -> LevelHold {
+    let sticky = sticky.max(raw);
+    if raw > h.level {
+        h.level = raw;
+        h.raised_at_ms = now_ms;
+        return h;
+    }
+    if sticky >= h.level || now_ms.wrapping_sub(h.raised_at_ms) < min_active_ms {
+        return h;
+    }
+    h.level = sticky;
+    h.raised_at_ms = now_ms;
+    h
+}
+
+// Deadband probes the pure eval at value ± pct·|value|, so a level only clears
+// once the value has receded past the threshold by the hysteresis margin.
+#[must_use]
+pub fn eval_with_hysteresis<F: Fn(f32) -> AlertLevel>(
+    h: LevelHold,
+    value: f32,
+    now_ms: u32,
+    hysteresis_pct: f32,
+    min_active_ms: u32,
+    eval: F,
+) -> LevelHold {
+    let band = value.abs() * (hysteresis_pct / 100.0);
+    let raw = eval(value);
+    let sticky = eval(value + band).max(eval(value - band));
+    level_hold_step(h, raw, sticky, now_ms, min_active_ms)
 }
 
 #[must_use]
@@ -177,9 +224,18 @@ mod tests {
 
     #[test]
     fn max_level_picks_more_severe() {
-        assert_eq!(AlertLevel::Warning.max(AlertLevel::Normal), AlertLevel::Warning);
-        assert_eq!(AlertLevel::Critical.max(AlertLevel::Warning), AlertLevel::Critical);
-        assert_eq!(AlertLevel::Caution.max(AlertLevel::Caution), AlertLevel::Caution);
+        assert_eq!(
+            AlertLevel::Warning.max(AlertLevel::Normal),
+            AlertLevel::Warning
+        );
+        assert_eq!(
+            AlertLevel::Critical.max(AlertLevel::Warning),
+            AlertLevel::Critical
+        );
+        assert_eq!(
+            AlertLevel::Caution.max(AlertLevel::Caution),
+            AlertLevel::Caution
+        );
     }
 
     #[test]
@@ -199,7 +255,10 @@ mod tests {
 
     #[test]
     fn high_side_nan_threshold_is_disabled() {
-        assert_eq!(eval_high_side(999.0, f32::NAN, f32::NAN), AlertLevel::Normal);
+        assert_eq!(
+            eval_high_side(999.0, f32::NAN, f32::NAN),
+            AlertLevel::Normal
+        );
     }
 
     #[test]
@@ -225,23 +284,35 @@ mod tests {
 
     #[test]
     fn rev_limiter_under_warn_is_normal() {
-        assert_eq!(eval_rev_limiter(5000.0, 7200.0, 95, 100), AlertLevel::Normal);
+        assert_eq!(
+            eval_rev_limiter(5000.0, 7200.0, 95, 100),
+            AlertLevel::Normal
+        );
     }
 
     #[test]
     fn rev_limiter_at_warn_fires_warning() {
         // 95% of 7200 = 6840. `>=` semantics — exactly at the warn fires.
-        assert_eq!(eval_rev_limiter(6840.0, 7200.0, 95, 100), AlertLevel::Warning);
+        assert_eq!(
+            eval_rev_limiter(6840.0, 7200.0, 95, 100),
+            AlertLevel::Warning
+        );
     }
 
     #[test]
     fn rev_limiter_at_flash_fires_critical() {
-        assert_eq!(eval_rev_limiter(7200.0, 7200.0, 95, 100), AlertLevel::Critical);
+        assert_eq!(
+            eval_rev_limiter(7200.0, 7200.0, 95, 100),
+            AlertLevel::Critical
+        );
     }
 
     #[test]
     fn rev_limiter_over_flash_stays_critical() {
-        assert_eq!(eval_rev_limiter(8000.0, 7200.0, 95, 100), AlertLevel::Critical);
+        assert_eq!(
+            eval_rev_limiter(8000.0, 7200.0, 95, 100),
+            AlertLevel::Critical
+        );
     }
 
     // --- eval_coolant_temp ---------------------------------------------------
@@ -395,9 +466,11 @@ mod tests {
     const HOLD_MS: u32 = 3000;
 
     fn run(states: &[(bool, u32)]) -> SensorHealth {
-        states.iter().fold(SensorHealth::default(), |h, &(valid, now)| {
-            sensor_health_step(h, valid, now, HOLD_MS)
-        })
+        states
+            .iter()
+            .fold(SensorHealth::default(), |h, &(valid, now)| {
+                sensor_health_step(h, valid, now, HOLD_MS)
+            })
     }
 
     #[test]
@@ -421,13 +494,23 @@ mod tests {
 
     #[test]
     fn sensor_lost_not_cleared_before_hold_elapses() {
-        let h = run(&[(true, 0), (false, 2000), (true, 3000), (true, 3000 + HOLD_MS - 1)]);
+        let h = run(&[
+            (true, 0),
+            (false, 2000),
+            (true, 3000),
+            (true, 3000 + HOLD_MS - 1),
+        ]);
         assert!(h.lost);
     }
 
     #[test]
     fn sensor_lost_cleared_after_continuous_validity_hold() {
-        let h = run(&[(true, 0), (false, 2000), (true, 3000), (true, 3000 + HOLD_MS)]);
+        let h = run(&[
+            (true, 0),
+            (false, 2000),
+            (true, 3000),
+            (true, 3000 + HOLD_MS),
+        ]);
         assert!(!h.lost);
     }
 
@@ -448,7 +531,12 @@ mod tests {
 
     #[test]
     fn relost_after_clear_fires_again() {
-        let h = run(&[(true, 0), (false, 2000), (true, 3000), (true, 3000 + HOLD_MS)]);
+        let h = run(&[
+            (true, 0),
+            (false, 2000),
+            (true, 3000),
+            (true, 3000 + HOLD_MS),
+        ]);
         assert!(!h.lost);
         let h = sensor_health_step(h, false, 20_000, HOLD_MS);
         assert!(h.lost);
@@ -457,9 +545,102 @@ mod tests {
     #[test]
     fn hold_survives_millis_wraparound() {
         let near_wrap = u32::MAX - 1000;
-        let h = run(&[(true, near_wrap - 5000), (false, near_wrap - 1000), (true, near_wrap)]);
+        let h = run(&[
+            (true, near_wrap - 5000),
+            (false, near_wrap - 1000),
+            (true, near_wrap),
+        ]);
         assert!(h.lost);
         let h = sensor_health_step(h, true, near_wrap.wrapping_add(HOLD_MS), HOLD_MS);
         assert!(!h.lost);
+    }
+
+    // --- level_hold_step / eval_with_hysteresis --------------------------------
+
+    const MIN_ACTIVE_MS: u32 = 2000;
+    const HYST_PCT: f32 = 2.0;
+
+    fn hyst_step(h: LevelHold, value: f32, now_ms: u32) -> LevelHold {
+        eval_with_hysteresis(h, value, now_ms, HYST_PCT, MIN_ACTIVE_MS, |v| {
+            eval_high_side(v, 100.0, 110.0)
+        })
+    }
+
+    #[test]
+    fn crossing_up_fires_immediately() {
+        let h = hyst_step(LevelHold::default(), 101.0, 0);
+        assert_eq!(h.level, AlertLevel::Warning);
+        assert_eq!(h.raised_at_ms, 0);
+    }
+
+    #[test]
+    fn escalation_bypasses_min_hold() {
+        let h = hyst_step(LevelHold::default(), 101.0, 0);
+        let h = hyst_step(h, 115.0, 100);
+        assert_eq!(h.level, AlertLevel::Critical);
+        assert_eq!(h.raised_at_ms, 100);
+    }
+
+    #[test]
+    fn hover_just_below_threshold_stays_within_deadband() {
+        let h = hyst_step(LevelHold::default(), 101.0, 0);
+        // 99.5 * 1.02 = 101.49 > 100 — still within the 2% deadband.
+        let h = hyst_step(h, 99.5, 5000);
+        assert_eq!(h.level, AlertLevel::Warning);
+    }
+
+    #[test]
+    fn clears_only_after_receding_past_deadband() {
+        let h = hyst_step(LevelHold::default(), 101.0, 0);
+        // 97.5 * 1.02 = 99.45 <= 100 — receded past the deadband.
+        let h = hyst_step(h, 97.5, 5000);
+        assert_eq!(h.level, AlertLevel::Normal);
+    }
+
+    #[test]
+    fn min_hold_keeps_level_after_brief_spike() {
+        let h = hyst_step(LevelHold::default(), 115.0, 0);
+        let h = hyst_step(h, 50.0, 500);
+        assert_eq!(h.level, AlertLevel::Critical);
+        let h = hyst_step(h, 50.0, MIN_ACTIVE_MS - 1);
+        assert_eq!(h.level, AlertLevel::Critical);
+        let h = hyst_step(h, 50.0, MIN_ACTIVE_MS);
+        assert_eq!(h.level, AlertLevel::Normal);
+    }
+
+    #[test]
+    fn drop_lands_on_sticky_intermediate_level() {
+        let h = hyst_step(LevelHold::default(), 115.0, 0);
+        // Receded from CRITICAL but 105 is squarely in the WARNING band.
+        let h = hyst_step(h, 105.0, 5000);
+        assert_eq!(h.level, AlertLevel::Warning);
+        assert_eq!(h.raised_at_ms, 5000);
+    }
+
+    #[test]
+    fn low_side_deadband_holds_and_clears() {
+        let batt = |h: LevelHold, volts: f32, now: u32| {
+            eval_with_hysteresis(h, volts, now, HYST_PCT, MIN_ACTIVE_MS, |v| {
+                eval_battery(v, 11.5, 11.0, f32::NAN, f32::NAN)
+            })
+        };
+        let h = batt(LevelHold::default(), 11.4, 0);
+        assert_eq!(h.level, AlertLevel::Warning);
+        // 11.6 * 0.98 = 11.368 < 11.5 — still within deadband of the low warn.
+        let h = batt(h, 11.6, 5000);
+        assert_eq!(h.level, AlertLevel::Warning);
+        // 11.8 * 0.98 = 11.564 >= 11.5 — receded past the deadband.
+        let h = batt(h, 11.8, 6000);
+        assert_eq!(h.level, AlertLevel::Normal);
+    }
+
+    #[test]
+    fn min_hold_survives_millis_wraparound() {
+        let near_wrap = u32::MAX - 500;
+        let h = hyst_step(LevelHold::default(), 115.0, near_wrap);
+        let h = hyst_step(h, 50.0, near_wrap.wrapping_add(MIN_ACTIVE_MS - 1));
+        assert_eq!(h.level, AlertLevel::Critical);
+        let h = hyst_step(h, 50.0, near_wrap.wrapping_add(MIN_ACTIVE_MS));
+        assert_eq!(h.level, AlertLevel::Normal);
     }
 }

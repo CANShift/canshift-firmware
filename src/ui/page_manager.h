@@ -19,7 +19,7 @@ const char *getDefaultPageId();
 
 void updateWidgets();
 
-void setRevLimiterOverlay(bool visible);
+void setRevLimiterOverlay(bool visible, bool flashPhase);
 
 void requestRebuild();
 

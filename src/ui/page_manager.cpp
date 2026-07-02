@@ -92,12 +92,14 @@ void PageManager::init() {
     AlertBanner::init();
 
     s_revOverlay = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(s_revOverlay);
     lv_obj_set_size(s_revOverlay, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_bg_color(s_revOverlay, lv_color_hex(0xFF0000), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_revOverlay, LV_OPA_40, LV_PART_MAIN);
+    lv_obj_set_style_border_color(s_revOverlay, lv_color_hex(0xFF0000), LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_revOverlay, REVLIMIT_BORDER_WIDTH_PX, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(s_revOverlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
     LOG_INFO("UI", "PageManager initialized: %d pages", s_pageCount);
 }
@@ -181,21 +183,25 @@ void PageManager::updateWidgets() {
     }
 
     AlertEngine::tick();
-    setRevLimiterOverlay(AlertEngine::isRevLimiterFlashOn());
+    const bool revCritical =
+        (AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL);
+    setRevLimiterOverlay(revCritical, AlertEngine::isRevLimiterFlashOn());
     AlertBanner::update();
 
     ErrorBar::update();
     DiagDrawer::update();
 }
 
-void PageManager::setRevLimiterOverlay(bool visible) {
+void PageManager::setRevLimiterOverlay(bool visible, bool flashPhase) {
     using namespace PageManagerInternal;
     LVGL_ASSERT_LOCKED();
     if (!s_revOverlay)
         return;
-    if (visible) {
-        lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
-    } else {
+    if (!visible) {
         lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
+        return;
     }
+    lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_border_opa(s_revOverlay, flashPhase ? LV_OPA_COVER : REVLIMIT_BORDER_DIM_OPA,
+                                LV_PART_MAIN);
 }

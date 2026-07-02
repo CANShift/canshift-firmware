@@ -19,6 +19,9 @@ struct Page {
 
 static constexpr uint32_t SWIPE_ANIM_MS = 120;
 
+static constexpr lv_coord_t REVLIMIT_BORDER_WIDTH_PX = 8;
+static constexpr lv_opa_t REVLIMIT_BORDER_DIM_OPA = LV_OPA_50;
+
 extern Page s_pages[MAX_PAGES];
 extern uint8_t s_pageCount;
 extern uint8_t s_currentIdx;

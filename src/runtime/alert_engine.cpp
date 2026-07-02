@@ -52,6 +52,11 @@ SensorHealthSlot s_sensorHealth[] = {
     {"battery", SignalIds::BATTERY_VOLTS, &AlertEngine::AlertState::batterySensorLost, {}},
 };
 
+AlertLevelHoldRs s_coolantHold = {};
+AlertLevelHoldRs s_oilTempHold = {};
+AlertLevelHoldRs s_oilPressureHold = {};
+AlertLevelHoldRs s_batteryHold = {};
+
 AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLevel b) {
     return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
 }
@@ -81,25 +86,28 @@ AlertEngine::AlertLevel evalRevLimiter(float rpm) {
         rpm, s_revLimitRpm, ALERT_REVLIMIT_WARN_PCT, ALERT_REVLIMIT_FLASH_PCT));
 }
 
-AlertEngine::AlertLevel evalCoolantTemp(float tempC) {
-    return static_cast<AlertEngine::AlertLevel>(alert_eval_coolant_temp_rs(
-        tempC, s_coolantWarnC, s_coolantCritC, s_coolantHighWarnC, s_coolantHighCritC));
+AlertEngine::AlertLevel stepCoolantTemp(float tempC, uint32_t now) {
+    return static_cast<AlertEngine::AlertLevel>(alert_coolant_temp_step_rs(
+        &s_coolantHold, tempC, s_coolantWarnC, s_coolantCritC, s_coolantHighWarnC,
+        s_coolantHighCritC, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
 }
 
-AlertEngine::AlertLevel evalOilTemp(float tempC) {
-    return static_cast<AlertEngine::AlertLevel>(alert_eval_oil_temp_rs(
-        tempC, s_oilTempWarnC, s_oilTempCritC, s_oilTempHighWarnC, s_oilTempHighCritC));
+AlertEngine::AlertLevel stepOilTemp(float tempC, uint32_t now) {
+    return static_cast<AlertEngine::AlertLevel>(alert_oil_temp_step_rs(
+        &s_oilTempHold, tempC, s_oilTempWarnC, s_oilTempCritC, s_oilTempHighWarnC,
+        s_oilTempHighCritC, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
 }
 
-AlertEngine::AlertLevel evalOilPressure(float pressBar) {
-    return static_cast<AlertEngine::AlertLevel>(
-        alert_eval_oil_pressure_rs(pressBar, s_oilPressWarnBar, s_oilPressCritBar,
-                                   s_oilPressHighWarnBar, s_oilPressHighCritBar));
+AlertEngine::AlertLevel stepOilPressure(float pressBar, uint32_t now) {
+    return static_cast<AlertEngine::AlertLevel>(alert_oil_pressure_step_rs(
+        &s_oilPressureHold, pressBar, s_oilPressWarnBar, s_oilPressCritBar, s_oilPressHighWarnBar,
+        s_oilPressHighCritBar, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
 }
 
-AlertEngine::AlertLevel evalBattery(float volts) {
-    return static_cast<AlertEngine::AlertLevel>(alert_eval_battery_rs(
-        volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV, s_batteryHighCritV));
+AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
+    return static_cast<AlertEngine::AlertLevel>(alert_battery_step_rs(
+        &s_batteryHold, volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV,
+        s_batteryHighCritV, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
 }
 
 } // namespace
@@ -110,6 +118,10 @@ void AlertEngine::init() {
     s_flashPhase = false;
     for (SensorHealthSlot &slot : s_sensorHealth)
         slot.health = {};
+    s_coolantHold = {};
+    s_oilTempHold = {};
+    s_oilPressureHold = {};
+    s_batteryHold = {};
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (dash.loaded && dash.revLimitRpm > 0.0f)
@@ -189,11 +201,12 @@ void AlertEngine::tick() {
     float mil = readSnap(SignalIds::FLAG_MIL, 0.0f);
 
     s_state.revLimiter = evalRevLimiter(rpm);
-    s_state.coolantTemp = withSensorLost(evalCoolantTemp(coolant), s_state.coolantSensorLost);
-    s_state.oilTemp = withSensorLost(evalOilTemp(oilTemp), s_state.oilTempSensorLost);
-    s_state.oilPressure = withSensorLost(evalOilPressure(oilPres), s_state.oilPressureSensorLost);
+    s_state.coolantTemp = withSensorLost(stepCoolantTemp(coolant, now), s_state.coolantSensorLost);
+    s_state.oilTemp = withSensorLost(stepOilTemp(oilTemp, now), s_state.oilTempSensorLost);
+    s_state.oilPressure =
+        withSensorLost(stepOilPressure(oilPres, now), s_state.oilPressureSensorLost);
     s_state.milActive = (mil > 0.5f);
-    s_state.batteryVoltage = withSensorLost(evalBattery(volts), s_state.batterySensorLost);
+    s_state.batteryVoltage = withSensorLost(stepBattery(volts, now), s_state.batterySensorLost);
 
     s_state.global = s_state.revLimiter;
     s_state.global = maxLevel(s_state.global, s_state.coolantTemp);
