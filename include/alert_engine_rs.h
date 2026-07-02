@@ -2,11 +2,23 @@
 #ifndef CANSHIFT_ALERT_ENGINE_RS_H
 #define CANSHIFT_ALERT_ENGINE_RS_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Layout mirror of rust/alert-engine SensorHealth (repr(C)) — keep in sync. */
+typedef struct {
+    bool ever_valid;
+    bool lost;
+    bool prev_valid;
+    uint32_t valid_since_ms;
+} AlertSensorHealthRs;
+
+void alert_sensor_health_step_rs(AlertSensorHealthRs *health, bool valid, uint32_t now_ms,
+                                 uint32_t clear_hold_ms);
 
 uint8_t alert_eval_high_side_rs(float value, float high_warn, float high_crit);
 

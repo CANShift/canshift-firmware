@@ -16,6 +16,10 @@ struct AlertState {
     bool milActive;
     AlertLevel batteryVoltage;
     AlertLevel global;
+    bool coolantSensorLost;
+    bool oilTempSensorLost;
+    bool oilPressureSensorLost;
+    bool batterySensorLost;
 };
 
 void init();

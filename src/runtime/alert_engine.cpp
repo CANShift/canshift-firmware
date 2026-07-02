@@ -38,8 +38,42 @@ static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2)
 
 namespace {
 
+struct SensorHealthSlot {
+    const char *name;
+    SignalId id;
+    bool AlertEngine::AlertState::*lost;
+    AlertSensorHealthRs health;
+};
+
+SensorHealthSlot s_sensorHealth[] = {
+    {"coolant temp", SignalIds::COOLANT_TEMP_C, &AlertEngine::AlertState::coolantSensorLost, {}},
+    {"oil temp", SignalIds::OIL_TEMP_C, &AlertEngine::AlertState::oilTempSensorLost, {}},
+    {"oil pressure", SignalIds::OIL_PRESS_BAR, &AlertEngine::AlertState::oilPressureSensorLost, {}},
+    {"battery", SignalIds::BATTERY_VOLTS, &AlertEngine::AlertState::batterySensorLost, {}},
+};
+
 AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLevel b) {
     return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
+}
+
+void updateSensorHealth(const SignalStore::SignalValue *snap, uint32_t now) {
+    for (SensorHealthSlot &slot : s_sensorHealth) {
+        const bool wasLost = slot.health.lost;
+        alert_sensor_health_step_rs(&slot.health, snap[slot.id].valid, now,
+                                    ALERT_SENSOR_LOST_CLEAR_HOLD_MS);
+        s_state.*(slot.lost) = slot.health.lost;
+        if (slot.health.lost != wasLost) {
+            if (slot.health.lost) {
+                LOG_WARN("ALERT", "%s sensor lost", slot.name);
+            } else {
+                LOG_INFO("ALERT", "%s sensor recovered", slot.name);
+            }
+        }
+    }
+}
+
+AlertEngine::AlertLevel withSensorLost(AlertEngine::AlertLevel level, bool lost) {
+    return lost ? maxLevel(level, AlertEngine::AlertLevel::WARNING) : level;
 }
 
 AlertEngine::AlertLevel evalRevLimiter(float rpm) {
@@ -74,6 +108,8 @@ void AlertEngine::init() {
     s_state = {};
     s_lastFlashToggleMs = 0;
     s_flashPhase = false;
+    for (SensorHealthSlot &slot : s_sensorHealth)
+        slot.health = {};
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (dash.loaded && dash.revLimitRpm > 0.0f)
@@ -139,6 +175,9 @@ void AlertEngine::init() {
 void AlertEngine::tick() {
     SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
+    const uint32_t now = millis();
+    updateSensorHealth(snap, now);
+
     const auto readSnap = [&snap](SignalId id, float def) {
         return snap[id].valid ? snap[id].smoothed : def;
     };
@@ -150,11 +189,11 @@ void AlertEngine::tick() {
     float mil = readSnap(SignalIds::FLAG_MIL, 0.0f);
 
     s_state.revLimiter = evalRevLimiter(rpm);
-    s_state.coolantTemp = evalCoolantTemp(coolant);
-    s_state.oilTemp = evalOilTemp(oilTemp);
-    s_state.oilPressure = evalOilPressure(oilPres);
+    s_state.coolantTemp = withSensorLost(evalCoolantTemp(coolant), s_state.coolantSensorLost);
+    s_state.oilTemp = withSensorLost(evalOilTemp(oilTemp), s_state.oilTempSensorLost);
+    s_state.oilPressure = withSensorLost(evalOilPressure(oilPres), s_state.oilPressureSensorLost);
     s_state.milActive = (mil > 0.5f);
-    s_state.batteryVoltage = evalBattery(volts);
+    s_state.batteryVoltage = withSensorLost(evalBattery(volts), s_state.batterySensorLost);
 
     s_state.global = s_state.revLimiter;
     s_state.global = maxLevel(s_state.global, s_state.coolantTemp);
@@ -164,7 +203,6 @@ void AlertEngine::tick() {
 
     bool revCritical = (s_state.revLimiter == AlertLevel::CRITICAL);
     if (revCritical) {
-        uint32_t now = millis();
         if (now - s_lastFlashToggleMs >= FLASH_PERIOD_MS) {
             s_flashPhase = !s_flashPhase;
             s_lastFlashToggleMs = now;

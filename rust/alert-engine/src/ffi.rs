@@ -1,6 +1,6 @@
 use crate::{
     eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure, eval_oil_temp,
-    eval_rev_limiter, AlertLevel,
+    eval_rev_limiter, sensor_health_step, AlertLevel, SensorHealth,
 };
 
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
@@ -64,6 +64,22 @@ pub extern "C" fn alert_eval_battery_rs(
     eval_battery(volts, low_warn_v, low_crit_v, high_warn_v, high_crit_v) as u8
 }
 
+/// # Safety
+/// `health` must point to a valid, writable `SensorHealth` (the C++ mirror
+/// struct in alert_engine_rs.h — layouts must stay in sync).
+#[no_mangle]
+pub unsafe extern "C" fn alert_sensor_health_step_rs(
+    health: *mut SensorHealth,
+    valid: bool,
+    now_ms: u32,
+    clear_hold_ms: u32,
+) {
+    let Some(h) = health.as_mut() else {
+        return;
+    };
+    *h = sensor_health_step(*h, valid, now_ms, clear_hold_ms);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +110,20 @@ mod tests {
             alert_eval_coolant_temp_rs(97.0, 100.0, 110.0, f32::NAN, f32::NAN),
             1
         );
+    }
+
+    #[test]
+    fn ffi_sensor_health_null_is_noop() {
+        unsafe { alert_sensor_health_step_rs(core::ptr::null_mut(), true, 0, 3000) };
+    }
+
+    #[test]
+    fn ffi_sensor_health_steps_in_place() {
+        let mut h = SensorHealth::default();
+        unsafe {
+            alert_sensor_health_step_rs(&mut h, true, 0, 3000);
+            alert_sensor_health_step_rs(&mut h, false, 2000, 3000);
+        }
+        assert!(h.lost);
     }
 }

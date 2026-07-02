@@ -20,6 +20,8 @@ constexpr uint32_t COL_CRIT_BG = 0xB00000;
 constexpr uint32_t COL_CRIT_TEXT = 0xFFFFFF;
 constexpr uint32_t COL_MIL_BG = 0xE0A000;
 constexpr uint32_t COL_MIL_TEXT = 0x000000;
+constexpr uint32_t COL_LOST_BG = 0xE0A000;
+constexpr uint32_t COL_LOST_TEXT = 0x000000;
 
 constexpr int16_t CHIP_PAD_H = 8;
 constexpr int16_t CHIP_PAD_V = 4;
@@ -31,11 +33,15 @@ lv_obj_t *s_container = nullptr;
 lv_obj_t *s_critChip = nullptr;
 lv_obj_t *s_critLabel = nullptr;
 lv_obj_t *s_milChip = nullptr;
+lv_obj_t *s_lostChip = nullptr;
+lv_obj_t *s_lostLabel = nullptr;
 
 uint32_t s_lastUpdateMs = 0;
 char s_lastText[TEXT_BUF_LEN] = "";
+char s_lastLostText[TEXT_BUF_LEN] = "";
 bool s_lastCritVisible = false;
 bool s_lastMilVisible = false;
+bool s_lastLostVisible = false;
 
 struct CriticalSource {
     const char *label;
@@ -43,13 +49,18 @@ struct CriticalSource {
     const char *unit;
     int decimals;
     AlertEngine::AlertLevel AlertEngine::AlertState::*level;
+    bool AlertEngine::AlertState::*sensorLost;
 };
 
 constexpr CriticalSource kSources[] = {
-    {"COOLANT", SignalIds::COOLANT_TEMP_C, "C", 0, &AlertEngine::AlertState::coolantTemp},
-    {"OIL TEMP", SignalIds::OIL_TEMP_C, "C", 0, &AlertEngine::AlertState::oilTemp},
-    {"OIL PRESS", SignalIds::OIL_PRESS_BAR, "bar", 1, &AlertEngine::AlertState::oilPressure},
-    {"BATT", SignalIds::BATTERY_VOLTS, "V", 1, &AlertEngine::AlertState::batteryVoltage},
+    {"COOLANT", SignalIds::COOLANT_TEMP_C, "C", 0, &AlertEngine::AlertState::coolantTemp,
+     &AlertEngine::AlertState::coolantSensorLost},
+    {"OIL TEMP", SignalIds::OIL_TEMP_C, "C", 0, &AlertEngine::AlertState::oilTemp,
+     &AlertEngine::AlertState::oilTempSensorLost},
+    {"OIL PRESS", SignalIds::OIL_PRESS_BAR, "bar", 1, &AlertEngine::AlertState::oilPressure,
+     &AlertEngine::AlertState::oilPressureSensorLost},
+    {"BATT", SignalIds::BATTERY_VOLTS, "V", 1, &AlertEngine::AlertState::batteryVoltage,
+     &AlertEngine::AlertState::batterySensorLost},
 };
 
 lv_obj_t *makeChip(lv_obj_t *parent, uint32_t bgRgb) {
@@ -75,19 +86,41 @@ lv_obj_t *makeChipLabel(lv_obj_t *chip, uint32_t textRgb, uint8_t fontSize) {
     return lbl;
 }
 
+bool appendPart(char *buf, size_t len, size_t &used, const char *part) {
+    const int n = snprintf(buf + used, len - used, "%s%s", (used > 0) ? " | " : "", part);
+    if (n < 0 || static_cast<size_t>(n) >= len - used)
+        return false;
+    used += static_cast<size_t>(n);
+    return true;
+}
+
 void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t len) {
     size_t used = 0;
     buf[0] = '\0';
     for (const CriticalSource &src : kSources) {
         if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
             continue;
+        if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
+            continue;
         char valBuf[16];
         FloatFormat::formatFixed(valBuf, sizeof(valBuf), SignalStore::read(src.id), src.decimals);
-        const int n = snprintf(buf + used, len - used, "%s%s %s%s", (used > 0) ? " | " : "",
-                               src.label, valBuf, src.unit);
-        if (n < 0 || static_cast<size_t>(n) >= len - used)
+        char part[32];
+        snprintf(part, sizeof(part), "%s %s%s", src.label, valBuf, src.unit);
+        if (!appendPart(buf, len, used, part))
             break;
-        used += static_cast<size_t>(n);
+    }
+}
+
+void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size_t len) {
+    size_t used = 0;
+    buf[0] = '\0';
+    for (const CriticalSource &src : kSources) {
+        if (!(state.*(src.sensorLost)))
+            continue;
+        char part[32];
+        snprintf(part, sizeof(part), "%s SENSOR LOST", src.label);
+        if (!appendPart(buf, len, used, part))
+            break;
     }
 }
 
@@ -116,14 +149,19 @@ void AlertBanner::init() {
     s_critChip = makeChip(s_container, COL_CRIT_BG);
     s_critLabel = makeChipLabel(s_critChip, COL_CRIT_TEXT, 14);
 
+    s_lostChip = makeChip(s_container, COL_LOST_BG);
+    s_lostLabel = makeChipLabel(s_lostChip, COL_LOST_TEXT, 12);
+
     s_milChip = makeChip(s_container, COL_MIL_BG);
     lv_obj_t *milLabel = makeChipLabel(s_milChip, COL_MIL_TEXT, 12);
     lv_label_set_text(milLabel, "CHECK ENGINE");
 
     s_lastUpdateMs = 0;
     s_lastText[0] = '\0';
+    s_lastLostText[0] = '\0';
     s_lastCritVisible = false;
     s_lastMilVisible = false;
+    s_lastLostVisible = false;
 }
 
 void AlertBanner::update() {
@@ -138,22 +176,31 @@ void AlertBanner::update() {
     const AlertEngine::AlertState state = AlertEngine::getState();
     char text[TEXT_BUF_LEN];
     composeCriticalText(state, text, sizeof(text));
+    char lostText[TEXT_BUF_LEN];
+    composeSensorLostText(state, lostText, sizeof(lostText));
     const bool critVisible = (text[0] != '\0');
+    const bool lostVisible = (lostText[0] != '\0');
     const bool milVisible = state.milActive;
 
     if (critVisible == s_lastCritVisible && milVisible == s_lastMilVisible &&
-        strcmp(text, s_lastText) == 0)
+        lostVisible == s_lastLostVisible && strcmp(text, s_lastText) == 0 &&
+        strcmp(lostText, s_lastLostText) == 0)
         return;
     s_lastCritVisible = critVisible;
     s_lastMilVisible = milVisible;
+    s_lastLostVisible = lostVisible;
     strlcpy(s_lastText, text, sizeof(s_lastText));
+    strlcpy(s_lastLostText, lostText, sizeof(s_lastLostText));
 
     if (critVisible)
         lv_label_set_text(s_critLabel, text);
+    if (lostVisible)
+        lv_label_set_text(s_lostLabel, lostText);
     setChipVisible(s_critChip, critVisible);
+    setChipVisible(s_lostChip, lostVisible);
     setChipVisible(s_milChip, milVisible);
 
-    if (critVisible || milVisible) {
+    if (critVisible || lostVisible || milVisible) {
         lv_obj_clear_flag(s_container, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(s_container, LV_OBJ_FLAG_HIDDEN);

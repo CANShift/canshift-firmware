@@ -36,6 +36,39 @@ impl AlertLevel {
     }
 }
 
+// `ever_valid` gates the boot window (no CAN yet ≠ broken sensor); the
+// clear-hold keeps a marginal sensor bouncing valid/invalid from strobing UI.
+#[repr(C)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub struct SensorHealth {
+    pub ever_valid: bool,
+    pub lost: bool,
+    pub prev_valid: bool,
+    pub valid_since_ms: u32,
+}
+
+#[must_use]
+pub fn sensor_health_step(
+    mut h: SensorHealth,
+    valid: bool,
+    now_ms: u32,
+    clear_hold_ms: u32,
+) -> SensorHealth {
+    if valid {
+        if !h.prev_valid {
+            h.valid_since_ms = now_ms;
+        }
+        h.ever_valid = true;
+        if h.lost && now_ms.wrapping_sub(h.valid_since_ms) >= clear_hold_ms {
+            h.lost = false;
+        }
+    } else if h.ever_valid {
+        h.lost = true;
+    }
+    h.prev_valid = valid;
+    h
+}
+
 #[must_use]
 pub fn eval_high_side(value: f32, high_warn: f32, high_crit: f32) -> AlertLevel {
     if !high_crit.is_nan() && value > high_crit {
@@ -355,5 +388,78 @@ mod tests {
             eval_battery(15.5, 11.5, 11.0, 14.5, 15.0),
             AlertLevel::Critical
         );
+    }
+
+    // --- sensor_health_step ----------------------------------------------------
+
+    const HOLD_MS: u32 = 3000;
+
+    fn run(states: &[(bool, u32)]) -> SensorHealth {
+        states.iter().fold(SensorHealth::default(), |h, &(valid, now)| {
+            sensor_health_step(h, valid, now, HOLD_MS)
+        })
+    }
+
+    #[test]
+    fn sensor_never_valid_does_not_report_lost() {
+        let h = run(&[(false, 0), (false, 1000), (false, 60_000)]);
+        assert!(!h.lost);
+        assert!(!h.ever_valid);
+    }
+
+    #[test]
+    fn sensor_valid_then_invalid_is_lost() {
+        let h = run(&[(true, 0), (false, 2000)]);
+        assert!(h.lost);
+    }
+
+    #[test]
+    fn sensor_stays_lost_while_invalid() {
+        let h = run(&[(true, 0), (false, 2000), (false, 100_000)]);
+        assert!(h.lost);
+    }
+
+    #[test]
+    fn sensor_lost_not_cleared_before_hold_elapses() {
+        let h = run(&[(true, 0), (false, 2000), (true, 3000), (true, 3000 + HOLD_MS - 1)]);
+        assert!(h.lost);
+    }
+
+    #[test]
+    fn sensor_lost_cleared_after_continuous_validity_hold() {
+        let h = run(&[(true, 0), (false, 2000), (true, 3000), (true, 3000 + HOLD_MS)]);
+        assert!(!h.lost);
+    }
+
+    #[test]
+    fn bounce_during_hold_restarts_the_clock() {
+        let h = run(&[
+            (true, 0),
+            (false, 2000),
+            (true, 3000),
+            (false, 4000),
+            (true, 5000),
+            (true, 5000 + HOLD_MS - 1),
+        ]);
+        assert!(h.lost);
+        let h = sensor_health_step(h, true, 5000 + HOLD_MS, HOLD_MS);
+        assert!(!h.lost);
+    }
+
+    #[test]
+    fn relost_after_clear_fires_again() {
+        let h = run(&[(true, 0), (false, 2000), (true, 3000), (true, 3000 + HOLD_MS)]);
+        assert!(!h.lost);
+        let h = sensor_health_step(h, false, 20_000, HOLD_MS);
+        assert!(h.lost);
+    }
+
+    #[test]
+    fn hold_survives_millis_wraparound() {
+        let near_wrap = u32::MAX - 1000;
+        let h = run(&[(true, near_wrap - 5000), (false, near_wrap - 1000), (true, near_wrap)]);
+        assert!(h.lost);
+        let h = sensor_health_step(h, true, near_wrap.wrapping_add(HOLD_MS), HOLD_MS);
+        assert!(!h.lost);
     }
 }
