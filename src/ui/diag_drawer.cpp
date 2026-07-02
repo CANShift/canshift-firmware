@@ -25,6 +25,11 @@ constexpr int16_t CLOSE_BTN_EXT_CLICK_PAD = 12;
 
 constexpr int16_t TAP_OUTSIDE_H = 20;
 
+constexpr int16_t HANDLE_W = 48;
+constexpr int16_t HANDLE_H = 5;
+constexpr int16_t HANDLE_BOTTOM_MARGIN = 3;
+constexpr int16_t HANDLE_EXT_CLICK_PAD = 12;
+
 constexpr int16_t FLAGS_COUNT = 5;
 constexpr int16_t SCALARS_COUNT = 4;
 constexpr int16_t ERRORS_MAX_ROWS = 4;
@@ -71,6 +76,7 @@ const ScalarRow s_scalars[SCALARS_COUNT] = {
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_closeBtn = nullptr;
 lv_obj_t *s_tapOutsideZone = nullptr;
+lv_obj_t *s_handle = nullptr;
 lv_obj_t *s_flagBadges[FLAGS_COUNT] = {nullptr};
 lv_obj_t *s_scalarValues[SCALARS_COUNT] = {nullptr};
 lv_obj_t *s_errorRows[ERRORS_MAX_ROWS] = {nullptr};
@@ -244,6 +250,18 @@ void onPanelGesture(lv_event_t *e) {
     (void)e;
 }
 
+void onHandleClicked(lv_event_t *) {
+    if (!s_open)
+        open();
+}
+
+void onHandleGesture(lv_event_t *) {
+    if (lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_TOP && !s_open) {
+        lv_indev_wait_release(lv_indev_get_act());
+        open();
+    }
+}
+
 } // namespace
 
 void init() {
@@ -310,6 +328,20 @@ void init() {
     lv_obj_add_event_cb(s_tapOutsideZone, onTapOutside, LV_EVENT_CLICKED, nullptr);
     lv_obj_add_flag(s_tapOutsideZone, LV_OBJ_FLAG_HIDDEN);
 
+    s_handle = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_handle, HANDLE_W, HANDLE_H);
+    lv_obj_align(s_handle, LV_ALIGN_BOTTOM_MID, 0, -HANDLE_BOTTOM_MARGIN);
+    lv_obj_set_style_bg_color(s_handle, lv_color_hex(COL_HANDLE_TXT), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_handle, LV_OPA_50, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_handle, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_handle, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_handle, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_handle, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(s_handle, HANDLE_EXT_CLICK_PAD);
+    lv_obj_add_event_cb(s_handle, onHandleClicked, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_event_cb(s_handle, onHandleGesture, LV_EVENT_GESTURE, nullptr);
+
     s_initDone = true;
     LOG_INFO("DIAG_DRAWER", "init done — handle + tap-outside + swipe + X");
 }
@@ -324,6 +356,8 @@ void open() {
         lv_obj_clear_flag(s_tapOutsideZone, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(s_tapOutsideZone);
     }
+    if (s_handle)
+        lv_obj_add_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
     s_open = true;
 
     s_lastErrorVersion = UINT32_MAX;
@@ -336,6 +370,8 @@ void close() {
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
     if (s_tapOutsideZone)
         lv_obj_add_flag(s_tapOutsideZone, LV_OBJ_FLAG_HIDDEN);
+    if (s_handle)
+        lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_HIDDEN);
     s_open = false;
 }
 

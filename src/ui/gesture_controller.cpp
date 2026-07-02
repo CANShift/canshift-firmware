@@ -3,6 +3,7 @@
 #include "app_config.h"
 #include "diag/logger.h"
 #include "ui/settings_page.h"
+#include "ui/top_bar.h"
 
 #include <Arduino.h>
 #include <stdlib.h>
@@ -11,9 +12,12 @@ namespace GestureController {
 
 namespace {
 
-constexpr int16_t DRAG_HOTZONE_PX = 40;
+constexpr int16_t DRAG_HOTZONE_MAX_PX = 40;
 
 constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
+
+constexpr int16_t SWIPE_THROUGH_TRAVEL_PX = 32;
+constexpr int16_t SWIPE_THROUGH_AXIS_RATIO = 2;
 
 SwipeHandler s_swipeHandler = nullptr;
 VerticalSwipeHandler s_verticalSwipeHandler = nullptr;
@@ -109,7 +113,8 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
 
         const bool isOpen = SettingsPage::isOpen();
 
-        if (p.y > DRAG_HOTZONE_PX) {
+        const int16_t hotzoneY = LV_MIN(DRAG_HOTZONE_MAX_PX, TopBar::getHeight());
+        if (p.y > hotzoneY) {
             s_drag.active = false;
             return;
         }
@@ -151,6 +156,7 @@ bool s_swipeFiredThisPress = false;
 
 void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     static int16_t s_pressStartX = 0;
+    static int16_t s_pressStartY = 0;
     static bool s_pressActive = false;
     static bool s_pressCancelled = false;
 
@@ -170,6 +176,7 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
         s_pressCancelled = false;
         s_swipeFiredThisPress = false;
         s_pressStartX = p.x;
+        s_pressStartY = p.y;
         lv_obj_t *pressedObj = lv_indev_get_obj_act();
         s_gesturePressStartedOnClickable =
             pressedObj != nullptr && lv_obj_has_flag(pressedObj, LV_OBJ_FLAG_CLICKABLE);
@@ -187,11 +194,18 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
         return;
 
-    if (s_gesturePressStartedOnClickable)
-        return;
-
-    lv_indev_reset_long_press(indev);
-    lv_indev_reset(indev, nullptr);
+    if (s_gesturePressStartedOnClickable) {
+        const int16_t travelY = static_cast<int16_t>(abs(p.y - s_pressStartY));
+        const bool horizontalDominates =
+            travelX >= SWIPE_THROUGH_TRAVEL_PX && travelX > SWIPE_THROUGH_AXIS_RATIO * travelY;
+        if (!horizontalDominates)
+            return;
+        /* wait_release emits PRESS_LOST so the button drops its pressed state without CLICKED */
+        lv_indev_wait_release(indev);
+    } else {
+        lv_indev_reset_long_press(indev);
+        lv_indev_reset(indev, nullptr);
+    }
     s_pressCancelled = true;
 
     if (!s_swipeFiredThisPress && s_swipeHandler) {

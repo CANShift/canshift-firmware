@@ -120,11 +120,18 @@ static void setExpanded(bool expand) {
 static void onContainerGesture(lv_event_t *e) {
     const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
     if (dir == LV_DIR_TOP) {
+        /* swallow the release so the swipe does not also toggle via the header click */
+        lv_indev_wait_release(lv_indev_get_act());
         setExpanded(true);
     } else if (dir == LV_DIR_BOTTOM) {
+        lv_indev_wait_release(lv_indev_get_act());
         setExpanded(false);
     }
     (void)e;
+}
+
+static void onHeaderClicked(lv_event_t *) {
+    setExpanded(!s_expanded);
 }
 
 static void onHeaderDismissClicked(lv_event_t *e) {
@@ -180,7 +187,8 @@ static void buildHeaderRow(lv_obj_t *parent) {
     applyRowStyle(s_headerRow);
     lv_obj_set_style_pad_left(s_headerRow, 4, LV_PART_MAIN);
 
-    lv_obj_clear_flag(s_headerRow, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(s_headerRow, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_headerRow, onHeaderClicked, LV_EVENT_CLICKED, nullptr);
 
     s_codeLabel = makeLabel(s_headerRow, COL_CODE);
 
