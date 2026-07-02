@@ -9,4 +9,6 @@ void update();
 void open();
 void close();
 
+void reapplyTheme();
+
 } // namespace DiagDrawer

@@ -21,4 +21,8 @@ void setDayMode(bool day);
 
 [[nodiscard]] uint32_t getEffectiveTextColor(uint32_t styleTextColor, bool respectDayMode);
 
+[[nodiscard]] uint32_t pickColor(uint32_t nightRgb, uint32_t dayRgb);
+
+[[nodiscard]] uint32_t getStaleTextColor();
+
 } // namespace ThemeManager

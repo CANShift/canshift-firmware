@@ -94,3 +94,14 @@ uint32_t ThemeManager::getEffectiveTextColor(uint32_t styleTextColor, bool respe
         return styleTextColor;
     return getEffectiveTextColor();
 }
+
+uint32_t ThemeManager::pickColor(uint32_t nightRgb, uint32_t dayRgb) {
+    return s_isDayMode ? dayRgb : nightRgb;
+}
+
+static constexpr uint32_t STALE_TEXT_NIGHT = 0x555555;
+static constexpr uint32_t STALE_TEXT_DAY = 0x888888;
+
+uint32_t ThemeManager::getStaleTextColor() {
+    return pickColor(STALE_TEXT_NIGHT, STALE_TEXT_DAY);
+}

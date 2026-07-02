@@ -15,7 +15,6 @@
 
 namespace {
 
-constexpr uint32_t kStaleTextRgb = 0x555555;
 constexpr const char *kStalePlaceholder = "--";
 
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
@@ -91,7 +90,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    lv_obj_set_style_text_color(label, lv_color_hex(kStaleTextRgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
     lv_label_set_text(label, kStalePlaceholder);
 
@@ -220,10 +219,11 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             tag->lastValid = false;
         }
         if (!tag->alert.active) {
-            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, kStaleTextRgb);
+            const uint32_t staleRgb = ThemeManager::getStaleTextColor();
+            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, staleRgb);
             if (tag->fracLabel) {
                 uint32_t fracLast = tag->lastTintRgb;
-                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, kStaleTextRgb);
+                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, staleRgb);
             }
         }
         AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);

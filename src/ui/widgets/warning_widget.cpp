@@ -14,14 +14,18 @@
 namespace {
 
 constexpr uint32_t BLINK_PERIOD_MS = 1000;
+constexpr lv_opa_t IDLE_BG_OPA = 0x18;
+
+enum class WarnState : uint8_t { IDLE, ALARM, STALE };
 
 struct WarningTag {
     lv_obj_t *root;
     lv_obj_t *iconImg;
     lv_obj_t *signalLabel;
     lv_anim_t blinkAnim;
-    bool wasActive;
+    WarnState state;
     uint32_t bgColor;
+    uint32_t labelRgb;
 };
 
 void blinkAnimCb(void *target, int32_t v) {
@@ -41,9 +45,45 @@ void startBlink(WarningTag *tag) {
     lv_anim_start(&tag->blinkAnim);
 }
 
-void stopBlink(WarningTag *tag) {
+void applyLiveStyle(WarningTag *tag) {
+    lv_obj_set_style_border_width(tag->root, 0, LV_PART_MAIN);
+    if (tag->iconImg) {
+        lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(tag->bgColor), 0);
+    }
+    if (tag->signalLabel) {
+        lv_obj_set_style_text_color(tag->signalLabel, lv_color_hex(tag->labelRgb), 0);
+    }
+}
+
+void applyStaleStyle(WarningTag *tag) {
+    const uint32_t staleRgb = ThemeManager::getStaleTextColor();
+    lv_obj_set_style_bg_opa(tag->root, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(tag->root, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(tag->root, lv_color_hex(staleRgb), LV_PART_MAIN);
+    if (tag->iconImg) {
+        lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(staleRgb), 0);
+    }
+    if (tag->signalLabel) {
+        lv_obj_set_style_text_color(tag->signalLabel, lv_color_hex(staleRgb), 0);
+    }
+}
+
+void enterState(WarningTag *tag, WarnState next) {
     lv_anim_del(tag->root, blinkAnimCb);
-    lv_obj_set_style_bg_opa(tag->root, 0x18, LV_PART_MAIN);
+    switch (next) {
+        case WarnState::ALARM:
+            applyLiveStyle(tag);
+            startBlink(tag);
+            break;
+        case WarnState::IDLE:
+            applyLiveStyle(tag);
+            lv_obj_set_style_bg_opa(tag->root, IDLE_BG_OPA, LV_PART_MAIN);
+            break;
+        case WarnState::STALE:
+            applyStaleStyle(tag);
+            break;
+    }
+    tag->state = next;
 }
 
 } // namespace
@@ -77,13 +117,13 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     }
 
     lv_obj_t *signalLabel = nullptr;
+    const uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
     if (cfg.layout.h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
         WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
         signalLabel = lv_label_create(root);
         lv_label_set_text(signalLabel, labelBuf);
         lv_obj_set_style_text_font(signalLabel, FontManager::label(10), 0);
-        uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
         lv_obj_set_style_text_color(signalLabel, lv_color_hex(labelRgb), 0);
         lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
     }
@@ -99,14 +139,26 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     tag->root = root;
     tag->iconImg = iconImg;
     tag->signalLabel = signalLabel;
-    tag->wasActive = false;
+    tag->state = WarnState::IDLE;
     tag->bgColor = critRgb;
+    tag->labelRgb = labelRgb;
     lv_obj_set_user_data(root, tag);
     WidgetHelpers::attachTagDeleter(root, tagSlot.commit());
 
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
               iconImg ? "asset" : "none");
     return root;
+}
+
+void WarningWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &) {
+    if (!obj)
+        return;
+    auto *tag = static_cast<WarningTag *>(lv_obj_get_user_data(obj));
+    if (!tag)
+        return;
+    if (tag->state == WarnState::STALE) {
+        applyStaleStyle(tag);
+    }
 }
 
 void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -116,20 +168,15 @@ void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidg
     if (!tag)
         return;
 
-    bool active;
+    WarnState next;
     if (!valid) {
-        active = true;
+        next = WarnState::STALE;
     } else {
-        active = cfg.warning.invertLogic ? (value < cfg.warning.threshold)
-                                         : (value >= cfg.warning.threshold);
+        const bool tripped = cfg.warning.invertLogic ? (value < cfg.warning.threshold)
+                                                     : (value >= cfg.warning.threshold);
+        next = tripped ? WarnState::ALARM : WarnState::IDLE;
     }
-    if (active == tag->wasActive)
+    if (next == tag->state)
         return;
-    tag->wasActive = active;
-
-    if (active) {
-        startBlink(tag);
-    } else {
-        stopBlink(tag);
-    }
+    enterState(tag, next);
 }

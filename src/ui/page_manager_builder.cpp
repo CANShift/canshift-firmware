@@ -1,6 +1,8 @@
 
 #include "page_manager_internal.h"
 
+#include "diag_drawer.h"
+#include "error_bar.h"
 #include "font_manager.h"
 #include "icon_assets.h"
 #include "theme_manager.h"
@@ -552,6 +554,8 @@ void reapplyThemeAllPages() {
     }
 
     TopBar::reapplyTheme();
+    ErrorBar::reapplyTheme();
+    DiagDrawer::reapplyTheme();
 }
 
 } // namespace PageManagerInternal

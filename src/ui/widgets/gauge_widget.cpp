@@ -22,7 +22,6 @@ namespace {
 
 static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
-static constexpr uint32_t kStaleTextRgb = 0x555555;
 static constexpr const char *kStalePlaceholder = "--";
 
 static constexpr float kArcSweep = 270.0f;
@@ -271,7 +270,7 @@ static lv_obj_t *buildValueRow(lv_obj_t *cont) {
 static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint32_t /*textRgb*/,
                                  const CfgWidget & /*cfg*/) {
     lv_obj_t *label = lv_label_create(valueRow);
-    lv_obj_set_style_text_color(label, lv_color_hex(kStaleTextRgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, kStalePlaceholder);
     return label;
@@ -383,7 +382,7 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->hasDanger = built.hasDanger;
     tag->gradientMode = built.gradientMode;
     tag->lastValid = false;
-    tag->lastLabelRgb = kStaleTextRgb;
+    tag->lastLabelRgb = ThemeManager::getStaleTextColor();
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->lastAngle = 0xFFFFu;
     tag->lastDisplayScaled = INT32_MIN;
@@ -484,10 +483,11 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             tag->lastDisplayScaled = INT32_MIN;
         }
         if (!tag->alert.active) {
-            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, kStaleTextRgb);
+            const uint32_t staleRgb = ThemeManager::getStaleTextColor();
+            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
             if (tag->fracLabel) {
                 uint32_t fracLast = tag->lastLabelRgb;
-                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, kStaleTextRgb);
+                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, staleRgb);
             }
         }
         if (tag->fillArc && tag->lastAngle != 0u) {

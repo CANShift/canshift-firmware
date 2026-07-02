@@ -96,11 +96,10 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
-    static constexpr uint32_t kStaleTextRgb = 0x555555;
-
     if (!valid) {
         WidgetHelpers::setLabelTextIfChanged(label, "N");
-        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, kStaleTextRgb);
+        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb,
+                                            ThemeManager::getStaleTextColor());
         return;
     }
 

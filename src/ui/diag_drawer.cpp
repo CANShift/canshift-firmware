@@ -6,6 +6,7 @@
 #include "runtime/signal_store.h"
 #include "ui/font_manager.h"
 #include "ui/gesture_controller.h"
+#include "ui/theme_manager.h"
 
 #include <lvgl.h>
 #include <stdint.h>
@@ -34,17 +35,28 @@ constexpr int16_t FLAGS_COUNT = 5;
 constexpr int16_t SCALARS_COUNT = 4;
 constexpr int16_t ERRORS_MAX_ROWS = 4;
 
-constexpr uint32_t COL_HANDLE_BG = 0x1A1A22;
-constexpr uint32_t COL_HANDLE_TXT = 0x666688;
-constexpr uint32_t COL_PANEL_BG = 0x0C0C12;
-constexpr uint32_t COL_PANEL_BORDER = 0x222230;
-constexpr uint32_t COL_SECTION_HDR = 0x6677AA;
-constexpr uint32_t COL_LABEL = 0xAAAAAA;
-constexpr uint32_t COL_VALUE = 0xDDDDDD;
-constexpr uint32_t COL_FLAG_ACTIVE = 0xFF4444;
-constexpr uint32_t COL_FLAG_INACTIVE = 0x444444;
-constexpr uint32_t COL_ERROR_CODE = 0xCC4444;
-constexpr uint32_t COL_ERROR_MSG = 0xDDAAAA;
+struct DrawerPalette {
+    uint32_t handleBg;
+    uint32_t handleGrip;
+    uint32_t panelBg;
+    uint32_t panelBorder;
+    uint32_t sectionHdr;
+    uint32_t label;
+    uint32_t value;
+    uint32_t flagActive;
+    uint32_t flagInactive;
+    uint32_t errorCode;
+    uint32_t errorMsg;
+};
+
+constexpr DrawerPalette PALETTE_NIGHT = {0x1A1A22, 0x666688, 0x0C0C12, 0x222230, 0x6677AA, 0xAAAAAA,
+                                         0xDDDDDD, 0xFF4444, 0x444444, 0xCC4444, 0xDDAAAA};
+constexpr DrawerPalette PALETTE_DAY = {0xD8D8E0, 0x555577, 0xEDEDF2, 0xC0C0CC, 0x445588, 0x333333,
+                                       0x000000, 0xCC0000, 0xAAAAAA, 0x991111, 0x552222};
+
+const DrawerPalette &palette() {
+    return ThemeManager::isDayMode() ? PALETTE_DAY : PALETTE_NIGHT;
+}
 
 struct FlagRow {
     const char *label;
@@ -88,12 +100,14 @@ bool s_open = false;
 uint32_t s_lastErrorVersion = UINT32_MAX;
 bool s_initDone = false;
 
+constexpr uint8_t ROW_FONT_PX = 14;
+
 const lv_font_t *FONT_SM() {
-    return FontManager::label(12);
+    return FontManager::label(ROW_FONT_PX);
 }
 
 const lv_font_t *FONT_HDR() {
-    return FontManager::label(12);
+    return FontManager::label(ROW_FONT_PX);
 }
 
 void applyRowReset(lv_obj_t *row) {
@@ -107,7 +121,7 @@ lv_obj_t *sectionHeader(lv_obj_t *parent, const char *text) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_font(lbl, FONT_HDR(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(COL_SECTION_HDR), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(palette().sectionHdr), 0);
     lv_obj_set_style_text_letter_space(lbl, 1, 0);
     lv_obj_set_style_pad_top(lbl, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_bottom(lbl, 2, LV_PART_MAIN);
@@ -128,7 +142,7 @@ void buildFlagsSection(lv_obj_t *parent) {
 
         lv_obj_set_size(badge, 12, 12);
         lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(badge, lv_color_hex(COL_FLAG_INACTIVE), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(badge, lv_color_hex(palette().flagInactive), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_width(badge, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(badge, 0, LV_PART_MAIN);
@@ -138,7 +152,7 @@ void buildFlagsSection(lv_obj_t *parent) {
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, s_flags[i].label);
         lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(COL_LABEL), 0);
+        lv_obj_set_style_text_color(lbl, lv_color_hex(palette().label), 0);
     }
 }
 
@@ -164,12 +178,12 @@ void buildScalarsSection(lv_obj_t *parent) {
             lv_obj_t *lbl = lv_label_create(cell);
             lv_label_set_text(lbl, s_scalars[idx].label);
             lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-            lv_obj_set_style_text_color(lbl, lv_color_hex(COL_LABEL), 0);
+            lv_obj_set_style_text_color(lbl, lv_color_hex(palette().label), 0);
 
             lv_obj_t *val = lv_label_create(cell);
             lv_label_set_text(val, "--");
             lv_obj_set_style_text_font(val, FONT_SM(), 0);
-            lv_obj_set_style_text_color(val, lv_color_hex(COL_VALUE), 0);
+            lv_obj_set_style_text_color(val, lv_color_hex(palette().value), 0);
             s_scalarValues[idx] = val;
         }
     }
@@ -188,14 +202,14 @@ void buildErrorsSection(lv_obj_t *parent) {
         lv_obj_t *code = lv_label_create(row);
         lv_label_set_text(code, "");
         lv_obj_set_style_text_font(code, FONT_SM(), 0);
-        lv_obj_set_style_text_color(code, lv_color_hex(COL_ERROR_CODE), 0);
+        lv_obj_set_style_text_color(code, lv_color_hex(palette().errorCode), 0);
         s_errorCodes[i] = code;
 
         lv_obj_t *msg = lv_label_create(row);
         lv_label_set_text(msg, "");
         lv_label_set_long_mode(msg, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_font(msg, FONT_SM(), 0);
-        lv_obj_set_style_text_color(msg, lv_color_hex(COL_ERROR_MSG), 0);
+        lv_obj_set_style_text_color(msg, lv_color_hex(palette().errorMsg), 0);
         lv_obj_set_flex_grow(msg, 1);
         s_errorMsgs[i] = msg;
 
@@ -205,7 +219,7 @@ void buildErrorsSection(lv_obj_t *parent) {
     lv_obj_t *empty = lv_label_create(parent);
     lv_label_set_text(empty, "no firmware errors");
     lv_obj_set_style_text_font(empty, FONT_SM(), 0);
-    lv_obj_set_style_text_color(empty, lv_color_hex(0x555555), 0);
+    lv_obj_set_style_text_color(empty, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     s_errorEmptyLabel = empty;
 }
 
@@ -273,10 +287,10 @@ void init() {
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_panel, LV_HOR_RES, PANEL_H);
     lv_obj_align(s_panel, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_panel, lv_color_hex(COL_PANEL_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_panel, lv_color_hex(palette().panelBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_panel, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_panel, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(s_panel, lv_color_hex(COL_PANEL_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_border_color(s_panel, lv_color_hex(palette().panelBorder), LV_PART_MAIN);
     lv_obj_set_style_border_side(s_panel, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_panel, PANEL_PAD, LV_PART_MAIN);
     lv_obj_set_style_radius(s_panel, 0, LV_PART_MAIN);
@@ -302,10 +316,10 @@ void init() {
     lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
     lv_obj_set_ext_click_area(s_closeBtn, CLOSE_BTN_EXT_CLICK_PAD);
     lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, 0, 0);
-    lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(COL_HANDLE_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(palette().handleBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_closeBtn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_closeBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(s_closeBtn, lv_color_hex(COL_PANEL_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_border_color(s_closeBtn, lv_color_hex(palette().panelBorder), LV_PART_MAIN);
     lv_obj_set_style_radius(s_closeBtn, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_closeBtn, 0, LV_PART_MAIN);
     lv_obj_add_event_cb(s_closeBtn, onCloseReleased, LV_EVENT_RELEASED, nullptr);
@@ -315,7 +329,7 @@ void init() {
 
     lv_label_set_text(closeLabel, "X");
     lv_obj_set_style_text_font(closeLabel, FONT_SM(), 0);
-    lv_obj_set_style_text_color(closeLabel, lv_color_hex(COL_VALUE), 0);
+    lv_obj_set_style_text_color(closeLabel, lv_color_hex(palette().value), 0);
     lv_obj_center(closeLabel);
 
     s_tapOutsideZone = lv_obj_create(lv_layer_top());
@@ -331,7 +345,7 @@ void init() {
     s_handle = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_handle, HANDLE_W, HANDLE_H);
     lv_obj_align(s_handle, LV_ALIGN_BOTTOM_MID, 0, -HANDLE_BOTTOM_MARGIN);
-    lv_obj_set_style_bg_color(s_handle, lv_color_hex(COL_HANDLE_TXT), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_handle, lv_color_hex(palette().handleGrip), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_handle, LV_OPA_50, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_handle, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_handle, 0, LV_PART_MAIN);
@@ -375,6 +389,29 @@ void close() {
     s_open = false;
 }
 
+void reapplyTheme() {
+    if (!s_initDone)
+        return;
+    /* colors are baked in at build time, so rebuild with the current palette */
+    close();
+    lv_obj_del(s_panel);
+    lv_obj_del(s_tapOutsideZone);
+    lv_obj_del(s_handle);
+    s_panel = nullptr;
+    s_closeBtn = nullptr;
+    s_tapOutsideZone = nullptr;
+    s_handle = nullptr;
+    s_errorEmptyLabel = nullptr;
+    memset(s_flagBadges, 0, sizeof(s_flagBadges));
+    memset(s_scalarValues, 0, sizeof(s_scalarValues));
+    memset(s_errorRows, 0, sizeof(s_errorRows));
+    memset(s_errorCodes, 0, sizeof(s_errorCodes));
+    memset(s_errorMsgs, 0, sizeof(s_errorMsgs));
+    s_lastErrorVersion = UINT32_MAX;
+    s_initDone = false;
+    init();
+}
+
 void update() {
     if (!s_panel || !s_open)
         return;
@@ -387,7 +424,7 @@ void update() {
         const SignalId sid = s_flags[i].signalId;
         const bool active = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid) &&
                             SignalStore::read(sid, 0.0f) != 0.0f;
-        const uint32_t col = active ? COL_FLAG_ACTIVE : COL_FLAG_INACTIVE;
+        const uint32_t col = active ? palette().flagActive : palette().flagInactive;
         lv_obj_set_style_bg_color(s_flagBadges[i], lv_color_hex(col), LV_PART_MAIN);
     }
 

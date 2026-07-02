@@ -87,17 +87,15 @@ def fail(msg):
 BUILD_FLAG_STRS = [str(f) for f in env["BUILD_FLAGS"]]  # noqa: F821
 enabled_crates = [c for c in CRATES if any(c["flag"] in f for f in BUILD_FLAG_STRS)]
 
-if not enabled_crates:
-    print("[rust] no USE_RUST_* flags set — skipping Rust build")
-    sys.exit(0)
 
-if shutil.which("cargo") is None:
-    fail(
-        "cargo not found in PATH — install Rust + espup first:\n"
-        "    cargo install espup --locked\n"
-        "    espup install\n"
-        "    source ~/export-esp.sh"
-    )
+def check_cargo():
+    if shutil.which("cargo") is None:
+        fail(
+            "cargo not found in PATH — install Rust + espup first:\n"
+            "    cargo install espup --locked\n"
+            "    espup install\n"
+            "    source ~/export-esp.sh"
+        )
 
 # Localize weak `memcpy / memmove / memset / memcmp / bcmp` so the static
 # lib doesn't override ESP-IDF's IRAM-resident copies. Without this, the
@@ -124,11 +122,10 @@ def find_objcopy():
     return None  # unreachable
 
 
-OBJCOPY = find_objcopy()
 WEAK_MEM_SYMS = ("memcpy", "memmove", "memset", "memcmp", "bcmp")
 
 
-def build_one(crate):
+def build_one(crate, objcopy):
     print(f"[rust] building {os.path.relpath(crate['manifest'], PROJECT_DIR)}")
     cmd = [
         "cargo",
@@ -157,7 +154,7 @@ def build_one(crate):
     if not os.path.exists(lib_path):
         fail(f"expected staticlib not found at {lib_path}")
 
-    localize_cmd = [OBJCOPY]
+    localize_cmd = [objcopy]
     for sym in WEAK_MEM_SYMS:
         localize_cmd.extend(["--localize-symbol", sym])
     localize_cmd.append(lib_path)
@@ -173,5 +170,12 @@ def build_one(crate):
         env.Append(CPPPATH=[crate["include"]])  # noqa: F821
 
 
-for crate in enabled_crates:
-    build_one(crate)
+# No sys.exit here: exiting an extra_script kills the whole SCons process
+# and PlatformIO reports SUCCESS without compiling anything (#1762).
+if not enabled_crates:
+    print("[rust] no USE_RUST_* flags set — skipping Rust build")
+else:
+    check_cargo()
+    objcopy = find_objcopy()
+    for crate in enabled_crates:
+        build_one(crate, objcopy)

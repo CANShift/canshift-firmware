@@ -78,13 +78,32 @@ static bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;
 static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800;
 static constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
-static constexpr uint32_t COLOR_BLE_CONN = 0x4499FF;
-static constexpr uint32_t COLOR_BLE_ADV = 0x225588;
-static constexpr uint32_t COLOR_BLE_OFF = 0x444444;
 static constexpr uint32_t COLOR_MODE_ACTIVE = 0xFF8800;
 static constexpr uint32_t COLOR_MODE_IDLE = 0x1C1C1C;
-static constexpr uint32_t COLOR_LABEL = 0xCCCCCC;
-static constexpr uint32_t COLOR_MUTED = 0x666666;
+
+static constexpr uint32_t COLOR_LABEL_NIGHT = 0xCCCCCC;
+static constexpr uint32_t COLOR_LABEL_DAY = 0x000000;
+static constexpr uint32_t COLOR_MUTED_NIGHT = 0x666666;
+static constexpr uint32_t COLOR_MUTED_DAY = 0x444444;
+static constexpr uint32_t COLOR_BAR_BG_DAY = 0xF0F0F0;
+static constexpr uint32_t COLOR_BLE_CONN_NIGHT = 0x4499FF;
+static constexpr uint32_t COLOR_BLE_CONN_DAY = 0x0044BB;
+static constexpr uint32_t COLOR_BLE_ADV_NIGHT = 0x66AACC;
+static constexpr uint32_t COLOR_BLE_ADV_DAY = 0x336699;
+
+static constexpr uint32_t COLOR_UNSET = 0xFFFFFFFFu;
+static constexpr uint8_t BAR_LABEL_FONT_PX = 14;
+static constexpr const char *STALE_PLACEHOLDER = "--";
+
+static uint32_t labelColor() {
+    return ThemeManager::pickColor(COLOR_LABEL_NIGHT, COLOR_LABEL_DAY);
+}
+static uint32_t mutedColor() {
+    return ThemeManager::pickColor(COLOR_MUTED_NIGHT, COLOR_MUTED_DAY);
+}
+static uint32_t barBgColor(const CfgTopBar &cfg) {
+    return ThemeManager::pickColor(cfg.bgColor.rgb, COLOR_BAR_BG_DAY);
+}
 
 static lv_obj_t *makeStatusDot(lv_obj_t *parent) {
     lv_obj_t *dot = lv_obj_create(parent);
@@ -106,7 +125,7 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
 
     (void)derivedFontSize;
-    lv_obj_set_style_text_font(lbl, FontManager::label(12), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::label(BAR_LABEL_FONT_PX), 0);
     return lbl;
 }
 
@@ -165,12 +184,12 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
             break;
         }
         case TopBarItemKind::LABEL: {
-            obj = makeBarLabel(s_bar, item.text, COLOR_LABEL);
+            obj = makeBarLabel(s_bar, item.text, labelColor());
             anchor(obj, gap);
             break;
         }
         case TopBarItemKind::SEPARATOR: {
-            obj = makeBarSeparator(s_bar, COLOR_MUTED);
+            obj = makeBarSeparator(s_bar, mutedColor());
 
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
@@ -178,7 +197,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         }
         case TopBarItemKind::SIGNAL: {
 
-            obj = makeBarLabel(s_bar, "", COLOR_LABEL);
+            obj = makeBarLabel(s_bar, "", labelColor());
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
@@ -186,8 +205,8 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         case TopBarItemKind::BLE_ICON: {
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, "BLE");
-            lv_obj_set_style_text_color(obj, lv_color_hex(COLOR_BLE_OFF), 0);
-            lv_obj_set_style_text_font(obj, FontManager::label(12), 0);
+            lv_obj_set_style_text_color(obj, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
+            lv_obj_set_style_text_font(obj, FontManager::label(BAR_LABEL_FONT_PX), 0);
             anchor(obj, gap);
             break;
         }
@@ -234,7 +253,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
          item.kind == TopBarItemKind::BLE_ICON || item.kind == TopBarItemKind::MODE_FLAG ||
-         item.kind == TopBarItemKind::TRACK_BADGE ||
+         item.kind == TopBarItemKind::TRACK_BADGE || item.kind == TopBarItemKind::LABEL ||
          (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         const uint8_t myIdx = s_dynCount;
@@ -244,7 +263,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3], int8_t lastMod
         strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
         strlcpy(d.format, item.format, sizeof(d.format));
         d.lastText[0] = '\0';
-        d.lastColor = 0;
+        d.lastColor = COLOR_UNSET;
         d.lastSeenValid = false;
 
         d.hidden =
@@ -304,7 +323,7 @@ void TopBar::init() {
     s_bar = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_bar, LV_HOR_RES, s_height);
     lv_obj_align(s_bar, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_bar, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_bar, lv_color_hex(barBgColor(cfg)), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_bar, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_bar, 0, LV_PART_MAIN);
@@ -344,11 +363,15 @@ void TopBar::reapplyTheme() {
     if (!s_bar)
         return;
     const CfgTopBar &cfg = ConfigLoader::getDashboardConfig().topBar;
-    lv_obj_set_style_bg_color(s_bar, lv_color_hex(cfg.bgColor.rgb), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_bar, lv_color_hex(barBgColor(cfg)), LV_PART_MAIN);
     if (s_themeIcon) {
         lv_img_set_src(s_themeIcon, IconAssets::resolveSource(
                                         ThemeManager::isDayMode() ? "icon_day" : "icon_night"));
     }
+    for (uint8_t i = 0; i < s_dynCount; ++i) {
+        s_dynItems[i].lastColor = COLOR_UNSET;
+    }
+    TopBar::update();
 }
 
 static uint32_t statusDotColor(bool valid, bool everSeen) {
@@ -374,17 +397,32 @@ static void updateDynStatusDot(uint8_t idx, DynItem &d) {
     d.lastColor = color;
 }
 
+static void applyDynTextColor(DynItem &d, uint32_t color) {
+    if (color == d.lastColor)
+        return;
+    lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
+    d.lastColor = color;
+}
+
 static void updateDynSignalLabel(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
-    const bool valid = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid);
 
-    if (!valid) {
+    if (sid >= SignalIds::SIGNAL_COUNT) {
         if (!lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
             lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
     if (lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
         lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+
+    if (!SignalStore::isValid(sid)) {
+        if (strcmp(STALE_PLACEHOLDER, d.lastText) != 0) {
+            lv_label_set_text(d.obj, STALE_PLACEHOLDER);
+            strlcpy(d.lastText, STALE_PLACEHOLDER, sizeof(d.lastText));
+        }
+        applyDynTextColor(d, ThemeManager::getStaleTextColor());
+        return;
+    }
 
     const char *fmt = d.format[0] ? d.format : "%.1f";
     char buf[16];
@@ -394,10 +432,7 @@ static void updateDynSignalLabel(DynItem &d) {
         lv_label_set_text(d.obj, buf);
         strlcpy(d.lastText, buf, sizeof(d.lastText));
     }
-    if (COLOR_LABEL != d.lastColor) {
-        lv_obj_set_style_text_color(d.obj, lv_color_hex(COLOR_LABEL), 0);
-        d.lastColor = COLOR_LABEL;
-    }
+    applyDynTextColor(d, labelColor());
 }
 
 static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
@@ -409,8 +444,11 @@ static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
     const bool advertising = false;
 #endif
 
-    const char *text = connected ? "BLE+" : advertising ? "BLE." : "BLE";
-    const uint32_t color = connected ? COLOR_BLE_CONN : advertising ? COLOR_BLE_ADV : COLOR_BLE_OFF;
+    const char *text = connected ? "• BLE" : "BLE";
+    const uint32_t color =
+        connected     ? ThemeManager::pickColor(COLOR_BLE_CONN_NIGHT, COLOR_BLE_CONN_DAY)
+        : advertising ? ThemeManager::pickColor(COLOR_BLE_ADV_NIGHT, COLOR_BLE_ADV_DAY)
+                      : ThemeManager::getStaleTextColor();
 
     if (d != nullptr && color == d->lastColor && strcmp(d->lastText, text) == 0)
         return;
@@ -438,11 +476,7 @@ static void updateModeFlag(DynItem &d) {
         }
         d.hidden = wantHidden;
     }
-    const uint32_t color = active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE;
-    if (color == d.lastColor)
-        return;
-    lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
-    d.lastColor = color;
+    applyDynTextColor(d, active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE);
 }
 
 static constexpr uint32_t TRACK_BADGE_TIMEOUT_MS = 5000;
@@ -463,6 +497,7 @@ static void updateTrackBadge(DynItem &d) {
 static void updateLinkedSeparator(DynItem &d) {
     if (d.linkedFlagIdx < 0 || d.linkedFlagIdx >= static_cast<int8_t>(s_dynCount))
         return;
+    applyDynTextColor(d, mutedColor());
     const bool prevHidden = s_dynItems[d.linkedFlagIdx].hidden;
     const bool nextHidden = (d.nextFlagIdx < 0) ||
                             (d.nextFlagIdx >= static_cast<int8_t>(s_dynCount)) ||
@@ -502,6 +537,9 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::SEPARATOR:
                 updateLinkedSeparator(d);
+                break;
+            case TopBarItemKind::LABEL:
+                applyDynTextColor(d, labelColor());
                 break;
             default:
                 break;

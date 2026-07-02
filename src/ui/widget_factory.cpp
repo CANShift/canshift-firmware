@@ -201,6 +201,8 @@ void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
                 GearWidget::reapplyTheme(entry.obj, *entry.cfg);
                 break;
             case WidgetType::WARNING:
+                WarningWidget::reapplyTheme(entry.obj, *entry.cfg);
+                break;
             case WidgetType::BUTTON:
             case WidgetType::IMAGE:
 

@@ -3,6 +3,7 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "ui/font_manager.h"
+#include "ui/theme_manager.h"
 
 #include <esp_heap_caps.h>
 #include <lvgl.h>
@@ -26,19 +27,35 @@ static constexpr int16_t SOURCE_STRIP_W = 4;
 static constexpr uint8_t MAX_ROWS = 6;
 static constexpr int16_t DETAIL_MAX_H = 160;
 
-static constexpr uint32_t COL_BG = 0x160808;
 static constexpr uint32_t COL_BORDER_CRITICAL = 0xCC3333;
 static constexpr uint32_t COL_BORDER_CONFIG = 0xCC8800;
-static constexpr uint32_t COL_CODE = 0xCC4444;
-static constexpr uint32_t COL_MSG = 0xDDAAAA;
-static constexpr uint32_t COL_DIM = 0x664444;
+
+struct ErrorBarPalette {
+    uint32_t bg;
+    uint32_t code;
+    uint32_t msg;
+    uint32_t dismissBg;
+    uint32_t detailBg;
+    uint32_t detailBorder;
+};
+
+static constexpr ErrorBarPalette PALETTE_NIGHT = {0x160808, 0xCC4444, 0xDDAAAA,
+                                                  0x2A1010, 0x100505, 0x2A1010};
+static constexpr ErrorBarPalette PALETTE_DAY = {0xF2E2E2, 0x991111, 0x552222,
+                                                0xE2CCCC, 0xEAD8D8, 0xD4B8B8};
+
+static const ErrorBarPalette &palette() {
+    return ThemeManager::isDayMode() ? PALETTE_DAY : PALETTE_NIGHT;
+}
 
 static inline uint32_t sourceStripColor(ErrorSource src) {
     return src == ERROR_SRC_CONFIG ? COL_BORDER_CONFIG : COL_BORDER_CRITICAL;
 }
 
+static constexpr uint8_t BAR_FONT_PX = 14;
+
 static inline const lv_font_t *FONT() {
-    return FontManager::label(12);
+    return FontManager::label(BAR_FONT_PX);
 }
 
 static lv_obj_t *s_container = nullptr;
@@ -81,7 +98,7 @@ static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *btn = lv_btn_create(parent);
 
     lv_obj_set_size(btn, DISMISS_W, DISMISS_H);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A1010), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(palette().dismissBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
     lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
@@ -91,7 +108,7 @@ static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *lbl = lv_label_create(btn);
     lv_label_set_text(lbl, "X");
     lv_obj_set_style_text_font(lbl, FONT(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(COL_MSG), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(palette().msg), 0);
     lv_obj_center(lbl);
     return btn;
 }
@@ -166,7 +183,7 @@ static lv_obj_t *createContainer() {
     lv_obj_set_width(c, LV_HOR_RES);
     lv_obj_set_height(c, LV_SIZE_CONTENT);
     lv_obj_align(c, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(c, lv_color_hex(COL_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(c, lv_color_hex(palette().bg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_side(c, LV_BORDER_SIDE_LEFT, LV_PART_MAIN);
     lv_obj_set_style_border_color(c, lv_color_hex(COL_BORDER_CRITICAL), LV_PART_MAIN);
@@ -190,22 +207,22 @@ static void buildHeaderRow(lv_obj_t *parent) {
     lv_obj_add_flag(s_headerRow, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_headerRow, onHeaderClicked, LV_EVENT_CLICKED, nullptr);
 
-    s_codeLabel = makeLabel(s_headerRow, COL_CODE);
+    s_codeLabel = makeLabel(s_headerRow, palette().code);
 
     lv_obj_set_style_text_font(s_codeLabel, LV_FONT_DEFAULT, 0);
     lv_label_set_text(s_codeLabel, "");
     lv_obj_set_width(s_codeLabel, LV_SIZE_CONTENT);
 
-    s_msgLabel = makeLabel(s_headerRow, COL_MSG);
+    s_msgLabel = makeLabel(s_headerRow, palette().msg);
     lv_label_set_text(s_msgLabel, "");
     lv_label_set_long_mode(s_msgLabel, LV_LABEL_LONG_DOT);
     lv_obj_set_flex_grow(s_msgLabel, 1);
 
-    s_countLabel = makeLabel(s_headerRow, COL_CODE);
+    s_countLabel = makeLabel(s_headerRow, palette().code);
     lv_label_set_text(s_countLabel, "");
     lv_obj_set_width(s_countLabel, LV_SIZE_CONTENT);
 
-    s_chevronLabel = makeLabel(s_headerRow, COL_CODE);
+    s_chevronLabel = makeLabel(s_headerRow, palette().code);
     lv_label_set_text(s_chevronLabel, "^");
     lv_obj_set_width(s_chevronLabel, LV_SIZE_CONTENT);
     lv_obj_add_flag(s_chevronLabel, LV_OBJ_FLAG_HIDDEN);
@@ -219,10 +236,10 @@ static lv_obj_t *createDetailPanel(lv_obj_t *parent) {
     lv_obj_set_width(p, LV_PCT(100));
     lv_obj_set_height(p, LV_SIZE_CONTENT);
     lv_obj_set_style_max_height(p, DETAIL_MAX_H, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(p, lv_color_hex(0x100505), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(p, lv_color_hex(palette().detailBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(p, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(p, lv_color_hex(0x2A1010), LV_PART_MAIN);
+    lv_obj_set_style_border_color(p, lv_color_hex(palette().detailBorder), LV_PART_MAIN);
     lv_obj_set_style_border_side(p, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
     lv_obj_set_style_pad_all(p, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(p, 0, LV_PART_MAIN);
@@ -239,15 +256,16 @@ static void buildDetailRow(lv_obj_t *panel, uint8_t i) {
     applyRowStyle(s_detailRows[i]);
     lv_obj_set_style_pad_left(s_detailRows[i], 6, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_detailRows[i], 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(s_detailRows[i], lv_color_hex(0x2A1010), LV_PART_MAIN);
+    lv_obj_set_style_border_color(s_detailRows[i], lv_color_hex(palette().detailBorder),
+                                  LV_PART_MAIN);
     lv_obj_set_style_border_side(s_detailRows[i], LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
     lv_obj_clear_flag(s_detailRows[i], LV_OBJ_FLAG_CLICKABLE);
 
-    s_detailCode[i] = makeLabel(s_detailRows[i], COL_CODE);
+    s_detailCode[i] = makeLabel(s_detailRows[i], palette().code);
     lv_label_set_text(s_detailCode[i], "");
     lv_obj_set_width(s_detailCode[i], LV_SIZE_CONTENT);
 
-    s_detailMsg[i] = makeLabel(s_detailRows[i], COL_MSG);
+    s_detailMsg[i] = makeLabel(s_detailRows[i], palette().msg);
     lv_label_set_text(s_detailMsg[i], "");
     lv_label_set_long_mode(s_detailMsg[i], LV_LABEL_LONG_DOT);
     lv_obj_set_flex_grow(s_detailMsg[i], 1);
@@ -267,6 +285,17 @@ void ErrorBar::init() {
         lv_obj_add_event_cb(s_detailDism[i], onRowDismissClicked, LV_EVENT_CLICKED,
                             reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
     }
+}
+
+void ErrorBar::reapplyTheme() {
+    if (!s_container)
+        return;
+    /* colors are baked in at build time, so rebuild with the current palette */
+    lv_obj_del(s_container);
+    s_container = nullptr;
+    s_expanded = false;
+    s_lastVersion = UINT32_MAX;
+    init();
 }
 
 void ErrorBar::update() {
