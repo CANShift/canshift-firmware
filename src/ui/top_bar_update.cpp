@@ -4,6 +4,7 @@
 
 #include "app_config.h"
 #include "theme_manager.h"
+#include "diag/lvgl_assert_lock.h"
 #include "runtime/signal_store.h"
 #include "runtime/track_store.h"
 #include "can/can_manager.h"
@@ -180,6 +181,7 @@ static void updateLinkedSeparator(DynItem &d) {
 }
 
 void TopBar::update() {
+    LVGL_ASSERT_LOCKED();
     if (!s_bar)
         return;
 

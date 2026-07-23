@@ -3,10 +3,12 @@
 #include "can/signal_map.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
+#include "diag/lvgl_assert_lock.h"
 #include "runtime/signal_store.h"
 #include "ui/font_manager.h"
 #include "ui/gesture_controller.h"
 #include "ui/theme_manager.h"
+#include "ui/widgets/widget_helpers.h"
 
 #include <lvgl.h>
 #include <stdint.h>
@@ -111,10 +113,7 @@ const lv_font_t *FONT_HDR() {
 }
 
 void applyRowReset(lv_obj_t *row) {
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    WidgetHelpers::resetContainerStyle(row);
 }
 
 lv_obj_t *sectionHeader(lv_obj_t *parent, const char *text) {
@@ -138,15 +137,7 @@ void buildFlagsSection(lv_obj_t *parent) {
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(row, 6, LV_PART_MAIN);
 
-        lv_obj_t *badge = lv_obj_create(row);
-
-        lv_obj_set_size(badge, 12, 12);
-        lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(badge, lv_color_hex(palette().flagInactive), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_width(badge, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(badge, 0, LV_PART_MAIN);
-        lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_t *badge = WidgetHelpers::makeCircleBadge(row, 12, palette().flagInactive);
         s_flagBadges[i] = badge;
 
         lv_obj_t *lbl = lv_label_create(row);
@@ -413,6 +404,7 @@ void reapplyTheme() {
 }
 
 void update() {
+    LVGL_ASSERT_LOCKED();
     if (!s_panel || !s_open)
         return;
 

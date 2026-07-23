@@ -56,19 +56,16 @@ void handleOtaBegin(const JsonObjectConst &obj) {
     const char *shaHex = obj["sha256"];
     uint8_t sha[UsbDispatchValidation::SHA256_BYTES];
     if (total == 0 || !UsbDispatchValidation::parseSha256Hex(shaHex, sha)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        UsbComm::sendError("bad_args");
         return;
     }
     const OtaReceiver::BeginResult result = OtaReceiver::begin(total, sha);
     if (!result.ok) {
-        char resp[80];
-        snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\"}",
-                 result.error != nullptr ? result.error : "begin_failed");
-        UsbComm::sendLine(resp);
+        UsbComm::sendError(result.error != nullptr ? result.error : "begin_failed");
         return;
     }
     PendingActions::otaOverlayShowSize.store(total, std::memory_order_relaxed);
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    UsbComm::sendOk();
 }
 
 void handleOtaWriteRaw(const char *jsonLine) {
@@ -76,7 +73,7 @@ void handleOtaWriteRaw(const char *jsonLine) {
     const char *b64 = nullptr;
     size_t b64Len = 0;
     if (!parseOtaWriteFields(jsonLine, &offset, &b64, &b64Len)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        UsbComm::sendError("bad_args");
         return;
     }
     // In-place decode aliases s_rxBuf: safe only while the output base stays below
@@ -88,7 +85,7 @@ void handleOtaWriteRaw(const char *jsonLine) {
         reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
         reinterpret_cast<const unsigned char *>(b64), b64Len);
     if (rc != 0 || decoded == 0) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
+        UsbComm::sendError("b64_decode");
         OtaReceiver::abort("b64_decode");
         return;
     }
@@ -124,13 +121,13 @@ void handleOtaEnd(const JsonObjectConst &obj) {
             return;
         }
         UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-        delay(50);
+        vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
         esp_restart();
         return;
     }
     OtaReceiver::abort("host_requested");
     PendingActions::otaOverlayHide.store(true, std::memory_order_relaxed);
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    UsbComm::sendOk();
 }
 
 } // namespace UsbCommInternal

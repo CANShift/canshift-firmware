@@ -24,6 +24,20 @@ static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 static constexpr const char *kStalePlaceholder = "--";
 
+static constexpr uint32_t kUnitLabelDimMask = 0x888888;
+
+static constexpr int16_t kValueFontHeightXl = 165;
+static constexpr int16_t kValueFontHeightLg = 125;
+static constexpr int16_t kValueFontHeightMd = 95;
+static constexpr uint8_t kValueFontSizeXl = 48;
+static constexpr uint8_t kValueFontSizeLg = 32;
+static constexpr uint8_t kValueFontSizeMd = 24;
+static constexpr uint8_t kValueFontSizeSm = 20;
+
+static constexpr uint8_t kFracFontMinPx = 12;
+static constexpr uint8_t kFracFontSecondaryThresholdPx = 20;
+static constexpr uint8_t kUnitLabelFontPx = 12;
+
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
 static constexpr uint16_t kArcRotation = 135;
@@ -234,20 +248,20 @@ static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
 
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
     const int16_t h = cfg.layout.h;
-    if (h >= 165) {
-        intFontSizeOut = 48;
-        return FontManager::primary(48);
+    if (h >= kValueFontHeightXl) {
+        intFontSizeOut = kValueFontSizeXl;
+        return FontManager::primary(kValueFontSizeXl);
     }
-    if (h >= 125) {
-        intFontSizeOut = 32;
-        return FontManager::primary(32);
+    if (h >= kValueFontHeightLg) {
+        intFontSizeOut = kValueFontSizeLg;
+        return FontManager::primary(kValueFontSizeLg);
     }
-    if (h >= 95) {
-        intFontSizeOut = 24;
-        return FontManager::secondary(24);
+    if (h >= kValueFontHeightMd) {
+        intFontSizeOut = kValueFontSizeMd;
+        return FontManager::secondary(kValueFontSizeMd);
     }
-    intFontSizeOut = 20;
-    return FontManager::secondary(20);
+    intFontSizeOut = kValueFontSizeSm;
+    return FontManager::secondary(kValueFontSizeSm);
 }
 
 static constexpr int16_t kValueRowYOffset = kArcYShift;
@@ -257,11 +271,8 @@ static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
     lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, kValueRowYOffset);
-    lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
+    WidgetHelpers::resetContainerStyle(valueRow);
     lv_obj_set_style_pad_column(valueRow, 2, LV_PART_MAIN);
-    lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     return valueRow;
@@ -292,10 +303,11 @@ static lv_obj_t *buildFracLabel(lv_obj_t *valueRow, const CfgWidget &cfg, uint8_
     if (!fracLabel)
         return nullptr;
     uint8_t fracSize = static_cast<uint8_t>((intFontSize * 7) / 10);
-    if (fracSize < 12)
-        fracSize = 12;
-    const lv_font_t *fracFont =
-        (fracSize >= 20) ? FontManager::secondary(fracSize) : FontManager::label(fracSize);
+    if (fracSize < kFracFontMinPx)
+        fracSize = kFracFontMinPx;
+    const lv_font_t *fracFont = (fracSize >= kFracFontSecondaryThresholdPx)
+                                    ? FontManager::secondary(fracSize)
+                                    : FontManager::label(fracSize);
     lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_font(fracLabel, fracFont, 0);
     lv_label_set_text(fracLabel, "");
@@ -307,8 +319,8 @@ static lv_obj_t *buildUnitLabel(lv_obj_t *cont, const char *unitText, uint32_t t
         return nullptr;
     lv_obj_t *unitLabel = lv_label_create(cont);
     lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, kUnitLabelYOffset);
-    lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & 0x888888), 0);
-    lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
+    lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & kUnitLabelDimMask), 0);
+    lv_obj_set_style_text_font(unitLabel, FontManager::label(kUnitLabelFontPx), 0);
     lv_label_set_text(unitLabel, unitText);
     return unitLabel;
 }
@@ -401,7 +413,7 @@ static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg
         AlertFlash::watchLabel(tag->alert, tag->fracLabel, valueRgb);
     }
     if (tag->unitLabel) {
-        AlertFlash::watchLabel(tag->alert, tag->unitLabel, textRgb & 0x888888);
+        AlertFlash::watchLabel(tag->alert, tag->unitLabel, textRgb & kUnitLabelDimMask);
     }
 }
 
@@ -457,7 +469,7 @@ void GaugeWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     if (tag->unitLabel) {
-        lv_obj_set_style_text_color(tag->unitLabel, lv_color_hex(textRgb & 0x888888u), 0);
+        lv_obj_set_style_text_color(tag->unitLabel, lv_color_hex(textRgb & kUnitLabelDimMask), 0);
     }
     tag->lastLabelRgb = 0xFFFFFFFFu;
 }

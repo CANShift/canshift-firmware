@@ -9,12 +9,14 @@
 #include "diag/logger.h"
 #include "runtime/signal_store.h"
 #include "util/format_float.h"
+#include "util/mem_alloc.h"
 
 #include <Arduino.h>
-#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 
+#include <atomic>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 namespace {
@@ -82,7 +84,7 @@ struct CanHealthStats {
 };
 CanHealthStats s_canStats = {0, 0};
 portMUX_TYPE s_canStatsMux = portMUX_INITIALIZER_UNLOCKED;
-volatile bool s_canStatsPending = false;
+std::atomic<bool> s_canStatsPending{false};
 
 constexpr size_t TELE_BUF_SIZE = 768;
 
@@ -179,12 +181,7 @@ void UsbComm::reserveRxBuf() {
         return;
     }
 
-    UsbCommInternal::s_rxBuf =
-        static_cast<char *>(heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_SPIRAM));
-    if (!UsbCommInternal::s_rxBuf) {
-        UsbCommInternal::s_rxBuf = static_cast<char *>(
-            heap_caps_malloc(USB_RX_BUF_SIZE, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-    }
+    UsbCommInternal::s_rxBuf = static_cast<char *>(Mem::allocPreferSpiram(USB_RX_BUF_SIZE));
     if (!UsbCommInternal::s_rxBuf) {
 
         LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", USB_RX_BUF_SIZE);
@@ -210,6 +207,21 @@ void UsbComm::sendLine(const char *line) {
     if (!line)
         return;
     serialSink(line, strlen(line));
+}
+
+void UsbComm::sendOk() {
+    sendLine("{\"status\":\"ok\"}");
+}
+
+void UsbComm::sendOkRebooting() {
+    sendLine("{\"status\":\"ok\",\"rebooting\":true}");
+}
+
+void UsbComm::sendError(const char *code) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"status\":\"error\",\"message\":\"%s\"}",
+             code != nullptr ? code : "error");
+    sendLine(buf);
 }
 
 void UsbComm::setBurnOverlayShowCallback(BurnOverlayShowCb cb) {
@@ -245,7 +257,7 @@ void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
     s_canStats.fpsX10 = fpsX10;
     s_canStats.errors = errors;
     portEXIT_CRITICAL(&s_canStatsMux);
-    s_canStatsPending = true;
+    s_canStatsPending.store(true, std::memory_order_release);
 }
 
 bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
@@ -287,7 +299,7 @@ void UsbComm::tick() {
 
             LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
                      static_cast<unsigned>(USB_RX_BUF_SIZE - 1));
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"line_too_long\"}");
+            UsbComm::sendError("line_too_long");
             s_rxPos = 0;
             s_rxDraining = true;
         }
@@ -295,8 +307,7 @@ void UsbComm::tick() {
 
     drainCanScanQueue();
 
-    if (s_canStatsPending) {
-        s_canStatsPending = false;
+    if (s_canStatsPending.exchange(false, std::memory_order_acquire)) {
 
         static constexpr size_t CAN_STAT_BUF_WORST_CASE = 54;
         static_assert(72 >= CAN_STAT_BUF_WORST_CASE,

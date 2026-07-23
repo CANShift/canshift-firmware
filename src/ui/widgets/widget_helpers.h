@@ -31,6 +31,10 @@ const char *resolveDisplayUnit(const char *signalId, const char *configSuffix);
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
                    uint32_t borderRgb);
 
+void resetContainerStyle(lv_obj_t *obj);
+
+lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb);
+
 inline void disableInteract(lv_obj_t *obj) {
     if (!obj)
         return;

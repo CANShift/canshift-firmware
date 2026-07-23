@@ -58,6 +58,12 @@ bool isHostActive();
 
 void sendLine(const char *line);
 
+void sendOk();
+
+void sendOkRebooting();
+
+void sendError(const char *code);
+
 using BurnOverlayShowCb = void (*)();
 
 using BurnOverlayShowErrorCb = void (*)(int reason);

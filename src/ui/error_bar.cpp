@@ -4,6 +4,7 @@
 #include "diag/logger.h"
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
+#include "ui/widgets/widget_helpers.h"
 
 #include <esp_heap_caps.h>
 #include <lvgl.h>
@@ -114,11 +115,8 @@ static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
 }
 
 static void applyRowStyle(lv_obj_t *row) {
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
+    WidgetHelpers::resetContainerStyle(row);
     lv_obj_set_style_pad_column(row, 4, LV_PART_MAIN);
-    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 }

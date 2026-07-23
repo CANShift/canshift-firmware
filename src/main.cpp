@@ -472,7 +472,7 @@ void taskUSBComm(void *pvParameters) {
 #endif
 
         esp_task_wdt_reset();
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(USB_TASK_TICK_INTERVAL_MS));
     }
 }
 

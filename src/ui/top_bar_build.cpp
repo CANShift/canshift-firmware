@@ -9,6 +9,7 @@
 #include "theme_manager.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
+#include "ui/widgets/widget_helpers.h"
 
 #include <lvgl.h>
 #include <math.h>
@@ -64,17 +65,8 @@ static uint32_t barBgColor(const CfgTopBar &cfg) {
 }
 
 static lv_obj_t *makeStatusDot(lv_obj_t *parent) {
-    lv_obj_t *dot = lv_obj_create(parent);
     const int16_t diameter = derivedDot(s_height);
-    lv_obj_set_size(dot, diameter, diameter);
-    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(dot, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(dot, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(dot, lv_color_hex(COLOR_DOT_DOWN), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(dot, LV_OBJ_FLAG_CLICKABLE);
-    return dot;
+    return WidgetHelpers::makeCircleBadge(parent, diameter, COLOR_DOT_DOWN);
 }
 
 static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color) {

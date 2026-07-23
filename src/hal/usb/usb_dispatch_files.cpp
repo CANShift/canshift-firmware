@@ -5,11 +5,11 @@
 #include "app_config.h"
 #include "board_config.h"
 #include "config/config_types.h"
+#include "diag/heap_stats.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
 
 #include <ArduinoJson.h>
-#include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -84,7 +84,7 @@ void handlePutFile(const JsonObjectConst &obj) {
     const char *b64 = obj["data"];
 
     if (!UsbDispatchValidation::isPathSafe(path) || !b64 || total == 0 || idx >= total) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
+        UsbComm::sendError("bad_args");
         abortChunkTransfer("bad_args");
         return;
     }
@@ -92,7 +92,7 @@ void handlePutFile(const JsonObjectConst &obj) {
     if (idx == 0) {
         abortChunkTransfer("new transfer");
         if (!StorageDriver::beginChunkedWriteAtomic(path)) {
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"open_failed\"}");
+            UsbComm::sendError("open_failed");
             return;
         }
         strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
@@ -100,7 +100,7 @@ void handlePutFile(const JsonObjectConst &obj) {
         s_chunk.expectedIdx = 0;
     } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
                strcmp(s_chunk.path, path) != 0) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"out_of_sequence\"}");
+        UsbComm::sendError("out_of_sequence");
         abortChunkTransfer("out_of_sequence");
         return;
     }
@@ -110,14 +110,14 @@ void handlePutFile(const JsonObjectConst &obj) {
         reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
         reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     if (rc != 0) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
+        UsbComm::sendError("b64_decode");
         abortChunkTransfer("b64_decode");
         return;
     }
 
     if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf),
                                     decoded)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        UsbComm::sendError("write_failed");
         abortChunkTransfer("write_failed");
         return;
     }
@@ -128,7 +128,7 @@ void handlePutFile(const JsonObjectConst &obj) {
     if (idx == total - 1) {
         const bool finalized = StorageDriver::endChunkedWrite();
         if (!finalized) {
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
+            UsbComm::sendError("write_failed");
             s_chunk.path[0] = '\0';
             s_chunk.expectedIdx = 0;
             s_chunk.total = 0;
@@ -140,13 +140,12 @@ void handlePutFile(const JsonObjectConst &obj) {
         s_chunk.total = 0;
     }
 
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    UsbComm::sendOk();
 }
 
 void handlePutConfig(const char *jsonLine) {
 #ifdef ARDUINO
-    LOG_INFO("USB", "heap.largest_free=%u before PUT_CONFIG",
-             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+    HeapStats::logHeapBracket("PUT_CONFIG");
 #endif
 
     const size_t lineLen = strlen(jsonLine);
@@ -154,17 +153,17 @@ void handlePutConfig(const char *jsonLine) {
     const char *payloadStart = UsbEnvelope::findPayloadSlice(jsonLine, lineLen, &written);
     if (!payloadStart || written == 0) {
         LOG_WARN("USB", "PUT_CONFIG: missing or malformed payload field");
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_payload\"}");
+        UsbComm::sendError("missing_payload");
         return;
     }
 
     UsbCommInternal::invokeBurnOverlayShow();
     vTaskDelay(pdMS_TO_TICKS(BURN_OVERLAY_RENDER_GRACE_MS));
 
-    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(USB_PUT_CONFIG_MUTEX_TIMEOUT_MS)) != pdTRUE) {
         LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
         UsbCommInternal::invokeBurnOverlayShowError(0);
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
+        UsbComm::sendError("busy");
         return;
     }
 
@@ -175,25 +174,25 @@ void handlePutConfig(const char *jsonLine) {
 
         UsbCommInternal::invokeBurnOverlayShowError(0);
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
+        UsbComm::sendError("write_failed");
         return;
     }
 
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
-    UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
+    UsbComm::sendOkRebooting();
     Serial.flush();
     esp_restart();
 }
 
 void handleGetConfig() {
     if (!StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+        UsbComm::sendError("config_not_found");
         return;
     }
     const size_t fileBytes = StorageDriver::fileSize(CONFIG_PATH_DASHBOARD);
     if (fileBytes == 0) {
         LOG_WARN("USB", "GET_CONFIG: empty / unreadable %s", CONFIG_PATH_DASHBOARD);
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
+        UsbComm::sendError("config_not_found");
         return;
     }
     static constexpr size_t kEnvelopeOverhead = 32;
@@ -201,11 +200,11 @@ void handleGetConfig() {
     if (needed > USB_RX_BUF_SIZE) {
         LOG_ERROR("USB", "GET_CONFIG: response %u B exceeds rxBuf %u B",
                   static_cast<unsigned>(needed), static_cast<unsigned>(USB_RX_BUF_SIZE));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"too_large\"}");
+        UsbComm::sendError("too_large");
         return;
     }
     if (UsbCommInternal::s_rxBuf == nullptr) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"rxbuf_unavailable\"}");
+        UsbComm::sendError("rxbuf_unavailable");
         return;
     }
     char *buf = UsbCommInternal::s_rxBuf;
@@ -220,7 +219,7 @@ void handleGetConfig() {
         LOG_WARN("USB", "GET_CONFIG: stream mismatch for %s (streamed=%u, sink=%u)",
                  CONFIG_PATH_DASHBOARD, static_cast<unsigned>(streamed),
                  static_cast<unsigned>(sink.used()));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_read_failed\"}");
+        UsbComm::sendError("config_read_failed");
         return;
     }
     size_t pos = kPrefixLen + sink.used();

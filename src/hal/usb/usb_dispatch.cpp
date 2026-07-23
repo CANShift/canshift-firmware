@@ -33,13 +33,14 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     JsonVariantConst brightnessVar = obj["brightness"];
     if (!brightnessVar.isNull()) {
         const uint8_t brightness = brightnessVar.as<uint8_t>();
-        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(USB_SCREEN_SETTINGS_MUTEX_TIMEOUT_MS)) ==
+            pdTRUE) {
             LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_USB);
             SettingsPage::applyFromUsb(brightness);
             xSemaphoreGive(g_lvglMutex);
         } else {
             LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
+            UsbComm::sendError("busy");
             return;
         }
     }
@@ -49,13 +50,13 @@ void handleScreenSettings(const JsonObjectConst &obj) {
         const uint16_t rotation = rotationVar.as<uint16_t>();
         if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
             LOG_INFO("USB", "Rotation change requested: %u° — rebooting", rotation);
-            UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
+            UsbComm::sendOkRebooting();
             Serial.flush();
             RotationConfig::applyAndReboot(rotation);
         }
     }
 
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    UsbComm::sendOk();
 }
 
 } // namespace
@@ -108,7 +109,7 @@ void handleCommand(const char *jsonLine) {
         DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
         if (err) {
             LOG_WARN("USB", "PUT_FILE parse error: %s", err.c_str());
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
+            UsbComm::sendError("parse_error");
             abortChunkTransfer("parse_error");
             return;
         }
@@ -125,7 +126,7 @@ void handleCommand(const char *jsonLine) {
     DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
     if (err) {
         LOG_WARN("USB", "JSON parse error: %s", err.c_str());
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"parse_error\"}");
+        UsbComm::sendError("parse_error");
         return;
     }
 
@@ -183,35 +184,35 @@ void handleCommand(const char *jsonLine) {
         case UsbComm::CMD_TOGGLE_DAY_NIGHT:
             PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: day/night toggle queued");
-            UsbComm::sendLine("{\"status\":\"ok\"}");
+            UsbComm::sendOk();
             break;
         case UsbComm::CMD_SET_DAY_NIGHT: {
             JsonVariantConst dayVar = doc["day"];
             if (dayVar.isNull() || !dayVar.is<bool>()) {
                 LOG_WARN("USB", "set_day_night missing 'day' bool");
-                UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_day\"}");
+                UsbComm::sendError("missing_day");
                 break;
             }
             const bool day = dayVar.as<bool>();
             PendingActions::dayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: day/night set queued — %s", day ? "day" : "night");
-            UsbComm::sendLine("{\"status\":\"ok\"}");
+            UsbComm::sendOk();
             break;
         }
         case UsbComm::CMD_CALIBRATE_TOUCH:
             PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration queued");
-            UsbComm::sendLine("{\"status\":\"ok\"}");
+            UsbComm::sendOk();
             break;
         case UsbComm::CMD_RESET_TOUCH_CAL:
             PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration reset queued");
-            UsbComm::sendLine("{\"status\":\"ok\"}");
+            UsbComm::sendOk();
             break;
         case UsbComm::CMD_REBOOT:
             LOG_INFO("USB", "CMD_REBOOT — restarting");
             UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-            delay(50);
+            vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
             esp_restart();
             break;
         case UsbComm::CMD_CAN_SCAN_START:
@@ -223,7 +224,7 @@ void handleCommand(const char *jsonLine) {
         default:
 
             LOG_WARN("USB", "Unknown cmd: 0x%02X — replying unknown_command", cmd);
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"unknown_command\"}");
+            UsbComm::sendError("unknown_command");
             break;
     }
 }

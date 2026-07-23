@@ -105,4 +105,9 @@ void emitNow() {
     emitFrame(s_latest);
 }
 
+void logHeapBracket(const char *tag) {
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    LOG_INFO("HEAP", "heap.largest_free=%u before %s", static_cast<unsigned>(largest), tag);
+}
+
 } // namespace HeapStats

@@ -21,7 +21,7 @@ constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
 // keeps the handle for reuse.
 QueueHandle_t s_canScanQueueStorage = nullptr;
 std::atomic<QueueHandle_t> s_canScanQueue{nullptr};
-volatile bool s_canScanMode = false;
+std::atomic<bool> s_canScanMode{false};
 
 uint32_t s_scanDrops = 0;
 
@@ -30,7 +30,7 @@ uint32_t s_scanDrops = 0;
 namespace UsbCommInternal {
 
 bool canScanModeActive() {
-    return s_canScanMode;
+    return s_canScanMode.load(std::memory_order_acquire);
 }
 
 bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame) {
@@ -71,13 +71,13 @@ void handleCanScanStart() {
 
     xQueueReset(s_canScanQueueStorage);
     s_canScanQueue.store(s_canScanQueueStorage, std::memory_order_release);
-    s_canScanMode = true;
+    s_canScanMode.store(true, std::memory_order_release);
     LOG_INFO("USB", "CAN scan started");
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    UsbComm::sendOk();
 }
 
 void handleCanScanStop() {
-    s_canScanMode = false;
+    s_canScanMode.store(false, std::memory_order_release);
     s_canScanQueue.store(nullptr, std::memory_order_release);
     LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
     char stopResp[64];

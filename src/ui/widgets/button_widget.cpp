@@ -36,6 +36,12 @@ constexpr float LABEL_W_RATIO = 0.22f;
 constexpr int16_t LABEL_FONT_MIN = 8;
 constexpr int16_t LABEL_BUDGET_PAD = 12;
 
+constexpr int16_t BUTTON_FONT_TARGET_LG = 15;
+constexpr int16_t BUTTON_FONT_TARGET_MD = 13;
+constexpr uint8_t BUTTON_FONT_SIZE_LG = 16;
+constexpr uint8_t BUTTON_FONT_SIZE_MD = 14;
+constexpr uint8_t BUTTON_FONT_SIZE_SM = 12;
+
 int16_t computeIconSize(int16_t w, int16_t h) {
     int16_t budget = static_cast<int16_t>(h * ICON_H_RATIO);
     if (h - ICON_H_BUDGET_DROP < budget)
@@ -62,11 +68,11 @@ int16_t computeLabelFontSize(int16_t w, int16_t h, bool showIcon, int16_t iconSi
 }
 
 const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
-    if (targetPx >= 15)
-        return FontManager::label(16);
-    if (targetPx >= 13)
-        return FontManager::label(14);
-    return FontManager::label(12);
+    if (targetPx >= BUTTON_FONT_TARGET_LG)
+        return FontManager::label(BUTTON_FONT_SIZE_LG);
+    if (targetPx >= BUTTON_FONT_TARGET_MD)
+        return FontManager::label(BUTTON_FONT_SIZE_MD);
+    return FontManager::label(BUTTON_FONT_SIZE_SM);
 }
 
 static constexpr int16_t MAP_BADGE_DIAMETER = 12;
@@ -372,15 +378,8 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     }
 
     if (tag->hasMapSwitch) {
-        lv_obj_t *badge = lv_obj_create(btn);
-        lv_obj_set_size(badge, MAP_BADGE_DIAMETER, MAP_BADGE_DIAMETER);
-        lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(badge, lv_color_hex(MAP_BADGE_COLOR), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_width(badge, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(badge, 0, LV_PART_MAIN);
+        lv_obj_t *badge = WidgetHelpers::makeCircleBadge(btn, MAP_BADGE_DIAMETER, MAP_BADGE_COLOR);
         lv_obj_add_flag(badge, LV_OBJ_FLAG_IGNORE_LAYOUT);
-        lv_obj_clear_flag(badge, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -2, 2);
         lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
         tag->activeBadge = badge;

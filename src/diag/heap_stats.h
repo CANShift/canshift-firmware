@@ -21,4 +21,6 @@ void tick();
 
 void emitNow();
 
+void logHeapBracket(const char *tag);
+
 } // namespace HeapStats
