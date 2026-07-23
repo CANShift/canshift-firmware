@@ -1,18 +1,12 @@
 #include "usb_comm_internal.h"
-#include "usb_envelope.h"
 
 #include "app_config.h"
 #include "board_config.h"
-#include "can/signal_map.h"
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
-#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_lock_guard.h"
-#include "hal/storage/storage_driver.h"
-#include "runtime/ota_receiver.h"
 #include "runtime/pending_actions.h"
-#include "ui/ota_overlay.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 
@@ -20,323 +14,20 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
 #include <freertos/semphr.h>
-#include <mbedtls/base64.h>
 
 #ifdef ARDUINO
     #include <Arduino.h>
 #endif
 
-#include <atomic>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 extern SemaphoreHandle_t g_lvglMutex;
 
 namespace {
-
-constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
-// Created once on first scan start and never deleted (only reset), so a
-// producer holding a stale handle can never touch freed queue memory.
-// s_canScanQueue is null while scanning is stopped; s_canScanQueueStorage
-// keeps the handle for reuse.
-QueueHandle_t s_canScanQueueStorage = nullptr;
-std::atomic<QueueHandle_t> s_canScanQueue{nullptr};
-volatile bool s_canScanMode = false;
-
-uint32_t s_scanDrops = 0;
-
-constexpr uint32_t CHUNK_TIMEOUT_MS = 10000;
-
-struct ChunkTransfer {
-    char path[CFG_MAX_PATH_LEN];
-    uint32_t expectedIdx;
-    uint32_t total;
-    uint32_t lastActivityMs;
-};
-ChunkTransfer s_chunk = {{0}, 0, 0, 0};
-
-void abortChunkTransfer(const char *reason) {
-    if (StorageDriver::isChunkedWriteOpen()) {
-        LOG_WARN("USB", "Aborting chunked transfer: %s (path=%s)", reason, s_chunk.path);
-        StorageDriver::abortChunkedWrite();
-    }
-    s_chunk.path[0] = '\0';
-    s_chunk.expectedIdx = 0;
-    s_chunk.total = 0;
-}
-
-const char *kAllowedPutPrefixes[] = {
-    "/assets/",
-    "/fonts/",
-};
-
-bool isPathSafe(const char *path) {
-    if (!path)
-        return false;
-    const size_t len = strnlen(path, CFG_MAX_PATH_LEN);
-    if (len == 0 || len >= CFG_MAX_PATH_LEN)
-        return false;
-
-    for (size_t i = 0; i < len; ++i) {
-        const unsigned char c = static_cast<unsigned char>(path[i]);
-        if (c < 0x20 || c == 0x7F)
-            return false;
-    }
-    if (strstr(path, "//"))
-        return false;
-    if (strstr(path, ".."))
-        return false;
-    for (const char *prefix : kAllowedPutPrefixes) {
-        const size_t plen = strlen(prefix);
-        if (len > plen && strncmp(path, prefix, plen) == 0)
-            return true;
-    }
-    return false;
-}
-
-bool parseSha256Hex(const char *hex, uint8_t out[32]) {
-    if (hex == nullptr)
-        return false;
-    if (strlen(hex) != 64)
-        return false;
-    for (size_t i = 0; i < 32; ++i) {
-        char hi = hex[i * 2];
-        char lo = hex[i * 2 + 1];
-        auto nybble = [](char c) -> int {
-            if (c >= '0' && c <= '9')
-                return c - '0';
-            if (c >= 'a' && c <= 'f')
-                return 10 + (c - 'a');
-            if (c >= 'A' && c <= 'F')
-                return 10 + (c - 'A');
-            return -1;
-        };
-        int h = nybble(hi);
-        int l = nybble(lo);
-        if (h < 0 || l < 0)
-            return false;
-        out[i] = static_cast<uint8_t>((h << 4) | l);
-    }
-    return true;
-}
-
-void handleOtaBegin(const JsonObjectConst &obj) {
-    const uint32_t total = obj["total"] | 0u;
-    const char *shaHex = obj["sha256"];
-    uint8_t sha[32];
-    if (total == 0 || !parseSha256Hex(shaHex, sha)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
-        return;
-    }
-    const OtaReceiver::BeginResult result = OtaReceiver::begin(total, sha);
-    if (!result.ok) {
-        char resp[80];
-        snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\"}",
-                 result.error != nullptr ? result.error : "begin_failed");
-        UsbComm::sendLine(resp);
-        return;
-    }
-    PendingActions::otaOverlayShowSize.store(total, std::memory_order_relaxed);
-    UsbComm::sendLine("{\"status\":\"ok\"}");
-}
-
-bool parseOtaWriteFields(const char *jsonLine, uint32_t *offsetOut, const char **b64Out,
-                         size_t *b64LenOut) {
-    const char *offsetKey = strstr(jsonLine, "\"offset\":");
-    if (offsetKey == nullptr)
-        return false;
-    char *endPtr = nullptr;
-    const long parsed = strtol(offsetKey + 9, &endPtr, 10);
-    if (endPtr == offsetKey + 9 || parsed < 0)
-        return false;
-    *offsetOut = static_cast<uint32_t>(parsed);
-
-    const char *dataKey = strstr(jsonLine, "\"data\":\"");
-    if (dataKey == nullptr)
-        return false;
-    const char *start = dataKey + 8;
-    const char *end = strchr(start, '"');
-    if (end == nullptr || end <= start)
-        return false;
-    *b64Out = start;
-    *b64LenOut = static_cast<size_t>(end - start);
-    return true;
-}
-
-void handleOtaWriteRaw(const char *jsonLine) {
-    uint32_t offset = 0;
-    const char *b64 = nullptr;
-    size_t b64Len = 0;
-    if (!parseOtaWriteFields(jsonLine, &offset, &b64, &b64Len)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
-        return;
-    }
-    // In-place decode aliases s_rxBuf: safe only while the output base stays below
-    // the b64 input, so the write index (3 B out per 4 B in) never overtakes the read.
-    configASSERT(b64 > UsbCommInternal::s_rxBuf &&
-                 b64 + b64Len <= UsbCommInternal::s_rxBuf + USB_RX_BUF_SIZE);
-    size_t decoded = 0;
-    const int rc = mbedtls_base64_decode(
-        reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
-        reinterpret_cast<const unsigned char *>(b64), b64Len);
-    if (rc != 0 || decoded == 0) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
-        OtaReceiver::abort("b64_decode");
-        return;
-    }
-    const OtaReceiver::WriteResult result = OtaReceiver::writeChunk(
-        offset, reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf), decoded);
-    if (!result.ok) {
-        char resp[96];
-        snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\",\"written\":%u}",
-                 result.error != nullptr ? result.error : "write_failed",
-                 static_cast<unsigned>(result.writtenTotal));
-        UsbComm::sendLine(resp);
-        return;
-    }
-    OtaOverlay::setProgress(result.writtenTotal);
-    char resp[64];
-    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"written\":%u}",
-             static_cast<unsigned>(result.writtenTotal));
-    UsbComm::sendLine(resp);
-}
-
-void handleOtaEnd(const JsonObjectConst &obj) {
-    const char *action = obj["action"] | "abort";
-    if (strcmp(action, "commit") == 0) {
-        const OtaReceiver::CommitResult result = OtaReceiver::commit();
-        if (!result.ok) {
-            char resp[128];
-            snprintf(resp, sizeof(resp),
-                     "{\"status\":\"error\",\"message\":\"%s\",\"detail\":\"0x%x\"}",
-                     result.error != nullptr ? result.error : "commit_failed",
-                     static_cast<unsigned>(result.detailCode));
-            UsbComm::sendLine(resp);
-            PendingActions::otaOverlayHide.store(true, std::memory_order_relaxed);
-            return;
-        }
-        UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-        delay(50);
-        esp_restart();
-        return;
-    }
-    OtaReceiver::abort("host_requested");
-    PendingActions::otaOverlayHide.store(true, std::memory_order_relaxed);
-    UsbComm::sendLine("{\"status\":\"ok\"}");
-}
-
-void handlePutFile(const JsonObjectConst &obj) {
-    const char *path = obj["path"];
-    const uint32_t total = obj["total"] | 0u;
-    const uint32_t idx = obj["idx"] | 0u;
-    const char *b64 = obj["data"];
-
-    if (!isPathSafe(path) || !b64 || total == 0 || idx >= total) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"bad_args\"}");
-        abortChunkTransfer("bad_args");
-        return;
-    }
-
-    if (idx == 0) {
-        abortChunkTransfer("new transfer");
-        if (!StorageDriver::beginChunkedWriteAtomic(path)) {
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"open_failed\"}");
-            return;
-        }
-        strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
-        s_chunk.total = total;
-        s_chunk.expectedIdx = 0;
-    } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
-               strcmp(s_chunk.path, path) != 0) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"out_of_sequence\"}");
-        abortChunkTransfer("out_of_sequence");
-        return;
-    }
-
-    size_t decoded = 0;
-    const int rc = mbedtls_base64_decode(
-        reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
-        reinterpret_cast<const unsigned char *>(b64), strlen(b64));
-    if (rc != 0) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"b64_decode\"}");
-        abortChunkTransfer("b64_decode");
-        return;
-    }
-
-    if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf),
-                                    decoded)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
-        abortChunkTransfer("write_failed");
-        return;
-    }
-
-    s_chunk.expectedIdx = idx + 1;
-    s_chunk.lastActivityMs = millis();
-
-    if (idx == total - 1) {
-        const bool finalized = StorageDriver::endChunkedWrite();
-        if (!finalized) {
-            UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
-            s_chunk.path[0] = '\0';
-            s_chunk.expectedIdx = 0;
-            s_chunk.total = 0;
-            return;
-        }
-        LOG_INFO("USB", "PUT_FILE done: %s (%u chunks)", s_chunk.path, total);
-        s_chunk.path[0] = '\0';
-        s_chunk.expectedIdx = 0;
-        s_chunk.total = 0;
-    }
-
-    UsbComm::sendLine("{\"status\":\"ok\"}");
-}
-
-constexpr uint32_t BURN_OVERLAY_RENDER_GRACE_MS = 20;
-
-void handlePutConfig(const char *jsonLine) {
-#ifdef ARDUINO
-    LOG_INFO("USB", "heap.largest_free=%u before PUT_CONFIG",
-             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-#endif
-
-    const size_t lineLen = strlen(jsonLine);
-    size_t written = 0;
-    const char *payloadStart = UsbEnvelope::findPayloadSlice(jsonLine, lineLen, &written);
-    if (!payloadStart || written == 0) {
-        LOG_WARN("USB", "PUT_CONFIG: missing or malformed payload field");
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"missing_payload\"}");
-        return;
-    }
-
-    UsbCommInternal::invokeBurnOverlayShow();
-    vTaskDelay(pdMS_TO_TICKS(BURN_OVERLAY_RENDER_GRACE_MS));
-
-    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
-        LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
-        UsbCommInternal::invokeBurnOverlayShowError(0);
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"busy\"}");
-        return;
-    }
-
-    bool ok = StorageDriver::writeFileAtomic(
-        CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
-    if (!ok) {
-        xSemaphoreGive(g_lvglMutex);
-
-        UsbCommInternal::invokeBurnOverlayShowError(0);
-        LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"write_failed\"}");
-        return;
-    }
-
-    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
-    UsbComm::sendLine("{\"status\":\"ok\",\"rebooting\":true}");
-    Serial.flush();
-    esp_restart();
-}
 
 void handleScreenSettings(const JsonObjectConst &obj) {
     JsonVariantConst brightnessVar = obj["brightness"];
@@ -367,110 +58,9 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     UsbComm::sendLine("{\"status\":\"ok\"}");
 }
 
-class BufferPrint : public Print {
-  public:
-    BufferPrint(char *dst, size_t cap) : dst_(dst), cap_(cap), used_(0) {}
-    size_t write(uint8_t b) override {
-        if (used_ >= cap_)
-            return 0;
-        dst_[used_++] = static_cast<char>(b);
-        return 1;
-    }
-    size_t write(const uint8_t *data, size_t len) override {
-        const size_t room = cap_ - used_;
-        const size_t n = len < room ? len : room;
-        memcpy(dst_ + used_, data, n);
-        used_ += n;
-        return n;
-    }
-    size_t used() const {
-        return used_;
-    }
-
-  private:
-    char *dst_;
-    size_t cap_;
-    size_t used_;
-};
-
-void handleGetConfig() {
-    if (!StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
-        return;
-    }
-    const size_t fileBytes = StorageDriver::fileSize(CONFIG_PATH_DASHBOARD);
-    if (fileBytes == 0) {
-        LOG_WARN("USB", "GET_CONFIG: empty / unreadable %s", CONFIG_PATH_DASHBOARD);
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_not_found\"}");
-        return;
-    }
-    static constexpr size_t kEnvelopeOverhead = 32;
-    const size_t needed = fileBytes + kEnvelopeOverhead;
-    if (needed > USB_RX_BUF_SIZE) {
-        LOG_ERROR("USB", "GET_CONFIG: response %u B exceeds rxBuf %u B",
-                  static_cast<unsigned>(needed), static_cast<unsigned>(USB_RX_BUF_SIZE));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"too_large\"}");
-        return;
-    }
-    if (UsbCommInternal::s_rxBuf == nullptr) {
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"rxbuf_unavailable\"}");
-        return;
-    }
-    char *buf = UsbCommInternal::s_rxBuf;
-    static const char kPrefix[] = "{\"status\":\"ok\",\"config\":";
-    constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
-    memcpy(buf, kPrefix, kPrefixLen);
-
-    BufferPrint sink(buf + kPrefixLen, needed - kPrefixLen - 2);
-    const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink, true);
-
-    if (streamed == 0 || sink.used() == 0 || streamed != sink.used()) {
-        LOG_WARN("USB", "GET_CONFIG: stream mismatch for %s (streamed=%u, sink=%u)",
-                 CONFIG_PATH_DASHBOARD, static_cast<unsigned>(streamed),
-                 static_cast<unsigned>(sink.used()));
-        UsbComm::sendLine("{\"status\":\"error\",\"message\":\"config_read_failed\"}");
-        return;
-    }
-    size_t pos = kPrefixLen + sink.used();
-    buf[pos++] = '}';
-    buf[pos] = '\0';
-    UsbComm::sendLine(buf);
-
-    LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
-}
-
 } // namespace
 
 namespace UsbCommInternal {
-
-bool canScanModeActive() {
-    return s_canScanMode;
-}
-
-bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame) {
-    QueueHandle_t queue = s_canScanQueue.load(std::memory_order_acquire);
-    if (queue == nullptr)
-        return false;
-    if (xQueueSend(queue, &frame, 0) != pdTRUE) {
-        s_scanDrops++;
-        return false;
-    }
-    return true;
-}
-
-bool canScanQueueTryReceive(UsbComm::CanScanFrame &out) {
-    QueueHandle_t queue = s_canScanQueue.load(std::memory_order_acquire);
-    if (queue == nullptr)
-        return false;
-    return xQueueReceive(queue, &out, 0) == pdTRUE;
-}
-
-void tickChunkTransferTimeout() {
-    if (StorageDriver::isChunkedWriteOpen() &&
-        (millis() - s_chunk.lastActivityMs) > CHUNK_TIMEOUT_MS) {
-        abortChunkTransfer("idle timeout");
-    }
-}
 
 struct CmdHeapGuard {
     uint8_t cmd;
@@ -624,48 +214,12 @@ void handleCommand(const char *jsonLine) {
             delay(50);
             esp_restart();
             break;
-        case UsbComm::CMD_CAN_SCAN_START: {
-            s_scanDrops = 0;
-
-            if (!s_canScanQueueStorage) {
-                s_canScanQueueStorage =
-                    xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
-                if (!s_canScanQueueStorage) {
-                    LOG_ERROR("USB", "CAN scan start: queue alloc failed");
-#if APP_USB_CAN_SCAN_FAIL_LOUD
-
-                    abort();
-#endif
-
-                    ErrorStore::push(ERROR_SRC_SYSTEM, "SCAN_QUEUE", "CAN scan queue alloc failed");
-                    UsbComm::sendLine("{\"status\":\"error\",\"error\":\"queue_alloc_failed\"}");
-                    break;
-                }
-            }
-
-            xQueueReset(s_canScanQueueStorage);
-            s_canScanQueue.store(s_canScanQueueStorage, std::memory_order_release);
-            s_canScanMode = true;
-            LOG_INFO("USB", "CAN scan started");
-            UsbComm::sendLine("{\"status\":\"ok\"}");
+        case UsbComm::CMD_CAN_SCAN_START:
+            handleCanScanStart();
             break;
-        }
-        case UsbComm::CMD_CAN_SCAN_STOP: {
-            s_canScanMode = false;
-            s_canScanQueue.store(nullptr, std::memory_order_release);
-            LOG_INFO("USB", "CAN scan stopped — drops: %lu", (unsigned long)s_scanDrops);
-            char stopResp[64];
-            const int stopN =
-                snprintf(stopResp, sizeof(stopResp), "{\"status\":\"ok\",\"drops\":%lu}",
-                         (unsigned long)s_scanDrops);
-            if (stopN <= 0 || static_cast<size_t>(stopN) >= sizeof(stopResp)) {
-                LOG_WARN("USB", "STOP_CAN_SCAN payload truncated (n=%d, cap=%u)", stopN,
-                         static_cast<unsigned>(sizeof(stopResp)));
-                break;
-            }
-            UsbComm::sendLine(stopResp);
+        case UsbComm::CMD_CAN_SCAN_STOP:
+            handleCanScanStop();
             break;
-        }
         default:
 
             LOG_WARN("USB", "Unknown cmd: 0x%02X — replying unknown_command", cmd);

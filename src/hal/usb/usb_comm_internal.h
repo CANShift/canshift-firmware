@@ -21,6 +21,18 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
 void handlePutDeviceConfig(const JsonObjectConst &obj);
 void handlePutInputBindings(const JsonObjectConst &obj);
 
+void handleOtaBegin(const JsonObjectConst &obj);
+void handleOtaWriteRaw(const char *jsonLine);
+void handleOtaEnd(const JsonObjectConst &obj);
+
+void handlePutFile(const JsonObjectConst &obj);
+void handlePutConfig(const char *jsonLine);
+void handleGetConfig();
+void abortChunkTransfer(const char *reason);
+
+void handleCanScanStart();
+void handleCanScanStop();
+
 constexpr size_t kTypedPutMaxPayloadBytes = 8192;
 
 bool canScanModeActive();
