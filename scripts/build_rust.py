@@ -76,6 +76,13 @@ CRATES = (
         # Header at canshift-firmware/include/sensor_color_ramp_rs.h.
         "include": None,
     },
+    {
+        "flag": "USE_RUST_TIMER_CORE=1",
+        "manifest": os.path.join(RUST_DIR, "timer-core", "Cargo.toml"),
+        "libfile": "libtimer_core.a",
+        # Header at canshift-firmware/include/timer_core_rs.h.
+        "include": None,
+    },
 )
 
 

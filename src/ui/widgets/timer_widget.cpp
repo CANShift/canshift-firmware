@@ -19,10 +19,12 @@ namespace {
 struct TimerTag {
     lv_obj_t *cont;
     lv_obj_t *timeLabel;
+    lv_obj_t *lapLabel;
     bool formatMsec;
     uint32_t pressStartMs;
     bool longPressFired;
     TimerService::State lastState;
+    uint16_t lastLapCount;
     uint32_t textRgb;
     char lastText[12];
 };
@@ -34,6 +36,8 @@ constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kZoneNormalRgb;
 constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kZoneWarningRgb;
 constexpr uint8_t kStateBorderWidth = 2;
 constexpr lv_opa_t kResetTextOpa = LV_OPA_60;
+constexpr lv_opa_t kLapBadgeOpa = LV_OPA_80;
+constexpr int16_t kLapBadgeInsetPx = 2;
 
 void formatTime(char *buf, size_t len, uint32_t elapsedMs, bool msec, bool blinkOn) {
     if (msec) {
@@ -93,7 +97,16 @@ void onTimerTouch(lv_event_t *e) {
     if (code == LV_EVENT_PRESSING) {
         if (!t->longPressFired && (millis() - t->pressStartMs) >= LONG_PRESS_MS) {
             t->longPressFired = true;
-            (void)TimerService::reset();
+            switch (TimerService::getState()) {
+                case TimerService::State::Running:
+                    (void)TimerService::pause();
+                    break;
+                case TimerService::State::Paused:
+                    (void)TimerService::reset();
+                    break;
+                case TimerService::State::Reset:
+                    break;
+            }
         }
         return;
     }
@@ -106,7 +119,7 @@ void onTimerTouch(lv_event_t *e) {
                 (void)TimerService::start();
                 break;
             case TimerService::State::Running:
-                (void)TimerService::pause();
+                (void)TimerService::lap();
                 break;
             case TimerService::State::Paused:
                 (void)TimerService::resume();
@@ -129,6 +142,8 @@ void TimerWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
         return;
     t->textRgb = textRgb;
     lv_obj_set_style_text_color(t->timeLabel, lv_color_hex(textRgb), 0);
+    if (t->lapLabel)
+        lv_obj_set_style_text_color(t->lapLabel, lv_color_hex(textRgb), 0);
 }
 
 lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
@@ -152,6 +167,14 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
+    lv_obj_t *lapLabel = lv_label_create(cont);
+    lv_obj_align(lapLabel, LV_ALIGN_TOP_RIGHT, -kLapBadgeInsetPx, kLapBadgeInsetPx);
+    lv_obj_set_style_text_font(lapLabel, FontManager::secondary(10), 0);
+    lv_obj_set_style_text_color(lapLabel, lv_color_hex(textRgb), 0);
+    lv_obj_set_style_text_opa(lapLabel, kLapBadgeOpa, 0);
+    lv_label_set_text(lapLabel, "");
+    lv_obj_add_flag(lapLabel, LV_OBJ_FLAG_HIDDEN);
+
     WidgetTagPool::Slot<TimerTag> tagSlot;
     TimerTag *tag = tagSlot.get();
     if (!tag) {
@@ -162,10 +185,12 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
     tag->cont = cont;
     tag->timeLabel = label;
+    tag->lapLabel = lapLabel;
     tag->formatMsec = cfg.timer.formatMsec;
     tag->pressStartMs = 0;
     tag->longPressFired = false;
     tag->lastState = TimerService::State::Reset;
+    tag->lastLapCount = 0;
     tag->textRgb = textRgb;
 
     strlcpy(tag->lastText, cfg.timer.formatMsec ? "00.000" : "00:00", sizeof(tag->lastText));
@@ -203,6 +228,18 @@ void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
 
         tag->lastText[0] = '\0';
         tag->lastState = snap.state;
+    }
+
+    if (snap.lapCount != tag->lastLapCount) {
+        tag->lastLapCount = snap.lapCount;
+        if (snap.lapCount == 0) {
+            lv_obj_add_flag(tag->lapLabel, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            char lapBuf[8];
+            snprintf(lapBuf, sizeof(lapBuf), "L%u", static_cast<unsigned>(snap.lapCount));
+            lv_label_set_text(tag->lapLabel, lapBuf);
+            lv_obj_clear_flag(tag->lapLabel, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 
     bool blinkOn = true;

@@ -1,0 +1,15 @@
+[package]
+name = "timer-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Pure timer state machine for the CANShift dash chrono (issue #285). C++ shell owns the mutex + clock; Rust owns transitions, elapsed math, and the pending-lap ring."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []

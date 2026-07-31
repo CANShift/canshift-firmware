@@ -1,6 +1,7 @@
 #include "timer_service.h"
 
 #include "diag/logger.h"
+#include "timer_core_rs.h"
 
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
@@ -12,10 +13,7 @@ constexpr TickType_t TIMER_LOCK_TIMEOUT = pdMS_TO_TICKS(10);
 
 struct ServiceState {
     SemaphoreHandle_t mutex = nullptr;
-    TimerService::State state = TimerService::State::Reset;
-    int64_t lastStartUs = 0;
-    int64_t accumulatedUs = 0;
-    uint32_t version = 0;
+    TimerCoreState core = {};
     bool initialized = false;
 };
 
@@ -41,22 +39,8 @@ class LockGuard {
     bool held_ = false;
 };
 
-int64_t elapsedUsLocked() {
-    if (g_state.state == TimerService::State::Running) {
-        return g_state.accumulatedUs + (esp_timer_get_time() - g_state.lastStartUs);
-    }
-    return g_state.accumulatedUs;
-}
-
-uint32_t elapsedMsLocked() {
-    int64_t us = elapsedUsLocked();
-    if (us < 0)
-        us = 0;
-    return static_cast<uint32_t>(us / 1000);
-}
-
-void bumpVersionLocked() {
-    g_state.version++;
+TimerService::Lap toLap(const TimerCoreLap &raw) {
+    return TimerService::Lap{raw.index, raw.session, raw.lap_ms, raw.total_ms};
 }
 
 } // namespace
@@ -71,10 +55,7 @@ void TimerService::init() {
         return;
     }
 
-    g_state.state = State::Reset;
-    g_state.lastStartUs = 0;
-    g_state.accumulatedUs = 0;
-    g_state.version = 0;
+    timer_core_init_rs(&g_state.core);
     g_state.initialized = true;
 
     LOG_INFO("TIMER", "TimerService initialized");
@@ -85,14 +66,9 @@ bool TimerService::start() {
     if (!lk.held())
         return false;
 
-    if (g_state.state != State::Reset)
+    if (!timer_core_start_rs(&g_state.core, esp_timer_get_time()))
         return false;
-
-    g_state.lastStartUs = esp_timer_get_time();
-    g_state.accumulatedUs = 0;
-    g_state.state = State::Running;
-    bumpVersionLocked();
-    LOG_DEBUG("TIMER", "start()");
+    LOG_DEBUG("TIMER", "start() — session %u", static_cast<unsigned>(g_state.core.session));
     return true;
 }
 
@@ -101,13 +77,11 @@ bool TimerService::pause() {
     if (!lk.held())
         return false;
 
-    if (g_state.state != State::Running)
+    const int64_t nowUs = esp_timer_get_time();
+    if (!timer_core_pause_rs(&g_state.core, nowUs))
         return false;
-
-    g_state.accumulatedUs += (esp_timer_get_time() - g_state.lastStartUs);
-    g_state.state = State::Paused;
-    bumpVersionLocked();
-    LOG_DEBUG("TIMER", "pause() at %ums", static_cast<unsigned>(elapsedMsLocked()));
+    LOG_DEBUG("TIMER", "pause() at %ums",
+              static_cast<unsigned>(timer_core_elapsed_ms_rs(&g_state.core, nowUs)));
     return true;
 }
 
@@ -116,12 +90,8 @@ bool TimerService::resume() {
     if (!lk.held())
         return false;
 
-    if (g_state.state != State::Paused)
+    if (!timer_core_resume_rs(&g_state.core, esp_timer_get_time()))
         return false;
-
-    g_state.lastStartUs = esp_timer_get_time();
-    g_state.state = State::Running;
-    bumpVersionLocked();
     LOG_DEBUG("TIMER", "resume()");
     return true;
 }
@@ -131,17 +101,29 @@ bool TimerService::reset() {
     if (!lk.held())
         return false;
 
-    const bool wasNonReset = (g_state.state != State::Reset);
+    if (!timer_core_reset_rs(&g_state.core))
+        return false;
+    LOG_DEBUG("TIMER", "reset()");
+    return true;
+}
 
-    g_state.state = State::Reset;
-    g_state.lastStartUs = 0;
-    g_state.accumulatedUs = 0;
+bool TimerService::lap() {
+    LockGuard lk(g_state.mutex);
+    if (!lk.held())
+        return false;
 
-    if (wasNonReset) {
-        bumpVersionLocked();
-        LOG_DEBUG("TIMER", "reset()");
+    TimerCoreLap raw = {};
+    bool droppedOldest = false;
+    if (!timer_core_lap_rs(&g_state.core, esp_timer_get_time(), &raw, &droppedOldest))
+        return false;
+
+    if (droppedOldest) {
+        LOG_WARN("TIMER", "Lap buffer full (%u) — dropped oldest unsynced lap",
+                 static_cast<unsigned>(TIMER_CORE_LAP_CAPACITY));
     }
-    return wasNonReset;
+    LOG_DEBUG("TIMER", "lap %u — %ums (total %ums)", static_cast<unsigned>(raw.index),
+              static_cast<unsigned>(raw.lap_ms), static_cast<unsigned>(raw.total_ms));
+    return true;
 }
 
 TimerService::Snapshot TimerService::snapshot() {
@@ -150,9 +132,11 @@ TimerService::Snapshot TimerService::snapshot() {
     if (!lk.held())
         return snap;
 
-    snap.state = g_state.state;
-    snap.elapsedMs = elapsedMsLocked();
-    snap.version = g_state.version;
+    snap.state = static_cast<State>(g_state.core.run_state);
+    snap.elapsedMs = timer_core_elapsed_ms_rs(&g_state.core, esp_timer_get_time());
+    snap.version = g_state.core.version;
+    snap.lapCount = g_state.core.lap_count;
+    snap.sessionId = g_state.core.session;
     return snap;
 }
 
@@ -160,12 +144,31 @@ TimerService::State TimerService::getState() {
     LockGuard lk(g_state.mutex);
     if (!lk.held())
         return State::Reset;
-    return g_state.state;
+    return static_cast<State>(g_state.core.run_state);
 }
 
 uint32_t TimerService::getElapsedMs() {
     LockGuard lk(g_state.mutex);
     if (!lk.held())
         return 0;
-    return elapsedMsLocked();
+    return timer_core_elapsed_ms_rs(&g_state.core, esp_timer_get_time());
+}
+
+uint8_t TimerService::pendingLapCount() {
+    LockGuard lk(g_state.mutex);
+    if (!lk.held())
+        return 0;
+    return timer_core_pending_count_rs(&g_state.core);
+}
+
+bool TimerService::popPendingLap(Lap &out) {
+    LockGuard lk(g_state.mutex);
+    if (!lk.held())
+        return false;
+
+    TimerCoreLap raw = {};
+    if (!timer_core_pop_pending_rs(&g_state.core, &raw))
+        return false;
+    out = toLap(raw);
+    return true;
 }

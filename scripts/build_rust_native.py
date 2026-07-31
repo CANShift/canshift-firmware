@@ -18,6 +18,7 @@ CRATES = (
     ("alert-engine", "libalert_engine.a"),
     ("sensor-color-ramp", "libsensor_color_ramp.a"),
     ("ota-hmac", "libota_hmac.a"),
+    ("timer-core", "libtimer_core.a"),
 )
 
 

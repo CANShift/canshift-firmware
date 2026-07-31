@@ -9,6 +9,7 @@
     #include "diag/logger.h"
     #include "diag/lvgl_lock_guard.h"
     #include "runtime/pending_actions.h"
+    #include "runtime/timer_service.h"
     #include "runtime/track_store.h"
     #include "ui/settings_page.h"
 
@@ -29,6 +30,9 @@ static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
 static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
 static constexpr char SETTINGS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000004";
 static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
+static constexpr char TIMER_CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000006";
+static constexpr char TIMER_STATE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000007";
+static constexpr char TIMER_LAP_UUID[] = "4fa0b6a0-0000-0000-0000-000000000008";
 
 static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
@@ -40,6 +44,8 @@ static bool s_gattInited = false;
 namespace BleServerInternal {
 NimBLECharacteristic *s_pTele = nullptr;
 NimBLECharacteristic *s_pStatus = nullptr;
+NimBLECharacteristic *s_pTimerState = nullptr;
+NimBLECharacteristic *s_pTimerLap = nullptr;
 bool s_connected = false;
 } // namespace BleServerInternal
 
@@ -205,11 +211,66 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
+class TimerCmdCallbacks : public NimBLECharacteristicCallbacks {
+    void onWrite(NimBLECharacteristic *pChar) override {
+        std::string val = pChar->getValue();
+        if (val.empty())
+            return;
+        if (val.length() > BLE_MAX_WRITE_LEN) {
+            LOG_WARN("BLE", "TIMER cmd write %u bytes exceeds cap %u — dropping",
+                     static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+            return;
+        }
+
+        JsonDocument doc;
+        if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
+            return;
+
+        JsonVariantConst opVar = doc["op"];
+        if (opVar.isNull() || !opVar.is<int>()) {
+            LOG_WARN("BLE", "TIMER cmd missing 'op' int — ignoring");
+            return;
+        }
+
+        const int op = opVar.as<int>();
+        bool accepted = false;
+        switch (op) {
+            case 1:
+                accepted = TimerService::start();
+                break;
+            case 2:
+                accepted = TimerService::pause();
+                break;
+            case 3:
+                accepted = TimerService::resume();
+                break;
+            case 4:
+                accepted = TimerService::reset();
+                break;
+            case 5:
+                accepted = TimerService::lap();
+                break;
+            default:
+                LOG_WARN("BLE", "Unknown TIMER op: %d", op);
+                return;
+        }
+        LOG_DEBUG("BLE", "TIMER op %d %s", op, accepted ? "applied" : "rejected");
+    }
+};
+
+class TimerStateCallbacks : public NimBLECharacteristicCallbacks {
+    void onRead(NimBLECharacteristic *) override {
+        BleServerInternal::refreshTimerStateValue();
+    }
+};
+
 void setupGatt() {
 
     static ServerCallbacks s_serverCb;
     static SettingsCallbacks s_settingsCb;
     static CmdCallbacks s_cmdCb;
+    static TimerCmdCallbacks s_timerCmdCb;
+    static TimerStateCallbacks s_timerStateCb;
 
     NimBLEServer *pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(&s_serverCb);
@@ -233,6 +294,18 @@ void setupGatt() {
     NimBLECharacteristic *pCmd = pSvc->createCharacteristic(
         CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
     pCmd->setCallbacks(&s_cmdCb);
+
+    NimBLECharacteristic *pTimerCmd = pSvc->createCharacteristic(
+        TIMER_CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+    pTimerCmd->setCallbacks(&s_timerCmdCb);
+
+    BleServerInternal::s_pTimerState = pSvc->createCharacteristic(
+        TIMER_STATE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+    BleServerInternal::s_pTimerState->setCallbacks(&s_timerStateCb);
+    BleServerInternal::s_pTimerState->setValue("{\"st\":0,\"el\":0,\"lc\":0,\"sid\":0,\"ver\":0}");
+
+    BleServerInternal::s_pTimerLap =
+        pSvc->createCharacteristic(TIMER_LAP_UUID, NIMBLE_PROPERTY::NOTIFY);
 
     pSvc->start();
 
@@ -348,6 +421,8 @@ void BleServer::stop() {
 
         BleServerInternal::s_pTele = nullptr;
         BleServerInternal::s_pStatus = nullptr;
+        BleServerInternal::s_pTimerState = nullptr;
+        BleServerInternal::s_pTimerLap = nullptr;
         BleServerInternal::s_connected = false;
 
         std::atomic_thread_fence(std::memory_order_release);
@@ -374,6 +449,7 @@ void BleServer::tick() {
     if (!BleServerInternal::s_connected)
         return;
     BleServerInternal::emitTelemetry();
+    BleServerInternal::emitTimerSync();
 }
 
 bool BleServer::isConnected() {
