@@ -17,6 +17,18 @@ namespace {
 
 constexpr const char *kStalePlaceholder = "--";
 
+constexpr uint8_t kRulePrimaryPx = 2;
+constexpr uint8_t kRuleSecondaryPx = 1;
+constexpr uint8_t kRulePrimaryFontMin = 32;
+constexpr uint32_t kRuleTrackRgb = 0x222222;
+constexpr uint32_t kRuleDangerRgb = 0xFF4444;
+constexpr uint8_t kUnitFontMin = 10;
+
+uint8_t pickUnitFontSize(uint8_t valueSize) {
+    const uint8_t quarter = static_cast<uint8_t>(valueSize / 4);
+    return quarter < kUnitFontMin ? kUnitFontMin : quarter;
+}
+
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
     const int byWidth = (widgetW * 52) / 100;
@@ -40,6 +52,7 @@ struct LabelTag {
     lv_obj_t *valueLabel;
     lv_obj_t *fracLabel;
     lv_obj_t *unitLabel;
+    lv_obj_t *topRule;
     float alertThreshold;
     AlertFlash::State alert;
     float lastValue;
@@ -47,7 +60,30 @@ struct LabelTag {
     const CfgColorRamp *ramp;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
+    uint32_t ruleBaseRgb;
+    uint32_t ruleLastRgb;
 };
+
+lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb) {
+    lv_obj_t *rule = lv_obj_create(cont);
+    if (!rule)
+        return nullptr;
+    lv_obj_set_size(rule, LV_PCT(100), heightPx);
+    lv_obj_align(rule, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_color(rule, lv_color_hex(rgb), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(rule, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(rule, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(rule, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    return rule;
+}
+
+void setRuleColorIfChanged(LabelTag *tag, uint32_t rgb) {
+    if (!tag->topRule || tag->ruleLastRgb == rgb)
+        return;
+    lv_obj_set_style_bg_color(tag->topRule, lv_color_hex(rgb), LV_PART_MAIN);
+    tag->ruleLastRgb = rgb;
+}
 
 } // namespace
 
@@ -62,7 +98,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     const int16_t valueLineH = cfg.layout.h;
 
-    const lv_font_t *valueFont = valueFontFor(pickValueFontSize(valueLineH, cfg.layout.w));
+    const uint8_t valueSize = pickValueFontSize(valueLineH, cfg.layout.w);
+    const lv_font_t *valueFont = valueFontFor(valueSize);
 
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
@@ -99,7 +136,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (wantsFrac) {
         fracLabel = lv_label_create(valueRow);
         if (fracLabel) {
-            const uint8_t intSize = pickValueFontSize(valueLineH, cfg.layout.w);
+            const uint8_t intSize = valueSize;
             uint8_t fracSize = static_cast<uint8_t>((intSize * 7) / 10);
             if (fracSize < 12)
                 fracSize = 12;
@@ -115,10 +152,15 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         unitLabel = lv_label_create(valueRow);
         if (unitLabel) {
             lv_obj_set_style_text_color(unitLabel, lv_color_hex(0x888888), 0);
-            lv_obj_set_style_text_font(unitLabel, FontManager::label(12), 0);
+            lv_obj_set_style_text_font(unitLabel, FontManager::label(pickUnitFontSize(valueSize)),
+                                       0);
             lv_label_set_text(unitLabel, unit);
         }
     }
+
+    const bool primary = valueSize >= kRulePrimaryFontMin;
+    const uint32_t ruleRgb = primary ? textRgb : kRuleTrackRgb;
+    lv_obj_t *topRule = makeTopRule(cont, primary ? kRulePrimaryPx : kRuleSecondaryPx, ruleRgb);
 
     WidgetTagPool::Slot<LabelTag> tagSlot;
     LabelTag *tag = tagSlot.get();
@@ -131,11 +173,14 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->valueLabel = label;
     tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
+    tag->topRule = topRule;
     tag->alertThreshold = cfg.label.alertThreshold;
     tag->lastValue = NAN;
     tag->lastValid = false;
     tag->baseTextRgb = textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
+    tag->ruleBaseRgb = ruleRgb;
+    tag->ruleLastRgb = ruleRgb;
     tag->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
     AlertFlash::attach(tag->alert, cont);
@@ -198,6 +243,11 @@ void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
         uint32_t fracLast = tag->lastTintRgb;
         WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, textRgb);
     }
+    if (tag->ruleBaseRgb != kRuleTrackRgb) {
+        tag->ruleBaseRgb = textRgb;
+        if (!tag->alert.active)
+            setRuleColorIfChanged(tag, textRgb);
+    }
 }
 
 void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -227,6 +277,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             }
         }
         AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
+        setRuleColorIfChanged(tag, tag->alert.active ? kRuleDangerRgb : tag->ruleBaseRgb);
         return;
     }
 
@@ -259,4 +310,5 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     }
 
     AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
+    setRuleColorIfChanged(tag, tag->alert.active ? kRuleDangerRgb : tag->ruleBaseRgb);
 }
