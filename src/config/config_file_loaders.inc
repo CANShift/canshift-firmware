@@ -184,20 +184,21 @@ bool loadDashboard() {
     {
         const ScreenProfile::DesignDimensions design =
             ScreenProfile::lookupDesignDimensions(out->targetProfile);
-        uint16_t overflowing = 0;
         for (uint8_t pi = 0; pi < out->pageCount; ++pi) {
             const CfgPage &p = out->pages[pi];
+            const uint16_t topBarHeight = p.showTopBar ? out->topBar.height : 0;
+            const uint16_t contentHeight =
+                design.height > topBarHeight ? design.height - topBarHeight : 0;
             for (uint8_t wi = 0; wi < p.widgetCount; ++wi) {
-                const CfgLayout &L = p.widgets[wi].layout;
-                if (L.x < 0 || L.y < 0 || L.x + L.w > design.width || L.y + L.h > design.height) {
-                    ++overflowing;
-                }
+                CfgLayout &L = p.widgets[wi].layout;
+                LayoutGridRectRs rect = {};
+                layout_grid_resolve_rs(L.col, L.colSpan, L.row, L.rowSpan, design.width,
+                                       contentHeight, &rect);
+                L.x = rect.x;
+                L.y = rect.y;
+                L.w = rect.w;
+                L.h = rect.h;
             }
-        }
-        if (overflowing > 0) {
-            LOG_WARN("CFG",
-                     "dashboard.json: %u widget(s) overflow target profile '%s' (%ux%u) — clipped",
-                     overflowing, out->targetProfile, design.width, design.height);
         }
     }
 

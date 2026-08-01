@@ -109,4 +109,31 @@ constexpr const char *kDashboardWithTemplates = R"({
   ]
 })";
 
+// Widget layouts with out-of-range span values — parseWidgetLayout must clamp
+// spans to [1,12] and origins to [0, 12 - span] before the uint8_t fields are
+// assigned, so negative / oversized JSON values can never wrap.
+constexpr const char *kDashboardLayoutOutOfRange = R"({
+  "version": "1.0.0",
+  "name": "Layout Clamp Test",
+  "defaultPageId": "main",
+  "revLimitRpm": 7000,
+  "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
+  "pages": [
+    {"id": "main", "backgroundColor": "#111111", "showTopBar": true, "widgets": [
+      {"id": "wNeg", "type": "label", "signal": "rpm", "style": {},
+       "config": {"decimalPlaces": 0},
+       "layout": {"col": -5, "colSpan": 3, "row": -1, "rowSpan": 2, "zOrder": 0}},
+      {"id": "wHuge", "type": "label", "signal": "rpm", "style": {},
+       "config": {"decimalPlaces": 0},
+       "layout": {"col": 200, "colSpan": 3, "row": 300, "rowSpan": 2, "zOrder": 0}},
+      {"id": "wZeroSpan", "type": "label", "signal": "rpm", "style": {},
+       "config": {"decimalPlaces": 0},
+       "layout": {"col": 4, "colSpan": 0, "row": 4, "rowSpan": 0, "zOrder": 0}},
+      {"id": "wOverflow", "type": "label", "signal": "rpm", "style": {},
+       "config": {"decimalPlaces": 0},
+       "layout": {"col": 8, "colSpan": 10, "row": 11, "rowSpan": 4, "zOrder": 0}}
+    ]}
+  ]
+})";
+
 } // namespace fixtures

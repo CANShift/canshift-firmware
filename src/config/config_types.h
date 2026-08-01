@@ -43,6 +43,10 @@ struct CfgLayout {
     int16_t y;
     int16_t w;
     int16_t h;
+    uint8_t col;
+    uint8_t colSpan;
+    uint8_t row;
+    uint8_t rowSpan;
     uint8_t zOrder;
 };
 

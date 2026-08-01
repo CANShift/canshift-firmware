@@ -83,6 +83,13 @@ CRATES = (
         # Header at canshift-firmware/include/timer_core_rs.h.
         "include": None,
     },
+    {
+        "flag": "USE_RUST_LAYOUT_GRID=1",
+        "manifest": os.path.join(RUST_DIR, "layout-grid", "Cargo.toml"),
+        "libfile": "liblayout_grid.a",
+        # Header at canshift-firmware/include/layout_grid_rs.h.
+        "include": None,
+    },
 )
 
 

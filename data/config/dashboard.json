@@ -1,6 +1,6 @@
 {
   "_comment": "CANShift demo dashboard — 4 pages (overview, engine, fluids, controls). Arcs/numerics only; controls use a 3-state MAP cycle button plus launch + anti-lag toggles.",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "name": "CANShift Demo",
   "description": "Coherent 4-page demo — overview, engine, fluids, controls",
   "defaultPageId": "overview",
@@ -39,7 +39,7 @@
           "id": "speed_arc",
           "type": "gauge",
           "signal": "speed_kph",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FFFFFF",
             "secondaryColor": "#2A2A2A",
@@ -62,7 +62,7 @@
           "id": "rpm_arc",
           "type": "gauge",
           "signal": "rpm",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -85,7 +85,7 @@
           "id": "coolant_l",
           "type": "gauge",
           "signal": "coolant_temp_c",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 6, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#44AAFF",
             "secondaryColor": "#2A2A2A",
@@ -108,7 +108,7 @@
           "id": "battery_l",
           "type": "gauge",
           "signal": "battery_volts",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 6, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FBC02D",
             "secondaryColor": "#2A2A2A",
@@ -131,7 +131,7 @@
           "id": "oil_press_l",
           "type": "gauge",
           "signal": "oil_press_bar",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 9, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -154,7 +154,7 @@
           "id": "gear_l",
           "type": "gear",
           "signal": "gear",
-          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 9, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -177,7 +177,7 @@
           "id": "boost_arc",
           "type": "gauge",
           "signal": "map_kpa",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -200,7 +200,7 @@
           "id": "gear_xl",
           "type": "gear",
           "signal": "gear",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -215,7 +215,7 @@
           "id": "rpm_l",
           "type": "gauge",
           "signal": "rpm",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 6, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#2A2A2A",
@@ -238,7 +238,7 @@
           "id": "tps_l",
           "type": "gauge",
           "signal": "throttle_pos",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 6, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FB8C00",
             "secondaryColor": "#2A2A2A",
@@ -261,7 +261,7 @@
           "id": "lambda_l",
           "type": "gauge",
           "signal": "lambda_1",
-          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 9, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#44CC88",
             "secondaryColor": "#2A2A2A",
@@ -284,7 +284,7 @@
           "id": "iat_l",
           "type": "gauge",
           "signal": "iat_c",
-          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 9, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#4FC3F7",
             "secondaryColor": "#2A2A2A",
@@ -315,7 +315,7 @@
           "id": "coolant_arc",
           "type": "gauge",
           "signal": "coolant_temp_c",
-          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#44AAFF",
             "secondaryColor": "#2A2A2A",
@@ -338,7 +338,7 @@
           "id": "oil_press_arc",
           "type": "gauge",
           "signal": "oil_press_bar",
-          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -361,7 +361,7 @@
           "id": "oil_temp_l",
           "type": "gauge",
           "signal": "oil_temp_c",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 6, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -384,7 +384,7 @@
           "id": "fuel_press_l",
           "type": "gauge",
           "signal": "fuel_press_bar",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 6, "rowSpan": 3, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF8800",
             "secondaryColor": "#2A2A2A",
@@ -415,7 +415,7 @@
           "id": "btn_map_cycle",
           "type": "button",
           "signal": "",
-          "layout": { "x": 0, "y": 0, "w": 320, "h": 112, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 12, "row": 0, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",
@@ -444,7 +444,7 @@
           "id": "btn_launch",
           "type": "button",
           "signal": "flag_launch_ctrl",
-          "layout": { "x": 0, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 0, "colSpan": 6, "row": 6, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",
@@ -471,7 +471,7 @@
           "id": "btn_antilag",
           "type": "button",
           "signal": "flag_anti_lag",
-          "layout": { "x": 160, "y": 112, "w": 160, "h": 112, "zOrder": 0 },
+          "layout": { "col": 6, "colSpan": 6, "row": 6, "rowSpan": 6, "zOrder": 0 },
           "style": {
             "primaryColor": "#FF4444",
             "secondaryColor": "#1A1A1A",

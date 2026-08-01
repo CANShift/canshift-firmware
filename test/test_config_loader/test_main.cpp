@@ -289,6 +289,43 @@ void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
                             static_cast<uint8_t>(dashboard.pages[1].templateKind));
 }
 
+void test_loadDashboard_outOfRangeLayout_clampsToGrid() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardLayoutOutOfRange,
+                             strlen(fixtures::kDashboardLayoutOutOfRange));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgPage &page = ConfigLoader::getDashboardConfig().pages[0];
+    TEST_ASSERT_EQUAL_UINT8(4, page.widgetCount);
+
+    // Negative origins clamp to 0 instead of wrapping through uint8_t.
+    TEST_ASSERT_EQUAL_UINT8(0, page.widgets[0].layout.col);
+    TEST_ASSERT_EQUAL_UINT8(3, page.widgets[0].layout.colSpan);
+    TEST_ASSERT_EQUAL_UINT8(0, page.widgets[0].layout.row);
+    TEST_ASSERT_EQUAL_UINT8(2, page.widgets[0].layout.rowSpan);
+
+    // Oversized origins clamp to 12 - span.
+    TEST_ASSERT_EQUAL_UINT8(9, page.widgets[1].layout.col);
+    TEST_ASSERT_EQUAL_UINT8(3, page.widgets[1].layout.colSpan);
+    TEST_ASSERT_EQUAL_UINT8(10, page.widgets[1].layout.row);
+    TEST_ASSERT_EQUAL_UINT8(2, page.widgets[1].layout.rowSpan);
+
+    // Zero spans clamp to 1; in-range origins survive.
+    TEST_ASSERT_EQUAL_UINT8(4, page.widgets[2].layout.col);
+    TEST_ASSERT_EQUAL_UINT8(1, page.widgets[2].layout.colSpan);
+    TEST_ASSERT_EQUAL_UINT8(4, page.widgets[2].layout.row);
+    TEST_ASSERT_EQUAL_UINT8(1, page.widgets[2].layout.rowSpan);
+
+    // Span clamps before origin: col 8 + span 10 → span stays 10, col drops to 2.
+    TEST_ASSERT_EQUAL_UINT8(2, page.widgets[3].layout.col);
+    TEST_ASSERT_EQUAL_UINT8(10, page.widgets[3].layout.colSpan);
+    TEST_ASSERT_EQUAL_UINT8(8, page.widgets[3].layout.row);
+    TEST_ASSERT_EQUAL_UINT8(4, page.widgets[3].layout.rowSpan);
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_loadDashboard_minimalValidJson_populatesStruct);
@@ -301,6 +338,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadDashboard_targetProfile_defaultsToCrowpanel28WhenAbsent);
     RUN_TEST(test_loadDashboard_targetProfile_roundTripsExplicitValue);
     RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
+    RUN_TEST(test_loadDashboard_outOfRangeLayout_clampsToGrid);
     RUN_TEST(test_loadSignals_malformedCanFrameId_dropsSignal);
     RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);
     RUN_TEST(test_loadSignals_unitTooLong_resetsUnitToEmpty);

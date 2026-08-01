@@ -3,6 +3,7 @@
 #include "app_config.h"
 #include "config_loader_internal.h"
 #include "diag/logger.h"
+#include "layout_grid_rs.h"
 #include "ui/screen_profile.h"
 
 #include <cstdint>

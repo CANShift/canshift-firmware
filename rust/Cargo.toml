@@ -11,6 +11,7 @@ members = [
     "alert-engine",
     "sensor-color-ramp",
     "timer-core",
+    "layout-grid",
 ]
 
 # Workspace-shared profile knobs — Phase 1 host build only. ESP32 target

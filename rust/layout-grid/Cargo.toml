@@ -1,0 +1,15 @@
+[package]
+name = "layout-grid"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Pure 12x12 span-based widget layout resolver for the CANShift dash (issue #1820). Mirrors canshift-core/src/layout-grid.ts exactly; C++ shell owns config parsing, Rust owns the placement -> pixel-rect math."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []
