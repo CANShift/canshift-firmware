@@ -7,6 +7,7 @@
 #include "ui/icon_assets.h"
 #include "ui/icon_assets_baked.h"
 #include "ui/screen_profile.h"
+#include "ui/theme_manager.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include "diag/logger.h"
@@ -78,10 +79,13 @@ const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
 static constexpr int16_t MAP_BADGE_DIAMETER = 12;
 static constexpr uint32_t MAP_BADGE_COLOR = 0x33CC44;
 
-constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_10;
-constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = 0x55;
+constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_TRANSP;
+constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = LV_OPA_COVER;
 constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC;
-constexpr int16_t BUTTON_BORDER_WIDTH = 1;
+constexpr int16_t BUTTON_BORDER_WIDTH = 2;
+constexpr uint32_t BUTTON_ACTIVE_TEXT_RGB = 0xFFFFFF;
+constexpr int16_t BUTTON_MIN_TOUCH_W = 48;
+constexpr int16_t BUTTON_MIN_TOUCH_H = 50;
 
 struct ButtonTag {
     const CfgWidget *cfg;
@@ -151,11 +155,12 @@ ButtonVisual computeButtonVisual(const CfgWidget &cfg, const CfgButtonParams &p,
         v.bgColor = activeColor;
         v.bgOpa = BUTTON_BG_OPA_ACTIVE;
         v.borderColor = activeColor;
-        v.textColor = activeColor;
+        v.textColor = BUTTON_ACTIVE_TEXT_RGB;
     } else {
         v.bgColor = normalColor;
         v.bgOpa = BUTTON_BG_OPA_IDLE;
-        v.borderColor = cfg.style.secondaryColor.rgb;
+        v.borderColor =
+            ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
         v.textColor = cfg.style.textColor.rgb;
     }
     return v;
@@ -168,6 +173,9 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
     if (tag.labelObj) {
         lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
+    }
+    if (tag.iconImg) {
+        lv_obj_set_style_img_recolor(tag.iconImg, lv_color_hex(v.textColor), 0);
     }
 }
 
@@ -207,7 +215,8 @@ void applyCycleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
     ButtonVisual idle;
     idle.bgColor = normalRgb;
     idle.bgOpa = BUTTON_BG_OPA_IDLE;
-    idle.borderColor = tag.cfg->style.secondaryColor.rgb;
+    idle.borderColor = ThemeManager::getEffectiveTextColor(tag.cfg->style.textColor.rgb,
+                                                           tag.cfg->style.respectDayMode);
     idle.textColor = tag.cfg->style.textColor.rgb;
     applyButtonVisual(btn, tag, idle);
 
@@ -273,6 +282,16 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     lv_obj_set_pos(btn, px, py);
     lv_obj_set_size(btn, ScreenProfile::scaleXVal(cfg.layout.w),
                     ScreenProfile::scaleYVal(cfg.layout.h));
+    const int16_t scaledW = ScreenProfile::scaleXVal(cfg.layout.w);
+    const int16_t scaledH = ScreenProfile::scaleYVal(cfg.layout.h);
+    const int16_t padX = scaledW < BUTTON_MIN_TOUCH_W
+                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_W - scaledW + 1) / 2)
+                             : 0;
+    const int16_t padY = scaledH < BUTTON_MIN_TOUCH_H
+                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_H - scaledH + 1) / 2)
+                             : 0;
+    if (padX > 0 || padY > 0)
+        lv_obj_set_ext_click_area(btn, padX > padY ? padX : padY);
 
     const CfgButtonParams &p = cfg.button;
 
@@ -370,6 +389,14 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
             lv_obj_set_style_bg_opa(btn, pressed.bgOpa, LV_PART_MAIN | LV_STATE_PRESSED);
             lv_obj_set_style_border_color(btn, lv_color_hex(pressed.borderColor),
                                           LV_PART_MAIN | LV_STATE_PRESSED);
+        }
+        if (tag->labelObj) {
+            lv_obj_set_style_text_color(tag->labelObj, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
+                                        LV_PART_MAIN | LV_STATE_PRESSED);
+        }
+        if (tag->iconImg) {
+            lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
+                                         LV_PART_MAIN | LV_STATE_PRESSED);
         }
     }
 
