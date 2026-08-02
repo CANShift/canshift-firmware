@@ -98,10 +98,12 @@ CfgCruiseOp parseCruiseOp(const char *op) {
 
 CfgArcFillStyle parseArcFillStyle(const char *str) {
     if (!str)
-        return CfgArcFillStyle::ZONES;
+        return CfgArcFillStyle::INK;
     if (strcmp(str, "gradient") == 0)
         return CfgArcFillStyle::GRADIENT;
-    return CfgArcFillStyle::ZONES;
+    if (strcmp(str, "zones") == 0)
+        return CfgArcFillStyle::ZONES;
+    return CfgArcFillStyle::INK;
 }
 
 WidgetType parseWidgetType(const char *str) {
@@ -147,4 +149,4 @@ bool isPinConflict(int8_t pin) {
     return pin == dev.twaiTxPin || pin == dev.twaiRxPin;
 }
 
-}
+} // namespace ConfigLoaderInternal

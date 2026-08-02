@@ -24,8 +24,6 @@ static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 static constexpr const char *kStalePlaceholder = "--";
 
-static constexpr uint32_t kUnitLabelDimMask = 0x888888;
-
 static constexpr int16_t kValueFontHeightXl = 165;
 static constexpr int16_t kValueFontHeightLg = 125;
 static constexpr int16_t kValueFontHeightMd = 95;
@@ -36,7 +34,6 @@ static constexpr uint8_t kValueFontSizeSm = 20;
 
 static constexpr uint8_t kFracFontMinPx = 12;
 static constexpr uint8_t kFracFontSecondaryThresholdPx = 20;
-static constexpr uint8_t kUnitLabelFontPx = 12;
 
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
@@ -186,7 +183,6 @@ static void splitDecimal(const char *in, char *intOut, size_t intCap, char *frac
 struct GaugeTag {
     lv_obj_t *valueLabel;
     lv_obj_t *fracLabel;
-    lv_obj_t *unitLabel;
     lv_obj_t *fillArc;
     float minValue;
     float maxValue;
@@ -196,7 +192,9 @@ struct GaugeTag {
     uint16_t dangerAngle;
     bool hasDanger;
     bool gradientMode;
+    bool zonesMode;
     bool lastValid;
+    uint32_t inkRgb;
     const CfgColorRamp *ramp;
     const SensorPaletteEntry *palette;
     float dangerLevel;
@@ -236,12 +234,13 @@ static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, bool paletteMode
 
 static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
                                    const SensorPaletteEntry *paletteEntry, bool paletteMode,
-                                   bool gradientMode, uint32_t primaryRgb, uint8_t strokeW) {
+                                   bool gradientMode, bool zonesMode, uint32_t inkRgb,
+                                   uint8_t strokeW) {
     lv_obj_t *fillArc = createValueArc(cont, diam, strokeW);
     lv_arc_set_angles(fillArc, 0, 0);
-    const uint32_t startColor = paletteMode    ? paletteEntry->okColor
-                                : gradientMode ? WidgetHelpers::kZoneNormalRgb
-                                               : primaryRgb;
+    const uint32_t startColor = paletteMode                   ? paletteEntry->okColor
+                                : (gradientMode || zonesMode) ? WidgetHelpers::kZoneNormalRgb
+                                                              : inkRgb;
     lv_obj_set_style_arc_color(fillArc, lv_color_hex(startColor), LV_PART_INDICATOR);
     return fillArc;
 }
@@ -265,7 +264,6 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
 }
 
 static constexpr int16_t kValueRowYOffset = kArcYShift;
-static constexpr int16_t kUnitLabelYOffset = 28 + kArcYShift;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
@@ -314,17 +312,6 @@ static lv_obj_t *buildFracLabel(lv_obj_t *valueRow, const CfgWidget &cfg, uint8_
     return fracLabel;
 }
 
-static lv_obj_t *buildUnitLabel(lv_obj_t *cont, const char *unitText, uint32_t textRgb) {
-    if (unitText[0] == '\0')
-        return nullptr;
-    lv_obj_t *unitLabel = lv_label_create(cont);
-    lv_obj_align(unitLabel, LV_ALIGN_CENTER, 0, kUnitLabelYOffset);
-    lv_obj_set_style_text_color(unitLabel, lv_color_hex(textRgb & kUnitLabelDimMask), 0);
-    lv_obj_set_style_text_font(unitLabel, FontManager::label(kUnitLabelFontPx), 0);
-    lv_label_set_text(unitLabel, unitText);
-    return unitLabel;
-}
-
 static float resolveRevFlashThreshold(const CfgWidget &cfg) {
     if (!cfg.gauge.revFlash)
         return NAN;
@@ -340,6 +327,7 @@ struct GaugeArcModes {
     bool hasDanger;
     bool gradientMode;
     bool paletteMode;
+    bool zonesMode;
 };
 
 static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
@@ -349,7 +337,8 @@ static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
     m.hasDanger = !std::isnan(cfg.gauge.dangerLevel) && cfg.gauge.dangerLevel > minV &&
                   cfg.gauge.dangerLevel < maxV;
     m.dangerAngle = m.hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
-    m.paletteEntry = SensorPalette::lookup(cfg.gauge.iconName);
+    m.zonesMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::ZONES);
+    m.paletteEntry = m.zonesMode ? SensorPalette::lookup(cfg.gauge.iconName) : nullptr;
     m.paletteMode = m.paletteEntry != nullptr;
     m.gradientMode = (cfg.gauge.arcFillStyle == CfgArcFillStyle::GRADIENT);
     return m;
@@ -358,33 +347,31 @@ static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
 struct GaugeBuildState {
     lv_obj_t *label;
     lv_obj_t *fracLabel;
-    lv_obj_t *unitLabel;
     lv_obj_t *fillArc;
     const SensorPaletteEntry *paletteEntry;
     uint16_t dangerAngle;
     bool hasDanger;
     bool gradientMode;
+    bool zonesMode;
 };
 
 static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
-                              lv_obj_t *&outLabel, lv_obj_t *&outFrac, lv_obj_t *&outUnit) {
-    const char *unitText = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix);
+                              lv_obj_t *&outLabel, lv_obj_t *&outFrac) {
     uint8_t intFontSize = 20;
     const lv_font_t *font = resolveValueFont(cfg, intFontSize);
     lv_obj_t *valueRow = buildValueRow(cont);
     const uint32_t valueRgb = cfg.style.primaryColor.rgb;
     outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
     outFrac = buildFracLabel(valueRow, cfg, intFontSize, valueRgb);
-    outUnit = buildUnitLabel(cont, unitText, textRgb);
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
                                           WidgetLabelOverlay::HeaderPos::TOP_LEFT);
     (void)textRgb;
 }
 
-static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built) {
+static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built,
+                         uint32_t inkRgb) {
     tag->valueLabel = built.label;
     tag->fracLabel = built.fracLabel;
-    tag->unitLabel = built.unitLabel;
     tag->fillArc = built.fillArc;
     tag->minValue = cfg.gauge.minValue;
     tag->maxValue = cfg.gauge.maxValue;
@@ -393,6 +380,8 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->dangerAngle = built.dangerAngle;
     tag->hasDanger = built.hasDanger;
     tag->gradientMode = built.gradientMode;
+    tag->zonesMode = built.zonesMode;
+    tag->inkRgb = inkRgb;
     tag->lastValid = false;
     tag->lastLabelRgb = ThemeManager::getStaleTextColor();
     tag->lastFillRgb = 0xFFFFFFFFu;
@@ -400,20 +389,18 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastDisplayScaled = INT32_MIN;
     tag->palette = built.paletteEntry;
     tag->dangerLevel = cfg.gauge.dangerLevel;
-    tag->ramp = built.paletteEntry ? nullptr : WidgetHelpers::resolveSignalRamp(cfg.signalId);
+    tag->ramp = (built.zonesMode && !built.paletteEntry)
+                    ? WidgetHelpers::resolveSignalRamp(cfg.signalId)
+                    : nullptr;
     tag->revFlashThreshold = resolveRevFlashThreshold(cfg);
 }
 
-static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg,
-                             uint32_t textRgb) {
+static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg) {
     AlertFlash::attach(tag->alert, cont);
-    const uint32_t valueRgb = cfg.style.primaryColor.rgb;
+    const uint32_t valueRgb = tag->zonesMode ? cfg.style.primaryColor.rgb : tag->inkRgb;
     AlertFlash::watchLabel(tag->alert, tag->valueLabel, valueRgb);
     if (tag->fracLabel) {
         AlertFlash::watchLabel(tag->alert, tag->fracLabel, valueRgb);
-    }
-    if (tag->unitLabel) {
-        AlertFlash::watchLabel(tag->alert, tag->unitLabel, textRgb & kUnitLabelDimMask);
     }
 }
 
@@ -432,12 +419,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const uint8_t strokeW = computeArcStrokeWidth(cfg);
     buildBackgroundTracks(cont, diam, modes.paletteMode, modes.gradientMode, strokeW);
     lv_obj_t *fillArc = buildValueFillArc(cont, diam, modes.paletteEntry, modes.paletteMode,
-                                          modes.gradientMode, cfg.style.primaryColor.rgb, strokeW);
+                                          modes.gradientMode, modes.zonesMode, textRgb, strokeW);
 
     lv_obj_t *label = nullptr;
     lv_obj_t *fracLabel = nullptr;
-    lv_obj_t *unitLabel = nullptr;
-    buildValueCluster(cont, cfg, textRgb, label, fracLabel, unitLabel);
+    buildValueCluster(cont, cfg, textRgb, label, fracLabel);
 
     WidgetTagPool::Slot<GaugeTag> tagSlot;
     GaugeTag *tag = tagSlot.get();
@@ -447,11 +433,11 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    const GaugeBuildState built = {label,           fracLabel,          unitLabel,
-                                   fillArc,         modes.paletteEntry, modes.dangerAngle,
-                                   modes.hasDanger, modes.gradientMode};
-    initGaugeTag(tag, cfg, built);
-    attachAlertFlash(tag, cont, cfg, textRgb);
+    const GaugeBuildState built = {
+        label,           fracLabel,          fillArc,        modes.paletteEntry, modes.dangerAngle,
+        modes.hasDanger, modes.gradientMode, modes.zonesMode};
+    initGaugeTag(tag, cfg, built, textRgb);
+    attachAlertFlash(tag, cont, cfg);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE,
@@ -466,12 +452,10 @@ void GaugeWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     auto *tag = static_cast<GaugeTag *>(lv_obj_get_user_data(obj));
     if (!tag)
         return;
-    const uint32_t textRgb =
+    tag->inkRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    if (tag->unitLabel) {
-        lv_obj_set_style_text_color(tag->unitLabel, lv_color_hex(textRgb & kUnitLabelDimMask), 0);
-    }
     tag->lastLabelRgb = 0xFFFFFFFFu;
+    tag->lastFillRgb = 0xFFFFFFFFu;
 }
 
 void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -534,7 +518,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
             labelColor = cfg.style.criticalColor.rgb;
         } else {
-            labelColor = cfg.style.primaryColor.rgb;
+            labelColor = tag->zonesMode ? cfg.style.primaryColor.rgb : tag->inkRgb;
         }
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
         if (tag->fracLabel) {
@@ -557,11 +541,14 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             const float range = tag->maxValue - tag->minValue;
             const float pct = range > 0.0f ? (value - tag->minValue) / range : 0.0f;
             fillColor = interpolateGreenOrangeRed(pct);
-        } else if (tag->hasDanger) {
-            fillColor = value >= cfg.gauge.dangerLevel ? WidgetHelpers::kZoneDangerRgb
-                                                       : WidgetHelpers::kZoneNormalRgb;
+        } else if (tag->zonesMode) {
+            fillColor = (tag->hasDanger && value >= cfg.gauge.dangerLevel)
+                            ? WidgetHelpers::kZoneDangerRgb
+                            : WidgetHelpers::kZoneNormalRgb;
+        } else if (tag->hasDanger && value >= cfg.gauge.dangerLevel) {
+            fillColor = cfg.style.criticalColor.rgb;
         } else {
-            fillColor = 0xFFFFFFu;
+            fillColor = tag->inkRgb;
         }
         WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
                                            LV_PART_INDICATOR);

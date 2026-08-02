@@ -184,7 +184,7 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    out->arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "zones");
+    out->arcFillStyle = parseArcFillStyle(cfg["arcFillStyle"] | "ink");
     strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
 }
 

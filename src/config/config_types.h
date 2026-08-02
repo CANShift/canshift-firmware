@@ -65,6 +65,7 @@ struct CfgStyle {
 enum class CfgArcFillStyle : uint8_t {
     ZONES = 0,
     GRADIENT = 1,
+    INK = 2,
 };
 
 struct CfgGaugeParams {
