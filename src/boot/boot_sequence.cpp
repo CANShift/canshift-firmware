@@ -23,7 +23,7 @@
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
 #include "ui/font_manager.h"
-#include "ui/monogram_baked.h"
+#include "ui/brand_mark.h"
 #include "ui/top_bar.h"
 
 #include "can/can_manager.h"
@@ -97,14 +97,6 @@ constexpr uint32_t kSplashInkRgb = 0xFFFFFF;
 constexpr uint32_t kSplashAccentRgb = 0xFF4747;
 constexpr uint32_t kSplashDimRgb = 0xBABABA;
 constexpr uint32_t kSplashTrackRgb = 0x222222;
-lv_obj_t *drawMonogram(lv_obj_t *parent, bool mark) {
-    lv_obj_t *img = lv_img_create(parent);
-    if (!img)
-        return nullptr;
-    lv_img_set_src(img, mark ? MonogramBaked::mark() : MonogramBaked::header());
-    return img;
-}
-
 lv_obj_t *makeMonoLabel(lv_obj_t *parent, const char *text, uint32_t rgb, uint8_t fontSize) {
     lv_obj_t *lbl = lv_label_create(parent);
     if (!lbl)
@@ -148,7 +140,7 @@ static void showSplash() {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *mark = drawMonogram(scr, true);
+    lv_obj_t *mark = BrandMark::create(scr, true);
     if (mark)
         lv_obj_align(mark, LV_ALIGN_CENTER, 0, 0);
 
@@ -167,7 +159,7 @@ static void buildSelfTestScreen() {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_clean(scr);
 
-    lv_obj_t *header = drawMonogram(scr, false);
+    lv_obj_t *header = BrandMark::create(scr, false);
     if (header)
         lv_obj_align(header, LV_ALIGN_TOP_LEFT, 17, 22);
 
