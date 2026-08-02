@@ -12,7 +12,7 @@ namespace StorageDriver {
 namespace {
 
 constexpr size_t kMaxFiles = 8;
-constexpr size_t kMaxFileBytes = 32 * 1024;
+constexpr size_t kMaxFileBytes = 64 * 1024;
 
 struct FakeFile {
     bool used;

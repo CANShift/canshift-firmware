@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 
 namespace ConfigLoaderInternal {
 
@@ -354,7 +355,7 @@ void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
 }
 
-}
+} // namespace
 
 void parseWidget(JsonObjectConst src, CfgWidget *w) {
     strlcpy(w->id, src["id"] | "", CFG_MAX_ID_LEN);
@@ -376,7 +377,13 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             parseWarningWidget(cfg, &w->warning);
             break;
         case WidgetType::BUTTON:
-            parseButtonWidget(cfg, w->id, &w->button);
+            w->button = new (std::nothrow) CfgButtonParams{};
+            if (w->button) {
+                parseButtonWidget(cfg, w->id, w->button);
+            } else {
+                LOG_WARN("CFG", "button '%s': params alloc failed — widget dropped", w->id);
+                w->type = WidgetType::UNKNOWN;
+            }
             break;
         case WidgetType::TIMER:
             parseTimerWidget(cfg, &w->timer);
@@ -393,4 +400,4 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     }
 }
 
-}
+} // namespace ConfigLoaderInternal

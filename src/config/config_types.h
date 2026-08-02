@@ -179,10 +179,12 @@ struct CfgWidget {
         CfgGaugeParams gauge;
         CfgLabelParams label;
         CfgWarningParams warning;
-        CfgButtonParams button;
         CfgTimerParams timer;
         CfgImageParams image;
     };
+    // Out-of-line: 888 B that only button widgets need — keeping it inline made
+    // every widget cost 1 KB and the six-page default overflow the WROOM heap.
+    CfgButtonParams *button;
 };
 
 enum class CfgPageTemplate : uint8_t {
@@ -257,6 +259,9 @@ struct CfgDashboard {
 
     ~CfgDashboard() {
         for (auto &page : pages) {
+            for (uint8_t i = 0; i < page.widgetCapacity; ++i) {
+                delete page.widgets[i].button;
+            }
             delete[] page.widgets;
             page.widgets = nullptr;
         }

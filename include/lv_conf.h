@@ -130,7 +130,7 @@
         
         #define LV_IMG_CACHE_DEF_SIZE 24
         #define LV_USE_LABEL 1 
-        #define LV_USE_LINE 0     
+        #define LV_USE_LINE 1     
         #define LV_USE_ROLLER 0
         #define LV_USE_SLIDER 1 
         #define LV_USE_SWITCH 0

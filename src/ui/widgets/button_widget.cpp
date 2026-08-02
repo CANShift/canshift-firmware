@@ -293,7 +293,12 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     if (padX > 0 || padY > 0)
         lv_obj_set_ext_click_area(btn, padX > padY ? padX : padY);
 
-    const CfgButtonParams &p = cfg.button;
+    if (!cfg.button) {
+        LOG_WARN("WF", "button '%s' has no params — skipped", cfg.id);
+        lv_obj_del(btn);
+        return nullptr;
+    }
+    const CfgButtonParams &p = *cfg.button;
 
     lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_hor(btn, BUTTON_PAD_X, LV_PART_MAIN);

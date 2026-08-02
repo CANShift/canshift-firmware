@@ -8,6 +8,8 @@
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
 
+#include "json_reader.h"
+
 #include <ArduinoJson.h>
 #include <cmath>
 #include <cstdint>
@@ -25,10 +27,12 @@ bool loadDashboard() {
         return false;
     }
 
-    JsonDocument doc;
+    JsonDocument doc(JsonReader::configAllocator());
     if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
         LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
-        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "dashboard.json unreadable");
+        char msg[48];
+        snprintf(msg, sizeof(msg), "dashboard.json: %s", lastParseError());
+        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", msg);
         delete out;
         return false;
     }
@@ -217,7 +221,7 @@ bool loadSignals() {
         memcpy(snapshot, &s_signals, sizeof(CfgSignalConfig));
     }
 
-    JsonDocument doc;
+    JsonDocument doc(JsonReader::configAllocator());
     if (!readAndParseWithBak(CONFIG_PATH_SIGNALS, doc)) {
         LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
@@ -407,7 +411,7 @@ bool loadDevice() {
 
     logLargestFreeBlock(CONFIG_PATH_DEVICE);
 
-    JsonDocument doc;
+    JsonDocument doc(JsonReader::configAllocator());
     DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_DEVICE, doc);
     if (err) {
         LOG_WARN("CFG", "device.json parse error: %s — using defaults", err.c_str());
@@ -435,7 +439,7 @@ bool loadInputBindings() {
         return false;
     }
 
-    JsonDocument doc;
+    JsonDocument doc(JsonReader::configAllocator());
     DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_INPUTS, doc);
     if (err) {
         LOG_WARN("CFG", "input_bindings.json parse error: %s — ignoring file", err.c_str());

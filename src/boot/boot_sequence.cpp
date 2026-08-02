@@ -23,6 +23,7 @@
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
 #include "ui/font_manager.h"
+#include "ui/monogram_baked.h"
 #include "ui/top_bar.h"
 
 #include "can/can_manager.h"
@@ -82,6 +83,49 @@ namespace {
 static lv_obj_t *s_splashBar = nullptr;
 static lv_obj_t *s_splashStatus = nullptr;
 static lv_obj_t *s_splashError = nullptr;
+static lv_obj_t *s_splashCanResult = nullptr;
+static bool s_selfTestBuilt = false;
+static uint32_t s_markShownMs = 0;
+static uint32_t s_selfTestShownMs = 0;
+
+constexpr uint32_t kSelfTestMinMs = 2500;
+
+constexpr uint32_t kMarkMinMs = 2000;
+
+constexpr uint32_t kSplashBgRgb = 0x121212;
+constexpr uint32_t kSplashInkRgb = 0xFFFFFF;
+constexpr uint32_t kSplashAccentRgb = 0xFF4747;
+constexpr uint32_t kSplashDimRgb = 0xBABABA;
+constexpr uint32_t kSplashTrackRgb = 0x222222;
+lv_obj_t *drawMonogram(lv_obj_t *parent, bool mark) {
+    lv_obj_t *img = lv_img_create(parent);
+    if (!img)
+        return nullptr;
+    lv_img_set_src(img, mark ? MonogramBaked::mark() : MonogramBaked::header());
+    return img;
+}
+
+lv_obj_t *makeMonoLabel(lv_obj_t *parent, const char *text, uint32_t rgb, uint8_t fontSize) {
+    lv_obj_t *lbl = lv_label_create(parent);
+    if (!lbl)
+        return nullptr;
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(rgb), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::label(fontSize), 0);
+    return lbl;
+}
+
+void addSelfTestRow(lv_obj_t *scr, int16_t y, const char *name, const char *result,
+                    lv_obj_t **resultOut) {
+    lv_obj_t *nameLbl = makeMonoLabel(scr, name, kSplashDimRgb, 10);
+    if (nameLbl)
+        lv_obj_align(nameLbl, LV_ALIGN_TOP_LEFT, 17, y);
+    lv_obj_t *resultLbl = makeMonoLabel(scr, result, kSplashInkRgb, 10);
+    if (resultLbl)
+        lv_obj_align(resultLbl, LV_ALIGN_TOP_RIGHT, -17, y);
+    if (resultOut)
+        *resultOut = resultLbl;
+}
 } // namespace
 
 static void renderSplashError() {
@@ -98,95 +142,111 @@ static void renderSplashError() {
     lv_obj_clear_flag(s_splashError, LV_OBJ_FLAG_HIDDEN);
 }
 
-static lv_obj_t *buildSplashBase() {
+static void showSplash() {
     lv_obj_t *scr = lv_scr_act();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(kSplashBgRgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *row = lv_obj_create(scr);
-    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(row, 0, 0);
-    lv_obj_set_style_pad_all(row, 0, 0);
-    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_layout(row, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_align(row, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_t *mark = drawMonogram(scr, true);
+    if (mark)
+        lv_obj_align(mark, LV_ALIGN_CENTER, 0, 0);
 
-    const lv_font_t *titleFont = FontManager::primary(32);
+    s_splashBar = nullptr;
+    s_splashStatus = nullptr;
+    s_splashError = nullptr;
+    s_splashCanResult = nullptr;
+    s_selfTestBuilt = false;
+    s_markShownMs = millis();
 
-    lv_obj_t *titleCan = lv_label_create(row);
-    lv_label_set_text(titleCan, "CAN");
-    lv_obj_set_style_text_color(titleCan, lv_color_hex(0x9A9A9A), 0);
-    if (titleFont)
-        lv_obj_set_style_text_font(titleCan, titleFont, 0);
-
-    lv_obj_t *titleShift = lv_label_create(row);
-    lv_label_set_text(titleShift, "Shift");
-    lv_obj_set_style_text_color(titleShift, lv_color_hex(0xFF4444), 0);
-    if (titleFont)
-        lv_obj_set_style_text_font(titleShift, titleFont, 0);
-
-    lv_obj_t *ver = lv_label_create(scr);
-    lv_label_set_text(ver, "v" APP_VERSION_STR);
-    lv_obj_set_style_text_color(ver, lv_color_hex(0x666666), 0);
-    lv_obj_align(ver, LV_ALIGN_CENTER, 0, -10);
-
-    return scr;
+    lv_task_handler();
+    lv_refr_now(NULL);
 }
 
-static void showSplash() {
-    lv_obj_t *scr = buildSplashBase();
+static void buildSelfTestScreen() {
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_clean(scr);
 
-    static constexpr int16_t BAR_MARGIN_PX = 20;
+    lv_obj_t *header = drawMonogram(scr, false);
+    if (header)
+        lv_obj_align(header, LV_ALIGN_TOP_LEFT, 17, 22);
+
+    const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
+    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
+
+    char ecuRow[44];
+    snprintf(ecuRow, sizeof(ecuRow), "ECU %s",
+             signals.protocol[0] != '\0' ? signals.protocol : "-");
+    char pagesResult[8];
+    snprintf(pagesResult, sizeof(pagesResult), "%u", static_cast<unsigned>(dashboard.pageCount));
+
+    addSelfTestRow(scr, 76, "DISPLAY", "OK", nullptr);
+    addSelfTestRow(scr, 96, "CAN", "...", &s_splashCanResult);
+    addSelfTestRow(scr, 116, ecuRow, signals.loaded ? "CFG" : "-", nullptr);
+    addSelfTestRow(scr, 136, "PAGES", pagesResult, nullptr);
+
+    static constexpr int16_t BAR_MARGIN_PX = 17;
     static constexpr int16_t BAR_W = HW_DISPLAY_WIDTH - 2 * BAR_MARGIN_PX;
-    static_assert(BAR_W == 280, "splash bar width regression for CrowPanel 2.8\"");
     static constexpr int16_t BAR_H = 4;
     lv_obj_t *bar = lv_bar_create(scr);
     lv_obj_set_size(bar, BAR_W, BAR_H);
-    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 30);
+    lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, -34);
     lv_bar_set_range(bar, 0, 100);
     lv_bar_set_value(bar, 0, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x222222), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(kSplashTrackRgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(bar, 2, LV_PART_MAIN);
+    lv_obj_set_style_radius(bar, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0xFF4444), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(kSplashAccentRgb), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_INDICATOR);
-    lv_obj_set_style_radius(bar, 2, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(bar, 0, LV_PART_INDICATOR);
 
-    lv_obj_t *status = lv_label_create(scr);
-    lv_label_set_text(status, "Starting...");
-    lv_obj_set_style_text_color(status, lv_color_hex(0x666666), 0);
-    lv_obj_align(status, LV_ALIGN_CENTER, 0, 52);
+    lv_obj_t *fw = makeMonoLabel(scr, "fw " APP_VERSION_STR, kSplashDimRgb, 10);
+    if (fw)
+        lv_obj_align(fw, LV_ALIGN_BOTTOM_LEFT, 17, -14);
+
+    lv_obj_t *status = makeMonoLabel(scr, "", kSplashDimRgb, 10);
+    if (status)
+        lv_obj_align(status, LV_ALIGN_BOTTOM_RIGHT, -17, -14);
 
     lv_obj_t *err = lv_label_create(scr);
     lv_label_set_long_mode(err, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(err, BAR_W);
-    lv_obj_set_style_text_align(err, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(err, lv_color_hex(0xFF4444), 0);
+    lv_obj_set_style_text_align(err, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_style_text_color(err, lv_color_hex(kSplashAccentRgb), 0);
+    lv_obj_set_style_text_font(err, FontManager::label(10), 0);
     lv_label_set_text(err, "");
-    lv_obj_align(err, LV_ALIGN_CENTER, 0, 72);
+    lv_obj_align(err, LV_ALIGN_TOP_LEFT, 17, 160);
     lv_obj_add_flag(err, LV_OBJ_FLAG_HIDDEN);
 
     s_splashBar = bar;
     s_splashStatus = status;
     s_splashError = err;
-
-    renderSplashError();
-
-    lv_task_handler();
+    s_selfTestBuilt = true;
+    s_selfTestShownMs = millis();
 }
 
 static void updateSplash(const char *status, uint8_t pct) {
+    if (!s_selfTestBuilt) {
+        const uint32_t markElapsed = millis() - s_markShownMs;
+        if (markElapsed < kMarkMinMs)
+            vTaskDelay(pdMS_TO_TICKS(kMarkMinMs - markElapsed));
+        buildSelfTestScreen();
+    }
     if (s_splashBar)
         lv_bar_set_value(s_splashBar, pct, LV_ANIM_OFF);
     if (s_splashStatus)
         lv_label_set_text(s_splashStatus, status);
     renderSplashError();
     lv_refr_now(NULL);
+}
+
+static void setSplashCanResult(bool ok) {
+    if (!s_splashCanResult)
+        return;
+    lv_label_set_text(s_splashCanResult, ok ? "OK" : "FAIL");
+    lv_obj_set_style_text_color(s_splashCanResult,
+                                lv_color_hex(ok ? kSplashInkRgb : kSplashAccentRgb), 0);
 }
 
 static bool initStorage() {
@@ -381,6 +441,7 @@ static void initCanHardwarePhase() {
     LOG_INFO("BOOT", "Initializing CAN/TWAI...");
 
     const esp_err_t err = CanManager::initHardware();
+    setSplashCanResult(err == ESP_OK);
     if (err != ESP_OK) {
         LOG_ERROR("BOOT", "CAN init failed: %s — degraded mode", esp_err_to_name(err));
         char msg[52];
@@ -398,14 +459,23 @@ static void initUsbCommPhase() {
     updateSplash("USB ready", 90);
 }
 
+static void holdSelfTestMin() {
+    if (!s_selfTestBuilt)
+        return;
+    while (millis() - s_selfTestShownMs < kSelfTestMinMs) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 static void buildUiWithHeapBracket() {
     updateSplash("Ready", 100);
+    holdSelfTestMin();
     logHeap("before buildUI");
     buildUI();
     logHeap("dashboard ready");
 }
 
-static constexpr uint32_t SPLASH_MIN_MS = 2000;
+static constexpr uint32_t SPLASH_MIN_MS = 4000;
 
 static constexpr uint32_t SPLASH_WAIT_STEP_MS = 50;
 
@@ -432,13 +502,16 @@ void BootSequence::run() {
     const uint32_t bootStartMs = millis();
     initPsramAndLogEntry();
     initTaskWatchdog();
-    initBleEarlyIfEnabled();
     initLvglMemoryPool();
 
     const bool storageOk = mountStorageOrLogError();
     provisionDefaultConfigsIfNeeded(storageOk);
+    // Config parses before BLE claims its ~55 KB of internal heap — the
+    // transient JsonDocument for a full 8-page dashboard needs the room on
+    // PSRAM-less WROOM modules (#1596 debugging session).
     loadConfigWithHeapBracket();
     ScreenProfile::initFromDashboard();
+    initBleEarlyIfEnabled();
 
     initDisplayHardware();
     initTouchHardware();

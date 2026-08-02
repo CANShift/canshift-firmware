@@ -18,6 +18,8 @@ namespace ConfigLoaderInternal {
 namespace {
 constexpr const char *kBakSuffix = ".bak";
 
+const char *s_lastParseError = "file missing";
+
 constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 bool buildBakPath(char *out, size_t outLen, const char *base) {
@@ -32,7 +34,7 @@ bool buildBakPath(char *out, size_t outLen, const char *base) {
     out[baseLen + suffixLen] = '\0';
     return true;
 }
-}
+} // namespace
 
 void logLargestFreeBlock(const char *where) {
 #ifdef ARDUINO
@@ -43,13 +45,19 @@ void logLargestFreeBlock(const char *where) {
 #endif
 }
 
+const char *lastParseError() {
+    return s_lastParseError;
+}
+
 bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     logLargestFreeBlock(path);
+    s_lastParseError = "file missing";
 
     if (StorageDriver::fileExists(path)) {
         DeserializationError err = StorageDriver::parseJsonFile(path, doc);
         if (!err)
             return true;
+        s_lastParseError = err.c_str();
 
         // NOLINTNEXTLINE(bugprone-branch-clone)
         if (err == DeserializationError::EmptyInput) {
@@ -70,6 +78,7 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     doc.clear();
     DeserializationError bakErr = StorageDriver::parseJsonFile(bakPath, doc);
     if (bakErr) {
+        s_lastParseError = bakErr.c_str();
         LOG_ERROR("CFG", "%s also failed to parse: %s", bakPath, bakErr.c_str());
         return false;
     }
@@ -118,4 +127,4 @@ bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outL
     return true;
 }
 
-}
+} // namespace ConfigLoaderInternal

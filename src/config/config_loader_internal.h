@@ -21,6 +21,7 @@ extern CfgInputBindings s_inputs;
 [[nodiscard]] bool loadInputBindings();
 
 [[nodiscard]] bool readAndParseWithBak(const char *path, JsonDocument &doc);
+const char *lastParseError();
 
 void logLargestFreeBlock(const char *where);
 

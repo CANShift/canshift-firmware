@@ -298,8 +298,10 @@ void cruiseLHitTestCb(lv_event_t *e) {
 }
 
 CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg, int16_t x,
-                           int16_t y) {
+                           int16_t y, CfgButtonParams *storage) {
     CfgWidget w = {};
+    w.button = storage;
+    *storage = CfgButtonParams{};
     strlcpy(w.id, spec.id, CFG_MAX_ID_LEN);
     w.type = WidgetType::BUTTON;
     w.signalId[0] = '\0';
@@ -314,7 +316,7 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
     w.style.textColor = CfgColor{0xFFFFFFu};
     w.style.fontSize = 22;
 
-    CfgButtonParams &p = w.button;
+    CfgButtonParams &p = *w.button;
     strlcpy(p.label, spec.label, CFG_MAX_NAME_LEN);
     p.iconPath[0] = '\0';
     p.iconName[0] = '\0';
@@ -359,7 +361,8 @@ void buildCruiseControlTemplate(lv_obj_t *screen, const CfgPage &cfg, int16_t co
         const uint8_t row = i / 2;
         const int16_t x = startX + col * (CRUISE_BUTTON_W + CRUISE_GAP_X);
         const int16_t y = startY + row * (CRUISE_BUTTON_H + CRUISE_GAP_Y);
-        const CfgWidget w = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y);
+        static CfgButtonParams s_cruiseParams[4];
+        const CfgWidget w = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y, &s_cruiseParams[i]);
         lv_obj_t *btn = WidgetFactory::create(screen, w, 0);
         if (!btn)
             continue;
