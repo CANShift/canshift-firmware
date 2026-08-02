@@ -84,8 +84,19 @@ CfgColor ThemeManager::getEffectiveBgColor(const CfgColor &nightBg) {
     return nightBg;
 }
 
-uint32_t ThemeManager::getEffectiveTextColor() {
+static const CfgTheme *activeThemeWithPalette() {
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (s_isDayMode && dash.hasDayTheme && dash.dayTheme.hasPalette)
+        return &dash.dayTheme;
+    if (!s_isDayMode && dash.hasNightTheme && dash.nightTheme.hasPalette)
+        return &dash.nightTheme;
+    return nullptr;
+}
 
+uint32_t ThemeManager::getEffectiveTextColor() {
+    const CfgTheme *theme = activeThemeWithPalette();
+    if (theme != nullptr)
+        return theme->text.rgb;
     return s_isDayMode ? 0x000000u : 0xFFFFFFu;
 }
 
@@ -103,5 +114,8 @@ static constexpr uint32_t STALE_TEXT_NIGHT = 0x555555;
 static constexpr uint32_t STALE_TEXT_DAY = 0x888888;
 
 uint32_t ThemeManager::getStaleTextColor() {
+    const CfgTheme *theme = activeThemeWithPalette();
+    if (theme != nullptr)
+        return theme->textDim.rgb;
     return pickColor(STALE_TEXT_NIGHT, STALE_TEXT_DAY);
 }

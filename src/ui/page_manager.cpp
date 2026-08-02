@@ -2,6 +2,7 @@
 #include "page_manager_internal.h"
 
 #include "alert_banner.h"
+#include "day_night_auto.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
 #include "error_bar.h"
@@ -60,6 +61,7 @@ void PageManager::init() {
     }
 
     ThemeManager::init();
+    DayNightAuto::init();
     TopBar::init();
 
     const char *defaultId = dash.defaultPageId;

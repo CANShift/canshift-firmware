@@ -25,6 +25,7 @@
 #include "runtime/input_buttons.h"
 #include "runtime/pending_actions.h"
 #include "ui/burn_overlay.h"
+#include "ui/day_night_auto.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
 #include "ui/passkey_overlay.h"
@@ -212,6 +213,7 @@ static constexpr int UI_OTA_VALID_FRAMES = 30;
 namespace {
 
 inline void uiDrainPreMutexActions() {
+    DayNightAuto::tick();
     if (PendingActions::takeTouchCalibrate()) {
         TouchDriver::calibrate();
 #if APP_BLE_ENABLED

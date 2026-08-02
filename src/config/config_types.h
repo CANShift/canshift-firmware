@@ -240,6 +240,9 @@ struct CfgTopBar {
 
 struct CfgTheme {
     CfgColor bgColor;
+    bool hasPalette;
+    CfgColor text;
+    CfgColor textDim;
 };
 
 struct CfgDashboard {
@@ -253,6 +256,7 @@ struct CfgDashboard {
     CfgTheme dayTheme;
     bool hasNightTheme;
     CfgTheme nightTheme;
+    char dayNightSignal[CFG_MAX_ID_LEN];
     uint8_t pageCount;
     CfgPage pages[CONFIG_MAX_PAGES];
     bool loaded;

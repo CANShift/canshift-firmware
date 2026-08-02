@@ -326,6 +326,57 @@ void test_loadDashboard_outOfRangeLayout_clampsToGrid() {
     TEST_ASSERT_EQUAL_UINT8(4, page.widgets[3].layout.rowSpan);
 }
 
+void test_loadDashboard_themePalette_parsesTextColorsAndDayNightSignal() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithThemes,
+                             strlen(fixtures::kDashboardWithThemes));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_TRUE(dashboard.hasDayTheme);
+    TEST_ASSERT_TRUE(dashboard.dayTheme.hasPalette);
+    TEST_ASSERT_EQUAL_UINT32(0xE8E6E1u, dashboard.dayTheme.bgColor.rgb);
+    TEST_ASSERT_EQUAL_UINT32(0x141414u, dashboard.dayTheme.text.rgb);
+    TEST_ASSERT_EQUAL_UINT32(0x6A665Fu, dashboard.dayTheme.textDim.rgb);
+
+    TEST_ASSERT_TRUE(dashboard.hasNightTheme);
+    TEST_ASSERT_FALSE(dashboard.nightTheme.hasPalette);
+    TEST_ASSERT_EQUAL_UINT32(0x121212u, dashboard.nightTheme.bgColor.rgb);
+
+    TEST_ASSERT_EQUAL_STRING("flag_headlights", dashboard.dayNightSignal);
+}
+
+void test_loadDashboard_noThemes_leavesDayNightSignalEmpty() {
+    stageMinimalFiles();
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_FALSE(dashboard.hasDayTheme);
+    TEST_ASSERT_FALSE(dashboard.hasNightTheme);
+    TEST_ASSERT_EQUAL_STRING("", dashboard.dayNightSignal);
+}
+
+void test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardThemeEdgeCases,
+                             strlen(fixtures::kDashboardThemeEdgeCases));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
+    TEST_ASSERT_TRUE(dashboard.hasDayTheme);
+    TEST_ASSERT_FALSE(dashboard.dayTheme.hasPalette);
+    TEST_ASSERT_TRUE(dashboard.hasNightTheme);
+    TEST_ASSERT_FALSE(dashboard.nightTheme.hasPalette);
+    TEST_ASSERT_EQUAL_STRING("", dashboard.dayNightSignal);
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_loadDashboard_minimalValidJson_populatesStruct);
@@ -339,6 +390,9 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadDashboard_targetProfile_roundTripsExplicitValue);
     RUN_TEST(test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom);
     RUN_TEST(test_loadDashboard_outOfRangeLayout_clampsToGrid);
+    RUN_TEST(test_loadDashboard_themePalette_parsesTextColorsAndDayNightSignal);
+    RUN_TEST(test_loadDashboard_noThemes_leavesDayNightSignalEmpty);
+    RUN_TEST(test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely);
     RUN_TEST(test_loadSignals_malformedCanFrameId_dropsSignal);
     RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);
     RUN_TEST(test_loadSignals_unitTooLong_resetsUnitToEmpty);
