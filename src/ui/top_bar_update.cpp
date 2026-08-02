@@ -207,7 +207,7 @@ void TopBar::update() {
                 updateLinkedSeparator(d);
                 break;
             case TopBarItemKind::LABEL:
-                applyDynTextColor(d, labelColor());
+                applyDynTextColor(d, mutedColor());
                 break;
             default:
                 break;

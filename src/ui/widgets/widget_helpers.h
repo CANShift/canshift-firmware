@@ -35,6 +35,8 @@ void resetContainerStyle(lv_obj_t *obj);
 
 lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb);
 
+lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb);
+
 inline void disableInteract(lv_obj_t *obj) {
     if (!obj)
         return;

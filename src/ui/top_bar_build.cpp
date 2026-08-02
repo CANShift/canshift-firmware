@@ -65,8 +65,25 @@ static uint32_t barBgColor(const CfgTopBar &cfg) {
 }
 
 static lv_obj_t *makeStatusDot(lv_obj_t *parent) {
-    const int16_t diameter = derivedDot(s_height);
-    return WidgetHelpers::makeCircleBadge(parent, diameter, COLOR_DOT_DOWN);
+    const int16_t side = derivedDot(s_height);
+    return WidgetHelpers::makeSquareBadge(parent, side, COLOR_DOT_DOWN);
+}
+
+static lv_obj_t *makeFlagBadge(lv_obj_t *parent, const char *text) {
+    lv_obj_t *cont = lv_obj_create(parent);
+    WidgetHelpers::resetContainerStyle(cont);
+    lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(cont, FLAG_GAP_PX, LV_PART_MAIN);
+    WidgetHelpers::makeSquareBadge(cont, FLAG_SQUARE_PX, COLOR_MODE_ACTIVE);
+
+    lv_obj_t *lbl = lv_label_create(cont);
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_font(lbl, FontManager::label(BAR_LABEL_FONT_PX), 0);
+    lv_obj_set_style_text_color(cont, lv_color_hex(COLOR_MODE_ACTIVE), 0);
+    lv_obj_update_layout(cont);
+    return cont;
 }
 
 static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color) {
@@ -124,7 +141,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             break;
         }
         case TopBarItemKind::LABEL: {
-            obj = makeBarLabel(s_bar, item.text, labelColor());
+            obj = makeBarLabel(s_bar, item.text, mutedColor());
             anchor(obj, gap);
             break;
         }
@@ -151,14 +168,13 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             break;
         }
         case TopBarItemKind::MODE_FLAG: {
-            obj = makeBarLabel(s_bar, item.text, COLOR_MODE_ACTIVE);
-
+            obj = makeFlagBadge(s_bar, item.text);
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;
         }
         case TopBarItemKind::TRACK_BADGE: {
-            obj = makeBarLabel(s_bar, "TRACK", COLOR_MODE_ACTIVE);
+            obj = makeFlagBadge(s_bar, "TRACK");
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
             break;

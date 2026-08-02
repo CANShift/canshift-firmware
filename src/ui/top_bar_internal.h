@@ -39,7 +39,9 @@ constexpr uint32_t COLOR_LABEL_DAY = 0x000000;
 constexpr uint32_t COLOR_MUTED_NIGHT = 0x666666;
 constexpr uint32_t COLOR_MUTED_DAY = 0x444444;
 
-constexpr uint8_t BAR_LABEL_FONT_PX = 14;
+constexpr uint8_t BAR_LABEL_FONT_PX = 10;
+constexpr int16_t FLAG_SQUARE_PX = 7;
+constexpr int16_t FLAG_GAP_PX = 3;
 
 inline uint32_t labelColor() {
     return ThemeManager::pickColor(COLOR_LABEL_NIGHT, COLOR_LABEL_DAY);

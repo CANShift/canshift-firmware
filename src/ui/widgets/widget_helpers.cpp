@@ -119,6 +119,13 @@ void resetContainerStyle(lv_obj_t *obj) {
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 }
 
+lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb) {
+    lv_obj_t *badge = makeCircleBadge(parent, side, rgb);
+    if (badge)
+        lv_obj_set_style_radius(badge, 0, LV_PART_MAIN);
+    return badge;
+}
+
 lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb) {
     lv_obj_t *badge = lv_obj_create(parent);
     if (!badge)
