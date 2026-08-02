@@ -5,12 +5,12 @@
 CANShift ships from `main` — only the latest release of each component
 receives security fixes. There is no LTS branch.
 
-| Component                     | Supported |
-| ----------------------------- | --------- |
-| Studio-web (latest release)   | ✅        |
-| Firmware (latest on `main`)   | ✅        |
-| Mobile (latest release)       | ✅        |
-| Anything earlier              | ❌        |
+| Component                   | Supported |
+| --------------------------- | --------- |
+| Studio-web (latest release) | ✅        |
+| Firmware (latest on `main`) | ✅        |
+| Mobile (latest release)     | ✅        |
+| Anything earlier            | ❌        |
 
 A new release is tagged automatically whenever
 `canshift-firmware/package.json` bumps and the change merges to `main`.

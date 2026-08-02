@@ -4,11 +4,11 @@ Spike Rust workspace for the firmware port (issues #827, #936).
 
 ## What's here
 
-| Crate | Phase | Status |
-|---|---|---|
-| `ota-hmac` | 1 (host) | ✅ 16 host parity tests vs the Unity suite at `test/test_ota_hmac/`. |
-| `ota-hmac` | 2 (C ABI) | ✅ `staticlib` crate-type, `extern "C"` bridge in `src/ffi.rs`, hand-written `include/ota_hmac_rs.h`, `panic_handler` for `no_std` builds. |
-| `ota-hmac` | 3 (PlatformIO link) | ✅ `env:crowpanel_28_rust` links the Xtensa staticlib via `scripts/build_rust.py`. Δflash = **−444 B** vs the mbedTLS path. |
+| Crate      | Phase               | Status                                                                                                                                     |
+| ---------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ota-hmac` | 1 (host)            | ✅ 16 host parity tests vs the Unity suite at `test/test_ota_hmac/`.                                                                       |
+| `ota-hmac` | 2 (C ABI)           | ✅ `staticlib` crate-type, `extern "C"` bridge in `src/ffi.rs`, hand-written `include/ota_hmac_rs.h`, `panic_handler` for `no_std` builds. |
+| `ota-hmac` | 3 (PlatformIO link) | ✅ `env:crowpanel_28_rust` links the Xtensa staticlib via `scripts/build_rust.py`. Δflash = **−444 B** vs the mbedTLS path.                |
 
 ## Phase 2 — what just landed
 
@@ -53,16 +53,17 @@ pio run -e crowpanel_28_rust
 ```
 
 The `env:crowpanel_28_rust` PlatformIO env defined in `platformio.ini`:
+
 1. Sets `-DUSE_RUST_OTA_HMAC=1` — compiles `ota_hmac_bridge.cpp`, drops the mbedTLS backend in `ota_hmac.cpp` (linker conflict prevention).
 2. Adds `scripts/build_rust.py` to `extra_scripts` — that hook invokes `cargo build --release --target xtensa-esp32-none-elf -Z build-std=core,alloc` and appends the resulting `.a` + the C header dir to the link.
 
 ### Measured results (this host, Apple Silicon)
 
-| Metric | Budget | Measured | Verdict |
-|---|---|---|---|
-| Δflash | < 50 KB | **−444 B** (Rust path is smaller) | ✅ |
-| ΔRAM (.bss + .data) | < 10 KB | 0 (identical) | ✅ |
-| Δcompile time | < 30% | +20% (~8 s for the Rust path) | ✅ |
+| Metric              | Budget  | Measured                          | Verdict |
+| ------------------- | ------- | --------------------------------- | ------- |
+| Δflash              | < 50 KB | **−444 B** (Rust path is smaller) | ✅      |
+| ΔRAM (.bss + .data) | < 10 KB | 0 (identical)                     | ✅      |
+| Δcompile time       | < 30%   | +20% (~8 s for the Rust path)     | ✅      |
 
 ΔRAM = 0 is expected — both paths use a single static HMAC context. The flash gain comes from LTO being able to dead-code-strip more aggressively over the focused RustCrypto `Hmac<Sha256>` than over the generic mbedTLS `mbedtls_md_*` indirection layer.
 

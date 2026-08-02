@@ -17,31 +17,31 @@ notice.
 
 ### Sensors (`sensors/*.svg`, 32x32 cf=5 outputs)
 
-| Target              | Phosphor source           | Notes                                |
-| ------------------- | ------------------------- | ------------------------------------ |
-| rpm                 | gauge-fill                |                                      |
-| speed               | speedometer-fill          |                                      |
-| coolant             | thermometer-cold-fill     |                                      |
-| oil_pressure        | drop-fill                 | Soft mapping: no oil-can-fill exists |
-| oil_temp            | thermometer-hot-fill      |                                      |
-| battery             | car-battery-fill          |                                      |
-| fuel                | gas-pump-fill             |                                      |
-| afr                 | flame-fill                | Intentional dup with sensor_flame    |
-| boost               | wind-fill                 |                                      |
-| throttle            | arrow-fat-up-fill         |                                      |
-| iat                 | thermometer-simple-fill   |                                      |
-| gear                | gear-six-fill             |                                      |
-| timer               | timer-fill                |                                      |
-| warning             | warning-octagon-fill      |                                      |
-| flame               | flame-fill                | Intentional dup with sensor_afr      |
-| turbo               | fan-fill                  |                                      |
-| engine              | engine-fill               |                                      |
-| brake               | circle-half-tilt-fill     |                                      |
-| launch              | rocket-launch-fill        |                                      |
-| traction            | tire-fill                 | Soft mapping: best-fit compromise    |
-| map_icon            | map-trifold-fill          |                                      |
-| exhaust             | cloud-fog-fill            | Soft mapping: no smoke-fill exists   |
-| cog                 | gear-fill                 |                                      |
+| Target       | Phosphor source         | Notes                                |
+| ------------ | ----------------------- | ------------------------------------ |
+| rpm          | gauge-fill              |                                      |
+| speed        | speedometer-fill        |                                      |
+| coolant      | thermometer-cold-fill   |                                      |
+| oil_pressure | drop-fill               | Soft mapping: no oil-can-fill exists |
+| oil_temp     | thermometer-hot-fill    |                                      |
+| battery      | car-battery-fill        |                                      |
+| fuel         | gas-pump-fill           |                                      |
+| afr          | flame-fill              | Intentional dup with sensor_flame    |
+| boost        | wind-fill               |                                      |
+| throttle     | arrow-fat-up-fill       |                                      |
+| iat          | thermometer-simple-fill |                                      |
+| gear         | gear-six-fill           |                                      |
+| timer        | timer-fill              |                                      |
+| warning      | warning-octagon-fill    |                                      |
+| flame        | flame-fill              | Intentional dup with sensor_afr      |
+| turbo        | fan-fill                |                                      |
+| engine       | engine-fill             |                                      |
+| brake        | circle-half-tilt-fill   |                                      |
+| launch       | rocket-launch-fill      |                                      |
+| traction     | tire-fill               | Soft mapping: best-fit compromise    |
+| map_icon     | map-trifold-fill        |                                      |
+| exhaust      | cloud-fog-fill          | Soft mapping: no smoke-fill exists   |
+| cog          | gear-fill               |                                      |
 
 ### UI (`ui/*.svg`, 12x12 cf=5 outputs)
 

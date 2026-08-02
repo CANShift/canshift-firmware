@@ -78,10 +78,10 @@ manual asset copy step is required. Fonts and icons under `data/assets/` and
 Two independent log levels gate what reaches UART0 / USB-CDC. They are easy to
 confuse because both names contain "level" and both end up on the same wire.
 
-| Knob | Gates | Format | Default in `[env:crowpanel_28]` |
-|------|-------|--------|---------------------------------|
-| `APP_LOG_LEVEL` | Project `LOG_ERROR` / `LOG_WARN` / `LOG_INFO` / `LOG_DEBUG` / `LOG_VDEBUG` macros (`src/diag/logger.h`) | JSON-line envelope `{"log":1,"lvl":"...","tag":"...","msg":"..."}` (USB protocol v2) | `1` (error only) — release contract from `include/app_config.h` (#899) |
-| `CORE_DEBUG_LEVEL` | Arduino-framework `log_e` / `log_w` / `log_i` / `log_d` / `log_v` calls inside arduino-esp32, LovyanGFX, NimBLE, etc. | Plain-text `[E][TAG]…` lines emitted directly by the framework | `1` (errors only) — saves ~4-7 KB flash by stripping framework format strings (#408) |
+| Knob               | Gates                                                                                                                 | Format                                                                               | Default in `[env:crowpanel_28]`                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `APP_LOG_LEVEL`    | Project `LOG_ERROR` / `LOG_WARN` / `LOG_INFO` / `LOG_DEBUG` / `LOG_VDEBUG` macros (`src/diag/logger.h`)               | JSON-line envelope `{"log":1,"lvl":"...","tag":"...","msg":"..."}` (USB protocol v2) | `1` (error only) — release contract from `include/app_config.h` (#899)               |
+| `CORE_DEBUG_LEVEL` | Arduino-framework `log_e` / `log_w` / `log_i` / `log_d` / `log_v` calls inside arduino-esp32, LovyanGFX, NimBLE, etc. | Plain-text `[E][TAG]…` lines emitted directly by the framework                       | `1` (errors only) — saves ~4-7 KB flash by stripping framework format strings (#408) |
 
 Levels: `0`=none, `1`=error, `2`=warn, `3`=info, `4`=debug, `5`=verbose. The two
 scales line up, but the knobs are otherwise orthogonal — raising one does not
@@ -165,11 +165,11 @@ table compatible.
 
 **What changed:**
 
-| Region        | Before (`ota_4mb.csv`) | After (`ota_4mb_wifi.csv`) |
-|---------------|------------------------|----------------------------|
+| Region                 | Before (`ota_4mb.csv`)           | After (`ota_4mb_wifi.csv`)       |
+| ---------------------- | -------------------------------- | -------------------------------- |
 | `app0` / `app1` (each) | 1536 KB @ `0x10000` / `0x190000` | 1856 KB @ `0x10000` / `0x1E0000` |
-| `spiffs`      | 832 KB @ `0x310000`    | 512 KB @ `0x370000`        |
-| `coredump`    | 128 KB @ `0x3E0000`    | 64 KB @ `0x3F0000`         |
+| `spiffs`               | 832 KB @ `0x310000`              | 512 KB @ `0x370000`              |
+| `coredump`             | 128 KB @ `0x3E0000`              | 64 KB @ `0x3F0000`               |
 
 App slots grew by 320 KB each (+640 KB total) so the WiFi build can link
 firmware + WebSocket bridge + WiFi/mDNS/lwip stacks + the gzipped Studio SPA
@@ -319,16 +319,16 @@ canshift-firmware/
 
 ## FreeRTOS task layout
 
-| Task | Core | Priority | Stack | Period | Source |
-|------|------|----------|-------|--------|--------|
-| UI | 1 | 10 | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`) | `taskUI` — `src/main.cpp` |
-| CAN | 0 | 15 | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp` |
-| USB | 1 | 8 | 4096 B | 20 ms | `taskUSBComm` — `src/main.cpp` |
-| Input | 0 | 7 | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS` | `taskInput` — `src/runtime/input_buttons.cpp` |
-| BLE | 1 | 6 | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz) | `taskBLE` — `src/main.cpp` |
-| WiFi AP *(OTA on demand)* | 1 | 5 | 4096 B | event-driven | `src/hal/wifi/wifi_ap.cpp` |
-| WiFi TCP *(Studio JSON-lines, AP-gated, #1071)* | 1 | 5 | 4096 B | 10 ms | `src/hal/wifi/wifi_tcp.cpp` |
-| WiFi WS *(dash-hosted Studio, AP-gated, #1105)* | 1 | 5 | 4096 B | 10 ms | `src/hal/wifi/wifi_ws.cpp` |
+| Task                                            | Core | Priority | Stack  | Period                                       | Source                                        |
+| ----------------------------------------------- | ---- | -------- | ------ | -------------------------------------------- | --------------------------------------------- |
+| UI                                              | 1    | 10       | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`)             | `taskUI` — `src/main.cpp`                     |
+| CAN                                             | 0    | 15       | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp`                    |
+| USB                                             | 1    | 8        | 4096 B | 20 ms                                        | `taskUSBComm` — `src/main.cpp`                |
+| Input                                           | 0    | 7        | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS`              | `taskInput` — `src/runtime/input_buttons.cpp` |
+| BLE                                             | 1    | 6        | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz)      | `taskBLE` — `src/main.cpp`                    |
+| WiFi AP _(OTA on demand)_                       | 1    | 5        | 4096 B | event-driven                                 | `src/hal/wifi/wifi_ap.cpp`                    |
+| WiFi TCP _(Studio JSON-lines, AP-gated, #1071)_ | 1    | 5        | 4096 B | 10 ms                                        | `src/hal/wifi/wifi_tcp.cpp`                   |
+| WiFi WS _(dash-hosted Studio, AP-gated, #1105)_ | 1    | 5        | 4096 B | 10 ms                                        | `src/hal/wifi/wifi_ws.cpp`                    |
 
 Priorities and stack sizes are defined in `include/app_config.h`
 (`TASK_PRIO_*` / `TASK_STACK_*` / `TASK_CORE_*` macros — that file is the
@@ -357,23 +357,23 @@ shared UART mutex with command acks.
 
 Opcodes are defined in `src/hal/usb/usb_comm.h` as `CMD_*` constants.
 
-| Cmd | Name | Payload | Behaviour |
-|-----|------|---------|-----------|
-| `0x01` | `CMD_GET_CONFIG` | `{"cmd":1}` | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped). |
-| `0x02` | `CMD_PUT_CONFIG` | `{"cmd":2,"payload":{...}}` | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state. |
-| `0x05` | `CMD_SCREEN_SETTINGS` | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}` | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot. |
-| `0x06` | `CMD_PUT_FILE` | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write to an allowlisted path prefix (see `kAllowedPutFilePrefixes` in `usb_comm.cpp`). `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. |
-| `0x07` | `CMD_TOGGLE_DAY_NIGHT` | `{"cmd":7}` | Flip the day/night theme on the next UI tick. |
-| `0x08` | `CMD_CALIBRATE_TOUCH` | `{"cmd":8}` | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input). |
-| `0x09` | `CMD_SET_DAY_NIGHT` | `{"cmd":9,"day":true\|false}` | Idempotent variant of `0x07` (issue #225). |
-| `0x0A` | `CMD_RESET_TOUCH_CAL` | `{"cmd":10}` | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot. |
-| `0x10` | `CMD_GET_STATUS` | `{"cmd":16}` | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`. |
-| `0x20` | `CMD_CAN_SCAN_START` | `{"cmd":32}` | Begin forwarding raw CAN frames; resets the drop counter. |
-| `0x21` | `CMD_CAN_SCAN_STOP` | `{"cmd":33}` | Stop forwarding; ack includes `drops`. |
-| `0x03` | `CMD_GET_DEVICE_CONFIG` | `{"cmd":3}` | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`. Wired host-side in studio-web #1118; the firmware dispatcher handler lands alongside this wave (until then the `default` branch acks as a no-op, which the IPC surfaces as `config_not_found`). |
-| `0x04` | `CMD_PUT_DEVICE_CONFIG` | `{"cmd":4,"payload":{...}}` | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`. |
-| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}` | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`. |
-| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}` | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`. |
+| Cmd    | Name                     | Payload                                                                | Behaviour                                                                                                                                                                                                                                                                                   |
+| ------ | ------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0x01` | `CMD_GET_CONFIG`         | `{"cmd":1}`                                                            | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped).                                                                                                                                                                                                  |
+| `0x02` | `CMD_PUT_CONFIG`         | `{"cmd":2,"payload":{...}}`                                            | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state.                                                                                                                                    |
+| `0x05` | `CMD_SCREEN_SETTINGS`    | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}`                     | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot.                                                                                                                                                        |
+| `0x06` | `CMD_PUT_FILE`           | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write to an allowlisted path prefix (see `kAllowedPutFilePrefixes` in `usb_comm.cpp`). `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts.                                             |
+| `0x07` | `CMD_TOGGLE_DAY_NIGHT`   | `{"cmd":7}`                                                            | Flip the day/night theme on the next UI tick.                                                                                                                                                                                                                                               |
+| `0x08` | `CMD_CALIBRATE_TOUCH`    | `{"cmd":8}`                                                            | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input).                                                                                                                                                           |
+| `0x09` | `CMD_SET_DAY_NIGHT`      | `{"cmd":9,"day":true\|false}`                                          | Idempotent variant of `0x07` (issue #225).                                                                                                                                                                                                                                                  |
+| `0x0A` | `CMD_RESET_TOUCH_CAL`    | `{"cmd":10}`                                                           | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot.                                                                                                                                                                              |
+| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                                           | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`.                                                                                                                                                                                                                      |
+| `0x20` | `CMD_CAN_SCAN_START`     | `{"cmd":32}`                                                           | Begin forwarding raw CAN frames; resets the drop counter.                                                                                                                                                                                                                                   |
+| `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                                           | Stop forwarding; ack includes `drops`.                                                                                                                                                                                                                                                      |
+| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                                            | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`. Wired host-side in studio-web #1118; the firmware dispatcher handler lands alongside this wave (until then the `default` branch acks as a no-op, which the IPC surfaces as `config_not_found`). |
+| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{...}}`                                            | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`.                                                                                                                                                                       |
+| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}`                                                           | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`.                                                                                                                                                                                          |
+| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}`                                           | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`.                                                                                                                                                                                                                           |
 
 There is no `CMD_REBOOT`, `CMD_PUT_SIGNALS`, or `CMD_PUT_THEME` — older drafts
 of this doc listed them. Theme is folded into `dashboard.json` (#901), signals
@@ -382,13 +382,13 @@ and reboot is implicit on `CMD_PUT_CONFIG`.
 
 ### Proactive output (device → host)
 
-| Packet | Cadence | Format |
-|--------|---------|--------|
-| Telemetry | 200 ms | `{"tele":1,"v":{"rpm":3500,"coolant_temp_c":89.2,...}}` — only valid (non-stale) signals; full signal name list in `TELE_SIGNALS[]` (`src/hal/usb/usb_comm.cpp`) |
-| CAN frame *(scan mode)* | per frame, drained ≤32/tick | `{"can":1,"id":888,"len":8,"d":[0,1,2,3,4,5,6,7]}` |
-| CAN health | 2 s | `{"can_stat":1,"fps":125.0,"errors":0}` |
-| Log entry *(protocol v2)* | event-driven | `{"log":1,"lvl":"info","tag":"USB","msg":"..."}` |
-| Command ack | per command | `{"status":"ok"}` or `{"status":"error","message":"<reason>"}` |
+| Packet                    | Cadence                     | Format                                                                                                                                                           |
+| ------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Telemetry                 | 200 ms                      | `{"tele":1,"v":{"rpm":3500,"coolant_temp_c":89.2,...}}` — only valid (non-stale) signals; full signal name list in `TELE_SIGNALS[]` (`src/hal/usb/usb_comm.cpp`) |
+| CAN frame _(scan mode)_   | per frame, drained ≤32/tick | `{"can":1,"id":888,"len":8,"d":[0,1,2,3,4,5,6,7]}`                                                                                                               |
+| CAN health                | 2 s                         | `{"can_stat":1,"fps":125.0,"errors":0}`                                                                                                                          |
+| Log entry _(protocol v2)_ | event-driven                | `{"log":1,"lvl":"info","tag":"USB","msg":"..."}`                                                                                                                 |
+| Command ack               | per command                 | `{"status":"ok"}` or `{"status":"error","message":"<reason>"}`                                                                                                   |
 
 ---
 
@@ -406,30 +406,30 @@ roles disabled in `platformio.ini:97-104` to keep flash + DRAM in budget).
 
 ### Characteristics
 
-| UUID | Properties | Direction | Payload |
-|------|------------|-----------|---------|
-| `4fa0b6a0-0000-0000-0000-000000000002` | READ + NOTIFY | device → app | TELE — live telemetry, ~10 Hz |
-| `4fa0b6a0-0000-0000-0000-000000000003` | READ + NOTIFY | device → app | STATUS — version + CAN health + WiFi AP |
-| `4fa0b6a0-0000-0000-0000-000000000004` | READ + WRITE | bidirectional | SETTINGS — brightness / sleep / rotation |
-| `4fa0b6a0-0000-0000-0000-000000000005` | WRITE + WRITE_NR | app → device | CMD — device commands |
+| UUID                                   | Properties       | Direction     | Payload                                  |
+| -------------------------------------- | ---------------- | ------------- | ---------------------------------------- |
+| `4fa0b6a0-0000-0000-0000-000000000002` | READ + NOTIFY    | device → app  | TELE — live telemetry, ~10 Hz            |
+| `4fa0b6a0-0000-0000-0000-000000000003` | READ + NOTIFY    | device → app  | STATUS — version + CAN health + WiFi AP  |
+| `4fa0b6a0-0000-0000-0000-000000000004` | READ + WRITE     | bidirectional | SETTINGS — brightness / sleep / rotation |
+| `4fa0b6a0-0000-0000-0000-000000000005` | WRITE + WRITE_NR | app → device  | CMD — device commands                    |
 
 ### TELE — compact JSON keys
 
-| Key | Signal | Unit |
-|-----|--------|------|
-| `r` | RPM | rpm |
-| `tps` | throttle position | % |
-| `map` | manifold pressure | kPa |
-| `bst` | boost | bar |
-| `iat` | intake-air temp | °C |
-| `ct` | coolant temp | °C |
-| `ot` | oil temp | °C |
-| `op` | oil pressure | bar |
-| `fp` | fuel pressure | bar |
-| `lam` | lambda | λ |
-| `s` | road speed | kph |
-| `g` | gear | int |
-| `bat` | battery | V |
+| Key   | Signal            | Unit |
+| ----- | ----------------- | ---- |
+| `r`   | RPM               | rpm  |
+| `tps` | throttle position | %    |
+| `map` | manifold pressure | kPa  |
+| `bst` | boost             | bar  |
+| `iat` | intake-air temp   | °C   |
+| `ct`  | coolant temp      | °C   |
+| `ot`  | oil temp          | °C   |
+| `op`  | oil pressure      | bar  |
+| `fp`  | fuel pressure     | bar  |
+| `lam` | lambda            | λ    |
+| `s`   | road speed        | kph  |
+| `g`   | gear              | int  |
+| `bat` | battery           | V    |
 
 Only valid (non-stale) signals are included. Values are rounded server-side to
 1 decimal place (see `addSignalIfValid` in `src/hal/ble/ble_server.cpp`).
@@ -458,14 +458,14 @@ because applying it triggers a reboot.
 
 ### CMD payload
 
-| `cmd` value | Extra fields | Behaviour |
-|-------------|--------------|-----------|
-| `start_wifi_ap` | — | Bring up softAP `CANShift-XXXX`, push STATUS notify |
-| `stop_wifi_ap` | — | Tear down the AP, push STATUS notify |
-| `toggle_day_night` | — | Flip theme on next UI tick |
-| `set_day_night` | `"day": true\|false` | Idempotent set |
-| `start_calibration` | — | Run on-device touch calibration |
-| `reboot` | — | `esp_restart()` after 100 ms |
+| `cmd` value         | Extra fields         | Behaviour                                           |
+| ------------------- | -------------------- | --------------------------------------------------- |
+| `start_wifi_ap`     | —                    | Bring up softAP `CANShift-XXXX`, push STATUS notify |
+| `stop_wifi_ap`      | —                    | Tear down the AP, push STATUS notify                |
+| `toggle_day_night`  | —                    | Flip theme on next UI tick                          |
+| `set_day_night`     | `"day": true\|false` | Idempotent set                                      |
+| `start_calibration` | —                    | Run on-device touch calibration                     |
+| `reboot`            | —                    | `esp_restart()` after 100 ms                        |
 
 BLE is compiled in for the production build (`APP_BLE_ENABLED=1`) but stays
 **off at runtime by default** — `BLE_DEFAULT_ENABLED=0` since #873 so a
@@ -505,10 +505,10 @@ differs.
 
 `canshift.local` resolves to the softAP IP. Two services are advertised:
 
-| Service              | Port | Path | Transport | Source |
-|----------------------|------|------|-----------|--------|
-| `_canshift._tcp`     | 5050 | —    | Raw TCP, line-terminated JSON | #1071 (`wifi_tcp.cpp`) |
-| `_canshift_ws._tcp`  | 81   | `/`  | WebSocket, one JSON object per text frame | #1105 (`wifi_ws.cpp`) |
+| Service             | Port | Path | Transport                                 | Source                 |
+| ------------------- | ---- | ---- | ----------------------------------------- | ---------------------- |
+| `_canshift._tcp`    | 5050 | —    | Raw TCP, line-terminated JSON             | #1071 (`wifi_tcp.cpp`) |
+| `_canshift_ws._tcp` | 81   | `/`  | WebSocket, one JSON object per text frame | #1105 (`wifi_ws.cpp`)  |
 
 The WS service carries a `path=/` TXT record so a discovery client that
 sees both can pick the transport it actually supports (browsers can only
@@ -519,9 +519,9 @@ use WS).
 Both transports carry the **same JSON content** as USB. The only
 difference is the framing:
 
-| Transport | Framing | Trailing `\n` |
-|-----------|---------|----------------|
-| USB / TCP | One JSON object per line | Required |
+| Transport | Framing                            | Trailing `\n`                            |
+| --------- | ---------------------------------- | ---------------------------------------- |
+| USB / TCP | One JSON object per line           | Required                                 |
 | WS        | One JSON object per **text frame** | None — the WS frame boundary replaces it |
 
 The WS write sink strips the `\n` that USB / TCP responses carry before
@@ -644,17 +644,17 @@ two-step.
 
 **Routes registered when `APP_SPA_SERVE=1`:**
 
-| Method | Path | Content-Type | Content-Encoding | SPIFFS path |
-|--------|------|--------------|------------------|-------------|
-| GET    | `/`  | `text/html`  | `gzip` (same file as `/index.html`) | `/w/index.html.gz` |
-| GET    | `/index.html` | `text/html` | `gzip` | `/w/index.html.gz` |
-| GET    | `/a/index.js`         | `application/javascript` | `gzip` | `/w/a/index.js.gz` |
-| GET    | `/a/index.css`        | `text/css`               | `gzip` | `/w/a/index.css.gz` |
-| GET    | `/a/vendor-react.js`  | `application/javascript` | `gzip` | `/w/a/vendor-react.js.gz` |
-| GET    | `/a/vendor-radix.js`  | `application/javascript` | `gzip` | `/w/a/vendor-radix.js.gz` |
-| GET    | `/a/vendor-state.js`  | `application/javascript` | `gzip` | `/w/a/vendor-state.js.gz` |
-| GET    | `/a/EditorRoute.js`   | `application/javascript` | `gzip` | `/w/a/EditorRoute.js.gz` |
-| GET    | `/a/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2` | — (already compressed) | `/w/a/Orbitron-*.woff2` |
+| Method | Path                                    | Content-Type             | Content-Encoding                    | SPIFFS path               |
+| ------ | --------------------------------------- | ------------------------ | ----------------------------------- | ------------------------- |
+| GET    | `/`                                     | `text/html`              | `gzip` (same file as `/index.html`) | `/w/index.html.gz`        |
+| GET    | `/index.html`                           | `text/html`              | `gzip`                              | `/w/index.html.gz`        |
+| GET    | `/a/index.js`                           | `application/javascript` | `gzip`                              | `/w/a/index.js.gz`        |
+| GET    | `/a/index.css`                          | `text/css`               | `gzip`                              | `/w/a/index.css.gz`       |
+| GET    | `/a/vendor-react.js`                    | `application/javascript` | `gzip`                              | `/w/a/vendor-react.js.gz` |
+| GET    | `/a/vendor-radix.js`                    | `application/javascript` | `gzip`                              | `/w/a/vendor-radix.js.gz` |
+| GET    | `/a/vendor-state.js`                    | `application/javascript` | `gzip`                              | `/w/a/vendor-state.js.gz` |
+| GET    | `/a/EditorRoute.js`                     | `application/javascript` | `gzip`                              | `/w/a/EditorRoute.js.gz`  |
+| GET    | `/a/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2`             | — (already compressed)              | `/w/a/Orbitron-*.woff2`   |
 
 All SPA responses carry `Cache-Control: no-store`. The operational
 endpoints (`/status`, `/ota`) keep their existing handlers — they're
@@ -663,11 +663,11 @@ before the SPA routes.
 
 **Flash budget on `_wifi` (post-#1123 follow-up).**
 
-| Configuration | Flash | Notes |
-|---|---|---|
-| `crowpanel_28` (prod, no SPA, no WiFi libs) | 68.4 % (1.16 MB) | Unchanged by this work |
-| `crowpanel_28_wifi` baseline (no SPA) | ~107.3 % (1.81 MB) | Pre-fix overflow — SPA embedded |
-| `crowpanel_28_wifi` + SPA on SPIFFS | **~96.8 % (1.63 MB)** | Post-fix — fits the 1728 KB slot |
+| Configuration                               | Flash                 | Notes                            |
+| ------------------------------------------- | --------------------- | -------------------------------- |
+| `crowpanel_28` (prod, no SPA, no WiFi libs) | 68.4 % (1.16 MB)      | Unchanged by this work           |
+| `crowpanel_28_wifi` baseline (no SPA)       | ~107.3 % (1.81 MB)    | Pre-fix overflow — SPA embedded  |
+| `crowpanel_28_wifi` + SPA on SPIFFS         | **~96.8 % (1.63 MB)** | Post-fix — fits the 1728 KB slot |
 
 ---
 
@@ -747,17 +747,17 @@ devices reject the new binaries until they're flashed via USB.
 
 ### Rollout state
 
-| Layer | Status | Notes |
-|---|---|---|
-| `[env:secure]` PlatformIO env | Ready | RSA-3072 signing + AES-XTS-256 flash encryption, anti-rollback floor at SEC_VER=2 (#531) |
-| Partition table (`ota_4mb_secure.csv`) | Ready | Aligned to `ota_4mb_wifi.csv` in #531 — same app/SPIFFS geometry, `encrypted` flag on data partitions, 4 KB `nvs_keys` for encrypted-NVS |
-| `sdkconfig.defaults.secure` | Ready | Anti-rollback wired with `SEC_VER=2` floor, release-mode flash encryption, UART download backdoors closed |
-| Host scripts | Ready | `generate_keys.sh` (project-wide signing key, one-shot), `secure_boot_first_flash.sh` (per-chip irreversible provisioning) |
-| CI build | Gated | `firmware-secure-build` (non-blocking) compiles `[env:secure]` when `SECURE_BOOT_SIGNING_KEY_TEST` repository secret is present; otherwise skipped with a notice. Promote to blocking once the secret is provisioned and a few clean runs are observed |
-| Signing key | **Not yet generated** | One-time per-project. Run `scripts/generate_keys.sh --i-understand-this-is-irreversible` on a controlled workstation and place the result under offline custody (HSM / YubiKey / encrypted offline backup) |
-| Test signing key (CI) | **Not yet generated** | SEPARATE key from production, provisioned as `SECURE_BOOT_SIGNING_KEY_TEST` repo secret. Production key never enters CI |
-| First-flash on a real chip | **Not yet performed** | Gated on sacrificial-board QA per the issue's acceptance criteria |
-| Flasher compat (Tuner Firmware tab) | **Not yet** | Today's built-in flasher writes raw bytes via `esptool-js` — it has no `--encrypt` path and no signed-bootloader awareness. See "Flashing signed builds" below |
+| Layer                                  | Status                | Notes                                                                                                                                                                                                                                                  |
+| -------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[env:secure]` PlatformIO env          | Ready                 | RSA-3072 signing + AES-XTS-256 flash encryption, anti-rollback floor at SEC_VER=2 (#531)                                                                                                                                                               |
+| Partition table (`ota_4mb_secure.csv`) | Ready                 | Aligned to `ota_4mb_wifi.csv` in #531 — same app/SPIFFS geometry, `encrypted` flag on data partitions, 4 KB `nvs_keys` for encrypted-NVS                                                                                                               |
+| `sdkconfig.defaults.secure`            | Ready                 | Anti-rollback wired with `SEC_VER=2` floor, release-mode flash encryption, UART download backdoors closed                                                                                                                                              |
+| Host scripts                           | Ready                 | `generate_keys.sh` (project-wide signing key, one-shot), `secure_boot_first_flash.sh` (per-chip irreversible provisioning)                                                                                                                             |
+| CI build                               | Gated                 | `firmware-secure-build` (non-blocking) compiles `[env:secure]` when `SECURE_BOOT_SIGNING_KEY_TEST` repository secret is present; otherwise skipped with a notice. Promote to blocking once the secret is provisioned and a few clean runs are observed |
+| Signing key                            | **Not yet generated** | One-time per-project. Run `scripts/generate_keys.sh --i-understand-this-is-irreversible` on a controlled workstation and place the result under offline custody (HSM / YubiKey / encrypted offline backup)                                             |
+| Test signing key (CI)                  | **Not yet generated** | SEPARATE key from production, provisioned as `SECURE_BOOT_SIGNING_KEY_TEST` repo secret. Production key never enters CI                                                                                                                                |
+| First-flash on a real chip             | **Not yet performed** | Gated on sacrificial-board QA per the issue's acceptance criteria                                                                                                                                                                                      |
+| Flasher compat (Tuner Firmware tab)    | **Not yet**           | Today's built-in flasher writes raw bytes via `esptool-js` — it has no `--encrypt` path and no signed-bootloader awareness. See "Flashing signed builds" below                                                                                         |
 
 The `[env:secure]` env compiles on a developer workstation as soon as the
 project-wide signing key exists at
@@ -926,6 +926,7 @@ bindings are active. Maximum of `MAX_INPUT_BINDINGS` entries (cap defined in
 ```
 
 Fields:
+
 - **`pin`** — ESP32 GPIO number. Allowlist enforced by
   `Esp32InputGpioSchema` (`canshift-core/src/schemas/device.ts`): all
   output-safe pins **plus** 34-39 (input-only). Pins 6-11 (SPI flash) are
@@ -944,7 +945,7 @@ Fields:
   Supported types: `navigate_page`, `map_switch`, `can_raw`, `cruise_control`.
   Adding a new action type only requires extending `ButtonActionSchema` in
   `canshift-core`; the firmware dispatcher picks it up automatically.
-- **`signal`** *(optional)* — when set, the physical button shares its visual
+- **`signal`** _(optional)_ — when set, the physical button shares its visual
   toggle state with every on-screen button widget bound to the same signal
   name. Pressing a physical "ALS arm" button flips the on-screen ALS button's
   active tint without waiting for the ECU echo. Either side can disarm.
@@ -970,19 +971,19 @@ pin is rejected before the push to the dash.
 > Verify all GPIO assignments against your CrowPanel 2.8" schematic before the
 > first flash. Source: [`include/board_config.h`](include/board_config.h).
 
-| Signal | GPIO | Note |
-|--------|------|------|
-| TFT MOSI | 13 | |
-| TFT MISO | 12 | Display is write-only |
-| TFT SCLK | 14 | |
-| TFT CS | 15 | |
-| TFT DC/RS | 2 | |
-| TFT RST | -1 | Held high internally on CrowPanel 2.8" |
-| TFT Backlight | 27 | PWM channel 0, 5 kHz, 8-bit |
-| Touch CS | 33 | Shared SPI bus |
-| Touch IRQ | -1 | Polled via `getTouch()` |
-| TWAI TX | **25** | → CAN Pal CTX |
-| TWAI RX | **32** | ← CAN Pal CRX |
+| Signal        | GPIO   | Note                                   |
+| ------------- | ------ | -------------------------------------- |
+| TFT MOSI      | 13     |                                        |
+| TFT MISO      | 12     | Display is write-only                  |
+| TFT SCLK      | 14     |                                        |
+| TFT CS        | 15     |                                        |
+| TFT DC/RS     | 2      |                                        |
+| TFT RST       | -1     | Held high internally on CrowPanel 2.8" |
+| TFT Backlight | 27     | PWM channel 0, 5 kHz, 8-bit            |
+| Touch CS      | 33     | Shared SPI bus                         |
+| Touch IRQ     | -1     | Polled via `getTouch()`                |
+| TWAI TX       | **25** | → CAN Pal CTX                          |
+| TWAI RX       | **32** | ← CAN Pal CRX                          |
 
 CAN speed: 500 kbps default (defined in `board_config.h`); runtime override
 via `device.json`. The default `signals.json` shipped with the firmware is a
@@ -1013,12 +1014,12 @@ ship them unpopulated.
 Each canonical config lives at `/config/` on the SPIFFS partition (paths from
 `board_config.h`).
 
-| File | Purpose | Required? |
-|------|---------|-----------|
-| `dashboard.json` | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot |
-| `signals.json` | CAN signal mapping (default: MaxxECU example) | Same — provisioned on first boot |
-| `device.json` | Runtime hardware overrides (TWAI pins, CAN speed) | Optional — falls back to `board_config.h` |
-| `input_bindings.json` | Physical GPIO button → action map (#833) | Optional — falls back to no bindings |
+| File                  | Purpose                                            | Required?                                         |
+| --------------------- | -------------------------------------------------- | ------------------------------------------------- |
+| `dashboard.json`      | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot |
+| `signals.json`        | CAN signal mapping (default: MaxxECU example)      | Same — provisioned on first boot                  |
+| `device.json`         | Runtime hardware overrides (TWAI pins, CAN speed)  | Optional — falls back to `board_config.h`         |
+| `input_bindings.json` | Physical GPIO button → action map (#833)           | Optional — falls back to no bindings              |
 
 The standalone `theme.json` file was removed in schema 1.13 → 1.14 (#901);
 day-theme palette lives under `dashboard.json.dayTheme`. Older firmware
@@ -1079,11 +1080,11 @@ layers. Together they cover the bug classes the codebase has historically
 taken (UB shifts #682, races #876, use-after-free #886, length-validation
 gaps #897) before they reach a real device.
 
-| Layer | Build env | What it catches | What it doesn't |
-|---|---|---|---|
-| **ASan + UBSan (full)** | `[env:native]` — host gcc/clang, `pio test -e native` | Use-after-free, double-free, heap-overflow, stack-overflow, leak (Linux CI via `ASAN_OPTIONS=detect_leaks=1`), integer UB, null deref, alignment, vptr, bounds, vla-bound, returns-nonnull violations | Anything that only manifests on the Xtensa target (cache coherency, PSRAM access patterns, FreeRTOS scheduler timing). 11 first-party TUs only (the unit-test source set). |
-| **clang-tidy strict (gating)** | `[env:native]` compile DB, CI job `firmware — clang-tidy (gating, native subset)` | Anti-pattern + secure-coding rules: `bugprone-*`, `cert-*`, `clang-analyzer-core.*`, `clang-analyzer-cplusplus.*`, `concurrency-*`. `WarningsAsErrors: '*'` — any rule emit fails the build. Required check. | The same 11 TUs as ASan/UBSan; UI / LVGL / driver code is not yet gated. |
-| **clang-tidy informational** | `[env:crowpanel_28]` compile DB, CI job `firmware — clang-tidy (non-blocking)` | Same rule set on the Xtensa compile DB — wider TU coverage, including UI / drivers / HAL. | Dominated by toolchain-induced `clang-diagnostic-error` noise (stock Ubuntu clang's host sysroot is missing ESP32-newlib bits like `machine/endian.h`). Surfaces signal but is not blocking until the ESP-IDF Xtensa-aware clang is wired into CI. |
+| Layer                          | Build env                                                                         | What it catches                                                                                                                                                                                              | What it doesn't                                                                                                                                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ASan + UBSan (full)**        | `[env:native]` — host gcc/clang, `pio test -e native`                             | Use-after-free, double-free, heap-overflow, stack-overflow, leak (Linux CI via `ASAN_OPTIONS=detect_leaks=1`), integer UB, null deref, alignment, vptr, bounds, vla-bound, returns-nonnull violations        | Anything that only manifests on the Xtensa target (cache coherency, PSRAM access patterns, FreeRTOS scheduler timing). 11 first-party TUs only (the unit-test source set).                                                                         |
+| **clang-tidy strict (gating)** | `[env:native]` compile DB, CI job `firmware — clang-tidy (gating, native subset)` | Anti-pattern + secure-coding rules: `bugprone-*`, `cert-*`, `clang-analyzer-core.*`, `clang-analyzer-cplusplus.*`, `concurrency-*`. `WarningsAsErrors: '*'` — any rule emit fails the build. Required check. | The same 11 TUs as ASan/UBSan; UI / LVGL / driver code is not yet gated.                                                                                                                                                                           |
+| **clang-tidy informational**   | `[env:crowpanel_28]` compile DB, CI job `firmware — clang-tidy (non-blocking)`    | Same rule set on the Xtensa compile DB — wider TU coverage, including UI / drivers / HAL.                                                                                                                    | Dominated by toolchain-induced `clang-diagnostic-error` noise (stock Ubuntu clang's host sysroot is missing ESP32-newlib bits like `machine/endian.h`). Surfaces signal but is not blocking until the ESP-IDF Xtensa-aware clang is wired into CI. |
 
 Ruleset lives in `canshift-firmware/.clang-tidy`. Suppressions are inline
 `// NOLINTNEXTLINE(<check>)` with a one-line WHY immediately above the
