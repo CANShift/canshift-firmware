@@ -36,6 +36,7 @@ enum class WidgetType : uint8_t {
     TIMER = 6,
     GEAR_IND = 8,
     IMAGE = 9,
+    SHIFT_LIGHT = 10,
 };
 
 struct CfgLayout {
@@ -165,6 +166,11 @@ struct CfgTimerParams {
     bool formatMsec;
 };
 
+struct CfgShiftLightParams {
+    float startValue;
+    uint8_t redSegments;
+};
+
 struct CfgImageParams {
     char imagePath[CFG_MAX_PATH_LEN];
 };
@@ -182,6 +188,7 @@ struct CfgWidget {
         CfgWarningParams warning;
         CfgTimerParams timer;
         CfgImageParams image;
+        CfgShiftLightParams shiftLight;
     };
     // Out-of-line: 888 B that only button widgets need — keeping it inline made
     // every widget cost 1 KB and the six-page default overflow the WROOM heap.

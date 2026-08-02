@@ -4,6 +4,7 @@
 #include "widgets/warning_widget.h"
 #include "widgets/button_widget.h"
 #include "widgets/gear_widget.h"
+#include "widgets/shift_light_widget.h"
 #include "widgets/timer_widget.h"
 #include "widgets/image_widget.h"
 #include "runtime/signal_store.h"
@@ -98,6 +99,9 @@ void updateWidget(WidgetEntry &entry,
         case WidgetType::TIMER:
             TimerWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
+        case WidgetType::SHIFT_LIGHT:
+            ShiftLightWidget::update(entry.obj, value, valid, *entry.cfg);
+            break;
         case WidgetType::IMAGE:
 
             break;
@@ -132,6 +136,9 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
             break;
         case WidgetType::IMAGE:
             obj = createImage(parent, cfg, yOffset);
+            break;
+        case WidgetType::SHIFT_LIGHT:
+            obj = ShiftLightWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::WARNING:
             obj = createWarning(parent, cfg, yOffset);
@@ -196,6 +203,9 @@ void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
                 break;
             case WidgetType::TIMER:
                 TimerWidget::reapplyTheme(entry.obj, *entry.cfg);
+                break;
+            case WidgetType::SHIFT_LIGHT:
+                ShiftLightWidget::reapplyTheme(entry.obj, *entry.cfg);
                 break;
             case WidgetType::GEAR_IND:
                 GearWidget::reapplyTheme(entry.obj, *entry.cfg);
