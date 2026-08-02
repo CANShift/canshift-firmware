@@ -26,27 +26,36 @@ def read_firmware_version():
 
 
 def read_core_schema_version():
-    """Mirrors CURRENT_SCHEMA_VERSION from canshift-core/index.ts (#203).
-    Fails loudly — a stale literal would defeat the alignment."""
+    """Mirrors CURRENT_SCHEMA_VERSION from a sibling canshift-core checkout
+    when present (#203); otherwise falls back to the committed
+    core-schema-version.txt pin, kept in sync by the cross-repo parity job."""
     ts_path = os.path.join(
         env["PROJECT_DIR"], "..", "canshift-core", "src", "index.ts"
     )
-    try:
+    if os.path.exists(ts_path):
         with open(ts_path, "r") as fh:
             source = fh.read()
-    except OSError as exc:
-        raise SystemExit(f"error: cannot read {ts_path}: {exc}") from exc
-
-    # Match: export const CURRENT_SCHEMA_VERSION = '1.10.0' as const
-    match = re.search(
-        r"CURRENT_SCHEMA_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
-        source,
-    )
-    if not match:
-        raise SystemExit(
-            f"error: CURRENT_SCHEMA_VERSION literal not found in {ts_path}"
+        match = re.search(
+            r"CURRENT_SCHEMA_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
+            source,
         )
-    return match.group(1)
+        if not match:
+            raise SystemExit(
+                f"error: CURRENT_SCHEMA_VERSION literal not found in {ts_path}"
+            )
+        return match.group(1)
+
+    pin_path = os.path.join(env["PROJECT_DIR"], "core-schema-version.txt")
+    try:
+        with open(pin_path, "r") as fh:
+            version = fh.read().strip()
+    except OSError as exc:
+        raise SystemExit(
+            f"error: no sibling canshift-core and cannot read {pin_path}: {exc}"
+        ) from exc
+    if not version:
+        raise SystemExit(f"error: {pin_path} is empty")
+    return version
 
 
 # Must match the include/app_config.h fallback literal.
