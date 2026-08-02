@@ -23,6 +23,8 @@ constexpr uint8_t kRulePrimaryFontMin = 32;
 constexpr uint32_t kRuleTrackRgb = 0x222222;
 constexpr uint32_t kRuleDangerRgb = 0xFF4444;
 constexpr uint8_t kUnitFontMin = 10;
+constexpr uint8_t kBarHeightPx = 3;
+constexpr int16_t kBarSideMarginPx = 4;
 
 uint8_t pickUnitFontSize(uint8_t valueSize) {
     const uint8_t quarter = static_cast<uint8_t>(valueSize / 4);
@@ -53,6 +55,9 @@ struct LabelTag {
     lv_obj_t *fracLabel;
     lv_obj_t *unitLabel;
     lv_obj_t *topRule;
+    lv_obj_t *barFill;
+    int16_t barMaxW;
+    int16_t lastBarW;
     float alertThreshold;
     AlertFlash::State alert;
     float lastValue;
@@ -162,6 +167,34 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const uint32_t ruleRgb = primary ? textRgb : kRuleTrackRgb;
     lv_obj_t *topRule = makeTopRule(cont, primary ? kRulePrimaryPx : kRuleSecondaryPx, ruleRgb);
 
+    lv_obj_t *barFill = nullptr;
+    int16_t barMaxW = 0;
+    if (cfg.label.showBar && cfg.label.maxValue > cfg.label.minValue) {
+        barMaxW = static_cast<int16_t>(cfg.layout.w - 2 * kBarSideMarginPx);
+        if (barMaxW > 0) {
+            lv_obj_t *track = lv_obj_create(cont);
+            if (track) {
+                lv_obj_set_size(track, barMaxW, kBarHeightPx);
+                lv_obj_align(track, LV_ALIGN_BOTTOM_LEFT, kBarSideMarginPx, 0);
+                lv_obj_set_style_bg_color(track, lv_color_hex(kRuleTrackRgb), LV_PART_MAIN);
+                lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN);
+                lv_obj_set_style_border_width(track, 0, LV_PART_MAIN);
+                lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN);
+                lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            }
+            barFill = lv_obj_create(cont);
+            if (barFill) {
+                lv_obj_set_size(barFill, 1, kBarHeightPx);
+                lv_obj_align(barFill, LV_ALIGN_BOTTOM_LEFT, kBarSideMarginPx, 0);
+                lv_obj_set_style_bg_color(barFill, lv_color_hex(textRgb), LV_PART_MAIN);
+                lv_obj_set_style_bg_opa(barFill, LV_OPA_COVER, LV_PART_MAIN);
+                lv_obj_set_style_border_width(barFill, 0, LV_PART_MAIN);
+                lv_obj_set_style_pad_all(barFill, 0, LV_PART_MAIN);
+                lv_obj_clear_flag(barFill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            }
+        }
+    }
+
     WidgetTagPool::Slot<LabelTag> tagSlot;
     LabelTag *tag = tagSlot.get();
     if (!tag) {
@@ -174,6 +207,9 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
     tag->topRule = topRule;
+    tag->barFill = barFill;
+    tag->barMaxW = barMaxW;
+    tag->lastBarW = -1;
     tag->alertThreshold = cfg.label.alertThreshold;
     tag->lastValue = NAN;
     tag->lastValid = false;
@@ -238,6 +274,9 @@ void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     tag->baseTextRgb = textRgb;
+    if (tag->barFill) {
+        lv_obj_set_style_bg_color(tag->barFill, lv_color_hex(textRgb), LV_PART_MAIN);
+    }
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, textRgb);
     if (tag->fracLabel) {
         uint32_t fracLast = tag->lastTintRgb;
@@ -276,6 +315,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
                 WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, staleRgb);
             }
         }
+        if (tag->barFill && tag->lastBarW != 0) {
+            lv_obj_set_width(tag->barFill, 1);
+            tag->lastBarW = 0;
+        }
         AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
         setRuleColorIfChanged(tag, tag->alert.active ? kRuleDangerRgb : tag->ruleBaseRgb);
         return;
@@ -306,6 +349,20 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         if (tag->fracLabel) {
             uint32_t fracLast = tag->lastTintRgb;
             WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, tint);
+        }
+    }
+
+    if (tag->barFill && tag->barMaxW > 0) {
+        const float range = cfg.label.maxValue - cfg.label.minValue;
+        float pct = range > 0.0f ? (displayValue - cfg.label.minValue) / range : 0.0f;
+        if (pct < 0.0f)
+            pct = 0.0f;
+        if (pct > 1.0f)
+            pct = 1.0f;
+        const int16_t barW = static_cast<int16_t>(pct * tag->barMaxW);
+        if (barW != tag->lastBarW) {
+            lv_obj_set_width(tag->barFill, barW > 0 ? barW : 1);
+            tag->lastBarW = barW;
         }
     }
 

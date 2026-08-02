@@ -191,6 +191,9 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
 void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThreshold) {
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     out->alertThreshold = alertThreshold;
+    out->showBar = cfg["showBar"] | false;
+    out->minValue = cfg["minValue"] | 0.0f;
+    out->maxValue = cfg["maxValue"] | 100.0f;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
     strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
 }

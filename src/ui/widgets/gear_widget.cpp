@@ -118,5 +118,5 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
     char buf[4];
     snprintf(buf, sizeof(buf), "%d", gear);
     WidgetHelpers::setLabelTextIfChanged(label, buf);
-    WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, cfg.style.primaryColor.rgb);
+    WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
 }

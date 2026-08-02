@@ -853,7 +853,8 @@
       "minValue": 0,
       "maxValue": 100,
       "dangerLevel": 95,
-      "decimalPlaces": 0
+      "decimalPlaces": 0,
+      "showBar": true
      }
     },
     {
