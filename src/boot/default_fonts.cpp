@@ -8,26 +8,26 @@
 #include <Arduino.h>
 
 extern "C" {
-extern const uint8_t kFontBold20Start[] asm("_binary_data_fonts_orbitron_bold_20_bin_start");
-extern const uint8_t kFontBold20End[] asm("_binary_data_fonts_orbitron_bold_20_bin_end");
+extern const uint8_t kFontBold20Start[] asm("_binary_data_fonts_jbmono_bold_20_bin_start");
+extern const uint8_t kFontBold20End[] asm("_binary_data_fonts_jbmono_bold_20_bin_end");
 
-extern const uint8_t kFontBold24Start[] asm("_binary_data_fonts_orbitron_bold_24_bin_start");
-extern const uint8_t kFontBold24End[] asm("_binary_data_fonts_orbitron_bold_24_bin_end");
+extern const uint8_t kFontBold24Start[] asm("_binary_data_fonts_jbmono_bold_24_bin_start");
+extern const uint8_t kFontBold24End[] asm("_binary_data_fonts_jbmono_bold_24_bin_end");
 
-extern const uint8_t kFontMedium8Start[] asm("_binary_data_fonts_orbitron_medium_8_bin_start");
-extern const uint8_t kFontMedium8End[] asm("_binary_data_fonts_orbitron_medium_8_bin_end");
+extern const uint8_t kFontMedium8Start[] asm("_binary_data_fonts_jbmono_medium_8_bin_start");
+extern const uint8_t kFontMedium8End[] asm("_binary_data_fonts_jbmono_medium_8_bin_end");
 
-extern const uint8_t kFontMedium10Start[] asm("_binary_data_fonts_orbitron_medium_10_bin_start");
-extern const uint8_t kFontMedium10End[] asm("_binary_data_fonts_orbitron_medium_10_bin_end");
+extern const uint8_t kFontMedium10Start[] asm("_binary_data_fonts_jbmono_medium_10_bin_start");
+extern const uint8_t kFontMedium10End[] asm("_binary_data_fonts_jbmono_medium_10_bin_end");
 
-extern const uint8_t kFontMedium12Start[] asm("_binary_data_fonts_orbitron_medium_12_bin_start");
-extern const uint8_t kFontMedium12End[] asm("_binary_data_fonts_orbitron_medium_12_bin_end");
+extern const uint8_t kFontMedium12Start[] asm("_binary_data_fonts_jbmono_medium_12_bin_start");
+extern const uint8_t kFontMedium12End[] asm("_binary_data_fonts_jbmono_medium_12_bin_end");
 
-extern const uint8_t kFontMedium14Start[] asm("_binary_data_fonts_orbitron_medium_14_bin_start");
-extern const uint8_t kFontMedium14End[] asm("_binary_data_fonts_orbitron_medium_14_bin_end");
+extern const uint8_t kFontMedium14Start[] asm("_binary_data_fonts_jbmono_medium_14_bin_start");
+extern const uint8_t kFontMedium14End[] asm("_binary_data_fonts_jbmono_medium_14_bin_end");
 
-extern const uint8_t kFontMedium16Start[] asm("_binary_data_fonts_orbitron_medium_16_bin_start");
-extern const uint8_t kFontMedium16End[] asm("_binary_data_fonts_orbitron_medium_16_bin_end");
+extern const uint8_t kFontMedium16Start[] asm("_binary_data_fonts_jbmono_medium_16_bin_start");
+extern const uint8_t kFontMedium16End[] asm("_binary_data_fonts_jbmono_medium_16_bin_end");
 }
 
 namespace {
@@ -40,13 +40,13 @@ struct EmbeddedFont {
 };
 
 const EmbeddedFont kEmbeddedFonts[] = {
-    {"/fonts/orbitron_bold_20.bin", kFontBold20Start, kFontBold20End, "orbitron_bold_20"},
-    {"/fonts/orbitron_bold_24.bin", kFontBold24Start, kFontBold24End, "orbitron_bold_24"},
-    {"/fonts/orbitron_medium_8.bin", kFontMedium8Start, kFontMedium8End, "orbitron_medium_8"},
-    {"/fonts/orbitron_medium_10.bin", kFontMedium10Start, kFontMedium10End, "orbitron_medium_10"},
-    {"/fonts/orbitron_medium_12.bin", kFontMedium12Start, kFontMedium12End, "orbitron_medium_12"},
-    {"/fonts/orbitron_medium_14.bin", kFontMedium14Start, kFontMedium14End, "orbitron_medium_14"},
-    {"/fonts/orbitron_medium_16.bin", kFontMedium16Start, kFontMedium16End, "orbitron_medium_16"},
+    {"/fonts/jbmono_bold_20.bin", kFontBold20Start, kFontBold20End, "jbmono_bold_20"},
+    {"/fonts/jbmono_bold_24.bin", kFontBold24Start, kFontBold24End, "jbmono_bold_24"},
+    {"/fonts/jbmono_medium_8.bin", kFontMedium8Start, kFontMedium8End, "jbmono_medium_8"},
+    {"/fonts/jbmono_medium_10.bin", kFontMedium10Start, kFontMedium10End, "jbmono_medium_10"},
+    {"/fonts/jbmono_medium_12.bin", kFontMedium12Start, kFontMedium12End, "jbmono_medium_12"},
+    {"/fonts/jbmono_medium_14.bin", kFontMedium14Start, kFontMedium14End, "jbmono_medium_14"},
+    {"/fonts/jbmono_medium_16.bin", kFontMedium16Start, kFontMedium16End, "jbmono_medium_16"},
 };
 
 bool writeOne(const EmbeddedFont &font) {

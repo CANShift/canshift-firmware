@@ -93,9 +93,9 @@
         #define LV_FONT_UNSCII_8 0
         #define LV_FONT_UNSCII_16 0
 
-        #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(lv_font_orbitron_medium_14_nk)
+        #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(lv_font_jbmono_medium_14_nk)
 
-        #define LV_FONT_DEFAULT &lv_font_orbitron_medium_14_nk
+        #define LV_FONT_DEFAULT &lv_font_jbmono_medium_14_nk
 
         #define LV_FONT_FMT_TXT_LARGE 0
 

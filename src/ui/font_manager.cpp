@@ -8,8 +8,9 @@
 #include <stdio.h>
 #include <string.h>
 
-LV_FONT_DECLARE(lv_font_orbitron_black_32_nk);
-LV_FONT_DECLARE(lv_font_orbitron_black_48_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
+LV_FONT_DECLARE(lv_font_jbmono_medium_14_nk);
 
 namespace {
 
@@ -41,7 +42,7 @@ size_t snapIndex(const uint8_t *sizes, size_t count, uint8_t size) {
 void logFontHeap(const char *stage, const char *weight, uint8_t size) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    LOG_INFO("FONT", "%s orbitron_%s_%u: free=%u largest=%u", stage, weight,
+    LOG_INFO("FONT", "%s jbmono_%s_%u: free=%u largest=%u", stage, weight,
              static_cast<unsigned>(size), static_cast<unsigned>(free),
              static_cast<unsigned>(largest));
 }
@@ -62,7 +63,7 @@ bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
     const uint32_t needed = static_cast<uint32_t>(fileSize) + kOverheadBytes;
     if (mon.free_size < needed) {
         LOG_ERROR("FONT",
-                  "LVGL pool too small for orbitron_%s_%u.bin: need ~%u B, "
+                  "LVGL pool too small for jbmono_%s_%u.bin: need ~%u B, "
                   "have %u B free (pool=%u B). Skipping to avoid NULL-deref "
                   "inside lv_font_load.",
                   weight, static_cast<unsigned>(size), static_cast<unsigned>(needed),
@@ -77,10 +78,10 @@ bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
 
 void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font_t *&slot) {
     char path[64];
-    snprintf(path, sizeof(path), "S:/fonts/orbitron_%s_%u.bin", weight, size);
+    snprintf(path, sizeof(path), "S:/fonts/jbmono_%s_%u.bin", weight, size);
 
     char spiffsPath[64];
-    snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/orbitron_%s_%u.bin", weight, size);
+    snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/jbmono_%s_%u.bin", weight, size);
 
     logFontHeap("before", weight, size);
 
@@ -93,14 +94,14 @@ void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font
 
     if (font == nullptr) {
         LOG_ERROR("FONT",
-                  "Failed to load orbitron_%s_%u.bin from SPIFFS — falling back to built-in 14",
+                  "Failed to load jbmono_%s_%u.bin from SPIFFS — falling back to built-in 14",
                   weight, size);
 
         char detail[60];
-        snprintf(detail, sizeof(detail), "orbitron_%s_%u.bin missing", weight, size);
+        snprintf(detail, sizeof(detail), "jbmono_%s_%u.bin missing", weight, size);
         ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_LOAD", detail);
     } else {
-        LOG_INFO("FONT", "Loaded orbitron_%s_%u.bin from SPIFFS (%s)", weight, size, intent);
+        LOG_INFO("FONT", "Loaded jbmono_%s_%u.bin from SPIFFS (%s)", weight, size, intent);
     }
     slot = font;
 }
@@ -109,7 +110,7 @@ const lv_font_t *resolve(const uint8_t *sizes, size_t count, const lv_font_t *co
                          uint8_t size) {
     const size_t idx = snapIndex(sizes, count, size);
     const lv_font_t *const cached = cache[idx];
-    return (cached != nullptr) ? cached : &lv_font_orbitron_medium_14_nk;
+    return (cached != nullptr) ? cached : &lv_font_jbmono_medium_14_nk;
 }
 
 } // namespace
@@ -118,12 +119,12 @@ void FontManager::init() {
     if (s_initialized) {
         return;
     }
-    LOG_INFO("FONT", "Loading font family 'orbitron'");
+    LOG_INFO("FONT", "Loading font family 'jbmono'");
 
-    s_primary[0] = &lv_font_orbitron_black_32_nk;
-    LOG_INFO("FONT", "orbitron_black_32: using in-flash copy (saves ~20 KB pool)");
-    s_primary[1] = &lv_font_orbitron_black_48_nk;
-    LOG_INFO("FONT", "orbitron_black_48: using in-flash copy (saves ~44 KB pool)");
+    s_primary[0] = &lv_font_jbmono_extrabold_32_nk;
+    LOG_INFO("FONT", "jbmono_extrabold_32: using in-flash copy (saves ~20 KB pool)");
+    s_primary[1] = &lv_font_jbmono_extrabold_48_nk;
+    LOG_INFO("FONT", "jbmono_extrabold_48: using in-flash copy (saves ~44 KB pool)");
 
     for (size_t i = 0; i < kSecondaryCount; ++i) {
         loadOne("bold", "secondary", kSecondarySizes[i], s_secondary[i]);
@@ -132,8 +133,8 @@ void FontManager::init() {
     s_label[0] = nullptr;
     loadOne("medium", "label", kLabelSizes[1], s_label[1]);
     loadOne("medium", "label", kLabelSizes[2], s_label[2]);
-    s_label[3] = &lv_font_orbitron_medium_14_nk;
-    LOG_INFO("FONT", "orbitron_medium_14: using in-flash copy (saves ~4.6 KB pool)");
+    s_label[3] = &lv_font_jbmono_medium_14_nk;
+    LOG_INFO("FONT", "jbmono_medium_14: using in-flash copy (saves ~4.6 KB pool)");
     loadOne("medium", "label", kLabelSizes[4], s_label[4]);
 
     s_initialized = true;
@@ -143,9 +144,9 @@ void FontManager::shutdown() {
     auto freeAll = [](const lv_font_t **slots, size_t count) {
         for (size_t i = 0; i < count; ++i) {
 
-            const bool isInFlash = slots[i] == &lv_font_orbitron_medium_14_nk ||
-                                   slots[i] == &lv_font_orbitron_black_32_nk ||
-                                   slots[i] == &lv_font_orbitron_black_48_nk;
+            const bool isInFlash = slots[i] == &lv_font_jbmono_medium_14_nk ||
+                                   slots[i] == &lv_font_jbmono_extrabold_32_nk ||
+                                   slots[i] == &lv_font_jbmono_extrabold_48_nk;
             if (slots[i] != nullptr && !isInFlash) {
                 lv_font_free(const_cast<lv_font_t *>(slots[i]));
             }
