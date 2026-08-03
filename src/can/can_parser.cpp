@@ -21,8 +21,9 @@ struct RuntimeSignal {
     float offset;
     uint8_t bitMask;
     SignalId signalId;
-    uint8_t exprLen;
-    char expr[CFG_MAX_EXPR_LEN];
+    bool hasExpr;
+    uint8_t tokenCount;
+    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
 };
 
 static RuntimeSignal s_runtime[CONFIG_MAX_SIGNALS];
@@ -51,12 +52,11 @@ void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length
         if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
             continue;
         const float val =
-            sig.exprLen == 0
+            !sig.hasExpr
                 ? decode_bytes_rs(data, sig.startByte, sig.byteLength, sig.bigEndian, sig.isSigned,
                                   sig.bitMask, sig.scale, sig.offset)
-                : decode_with_expr_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
-                                      sig.isSigned, sig.bitMask, sig.scale, sig.offset,
-                                      reinterpret_cast<const uint8_t *>(sig.expr), sig.exprLen);
+                : eval_tokens_rs(data, sig.startByte, sig.byteLength, sig.bigEndian, sig.isSigned,
+                                 sig.bitMask, sig.scale, sig.offset, sig.tokens, sig.tokenCount);
         SignalStore::update(sig.signalId, val);
     }
 }
@@ -91,9 +91,14 @@ void CanParser::loadSignalDefinitions() {
         r.bitMask = def.bitMask;
         r.signalId = sid;
         const size_t exprLen = strnlen(def.expr, sizeof(def.expr));
-        r.exprLen = static_cast<uint8_t>(exprLen);
-        if (exprLen > 0)
-            memcpy(r.expr, def.expr, exprLen);
+        r.hasExpr = exprLen > 0;
+        r.tokenCount = 0;
+        if (r.hasExpr) {
+            const int32_t n = lex_expr_rs(reinterpret_cast<const uint8_t *>(def.expr), exprLen,
+                                          r.tokens, CANSHIFT_EXPR_MAX_TOKENS);
+            if (n > 0)
+                r.tokenCount = static_cast<uint8_t>(n);
+        }
 
         SignalStore::setTimeout(sid, def.timeoutMs);
     }
