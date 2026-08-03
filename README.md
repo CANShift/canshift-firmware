@@ -2,7 +2,7 @@
 
 ESP32 firmware for the CANShift configurable automotive dashboard.
 
-> 🚨 **Architecture refactor (#1351)** — the WiFi stack, WebServer, WS bridge, and SPA-on-SPIFFS pipeline were removed in this PR. Studio is now hosted on Vercel as [`canshift-tuner`](../canshift-tuner/) and talks to the dash over WebSerial via the CH340 UART. Existing devices need a USB reflash via the Tuner — OTA between the WiFi-extended layout and the new one is unsafe (the bootloader-visible partition table changed).
+> 🚨 **Architecture refactor (#1351)** — the WiFi stack, WebServer, WS bridge, and SPA-on-SPIFFS pipeline were removed in this PR. Studio is now the browser Tuner, [CANShift/canshift-tuner](https://github.com/CANShift/canshift-tuner) and talks to the dash over WebSerial via the CH340 UART. Existing devices need a USB reflash via the Tuner — OTA between the WiFi-extended layout and the new one is unsafe (the bootloader-visible partition table changed).
 
 - **Platform:** Elecrow CrowPanel 2.8" (ESP32-WROOM-32, 320×240 ILI9341 + XPT2046 touch)
 - **Framework:** PlatformIO + Arduino + C++17
@@ -587,7 +587,7 @@ via the WebSocket transport on port 81 (#1108) for live data.
 
 1. `extra_scripts = scripts/sync_studio_web.py` (registered alongside
    `extra_targets.py` on `[env:crowpanel_28_wifi]`) runs `npm run build`
-   in `../canshift-studio-web/`, gzip-encodes every text artifact via the
+   in the retired studio-web package, gzip-encodes every text artifact via the
    studio-web post-build hook, then mirrors `dist/*.gz` + `*.woff2` into
    `canshift-firmware/data/w/`.
 2. `pio run -t uploadfs` flashes the resulting SPIFFS image to the
@@ -897,7 +897,7 @@ resulting event through the same `ActionDispatcher` that touch buttons feed.
 
 Optional file at `/config/input_bindings.json` (SPIFFS). When absent, no
 bindings are active. Maximum of `MAX_INPUT_BINDINGS` entries (cap defined in
-`canshift-core/src/constants/firmware-caps.ts`).
+`@canshift/core` (`src/constants/firmware-caps.ts`)).
 
 ```json
 {
@@ -928,7 +928,7 @@ bindings are active. Maximum of `MAX_INPUT_BINDINGS` entries (cap defined in
 Fields:
 
 - **`pin`** — ESP32 GPIO number. Allowlist enforced by
-  `Esp32InputGpioSchema` (`canshift-core/src/schemas/device.ts`): all
+  `Esp32InputGpioSchema` (`@canshift/core`, `src/schemas/device.ts`): all
   output-safe pins **plus** 34-39 (input-only). Pins 6-11 (SPI flash) are
   rejected — they'd brick the device.
 - **`active`** — `"low"` (default, button to GND + internal pullup) or
@@ -1056,7 +1056,7 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
   release feed.
 - **canshift-core** — owns the JSON schema; the firmware mirrors it in
   `src/config/config_types.h`. `CONFIG_SCHEMA_VERSION` is injected at build
-  time from `canshift-core/src/index.ts` by `scripts/extra_targets.py`, the
+  time from a sibling `../canshift-core` checkout (falling back to the committed `core-schema-version.txt` pin) by `scripts/extra_targets.py`, the
   same script that injects `APP_VERSION_STR` from
   `canshift-firmware/package.json` — firmware is the only release artifact,
   so the version naturally tracks the firmware.
