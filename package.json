@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^15.5.2"
+    "lint-staged": "^17.2.0"
   },
   "lint-staged": {
     "*.{cpp,h,hpp}": "scripts/hooks/clang-format-staged.sh",
