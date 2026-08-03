@@ -12,7 +12,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 
 - New pure-logic modules in Rust; HAL/LVGL/Arduino stay C++.
 - `src/config/config_types.h` mirrors `@canshift/core` schemas; `core-schema-version.txt` pins `CURRENT_SCHEMA_VERSION` for standalone builds (a sibling `../canshift-core` checkout wins) — update the pin on every schema bump.
-- Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/brand); the tuner preview mirrors them via core `widget-metrics.ts`.
+- Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
 - Zero comments policy (rationale lives in canshift-docs); clang-format gates every PR.
 
 ## Workflow
