@@ -1,0 +1,188 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      version: ${{ steps.ver.outputs.version }}
+      should_release: ${{ steps.check.outputs.should_release }}
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Read firmware version
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Check if release already exists
+        id: check
+        run: |
+          if gh release view "${{ steps.ver.outputs.tag }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.ver.outputs.tag }} already exists — skipping."
+          else
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "New version ${{ steps.ver.outputs.tag }} — will release."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  firmware-release:
+    name: Firmware — build & attach
+    needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.platformio/.packages
+            ~/.platformio/.cache
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            platformio-${{ runner.os }}-
+
+      - name: Install PlatformIO CLI
+        run: pip install platformio
+
+      - name: Write secrets.ini for production firmware
+        run: |
+          if [ -z "${OTA_HMAC_SECRET:-}" ]; then
+            echo "::error::OTA_HMAC_SECRET repo secret is not set — see #978 for setup."
+            exit 1
+          fi
+          cat > secrets.ini <<EOF
+          [ota]
+          hmac_secret = ${OTA_HMAC_SECRET}
+          EOF
+        env:
+          OTA_HMAC_SECRET: ${{ secrets.OTA_HMAC_SECRET }}
+
+      - name: Build production firmware
+        run: platformio run -e crowpanel_28
+
+      - name: Assert APP_VERSION_STR was injected into firmware binary
+        run: |
+          VERSION=${{ needs.check-version.outputs.version }}
+          ELF=.pio/build/crowpanel_28/firmware.elf
+          # The boot banner LOG_INFO is compiled out in prod (APP_LOG_LEVEL=1)
+          # so we can't rely on its string. The splash label literal
+          # `"v" APP_VERSION_STR` in boot_sequence.cpp survives because it's a
+          # plain string passed to lv_label_set_text. Use the explicit `0.0.0-unset`
+          # fallback as the negative signal — if it appears, the macro wasn't
+          # injected.
+          if strings "$ELF" | grep -qF "0.0.0-unset"; then
+            echo "::error::APP_VERSION_STR fell back to 0.0.0-unset in $ELF"
+            echo "extra_targets.py likely failed to inject the macro into projenv."
+            strings "$ELF" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+|0\.0\.0-unset" | head -10
+            exit 1
+          fi
+          if ! strings "$ELF" | grep -qF "v${VERSION}"; then
+            echo "::error::APP_VERSION_STR mismatch — no 'v${VERSION}' literal in $ELF"
+            strings "$ELF" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+|0\.0\.0-unset" | head -10
+            exit 1
+          fi
+          echo "APP_VERSION_STR=v${VERSION} confirmed in firmware ELF."
+
+      - name: Build SPIFFS image
+        run: platformio run --target buildfs -e crowpanel_28
+
+      - name: Stage release assets (firmware partition, merged image, SPIFFS)
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          pip install esptool
+          # Merged factory image — USB esptool flashing only (bootloader + partitions + firmware).
+          python -m esptool --chip esp32 merge_bin \
+            -o canshift-firmware-${TAG}-crowpanel_28-merged.bin \
+            0x1000 .pio/build/crowpanel_28/bootloader.bin \
+            0x8000 .pio/build/crowpanel_28/partitions.bin \
+            0x10000 .pio/build/crowpanel_28/firmware.bin
+          # Firmware-partition image — what mobile / studio OTA must consume.
+          cp .pio/build/crowpanel_28/firmware.bin canshift-firmware-${TAG}-crowpanel_28-firmware.bin
+          # SPIFFS image — flashed to the data partition.
+          cp .pio/build/crowpanel_28/spiffs.bin canshift-spiffs-${TAG}-crowpanel_28.bin
+
+      - name: Sign firmware artifacts with Ed25519
+        run: |
+          if [ -z "${FIRMWARE_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "::warning::FIRMWARE_SIGNING_PRIVATE_KEY repo secret not set —"
+            echo "::warning::skipping .sig generation. Set the secret before the flasher"
+            echo "::warning::starts enforcing signature verification (#1259)."
+            exit 0
+          fi
+          pip install --quiet cryptography
+          python3 scripts/sign_release_artifacts.py \
+            canshift-firmware-${{ needs.check-version.outputs.tag }}-crowpanel_28-merged.bin \
+            canshift-firmware-${{ needs.check-version.outputs.tag }}-crowpanel_28-firmware.bin \
+            canshift-spiffs-${{ needs.check-version.outputs.tag }}-crowpanel_28.bin
+        env:
+          FIRMWARE_SIGNING_PRIVATE_KEY: ${{ secrets.FIRMWARE_SIGNING_PRIVATE_KEY }}
+
+      - name: Create GitHub Release if missing
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          if ! gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release create "${TAG}" \
+              --repo "${{ github.repository }}" \
+              --title "${TAG}" \
+              --notes "Firmware-only release. See README.md for the bundled changes." \
+              --draft
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attach firmware, OTA partition image and SPIFFS to GitHub Release
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          MERGED="canshift-firmware-${TAG}-crowpanel_28-merged.bin"
+          OTA="canshift-firmware-${TAG}-crowpanel_28-firmware.bin"
+          FS="canshift-spiffs-${TAG}-crowpanel_28.bin"
+          # Ed25519 signatures land alongside their .bin when the signing key
+          # is configured (#1259). They are append-only assets so we glob
+          # rather than name them explicitly — the workflow stays compatible
+          # with the pre-signing world while the rollout completes.
+          SIGS=()
+          for f in "${MERGED}.sig" "${OTA}.sig" "${FS}.sig"; do
+            [ -f "${f}" ] && SIGS+=("${f}")
+          done
+          for i in 1 2 3 4 5; do
+            gh release upload "${TAG}" "${MERGED}" "${OTA}" "${FS}" "${SIGS[@]}" --clobber && break
+            if [ $i -eq 5 ]; then exit 1; fi
+            echo "Attempt ${i}: release not ready, retrying in 30s..."
+            sleep 30
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Flag 0.x releases as pre-release
+        if: startsWith(needs.check-version.outputs.tag, 'v0.')
+        run: gh release edit "${{ needs.check-version.outputs.tag }}" --prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
