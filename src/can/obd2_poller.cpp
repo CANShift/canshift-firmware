@@ -181,9 +181,12 @@ bool Obd2Poller::onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length
         if (modeEcho != expectedModeEcho || pidEcho != slot.pid)
             continue;
 
-        const float physical =
-            CanParser::detail::decodeBytes(data, slot.startByte, slot.byteLength, slot.bigEndian,
-                                           slot.isSigned, slot.bitMask, slot.scale, slot.offset);
+        if (static_cast<uint16_t>(slot.startByte) + static_cast<uint16_t>(slot.byteLength) > length)
+            continue;
+
+        const float physical = CanParser::detail::decodeBytes(
+            data, slot.startByte, slot.byteLength, slot.bigEndian, slot.isSigned, slot.bitMask,
+            slot.scale, slot.offset, length);
         SignalStore::update(slot.signalId, physical);
         slot.lastResponseMs = millis();
         ++s_responsesMatched;

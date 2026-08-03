@@ -41,7 +41,8 @@ void test_decodeBytes_signed32_negativeOne_littleEndian() {
         CanParser::detail::decodeBytes(kSigned32NegativeOneLE,
                                        /*startByte=*/0, /*byteLen=*/4,
                                        /*bigEndian=*/false, /*isSigned=*/true, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(kSigned32NegativeOneLE));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, -1.0f, result);
 }
 
@@ -50,7 +51,8 @@ void test_decodeBytes_signed32_negativeTwo_bigEndian() {
         CanParser::detail::decodeBytes(kSigned32NegativeTwoBE,
                                        /*startByte=*/0, /*byteLen=*/4,
                                        /*bigEndian=*/true, /*isSigned=*/true, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(kSigned32NegativeTwoBE));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, -2.0f, result);
 }
 
@@ -59,7 +61,8 @@ void test_decodeBytes_signed32_intMin_bigEndian() {
         CanParser::detail::decodeBytes(kSigned32IntMinBE,
                                        /*startByte=*/0, /*byteLen=*/4,
                                        /*bigEndian=*/true, /*isSigned=*/true, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(kSigned32IntMinBE));
     // INT32_MIN == -2147483648 — float can represent it exactly.
     TEST_ASSERT_FLOAT_WITHIN(1.0f, -2147483648.0f, result);
 }
@@ -69,7 +72,8 @@ void test_decodeBytes_unsigned24_bigEndian() {
         CanParser::detail::decodeBytes(kUnsigned24BE,
                                        /*startByte=*/0, /*byteLen=*/3,
                                        /*bigEndian=*/true, /*isSigned=*/false, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(kUnsigned24BE));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 1193046.0f, result);
 }
 
@@ -82,7 +86,7 @@ void test_decodeBytes_byteLenZero_returnsZero_withoutReadingData() {
         /*data=*/nullptr,
         /*startByte=*/0, /*byteLen=*/0,
         /*bigEndian=*/false, /*isSigned=*/false, /*bitMask=*/0,
-        /*scale=*/1.0f, /*offset=*/0.0f);
+        /*scale=*/1.0f, /*offset=*/0.0f, /*dataLen=*/0);
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 0.0f, result);
 }
 
@@ -95,7 +99,8 @@ void test_decodeBytes_outOfRange_returnsZero() {
         CanParser::detail::decodeBytes(frame,
                                        /*startByte=*/6, /*byteLen=*/4,
                                        /*bigEndian=*/false, /*isSigned=*/false, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(frame));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 0.0f, result);
 }
 
@@ -107,12 +112,14 @@ void test_decodeBytes_endianness_roundTrip() {
         CanParser::detail::decodeBytes(kBigEndian1234,
                                        /*startByte=*/0, /*byteLen=*/2,
                                        /*bigEndian=*/true, /*isSigned=*/false, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(kBigEndian1234));
     const float leResult =
         CanParser::detail::decodeBytes(kLittleEndian1234,
                                        /*startByte=*/0, /*byteLen=*/2,
                                        /*bigEndian=*/false, /*isSigned=*/false, /*bitMask=*/0,
-                                       /*scale=*/1.0f, /*offset=*/0.0f);
+                                       /*scale=*/1.0f, /*offset=*/0.0f,
+                                       /*dataLen=*/sizeof(kLittleEndian1234));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kExpected1234, beResult);
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kExpected1234, leResult);
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, beResult, leResult);

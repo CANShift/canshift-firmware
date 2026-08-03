@@ -184,9 +184,7 @@ void AlertEngine::init() {
              battHigh100 % 100, battHighCrit100 / 100, battHighCrit100 % 100);
 }
 
-void AlertEngine::tick() {
-    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
-    SignalStore::snapshotAll(snap);
+void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     const uint32_t now = millis();
     updateSensorHealth(snap, now);
 
