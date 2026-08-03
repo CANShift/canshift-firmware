@@ -12,14 +12,8 @@ RUST_DIR = os.path.join(PROJECT_DIR, "rust")
 TARGET_TRIPLE = "xtensa-esp32-none-elf"
 
 # `include=None` means the header lives under canshift-firmware/include/
-# (already on the -I path). ota-hmac is the legacy in-crate header path.
+# (already on the -I path).
 CRATES = (
-    {
-        "flag": "USE_RUST_OTA_HMAC=1",
-        "manifest": os.path.join(RUST_DIR, "ota-hmac", "Cargo.toml"),
-        "libfile": "libota_hmac.a",
-        "include": os.path.join(RUST_DIR, "ota-hmac", "include"),
-    },
     {
         "flag": "USE_RUST_SIGNAL_MAP=1",
         "manifest": os.path.join(RUST_DIR, "signal-map", "Cargo.toml"),
