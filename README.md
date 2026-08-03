@@ -255,8 +255,7 @@ canshift-firmware/
 │   │   ├── memory/psram.{cpp,h}    # PSRAM probe + allocator helpers
 │   │   ├── storage/                # SPIFFS read/write + LVGL FS driver
 │   │   ├── touch/                  # XPT2046 — calibrate() + setTouch()
-│   │   ├── usb/usb_comm.{cpp,h}    # JSON line parser, command dispatch, scans
-│   │   └── wifi/                   # wifi_ap, wifi_tcp, wifi_ws, ota_hmac, ota_hmac_bridge (#667, #827, #1071, #1105)
+│   │   └── usb/usb_comm.{cpp,h}    # JSON line parser, command dispatch, scans
 │   ├── can/
 │   │   ├── can_manager.{cpp,h}     # TWAI receive loop, CAN health stats
 │   │   ├── can_parser.{cpp,h}      # Runtime signal table from signals.json + fallback
@@ -1108,7 +1107,7 @@ pio run -e native -t compiledb
 clang-tidy -p . src/can/can_parser.cpp src/can/signal_map.cpp \
     src/config/config_loader.cpp src/config/json_reader.cpp \
     src/diag/error_store.cpp src/diag/logger.cpp \
-    src/hal/usb/usb_envelope.cpp src/hal/wifi/ota_hmac.cpp \
+    src/hal/usb/usb_envelope.cpp \
     src/runtime/signal_store.cpp src/ui/sensor_color_ramp.cpp \
     src/ui/sensor_palette.cpp
 ```
