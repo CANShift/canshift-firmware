@@ -12,7 +12,7 @@ void loadSignalDefinitions();
 namespace detail {
 
 float decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen, bool bigEndian,
-                  bool isSigned, uint8_t bitMask, float scale, float offset);
+                  bool isSigned, uint8_t bitMask, float scale, float offset, size_t dataLen);
 }
 
 } // namespace CanParser

@@ -273,6 +273,104 @@ void btnClickHandler(lv_event_t *e) {
     }
 }
 
+void applyButtonTouchPadding(lv_obj_t *btn, int16_t scaledW, int16_t scaledH) {
+    const int16_t padX = scaledW < BUTTON_MIN_TOUCH_W
+                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_W - scaledW + 1) / 2)
+                             : 0;
+    const int16_t padY = scaledH < BUTTON_MIN_TOUCH_H
+                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_H - scaledH + 1) / 2)
+                             : 0;
+    if (padX > 0 || padY > 0)
+        lv_obj_set_ext_click_area(btn, padX > padY ? padX : padY);
+}
+
+void initButtonTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &p) {
+    tag->cfg = &cfg;
+    tag->params = &p;
+    tag->iconImg = nullptr;
+    tag->labelObj = nullptr;
+    tag->toggleActive = false;
+    tag->lvglPath[0] = '\0';
+    tag->activeBadge = nullptr;
+    tag->mapSwitchIndex = 0;
+    tag->hasMapSwitch = false;
+    strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
+    tag->signalSyncIgnoreUntilMs = 0;
+    tag->cycleIndex = p.mode == CfgButtonMode::CYCLE ? p.initialActiveIndex : 0;
+
+    if (p.mode == CfgButtonMode::SINGLE) {
+        for (uint8_t i = 0; i < p.actionsCount; ++i) {
+            if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
+                tag->mapSwitchIndex = p.actions[i].mapIndex;
+                tag->hasMapSwitch = true;
+                break;
+            }
+        }
+    }
+}
+
+void createButtonIcon(lv_obj_t *btn, ButtonTag *tag, const CfgButtonParams &p) {
+    const IconSource icon = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
+    const bool heapOk = icon.dsc != nullptr ||
+                        heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= LVGL_FS_MIN_HEAP_BYTES;
+    const bool hasSrc = icon.dsc != nullptr || tag->lvglPath[0] != '\0';
+    if (hasSrc && heapOk) {
+        tag->iconImg = lv_img_create(btn);
+        if (icon.dsc != nullptr) {
+            lv_img_set_src(tag->iconImg, icon.dsc);
+        } else {
+            lv_img_set_src(tag->iconImg, tag->lvglPath);
+        }
+    } else if (hasSrc && !heapOk) {
+        LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
+                 static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+        tag->lvglPath[0] = '\0';
+    }
+}
+
+void createButtonLabel(lv_obj_t *btn, ButtonTag *tag, const CfgButtonParams &p,
+                       const lv_font_t *btnFont) {
+    lv_obj_t *label = lv_label_create(btn);
+    lv_label_set_text(label, p.label);
+    lv_obj_set_style_text_font(label, btnFont, 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    tag->labelObj = label;
+}
+
+void applyButtonInitialVisual(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cfg,
+                              const CfgButtonParams &p) {
+    const ButtonVisual idle = computeButtonVisual(cfg, p, false);
+    applyButtonVisual(btn, *tag, idle);
+    if (tag->iconImg) {
+        lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(idle.textColor), 0);
+        lv_obj_set_style_img_recolor_opa(tag->iconImg, BUTTON_ICON_OPA, 0);
+    }
+    if (!p.isToggle) {
+        const ButtonVisual pressed = computeButtonVisual(cfg, p, true);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(pressed.bgColor),
+                                  LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(btn, pressed.bgOpa, LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_border_color(btn, lv_color_hex(pressed.borderColor),
+                                      LV_PART_MAIN | LV_STATE_PRESSED);
+    }
+    if (tag->labelObj) {
+        lv_obj_set_style_text_color(tag->labelObj, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
+                                    LV_PART_MAIN | LV_STATE_PRESSED);
+    }
+    if (tag->iconImg) {
+        lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
+                                     LV_PART_MAIN | LV_STATE_PRESSED);
+    }
+}
+
+void createButtonMapBadge(lv_obj_t *btn, ButtonTag *tag) {
+    lv_obj_t *badge = WidgetHelpers::makeCircleBadge(btn, MAP_BADGE_DIAMETER, MAP_BADGE_COLOR);
+    lv_obj_add_flag(badge, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -2, 2);
+    lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
+    tag->activeBadge = badge;
+}
+
 } // namespace
 
 lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
@@ -284,14 +382,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
                     ScreenProfile::scaleYVal(cfg.layout.h));
     const int16_t scaledW = ScreenProfile::scaleXVal(cfg.layout.w);
     const int16_t scaledH = ScreenProfile::scaleYVal(cfg.layout.h);
-    const int16_t padX = scaledW < BUTTON_MIN_TOUCH_W
-                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_W - scaledW + 1) / 2)
-                             : 0;
-    const int16_t padY = scaledH < BUTTON_MIN_TOUCH_H
-                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_H - scaledH + 1) / 2)
-                             : 0;
-    if (padX > 0 || padY > 0)
-        lv_obj_set_ext_click_area(btn, padX > padY ? padX : padY);
+    applyButtonTouchPadding(btn, scaledW, scaledH);
 
     if (!cfg.button) {
         LOG_WARN("WF", "button '%s' has no params — skipped", cfg.id);
@@ -324,98 +415,26 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     }
     LOG_DEBUG("BTN", "create %s heap.largest=%u", cfg.id,
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-    tag->cfg = &cfg;
-    tag->params = &p;
-    tag->iconImg = nullptr;
-    tag->labelObj = nullptr;
-    tag->toggleActive = false;
-    tag->lvglPath[0] = '\0';
-    tag->activeBadge = nullptr;
-    tag->mapSwitchIndex = 0;
-    tag->hasMapSwitch = false;
-    strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
-    tag->signalSyncIgnoreUntilMs = 0;
-    tag->cycleIndex = p.mode == CfgButtonMode::CYCLE ? p.initialActiveIndex : 0;
-
-    if (p.mode == CfgButtonMode::SINGLE) {
-        for (uint8_t i = 0; i < p.actionsCount; ++i) {
-            if (p.actions[i].type == CfgButtonActionType::MAP_SWITCH) {
-                tag->mapSwitchIndex = p.actions[i].mapIndex;
-                tag->hasMapSwitch = true;
-                break;
-            }
-        }
-    }
+    initButtonTag(tag, cfg, p);
 
     const int16_t targetIconSize = hasIcon ? computeIconSize(cfg.layout.w, cfg.layout.h) : 0;
     const int16_t targetFontSize =
         computeLabelFontSize(cfg.layout.w, cfg.layout.h, hasIcon, targetIconSize);
     const lv_font_t *btnFont = selectButtonFontFromTarget(targetFontSize);
 
-    if (hasIcon) {
-        const IconSource icon = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
-        const bool heapOk = icon.dsc != nullptr || heap_caps_get_largest_free_block(
-                                                       MALLOC_CAP_8BIT) >= LVGL_FS_MIN_HEAP_BYTES;
-        const bool hasSrc = icon.dsc != nullptr || tag->lvglPath[0] != '\0';
-        if (hasSrc && heapOk) {
-            tag->iconImg = lv_img_create(btn);
-            if (icon.dsc != nullptr) {
-                lv_img_set_src(tag->iconImg, icon.dsc);
-            } else {
-                lv_img_set_src(tag->iconImg, tag->lvglPath);
-            }
-            (void)targetIconSize;
-        } else if (hasSrc && !heapOk) {
-            LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
-                     static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-            tag->lvglPath[0] = '\0';
-        }
-    }
+    if (hasIcon)
+        createButtonIcon(btn, tag, p);
 
-    if (hasLabel) {
-        lv_obj_t *label = lv_label_create(btn);
-        lv_label_set_text(label, p.label);
-        lv_obj_set_style_text_font(label, btnFont, 0);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-        tag->labelObj = label;
-    }
+    if (hasLabel)
+        createButtonLabel(btn, tag, p, btnFont);
 
-    {
-        const ButtonVisual idle = computeButtonVisual(cfg, p, false);
-        applyButtonVisual(btn, *tag, idle);
-        if (tag->iconImg) {
-            lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(idle.textColor), 0);
-            lv_obj_set_style_img_recolor_opa(tag->iconImg, BUTTON_ICON_OPA, 0);
-        }
-        if (!p.isToggle) {
-            const ButtonVisual pressed = computeButtonVisual(cfg, p, true);
-            lv_obj_set_style_bg_color(btn, lv_color_hex(pressed.bgColor),
-                                      LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_bg_opa(btn, pressed.bgOpa, LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_border_color(btn, lv_color_hex(pressed.borderColor),
-                                          LV_PART_MAIN | LV_STATE_PRESSED);
-        }
-        if (tag->labelObj) {
-            lv_obj_set_style_text_color(tag->labelObj, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
-                                        LV_PART_MAIN | LV_STATE_PRESSED);
-        }
-        if (tag->iconImg) {
-            lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
-                                         LV_PART_MAIN | LV_STATE_PRESSED);
-        }
-    }
+    applyButtonInitialVisual(btn, tag, cfg, p);
 
-    if (p.mode == CfgButtonMode::CYCLE) {
+    if (p.mode == CfgButtonMode::CYCLE)
         applyCycleVisualState(btn, *tag);
-    }
 
-    if (tag->hasMapSwitch) {
-        lv_obj_t *badge = WidgetHelpers::makeCircleBadge(btn, MAP_BADGE_DIAMETER, MAP_BADGE_COLOR);
-        lv_obj_add_flag(badge, LV_OBJ_FLAG_IGNORE_LAYOUT);
-        lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -2, 2);
-        lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
-        tag->activeBadge = badge;
-    }
+    if (tag->hasMapSwitch)
+        createButtonMapBadge(btn, tag);
 
     lv_obj_set_user_data(btn, tag);
     lv_obj_add_event_cb(btn, btnClickHandler, LV_EVENT_CLICKED, nullptr);

@@ -174,11 +174,8 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     return obj;
 }
 
-void WidgetFactory::updateAll(lv_obj_t *parent) {
+void WidgetFactory::updateAll(lv_obj_t *parent, const SignalStore::SignalValue *snap) {
     LVGL_ASSERT_LOCKED();
-    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
-    SignalStore::snapshotAll(snap);
-
     for (uint8_t i = 0; i < s_widgetCount; ++i) {
         if (s_widgets[i].parent == parent) {
             updateWidget(s_widgets[i], snap);

@@ -164,9 +164,11 @@ void PageManager::updateWidgets() {
     GestureController::checkGestures();
 
     lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
+    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::snapshotAll(snap);
     {
         PERF_SCOPE(::PerfCounters::WIDGETS);
-        WidgetFactory::updateAll(currentScreen);
+        WidgetFactory::updateAll(currentScreen, snap);
     }
 
     static uint32_t lastTopBarMs = 0;
@@ -184,7 +186,7 @@ void PageManager::updateWidgets() {
         lastTimeoutCheck = now;
     }
 
-    AlertEngine::tick();
+    AlertEngine::tick(snap);
     const bool revCritical =
         (AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL);
     setRevLimiterOverlay(revCritical, AlertEngine::isRevLimiterFlashOn());

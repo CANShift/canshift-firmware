@@ -34,8 +34,9 @@ static bool s_runtimeLoaded = false;
 
 float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
                                      bool bigEndian, bool isSigned, uint8_t bitMask, float scale,
-                                     float offset) {
-    return decode_bytes_rs(data, startByte, byteLen, bigEndian, isSigned, bitMask, scale, offset);
+                                     float offset, size_t dataLen) {
+    return decode_bytes_rs(data, startByte, byteLen, bigEndian, isSigned, bitMask, scale, offset,
+                           dataLen);
 }
 
 void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
@@ -52,11 +53,11 @@ void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length
         if (static_cast<uint16_t>(sig.startByte) + static_cast<uint16_t>(sig.byteLength) > length)
             continue;
         const float val =
-            !sig.hasExpr
-                ? decode_bytes_rs(data, sig.startByte, sig.byteLength, sig.bigEndian, sig.isSigned,
-                                  sig.bitMask, sig.scale, sig.offset)
-                : eval_tokens_rs(data, sig.startByte, sig.byteLength, sig.bigEndian, sig.isSigned,
-                                 sig.bitMask, sig.scale, sig.offset, sig.tokens, sig.tokenCount);
+            !sig.hasExpr ? decode_bytes_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
+                                           sig.isSigned, sig.bitMask, sig.scale, sig.offset, length)
+                         : eval_tokens_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
+                                          sig.isSigned, sig.bitMask, sig.scale, sig.offset, length,
+                                          sig.tokens, sig.tokenCount);
         SignalStore::update(sig.signalId, val);
     }
 }

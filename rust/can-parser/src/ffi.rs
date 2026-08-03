@@ -2,7 +2,7 @@ use crate::expr::{eval_ffi, lex_to_ffi, EvalContext, FfiTok};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
-/// # Safety: `data` readable for CAN_FRAME_MAX_BYTES bytes (or null → 0).
+/// # Safety: `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES; null → 0).
 #[no_mangle]
 pub unsafe extern "C" fn decode_bytes_rs(
     data: *const u8,
@@ -13,12 +13,16 @@ pub unsafe extern "C" fn decode_bytes_rs(
     bit_mask: u8,
     scale: f32,
     offset: f32,
+    data_len: usize,
 ) -> f32 {
     if data.is_null() {
         return 0.0;
     }
-    let slice = unsafe { slice::from_raw_parts(data, CAN_FRAME_MAX_BYTES) };
-    decode_bytes(slice, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset)
+    let len = data_len.min(CAN_FRAME_MAX_BYTES);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    decode_bytes(
+        slice, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
+    )
 }
 
 /// # Safety: `expr` readable for `expr_len` bytes; `out` writable for `out_cap` `FfiTok`.
@@ -41,8 +45,8 @@ pub unsafe extern "C" fn lex_expr_rs(
     }
 }
 
-/// # Safety: `data` readable for CAN_FRAME_MAX_BYTES bytes; `tokens` readable for
-/// `n_tokens` `FfiTok` produced by `lex_expr_rs`.
+/// # Safety: `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES);
+/// `tokens` readable for `n_tokens` `FfiTok` produced by `lex_expr_rs`.
 #[no_mangle]
 pub unsafe extern "C" fn eval_tokens_rs(
     data: *const u8,
@@ -53,13 +57,15 @@ pub unsafe extern "C" fn eval_tokens_rs(
     bit_mask: u8,
     scale: f32,
     offset: f32,
+    data_len: usize,
     tokens: *const FfiTok,
     n_tokens: usize,
 ) -> f32 {
     if data.is_null() {
         return 0.0;
     }
-    let frame = unsafe { slice::from_raw_parts(data, CAN_FRAME_MAX_BYTES) };
+    let len = data_len.min(CAN_FRAME_MAX_BYTES);
+    let frame = unsafe { slice::from_raw_parts(data, len) };
     let v = decode_bytes(
         frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
     );
@@ -78,13 +84,22 @@ mod tests {
     #[test]
     fn ffi_matches_native_for_known_fixture() {
         let frame = [0x34, 0x12, 0, 0, 0, 0, 0, 0];
-        let r = unsafe { decode_bytes_rs(frame.as_ptr(), 0, 2, false, false, 0, 0.1, 0.0) };
+        let r = unsafe {
+            decode_bytes_rs(frame.as_ptr(), 0, 2, false, false, 0, 0.1, 0.0, frame.len())
+        };
         assert!((r - 466.0).abs() < 1e-4, "got {r}");
     }
 
     #[test]
     fn ffi_null_data_returns_zero() {
-        let r = unsafe { decode_bytes_rs(core::ptr::null(), 0, 1, false, false, 0, 1.0, 0.0) };
+        let r = unsafe { decode_bytes_rs(core::ptr::null(), 0, 1, false, false, 0, 1.0, 0.0, 8) };
+        assert_eq!(r, 0.0);
+    }
+
+    #[test]
+    fn ffi_short_data_len_rejects_out_of_range_field() {
+        let frame = [0x34, 0x12, 0, 0, 0, 0, 0, 0];
+        let r = unsafe { decode_bytes_rs(frame.as_ptr(), 0, 2, false, false, 0, 0.1, 0.0, 1) };
         assert_eq!(r, 0.0);
     }
 }
