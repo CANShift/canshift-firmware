@@ -14,7 +14,7 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: clang-format
         run: |
           FILES=$(find src include -name "*.cpp" -o -name "*.h" | grep -v 'lv_conf\.h')
