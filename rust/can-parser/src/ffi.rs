@@ -1,4 +1,4 @@
-use crate::expr::{eval, EvalContext};
+use crate::expr::{eval_ffi, lex_to_ffi, EvalContext, FfiTok};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
@@ -21,10 +21,30 @@ pub unsafe extern "C" fn decode_bytes_rs(
     decode_bytes(slice, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset)
 }
 
-/// # Safety: `data` readable for CAN_FRAME_MAX_BYTES bytes; `expr` is a NUL-terminated
-/// C string of `expr_len` bytes (not counting NUL).
+/// # Safety: `expr` readable for `expr_len` bytes; `out` writable for `out_cap` `FfiTok`.
+/// Returns the token count on success, or -1 on lex error / insufficient capacity.
 #[no_mangle]
-pub unsafe extern "C" fn decode_with_expr_rs(
+pub unsafe extern "C" fn lex_expr_rs(
+    expr: *const u8,
+    expr_len: usize,
+    out: *mut FfiTok,
+    out_cap: usize,
+) -> i32 {
+    if expr.is_null() || out.is_null() || expr_len == 0 {
+        return 0;
+    }
+    let expr_slice = unsafe { slice::from_raw_parts(expr, expr_len) };
+    let out_slice = unsafe { slice::from_raw_parts_mut(out, out_cap) };
+    match lex_to_ffi(expr_slice, out_slice) {
+        Some(n) => n as i32,
+        None => -1,
+    }
+}
+
+/// # Safety: `data` readable for CAN_FRAME_MAX_BYTES bytes; `tokens` readable for
+/// `n_tokens` `FfiTok` produced by `lex_expr_rs`.
+#[no_mangle]
+pub unsafe extern "C" fn eval_tokens_rs(
     data: *const u8,
     start_byte: u8,
     byte_len: u8,
@@ -33,8 +53,8 @@ pub unsafe extern "C" fn decode_with_expr_rs(
     bit_mask: u8,
     scale: f32,
     offset: f32,
-    expr: *const u8,
-    expr_len: usize,
+    tokens: *const FfiTok,
+    n_tokens: usize,
 ) -> f32 {
     if data.is_null() {
         return 0.0;
@@ -43,12 +63,12 @@ pub unsafe extern "C" fn decode_with_expr_rs(
     let v = decode_bytes(
         frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
     );
-    if expr.is_null() || expr_len == 0 {
-        return v;
+    if tokens.is_null() || n_tokens == 0 {
+        return 0.0;
     }
-    let expr_slice = unsafe { slice::from_raw_parts(expr, expr_len) };
+    let toks = unsafe { slice::from_raw_parts(tokens, n_tokens) };
     let ctx = EvalContext { v, bytes: frame };
-    eval(expr_slice, &ctx)
+    eval_ffi(toks, &ctx)
 }
 
 #[cfg(test)]
