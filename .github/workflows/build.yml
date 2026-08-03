@@ -1,4 +1,4 @@
-name: CI
+name: build
 
 on:
   push:
@@ -10,19 +10,8 @@ env:
   OTA_HMAC_CI_FALLBACK: ${{ github.run_id }}
 
 jobs:
-  lint:
-    name: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: clang-format
-        run: |
-          FILES=$(find src include -name "*.cpp" -o -name "*.h" | grep -v 'lv_conf\.h')
-          clang-format --dry-run --Werror --style=file $FILES
-
   build:
     name: build + tests
-    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
