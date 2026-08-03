@@ -357,7 +357,9 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
         const int16_t x = startX + col * (CRUISE_BUTTON_W + CRUISE_GAP_X);
         const int16_t y = startY + row * (CRUISE_BUTTON_H + CRUISE_GAP_Y);
         static CfgButtonParams s_cruiseParams[4];
-        const CfgWidget w = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y, &s_cruiseParams[i]);
+        static CfgWidget s_cruiseWidgets[4];
+        s_cruiseWidgets[i] = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y, &s_cruiseParams[i]);
+        const CfgWidget &w = s_cruiseWidgets[i];
         lv_obj_t *btn = WidgetFactory::create(screen, w, 0);
         if (!btn)
             continue;
