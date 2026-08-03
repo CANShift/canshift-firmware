@@ -1,4 +1,16 @@
 {
   "name": "canshift-firmware",
-  "version": "0.14.1"
+  "version": "0.14.1",
+  "scripts": {
+    "prepare": "husky",
+    "lint:pre-commit": "lint-staged"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2"
+  },
+  "lint-staged": {
+    "*.{cpp,h,hpp}": "scripts/hooks/clang-format-staged.sh",
+    "*.{md,yml,yaml,json}": "npx prettier --write --ignore-unknown"
+  }
 }
