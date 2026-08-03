@@ -67,6 +67,30 @@ jobs:
           restore-keys: |
             platformio-${{ runner.os }}-
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.rustup
+            rust/target
+          key: rust-release-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
+          restore-keys: rust-release-${{ runner.os }}-
+
+      - name: Install espup + esp32 Rust toolchain
+        run: |
+          if ! command -v espup >/dev/null; then
+            cargo install espup --locked
+          fi
+          espup install --targets esp32
+          . ~/export-esp.sh
+          echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
+          for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do
+            echo "$dir" >> "$GITHUB_PATH"
+          done
+
       - name: Install PlatformIO CLI
         run: pip install platformio
 
