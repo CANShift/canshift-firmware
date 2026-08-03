@@ -3,6 +3,7 @@
 
 #include "ui/font_manager.h"
 #include "ui/widget_factory.h"
+#include "ui/widgets/widget_tag_pool.h"
 
 #include "diag/logger.h"
 
@@ -37,9 +38,11 @@ constexpr uint32_t CRUISE_CENTER_VALUE_RGB = 0xFFFFFFu;
 
 enum class CruiseCorner : uint8_t { kTL = 0, kTR = 1, kBL = 2, kBR = 3 };
 
-static bool s_cruiseActive = false;
-static lv_obj_t *s_cruiseToggleBtn = nullptr;
-static lv_obj_t *s_cruiseToggleLabel = nullptr;
+struct CruiseToggleCtx {
+    bool active;
+    lv_obj_t *toggleBtn;
+    lv_obj_t *toggleLabel;
+};
 
 struct CruiseButtonSpec {
     const char *id;
@@ -234,24 +237,27 @@ void cruiseLDrawCb(lv_event_t *e) {
     }
 }
 
-void cruiseSyncToggleVisual() {
-    if (!s_cruiseToggleBtn || !s_cruiseToggleLabel)
+void cruiseSyncToggleVisual(CruiseToggleCtx *ctx) {
+    if (!ctx || !ctx->toggleBtn || !ctx->toggleLabel)
         return;
-    if (s_cruiseActive) {
-        lv_obj_add_state(s_cruiseToggleBtn, LV_STATE_CHECKED);
-        lv_label_set_text(s_cruiseToggleLabel, "ON");
+    if (ctx->active) {
+        lv_obj_add_state(ctx->toggleBtn, LV_STATE_CHECKED);
+        lv_label_set_text(ctx->toggleLabel, "ON");
     } else {
-        lv_obj_clear_state(s_cruiseToggleBtn, LV_STATE_CHECKED);
-        lv_label_set_text(s_cruiseToggleLabel, "OFF");
+        lv_obj_clear_state(ctx->toggleBtn, LV_STATE_CHECKED);
+        lv_label_set_text(ctx->toggleLabel, "OFF");
     }
-    lv_obj_invalidate(s_cruiseToggleBtn);
+    lv_obj_invalidate(ctx->toggleBtn);
 }
 
 void cruiseToggleClickCb(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED)
         return;
-    s_cruiseActive = !s_cruiseActive;
-    cruiseSyncToggleVisual();
+    auto *ctx = static_cast<CruiseToggleCtx *>(lv_event_get_user_data(e));
+    if (!ctx)
+        return;
+    ctx->active = !ctx->active;
+    cruiseSyncToggleVisual(ctx);
 }
 
 void cruiseLHitTestCb(lv_event_t *e) {
@@ -344,10 +350,6 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
     if (startY < contentY + CRUISE_OUTER_PAD)
         startY = contentY + CRUISE_OUTER_PAD;
 
-    s_cruiseActive = false;
-    s_cruiseToggleBtn = nullptr;
-    s_cruiseToggleLabel = nullptr;
-
     uint8_t created = 0;
     for (uint8_t i = 0; i < 4; ++i) {
         const uint8_t col = i % 2;
@@ -413,9 +415,18 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
         lv_obj_set_pos(label, cx - (isSymbol ? 12 : 24), cy - (isSymbol ? 16 : 12));
 
         if (i == static_cast<uint8_t>(CruiseCorner::kBR)) {
-            s_cruiseToggleBtn = btn;
-            s_cruiseToggleLabel = label;
-            lv_obj_add_event_cb(btn, cruiseToggleClickCb, LV_EVENT_CLICKED, nullptr);
+            WidgetTagPool::Slot<CruiseToggleCtx> ctxSlot;
+            CruiseToggleCtx *ctx = ctxSlot.get();
+            if (ctx) {
+                ctx->active = false;
+                ctx->toggleBtn = btn;
+                ctx->toggleLabel = label;
+                lv_obj_add_event_cb(btn, cruiseToggleClickCb, LV_EVENT_CLICKED, ctx);
+                lv_obj_add_event_cb(btn, WidgetTagPool::deleteHandler<CruiseToggleCtx>,
+                                    LV_EVENT_DELETE, ctxSlot.commit());
+            } else {
+                LOG_WARN("UI", "Cruise toggle ctx pool exhausted on page '%s'", cfg.id);
+            }
         }
         ++created;
     }
