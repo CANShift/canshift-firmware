@@ -10,8 +10,19 @@ env:
   OTA_HMAC_CI_FALLBACK: ${{ github.run_id }}
 
 jobs:
-  firmware:
-    name: build + tests + lint
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: clang-format
+        run: |
+          FILES=$(find src include -name "*.cpp" -o -name "*.h" | grep -v 'lv_conf\.h')
+          clang-format --dry-run --Werror --style=file $FILES
+
+  build:
+    name: build + tests
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -62,11 +73,6 @@ jobs:
         run: |
           SECRET="${OTA_HMAC_SECRET:-${OTA_HMAC_CI_FALLBACK}}"
           printf "[ota]\nhmac_secret = %s\n" "$SECRET" > secrets.ini
-
-      - name: clang-format
-        run: |
-          FILES=$(find src include -name "*.cpp" -o -name "*.h" | grep -v 'lv_conf\.h')
-          clang-format --dry-run --Werror --style=file $FILES
 
       - name: native tests
         run: pio test -e native
