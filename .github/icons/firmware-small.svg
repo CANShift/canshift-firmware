@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116 100" width="116" height="100" fill="none">
-  <g transform="translate(8,0)" stroke="#201E1D" stroke-width="15">
-    <path d="M28 28 H88 V72 H28 Z"></path>
-    <path d="M58 72 V94" stroke="#EC3013" stroke-width="12"></path>
+  <g transform="translate(8,0)" fill="none">
+    <path d="M14 68 H46 V30 H62" stroke="#201E1D" stroke-width="15"></path>
+    <path d="M62 30 V68 H100" stroke="#EC3013" stroke-width="15"></path>
   </g>
 </svg>
