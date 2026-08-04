@@ -10,3 +10,13 @@
 #endif
 
 inline constexpr const canshift::boards::BoardProfile &kBoard = canshift::boards::kActiveBoard;
+
+namespace canshift {
+namespace display {
+
+inline constexpr uint16_t kWidth = boards::lcdLogicalWidth(boards::kActiveBoard.lcd);
+inline constexpr uint16_t kHeight = boards::lcdLogicalHeight(boards::kActiveBoard.lcd);
+inline constexpr uint8_t kColorDepth = boards::kActiveBoard.lcd.color_depth;
+
+} // namespace display
+} // namespace canshift

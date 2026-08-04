@@ -36,8 +36,8 @@
 
         #define LV_DPI_DEF 100
 
-        #define LV_HOR_RES_MAX HW_DISPLAY_WIDTH
-        #define LV_VER_RES_MAX HW_DISPLAY_HEIGHT
+        #define LV_HOR_RES_MAX HW_PANEL_NATIVE_HEIGHT
+        #define LV_VER_RES_MAX HW_PANEL_NATIVE_WIDTH
 
         #define LV_DRAW_COMPLEX 1
 
