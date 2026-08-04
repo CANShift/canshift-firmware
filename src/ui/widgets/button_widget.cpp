@@ -10,6 +10,7 @@
 #include "ui/theme_manager.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
+#include "layout_scale.h"
 #include "diag/logger.h"
 #include <Arduino.h>
 #include <esp_heap_caps.h>
@@ -274,12 +275,12 @@ void btnClickHandler(lv_event_t *e) {
 }
 
 void applyButtonTouchPadding(lv_obj_t *btn, int16_t scaledW, int16_t scaledH) {
-    const int16_t padX = scaledW < BUTTON_MIN_TOUCH_W
-                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_W - scaledW + 1) / 2)
-                             : 0;
-    const int16_t padY = scaledH < BUTTON_MIN_TOUCH_H
-                             ? static_cast<int16_t>((BUTTON_MIN_TOUCH_H - scaledH + 1) / 2)
-                             : 0;
+    const int16_t minTouchW = LayoutScale::x(BUTTON_MIN_TOUCH_W);
+    const int16_t minTouchH = LayoutScale::y(BUTTON_MIN_TOUCH_H);
+    const int16_t padX =
+        scaledW < minTouchW ? static_cast<int16_t>((minTouchW - scaledW + 1) / 2) : 0;
+    const int16_t padY =
+        scaledH < minTouchH ? static_cast<int16_t>((minTouchH - scaledH + 1) / 2) : 0;
     if (padX > 0 || padY > 0)
         lv_obj_set_ext_click_area(btn, padX > padY ? padX : padY);
 }
@@ -364,7 +365,8 @@ void applyButtonInitialVisual(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cf
 }
 
 void createButtonMapBadge(lv_obj_t *btn, ButtonTag *tag) {
-    lv_obj_t *badge = WidgetHelpers::makeCircleBadge(btn, MAP_BADGE_DIAMETER, MAP_BADGE_COLOR);
+    lv_obj_t *badge = WidgetHelpers::makeCircleBadge(btn, LayoutScale::square(MAP_BADGE_DIAMETER),
+                                                     MAP_BADGE_COLOR);
     lv_obj_add_flag(badge, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -2, 2);
     lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
@@ -392,8 +394,8 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     const CfgButtonParams &p = *cfg.button;
 
     lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(btn, BUTTON_PAD_X, LV_PART_MAIN);
-    lv_obj_set_style_pad_ver(btn, BUTTON_PAD_Y, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(btn, LayoutScale::x(BUTTON_PAD_X), LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(btn, LayoutScale::y(BUTTON_PAD_Y), LV_PART_MAIN);
 
     const bool hasIcon = p.showIcon && (p.iconPath[0] != '\0' || p.iconName[0] != '\0');
     const bool hasLabel = p.showLabel && p.label[0] != '\0';
@@ -402,7 +404,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
         lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_row(btn, BUTTON_ROW_GAP, LV_PART_MAIN);
+        lv_obj_set_style_pad_row(btn, LayoutScale::y(BUTTON_ROW_GAP), LV_PART_MAIN);
     }
 
     WidgetTagPool::Slot<ButtonTag> tagSlot;

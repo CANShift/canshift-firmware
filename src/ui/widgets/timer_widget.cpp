@@ -6,6 +6,7 @@
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
+#include "layout_scale.h"
 #include "diag/logger.h"
 
 #include <esp_timer.h>
@@ -168,7 +169,8 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
     lv_obj_t *lapLabel = lv_label_create(cont);
-    lv_obj_align(lapLabel, LV_ALIGN_TOP_RIGHT, -kLapBadgeInsetPx, kLapBadgeInsetPx);
+    lv_obj_align(lapLabel, LV_ALIGN_TOP_RIGHT, -LayoutScale::x(kLapBadgeInsetPx),
+                 LayoutScale::y(kLapBadgeInsetPx));
     lv_obj_set_style_text_font(lapLabel, FontManager::secondary(10), 0);
     lv_obj_set_style_text_color(lapLabel, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_opa(lapLabel, kLapBadgeOpa, 0);
