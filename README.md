@@ -58,11 +58,12 @@ compiles and links; it does not mean the pin map is correct for any given board.
   single `constexpr BoardProfile kActiveBoard` filling the struct defined in
   [`include/board_profile.h`](include/board_profile.h) (LCD, backlight, touch,
   CAN, storage, connectivity — pins, driver enums, and capability flags).
-- [`include/lgfx_panel.h`](include/lgfx_panel.h) dispatches on the board flag to a
-  driver-combo panel header, `include/boards/panel_<lcd>_<touch>.h` (e.g.
-  `panel_ili9341_xpt2046.h`, `panel_ili9341_gt911.h`). Combos are shared across
-  boards, so a new board that reuses an existing driver pair needs no new panel
-  code.
+- [`include/lgfx_factory.h`](include/lgfx_factory.h) is the LovyanGFX bring-up: at
+  boot it instantiates the `Panel_*`/`Touch_*` drivers named by the active
+  profile's `lcd.driver`/`touch.driver` enums and configures the SPI bus, panel,
+  touch, and backlight from the profile fields. All common SPI display and touch
+  drivers are compiled in and selected at runtime, so a board that reuses an
+  existing driver pair needs no display code.
 
 ### Adding a board
 
@@ -74,10 +75,11 @@ Using `generic_ili9341` as the worked example:
    capability flags.
 2. **Selector arm** — add an `#elif defined(BOARD_<YOUR_BOARD>)` branch in
    [`include/board.h`](include/board.h) that includes your header.
-3. **Panel combo** — if your LCD+touch pair already has a
-   `include/boards/panel_<lcd>_<touch>.h`, add your board flag to the matching
-   arm in [`include/lgfx_panel.h`](include/lgfx_panel.h). If the driver pair is
-   new, add a panel header for it (model it on `panel_ili9341_xpt2046.h`).
+3. **Drivers** — no display code is needed if your LCD and touch drivers are
+   already compiled into the runtime factory
+   ([`include/lgfx_factory.h`](include/lgfx_factory.h)); it selects them from the
+   profile's `lcd.driver`/`touch.driver` enums at boot. Add a new `Panel_*` or
+   `Touch_*` to the factory only for a driver it does not yet carry.
 4. **Build env** — add `[env:<your_board>]` in [`platformio.ini`](platformio.ini),
    extending `env:crowpanel_28`, unflagging `-DBOARD_CROWPANEL_28=1`, and flagging
    `-DBOARD_<YOUR_BOARD>=1`.
@@ -317,7 +319,7 @@ canshift-firmware/
 │   ├── boards/                     # Per-board pin/feature tables
 │   ├── can_signals_out.h           # SignalId-anchored telemetry export table
 │   ├── hardware_profile.h          # Hardware feature-flag mirror
-│   ├── lgfx_panel.h                # LovyanGFX panel + bus + touch + backlight
+│   ├── lgfx_factory.h              # Runtime LovyanGFX bring-up (panel/touch/bus/backlight from the profile)
 │   └── lv_conf.h                   # LVGL 8.3 compile-time config
 ├── src/
 │   ├── main.cpp                    # Entry point — FreeRTOS task creation
