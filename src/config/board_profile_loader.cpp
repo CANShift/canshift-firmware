@@ -275,10 +275,16 @@ const BoardProfile &runtimeBoardProfile() {
 
 bool applyBoardProfileBlob(const char *json, size_t len) {
     BoardProfile parsed;
-    if (parseBoardProfileBlob(json, len, parsed, s_boardId, sizeof s_boardId, s_boardName,
-                              sizeof s_boardName) != BoardProfileParse::Ok) {
+    char idBuf[kBoardIdCapacity];
+    char nameBuf[kBoardNameCapacity];
+    if (parseBoardProfileBlob(json, len, parsed, idBuf, sizeof idBuf, nameBuf, sizeof nameBuf) !=
+        BoardProfileParse::Ok) {
         return false;
     }
+    memcpy(s_boardId, idBuf, strlen(idBuf) + 1);
+    memcpy(s_boardName, nameBuf, strlen(nameBuf) + 1);
+    parsed.board_id = s_boardId;
+    parsed.board_name = s_boardName;
     s_runtime = parsed;
     return true;
 }
