@@ -38,10 +38,12 @@ void TouchDriver::readCallback(lv_indev_drv_t *, lv_indev_data_t *data) {
             x = 0;
         if (y < 0)
             y = 0;
-        if (x >= canshift::display::kWidth)
-            x = canshift::display::kWidth - 1;
-        if (y >= canshift::display::kHeight)
-            y = canshift::display::kHeight - 1;
+        const int16_t maxX = static_cast<int16_t>(canshift::display::width());
+        const int16_t maxY = static_cast<int16_t>(canshift::display::height());
+        if (x >= maxX)
+            x = maxX - 1;
+        if (y >= maxY)
+            y = maxY - 1;
         data->point.x = static_cast<lv_coord_t>(x);
         data->point.y = static_cast<lv_coord_t>(y);
         data->state = LV_INDEV_STATE_PRESSED;

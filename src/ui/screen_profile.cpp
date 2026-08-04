@@ -64,15 +64,15 @@ void initFromDashboard() {
         return;
     }
 
-    s_factors.x = static_cast<float>(canshift::display::kWidth) / static_cast<float>(design.width);
-    s_factors.y =
-        static_cast<float>(canshift::display::kHeight) / static_cast<float>(design.height);
+    const uint16_t physicalW = canshift::display::width();
+    const uint16_t physicalH = canshift::display::height();
+    s_factors.x = static_cast<float>(physicalW) / static_cast<float>(design.width);
+    s_factors.y = static_cast<float>(physicalH) / static_cast<float>(design.height);
 
     LOG_INFO("SCRN", "profile='%s' design=%ux%u physical=%dx%d scale=%d/1000 x %d/1000",
              dash.targetProfile, static_cast<unsigned>(design.width),
-             static_cast<unsigned>(design.height), canshift::display::kWidth,
-             canshift::display::kHeight, static_cast<int>(s_factors.x * 1000.0f),
-             static_cast<int>(s_factors.y * 1000.0f));
+             static_cast<unsigned>(design.height), physicalW, physicalH,
+             static_cast<int>(s_factors.x * 1000.0f), static_cast<int>(s_factors.y * 1000.0f));
 }
 
 ScaleFactors getScaleFactors() {
