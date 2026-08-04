@@ -5,6 +5,7 @@
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "util/format_float.h"
+#include "layout_scale.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -69,9 +70,9 @@ lv_obj_t *makeChip(lv_obj_t *parent, uint32_t bgRgb) {
     lv_obj_set_size(chip, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_color(chip, lv_color_hex(bgRgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(chip, CHIP_RADIUS, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(chip, CHIP_PAD_H, LV_PART_MAIN);
-    lv_obj_set_style_pad_ver(chip, CHIP_PAD_V, LV_PART_MAIN);
+    lv_obj_set_style_radius(chip, LayoutScale::square(CHIP_RADIUS), LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(chip, LayoutScale::x(CHIP_PAD_H), LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(chip, LayoutScale::y(CHIP_PAD_V), LV_PART_MAIN);
     lv_obj_clear_flag(chip, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN);
     return chip;
@@ -138,11 +139,12 @@ void AlertBanner::init() {
     s_container = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(s_container);
     lv_obj_set_size(s_container, LV_HOR_RES, LV_SIZE_CONTENT);
-    lv_obj_align(s_container, LV_ALIGN_TOP_MID, 0, TopBar::getHeight() + BANNER_TOP_GAP);
+    lv_obj_align(s_container, LV_ALIGN_TOP_MID, 0,
+                 TopBar::getHeight() + LayoutScale::y(BANNER_TOP_GAP));
     lv_obj_set_flex_flow(s_container, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(s_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(s_container, CHIP_GAP, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(s_container, LayoutScale::x(CHIP_GAP), LV_PART_MAIN);
     lv_obj_clear_flag(s_container, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(s_container, LV_OBJ_FLAG_HIDDEN);
 

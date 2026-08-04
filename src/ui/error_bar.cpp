@@ -5,6 +5,7 @@
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/widgets/widget_helpers.h"
+#include "layout_scale.h"
 
 #include <esp_heap_caps.h>
 #include <lvgl.h>
@@ -98,7 +99,7 @@ static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
 static lv_obj_t *makeDismissBtn(lv_obj_t *parent) {
     lv_obj_t *btn = lv_btn_create(parent);
 
-    lv_obj_set_size(btn, DISMISS_W, DISMISS_H);
+    lv_obj_set_size(btn, LayoutScale::x(DISMISS_W), LayoutScale::y(DISMISS_H));
     lv_obj_set_style_bg_color(btn, lv_color_hex(palette().dismissBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
@@ -198,7 +199,7 @@ static lv_obj_t *createContainer() {
 
 static void buildHeaderRow(lv_obj_t *parent) {
     s_headerRow = lv_obj_create(parent);
-    lv_obj_set_size(s_headerRow, LV_PCT(100), BAR_H);
+    lv_obj_set_size(s_headerRow, LV_PCT(100), LayoutScale::y(BAR_H));
     applyRowStyle(s_headerRow);
     lv_obj_set_style_pad_left(s_headerRow, 4, LV_PART_MAIN);
 
@@ -233,7 +234,7 @@ static lv_obj_t *createDetailPanel(lv_obj_t *parent) {
     lv_obj_t *p = lv_obj_create(parent);
     lv_obj_set_width(p, LV_PCT(100));
     lv_obj_set_height(p, LV_SIZE_CONTENT);
-    lv_obj_set_style_max_height(p, DETAIL_MAX_H, LV_PART_MAIN);
+    lv_obj_set_style_max_height(p, LayoutScale::y(DETAIL_MAX_H), LV_PART_MAIN);
     lv_obj_set_style_bg_color(p, lv_color_hex(palette().detailBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(p, 1, LV_PART_MAIN);
@@ -250,7 +251,7 @@ static lv_obj_t *createDetailPanel(lv_obj_t *parent) {
 
 static void buildDetailRow(lv_obj_t *panel, uint8_t i) {
     s_detailRows[i] = lv_obj_create(panel);
-    lv_obj_set_size(s_detailRows[i], LV_PCT(100), ROW_H);
+    lv_obj_set_size(s_detailRows[i], LV_PCT(100), LayoutScale::y(ROW_H));
     applyRowStyle(s_detailRows[i]);
     lv_obj_set_style_pad_left(s_detailRows[i], 6, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_detailRows[i], 1, LV_PART_MAIN);

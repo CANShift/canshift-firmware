@@ -4,6 +4,7 @@
 
 #include "app_config.h"
 #include "icon_assets.h"
+#include "layout_scale.h"
 #include "ui/font_manager.h"
 #include "settings_page.h"
 #include "theme_manager.h"
@@ -75,7 +76,7 @@ static lv_obj_t *makeFlagBadge(lv_obj_t *parent, const char *text) {
     lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(cont, FLAG_GAP_PX, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(cont, LayoutScale::x(FLAG_GAP_PX), LV_PART_MAIN);
     WidgetHelpers::makeSquareBadge(cont, FLAG_SQUARE_PX, COLOR_MODE_ACTIVE);
 
     lv_obj_t *lbl = lv_label_create(cont);

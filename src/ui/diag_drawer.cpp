@@ -5,6 +5,7 @@
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
 #include "runtime/signal_store.h"
+#include "layout_scale.h"
 #include "ui/font_manager.h"
 #include "ui/gesture_controller.h"
 #include "ui/theme_manager.h"
@@ -132,7 +133,7 @@ void buildFlagsSection(lv_obj_t *parent) {
     for (uint8_t i = 0; i < FLAGS_COUNT; ++i) {
         lv_obj_t *row = lv_obj_create(parent);
         applyRowReset(row);
-        lv_obj_set_size(row, LV_PCT(100), ROW_H);
+        lv_obj_set_size(row, LV_PCT(100), LayoutScale::y(ROW_H));
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(row, 6, LV_PART_MAIN);
@@ -152,7 +153,7 @@ void buildScalarsSection(lv_obj_t *parent) {
     for (uint8_t r = 0; r < 2; ++r) {
         lv_obj_t *row = lv_obj_create(parent);
         applyRowReset(row);
-        lv_obj_set_size(row, LV_PCT(100), ROW_H);
+        lv_obj_set_size(row, LV_PCT(100), LayoutScale::y(ROW_H));
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
@@ -161,7 +162,7 @@ void buildScalarsSection(lv_obj_t *parent) {
             const uint8_t idx = static_cast<uint8_t>(r * 2 + c);
             lv_obj_t *cell = lv_obj_create(row);
             applyRowReset(cell);
-            lv_obj_set_size(cell, LV_PCT(48), ROW_H);
+            lv_obj_set_size(cell, LV_PCT(48), LayoutScale::y(ROW_H));
             lv_obj_set_flex_flow(cell, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(cell, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
                                   LV_FLEX_ALIGN_CENTER);
@@ -185,7 +186,7 @@ void buildErrorsSection(lv_obj_t *parent) {
     for (uint8_t i = 0; i < ERRORS_MAX_ROWS; ++i) {
         lv_obj_t *row = lv_obj_create(parent);
         applyRowReset(row);
-        lv_obj_set_size(row, LV_PCT(100), ROW_H);
+        lv_obj_set_size(row, LV_PCT(100), LayoutScale::y(ROW_H));
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(row, 6, LV_PART_MAIN);
@@ -276,14 +277,14 @@ void init() {
     GestureController::setVerticalSwipeHandler(onVerticalSwipe);
 
     s_panel = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_panel, LV_HOR_RES, PANEL_H);
+    lv_obj_set_size(s_panel, LV_HOR_RES, LayoutScale::y(PANEL_H));
     lv_obj_align(s_panel, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(s_panel, lv_color_hex(palette().panelBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_panel, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_panel, 1, LV_PART_MAIN);
     lv_obj_set_style_border_color(s_panel, lv_color_hex(palette().panelBorder), LV_PART_MAIN);
     lv_obj_set_style_border_side(s_panel, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(s_panel, PANEL_PAD, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_panel, LayoutScale::square(PANEL_PAD), LV_PART_MAIN);
     lv_obj_set_style_radius(s_panel, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(s_panel, 2, LV_PART_MAIN);
     lv_obj_set_scroll_dir(s_panel, LV_DIR_VER);
@@ -304,8 +305,9 @@ void init() {
 
     lv_obj_add_flag(s_closeBtn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_clear_flag(s_closeBtn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-    lv_obj_set_size(s_closeBtn, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
-    lv_obj_set_ext_click_area(s_closeBtn, CLOSE_BTN_EXT_CLICK_PAD);
+    lv_obj_set_size(s_closeBtn, LayoutScale::square(CLOSE_BTN_SIZE),
+                    LayoutScale::square(CLOSE_BTN_SIZE));
+    lv_obj_set_ext_click_area(s_closeBtn, LayoutScale::square(CLOSE_BTN_EXT_CLICK_PAD));
     lv_obj_align(s_closeBtn, LV_ALIGN_TOP_RIGHT, 0, 0);
     lv_obj_set_style_bg_color(s_closeBtn, lv_color_hex(palette().handleBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_closeBtn, LV_OPA_COVER, LV_PART_MAIN);
@@ -324,7 +326,7 @@ void init() {
     lv_obj_center(closeLabel);
 
     s_tapOutsideZone = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_tapOutsideZone, LV_HOR_RES, TAP_OUTSIDE_H);
+    lv_obj_set_size(s_tapOutsideZone, LV_HOR_RES, LayoutScale::y(TAP_OUTSIDE_H));
     lv_obj_align(s_tapOutsideZone, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_bg_opa(s_tapOutsideZone, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_tapOutsideZone, 0, LV_PART_MAIN);
@@ -334,8 +336,8 @@ void init() {
     lv_obj_add_flag(s_tapOutsideZone, LV_OBJ_FLAG_HIDDEN);
 
     s_handle = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_handle, HANDLE_W, HANDLE_H);
-    lv_obj_align(s_handle, LV_ALIGN_BOTTOM_MID, 0, -HANDLE_BOTTOM_MARGIN);
+    lv_obj_set_size(s_handle, LayoutScale::x(HANDLE_W), LayoutScale::y(HANDLE_H));
+    lv_obj_align(s_handle, LV_ALIGN_BOTTOM_MID, 0, -LayoutScale::y(HANDLE_BOTTOM_MARGIN));
     lv_obj_set_style_bg_color(s_handle, lv_color_hex(palette().handleGrip), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_handle, LV_OPA_50, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_handle, 0, LV_PART_MAIN);
@@ -343,7 +345,7 @@ void init() {
     lv_obj_set_style_radius(s_handle, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_handle, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(s_handle, HANDLE_EXT_CLICK_PAD);
+    lv_obj_set_ext_click_area(s_handle, LayoutScale::square(HANDLE_EXT_CLICK_PAD));
     lv_obj_add_event_cb(s_handle, onHandleClicked, LV_EVENT_CLICKED, nullptr);
     lv_obj_add_event_cb(s_handle, onHandleGesture, LV_EVENT_GESTURE, nullptr);
 

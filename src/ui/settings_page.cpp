@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "board.h"
+#include "layout_scale.h"
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
 
@@ -23,23 +24,23 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
 
     int16_t y = 6;
     buildHeader(y);
-    y += GAP_ROW;
+    y += LayoutScale::y(GAP_ROW);
     buildBrightnessRow(y, rowW);
-    y += GAP_ROW;
+    y += LayoutScale::y(GAP_ROW);
     buildDayModeRow(y, rowW);
-    y += GAP_ROW;
+    y += LayoutScale::y(GAP_ROW);
     buildBleRow(y, rowW);
-    y += GAP_ROW;
+    y += LayoutScale::y(GAP_ROW);
     if constexpr (kBoard.touch.needs_calibration) {
         buildCalibrateTouchRow(y, rowW);
-        y += GAP_INNER;
+        y += LayoutScale::y(GAP_INNER);
         buildResetTouchCalRow(y, rowW);
-        y += GAP_ROW;
+        y += LayoutScale::y(GAP_ROW);
     }
     buildRebootRow(y, rowW);
-    y += GAP_ROW;
+    y += LayoutScale::y(GAP_ROW);
     buildAboutRow(y, rowW);
-    y += GAP_ROW;
+    y += LayoutScale::y(GAP_ROW);
     buildActionsRow(y, rowW);
 
     applyBrightness();
