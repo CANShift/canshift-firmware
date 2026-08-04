@@ -29,7 +29,6 @@ static_assert(kLvglBufLines == 20, "draw-buffer line count regression for CrowPa
 static lv_disp_draw_buf_t s_drawBuf;
 static lv_disp_drv_t s_dispDrv;
 
-#include "board_config.h"
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 
@@ -107,7 +106,7 @@ void DisplayDriver::init() {
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
     s_lcd.init();
     s_lcd.setRotation(rotation);
-    s_lcd.setBrightness(BL_DEFAULT_DUTY);
+    s_lcd.setBrightness(kBoard.backlight.default_duty);
     LOG_INFO("DISP", "After setRotation(%d, offset=%u°): width=%d height=%d", rotation,
              RotationConfig::getOffsetDeg(), s_lcd.width(), s_lcd.height());
 

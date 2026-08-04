@@ -1,7 +1,7 @@
 #include "can_manager.h"
 #include "can_parser.h"
 #include "obd2_poller.h"
-#include "board_config.h"
+#include "board.h"
 #include "app_config.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
@@ -50,7 +50,7 @@ twai_timing_config_t getTimingConfig(uint16_t kbps) {
             return TWAI_TIMING_CONFIG_250KBITS();
         default:
             LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
-                     CAN_SPEED_KBPS);
+                     kBoard.can.default_speed_kbps);
             return TWAI_TIMING_CONFIG_500KBITS();
     }
 }
@@ -63,8 +63,8 @@ twai_filter_config_t getFilterConfig() {
 esp_err_t installAndStartOnThisCore() {
     const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
 
-    const int txPin = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : PIN_TWAI_TX;
-    const int rxPin = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : PIN_TWAI_RX;
+    const int txPin = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : kBoard.can.pin_tx;
+    const int rxPin = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : kBoard.can.pin_rx;
     const uint16_t speedKbps =
         (dev.loaded && dev.canSpeedKbps > 0)
             ? static_cast<uint16_t>(dev.canSpeedKbps)
