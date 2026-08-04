@@ -6,55 +6,35 @@ on:
   pull_request:
 
 env:
-  PYTHON_VERSION: '3.12'
   OTA_HMAC_CI_FALLBACK: ${{ github.run_id }}
 
 jobs:
-  build:
-    name: build + tests
+  native:
+    name: native tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/pio-setup
+      - name: native tests
+        run: pio test -e native
 
-      - uses: actions/setup-python@v7
+  firmware:
+    name: firmware
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Data-driven board list: append a board here (and its [env:<board>]
+        # in platformio.ini) to get a new matrix leg.
+        board:
+          - crowpanel_28
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: ./.github/actions/pio-setup
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.platformio/.cache
-            ~/.platformio/.packages
-            .pio
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-${{ runner.os }}-
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.rustup
-            rust/target
-          key: rust-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
-          restore-keys: rust-${{ runner.os }}-
-
-      - name: Install espup + esp32 Rust toolchain
-        run: |
-          if ! command -v espup >/dev/null; then
-            cargo install espup --locked
-          fi
-          espup install --targets esp32
-          . ~/export-esp.sh
-          echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
-          for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do
-            echo "$dir" >> "$GITHUB_PATH"
-          done
-
-      - name: Install PlatformIO
-        run: pip install platformio
+          espup: 'true'
+          cache-suffix: ${{ matrix.board }}
 
       - name: Write secrets.ini
         env:
@@ -63,20 +43,19 @@ jobs:
           SECRET="${OTA_HMAC_SECRET:-${OTA_HMAC_CI_FALLBACK}}"
           printf "[ota]\nhmac_secret = %s\n" "$SECRET" > secrets.ini
 
-      - name: native tests
-        run: pio test -e native
-
-      - name: build (crowpanel_28)
-        run: pio run -e crowpanel_28 2>&1 | tee build.log
+      - name: build (${{ matrix.board }})
+        run: |
+          pio run -e "${{ matrix.board }}" 2>&1 | tee build.log \
+            || { echo "::error title=firmware build failed::board '${{ matrix.board }}' failed to build"; exit 1; }
 
       - name: flash budget gate
         run: |
           PCT=$(grep '^Flash:' build.log | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%')
           awk -v p="$PCT" 'BEGIN { exit (p > 98) ? 1 : 0 }' \
-            || (echo "::error::flash ${PCT}% > 98% (#305 / #158)" && exit 1)
+            || { echo "::error title=flash budget::board '${{ matrix.board }}' flash ${PCT}% > 98% (#305 / #158)"; exit 1; }
 
-      - name: buildfs (crowpanel_28)
-        run: pio run -e crowpanel_28 -t buildfs
+      - name: buildfs (${{ matrix.board }})
+        run: pio run -e "${{ matrix.board }}" -t buildfs
 
       - name: verify spiffs round-trip
         run: |
@@ -85,9 +64,9 @@ jobs:
             echo "::error::mkspiffs binary not found"
             exit 1
           fi
-          IMG=.pio/build/crowpanel_28/spiffs.bin
+          IMG=".pio/build/${{ matrix.board }}/spiffs.bin"
           if [ ! -f "$IMG" ]; then
-            echo "::error::spiffs.bin not produced by buildfs"
+            echo "::error::spiffs.bin not produced by buildfs for '${{ matrix.board }}'"
             exit 1
           fi
           EXTRACT=$(mktemp -d)
@@ -95,17 +74,51 @@ jobs:
           (cd data && find . -type f | sort) > /tmp/src.list
           (cd "$EXTRACT" && find . -type f | sort) > /tmp/img.list
           if ! diff /tmp/src.list /tmp/img.list > /tmp/list.diff; then
-            echo "::error::spiffs file list mismatch (#1240)"
+            echo "::error::spiffs file list mismatch for '${{ matrix.board }}' (#1240)"
             cat /tmp/list.diff
             exit 1
           fi
           (cd data && find . -type f | sort | xargs -I{} sha256sum {}) > /tmp/src.sha
           (cd "$EXTRACT" && find . -type f | sort | xargs -I{} sha256sum {}) > /tmp/img.sha
           if ! diff /tmp/src.sha /tmp/img.sha > /tmp/sha.diff; then
-            echo "::error::spiffs content mismatch"
+            echo "::error::spiffs content mismatch for '${{ matrix.board }}'"
             cat /tmp/sha.diff
             exit 1
           fi
 
+  secure:
+    name: secure build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: ./.github/actions/pio-setup
+        with:
+          espup: 'true'
+          cache-suffix: secure
+
+      - name: Write secrets.ini
+        env:
+          OTA_HMAC_SECRET: ${{ secrets.OTA_HMAC_SECRET }}
+        run: |
+          SECRET="${OTA_HMAC_SECRET:-${OTA_HMAC_CI_FALLBACK}}"
+          printf "[ota]\nhmac_secret = %s\n" "$SECRET" > secrets.ini
+
       - name: build (secure)
         run: pio run -e secure
+
+  ci-success:
+    name: ci-success
+    needs: [native, firmware, secure]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: gate
+        run: |
+          echo "native=${{ needs.native.result }} firmware=${{ needs.firmware.result }} secure=${{ needs.secure.result }}"
+          if [ "${{ needs.native.result }}" != "success" ] \
+            || [ "${{ needs.firmware.result }}" != "success" ] \
+            || [ "${{ needs.secure.result }}" != "success" ]; then
+            echo "::error::one or more required CI jobs failed — see the failing job above"
+            exit 1
+          fi

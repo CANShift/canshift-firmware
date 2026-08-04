@@ -18,5 +18,5 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 ## Workflow
 
 - Branch `type/short-description`; Conventional Commits, subject only.
-- PR via `gh pr create`; required checks `lint` (clang-format), `build + tests`; **rebase and merge only**.
+- PR via `gh pr create`; required checks `lint` (clang-format), `ci-success` (aggregates `native tests` + the per-board `firmware` build matrix + `secure`); **rebase and merge only**.
 - Release: bump `package.json` version, merge — the workflow tags, builds and drafts the release with merged/firmware/spiffs artifacts. Write substantive release notes before publishing (the docs changelog renders them).
