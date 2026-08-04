@@ -9,7 +9,8 @@ Import("env")  # noqa: F821 — provided by PlatformIO script context
 
 PROJECT_DIR = env["PROJECT_DIR"]  # noqa: F821
 RUST_DIR = os.path.join(PROJECT_DIR, "rust")
-TARGET_TRIPLE = "xtensa-esp32-none-elf"
+MCU = env.BoardConfig().get("build.mcu", "esp32")  # noqa: F821
+TARGET_TRIPLE = "xtensa-esp32s3-none-elf" if MCU == "esp32s3" else "xtensa-esp32-none-elf"
 
 # `include=None` means the header lives under canshift-firmware/include/
 # (already on the -I path).
