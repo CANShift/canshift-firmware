@@ -3,6 +3,7 @@
 #include "app_config.h"
 #include "board.h"
 #include "board_config.h"
+#include "config/board_profile_store.h"
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "diag/logger.h"
@@ -29,6 +30,28 @@
 extern SemaphoreHandle_t g_lvglMutex;
 
 namespace {
+
+void handleSetBoardProfile(const JsonObjectConst &doc) {
+    JsonVariantConst payload = doc["payload"];
+    if (!payload.is<JsonObjectConst>()) {
+        UsbComm::sendError("missing_payload");
+        return;
+    }
+    char blob[1536];
+    const size_t n = serializeJson(payload, blob, sizeof blob);
+    if (n == 0 || n >= sizeof blob) {
+        UsbComm::sendError("blob_too_large");
+        return;
+    }
+    if (!BoardProfileStore::save(blob, n)) {
+        UsbComm::sendError("invalid_board_profile");
+        return;
+    }
+    LOG_INFO("USB", "CMD_SET_BOARD_PROFILE — profile stored, restarting");
+    UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
+    vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
+    esp_restart();
+}
 
 void handleScreenSettings(const JsonObjectConst &obj) {
     JsonVariantConst brightnessVar = obj["brightness"];
@@ -210,6 +233,9 @@ void handleCommand(const char *jsonLine) {
             PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
             LOG_INFO("USB", "CMD: calibration reset queued");
             UsbComm::sendOk();
+            break;
+        case UsbComm::CMD_SET_BOARD_PROFILE:
+            handleSetBoardProfile(doc.as<JsonObjectConst>());
             break;
         case UsbComm::CMD_REBOOT:
             LOG_INFO("USB", "CMD_REBOOT — restarting");

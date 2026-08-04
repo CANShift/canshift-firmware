@@ -8,6 +8,7 @@
 #include "hal/display/display_driver.h"
 #include "hal/memory/psram.h"
 #include "hal/touch/touch_driver.h"
+#include "config/board_profile_store.h"
 #include "hal/storage/storage_driver.h"
 #include "hal/storage/lvgl_fs_driver.h"
 #include "hal/usb/usb_comm.h"
@@ -491,6 +492,7 @@ static void logBootCompleteAndReady(uint32_t bootStartMs) {
 
 void BootSequence::run() {
     silenceNvsLogNoise();
+    BoardProfileStore::loadAndApply();
     const uint32_t bootStartMs = millis();
     initPsramAndLogEntry();
     initTaskWatchdog();

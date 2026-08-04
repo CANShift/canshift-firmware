@@ -147,6 +147,12 @@ void test_applyInvalidBlob_keepsPriorProfile() {
     TEST_ASSERT_EQUAL_STRING("test_board", runtimeBoardProfile().board_id);
 }
 
+void test_applyEmptyBlob_keepsDefault() {
+    resetRuntimeBoardProfile();
+    TEST_ASSERT_FALSE(applyBoardProfileBlob("", 0));
+    TEST_ASSERT_EQUAL_STRING("crowpanel_28", runtimeBoardProfile().board_id);
+}
+
 void test_applyInvalidLaterField_fromDefault_keepsDefault() {
     resetRuntimeBoardProfile();
     char blob[1200];
@@ -183,6 +189,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_runtimeDefaultsToCompileTimeBoard);
     RUN_TEST(test_applyValidBlob_overridesRuntimeProfile);
     RUN_TEST(test_applyInvalidBlob_keepsPriorProfile);
+    RUN_TEST(test_applyEmptyBlob_keepsDefault);
     RUN_TEST(test_applyInvalidLaterField_fromDefault_keepsDefault);
     RUN_TEST(test_applyInvalidLaterField_afterValid_keepsPriorIdentifiers);
     return UNITY_END();

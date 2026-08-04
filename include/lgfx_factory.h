@@ -17,7 +17,9 @@ class LGFX : public lgfx::LGFX_Device {
     lgfx::Touch_CST816S _touchCst816s;
 
   public:
-    LGFX() {
+    LGFX() = default;
+
+    void configure() {
         const canshift::boards::BoardProfile &b = canshift::boards::runtimeBoardProfile();
         configureBus(b);
         lgfx::Panel_Device *panel = configurePanel(b);

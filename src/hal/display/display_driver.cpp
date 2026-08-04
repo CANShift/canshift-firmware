@@ -105,6 +105,7 @@ void DisplayDriver::init() {
     }
 
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
+    s_lcd.configure();
     s_lcd.init();
     s_lcd.setRotation(rotation);
     s_lcd.setBrightness(canshift::boards::runtimeBoardProfile().backlight.default_duty);
