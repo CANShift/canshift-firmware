@@ -11,11 +11,12 @@ namespace {
 char s_idBuf[kBoardIdCapacity];
 char s_nameBuf[kBoardNameCapacity];
 
-const char *buildBlob(char *buf, size_t cap, const char *lcdDriver, int lcdPinCs) {
+const char *buildBlob(char *buf, size_t cap, const char *boardId, const char *lcdDriver,
+                      int lcdPinCs) {
     snprintf(
         buf, cap,
         "{\"magic\":\"CANSHIFT_BOARD\",\"schema\":\"board-profile\",\"formatVersion\":1,"
-        "\"profile\":{\"board_id\":\"test_board\",\"board_name\":\"Test Board\",\"chip_family\":"
+        "\"profile\":{\"board_id\":\"%s\",\"board_name\":\"Test Board\",\"chip_family\":"
         "\"esp32s3\",\"lcd\":{\"driver\":\"%s\",\"pin_mosi\":13,\"pin_miso\":12,\"pin_sclk\":14,"
         "\"pin_cs\":%d,\"pin_dc\":2,\"pin_rst\":-1,\"pin_bl\":27,\"freq_write_hz\":40000000,"
         "\"panel_width\":240,\"panel_height\":320,\"memory_width\":240,\"memory_height\":320,"
@@ -29,7 +30,7 @@ const char *buildBlob(char *buf, size_t cap, const char *lcdDriver, int lcdPinCs
         ":32,\"default_speed_kbps\":500},\"storage\":{\"spiffs_present\":true,\"spiffs_size_kb\":"
         "1024,\"sd_present\":false,\"sd_pin_cs\":-1},\"conn\":{\"wifi_supported\":true,"
         "\"ble_supported\":true,\"psram_present\":true}}}",
-        lcdDriver, lcdPinCs);
+        boardId, lcdDriver, lcdPinCs);
     return buf;
 }
 
@@ -47,7 +48,7 @@ void tearDown() {
 
 void test_validBlob_parsesAllFields() {
     char blob[1200];
-    buildBlob(blob, sizeof blob, "st7789", 15);
+    buildBlob(blob, sizeof blob, "test_board", "st7789", 15);
     BoardProfile out{};
     TEST_ASSERT_EQUAL(static_cast<int>(BoardProfileParse::Ok), static_cast<int>(parse(blob, out)));
 
@@ -108,7 +109,7 @@ void test_missingProfileFields_rejected() {
 
 void test_outOfRangePin_rejected() {
     char blob[1200];
-    buildBlob(blob, sizeof blob, "st7789", 999);
+    buildBlob(blob, sizeof blob, "test_board", "st7789", 999);
     BoardProfile out{};
     TEST_ASSERT_EQUAL(static_cast<int>(BoardProfileParse::WrongShape),
                       static_cast<int>(parse(blob, out)));
@@ -116,7 +117,7 @@ void test_outOfRangePin_rejected() {
 
 void test_unknownEnum_rejected() {
     char blob[1200];
-    buildBlob(blob, sizeof blob, "not_a_driver", 15);
+    buildBlob(blob, sizeof blob, "test_board", "not_a_driver", 15);
     BoardProfile out{};
     TEST_ASSERT_EQUAL(static_cast<int>(BoardProfileParse::WrongShape),
                       static_cast<int>(parse(blob, out)));
@@ -131,7 +132,7 @@ void test_runtimeDefaultsToCompileTimeBoard() {
 
 void test_applyValidBlob_overridesRuntimeProfile() {
     char blob[1200];
-    buildBlob(blob, sizeof blob, "st7789", 15);
+    buildBlob(blob, sizeof blob, "test_board", "st7789", 15);
     TEST_ASSERT_TRUE(applyBoardProfileBlob(blob, strlen(blob)));
     TEST_ASSERT_EQUAL_STRING("test_board", runtimeBoardProfile().board_id);
     TEST_ASSERT_EQUAL(static_cast<int>(ChipFamily::Esp32s3),
@@ -140,10 +141,33 @@ void test_applyValidBlob_overridesRuntimeProfile() {
 
 void test_applyInvalidBlob_keepsPriorProfile() {
     char blob[1200];
-    buildBlob(blob, sizeof blob, "st7789", 15);
+    buildBlob(blob, sizeof blob, "test_board", "st7789", 15);
     TEST_ASSERT_TRUE(applyBoardProfileBlob(blob, strlen(blob)));
     TEST_ASSERT_FALSE(applyBoardProfileBlob("{oops", 5));
     TEST_ASSERT_EQUAL_STRING("test_board", runtimeBoardProfile().board_id);
+}
+
+void test_applyInvalidLaterField_fromDefault_keepsDefault() {
+    resetRuntimeBoardProfile();
+    char blob[1200];
+    buildBlob(blob, sizeof blob, "rejected_board", "st7789", 999);
+    TEST_ASSERT_FALSE(applyBoardProfileBlob(blob, strlen(blob)));
+    TEST_ASSERT_EQUAL_STRING("crowpanel_28", runtimeBoardProfile().board_id);
+    TEST_ASSERT_EQUAL_STRING("Elecrow CrowPanel 2.8\" ESP32", runtimeBoardProfile().board_name);
+    TEST_ASSERT_EQUAL(static_cast<int>(ChipFamily::Esp32),
+                      static_cast<int>(runtimeBoardProfile().chip_family));
+}
+
+void test_applyInvalidLaterField_afterValid_keepsPriorIdentifiers() {
+    char blob[1200];
+    buildBlob(blob, sizeof blob, "board_a", "st7789", 15);
+    TEST_ASSERT_TRUE(applyBoardProfileBlob(blob, strlen(blob)));
+
+    buildBlob(blob, sizeof blob, "board_b", "st7789", 999);
+    TEST_ASSERT_FALSE(applyBoardProfileBlob(blob, strlen(blob)));
+
+    TEST_ASSERT_EQUAL_STRING("board_a", runtimeBoardProfile().board_id);
+    TEST_ASSERT_EQUAL_STRING("Test Board", runtimeBoardProfile().board_name);
 }
 
 int main(int /*argc*/, char ** /*argv*/) {
@@ -159,5 +183,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_runtimeDefaultsToCompileTimeBoard);
     RUN_TEST(test_applyValidBlob_overridesRuntimeProfile);
     RUN_TEST(test_applyInvalidBlob_keepsPriorProfile);
+    RUN_TEST(test_applyInvalidLaterField_fromDefault_keepsDefault);
+    RUN_TEST(test_applyInvalidLaterField_afterValid_keepsPriorIdentifiers);
     return UNITY_END();
 }
