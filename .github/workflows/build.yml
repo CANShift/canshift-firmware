@@ -28,6 +28,7 @@ jobs:
         # in platformio.ini) to get a new matrix leg.
         board:
           - crowpanel_28
+          - generic_ili9341
     steps:
       - uses: actions/checkout@v7.0.1
 

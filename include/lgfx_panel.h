@@ -2,6 +2,6 @@
 
 #include "board.h"
 
-#if defined(BOARD_CROWPANEL_28)
-    #include "boards/crowpanel_28_panel.h"
+#if defined(BOARD_CROWPANEL_28) || defined(BOARD_GENERIC_ILI9341)
+    #include "boards/panel_ili9341_xpt2046.h"
 #endif
