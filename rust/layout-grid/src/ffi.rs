@@ -1,6 +1,11 @@
-use crate::{resolve_grid_rect, GridPlacement, GridRect};
+use crate::{resolve_grid_rect, scale, GridPlacement, GridRect};
 
 const _: () = assert!(core::mem::size_of::<GridRect>() == 8);
+
+#[no_mangle]
+pub extern "C" fn layout_scale_rs(value: i32, from_extent: u16, to_extent: u16) -> i32 {
+    scale(value, from_extent, to_extent)
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn layout_grid_resolve_rs(
@@ -43,5 +48,12 @@ mod tests {
         unsafe {
             layout_grid_resolve_rs(0, 1, 0, 1, 320, 240, core::ptr::null_mut());
         }
+    }
+
+    #[test]
+    fn ffi_scale_identity_and_upscale() {
+        assert_eq!(layout_scale_rs(32, 240, 240), 32);
+        assert_eq!(layout_scale_rs(32, 240, 480), 64);
+        assert_eq!(layout_scale_rs(44, 320, 480), 66);
     }
 }

@@ -97,6 +97,21 @@ pub fn resolve_grid_rect(placement: GridPlacement, area_w: u16, area_h: u16) -> 
     }
 }
 
+#[must_use]
+pub fn scale(value: i32, from_extent: u16, to_extent: u16) -> i32 {
+    if from_extent == 0 {
+        return 0;
+    }
+    let num = value as i64 * to_extent as i64;
+    let den = from_extent as i64;
+    let rounded = if num >= 0 {
+        (2 * num + den) / (2 * den)
+    } else {
+        -((-2 * num + den) / (2 * den))
+    };
+    rounded as i32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,6 +206,49 @@ mod tests {
     fn every_valid_placement_stays_inside_frame() {
         assert_inside_frame(320, 240);
         assert_inside_frame(320, 224);
+    }
+
+    #[test]
+    fn scale_is_identity_at_design_resolution() {
+        for v in [0, 1, 18, 32, 44, 220, 240, 320, -12, -1] {
+            assert_eq!(scale(v, 320, 320), v);
+            assert_eq!(scale(v, 240, 240), v);
+        }
+    }
+
+    #[test]
+    fn scale_doubles_at_double_resolution() {
+        assert_eq!(scale(32, 240, 480), 64);
+        assert_eq!(scale(220, 240, 480), 440);
+        assert_eq!(scale(44, 320, 640), 88);
+    }
+
+    #[test]
+    fn scale_beyond_320x240_hypothetical_resolutions() {
+        // 480x320 landscape target.
+        assert_eq!(scale(320, 320, 480), 480);
+        assert_eq!(scale(240, 240, 320), 320);
+        assert_eq!(scale(32, 240, 320), 43); // 32*320/240 = 42.67 -> 43
+        assert_eq!(scale(44, 320, 480), 66); // 44*480/320 = 66.0
+        // 800x480 (7" class) target.
+        assert_eq!(scale(320, 320, 800), 800);
+        assert_eq!(scale(240, 240, 480), 480);
+        assert_eq!(scale(18, 320, 800), 45); // 18*800/320 = 45.0
+        assert_eq!(scale(220, 240, 480), 440);
+    }
+
+    #[test]
+    fn scale_rounds_half_away_from_zero() {
+        assert_eq!(scale(1, 2, 3), 2); // 1.5 -> 2
+        assert_eq!(scale(3, 8, 4), 2); // 1.5 -> 2
+        assert_eq!(scale(-1, 2, 3), -2); // -1.5 -> -2
+        assert_eq!(scale(5, 3, 1), 2); // 1.667 -> 2
+        assert_eq!(scale(1, 3, 1), 0); // 0.333 -> 0
+    }
+
+    #[test]
+    fn scale_zero_from_extent_is_zero() {
+        assert_eq!(scale(100, 0, 480), 0);
     }
 
     #[test]
