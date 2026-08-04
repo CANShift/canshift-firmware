@@ -1,9 +1,5 @@
 #pragma once
 
-#define HW_DISPLAY_WIDTH 320
-#define HW_DISPLAY_HEIGHT 240
-#define HW_DISPLAY_COLOR_DEPTH 16
-
 #define HW_DISPLAY_ROTATION 3
 
 #define HW_PANEL_NATIVE_WIDTH 240

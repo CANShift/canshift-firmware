@@ -8,11 +8,11 @@
 
 #include <lvgl.h>
 
-static_assert(HW_DISPLAY_WIDTH == 320 && HW_DISPLAY_HEIGHT == 240,
-              "expected CrowPanel 2.8\" 320×240 — override BoardProfile if changing");
+static_assert(canshift::display::kWidth > 0 && canshift::display::kHeight > 0,
+              "board profile resolves to zero display dimensions");
 
 namespace {
-constexpr size_t kLvglBytesPerPixel = HW_DISPLAY_COLOR_DEPTH / 8U;
+constexpr size_t kLvglBytesPerPixel = canshift::display::kColorDepth / 8U;
 constexpr size_t kLvglNumBuffers = 2U;
 constexpr size_t kLvglFloorLines = 8U;
 
@@ -22,8 +22,9 @@ constexpr size_t computeLvglBufLines(uint16_t screenW, size_t budgetBytes) {
                : kLvglFloorLines;
 }
 
-constexpr size_t kLvglBufLines = computeLvglBufLines(HW_DISPLAY_WIDTH, HW_LVGL_DRAW_BUDGET_BYTES);
-static_assert(kLvglBufLines == 20, "draw-buffer line count regression for CrowPanel 2.8\"");
+constexpr size_t kLvglBufLines =
+    computeLvglBufLines(canshift::display::kWidth, HW_LVGL_DRAW_BUDGET_BYTES);
+static_assert(kLvglBufLines >= kLvglFloorLines, "draw-buffer line count underflowed the floor");
 } // namespace
 
 static lv_disp_draw_buf_t s_drawBuf;
@@ -60,7 +61,7 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
 void DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing LovyanGFX...");
 
-    const size_t bufBytes = HW_DISPLAY_WIDTH * kLvglBufLines * sizeof(lv_color_t);
+    const size_t bufBytes = canshift::display::kWidth * kLvglBufLines * sizeof(lv_color_t);
 
     const bool offloadToPsram = canshift::hal::memory::isPsramAvailable();
     if (offloadToPsram) {
@@ -112,7 +113,8 @@ void DisplayDriver::init() {
 
     s_lcd.fillScreen(TFT_BLACK);
 
-    LOG_INFO("DISP", "Display initialized (%dx%d)", HW_DISPLAY_WIDTH, HW_DISPLAY_HEIGHT);
+    LOG_INFO("DISP", "Display initialized (%dx%d)", canshift::display::kWidth,
+             canshift::display::kHeight);
 }
 
 void DisplayDriver::registerWithLVGL() {
@@ -123,11 +125,11 @@ void DisplayDriver::registerWithLVGL() {
         return;
     }
 
-    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, HW_DISPLAY_WIDTH * kLvglBufLines);
+    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, canshift::display::kWidth * kLvglBufLines);
 
     lv_disp_drv_init(&s_dispDrv);
-    s_dispDrv.hor_res = HW_DISPLAY_WIDTH;
-    s_dispDrv.ver_res = HW_DISPLAY_HEIGHT;
+    s_dispDrv.hor_res = canshift::display::kWidth;
+    s_dispDrv.ver_res = canshift::display::kHeight;
     s_dispDrv.flush_cb = flushCallback;
     s_dispDrv.draw_buf = &s_drawBuf;
     lv_disp_drv_register(&s_dispDrv);

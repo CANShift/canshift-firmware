@@ -178,7 +178,7 @@ static void buildSelfTestScreen() {
     addSelfTestRow(scr, 136, "PAGES", pagesResult, nullptr);
 
     static constexpr int16_t BAR_MARGIN_PX = 17;
-    static constexpr int16_t BAR_W = HW_DISPLAY_WIDTH - 2 * BAR_MARGIN_PX;
+    static constexpr int16_t BAR_W = canshift::display::kWidth - 2 * BAR_MARGIN_PX;
     static constexpr int16_t BAR_H = 4;
     lv_obj_t *bar = lv_bar_create(scr);
     lv_obj_set_size(bar, BAR_W, BAR_H);

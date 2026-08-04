@@ -77,4 +77,16 @@ struct BoardProfile {
     ConnectivityProfile conn;
 };
 
+constexpr bool lcdRotationSwapsAxes(uint8_t rotation) {
+    return (rotation & 1u) != 0u;
+}
+
+constexpr uint16_t lcdLogicalWidth(const LcdProfile &lcd) {
+    return lcdRotationSwapsAxes(lcd.default_rotation) ? lcd.panel_height : lcd.panel_width;
+}
+
+constexpr uint16_t lcdLogicalHeight(const LcdProfile &lcd) {
+    return lcdRotationSwapsAxes(lcd.default_rotation) ? lcd.panel_width : lcd.panel_height;
+}
+
 } // namespace canshift::boards
