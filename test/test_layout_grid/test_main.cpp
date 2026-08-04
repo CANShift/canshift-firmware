@@ -1,4 +1,5 @@
 #include "layout_grid_rs.h"
+#include "layout_scale.h"
 
 #include <unity.h>
 
@@ -81,6 +82,20 @@ void test_everyValidPlacement_staysInsideFrame() {
     assertInsideFrame(320, 224);
 }
 
+void test_scale_ffi() {
+    TEST_ASSERT_EQUAL_INT32(32, layout_scale_rs(32, 240, 240));
+    TEST_ASSERT_EQUAL_INT32(64, layout_scale_rs(32, 240, 480));
+    TEST_ASSERT_EQUAL_INT32(66, layout_scale_rs(44, 320, 480));
+    TEST_ASSERT_EQUAL_INT32(0, layout_scale_rs(100, 0, 480));
+    TEST_ASSERT_EQUAL_INT32(-2, layout_scale_rs(-1, 2, 3));
+}
+
+void test_layoutScale_wrapper_identity_at_design() {
+    TEST_ASSERT_EQUAL_INT16(44, LayoutScale::x(44));
+    TEST_ASSERT_EQUAL_INT16(32, LayoutScale::y(32));
+    TEST_ASSERT_EQUAL_INT16(36, LayoutScale::square(36));
+}
+
 } // namespace
 
 int main(int, char **) {
@@ -92,5 +107,7 @@ int main(int, char **) {
     RUN_TEST(test_degenerateArea_clampsToMin1px);
     RUN_TEST(test_garbagePlacement_staysInsideFrame);
     RUN_TEST(test_everyValidPlacement_staysInsideFrame);
+    RUN_TEST(test_scale_ffi);
+    RUN_TEST(test_layoutScale_wrapper_identity_at_design);
     return UNITY_END();
 }
