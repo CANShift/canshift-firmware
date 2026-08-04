@@ -18,18 +18,24 @@ jobs:
       - name: native tests
         run: pio test -e native
 
+  set-matrix:
+    name: resolve board matrix
+    runs-on: ubuntu-latest
+    outputs:
+      boards: ${{ steps.read.outputs.boards }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - id: read
+        run: echo "boards=$(jq -c '[.[].id]' .github/boards.json)" >> "$GITHUB_OUTPUT"
+
   firmware:
     name: firmware
+    needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Data-driven board list: append a board here (and its [env:<board>]
-        # in platformio.ini) to get a new matrix leg.
-        board:
-          - crowpanel_28
-          - generic_ili9341
-          - generic_ili9341_gt911
+        board: ${{ fromJSON(needs.set-matrix.outputs.boards) }}
     steps:
       - uses: actions/checkout@v7.0.1
 

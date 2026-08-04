@@ -284,8 +284,7 @@ void setupGatt() {
     BleServerInternal::s_pStatus = pSvc->createCharacteristic(
         STATUS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
 
-    BleServerInternal::s_pStatus->setValue("{\"ver\":\"" APP_VERSION_STR
-                                           "\",\"can\":0,\"is_day\":0}");
+    BleServerInternal::updateStatus();
 
     NimBLECharacteristic *pSettings = pSvc->createCharacteristic(
         SETTINGS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);

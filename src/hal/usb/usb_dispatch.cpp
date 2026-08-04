@@ -1,6 +1,7 @@
 #include "usb_comm_internal.h"
 
 #include "app_config.h"
+#include "board.h"
 #include "board_config.h"
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
@@ -135,9 +136,10 @@ void handleCommand(const char *jsonLine) {
             char resp[160];
             const int n =
                 snprintf(resp, sizeof(resp),
-                         "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d}",
+                         "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
+                         "\"board_id\":\"%s\"}",
                          APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                         ThemeManager::isDayMode() ? 1 : 0);
+                         ThemeManager::isDayMode() ? 1 : 0, kBoard.board_id);
             if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
                 LOG_WARN("USB", "GET_STATUS payload truncated (n=%d, cap=%u)", n,
                          static_cast<unsigned>(sizeof(resp)));

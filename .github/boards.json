@@ -1,0 +1,5 @@
+[
+  { "id": "crowpanel_28", "chip": "esp32", "display": "ILI9341 320x240", "touch": "XPT2046" },
+  { "id": "generic_ili9341", "chip": "esp32", "display": "ILI9341 320x240", "touch": "XPT2046" },
+  { "id": "generic_ili9341_gt911", "chip": "esp32", "display": "ILI9341 320x240", "touch": "GT911" }
+]
