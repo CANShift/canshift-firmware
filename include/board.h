@@ -1,6 +1,7 @@
 #pragma once
 
 #include "board_profile.h"
+#include "config/board_profile_loader.h"
 
 #if defined(BOARD_CROWPANEL_28)
     #include "boards/crowpanel_28.h"
@@ -21,6 +22,13 @@ namespace display {
 inline constexpr uint16_t kWidth = boards::lcdLogicalWidth(boards::kActiveBoard.lcd);
 inline constexpr uint16_t kHeight = boards::lcdLogicalHeight(boards::kActiveBoard.lcd);
 inline constexpr uint8_t kColorDepth = boards::kActiveBoard.lcd.color_depth;
+
+inline uint16_t width() {
+    return boards::lcdLogicalWidth(boards::runtimeBoardProfile().lcd);
+}
+inline uint16_t height() {
+    return boards::lcdLogicalHeight(boards::runtimeBoardProfile().lcd);
+}
 
 } // namespace display
 } // namespace canshift

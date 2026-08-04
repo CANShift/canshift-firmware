@@ -22,9 +22,6 @@ constexpr size_t computeLvglBufLines(uint16_t screenW, size_t budgetBytes) {
                : kLvglFloorLines;
 }
 
-constexpr size_t kLvglBufLines =
-    computeLvglBufLines(canshift::display::kWidth, HW_LVGL_DRAW_BUDGET_BYTES);
-static_assert(kLvglBufLines >= kLvglFloorLines, "draw-buffer line count underflowed the floor");
 } // namespace
 
 static lv_disp_draw_buf_t s_drawBuf;
@@ -37,6 +34,7 @@ static LGFX s_lcd;
 
 static lv_color_t *s_buf1 = nullptr;
 static lv_color_t *s_buf2 = nullptr;
+static size_t s_bufLines = 0;
 
 void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
                                   lv_color_t *colorMap) {
@@ -61,7 +59,9 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
 void DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing LovyanGFX...");
 
-    const size_t bufBytes = canshift::display::kWidth * kLvglBufLines * sizeof(lv_color_t);
+    const uint16_t screenW = canshift::display::width();
+    s_bufLines = computeLvglBufLines(screenW, HW_LVGL_DRAW_BUDGET_BYTES);
+    const size_t bufBytes = static_cast<size_t>(screenW) * s_bufLines * sizeof(lv_color_t);
 
     const bool offloadToPsram = canshift::hal::memory::isPsramAvailable();
     if (offloadToPsram) {
@@ -107,14 +107,14 @@ void DisplayDriver::init() {
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
     s_lcd.init();
     s_lcd.setRotation(rotation);
-    s_lcd.setBrightness(kBoard.backlight.default_duty);
+    s_lcd.setBrightness(canshift::boards::runtimeBoardProfile().backlight.default_duty);
     LOG_INFO("DISP", "After setRotation(%d, offset=%u°): width=%d height=%d", rotation,
              RotationConfig::getOffsetDeg(), s_lcd.width(), s_lcd.height());
 
     s_lcd.fillScreen(TFT_BLACK);
 
-    LOG_INFO("DISP", "Display initialized (%dx%d)", canshift::display::kWidth,
-             canshift::display::kHeight);
+    LOG_INFO("DISP", "Display initialized (%dx%d)", canshift::display::width(),
+             canshift::display::height());
 }
 
 void DisplayDriver::registerWithLVGL() {
@@ -125,11 +125,12 @@ void DisplayDriver::registerWithLVGL() {
         return;
     }
 
-    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2, canshift::display::kWidth * kLvglBufLines);
+    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, s_buf2,
+                          static_cast<uint32_t>(canshift::display::width()) * s_bufLines);
 
     lv_disp_drv_init(&s_dispDrv);
-    s_dispDrv.hor_res = canshift::display::kWidth;
-    s_dispDrv.ver_res = canshift::display::kHeight;
+    s_dispDrv.hor_res = canshift::display::width();
+    s_dispDrv.ver_res = canshift::display::height();
     s_dispDrv.flush_cb = flushCallback;
     s_dispDrv.draw_buf = &s_drawBuf;
     lv_disp_drv_register(&s_dispDrv);
