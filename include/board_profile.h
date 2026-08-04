@@ -44,6 +44,8 @@ struct TouchProfile {
     int8_t pin_irq;
     uint32_t freq_hz;
     bool needs_calibration;
+    int8_t pin_sda;
+    int8_t pin_scl;
 };
 
 struct CanProfile {
