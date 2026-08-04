@@ -4,6 +4,7 @@
     #include "ble_server.h"
     #include "ble_server_internal.h"
 
+    #include "board.h"
     #include "diag/logger.h"
     #include "runtime/signal_store.h"
     #include "can/signal_map.h"
@@ -21,6 +22,7 @@ void updateStatus() {
         return;
     JsonDocument doc;
     doc["ver"] = APP_VERSION_STR;
+    doc["board_id"] = kBoard.board_id;
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     char buf[128];

@@ -43,13 +43,59 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  firmware-release:
-    name: Firmware — build & attach
+  set-matrix:
+    name: Resolve board matrix
+    needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      boards: ${{ steps.read.outputs.boards }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - id: read
+        run: echo "boards=$(jq -c '[.[].id]' .github/boards.json)" >> "$GITHUB_OUTPUT"
+
+  create-release:
+    name: Create draft release
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Create GitHub Release if missing
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          if ! gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release create "${TAG}" \
+              --repo "${{ github.repository }}" \
+              --title "${TAG}" \
+              --notes "Firmware-only release. See README.md for the bundled changes." \
+              --draft
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Flag 0.x releases as pre-release
+        if: startsWith(needs.check-version.outputs.tag, 'v0.')
+        run: gh release edit "${{ needs.check-version.outputs.tag }}" --prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+  firmware-release:
+    name: Firmware — build & attach
+    needs: [check-version, set-matrix, create-release]
+    if: needs.check-version.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: ${{ fromJSON(needs.set-matrix.outputs.boards) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -63,7 +109,7 @@ jobs:
           path: |
             ~/.platformio/.packages
             ~/.platformio/.cache
-          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ runner.os }}-${{ matrix.board }}-${{ hashFiles('platformio.ini') }}
           restore-keys: |
             platformio-${{ runner.os }}-
 
@@ -107,13 +153,13 @@ jobs:
         env:
           OTA_HMAC_SECRET: ${{ secrets.OTA_HMAC_SECRET }}
 
-      - name: Build production firmware
-        run: platformio run -e crowpanel_28
+      - name: Build production firmware (${{ matrix.board }})
+        run: platformio run -e "${{ matrix.board }}"
 
       - name: Assert APP_VERSION_STR was injected into firmware binary
         run: |
           VERSION=${{ needs.check-version.outputs.version }}
-          ELF=.pio/build/crowpanel_28/firmware.elf
+          ELF=.pio/build/${{ matrix.board }}/firmware.elf
           # The boot banner LOG_INFO is compiled out in prod (APP_LOG_LEVEL=1)
           # so we can't rely on its string. The splash label literal
           # `"v" APP_VERSION_STR` in boot_sequence.cpp survives because it's a
@@ -134,22 +180,24 @@ jobs:
           echo "APP_VERSION_STR=v${VERSION} confirmed in firmware ELF."
 
       - name: Build SPIFFS image
-        run: platformio run --target buildfs -e crowpanel_28
+        run: platformio run --target buildfs -e "${{ matrix.board }}"
 
       - name: Stage release assets (firmware partition, merged image, SPIFFS)
         run: |
           TAG=${{ needs.check-version.outputs.tag }}
+          BOARD=${{ matrix.board }}
+          CHIP=$(jq -r --arg id "$BOARD" '.[] | select(.id == $id) | .chip' .github/boards.json)
           pip install esptool
           # Merged factory image — USB esptool flashing only (bootloader + partitions + firmware).
-          python -m esptool --chip esp32 merge_bin \
-            -o canshift-firmware-${TAG}-crowpanel_28-merged.bin \
-            0x1000 .pio/build/crowpanel_28/bootloader.bin \
-            0x8000 .pio/build/crowpanel_28/partitions.bin \
-            0x10000 .pio/build/crowpanel_28/firmware.bin
+          python -m esptool --chip "$CHIP" merge_bin \
+            -o "canshift-${BOARD}-${TAG}-merged.bin" \
+            0x1000 ".pio/build/${BOARD}/bootloader.bin" \
+            0x8000 ".pio/build/${BOARD}/partitions.bin" \
+            0x10000 ".pio/build/${BOARD}/firmware.bin"
           # Firmware-partition image — what mobile / studio OTA must consume.
-          cp .pio/build/crowpanel_28/firmware.bin canshift-firmware-${TAG}-crowpanel_28-firmware.bin
+          cp ".pio/build/${BOARD}/firmware.bin" "canshift-${BOARD}-${TAG}-firmware.bin"
           # SPIFFS image — flashed to the data partition.
-          cp .pio/build/crowpanel_28/spiffs.bin canshift-spiffs-${TAG}-crowpanel_28.bin
+          cp ".pio/build/${BOARD}/spiffs.bin" "canshift-${BOARD}-${TAG}-spiffs.bin"
 
       - name: Sign firmware artifacts with Ed25519
         run: |
@@ -159,33 +207,23 @@ jobs:
             echo "::warning::starts enforcing signature verification (#1259)."
             exit 0
           fi
+          TAG=${{ needs.check-version.outputs.tag }}
+          BOARD=${{ matrix.board }}
           pip install --quiet cryptography
           python3 scripts/sign_release_artifacts.py \
-            canshift-firmware-${{ needs.check-version.outputs.tag }}-crowpanel_28-merged.bin \
-            canshift-firmware-${{ needs.check-version.outputs.tag }}-crowpanel_28-firmware.bin \
-            canshift-spiffs-${{ needs.check-version.outputs.tag }}-crowpanel_28.bin
+            "canshift-${BOARD}-${TAG}-merged.bin" \
+            "canshift-${BOARD}-${TAG}-firmware.bin" \
+            "canshift-${BOARD}-${TAG}-spiffs.bin"
         env:
           FIRMWARE_SIGNING_PRIVATE_KEY: ${{ secrets.FIRMWARE_SIGNING_PRIVATE_KEY }}
-
-      - name: Create GitHub Release if missing
-        run: |
-          TAG=${{ needs.check-version.outputs.tag }}
-          if ! gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
-            gh release create "${TAG}" \
-              --repo "${{ github.repository }}" \
-              --title "${TAG}" \
-              --notes "Firmware-only release. See README.md for the bundled changes." \
-              --draft
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attach firmware, OTA partition image and SPIFFS to GitHub Release
         run: |
           TAG=${{ needs.check-version.outputs.tag }}
-          MERGED="canshift-firmware-${TAG}-crowpanel_28-merged.bin"
-          OTA="canshift-firmware-${TAG}-crowpanel_28-firmware.bin"
-          FS="canshift-spiffs-${TAG}-crowpanel_28.bin"
+          BOARD=${{ matrix.board }}
+          MERGED="canshift-${BOARD}-${TAG}-merged.bin"
+          OTA="canshift-${BOARD}-${TAG}-firmware.bin"
+          FS="canshift-${BOARD}-${TAG}-spiffs.bin"
           # Ed25519 signatures land alongside their .bin when the signing key
           # is configured (#1259). They are append-only assets so we glob
           # rather than name them explicitly — the workflow stays compatible
@@ -204,9 +242,47 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
-      - name: Flag 0.x releases as pre-release
-        if: startsWith(needs.check-version.outputs.tag, 'v0.')
-        run: gh release edit "${{ needs.check-version.outputs.tag }}" --prerelease
+  manifest:
+    name: Publish board manifest
+    needs: [check-version, firmware-release]
+    if: needs.check-version.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Build manifest.json
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          VERSION=${{ needs.check-version.outputs.version }}
+          jq --arg tag "$TAG" --arg version "$VERSION" '
+            {
+              schema: 1,
+              version: $version,
+              tag: $tag,
+              boards: [
+                .[] | {
+                  id, chip, display, touch,
+                  artifacts: {
+                    merged:   "canshift-\(.id)-\($tag)-merged.bin",
+                    firmware: "canshift-\(.id)-\($tag)-firmware.bin",
+                    spiffs:   "canshift-\(.id)-\($tag)-spiffs.bin"
+                  }
+                }
+              ]
+            }' .github/boards.json > manifest.json
+          cat manifest.json
+
+      - name: Attach manifest.json to GitHub Release
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          for i in 1 2 3 4 5; do
+            gh release upload "${TAG}" manifest.json --clobber && break
+            if [ $i -eq 5 ]; then exit 1; fi
+            echo "Attempt ${i}: release not ready, retrying in 30s..."
+            sleep 30
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}

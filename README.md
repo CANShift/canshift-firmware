@@ -190,26 +190,29 @@ pip install esptool
 **Manual flash procedure** — works on macOS, Linux, and Windows (or WSL):
 
 ```bash
-# 1. Download the latest firmware + SPIFFS bundle from
+# 1. Download the artifact set for your board from
 #    https://github.com/tburkhalterr/CANShift/releases
-#    Files needed:
-#      canshift-firmware-vX.Y.Z-crowpanel_28-merged.bin
-#      canshift-spiffs-vX.Y.Z-crowpanel_28.bin
+#    Each release publishes per-board files named canshift-<board>-<tag>-*.bin
+#    and a manifest.json mapping every board to its artifacts. For the
+#    CrowPanel 2.8" the files needed are:
+#      canshift-crowpanel_28-vX.Y.Z-merged.bin
+#      canshift-crowpanel_28-vX.Y.Z-spiffs.bin
 
 # 2. Identify the device's serial port. With the device plugged in:
 #    macOS:    ls /dev/tty.usbserial-*
 #    Linux:    ls /dev/ttyUSB*
 #    Windows:  Check Device Manager → Ports (COM & LPT)
 
-# 3. Flash both partitions in one command (replace PORT and TAG):
+# 3. Flash both partitions in one command (replace PORT, BOARD and TAG):
 PORT=/dev/tty.usbserial-10
+BOARD=crowpanel_28
 TAG=v0.7.0
 
 esptool.py --chip esp32 -p "$PORT" -b 460800 \
   --before default_reset --after hard_reset write_flash \
   --flash_mode keep --flash_size keep --flash_freq keep \
-  0x0      "canshift-firmware-${TAG}-crowpanel_28-merged.bin" \
-  0x370000 "canshift-spiffs-${TAG}-crowpanel_28.bin"
+  0x0      "canshift-${BOARD}-${TAG}-merged.bin" \
+  0x370000 "canshift-${BOARD}-${TAG}-spiffs.bin"
 ```
 
 **Notes:**
