@@ -1,0 +1,58 @@
+name: pio-setup
+description: Set up PlatformIO + Rust toolchain (host, optionally esp32) with caches
+
+inputs:
+  espup:
+    description: Install the esp32 Xtensa Rust toolchain (needed for firmware builds, not host tests)
+    required: false
+    default: 'false'
+  cache-suffix:
+    description: Extra key segment to isolate the .pio build cache per matrix leg (e.g. the board)
+    required: false
+    default: default
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/.platformio/.cache
+          ~/.platformio/.packages
+          .pio
+        key: pio-${{ runner.os }}-${{ inputs.cache-suffix }}-${{ hashFiles('platformio.ini') }}
+        restore-keys: |
+          pio-${{ runner.os }}-${{ inputs.cache-suffix }}-
+          pio-${{ runner.os }}-
+
+    - uses: dtolnay/rust-toolchain@stable
+
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ~/.rustup
+          rust/target
+        key: rust-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
+        restore-keys: rust-${{ runner.os }}-
+
+    - if: inputs.espup == 'true'
+      shell: bash
+      run: |
+        if ! command -v espup >/dev/null; then
+          cargo install espup --locked
+        fi
+        espup install --targets esp32
+        . ~/export-esp.sh
+        echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
+        for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do
+          echo "$dir" >> "$GITHUB_PATH"
+        done
+
+    - shell: bash
+      run: pip install platformio
