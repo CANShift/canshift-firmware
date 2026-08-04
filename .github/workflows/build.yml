@@ -29,6 +29,7 @@ jobs:
         board:
           - crowpanel_28
           - generic_ili9341
+          - generic_ili9341_gt911
     steps:
       - uses: actions/checkout@v7.0.1
 

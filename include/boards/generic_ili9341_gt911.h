@@ -6,8 +6,8 @@
 namespace canshift::boards {
 
 constexpr BoardProfile kActiveBoard = {
-    "generic_ili9341",
-    "Generic ESP32 + ILI9341 320x240 + XPT2046",
+    "generic_ili9341_gt911",
+    "Generic ESP32 + ILI9341 320x240 + GT911 capacitive",
 
     {
         LcdDriver::ILI9341,
@@ -26,7 +26,7 @@ constexpr BoardProfile kActiveBoard = {
         3,
         false,
         false,
-        true,
+        false,
         false,
         16,
     },
@@ -40,13 +40,13 @@ constexpr BoardProfile kActiveBoard = {
     },
 
     {
-        TouchDriver::XPT2046,
-        21,
+        TouchDriver::GT911,
+        -1,
         27,
-        2500000UL,
-        true,
-        -1,
-        -1,
+        400000UL,
+        false,
+        21,
+        22,
     },
 
     {

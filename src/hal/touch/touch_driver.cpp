@@ -53,20 +53,24 @@ void TouchDriver::readCallback(lv_indev_drv_t *, lv_indev_data_t *data) {
 void TouchDriver::init() {
     LOG_INFO("TOUCH", "Initializing touch controller...");
 
-    Preferences p;
-    p.begin(NVS_NS, true);
-    const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
-    if (hasCalibration) {
-        uint16_t calData[8] = {};
-        p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
-        s_lcd.setTouchCalibrate(calData);
-        LOG_INFO("TOUCH", "Calibration loaded from NVS");
-    }
-    p.end();
+    if constexpr (kBoard.touch.needs_calibration) {
+        Preferences p;
+        p.begin(NVS_NS, true);
+        const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
+        if (hasCalibration) {
+            uint16_t calData[8] = {};
+            p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
+            s_lcd.setTouchCalibrate(calData);
+            LOG_INFO("TOUCH", "Calibration loaded from NVS");
+        }
+        p.end();
 
-    if (!hasCalibration) {
-        LOG_WARN("TOUCH", "No NVS calibration — running first-boot calibration");
-        calibrate();
+        if (!hasCalibration) {
+            LOG_WARN("TOUCH", "No NVS calibration — running first-boot calibration");
+            calibrate();
+        }
+    } else {
+        LOG_INFO("TOUCH", "Capacitive controller — calibration not required");
     }
 
     lv_indev_drv_init(&s_indevDrv);
@@ -95,6 +99,8 @@ void TouchDriver::init() {
 }
 
 bool TouchDriver::isCalibrated() {
+    if constexpr (!kBoard.touch.needs_calibration)
+        return true;
     Preferences p;
     p.begin(NVS_NS, true);
     const bool has = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
@@ -103,6 +109,10 @@ bool TouchDriver::isCalibrated() {
 }
 
 void TouchDriver::calibrate() {
+    if constexpr (!kBoard.touch.needs_calibration) {
+        LOG_INFO("TOUCH", "Calibration not applicable for this touch controller");
+        return;
+    }
     LOG_INFO("TOUCH", "Starting touch calibration...");
     uint16_t calData[8] = {};
 
@@ -130,6 +140,8 @@ void TouchDriver::calibrate() {
 }
 
 void TouchDriver::resetCalibration() {
+    if constexpr (!kBoard.touch.needs_calibration)
+        return;
     Preferences p;
     p.begin(NVS_NS, false);
     p.remove(NVS_KEY_CAL);

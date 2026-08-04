@@ -2,6 +2,7 @@
 #include "settings_page_internal.h"
 
 #include "app_config.h"
+#include "board.h"
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
 
@@ -29,10 +30,12 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     y += GAP_ROW;
     buildBleRow(y, rowW);
     y += GAP_ROW;
-    buildCalibrateTouchRow(y, rowW);
-    y += GAP_INNER;
-    buildResetTouchCalRow(y, rowW);
-    y += GAP_ROW;
+    if constexpr (kBoard.touch.needs_calibration) {
+        buildCalibrateTouchRow(y, rowW);
+        y += GAP_INNER;
+        buildResetTouchCalRow(y, rowW);
+        y += GAP_ROW;
+    }
     buildRebootRow(y, rowW);
     y += GAP_ROW;
     buildAboutRow(y, rowW);
