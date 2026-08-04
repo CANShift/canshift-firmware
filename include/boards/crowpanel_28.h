@@ -8,6 +8,7 @@ namespace canshift::boards {
 constexpr BoardProfile kActiveBoard = {
     "crowpanel_28",
     "Elecrow CrowPanel 2.8\" ESP32",
+    ChipFamily::Esp32,
 
     {
         LcdDriver::ILI9341,
