@@ -47,7 +47,7 @@ runs:
         if ! command -v espup >/dev/null; then
           cargo install espup --locked
         fi
-        espup install --targets esp32
+        espup install --targets esp32,esp32s3
         . ~/export-esp.sh
         echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
         for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do

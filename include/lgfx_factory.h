@@ -34,7 +34,7 @@ class LGFX : public lgfx::LGFX_Device {
 
     void configureBus(const canshift::boards::BoardProfile &b) {
         auto cfg = _spiBus.config();
-        cfg.spi_host = HSPI_HOST;
+        cfg.spi_host = SPI2_HOST;
         cfg.spi_mode = 0;
         cfg.freq_write = b.lcd.freq_write_hz;
         cfg.freq_read = 16000000;
@@ -124,7 +124,7 @@ class LGFX : public lgfx::LGFX_Device {
         cfg.pin_int = b.touch.pin_irq;
         cfg.bus_shared = b.lcd.bus_shared_with_touch;
         cfg.offset_rotation = 0;
-        cfg.spi_host = HSPI_HOST;
+        cfg.spi_host = SPI2_HOST;
         cfg.freq = b.touch.freq_hz;
         cfg.pin_sclk = b.lcd.pin_sclk;
         cfg.pin_mosi = b.lcd.pin_mosi;
