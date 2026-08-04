@@ -1,6 +1,7 @@
 #include "burn_overlay.h"
 #include "app_config.h"
 #include "ui/font_manager.h"
+#include "layout_scale.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -86,7 +87,7 @@ lv_obj_t *buildUsbIcon(lv_obj_t *parent, uint32_t color) {
     constexpr int16_t ICON_H = SLEEVE_H + CABLE_H;
 
     lv_obj_t *icon = lv_obj_create(parent);
-    lv_obj_set_size(icon, ICON_W, ICON_H);
+    lv_obj_set_size(icon, LayoutScale::square(ICON_W), LayoutScale::square(ICON_H));
     lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(icon, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(icon, 0, LV_PART_MAIN);
@@ -94,7 +95,7 @@ lv_obj_t *buildUsbIcon(lv_obj_t *parent, uint32_t color) {
     lv_obj_clear_flag(icon, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t *sleeve = lv_obj_create(icon);
-    lv_obj_set_size(sleeve, SLEEVE_W, SLEEVE_H);
+    lv_obj_set_size(sleeve, LayoutScale::square(SLEEVE_W), LayoutScale::square(SLEEVE_H));
     lv_obj_set_style_radius(sleeve, 2, LV_PART_MAIN);
     lv_obj_set_style_bg_color(sleeve, lv_color_hex(color), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(sleeve, LV_OPA_COVER, LV_PART_MAIN);
@@ -104,17 +105,17 @@ lv_obj_t *buildUsbIcon(lv_obj_t *parent, uint32_t color) {
     lv_obj_align(sleeve, LV_ALIGN_TOP_MID, 0, 0);
 
     lv_obj_t *contact = lv_obj_create(sleeve);
-    lv_obj_set_size(contact, CONTACT_W, CONTACT_H);
+    lv_obj_set_size(contact, LayoutScale::square(CONTACT_W), LayoutScale::square(CONTACT_H));
     lv_obj_set_style_radius(contact, 1, LV_PART_MAIN);
     lv_obj_set_style_bg_color(contact, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(contact, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(contact, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(contact, 0, LV_PART_MAIN);
     lv_obj_clear_flag(contact, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(contact, LV_ALIGN_TOP_MID, 0, CONTACT_TOP_PAD);
+    lv_obj_align(contact, LV_ALIGN_TOP_MID, 0, LayoutScale::y(CONTACT_TOP_PAD));
 
     lv_obj_t *cable = lv_obj_create(icon);
-    lv_obj_set_size(cable, CABLE_W, CABLE_H);
+    lv_obj_set_size(cable, LayoutScale::square(CABLE_W), LayoutScale::square(CABLE_H));
     lv_obj_set_style_radius(cable, 1, LV_PART_MAIN);
     lv_obj_set_style_bg_color(cable, lv_color_hex(color), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(cable, LV_OPA_COVER, LV_PART_MAIN);
@@ -171,7 +172,7 @@ void BurnOverlay::show() {
 
     static constexpr int16_t kArcSize = 64;
     lv_obj_t *arc = lv_arc_create(col);
-    lv_obj_set_size(arc, kArcSize, kArcSize);
+    lv_obj_set_size(arc, LayoutScale::square(kArcSize), LayoutScale::square(kArcSize));
     lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
     lv_arc_set_bg_angles(arc, 0, 360);
     lv_arc_set_angles(arc, 0, kArcSpan);

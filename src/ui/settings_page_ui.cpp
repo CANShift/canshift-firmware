@@ -3,6 +3,7 @@
 #include "app_config.h"
 #include "config/config_loader.h"
 #include "ui/font_manager.h"
+#include "layout_scale.h"
 #include "ui/theme_manager.h"
 #include "diag/logger.h"
 
@@ -109,14 +110,14 @@ void buildHeader(int16_t &y) {
     lv_label_set_text(title, "SCREEN SETTINGS");
     lv_obj_set_style_text_font(title, FONT_LG(), 0);
     lv_obj_set_style_text_color(title, lv_color_hex(CLR_TEXT), 0);
-    lv_obj_set_pos(title, PAD_H, y);
+    lv_obj_set_pos(title, LayoutScale::x(PAD_H), y);
     y += HEADER_H;
 }
 
 void buildBrightnessRow(int16_t &y, int16_t rowW) {
     lv_obj_t *row = lv_obj_create(s_panel);
-    lv_obj_set_pos(row, PAD_H, y);
-    lv_obj_set_size(row, rowW, LABEL_H);
+    lv_obj_set_pos(row, LayoutScale::x(PAD_H), y);
+    lv_obj_set_size(row, rowW, LayoutScale::y(LABEL_H));
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -134,10 +135,10 @@ void buildBrightnessRow(int16_t &y, int16_t rowW) {
     lv_obj_align(s_brValue, LV_ALIGN_RIGHT_MID, 0, 0);
     updateBrValue();
 
-    y += LABEL_H + GAP_INNER;
+    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
 
     s_brSlider = makeSlider(s_panel, 10, 100, s_brightness, onBrightnessChanged);
-    lv_obj_set_pos(s_brSlider, PAD_H, y);
+    lv_obj_set_pos(s_brSlider, LayoutScale::x(PAD_H), y);
     lv_obj_set_size(s_brSlider, rowW, SLIDER_H);
     y += SLIDER_H;
 }
@@ -147,8 +148,8 @@ void buildBleRow(int16_t &y, int16_t rowW) {
     lv_label_set_text(lbl, "MOBILE PAIRING");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_set_pos(lbl, PAD_H, y);
-    y += LABEL_H + GAP_INNER;
+    lv_obj_set_pos(lbl, LayoutScale::x(PAD_H), y);
+    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
 
     const int16_t gap = 4;
     const int16_t btnW = (rowW - gap) / 2;
@@ -157,7 +158,7 @@ void buildBleRow(int16_t &y, int16_t rowW) {
         bool active = (i == 0) ? s_bleEnabled : !s_bleEnabled;
         s_bleBtns[i] = makeSegButton(s_panel, bleLabels[i], active, onBleBtn,
                                      reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-        lv_obj_set_pos(s_bleBtns[i], PAD_H + i * (btnW + gap), y);
+        lv_obj_set_pos(s_bleBtns[i], LayoutScale::x(PAD_H) + i * (btnW + gap), y);
         lv_obj_set_size(s_bleBtns[i], btnW, BTN_H);
     }
     y += BTN_H;
@@ -166,7 +167,7 @@ void buildBleRow(int16_t &y, int16_t rowW) {
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW) {
     lv_obj_t *btn = makeFullButton(s_panel, "CALIBRATE TOUCH", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
                                    onCalibrateTouch);
-    lv_obj_set_pos(btn, PAD_H, y);
+    lv_obj_set_pos(btn, LayoutScale::x(PAD_H), y);
     lv_obj_set_size(btn, rowW, BTN_H);
     y += BTN_H;
 }
@@ -174,7 +175,7 @@ void buildCalibrateTouchRow(int16_t &y, int16_t rowW) {
 void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
     lv_obj_t *btn = makeFullButton(s_panel, "RESET TOUCH CAL", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
                                    onResetTouchCal);
-    lv_obj_set_pos(btn, PAD_H, y);
+    lv_obj_set_pos(btn, LayoutScale::x(PAD_H), y);
     lv_obj_set_size(btn, rowW, BTN_H);
     s_resetTouchCalBtn = btn;
     y += BTN_H;
@@ -189,8 +190,8 @@ void buildDayModeRow(int16_t &y, int16_t rowW) {
     lv_label_set_text(lbl, "DISPLAY MODE");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_set_pos(lbl, PAD_H, y);
-    y += LABEL_H + GAP_INNER;
+    lv_obj_set_pos(lbl, LayoutScale::x(PAD_H), y);
+    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
 
     const int16_t gap = 4;
     const int16_t btnW = (rowW - gap) / 2;
@@ -200,7 +201,7 @@ void buildDayModeRow(int16_t &y, int16_t rowW) {
     for (uint8_t i = 0; i < 2; ++i) {
         s_dayBtns[i] = makeSegButton(s_panel, dayLabels[i], active[i], onDayModeBtn,
                                      reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-        lv_obj_set_pos(s_dayBtns[i], PAD_H + i * (btnW + gap), y);
+        lv_obj_set_pos(s_dayBtns[i], LayoutScale::x(PAD_H) + i * (btnW + gap), y);
         lv_obj_set_size(s_dayBtns[i], btnW, BTN_H);
     }
     y += BTN_H;
@@ -212,21 +213,21 @@ void buildAboutRow(int16_t &y, int16_t rowW) {
     lv_label_set_text(lbl, "ABOUT");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
     lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_set_pos(lbl, PAD_H, y);
-    y += LABEL_H + GAP_INNER;
+    lv_obj_set_pos(lbl, LayoutScale::x(PAD_H), y);
+    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
 
     lv_obj_t *ver = lv_label_create(s_panel);
     lv_label_set_text(ver, "CANShift v" APP_VERSION_STR);
     lv_obj_set_style_text_font(ver, FONT_SM(), 0);
     lv_obj_set_style_text_color(ver, lv_color_hex(CLR_TEXT), 0);
-    lv_obj_set_pos(ver, PAD_H, y);
-    y += LABEL_H;
+    lv_obj_set_pos(ver, LayoutScale::x(PAD_H), y);
+    y += LayoutScale::y(LABEL_H);
 }
 
 void buildRebootRow(int16_t &y, int16_t rowW) {
     lv_obj_t *btn =
         makeFullButton(s_panel, "HOLD 3 s TO REBOOT", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED, nullptr);
-    lv_obj_set_pos(btn, PAD_H, y);
+    lv_obj_set_pos(btn, LayoutScale::x(PAD_H), y);
     lv_obj_set_size(btn, rowW, BTN_H);
     lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_RELEASED, nullptr);
