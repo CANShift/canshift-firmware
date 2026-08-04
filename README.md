@@ -30,6 +30,78 @@ All pin assignments live in [`include/board_config.h`](include/board_config.h) a
 
 ---
 
+## Supported boards
+
+The firmware targets a single board per build, selected at compile time. There is
+no runtime driver configuration — the unused LCD/touch drivers are stripped by
+the linker, so each binary carries only the code its board needs.
+
+| `board_id`               | Display          | Touch             | Status              |
+| ------------------------ | ---------------- | ----------------- | ------------------- |
+| `crowpanel_28`           | ILI9341 320×240  | XPT2046 resistive | Hardware target     |
+| `generic_ili9341`        | ILI9341 320×240  | XPT2046 resistive | CI-built only       |
+| `generic_ili9341_gt911`  | ILI9341 320×240  | GT911 capacitive  | CI-built only       |
+
+`crowpanel_28` is the reference hardware — the [Elecrow CrowPanel 2.8"](#hardware-platform)
+the dashboard ships on. The two `generic_*` profiles are portability seams: they
+build green in CI on every push but their pinouts are representative starting
+points, unverified against physical hardware. **CI-built only** means the leg
+compiles and links; it does not mean the pin map is correct for any given board.
+
+### How it fits together
+
+- [`include/board.h`](include/board.h) is the compile-time selector. It reads the
+  `-DBOARD_*` flag from the active pio env, pulls in the matching profile header,
+  and exposes `kBoard` plus the `canshift::display::kWidth/kHeight/kColorDepth`
+  constants the rest of the firmware derives geometry from.
+- [`include/boards/`](include/boards/) holds one profile header per board, each a
+  single `constexpr BoardProfile kActiveBoard` filling the struct defined in
+  [`include/board_profile.h`](include/board_profile.h) (LCD, backlight, touch,
+  CAN, storage, connectivity — pins, driver enums, and capability flags).
+- [`include/lgfx_panel.h`](include/lgfx_panel.h) dispatches on the board flag to a
+  driver-combo panel header, `include/boards/panel_<lcd>_<touch>.h` (e.g.
+  `panel_ili9341_xpt2046.h`, `panel_ili9341_gt911.h`). Combos are shared across
+  boards, so a new board that reuses an existing driver pair needs no new panel
+  code.
+
+### Adding a board
+
+Using `generic_ili9341` as the worked example:
+
+1. **Profile header** — copy [`include/boards/generic_ili9341.h`](include/boards/generic_ili9341.h)
+   to `include/boards/<your_board>.h` and edit the `kActiveBoard` fields:
+   `board_id`, `board_name`, the LCD/touch/CAN pins, the driver enums, and the
+   capability flags.
+2. **Selector arm** — add an `#elif defined(BOARD_<YOUR_BOARD>)` branch in
+   [`include/board.h`](include/board.h) that includes your header.
+3. **Panel combo** — if your LCD+touch pair already has a
+   `include/boards/panel_<lcd>_<touch>.h`, add your board flag to the matching
+   arm in [`include/lgfx_panel.h`](include/lgfx_panel.h). If the driver pair is
+   new, add a panel header for it (model it on `panel_ili9341_xpt2046.h`).
+4. **Build env** — add `[env:<your_board>]` in [`platformio.ini`](platformio.ini),
+   extending `env:crowpanel_28`, unflagging `-DBOARD_CROWPANEL_28=1`, and flagging
+   `-DBOARD_<YOUR_BOARD>=1`.
+5. **CI leg** — append `<your_board>` to the `strategy.matrix.board` list in
+   [`.github/workflows/build.yml`](.github/workflows/build.yml). The build is
+   data-driven: a failing leg is named after the board, and `ci-success`
+   aggregates every leg.
+6. Build it: `pio run -e <your_board>`.
+
+### Responsive UI (LayoutScale)
+
+New UI code is authored against a fixed **320×240 design space** and scaled to the
+board's physical resolution through [`include/layout_scale.h`](include/layout_scale.h):
+`LayoutScale::x()` / `y()` for horizontal/vertical extents, `LayoutScale::square()`
+for radii and other aspect-locked dimensions. When the board's resolution equals
+the design space (as on `crowpanel_28`) the scale folds to the identity at compile
+time, so that board's binary is byte-identical to the pre-responsive build.
+
+Two things stay **unscaled by design**: thin border strokes (scaling them muddies
+the edge) and fonts with their optical-centring nudges (a resolution-tiered font
+set is the follow-up, tracked in #64). Wrap container geometry, not text metrics.
+
+---
+
 ## What is working
 
 - LVGL 8.3 rendering with widgets for `bar`, `button`, `gauge`, `gear`, `image`, `label`, `timer`, and `warning` (`src/ui/widgets/`).
