@@ -26,24 +26,23 @@ def read_firmware_version():
 
 
 def read_core_schema_version():
-    """Mirrors CURRENT_SCHEMA_VERSION from a sibling canshift-core checkout
-    when present (#203); otherwise falls back to the committed
-    core-schema-version.txt pin, kept in sync by the cross-repo parity job."""
-    ts_path = os.path.join(
-        env["PROJECT_DIR"], "..", "canshift-core", "src", "index.ts"
-    )
-    if os.path.exists(ts_path):
-        with open(ts_path, "r") as fh:
-            source = fh.read()
-        match = re.search(
-            r"CURRENT_SCHEMA_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
-            source,
-        )
-        if not match:
-            raise SystemExit(
-                f"error: CURRENT_SCHEMA_VERSION literal not found in {ts_path}"
-            )
-        return match.group(1)
+    """Mirrors CURRENT_SCHEMA_VERSION from a sibling canshift-core checkout when
+    present (#203) — searched in src/schema-version.ts (its home since core#30)
+    then src/index.ts. If neither yields the literal (no checkout, or the
+    constant moved again), falls back to the committed core-schema-version.txt
+    pin with a warning instead of hard-erroring: a moved constant should degrade,
+    not block builds (#52). The pin is kept in sync by the cross-repo parity job."""
+    core_src = os.path.join(env["PROJECT_DIR"], "..", "canshift-core", "src")
+    pattern = re.compile(r"CURRENT_SCHEMA_VERSION\s*=\s*['\"]([^'\"]+)['\"]")
+    for name in ("schema-version.ts", "index.ts"):
+        try:
+            with open(os.path.join(core_src, name), "r") as fh:
+                source = fh.read()
+        except OSError:
+            continue
+        match = pattern.search(source)
+        if match:
+            return match.group(1)
 
     pin_path = os.path.join(env["PROJECT_DIR"], "core-schema-version.txt")
     try:
@@ -51,10 +50,17 @@ def read_core_schema_version():
             version = fh.read().strip()
     except OSError as exc:
         raise SystemExit(
-            f"error: no sibling canshift-core and cannot read {pin_path}: {exc}"
+            f"error: no CURRENT_SCHEMA_VERSION in sibling canshift-core and "
+            f"cannot read {pin_path}: {exc}"
         ) from exc
     if not version:
         raise SystemExit(f"error: {pin_path} is empty")
+    if os.path.isdir(os.path.join(env["PROJECT_DIR"], "..", "canshift-core")):
+        print(
+            f"WARN: CURRENT_SCHEMA_VERSION not found in sibling "
+            f"canshift-core/src (schema-version.ts / index.ts) — using "
+            f"core-schema-version.txt pin ({version})"
+        )
     return version
 
 
