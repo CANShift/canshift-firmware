@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "board.h"
+#include "config/board_profile_loader.h"
 #include "layout_scale.h"
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
@@ -31,7 +32,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     y += LayoutScale::y(GAP_ROW);
     buildBleRow(y, rowW);
     y += LayoutScale::y(GAP_ROW);
-    if constexpr (kBoard.touch.needs_calibration) {
+    if (canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
         buildCalibrateTouchRow(y, rowW);
         y += LayoutScale::y(GAP_INNER);
         buildResetTouchCalRow(y, rowW);
