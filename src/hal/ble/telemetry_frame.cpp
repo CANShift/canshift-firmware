@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 
 namespace TelemetryFrame {
 
@@ -57,6 +58,29 @@ size_t encode(const Field *fields, size_t count, uint8_t *buf, size_t bufSize) {
         offset += VALUE_BYTES;
     }
     return total;
+}
+
+void resetDeduper(Deduper &deduper) {
+    deduper.lastLen = 0;
+    deduper.ticksSinceSend = 0;
+}
+
+bool shouldSend(Deduper &deduper, const uint8_t *frame, size_t len) {
+    if (frame == nullptr || len == 0 || len > MAX_FRAME_BYTES)
+        return false;
+
+    if (deduper.ticksSinceSend < KEEPALIVE_TICKS)
+        deduper.ticksSinceSend++;
+
+    const bool changed = len != deduper.lastLen || std::memcmp(frame, deduper.last, len) != 0;
+    const bool keepalive = deduper.ticksSinceSend >= KEEPALIVE_TICKS;
+    if (!changed && !keepalive)
+        return false;
+
+    std::memcpy(deduper.last, frame, len);
+    deduper.lastLen = len;
+    deduper.ticksSinceSend = 0;
+    return true;
 }
 
 } // namespace TelemetryFrame
