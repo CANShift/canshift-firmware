@@ -49,6 +49,10 @@ size_t buildTelemetryPayload(uint8_t *buf, size_t bufSize) {
 
 uint8_t s_statusDiv = 0;
 
+TelemetryFrame::Deduper s_dedup = {};
+
+size_t s_lastSubCount = 0;
+
 } // namespace
 
 namespace BleServerInternal {
@@ -58,15 +62,21 @@ void emitTelemetry() {
     auto *pTele = BleServerInternal::s_pTele;
     if (!pTele)
         return;
-    if (!pTele->getSubscribedCount())
+    const size_t subs = pTele->getSubscribedCount();
+    if (subs == 0) {
+        s_lastSubCount = 0;
         return;
+    }
+    if (subs > s_lastSubCount)
+        TelemetryFrame::resetDeduper(s_dedup);
+    s_lastSubCount = subs;
 
     uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES];
     const size_t len = buildTelemetryPayload(buf, sizeof(buf));
     if (len == 0) {
         LOG_WARN("BLE", "TELE payload would overflow %u B buffer — skipping notify",
                  static_cast<unsigned>(sizeof(buf)));
-    } else {
+    } else if (TelemetryFrame::shouldSend(s_dedup, buf, len)) {
         pTele->setValue(buf, len);
         pTele->notify();
     }

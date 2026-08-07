@@ -85,6 +85,63 @@ void test_encode_rejectsNullAndOverCount() {
     TEST_ASSERT_EQUAL_size_t(0, TelemetryFrame::encode(fields, 15, buf, sizeof(buf)));
 }
 
+void test_dedup_sendsFirstFrame() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t frame[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+}
+
+void test_dedup_skipsUnchangedWithinKeepalive() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t frame[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+    for (uint16_t i = 1; i < TelemetryFrame::KEEPALIVE_TICKS; i++)
+        TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+}
+
+void test_dedup_resendsOnKeepaliveTick() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t frame[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+    for (uint16_t i = 1; i < TelemetryFrame::KEEPALIVE_TICKS; i++)
+        TelemetryFrame::shouldSend(dedup, frame, sizeof(frame));
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+}
+
+void test_dedup_sendsWhenPayloadChanges() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t a[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
+    const uint8_t b[] = {0x01, 0x01, 0x00, 0x11, 0x27, 0x00, 0x00};
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, a, sizeof(a)));
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, b, sizeof(b)));
+}
+
+void test_dedup_sendsWhenLengthChanges() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t a[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
+    const uint8_t b[] = {0x01, 0x00, 0x00};
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, a, sizeof(a)));
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, b, sizeof(b)));
+}
+
+void test_dedup_resetForcesResend() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t frame[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+    TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+    TelemetryFrame::resetDeduper(dedup);
+    TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
+}
+
+void test_dedup_rejectsInvalidFrame() {
+    TelemetryFrame::Deduper dedup = {};
+    const uint8_t frame[] = {0x01, 0x00, 0x00};
+    TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, nullptr, sizeof(frame)));
+    TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, 0));
+    TEST_ASSERT_FALSE(
+        TelemetryFrame::shouldSend(dedup, frame, TelemetryFrame::MAX_FRAME_BYTES + 1));
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_encode_emptyFrame_headerOnly);
@@ -92,5 +149,12 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_encode_skipsNonFinite);
     RUN_TEST(test_encode_rejectsTooSmallBuffer);
     RUN_TEST(test_encode_rejectsNullAndOverCount);
+    RUN_TEST(test_dedup_sendsFirstFrame);
+    RUN_TEST(test_dedup_skipsUnchangedWithinKeepalive);
+    RUN_TEST(test_dedup_resendsOnKeepaliveTick);
+    RUN_TEST(test_dedup_sendsWhenPayloadChanges);
+    RUN_TEST(test_dedup_sendsWhenLengthChanges);
+    RUN_TEST(test_dedup_resetForcesResend);
+    RUN_TEST(test_dedup_rejectsInvalidFrame);
     return UNITY_END();
 }
