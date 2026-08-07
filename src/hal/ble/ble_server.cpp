@@ -57,10 +57,16 @@ static std::atomic<int8_t> s_pendingEnabled{-1};
 
 namespace {
 
+constexpr uint16_t CONN_MIN_INTERVAL = 12;
+constexpr uint16_t CONN_MAX_INTERVAL = 24;
+constexpr uint16_t CONN_SLAVE_LATENCY = 4;
+constexpr uint16_t CONN_SUPERVISION_TIMEOUT = 400;
+
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override {
         BleServerInternal::s_connected = true;
-        pServer->updateConnParams(desc->conn_handle, 12, 24, 0, 400);
+        pServer->updateConnParams(desc->conn_handle, CONN_MIN_INTERVAL, CONN_MAX_INTERVAL,
+                                  CONN_SLAVE_LATENCY, CONN_SUPERVISION_TIMEOUT);
         LOG_INFO("BLE", "Client connected: %s",
                  NimBLEAddress(desc->peer_ota_addr).toString().c_str());
     }
