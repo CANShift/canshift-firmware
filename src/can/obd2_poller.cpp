@@ -2,6 +2,7 @@
 
 #include "can/can_manager.h"
 #include "can/can_parser.h"
+#include "can/obd2_response.h"
 #include "can/signal_map.h"
 #include "config/config_loader.h"
 #include "config/config_types.h"
@@ -41,8 +42,6 @@ uint32_t s_nextDueMs = 0;
 
 constexpr uint8_t kRequestLen = 0x02;
 constexpr uint8_t kRequestDlc = 8;
-
-constexpr uint8_t kResponseModeMask = 0x40;
 
 // Signed-delta comparison survives millis() wraparound (valid for
 // distances < 2^31 ms, ~24.8 days — far above any poll interval).
@@ -166,22 +165,17 @@ bool Obd2Poller::onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length
         return false;
     if (frameId != OBD2_RESPONSE_FRAME_ID)
         return false;
-    if (data == nullptr || length < 3)
-        return false;
 
-    const uint8_t payloadLen = data[0];
-    const uint8_t modeEcho = data[1];
-    const uint8_t pidEcho = data[2];
-    if (payloadLen < 2 || payloadLen > 6)
+    const Obd2Response::Header header = Obd2Response::parseHeader(data, length);
+    if (!header.ok)
         return false;
 
     for (uint8_t i = 0; i < s_slotCount; ++i) {
         PollSlot &slot = s_slots[i];
-        const uint8_t expectedModeEcho = static_cast<uint8_t>(slot.mode | kResponseModeMask);
-        if (modeEcho != expectedModeEcho || pidEcho != slot.pid)
+        if (!Obd2Response::matches(header, slot.mode, slot.pid))
             continue;
 
-        if (static_cast<uint16_t>(slot.startByte) + static_cast<uint16_t>(slot.byteLength) > length)
+        if (!Obd2Response::fitsValueBytes(slot.startByte, slot.byteLength, length))
             continue;
 
         const float physical = CanParser::detail::decodeBytes(
