@@ -6,85 +6,45 @@
 
     #include "can/signal_map.h"
     #include "diag/logger.h"
+    #include "hal/ble/telemetry_frame.h"
     #include "runtime/signal_store.h"
-    #include "util/format_float.h"
 
     #include <NimBLEDevice.h>
+    #include <stddef.h>
     #include <stdint.h>
-    #include <stdio.h>
-    #include <string.h>
 
 namespace {
 
-struct BleTeleEntry {
-    SignalId id;
-    const char *key;
-};
-
-constexpr BleTeleEntry BLE_TELE_SIGNALS[] = {
-    {SignalIds::RPM, "r"},
-    {SignalIds::THROTTLE_POS, "tps"},
-    {SignalIds::MAP_KPA, "map"},
-    {SignalIds::MAP_NUMBER, "mi"},
-    {SignalIds::BOOST_BAR, "bst"},
-    {SignalIds::IAT_C, "iat"},
-    {SignalIds::COOLANT_TEMP_C, "ct"},
-    {SignalIds::OIL_TEMP_C, "ot"},
-    {SignalIds::OIL_PRESS_BAR, "op"},
-    {SignalIds::FUEL_PRESS_BAR, "fp"},
-    {SignalIds::LAMBDA_1, "lam"},
-    {SignalIds::SPEED_KPH, "s"},
-    {SignalIds::GEAR, "g"},
-    {SignalIds::BATTERY_VOLTS, "bat"},
+constexpr SignalId BLE_TELE_SIGNALS[] = {
+    SignalIds::RPM,
+    SignalIds::THROTTLE_POS,
+    SignalIds::MAP_KPA,
+    SignalIds::MAP_NUMBER,
+    SignalIds::BOOST_BAR,
+    SignalIds::IAT_C,
+    SignalIds::COOLANT_TEMP_C,
+    SignalIds::OIL_TEMP_C,
+    SignalIds::OIL_PRESS_BAR,
+    SignalIds::FUEL_PRESS_BAR,
+    SignalIds::LAMBDA_1,
+    SignalIds::SPEED_KPH,
+    SignalIds::GEAR,
+    SignalIds::BATTERY_VOLTS,
 };
 
 constexpr size_t BLE_TELE_SIGNAL_COUNT = sizeof(BLE_TELE_SIGNALS) / sizeof(BLE_TELE_SIGNALS[0]);
 
-constexpr int BLE_TELE_SIG_DIGITS = 4;
-
-size_t buildTelemetryPayload(char *buf, size_t bufSize) {
-    if (bufSize < 4)
-        return 0;
-    char *p = buf;
-    char *const end = buf + bufSize - 1;
-
+size_t buildTelemetryPayload(uint8_t *buf, size_t bufSize) {
     SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
 
-    *p++ = '{';
-    bool first = true;
+    TelemetryFrame::Field fields[BLE_TELE_SIGNAL_COUNT];
     for (size_t i = 0; i < BLE_TELE_SIGNAL_COUNT; i++) {
-        const SignalId id = BLE_TELE_SIGNALS[i].id;
-        if (!snap[id].valid)
-            continue;
-        const float val = snap[id].smoothed;
-
-        if (!first) {
-            if (p >= end)
-                return 0;
-            *p++ = ',';
-        }
-        first = false;
-
-        const int keyN =
-            snprintf(p, static_cast<size_t>(end - p), "\"%s\":", BLE_TELE_SIGNALS[i].key);
-        if (keyN <= 0 || p + keyN >= end)
-            return 0;
-        p += keyN;
-
-        char numBuf[16];
-        const size_t numLen =
-            FloatFormat::formatGeneral(numBuf, sizeof(numBuf), val, BLE_TELE_SIG_DIGITS);
-        if (numLen == 0 || p + numLen >= end)
-            return 0;
-        memcpy(p, numBuf, numLen);
-        p += numLen;
+        const SignalId id = BLE_TELE_SIGNALS[i];
+        fields[i].present = snap[id].valid;
+        fields[i].value = snap[id].smoothed;
     }
-    if (p >= end)
-        return 0;
-    *p++ = '}';
-    *p = '\0';
-    return static_cast<size_t>(p - buf);
+    return TelemetryFrame::encode(fields, BLE_TELE_SIGNAL_COUNT, buf, bufSize);
 }
 
 uint8_t s_statusDiv = 0;
@@ -101,13 +61,13 @@ void emitTelemetry() {
     if (!pTele->getSubscribedCount())
         return;
 
-    char buf[512];
+    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES];
     const size_t len = buildTelemetryPayload(buf, sizeof(buf));
     if (len == 0) {
         LOG_WARN("BLE", "TELE payload would overflow %u B buffer — skipping notify",
                  static_cast<unsigned>(sizeof(buf)));
     } else {
-        pTele->setValue(reinterpret_cast<uint8_t *>(buf), len);
+        pTele->setValue(buf, len);
         pTele->notify();
     }
 
