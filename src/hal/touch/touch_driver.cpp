@@ -10,6 +10,7 @@ static lv_indev_drv_t s_indevDrv;
 
 #include "board_config.h"
 #include "hardware_profile.h"
+#include "config/board_profile_loader.h"
 #include "hal/display/display_driver.h"
 #include <Preferences.h>
 #include <esp_task_wdt.h>
@@ -55,7 +56,7 @@ void TouchDriver::readCallback(lv_indev_drv_t *, lv_indev_data_t *data) {
 void TouchDriver::init() {
     LOG_INFO("TOUCH", "Initializing touch controller...");
 
-    if constexpr (kBoard.touch.needs_calibration) {
+    if (canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
         Preferences p;
         p.begin(NVS_NS, true);
         const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
@@ -101,7 +102,7 @@ void TouchDriver::init() {
 }
 
 bool TouchDriver::isCalibrated() {
-    if constexpr (!kBoard.touch.needs_calibration)
+    if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration)
         return true;
     Preferences p;
     p.begin(NVS_NS, true);
@@ -111,7 +112,7 @@ bool TouchDriver::isCalibrated() {
 }
 
 void TouchDriver::calibrate() {
-    if constexpr (!kBoard.touch.needs_calibration) {
+    if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
         LOG_INFO("TOUCH", "Calibration not applicable for this touch controller");
         return;
     }
@@ -142,7 +143,7 @@ void TouchDriver::calibrate() {
 }
 
 void TouchDriver::resetCalibration() {
-    if constexpr (!kBoard.touch.needs_calibration)
+    if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration)
         return;
     Preferences p;
     p.begin(NVS_NS, false);
