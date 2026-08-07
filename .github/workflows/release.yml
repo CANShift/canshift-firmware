@@ -140,19 +140,6 @@ jobs:
       - name: Install PlatformIO CLI
         run: pip install platformio
 
-      - name: Write secrets.ini for production firmware
-        run: |
-          if [ -z "${OTA_HMAC_SECRET:-}" ]; then
-            echo "::error::OTA_HMAC_SECRET repo secret is not set — see #978 for setup."
-            exit 1
-          fi
-          cat > secrets.ini <<EOF
-          [ota]
-          hmac_secret = ${OTA_HMAC_SECRET}
-          EOF
-        env:
-          OTA_HMAC_SECRET: ${{ secrets.OTA_HMAC_SECRET }}
-
       - name: Build production firmware (${{ matrix.board }})
         run: platformio run -e "${{ matrix.board }}"
 

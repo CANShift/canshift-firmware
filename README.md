@@ -363,11 +363,11 @@ canshift-firmware/
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
 │   └── fonts/                      # LVGL .bin fonts (orbitron_<weight>_<size>.bin)
 └── scripts/
-    ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION + OTA_HMAC_SECRET
+    ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION
     ├── build_rust.py               # Builds the enabled Rust crates (USE_RUST_*, #827)
     ├── build_sensor_icons.py       # Bulk sensor-icon build
     ├── build_ui_icons.py           # Generic UI-icon build
-    ├── generate_keys.sh            # Generate OTA / secure-boot keys
+    ├── generate_keys.sh            # Generate the secure-boot signing key
     ├── png_to_lvgl_bin.py          # PNG → LVGL .bin converter
     ├── regen_orbitron_fonts.py     # Rebuild bundled fonts from sources
     └── secure_boot_first_flash.sh  # First-flash secure-boot helper
