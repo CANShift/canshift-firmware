@@ -7,7 +7,6 @@ on:
 
 env:
   PYTHON_VERSION: '3.12'
-  OTA_HMAC_CI_FALLBACK: ${{ github.run_id }}
 
 jobs:
   lint:
