@@ -116,7 +116,7 @@ set is the follow-up, tracked in #64). Wrap container geometry, not text metrics
 - Day/night theme toggle that rebuilds all LVGL pages.
 - USB JSON-line protocol over UART0 (115200 baud) — see [USB protocol](#usb-protocol).
 - BLE GATT server for the mobile app (`src/hal/ble/ble_server.cpp`) — TELE notify, STATUS read+notify, SETTINGS read+write, CMD channel.
-- WiFi softAP started on demand from BLE for future OTA flashing (`src/hal/wifi/wifi_ap.h`); compile-gated by `APP_WIFI_OTA_ENABLED` in `app_config.h`.
+- Firmware OTA over USB — chunked, SHA-256-verified writes to the inactive app slot with automatic bootloader rollback (`CMD_OTA_BEGIN` / `CMD_OTA_WRITE` / `CMD_OTA_END`, see [Firmware OTA](#firmware-ota-over-usb)).
 - Default-config provisioning — embedded `dashboard.json` / `signals.json` / `theme.json` are written to fresh SPIFFS on first boot. User data is never overwritten (`src/config/default_config.h`, `src/boot/boot_sequence.cpp`).
 - Atomic config writes via `StorageDriver::writeFileAtomic` with a `.bak` fallback (see `readAndParseWithBak` in `src/config/config_loader.cpp`).
 - Burn overlay — full-screen "Saving config…" feedback with auto error state on storage write failure (`src/ui/burn_overlay.h`).
@@ -214,7 +214,7 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
   --before default_reset --after hard_reset write_flash \
   --flash_mode keep --flash_size keep --flash_freq keep \
   0x0      "canshift-${BOARD}-${TAG}-merged.bin" \
-  0x370000 "canshift-${BOARD}-${TAG}-spiffs.bin"
+  0x310000 "canshift-${BOARD}-${TAG}-spiffs.bin"
 ```
 
 **Notes:**
@@ -222,11 +222,10 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
 - The merged firmware binary already starts at offset `0x0` (it embeds the
   bootloader at its own internal `0x1000` offset). Writing it at `0x1000`
   would shift every component and brick the boot.
-- SPIFFS partition offset `0x370000` matches `ota_4mb_wifi.csv` (the
-  partition layout shipped since #1117 — see
-  [Partition upgrade path](#partition-upgrade-path-1117) below). Dashes
-  carrying a pre-#1117 firmware image (SPIFFS at `0x310000`) must be
-  re-flashed via USB to pick up the new partition table; OTA between
+- SPIFFS partition offset `0x310000` matches `ota_4mb.csv` (see
+  [Partition layout](#partition-layout) below). Dashes carrying a
+  pre-#1351 WiFi-extended image (SPIFFS at `0x370000`) must be re-flashed
+  via USB to pick up the reverted partition table; OTA between the two
   layouts is unsafe.
 - `460800` baud is reliable on most CH340 + cable combos. If the flash hangs,
   drop to `230400`. Avoid `921600` — it tends to time out on weak cables.
@@ -237,53 +236,31 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
 
 ---
 
-## Partition upgrade path (#1117)
+## Partition layout
 
-The partition layout changed in #1117 to make room for the dash-hosted Studio
-SPA embedded in `[env:crowpanel_28_wifi]`. Both production (`crowpanel_28`)
-and WiFi (`crowpanel_28_wifi`) builds now share the same partition table —
-defined in `ota_4mb_wifi.csv` — so an OTA between the two builds is binary-
-table compatible.
+`crowpanel_28` uses `ota_4mb.csv` — dual OTA app slots plus SPIFFS on a 4 MB
+flash:
 
-**What changed:**
+| Region                 | Size    | Offset               |
+| ---------------------- | ------- | -------------------- |
+| `nvs`                  | 20 KB   | `0x9000`             |
+| `otadata`              | 8 KB    | `0xe000`             |
+| `app0` / `app1` (each) | 1536 KB | `0x10000` / `0x190000` |
+| `spiffs`               | 832 KB  | `0x310000`           |
+| `coredump`             | 128 KB  | `0x3E0000`           |
 
-| Region                 | Before (`ota_4mb.csv`)           | After (`ota_4mb_wifi.csv`)       |
-| ---------------------- | -------------------------------- | -------------------------------- |
-| `app0` / `app1` (each) | 1536 KB @ `0x10000` / `0x190000` | 1856 KB @ `0x10000` / `0x1E0000` |
-| `spiffs`               | 832 KB @ `0x310000`              | 512 KB @ `0x370000`              |
-| `coredump`             | 128 KB @ `0x3E0000`              | 64 KB @ `0x3F0000`               |
+Two app slots are what makes USB OTA possible: firmware is written to the
+inactive slot while the device runs from the active one, then the bootloader
+swaps them on the next boot. `[env:secure]` uses the geometry-identical
+`ota_4mb_secure.csv` (see [Secure boot](#secure-boot-v2--flash-encryption-531)).
 
-App slots grew by 320 KB each (+640 KB total) so the WiFi build can link
-firmware + WebSocket bridge + WiFi/mDNS/lwip stacks + the gzipped Studio SPA
-in a single OTA payload. SPIFFS shrank because the runtime content sums to
-~220 KB (5 Orbitron .bin fonts ~34 KB + canonical JSON configs ~25 KB + 25
-sensor icons ~77 KB + `.bak` atomic-write companions ~25 KB + ~25 % SPIFFS
-overhead at small partition sizes ~55 KB) — well under 512 KB with headroom
-for future user pushes.
-
-**Field-upgrade story.** Dashes already deployed with a pre-#1117 image
-carry the old partition table baked into their bootloader region. An OTA
-from the old layout to the new layout is **unsafe** — the running bootloader
-writes the new firmware into a slot whose offset / size no longer matches
-what the new firmware expects on next boot, and SPIFFS lands in the wrong
-region. Until those dashes are USB-reflashed via the Tuner's built-in
-USB flasher, OTA from a pre-#1117 image is blocked.
-
-Going forward (post-#1117), OTAs between #1117+ images are transparent:
-`esp_ota_get_next_update_partition()` reads the live partition table at
-runtime, and the table is identical across `crowpanel_28` /
-`crowpanel_28_wifi`.
-
-**Known follow-ups (separate PRs):**
-
-- `scripts/secure_boot_first_flash.sh` — bumped to `0x370000` in #531 once
-  `ota_4mb_secure.csv` was re-aligned to the post-#1117 `_wifi` layout.
-  Single SPIFFS offset across every flasher (the Tuner's built-in
-  flasher, this script, the QEMU smoke harness).
-- `.github/workflows/firmware-boot-smoke.yml` (`0x310000` argument to
-  `esptool merge_bin`) — QEMU smoke harness will still boot (SPIFFS-mount
-  failure is non-fatal pre-`[BOOT] Ready`) but the SPIFFS-resident default
-  asset checks downstream will need the new offset.
+**Field-upgrade caveat.** A WiFi-extended layout (`ota_4mb_wifi.csv`, 1728 KB
+app slots with SPIFFS at `0x370000`) shipped briefly before the WiFi + SPA
+stack was removed in #1351; the layout above reverts SPIFFS to `0x310000`. An
+OTA between the two layouts is **unsafe** — the running bootloader writes the
+new image into a slot whose offset no longer matches what it expects on next
+boot, and SPIFFS lands in the wrong region. Dashes carrying a pre-#1351
+WiFi-extended image must be USB-reflashed via the Tuner before OTA resumes.
 
 ---
 
@@ -295,14 +272,14 @@ runtime, and the table is identical across `crowpanel_28` /
 2. `pio run --target upload` — flash the default `[env:crowpanel_28]` build.
 3. Confirm the display initializes, the splash holds for 2 s, and the
    dashboard renders. Without a CAN transceiver attached the signal-driven
-   widgets stay at their default values — BLE and WiFi paths still come up.
-4. Connect the CAN transceiver and verify signal reception via the dash-hosted
-   Studio's Diagnostics panel.
+   widgets stay at their default values — the BLE path still comes up.
+4. Connect the CAN transceiver and verify signal reception via the Tuner's
+   Diagnostics panel over WebSerial.
 5. Confirm `device.json` matches your CAN-Pal wiring (`twai_tx_pin`,
    `twai_rx_pin`, `can_speed_kbps`). If absent, the firmware falls back to
    `PIN_TWAI_TX` / `PIN_TWAI_RX` from `board_config.h`.
-6. Join the dash's `CANShift-XXXX` WiFi AP, browse to `http://canshift.local`,
-   and push a config from the dash-hosted Studio.
+6. Connect the dash over USB and push a config from the browser Tuner
+   ([canshift-tuner](https://github.com/CANShift/canshift-tuner)).
 
 ---
 
@@ -327,7 +304,7 @@ canshift-firmware/
 │   │   ├── boot_sequence.{cpp,h}   # Power-on init: HAL → LVGL → config → UI
 │   │   └── default_fonts.{cpp,h}   # LVGL default-font embed
 │   ├── hal/
-│   │   ├── ble/ble_server.{cpp,h}  # NimBLE GATT — TELE/STATUS/SETTINGS/CMD/AP_PWD (#873)
+│   │   ├── ble/ble_server.{cpp,h}  # NimBLE GATT — TELE/STATUS/SETTINGS/CMD (#873)
 │   │   ├── display/                # LovyanGFX wrapper (ILI9341, DMA flush)
 │   │   ├── memory/psram.{cpp,h}    # PSRAM probe + allocator helpers
 │   │   ├── storage/                # SPIFFS read/write + LVGL FS driver
@@ -387,7 +364,7 @@ canshift-firmware/
 │   └── fonts/                      # LVGL .bin fonts (orbitron_<weight>_<size>.bin)
 └── scripts/
     ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION + OTA_HMAC_SECRET
-    ├── build_rust.py               # Optional Rust HMAC bridge (#827)
+    ├── build_rust.py               # Builds the enabled Rust crates (USE_RUST_*, #827)
     ├── build_sensor_icons.py       # Bulk sensor-icon build
     ├── build_ui_icons.py           # Generic UI-icon build
     ├── generate_keys.sh            # Generate OTA / secure-boot keys
@@ -407,9 +384,6 @@ canshift-firmware/
 | USB                                             | 1    | 8        | 4096 B | 20 ms                                        | `taskUSBComm` — `src/main.cpp`                |
 | Input                                           | 0    | 7        | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS`              | `taskInput` — `src/runtime/input_buttons.cpp` |
 | BLE                                             | 1    | 6        | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz)      | `taskBLE` — `src/main.cpp`                    |
-| WiFi AP _(OTA on demand)_                       | 1    | 5        | 4096 B | event-driven                                 | `src/hal/wifi/wifi_ap.cpp`                    |
-| WiFi TCP _(Studio JSON-lines, AP-gated, #1071)_ | 1    | 5        | 4096 B | 10 ms                                        | `src/hal/wifi/wifi_tcp.cpp`                   |
-| WiFi WS _(dash-hosted Studio, AP-gated, #1105)_ | 1    | 5        | 4096 B | 10 ms                                        | `src/hal/wifi/wifi_ws.cpp`                    |
 
 Priorities and stack sizes are defined in `include/app_config.h`
 (`TASK_PRIO_*` / `TASK_STACK_*` / `TASK_CORE_*` macros — that file is the
@@ -448,13 +422,16 @@ Opcodes are defined in `src/hal/usb/usb_comm.h` as `CMD_*` constants.
 | `0x08` | `CMD_CALIBRATE_TOUCH`    | `{"cmd":8}`                                                            | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input).                                                                                                                                                           |
 | `0x09` | `CMD_SET_DAY_NIGHT`      | `{"cmd":9,"day":true\|false}`                                          | Idempotent variant of `0x07` (issue #225).                                                                                                                                                                                                                                                  |
 | `0x0A` | `CMD_RESET_TOUCH_CAL`    | `{"cmd":10}`                                                           | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot.                                                                                                                                                                              |
-| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                                           | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1}`.                                                                                                                                                                                                                      |
+| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                                           | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1,"board_id":"crowpanel_28"}`.                                                                                                                                                                                                                      |
 | `0x20` | `CMD_CAN_SCAN_START`     | `{"cmd":32}`                                                           | Begin forwarding raw CAN frames; resets the drop counter.                                                                                                                                                                                                                                   |
 | `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                                           | Stop forwarding; ack includes `drops`.                                                                                                                                                                                                                                                      |
-| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                                            | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`. Wired host-side in studio-web #1118; the firmware dispatcher handler lands alongside this wave (until then the `default` branch acks as a no-op, which the IPC surfaces as `config_not_found`). |
+| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                                            | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`, or `config_not_found` when the file is absent. |
 | `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{...}}`                                            | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`.                                                                                                                                                                       |
 | `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}`                                                           | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`.                                                                                                                                                                                          |
 | `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}`                                           | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`.                                                                                                                                                                                                                           |
+| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`                                | Open the inactive OTA app slot for a `total`-byte image with the expected SHA-256. Ack `{"status":"ok"}` or `{"status":"error","message":"..."}`. See [Firmware OTA](#firmware-ota-over-usb).                                                                                                 |
+| `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<base64>"}`                             | Stream one chunk to `offset`; ack `{"status":"ok","written":N}` (or `{"status":"error","message":"...","written":N}`).                                                                                                                                                                       |
+| `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"\|"abort"}`                               | `commit` verifies the image SHA-256, then acks `{"status":"ok","restart":true}` and reboots into the new slot; `abort` (default) discards the transfer.                                                                                                                             |
 
 There is no `CMD_REBOOT`, `CMD_PUT_SIGNALS`, or `CMD_PUT_THEME` — older drafts
 of this doc listed them. Theme is folded into `dashboard.json` (#901), signals
@@ -490,7 +467,7 @@ roles disabled in `platformio.ini:97-104` to keep flash + DRAM in budget).
 | UUID                                   | Properties       | Direction     | Payload                                  |
 | -------------------------------------- | ---------------- | ------------- | ---------------------------------------- |
 | `4fa0b6a0-0000-0000-0000-000000000002` | READ + NOTIFY    | device → app  | TELE — live telemetry, ~10 Hz            |
-| `4fa0b6a0-0000-0000-0000-000000000003` | READ + NOTIFY    | device → app  | STATUS — version + CAN health + WiFi AP  |
+| `4fa0b6a0-0000-0000-0000-000000000003` | READ + NOTIFY    | device → app  | STATUS — version + board_id + CAN health |
 | `4fa0b6a0-0000-0000-0000-000000000004` | READ + WRITE     | bidirectional | SETTINGS — brightness / sleep / rotation |
 | `4fa0b6a0-0000-0000-0000-000000000005` | WRITE + WRITE_NR | app → device  | CMD — device commands                    |
 
@@ -519,12 +496,11 @@ Notifications fire only when at least one client is subscribed.
 ### STATUS payload
 
 ```json
-{"ver":"X.Y.Z","can":0|1,"is_day":0|1,"ap_ssid":"CANShift-XXXX"}
+{"ver":"X.Y.Z","board_id":"crowpanel_28","can":0|1,"is_day":0|1}
 ```
 
-`ap_ssid` is omitted when the AP is inactive. STATUS is refreshed every 2 s
-and re-notified on AP-state changes or theme changes (see
-`BleServer::publishStatusSnapshot` in `src/hal/ble/ble_server.cpp`).
+STATUS is refreshed every 2 s and re-notified on theme changes (see
+`updateStatus` in `src/hal/ble/ble_status.cpp`).
 
 ### SETTINGS payload
 
@@ -541,8 +517,6 @@ because applying it triggers a reboot.
 
 | `cmd` value         | Extra fields         | Behaviour                                           |
 | ------------------- | -------------------- | --------------------------------------------------- |
-| `start_wifi_ap`     | —                    | Bring up softAP `CANShift-XXXX`, push STATUS notify |
-| `stop_wifi_ap`      | —                    | Tear down the AP, push STATUS notify                |
 | `toggle_day_night`  | —                    | Flip theme on next UI tick                          |
 | `set_day_night`     | `"day": true\|false` | Idempotent set                                      |
 | `start_calibration` | —                    | Run on-device touch calibration                     |
@@ -556,266 +530,47 @@ the stack to peripheral-only.
 
 ### Pairing & security (issue #873)
 
-- **Encrypted access control.** All sensitive characteristics (SETTINGS, CMD,
-  the AP-password helper) are declared `READ_ENC` / `WRITE_ENC` so NimBLE
-  refuses I/O on an unbonded link.
+- **Encrypted access control.** All sensitive characteristics (SETTINGS, CMD)
+  are declared `READ_ENC` / `WRITE_ENC` so NimBLE refuses I/O on an unbonded
+  link.
 - **Passkey display.** First-time pairing draws a 6-digit passkey on screen
   (see `src/ui/passkey_overlay.cpp`); the phone is prompted to type the same
   digits — MITM-resistant Secure Connections.
-- **AP-password characteristic.** The Wi-Fi softAP password is **not**
-  embedded in the firmware. The device generates a fresh password at boot
-  (or on AP-up), stores it in NVS, and exposes it on a dedicated
-  encrypted-read characteristic (`AP_PWD`). Mobile reads it once after
-  pairing and stores it via `expo-secure-store`.
 - **BLE off by default.** Devices ship with `BLE_DEFAULT_ENABLED=0`; the
   user enables BLE from the on-device Settings page so an unconfigured
   device does not advertise.
 
 ---
 
-## Wi-Fi Studio transports (issues #1071, #1105)
+## Firmware OTA (over USB)
 
-When the softAP is up (`APP_WIFI_OTA_ENABLED=1` build, AP started on demand
-from BLE) the firmware exposes the USB JSON-lines protocol over two
-parallel transports so Studio can connect over the air from either a
-native client or a browser. Both share the same `UsbComm::handleLine()`
-dispatcher and the same proactive-telemetry stream — only the framing
-differs.
+New firmware is flashed over the USB (WebSerial) link from the browser Tuner —
+there is no over-the-air path. An update streams to the **inactive** OTA app
+slot while the device keeps running from the active one; the bootloader swaps
+slots on the next boot. Freshly-flashed slots boot as
+`ESP_OTA_IMG_PENDING_VERIFY` and roll back automatically unless the new image
+calls `esp_ota_mark_app_valid_cancel_rollback()` after a stable boot (see the
+rollback build flag in [`platformio.ini`](platformio.ini)).
 
-### Discovery (mDNS)
+### Protocol
 
-`canshift.local` resolves to the softAP IP. Two services are advertised:
+Three USB commands drive the transfer (opcodes in
+[USB protocol](#usb-protocol)); the receiver state machine lives in
+`src/runtime/ota_receiver.cpp` and an on-screen overlay
+(`src/ui/ota_overlay.cpp`) tracks progress and flips to an error state on
+failure:
 
-| Service             | Port | Path | Transport                                 | Source                 |
-| ------------------- | ---- | ---- | ----------------------------------------- | ---------------------- |
-| `_canshift._tcp`    | 5050 | —    | Raw TCP, line-terminated JSON             | #1071 (`wifi_tcp.cpp`) |
-| `_canshift_ws._tcp` | 81   | `/`  | WebSocket, one JSON object per text frame | #1105 (`wifi_ws.cpp`)  |
+1. `CMD_OTA_BEGIN` — `{"total":N,"sha256":"<hex>"}` opens the inactive slot for
+   an `N`-byte image and records the expected SHA-256.
+2. `CMD_OTA_WRITE` — `{"offset":O,"data":"<base64>"}` streams each chunk in
+   order; a gap or overrun aborts the transfer.
+3. `CMD_OTA_END` — `{"action":"commit"}` finalises: the firmware hashes the
+   bytes it wrote and refuses the slot swap on a SHA-256 mismatch, otherwise
+   acks `{"status":"ok","restart":true}` and reboots into the new slot.
+   `{"action":"abort"}` (the default) discards the transfer.
 
-The WS service carries a `path=/` TXT record so a discovery client that
-sees both can pick the transport it actually supports (browsers can only
-use WS).
-
-### Wire protocol
-
-Both transports carry the **same JSON content** as USB. The only
-difference is the framing:
-
-| Transport | Framing                            | Trailing `\n`                            |
-| --------- | ---------------------------------- | ---------------------------------------- |
-| USB / TCP | One JSON object per line           | Required                                 |
-| WS        | One JSON object per **text frame** | None — the WS frame boundary replaces it |
-
-The WS write sink strips the `\n` that USB / TCP responses carry before
-calling `sendTXT()`, so a single command-dispatcher implementation drives
-all three transports.
-
-### Concurrency & coexistence
-
-- **Single client per transport.** A second TCP connect is rejected at
-  `accept()`; a second WS connect is accepted then immediately
-  `disconnect()`ed with a `single-client only` reason frame so the peer
-  sees a parseable error.
-- **TCP and WS coexist.** Both servers run concurrently when the AP is
-  up. Telemetry fans out via `UsbComm::setAuxSink` to whichever transport
-  connected first (TCP gets priority in the typical "Electron Studio
-  joined first, browser tab opened second" case). The second transport
-  still receives command responses but not proactive telemetry; defining
-  a multi-aux-sink fan-out is a follow-up.
-- **Endpoint:** `ws://canshift.local:81/` (or `ws://<dash-ip>:81/`).
-  Port 81 instead of 80 because the chosen library
-  (`Links2004/arduinoWebSockets`) opens its own listening socket — it
-  cannot share port 80 with the OTA HTTP `WebServer` instance. The TCP
-  bridge stays at 5050 unchanged.
-- **Auth:** WPA2 password on the AP gates both transports. No per-frame
-  auth.
-
-### Why a library and not roll-your-own
-
-`Links2004/arduinoWebSockets @ ^2.7.3` is the actively maintained
-Arduino-ESP32 WS server (release Jan 2026). The full handshake +
-masking + close-frame state machine + ping/pong keepalive is roughly
-2 KB of source, and a minimal rewrite would either skip RFC 6455
-edge cases or duplicate ~1 KB of code we'd have to maintain. The
-library adds ~10 KB Flash + ~768 B BSS at the trimmed
-`WEBSOCKETS_SERVER_CLIENT_MAX=2` setting — well under the 8 KB
-Flash / 2 KB BSS budget from the #1105 brief.
-
-### DRAM budget — rollback snapshot in PSRAM (#1073)
-
-WiFi + mDNS + lwip + WS pull in ~18 KB of `dram0_0_seg` BSS that the WROOM
-DRAM ceiling cannot absorb on top of the LVGL + NimBLE baseline. The
-`crowpanel_28_wifi` env reclaims room by allocating
-`config_loader`'s ~25 KB transactional rollback snapshot from PSRAM
-(via `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`) instead of holding it in
-BSS. The allocation is gated on `BOARD_HAS_PSRAM` and the runtime PSRAM
-probe in `src/hal/memory/psram.cpp`. On a WROOM module the probe reports 0
-bytes, the alloc returns null, and rollback degrades to a no-op (parse
-failures no longer restore prior in-memory state — matches the pre-#458
-risk profile, acceptable for the WROOM-only no-WiFi image). Native
-unit tests keep the BSS buffer so `pio test -e native` still exercises the
-rollback path byte-for-byte.
-
-### Dash-hosted Studio SPA (#1077 phase 4)
-
-When `APP_SPA_SERVE=1` (default on `[env:crowpanel_28_wifi]`), the firmware
-serves the browser SPA shipped by `canshift-studio-web/` straight off SPIFFS
-through the existing `WebServer` on port 80. The user joins the softAP,
-navigates to `http://canshift.local/`, and lands on the Studio
-ConnectScreen — no install, no internet. The SPA then talks to the firmware
-via the WebSocket transport on port 81 (#1108) for live data.
-
-**Build chain (host side):**
-
-1. `extra_scripts = scripts/sync_studio_web.py` (registered alongside
-   `extra_targets.py` on `[env:crowpanel_28_wifi]`) runs `npm run build`
-   in the retired studio-web package, gzip-encodes every text artifact via the
-   studio-web post-build hook, then mirrors `dist/*.gz` + `*.woff2` into
-   `canshift-firmware/data/w/`.
-2. `pio run -t uploadfs` flashes the resulting SPIFFS image to the
-   `spiffs` partition. `data/w/*` lands at `/w/*` on the device. The short
-   prefix keeps every on-device filename under SPIFFS_OBJ_NAME_LEN (31
-   chars + NUL) — the longer `/web/assets/` layout silently dropped
-   chunks past the cap (#1240).
-3. `src/hal/wifi/wifi_ap.cpp`'s `kSpaAssets[]` table maps each browser URL
-   to its SPIFFS path; the handler opens the file and uses
-   `WebServer::streamFile()` to push it back to the browser in 1.4 KB
-   chunks. The framework auto-emits `Content-Encoding: gzip` for any
-   filename ending in `.gz`, so the `.gz` SPIFFS file extensions
-   round-trip transparently.
-
-> **#1123 follow-up — SPA moved out of the firmware embed.** The SPA
-> artifacts used to ride in the firmware image via
-> `board_build.embed_files`, pushing `[env:crowpanel_28_wifi]` to 107.3 %
-> of the 1728 KB app slot at link time. Moving them onto SPIFFS reclaims
-> ~185 KB of app-slot flash (now at ~96.8 %). The trade-off: a freshly
-> flashed dash needs the extra `pio run -t uploadfs` step (or the
-> equivalent SPIFFS image flash from the Tuner's Firmware tab) before the
-> dash-hosted Studio loads. `/status`, `/ota`, BLE, and CAN are all
-> unaffected — the dash boots and behaves normally either way.
-
-**Source-of-truth list of SPA files** — keep these two in lock-step:
-
-- `canshift-studio-web/scripts/gzip-dist.mjs` (which extensions get a `.gz` sibling)
-- `canshift-firmware/scripts/sync_studio_web.py` (`EXPECTED_GZ` + `EXPECTED_FONTS`)
-- `canshift-firmware/src/hal/wifi/wifi_ap.cpp` `kSpaAssets[]`
-
-Vite emits hash-free filenames (see `canshift-studio-web/vite.config.ts`)
-so the file list stays stable across builds. Cache-busting via content
-hash buys nothing here — `Cache-Control: no-store` is set on every
-response and the bytes rotate atomically with each uploadfs run.
-
-**Skipping the SPA rebuild:** set `CANSHIFT_SKIP_STUDIO_WEB_BUILD=1` in
-the environment to reuse the existing `canshift-studio-web/dist/`. Useful
-in CI when a prior job already built the SPA, or when iterating on the
-firmware side without touching the SPA.
-
-**First-flash step.** Brand-new dashes carrying a clean `[env:crowpanel_28_wifi]`
-firmware image return `404 SPA asset not provisioned (run uploadfs)` for
-every `/` and `/a/*` request until the SPIFFS image is flashed:
-
-```bash
-# After `pio run -e crowpanel_28_wifi -t upload` (firmware):
-pio run -e crowpanel_28_wifi -t uploadfs
-```
-
-The Tuner's built-in USB flasher flashes both partitions in one pass via
-the merged firmware + SPIFFS bundle published per release, so end-users
-joining the dash from a fresh first-flash don't have to think about the
-two-step.
-
-**Routes registered when `APP_SPA_SERVE=1`:**
-
-| Method | Path                                    | Content-Type             | Content-Encoding                    | SPIFFS path               |
-| ------ | --------------------------------------- | ------------------------ | ----------------------------------- | ------------------------- |
-| GET    | `/`                                     | `text/html`              | `gzip` (same file as `/index.html`) | `/w/index.html.gz`        |
-| GET    | `/index.html`                           | `text/html`              | `gzip`                              | `/w/index.html.gz`        |
-| GET    | `/a/index.js`                           | `application/javascript` | `gzip`                              | `/w/a/index.js.gz`        |
-| GET    | `/a/index.css`                          | `text/css`               | `gzip`                              | `/w/a/index.css.gz`       |
-| GET    | `/a/vendor-react.js`                    | `application/javascript` | `gzip`                              | `/w/a/vendor-react.js.gz` |
-| GET    | `/a/vendor-radix.js`                    | `application/javascript` | `gzip`                              | `/w/a/vendor-radix.js.gz` |
-| GET    | `/a/vendor-state.js`                    | `application/javascript` | `gzip`                              | `/w/a/vendor-state.js.gz` |
-| GET    | `/a/EditorRoute.js`                     | `application/javascript` | `gzip`                              | `/w/a/EditorRoute.js.gz`  |
-| GET    | `/a/Orbitron-{Black,Bold,Medium}.woff2` | `font/woff2`             | — (already compressed)              | `/w/a/Orbitron-*.woff2`   |
-
-All SPA responses carry `Cache-Control: no-store`. The operational
-endpoints (`/status`, `/ota`) keep their existing handlers — they're
-registered first so the WebServer's exact-match dispatcher checks them
-before the SPA routes.
-
-**Flash budget on `_wifi` (post-#1123 follow-up).**
-
-| Configuration                               | Flash                 | Notes                            |
-| ------------------------------------------- | --------------------- | -------------------------------- |
-| `crowpanel_28` (prod, no SPA, no WiFi libs) | 68.4 % (1.16 MB)      | Unchanged by this work           |
-| `crowpanel_28_wifi` baseline (no SPA)       | ~107.3 % (1.81 MB)    | Pre-fix overflow — SPA embedded  |
-| `crowpanel_28_wifi` + SPA on SPIFFS         | **~96.8 % (1.63 MB)** | Post-fix — fits the 1728 KB slot |
-
----
-
-## Wi-Fi OTA (issue #667)
-
-The firmware exposes an HTTP `/ota` endpoint on its softAP for over-the-air
-firmware updates. The flow is intentionally minimal — no TLS (the AP has no
-cert), but every write is HMAC-authenticated against a per-device bearer
-token and an HMAC trailer on the binary itself.
-
-> **Audience: mobile-only.** Studio no longer drives OTA — the dash-hosted
-> Studio (`canshift-studio-web/`) is served from the same firmware image it
-> would otherwise be updating, and the Electron Studio's flasher was
-> retired in favour of the Tuner's built-in browser-based USB flasher
-> (#1351). The mobile app retains the WiFi-OTA path via
-> `POST http://192.168.4.1/ota` so a user in the car can update without a
-> laptop.
-
-### Per-device bearer token
-
-On AP-up the firmware computes:
-
-```
-ota_token = first 16 bytes of SHA-256(ap_password || "ota-bearer-v1")
-```
-
-(`OTA_TOKEN_SALT` is defined in `src/hal/wifi/wifi_ap.cpp`; the constant-time
-compare lives in `hasValidBearerToken()` in the same file.) The mobile app
-reads `ap_password` once over the encrypted BLE `AP_PWD` characteristic and
-derives the same token locally; both sides keep it in their respective
-secrets stores (NVS on device, `expo-secure-store` on iOS / Android Keystore
-on Android). `/ota` rejects every request without a valid bearer.
-
-### HMAC trailer on the binary
-
-The release binary is built with a SHA-256 HMAC trailer appended to the
-flash image:
-
-```
-[ firmware bytes ........... ][ 32-byte HMAC ]
-```
-
-The HMAC is computed over the firmware bytes using `OTA_HMAC_SECRET` (a
-shared release-line secret, **not** the per-device bearer above). On
-upload the firmware streams the body straight to the OTA flash region,
-recomputes the HMAC over the bytes it just wrote, and aborts the swap if
-the trailing 32 bytes don't match — preventing accidental flash of an
-unsigned or corrupted binary.
-
-### `secrets.ini` build pipeline
-
-`OTA_HMAC_SECRET` is injected at build time by
-`scripts/extra_targets.py`. Pipeline:
-
-1. Maintainer creates `canshift-firmware/secrets.ini` (gitignored —
-   `secrets.ini.example` is the template) with a real secret.
-2. `extra_targets.py` reads it and exposes the value as a build flag.
-3. Production build environments (`crowpanel_28_ota`, release) refuse to
-   compile if the file is missing or still holds the placeholder string.
-4. The CI release workflow passes the same secret via the
-   `OTA_HMAC_SECRET` env var so the published binary's trailer matches
-   what devices in the wild compiled.
-
-Rotating the secret is therefore a release-line break: pre-rotation
-devices reject the new binaries until they're flashed via USB.
-
----
+The two-slot `ota_4mb.csv` layout is what makes this safe — see
+[Partition layout](#partition-layout).
 
 ## Secure boot v2 + flash encryption (#531)
 
@@ -831,7 +586,7 @@ devices reject the new binaries until they're flashed via USB.
 | Layer                                  | Status                | Notes                                                                                                                                                                                                                                                  |
 | -------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `[env:secure]` PlatformIO env          | Ready                 | RSA-3072 signing + AES-XTS-256 flash encryption, anti-rollback floor at SEC_VER=2 (#531)                                                                                                                                                               |
-| Partition table (`ota_4mb_secure.csv`) | Ready                 | Aligned to `ota_4mb_wifi.csv` in #531 — same app/SPIFFS geometry, `encrypted` flag on data partitions, 4 KB `nvs_keys` for encrypted-NVS                                                                                                               |
+| Partition table (`ota_4mb_secure.csv`) | Ready                 | Follows `ota_4mb.csv` geometry — same app/SPIFFS offsets, `encrypted` flag on data partitions, 4 KB `nvs_keys` for encrypted-NVS                                                                                                                       |
 | `sdkconfig.defaults.secure`            | Ready                 | Anti-rollback wired with `SEC_VER=2` floor, release-mode flash encryption, UART download backdoors closed                                                                                                                                              |
 | Host scripts                           | Ready                 | `generate_keys.sh` (project-wide signing key, one-shot), `secure_boot_first_flash.sh` (per-chip irreversible provisioning)                                                                                                                             |
 | CI build                               | Gated                 | `firmware-secure-build` (non-blocking) compiles `[env:secure]` when `SECURE_BOOT_SIGNING_KEY_TEST` repository secret is present; otherwise skipped with a notice. Promote to blocking once the secret is provisioned and a few clean runs are observed |
@@ -1119,22 +874,14 @@ the primary file is missing or corrupt (see `readAndParseWithBak` in
 
 ## Connections to other workspaces
 
-- **canshift-studio-web** (dash-hosted Studio) — served straight from this
-  package out of the SPIFFS data partition via `kSpaAssets[]` in
-  `wifi_ap.cpp` on port 80; live data + commands flow over the WebSocket
-  transport on port 81 (`wifi_ws.cpp`, #1108). Same `UsbComm::handleLine()`
-  dispatcher as USB. The SPA build is mirrored into `data/w/` at firmware
-  build time by `scripts/sync_studio_web.py` (#1077 phase 4 / #1123 /
-  #1240 — the path was shortened from `data/web/assets/` to `data/w/a/`
-  to stay under SPIFFS_OBJ_NAME_LEN).
+- **canshift-tuner** — the browser configurator (WebSerial). Pushes configs
+  over the USB JSON-line protocol, and its Firmware tab drives both first-flash
+  (browser-based `esptool-js`, merged firmware + SPIFFS images read from the
+  GitHub release feed) and the in-place USB OTA
+  ([Firmware OTA](#firmware-ota-over-usb)).
 - **canshift-mobile** — connects over BLE; reads telemetry, writes settings,
-  triggers the WiFi softAP for OTA, and uploads firmware via
-  `POST /update` on the AP. Pairs with the `ble_server.cpp` characteristics
-  described above. Independent of the dash-hosted Studio.
-- **canshift-tuner (Firmware tab)** — built-in browser-based esptool
-  (`esptool-js`). First-flash, recovery, and pre-#1117 partition-layout
-  migration. Reads the merged firmware + SPIFFS images from the GitHub
-  release feed.
+  and issues CMD-channel actions. Pairs with the `ble_server.cpp`
+  characteristics described above.
 - **canshift-core** — owns the JSON schema; the firmware mirrors it in
   `src/config/config_types.h`. `CONFIG_SCHEMA_VERSION` is injected at build
   time from a sibling `../canshift-core` checkout (falling back to the committed `core-schema-version.txt` pin) by `scripts/extra_targets.py`, the
