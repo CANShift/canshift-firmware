@@ -38,6 +38,8 @@ static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
 static constexpr size_t BLE_MAX_WRITE_LEN = 256U;
 
+static constexpr uint16_t BLE_PREFERRED_MTU = 247U;
+
 static bool s_stackInited = false;
 static bool s_gattInited = false;
 
@@ -340,6 +342,7 @@ bool startStack() {
         }
         NimBLEDevice::init("CANShift");
         NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+        NimBLEDevice::setMTU(BLE_PREFERRED_MTU);
 
         NimBLEDevice::setSecurityAuth(true, true, true);
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
