@@ -6,7 +6,7 @@
 namespace SettingsPageInternal {
 
 static constexpr uint32_t CLR_BG = 0x0D0D0D;
-static constexpr uint32_t CLR_ACCENT = 0xCC3333;
+static constexpr uint32_t CLR_ACCENT = 0xFF4747;
 static constexpr uint32_t CLR_TEXT = 0xCCCCCC;
 static constexpr uint32_t CLR_MUTED = 0x555555;
 static constexpr uint32_t CLR_BTN_BG = 0x111111;

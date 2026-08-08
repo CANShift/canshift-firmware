@@ -31,7 +31,7 @@ extern uint8_t s_dynCount;
 extern bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS];
 
 constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
-constexpr uint32_t COLOR_MODE_ACTIVE = 0xFF8800;
+constexpr uint32_t COLOR_MODE_ACTIVE = 0xFF4747;
 constexpr uint32_t COLOR_UNSET = 0xFFFFFFFFu;
 
 constexpr uint32_t COLOR_LABEL_NIGHT = 0xCCCCCC;
