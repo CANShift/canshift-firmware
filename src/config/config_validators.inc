@@ -48,6 +48,8 @@ TopBarItemKind parseTopBarItemKind(const char *str) {
         return TopBarItemKind::MODE_FLAG;
     if (strcmp(str, "trackBadge") == 0)
         return TopBarItemKind::TRACK_BADGE;
+    if (strcmp(str, "canRate") == 0)
+        return TopBarItemKind::CAN_RATE;
     return TopBarItemKind::UNKNOWN;
 }
 

@@ -16,62 +16,22 @@
     "position": "left"
    },
    {
-    "type": "statusDot",
-    "signal": "any",
+    "type": "canRate",
     "position": "left"
    },
    {
-    "type": "modeFlag",
-    "signal": "flag_anti_lag",
-    "text": "ALS",
-    "position": "center"
-   },
-   {
-    "type": "separator",
-    "position": "center"
-   },
-   {
-    "type": "modeFlag",
-    "signal": "flag_launch_ctrl",
-    "text": "LC",
-    "position": "center"
-   },
-   {
-    "type": "separator",
-    "position": "center"
-   },
-   {
-    "type": "modeFlag",
-    "signal": "flag_flat_shift",
-    "text": "FS",
-    "position": "center"
-   },
-   {
-    "type": "separator",
-    "position": "center"
-   },
-   {
-    "type": "modeFlag",
-    "signal": "flag_traction_cut",
-    "text": "TC",
+    "type": "label",
+    "text": "MAP",
     "position": "center"
    },
    {
     "type": "signal",
     "signal": "map_number",
-    "format": "MAP%.0f",
-    "position": "right"
+    "format": "%.0f",
+    "position": "center"
    },
    {
-    "type": "separator",
-    "position": "right"
-   },
-   {
-    "type": "bleIcon",
-    "position": "right"
-   },
-   {
-    "type": "themeToggle",
+    "type": "trackBadge",
     "position": "right"
    }
   ]

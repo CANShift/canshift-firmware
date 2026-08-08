@@ -23,6 +23,7 @@ static uint32_t s_errorCount = 0;
 static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
 static uint32_t s_lastRxMs = 0;
+static uint32_t s_lastBusRateX10 = 0;
 static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
 static bool s_twaiInstalled = false;
@@ -145,6 +146,10 @@ uint32_t CanManager::msSinceLastRx() {
     if (s_lastRxMs == 0)
         return UINT32_MAX;
     return millis() - s_lastRxMs;
+}
+
+uint32_t CanManager::busRateHz() {
+    return (s_lastBusRateX10 + 5) / 10;
 }
 
 void CanManager::reserveInitTaskStack() {
@@ -294,6 +299,7 @@ bool CanManager::tick() {
     } else if (nowMs - s_lastStatMs >= STAT_INTERVAL_MS) {
         const uint32_t elapsed = nowMs - s_lastStatMs;
         const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
+        s_lastBusRateX10 = fpsX10;
         UsbComm::updateCanStats(fpsX10, s_errorCount);
         s_windowFrames = 0;
         s_lastStatMs = nowMs;

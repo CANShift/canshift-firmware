@@ -175,8 +175,13 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             break;
         }
         case TopBarItemKind::TRACK_BADGE: {
-            obj = makeFlagBadge(s_bar, "TRACK");
+            obj = makeBarLabel(s_bar, "", labelColor());
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+            anchor(obj, gap);
+            break;
+        }
+        case TopBarItemKind::CAN_RATE: {
+            obj = makeBarLabel(s_bar, "-- Hz", labelColor());
             anchor(obj, gap);
             break;
         }
@@ -210,7 +215,8 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
          item.kind == TopBarItemKind::BLE_ICON || item.kind == TopBarItemKind::MODE_FLAG ||
-         item.kind == TopBarItemKind::TRACK_BADGE || item.kind == TopBarItemKind::LABEL ||
+         item.kind == TopBarItemKind::TRACK_BADGE || item.kind == TopBarItemKind::CAN_RATE ||
+         item.kind == TopBarItemKind::LABEL ||
          (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         const uint8_t myIdx = s_dynCount;
