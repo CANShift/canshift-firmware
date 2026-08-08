@@ -225,6 +225,7 @@ enum class TopBarItemKind : uint8_t {
     THEME_TOGGLE,
     MODE_FLAG,
     TRACK_BADGE,
+    CAN_RATE,
 };
 
 enum class TopBarItemPos : uint8_t {

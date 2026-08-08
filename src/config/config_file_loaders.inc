@@ -92,9 +92,12 @@ bool loadDashboard() {
             out.format[0] = '\0';
         };
         addItem(TopBarItemKind::LABEL, TopBarItemPos::LEFT, "", "CAN");
-        addItem(TopBarItemKind::STATUS_DOT, TopBarItemPos::LEFT, "any", "");
-        addItem(TopBarItemKind::BLE_ICON, TopBarItemPos::RIGHT, "", "");
-        addItem(TopBarItemKind::THEME_TOGGLE, TopBarItemPos::RIGHT, "", "");
+        addItem(TopBarItemKind::CAN_RATE, TopBarItemPos::LEFT, "", "");
+        addItem(TopBarItemKind::LABEL, TopBarItemPos::CENTER, "", "MAP");
+        addItem(TopBarItemKind::SIGNAL, TopBarItemPos::CENTER, "map_number", "");
+        if (n > 0)
+            strlcpy(items[n - 1].format, "%.0f", sizeof(items[n - 1].format));
+        addItem(TopBarItemKind::TRACK_BADGE, TopBarItemPos::RIGHT, "", "");
     }
 
     auto parseTheme = [](JsonObjectConst themeJson, const char *fallbackBg, CfgTheme *theme) {

@@ -15,6 +15,7 @@
 #include "util/format_float.h"
 
 #include <lvgl.h>
+#include <stdio.h>
 #include <string.h>
 
 using namespace TopBarInternal;
@@ -147,17 +148,46 @@ static void updateModeFlag(DynItem &d) {
 
 static constexpr uint32_t TRACK_BADGE_TIMEOUT_MS = 5000;
 
+static void updateCanRate(DynItem &d) {
+    char buf[DYN_TEXT_CAP];
+    if (CanManager::msSinceLastRx() > CAN_BUS_LIVE_THRESHOLD_MS) {
+        strlcpy(buf, "-- Hz", sizeof(buf));
+    } else {
+        snprintf(buf, sizeof(buf), "%lu Hz", static_cast<unsigned long>(CanManager::busRateHz()));
+    }
+    if (strcmp(buf, d.lastText) != 0) {
+        lv_label_set_text(d.obj, buf);
+        strlcpy(d.lastText, buf, sizeof(d.lastText));
+    }
+    applyDynTextColor(d, labelColor());
+}
+
 static void updateTrackBadge(DynItem &d) {
     const bool active = TrackStore::isActiveWithin(TRACK_BADGE_TIMEOUT_MS);
     const bool wantHidden = !active;
-    if (wantHidden == d.hidden)
-        return;
-    if (wantHidden) {
-        lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+    if (wantHidden != d.hidden) {
+        if (wantHidden) {
+            lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+        }
+        d.hidden = wantHidden;
     }
-    d.hidden = wantHidden;
+    if (wantHidden)
+        return;
+
+    TrackStore::State st;
+    TrackStore::snapshot(&st);
+    const uint32_t ms = st.currentLapMs;
+    char buf[24];
+    snprintf(buf, sizeof(buf), "LAP %u   %u:%02u.%02u", static_cast<unsigned>(st.lapNumber),
+             static_cast<unsigned>(ms / 60000u), static_cast<unsigned>((ms % 60000u) / 1000u),
+             static_cast<unsigned>((ms % 1000u) / 10u));
+    if (strcmp(buf, d.lastText) != 0) {
+        lv_label_set_text(d.obj, buf);
+        strlcpy(d.lastText, buf, sizeof(d.lastText));
+    }
+    applyDynTextColor(d, labelColor());
 }
 
 static void updateLinkedSeparator(DynItem &d) {
@@ -202,6 +232,9 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::TRACK_BADGE:
                 updateTrackBadge(d);
+                break;
+            case TopBarItemKind::CAN_RATE:
+                updateCanRate(d);
                 break;
             case TopBarItemKind::SEPARATOR:
                 updateLinkedSeparator(d);
