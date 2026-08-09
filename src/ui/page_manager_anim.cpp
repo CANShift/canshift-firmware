@@ -53,20 +53,19 @@ void asyncDoLazyBuild(void *) {
     }
 
     PERF_RECORD_PAGE_XSTART();
-    lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_FADE_IN, s_pendingLazyBuildMs, 0,
-                     placeholderActive);
+    lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, placeholderActive);
     s_currentIdx = idx;
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
 }
 
 } // namespace
 
-void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
+void showPage(uint8_t idx) {
     if (idx >= s_pageCount) {
         LOG_WARN("UI", "showPage: idx=%u out of range (pageCount=%u)", idx, s_pageCount);
         return;
     }
-    LOG_INFO("UI", "showPage: %u -> %u anim=%d", s_currentIdx, idx, static_cast<int>(anim));
+    LOG_INFO("UI", "showPage: %u -> %u", s_currentIdx, idx);
 
     if (s_pendingFreeIdx < s_pageCount && s_pendingFreeIdx != idx) {
         Page &old = s_pages[s_pendingFreeIdx];
@@ -85,17 +84,15 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
             LOG_DEBUG("UI", "Lazy build already pending for idx=%u; coalescing new request idx=%u",
                       s_pendingLazyBuildIdx, idx);
             s_pendingLazyBuildIdx = idx;
-            s_pendingLazyBuildMs = durationMs;
             return;
         }
         s_pendingLazyBuildIdx = idx;
-        s_pendingLazyBuildMs = durationMs;
         lv_async_call(asyncDoLazyBuild, nullptr);
         return;
     }
 
     PERF_RECORD_PAGE_XSTART();
-    lv_scr_load_anim(s_pages[idx].screen, anim, durationMs, 0, false);
+    lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
 
 #if APP_PROFILE_UI
     lv_timer_t *t = lv_timer_create(
@@ -116,10 +113,6 @@ void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs) {
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
 }
 
-void showPage(uint8_t idx) {
-    showPage(idx, LV_SCR_LOAD_ANIM_FADE_IN, 120);
-}
-
 void onSwipe(lv_dir_t dir) {
     if (s_pageCount <= 1)
         return;
@@ -130,12 +123,11 @@ void onSwipe(lv_dir_t dir) {
     }
     switch (dir) {
         case LV_DIR_LEFT:
-            showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, SWIPE_ANIM_MS);
+            showPage((s_currentIdx + 1) % s_pageCount);
             LOG_VDEBUG("UI", "Gesture: swipe left → next page");
             break;
         case LV_DIR_RIGHT:
-            showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1,
-                     LV_SCR_LOAD_ANIM_OVER_RIGHT, SWIPE_ANIM_MS);
+            showPage(s_currentIdx == 0 ? s_pageCount - 1 : s_currentIdx - 1);
             LOG_VDEBUG("UI", "Gesture: swipe right → prev page");
             break;
         default:

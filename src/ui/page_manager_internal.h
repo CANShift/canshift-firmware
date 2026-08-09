@@ -17,8 +17,6 @@ struct Page {
     uint8_t cfgIdx;
 };
 
-static constexpr uint32_t SWIPE_ANIM_MS = 120;
-
 static constexpr lv_coord_t REVLIMIT_BORDER_WIDTH_PX = 8;
 static constexpr lv_opa_t REVLIMIT_BORDER_DIM_OPA = LV_OPA_50;
 
@@ -31,13 +29,10 @@ extern bool s_rebuildRequested;
 extern uint8_t s_pendingFreeIdx;
 
 extern uint8_t s_pendingLazyBuildIdx;
-extern uint32_t s_pendingLazyBuildMs;
 
 void buildPage(uint8_t idx, const CfgPage &cfg);
 
 void reapplyThemeAllPages();
-
-void showPage(uint8_t idx, lv_scr_load_anim_t anim, uint32_t durationMs);
 
 void showPage(uint8_t idx);
 
