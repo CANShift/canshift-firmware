@@ -1,10 +1,5 @@
 # canshift-firmware
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/icons/firmware-dark.svg">
-  <img src=".github/icons/firmware.svg" alt="" height="72">
-</picture>
-
 ESP32 firmware for the CANShift configurable automotive dashboard.
 
 > 🚨 **Architecture refactor (#1351)** — the WiFi stack, WebServer, WS bridge, and SPA-on-SPIFFS pipeline were removed in this PR. Studio is now the browser Tuner, [CANShift/canshift-tuner](https://github.com/CANShift/canshift-tuner) and talks to the dash over WebSerial via the CH340 UART. Existing devices need a USB reflash via the Tuner — OTA between the WiFi-extended layout and the new one is unsafe (the bootloader-visible partition table changed).
