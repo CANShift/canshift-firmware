@@ -33,6 +33,9 @@ void abortChunkTransfer(const char *reason);
 void handleCanScanStart();
 void handleCanScanStop();
 
+void handleObdReadDtc();
+void handleObdClearDtc();
+
 constexpr size_t kTypedPutMaxPayloadBytes = 8192;
 
 bool canScanModeActive();

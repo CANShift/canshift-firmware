@@ -246,6 +246,12 @@ void handleCommand(const char *jsonLine) {
         case UsbComm::CMD_CAN_SCAN_START:
             handleCanScanStart();
             break;
+        case UsbComm::CMD_OBD_READ_DTC:
+            handleObdReadDtc();
+            break;
+        case UsbComm::CMD_OBD_CLEAR_DTC:
+            handleObdClearDtc();
+            break;
         case UsbComm::CMD_CAN_SCAN_STOP:
             handleCanScanStop();
             break;
