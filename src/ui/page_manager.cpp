@@ -33,7 +33,6 @@ bool s_rebuildRequested = false;
 
 uint8_t s_pendingFreeIdx = 0xFF;
 uint8_t s_pendingLazyBuildIdx = 0xFF;
-uint32_t s_pendingLazyBuildMs = 120;
 
 } // namespace PageManagerInternal
 
@@ -125,7 +124,7 @@ void PageManager::navigateNext() {
     LVGL_ASSERT_LOCKED();
     if (s_pageCount == 0)
         return;
-    showPage((s_currentIdx + 1) % s_pageCount, LV_SCR_LOAD_ANIM_OVER_LEFT, SWIPE_ANIM_MS);
+    showPage((s_currentIdx + 1) % s_pageCount);
 }
 
 void PageManager::navigatePrev() {
@@ -133,8 +132,7 @@ void PageManager::navigatePrev() {
     LVGL_ASSERT_LOCKED();
     if (s_pageCount == 0)
         return;
-    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1, LV_SCR_LOAD_ANIM_OVER_RIGHT,
-             SWIPE_ANIM_MS);
+    showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1);
 }
 
 const char *PageManager::getDefaultPageId() {
