@@ -43,4 +43,20 @@ uint8_t extractMode03Dtcs(const uint8_t *data, uint8_t length, uint8_t *out, uin
     return static_cast<uint8_t>(writeBytes);
 }
 
+bool buildServiceRequest(uint8_t mode, uint8_t *out, uint8_t outCap) {
+    if (out == nullptr || outCap < kRequestDlc)
+        return false;
+    for (uint8_t i = 0; i < outCap; ++i)
+        out[i] = 0x00;
+    out[0] = 0x01;
+    out[1] = mode;
+    return true;
+}
+
+bool isServiceResponse(const uint8_t *data, uint8_t length, uint8_t expectedService) {
+    if (data == nullptr || length < 2)
+        return false;
+    return data[1] == expectedService;
+}
+
 } // namespace Obd2Response

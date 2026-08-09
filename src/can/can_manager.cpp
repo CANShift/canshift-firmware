@@ -1,5 +1,6 @@
 #include "can_manager.h"
 #include "can_parser.h"
+#include "obd2_dtc.h"
 #include "obd2_poller.h"
 #include "board.h"
 #include "app_config.h"
@@ -245,7 +246,8 @@ bool CanManager::tick() {
                 static_cast<uint8_t>(message.data_length_code < 8 ? message.data_length_code : 8);
 
             const bool consumedByPoller =
-                Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
+                Obd2Dtc::onRxFrame(message.identifier, message.data, safeLen);
+            Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
             if (!consumedByPoller) {
                 CanParser::parseFrame(message.identifier, message.data, safeLen);
             }

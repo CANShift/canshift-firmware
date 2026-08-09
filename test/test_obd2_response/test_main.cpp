@@ -72,6 +72,40 @@ void test_extractMode03_zeroCount() {
     TEST_ASSERT_EQUAL_UINT8(0, Obd2Response::extractMode03Dtcs(frame, sizeof(frame), out, 16));
 }
 
+void test_buildServiceRequest_modeOnlyNoPid() {
+    uint8_t out[Obd2Response::kRequestDlc];
+    TEST_ASSERT_TRUE(Obd2Response::buildServiceRequest(0x03, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_UINT8(0x01, out[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x03, out[1]);
+    for (uint8_t i = 2; i < sizeof(out); ++i)
+        TEST_ASSERT_EQUAL_UINT8(0x00, out[i]);
+}
+
+void test_buildServiceRequest_rejectsShortBuffer() {
+    uint8_t out[Obd2Response::kRequestDlc - 1];
+    TEST_ASSERT_FALSE(Obd2Response::buildServiceRequest(0x03, out, sizeof(out)));
+    TEST_ASSERT_FALSE(Obd2Response::buildServiceRequest(0x03, nullptr, Obd2Response::kRequestDlc));
+}
+
+void test_isServiceResponse_matchesReadAndClear() {
+    const uint8_t read[] = {0x03, 0x43, 0x01, 0x01, 0x33};
+    const uint8_t clear[] = {0x01, 0x44, 0x00};
+    TEST_ASSERT_TRUE(
+        Obd2Response::isServiceResponse(read, sizeof(read), Obd2Response::kModeReadDtcResponse));
+    TEST_ASSERT_TRUE(
+        Obd2Response::isServiceResponse(clear, sizeof(clear), Obd2Response::kModeClearDtcResponse));
+    TEST_ASSERT_FALSE(
+        Obd2Response::isServiceResponse(read, sizeof(read), Obd2Response::kModeClearDtcResponse));
+}
+
+void test_isServiceResponse_rejectsRunt() {
+    const uint8_t runt[] = {0x43};
+    TEST_ASSERT_FALSE(
+        Obd2Response::isServiceResponse(runt, sizeof(runt), Obd2Response::kModeReadDtcResponse));
+    TEST_ASSERT_FALSE(
+        Obd2Response::isServiceResponse(nullptr, 8, Obd2Response::kModeReadDtcResponse));
+}
+
 void test_extractMode03_rejectsWrongServiceId() {
     const uint8_t frame[] = {0x03, 0x41, 0x01, 0x01, 0x33};
     uint8_t out[16] = {0};
@@ -114,6 +148,10 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_extractMode03_singleDtc);
     RUN_TEST(test_extractMode03_twoDtcs);
     RUN_TEST(test_extractMode03_zeroCount);
+    RUN_TEST(test_buildServiceRequest_modeOnlyNoPid);
+    RUN_TEST(test_buildServiceRequest_rejectsShortBuffer);
+    RUN_TEST(test_isServiceResponse_matchesReadAndClear);
+    RUN_TEST(test_isServiceResponse_rejectsRunt);
     RUN_TEST(test_extractMode03_rejectsWrongServiceId);
     RUN_TEST(test_extractMode03_rejectsShortAndNull);
     RUN_TEST(test_extractMode03_clampsToPresentBytes);
