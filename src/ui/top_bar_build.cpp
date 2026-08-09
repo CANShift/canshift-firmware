@@ -94,6 +94,7 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
 
     (void)derivedFontSize;
     lv_obj_set_style_text_font(lbl, FontManager::label(BAR_LABEL_FONT_PX), 0);
+    lv_obj_set_style_text_letter_space(lbl, BAR_LETTER_SPACE_PX, 0);
     return lbl;
 }
 

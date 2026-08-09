@@ -34,12 +34,13 @@ constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
 constexpr uint32_t COLOR_MODE_ACTIVE = 0xFF4747;
 constexpr uint32_t COLOR_UNSET = 0xFFFFFFFFu;
 
-constexpr uint32_t COLOR_LABEL_NIGHT = 0xCCCCCC;
-constexpr uint32_t COLOR_LABEL_DAY = 0x000000;
-constexpr uint32_t COLOR_MUTED_NIGHT = 0x666666;
-constexpr uint32_t COLOR_MUTED_DAY = 0x444444;
+constexpr uint32_t COLOR_LABEL_NIGHT = 0xBABABA;
+constexpr uint32_t COLOR_LABEL_DAY = 0x5A5A5A;
+constexpr uint32_t COLOR_MUTED_NIGHT = 0xBABABA;
+constexpr uint32_t COLOR_MUTED_DAY = 0x5A5A5A;
 
 constexpr uint8_t BAR_LABEL_FONT_PX = 10;
+constexpr int16_t BAR_LETTER_SPACE_PX = 1;
 constexpr int16_t FLAG_SQUARE_PX = 7;
 constexpr int16_t FLAG_GAP_PX = 3;
 
