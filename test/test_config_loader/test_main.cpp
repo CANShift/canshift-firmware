@@ -237,6 +237,22 @@ void test_loadSignals_malformedCanFrameId_dropsSignal() {
 // Issue #1162 — signal name longer than CFG_MAX_SIGNAL_LEN must drop the
 // signal (not truncate silently). A good signal before the offending one
 // must survive intact.
+void test_loadSignals_threeByteValue_isAccepted() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+                             strlen(fixtures::kDashboardMinimal));
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsThreeByteValue,
+                             strlen(fixtures::kSignalsThreeByteValue));
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+
+    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
+    // The 3-byte "odo" survives; "too_wide" (5 bytes) is still dropped.
+    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
+    TEST_ASSERT_EQUAL_STRING("odo", signals.signals[0].name);
+    TEST_ASSERT_EQUAL_UINT8(3, signals.signals[0].byteLength);
+}
+
 void test_loadSignals_nameTooLong_dropsSignal() {
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
@@ -394,6 +410,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadDashboard_noThemes_leavesDayNightSignalEmpty);
     RUN_TEST(test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely);
     RUN_TEST(test_loadSignals_malformedCanFrameId_dropsSignal);
+    RUN_TEST(test_loadSignals_threeByteValue_isAccepted);
     RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);
     RUN_TEST(test_loadSignals_unitTooLong_resetsUnitToEmpty);
     return UNITY_END();

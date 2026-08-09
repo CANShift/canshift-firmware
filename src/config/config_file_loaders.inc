@@ -408,7 +408,8 @@ bool loadSignals() {
             }
         }
 
-        const bool byteLenValid = (s.byteLength == 1 || s.byteLength == 2 || s.byteLength == 4);
+        const bool byteLenValid =
+            (s.byteLength == 1 || s.byteLength == 2 || s.byteLength == 3 || s.byteLength == 4);
         const bool startInRange = (s.startByte < kCanFrameMaxBytes);
         const bool fitsInFrame =
             (static_cast<uint16_t>(s.startByte) + static_cast<uint16_t>(s.byteLength) <=
