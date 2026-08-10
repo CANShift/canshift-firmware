@@ -166,7 +166,8 @@ const lv_font_t *FontManager::primary(uint8_t size) {
 }
 
 const lv_font_t *FontManager::secondary(uint8_t size) {
-    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size, &lv_font_jbmono_medium_14_nk);
+    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size,
+                   &lv_font_jbmono_medium_14_nk);
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {
