@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include <atomic>
+#include <esp_task_wdt.h>
 #include <string.h>
 
 namespace {
@@ -56,6 +57,7 @@ Obd2Dtc::Result awaitResponse(uint32_t timeoutMs) {
             setPending(Obd2Dtc::detail::Pending::None);
             return Obd2Dtc::Result::Timeout;
         }
+        esp_task_wdt_reset();
         delay(kPollIntervalMs);
     }
     setPending(Obd2Dtc::detail::Pending::None);
