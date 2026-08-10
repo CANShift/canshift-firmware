@@ -43,6 +43,8 @@ runs:
 
     - if: inputs.espup == 'true'
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         if ! command -v espup >/dev/null; then
           cargo install espup --locked
