@@ -44,6 +44,12 @@ SemaphoreHandle_t g_lvglMutex = nullptr;
 
 TaskHandle_t g_uiTaskHandle = nullptr;
 
+#if APP_PROFILE_UI
+static TaskHandle_t s_canTaskHandle = nullptr;
+static TaskHandle_t s_usbTaskHandle = nullptr;
+static TaskHandle_t s_bleTaskHandle = nullptr;
+#endif
+
 static StackType_t *s_uiStack = nullptr;
 static StackType_t *s_canStack = nullptr;
 static StackType_t *s_usbStack = nullptr;
@@ -129,15 +135,24 @@ static void createAllTasks() {
     TaskHandle_t canHandle =
         xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
                                       s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
+#if APP_PROFILE_UI
+    s_canTaskHandle = canHandle;
+#endif
 
     TaskHandle_t usbHandle =
         xTaskCreateStaticPinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB,
                                       s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
+#if APP_PROFILE_UI
+    s_usbTaskHandle = usbHandle;
+#endif
 
 #if APP_BLE_ENABLED
     TaskHandle_t bleHandle =
         xTaskCreateStaticPinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE,
                                       s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
+    #if APP_PROFILE_UI
+    s_bleTaskHandle = bleHandle;
+    #endif
 #endif
 
     if (uiHandle) {
@@ -341,6 +356,30 @@ inline void uiNotifyDayNightChanged(bool didDayNightChange) {
 #endif
 }
 
+#if APP_PROFILE_UI
+constexpr uint32_t STACK_LOG_INTERVAL_MS = 5000;
+
+inline void logStackHeadroom(const char *name, TaskHandle_t task) {
+    if (task == nullptr)
+        return;
+    const UBaseType_t wordsFree = uxTaskGetStackHighWaterMark(task);
+    LOG_INFO("PERF", "stack '%s': %u bytes free at worst", name,
+             static_cast<unsigned>(wordsFree) * sizeof(StackType_t));
+}
+
+inline void uiReportStackHeadroom() {
+    static uint32_t lastLogMs = 0;
+    const uint32_t nowMs = millis();
+    if (nowMs - lastLogMs < STACK_LOG_INTERVAL_MS)
+        return;
+    lastLogMs = nowMs;
+    logStackHeadroom("ui", g_uiTaskHandle);
+    logStackHeadroom("can", s_canTaskHandle);
+    logStackHeadroom("usb", s_usbTaskHandle);
+    logStackHeadroom("ble", s_bleTaskHandle);
+}
+#endif
+
 inline void uiRecordFrameMetrics(int64_t frameStartUs, TickType_t lastWake) {
 #if APP_PROFILE_UI
     const int64_t frameEndUs = esp_timer_get_time();
@@ -351,6 +390,7 @@ inline void uiRecordFrameMetrics(int64_t frameStartUs, TickType_t lastWake) {
         ::PerfCounters::recordFrameMiss();
     }
     ::PerfCounters::tick();
+    uiReportStackHeadroom();
 #else
     (void)frameStartUs;
     (void)lastWake;

@@ -95,14 +95,7 @@ void showPage(uint8_t idx) {
     lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
 
 #if APP_PROFILE_UI
-    lv_timer_t *t = lv_timer_create(
-        [](lv_timer_t *self) {
-            PERF_RECORD_PAGE_XEND();
-            lv_timer_del(self);
-        },
-        durationMs, nullptr);
-    if (t)
-        lv_timer_set_repeat_count(t, 1);
+    PERF_RECORD_PAGE_XEND();
 #endif
 
     if (s_currentIdx != idx) {
