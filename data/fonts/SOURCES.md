@@ -1,4 +1,4 @@
-# JetBrains Mono — Firmware bin fonts
+# Firmware bin fonts — JetBrains Mono (values) + Archivo (labels)
 
 LVGL `.bin` fonts loaded at boot from SPIFFS by `FontManager::init()`
 (see `src/ui/font_manager.cpp`). Latin ASCII only (`0x20-0x7F`), bpp=4,
@@ -7,25 +7,32 @@ car produces render in monospace with tabular figures.
 
 ## Provenance
 
-- Upstream: https://github.com/google/fonts/tree/main/ofl/jetbrainsmono
-- Variable source: `JetBrainsMono[wght].ttf` (weight axis 100-800)
-- Static instances at wght=500 / 700 / 800 produced via
+- JetBrains Mono: https://github.com/google/fonts/tree/main/ofl/jetbrainsmono —
+  static instances at wght=500 / 700 / 800 via
   `fonttools varLib.instancer 'JetBrainsMono[wght].ttf' wght=<W>`.
-- Conversion: `lv_font_conv --size <S> --bpp 4 --no-kerning --range 0x20-0x7F`
+- Archivo: https://github.com/google/fonts/tree/main/ofl/archivo — static
+  ExtraBold (800) instance, same OFL licence.
+- Conversion: `scripts/regen_fonts.py <ttf-dir>` — wraps
+  `lv_font_conv --size <S> --bpp 4 --no-kerning --range 0x20-0x7F,0xB0,0x2022`
   (`--format bin` for SPIFFS, `--format lvgl` for the in-flash twins).
 
 ## Weight / size matrix
 
-| Intent     | Weight          | Sizes (px)        | Files                                                |
-| ---------- | --------------- | ----------------- | ---------------------------------------------------- |
-| primary    | ExtraBold (800) | 32, 48            | in-flash twins only — no SPIFFS .bin                 |
-| secondary  | Bold (700)      | 20, 24            | `jbmono_bold_{20,24}.bin`                            |
-| label      | Medium (500)    | 8, 10, 12, 14, 16 | `jbmono_medium_{8,10,12,14,16}.bin` (14 is in-flash) |
+| Intent    | Family / weight          | Sizes (px)     | Files                                              |
+| --------- | ------------------------ | -------------- | -------------------------------------------------- |
+| primary   | JB Mono ExtraBold (800)  | 32, 48         | in-flash twins only — no SPIFFS .bin               |
+| secondary | JB Mono Bold (700)       | 20, 24         | `jbmono_bold_{20,24}.bin`                          |
+| label     | Archivo ExtraBold (800)  | 10, 12, 14, 16 | `archivo_extrabold_{10,12,16}.bin` (14 in-flash)   |
+
+Labels never render below 10 px — the mockups set the floor at a 9 px
+equivalent, so a request for 8 snaps up to 10.
 
 ## In-flash twins
 
-- `src/ui/fonts/lv_font_jbmono_medium_14_nk.c` — FontManager fallback when a
+- `src/ui/fonts/lv_font_jbmono_medium_14_nk.c` — value-tier fallback when a
   SPIFFS load fails (fresh-flash device without `pio run -t uploadfs`).
+- `src/ui/fonts/lv_font_archivo_extrabold_14_nk.c` — label-tier fallback,
+  same situation.
 - `src/ui/fonts/lv_font_jbmono_extrabold_32_nk.c` and `_48_nk.c` — both
   primary sizes ship as compiled C arrays; the 80 KB LVGL pool cannot host
   them alongside the draw buffers (see PR #665 for the original rationale).
