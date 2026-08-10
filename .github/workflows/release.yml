@@ -126,6 +126,8 @@ jobs:
           restore-keys: rust-release-${{ runner.os }}-
 
       - name: Install espup + esp32 Rust toolchain
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if ! command -v espup >/dev/null; then
             cargo install espup --locked
