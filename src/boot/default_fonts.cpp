@@ -36,12 +36,9 @@ struct EmbeddedFont {
 const EmbeddedFont kEmbeddedFonts[] = {
     {"/fonts/jbmono_bold_20.bin", kFontBold20Start, kFontBold20End, "jbmono_bold_20"},
     {"/fonts/jbmono_bold_24.bin", kFontBold24Start, kFontBold24End, "jbmono_bold_24"},
-    {"/fonts/archivo_extrabold_10.bin", kFontLabel10Start, kFontLabel10End,
-     "archivo_extrabold_10"},
-    {"/fonts/archivo_extrabold_12.bin", kFontLabel12Start, kFontLabel12End,
-     "archivo_extrabold_12"},
-    {"/fonts/archivo_extrabold_16.bin", kFontLabel16Start, kFontLabel16End,
-     "archivo_extrabold_16"},
+    {"/fonts/archivo_extrabold_10.bin", kFontLabel10Start, kFontLabel10End, "archivo_extrabold_10"},
+    {"/fonts/archivo_extrabold_12.bin", kFontLabel12Start, kFontLabel12End, "archivo_extrabold_12"},
+    {"/fonts/archivo_extrabold_16.bin", kFontLabel16Start, kFontLabel16End, "archivo_extrabold_16"},
 };
 
 bool writeOne(const EmbeddedFont &font) {
