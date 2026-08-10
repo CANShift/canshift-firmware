@@ -15,6 +15,20 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 - Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
 - Zero comments policy (rationale lives in canshift-docs); clang-format gates every PR.
 
+## Code shape
+
+Non-negotiable. Reviewed on every PR, ahead of feature count.
+
+- Guard clauses first. Nesting depth 2 max — a third level means extract a named function.
+- ~30 lines per function, ~300 per file. `create()`, `update()` and `tick()` are the usual offenders: one responsibility each, split before adding.
+- Every return code is consumed at the call site. Never call a `bool` or `esp_err_t` function as a bare statement; never fail silently — `LOG_ERROR` plus `ErrorStore::push`. Persistent writes (NVS, storage) are checked before anything reports success.
+- Acquisition is RAII. A take/lock in one function whose release lives in another is a bug, and a helper must be named for what it actually does.
+- Dispatch is a `constexpr` table. No `switch` with inline case bodies, no `strcmp` chain, and never two transports carrying separate copies of one command set.
+- `constexpr` in a namespace, not `#define`. `#define` is for preprocessor conditions and build flags only. Constants shared with Rust are generated, not hand-mirrored.
+- Third copy gets extracted — LVGL style ladders and show/hide toggles included. If a helper already exists in one file, promote it to `WidgetHelpers` instead of retyping it.
+- A constant must be read by the code it names. `(void)symbol;` to silence an unused warning means delete the symbol.
+- The zero-comment rule covers `rust/` too.
+
 ## Workflow
 
 - Branch `type/short-description`; Conventional Commits, subject only.

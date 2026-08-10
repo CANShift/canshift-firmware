@@ -11,12 +11,13 @@
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
 LV_FONT_DECLARE(lv_font_jbmono_medium_14_nk);
+LV_FONT_DECLARE(lv_font_archivo_extrabold_14_nk);
 
 namespace {
 
 constexpr uint8_t kPrimarySizes[] = {32, 48};
 constexpr uint8_t kSecondarySizes[] = {20, 24};
-constexpr uint8_t kLabelSizes[] = {8, 10, 12, 14, 16};
+constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16};
 
 constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
 constexpr size_t kSecondaryCount = sizeof(kSecondarySizes) / sizeof(kSecondarySizes[0]);
@@ -76,12 +77,13 @@ bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
     return true;
 }
 
-void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font_t *&slot) {
+void loadOne(const char *family, const char *weight, const char *intent, uint8_t size,
+             const lv_font_t *&slot) {
     char path[64];
-    snprintf(path, sizeof(path), "S:/fonts/jbmono_%s_%u.bin", weight, size);
+    snprintf(path, sizeof(path), "S:/fonts/%s_%s_%u.bin", family, weight, size);
 
     char spiffsPath[64];
-    snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/jbmono_%s_%u.bin", weight, size);
+    snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/%s_%s_%u.bin", family, weight, size);
 
     logFontHeap("before", weight, size);
 
@@ -107,10 +109,10 @@ void loadOne(const char *weight, const char *intent, uint8_t size, const lv_font
 }
 
 const lv_font_t *resolve(const uint8_t *sizes, size_t count, const lv_font_t *const *cache,
-                         uint8_t size) {
+                         uint8_t size, const lv_font_t *fallback) {
     const size_t idx = snapIndex(sizes, count, size);
     const lv_font_t *const cached = cache[idx];
-    return (cached != nullptr) ? cached : &lv_font_jbmono_medium_14_nk;
+    return (cached != nullptr) ? cached : fallback;
 }
 
 } // namespace
@@ -127,15 +129,14 @@ void FontManager::init() {
     LOG_INFO("FONT", "jbmono_extrabold_48: using in-flash copy (saves ~44 KB pool)");
 
     for (size_t i = 0; i < kSecondaryCount; ++i) {
-        loadOne("bold", "secondary", kSecondarySizes[i], s_secondary[i]);
+        loadOne("jbmono", "bold", "secondary", kSecondarySizes[i], s_secondary[i]);
     }
 
-    s_label[0] = nullptr;
-    loadOne("medium", "label", kLabelSizes[1], s_label[1]);
-    loadOne("medium", "label", kLabelSizes[2], s_label[2]);
-    s_label[3] = &lv_font_jbmono_medium_14_nk;
-    LOG_INFO("FONT", "jbmono_medium_14: using in-flash copy (saves ~4.6 KB pool)");
-    loadOne("medium", "label", kLabelSizes[4], s_label[4]);
+    loadOne("archivo", "extrabold", "label", kLabelSizes[0], s_label[0]);
+    loadOne("archivo", "extrabold", "label", kLabelSizes[1], s_label[1]);
+    s_label[2] = &lv_font_archivo_extrabold_14_nk;
+    LOG_INFO("FONT", "archivo_extrabold_14: using in-flash copy (saves ~4.6 KB pool)");
+    loadOne("archivo", "extrabold", "label", kLabelSizes[3], s_label[3]);
 
     s_initialized = true;
 }
@@ -145,6 +146,7 @@ void FontManager::shutdown() {
         for (size_t i = 0; i < count; ++i) {
 
             const bool isInFlash = slots[i] == &lv_font_jbmono_medium_14_nk ||
+                                   slots[i] == &lv_font_archivo_extrabold_14_nk ||
                                    slots[i] == &lv_font_jbmono_extrabold_32_nk ||
                                    slots[i] == &lv_font_jbmono_extrabold_48_nk;
             if (slots[i] != nullptr && !isInFlash) {
@@ -160,13 +162,13 @@ void FontManager::shutdown() {
 }
 
 const lv_font_t *FontManager::primary(uint8_t size) {
-    return resolve(kPrimarySizes, kPrimaryCount, s_primary, size);
+    return resolve(kPrimarySizes, kPrimaryCount, s_primary, size, &lv_font_jbmono_medium_14_nk);
 }
 
 const lv_font_t *FontManager::secondary(uint8_t size) {
-    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size);
+    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size, &lv_font_jbmono_medium_14_nk);
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {
-    return resolve(kLabelSizes, kLabelCount, s_label, size);
+    return resolve(kLabelSizes, kLabelCount, s_label, size, &lv_font_archivo_extrabold_14_nk);
 }
