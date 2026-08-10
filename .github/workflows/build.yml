@@ -112,19 +112,37 @@ jobs:
       - name: build (esp32s3)
         run: pio run -e esp32s3
 
+  diagnostic:
+    name: diagnostic builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/pio-setup
+        with:
+          cache-suffix: diagnostic
+      - name: build with every diagnostic flag on
+        run: |
+          pio run -e debug-perf \
+            || { echo "::error title=diagnostic build failed::code behind APP_PROFILE_UI / APP_USB_TICK_TRACE / APP_LV_TASK_LOG no longer compiles (#109)"; exit 1; }
+      - name: build with BLE disabled
+        run: |
+          PLATFORMIO_BUILD_FLAGS="-DAPP_BLE_ENABLED=0" pio run -e debug \
+            || { echo "::error title=BLE-disabled build failed::code guarded by APP_BLE_ENABLED no longer compiles without it"; exit 1; }
+
   ci-success:
     name: ci-success
-    needs: [native, firmware, secure, esp32s3]
+    needs: [native, firmware, secure, esp32s3, diagnostic]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: gate
         run: |
-          echo "native=${{ needs.native.result }} firmware=${{ needs.firmware.result }} secure=${{ needs.secure.result }} esp32s3=${{ needs.esp32s3.result }}"
+          echo "native=${{ needs.native.result }} firmware=${{ needs.firmware.result }} secure=${{ needs.secure.result }} esp32s3=${{ needs.esp32s3.result }} diagnostic=${{ needs.diagnostic.result }}"
           if [ "${{ needs.native.result }}" != "success" ] \
             || [ "${{ needs.firmware.result }}" != "success" ] \
             || [ "${{ needs.secure.result }}" != "success" ] \
-            || [ "${{ needs.esp32s3.result }}" != "success" ]; then
+            || [ "${{ needs.esp32s3.result }}" != "success" ] \
+            || [ "${{ needs.diagnostic.result }}" != "success" ]; then
             echo "::error::one or more required CI jobs failed — see the failing job above"
             exit 1
           fi
