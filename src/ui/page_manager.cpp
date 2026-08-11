@@ -2,6 +2,7 @@
 #include "page_manager_internal.h"
 
 #include "alert_banner.h"
+#include "alert_takeover.h"
 #include "day_night_auto.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
@@ -91,6 +92,7 @@ void PageManager::init() {
     }
 
     AlertBanner::init();
+    AlertTakeover::init();
 
     s_revOverlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(s_revOverlay);
@@ -189,6 +191,7 @@ void PageManager::updateWidgets() {
         (AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL);
     setRevLimiterOverlay(revCritical, AlertEngine::isRevLimiterFlashOn());
     AlertBanner::update();
+    AlertTakeover::update();
 
     ErrorBar::update();
     DiagDrawer::update();

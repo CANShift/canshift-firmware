@@ -6,6 +6,7 @@
 #include "config/config_loader.h"
 #include "diag/logger.h"
 #include "runtime/signal_store.h"
+#include "ui/alert_takeover.h"
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
@@ -55,6 +56,11 @@ void syncSharedSignal(const CfgInputBinding &b) {
 void firePress(const CfgInputBinding &b, CfgInputPressKind detected) {
     if (b.kind != detected)
         return;
+    if (AlertTakeover::isActive()) {
+        LOG_INFO("INPUT", "binding=%s consumed as alert acknowledge", b.id);
+        AlertTakeover::requestAcknowledge();
+        return;
+    }
     LOG_INFO("INPUT", "binding=%s pin=%d kind=%d → action", b.id, b.pin,
              static_cast<int>(detected));
 
