@@ -4,10 +4,10 @@
 
 use core::str;
 
-const MAX_TOKENS: usize = 64;
+pub(crate) const MAX_TOKENS: usize = 64;
 
 #[derive(Clone, Copy)]
-enum TokKind {
+pub(crate) enum TokKind {
     Num(f32),
     V,
     B(u8),
@@ -17,7 +17,7 @@ enum TokKind {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-enum FnKind {
+pub(crate) enum FnKind {
     Floor,
     Ceil,
     Round,
@@ -25,7 +25,7 @@ enum FnKind {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-enum Op {
+pub(crate) enum Op {
     LParen,
     RParen,
     Comma,
@@ -53,138 +53,126 @@ pub struct EvalContext<'a> {
     pub bytes: &'a [u8],
 }
 
-fn lex(expr: &[u8], tokens: &mut [TokKind; MAX_TOKENS]) -> Option<usize> {
+fn lex_two_char_op(a: u8, b: u8) -> Option<Op> {
+    match [a, b] {
+        [b'<', b'<'] => Some(Op::Shl),
+        [b'>', b'>'] => Some(Op::Shr),
+        [b'<', b'='] => Some(Op::Le),
+        [b'>', b'='] => Some(Op::Ge),
+        [b'=', b'='] => Some(Op::Eq),
+        [b'!', b'='] => Some(Op::Ne),
+        _ => None,
+    }
+}
+
+fn lex_single_char_op(c: u8) -> Option<Op> {
+    match c {
+        b'(' => Some(Op::LParen),
+        b')' => Some(Op::RParen),
+        b',' => Some(Op::Comma),
+        b'+' => Some(Op::Plus),
+        b'-' => Some(Op::Minus),
+        b'*' => Some(Op::Star),
+        b'/' => Some(Op::Slash),
+        b'%' => Some(Op::Percent),
+        b'<' => Some(Op::Lt),
+        b'>' => Some(Op::Gt),
+        b'&' => Some(Op::And),
+        b'|' => Some(Op::Or),
+        b'^' => Some(Op::Xor),
+        b'!' => Some(Op::Bang),
+        _ => None,
+    }
+}
+
+fn is_hex_start(expr: &[u8], i: usize) -> bool {
+    expr[i] == b'0' && matches!(expr.get(i + 1), Some(b'x') | Some(b'X'))
+}
+
+fn lex_hex(expr: &[u8], i: usize) -> (TokKind, usize) {
+    let mut j = i + 2;
+    let mut acc: u32 = 0;
+    while j < expr.len() {
+        let d = match expr[j] {
+            h @ b'0'..=b'9' => u32::from(h - b'0'),
+            h @ b'a'..=b'f' => 10 + u32::from(h - b'a'),
+            h @ b'A'..=b'F' => 10 + u32::from(h - b'A'),
+            _ => break,
+        };
+        acc = acc.wrapping_mul(16).wrapping_add(d);
+        j += 1;
+    }
+    (TokKind::Num(acc as f32), j)
+}
+
+fn lex_decimal(expr: &[u8], start: usize) -> Option<(TokKind, usize)> {
+    let mut i = start;
+    while i < expr.len() && (expr[i].is_ascii_digit() || expr[i] == b'.') {
+        i += 1;
+    }
+    let s = str::from_utf8(&expr[start..i]).ok()?;
+    let num: f32 = s.parse().ok()?;
+    Some((TokKind::Num(num), i))
+}
+
+fn lex_ident(expr: &[u8], start: usize) -> Option<(TokKind, usize)> {
+    let mut i = start;
+    while i < expr.len() && (expr[i].is_ascii_alphanumeric() || expr[i] == b'_') {
+        i += 1;
+    }
+    let tok = match &expr[start..i] {
+        b"V" => TokKind::V,
+        [b'B', d @ b'0'..=b'7'] => TokKind::B(d - b'0'),
+        b"Floor" => TokKind::Fn(FnKind::Floor),
+        b"Ceil" => TokKind::Fn(FnKind::Ceil),
+        b"Round" => TokKind::Fn(FnKind::Round),
+        _ => return None,
+    };
+    Some((tok, i))
+}
+
+fn lex_token_at(expr: &[u8], i: usize) -> Option<(TokKind, usize)> {
+    let c = expr[i];
+    if let Some(op) = expr.get(i + 1).and_then(|&b| lex_two_char_op(c, b)) {
+        return Some((TokKind::Op(op), i + 2));
+    }
+    if let Some(op) = lex_single_char_op(c) {
+        return Some((TokKind::Op(op), i + 1));
+    }
+    if is_hex_start(expr, i) {
+        return Some(lex_hex(expr, i));
+    }
+    if c.is_ascii_digit() || c == b'.' {
+        return lex_decimal(expr, i);
+    }
+    if c.is_ascii_alphabetic() || c == b'_' {
+        return lex_ident(expr, i);
+    }
+    None
+}
+
+pub(crate) fn lex(expr: &[u8], tokens: &mut [TokKind; MAX_TOKENS]) -> Option<usize> {
     let mut n = 0usize;
     let mut i = 0usize;
     while i < expr.len() {
-        let c = expr[i];
-        if c.is_ascii_whitespace() {
+        if expr[i].is_ascii_whitespace() {
             i += 1;
             continue;
         }
-        let two = if i + 1 < expr.len() {
-            Some([c, expr[i + 1]])
-        } else {
-            None
-        };
-        let (op, consumed) = match two {
-            Some([b'<', b'<']) => (Some(Op::Shl), 2),
-            Some([b'>', b'>']) => (Some(Op::Shr), 2),
-            Some([b'<', b'=']) => (Some(Op::Le), 2),
-            Some([b'>', b'=']) => (Some(Op::Ge), 2),
-            Some([b'=', b'=']) => (Some(Op::Eq), 2),
-            Some([b'!', b'=']) => (Some(Op::Ne), 2),
-            _ => (None, 0),
-        };
-        if let Some(op) = op {
-            if n >= MAX_TOKENS {
-                return None;
-            }
-            tokens[n] = TokKind::Op(op);
-            n += 1;
-            i += consumed;
-            continue;
+        let (tok, next) = lex_token_at(expr, i)?;
+        if n >= MAX_TOKENS {
+            return None;
         }
-        let single = match c {
-            b'(' => Some(Op::LParen),
-            b')' => Some(Op::RParen),
-            b',' => Some(Op::Comma),
-            b'+' => Some(Op::Plus),
-            b'-' => Some(Op::Minus),
-            b'*' => Some(Op::Star),
-            b'/' => Some(Op::Slash),
-            b'%' => Some(Op::Percent),
-            b'<' => Some(Op::Lt),
-            b'>' => Some(Op::Gt),
-            b'&' => Some(Op::And),
-            b'|' => Some(Op::Or),
-            b'^' => Some(Op::Xor),
-            b'!' => Some(Op::Bang),
-            _ => None,
-        };
-        if let Some(op) = single {
-            if n >= MAX_TOKENS {
-                return None;
-            }
-            tokens[n] = TokKind::Op(op);
-            n += 1;
-            i += 1;
-            continue;
-        }
-        if c == b'0' && i + 1 < expr.len() && (expr[i + 1] == b'x' || expr[i + 1] == b'X') {
-            let mut j = i + 2;
-            let mut acc: u32 = 0;
-            while j < expr.len() {
-                let h = expr[j];
-                let d = match h {
-                    b'0'..=b'9' => (h - b'0') as u32,
-                    b'a'..=b'f' => 10 + (h - b'a') as u32,
-                    b'A'..=b'F' => 10 + (h - b'A') as u32,
-                    _ => break,
-                };
-                acc = acc.wrapping_mul(16).wrapping_add(d);
-                j += 1;
-            }
-            if n >= MAX_TOKENS {
-                return None;
-            }
-            tokens[n] = TokKind::Num(acc as f32);
-            n += 1;
-            i = j;
-            continue;
-        }
-        if c.is_ascii_digit() || c == b'.' {
-            let start = i;
-            while i < expr.len() && (expr[i].is_ascii_digit() || expr[i] == b'.') {
-                i += 1;
-            }
-            let s = str::from_utf8(&expr[start..i]).ok()?;
-            let num: f32 = s.parse().ok()?;
-            if n >= MAX_TOKENS {
-                return None;
-            }
-            tokens[n] = TokKind::Num(num);
-            n += 1;
-            continue;
-        }
-        if c.is_ascii_alphabetic() || c == b'_' {
-            let start = i;
-            while i < expr.len()
-                && (expr[i].is_ascii_alphanumeric() || expr[i] == b'_')
-            {
-                i += 1;
-            }
-            let ident = &expr[start..i];
-            let tok = match ident {
-                b"V" => TokKind::V,
-                b"B0" => TokKind::B(0),
-                b"B1" => TokKind::B(1),
-                b"B2" => TokKind::B(2),
-                b"B3" => TokKind::B(3),
-                b"B4" => TokKind::B(4),
-                b"B5" => TokKind::B(5),
-                b"B6" => TokKind::B(6),
-                b"B7" => TokKind::B(7),
-                b"Floor" => TokKind::Fn(FnKind::Floor),
-                b"Ceil" => TokKind::Fn(FnKind::Ceil),
-                b"Round" => TokKind::Fn(FnKind::Round),
-                _ => return None,
-            };
-            if n >= MAX_TOKENS {
-                return None;
-            }
-            tokens[n] = tok;
-            n += 1;
-            continue;
-        }
-        return None;
+        tokens[n] = tok;
+        n += 1;
+        i = next;
     }
     Some(n)
 }
 
-struct ParseState<'a> {
-    tokens: &'a [TokKind],
-    pos: usize,
+pub(crate) struct ParseState<'a> {
+    pub(crate) tokens: &'a [TokKind],
+    pub(crate) pos: usize,
 }
 
 impl<'a> ParseState<'a> {
@@ -208,7 +196,7 @@ fn read_byte(ctx: &EvalContext, idx: u8) -> f32 {
     ctx.bytes.get(idx as usize).copied().unwrap_or(0) as f32
 }
 
-fn parse_or(s: &mut ParseState, ctx: &EvalContext) -> Option<f32> {
+pub(crate) fn parse_or(s: &mut ParseState, ctx: &EvalContext) -> Option<f32> {
     let mut left = parse_xor(s, ctx)?;
     while s.peek_op() == Some(Op::Or) {
         s.pos += 1;
@@ -469,151 +457,12 @@ pub fn eval(expr: &[u8], ctx: &EvalContext) -> f32 {
     if result.is_finite() { result } else { 0.0 }
 }
 
-const TOK_NUM: u8 = 0;
-const TOK_V: u8 = 1;
-const TOK_B: u8 = 2;
-const TOK_FN: u8 = 3;
-const TOK_OP: u8 = 4;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct FfiTok {
-    pub kind: u8,
-    pub aux: u8,
-    pub num: f32,
-}
-
-fn fn_from_u8(aux: u8) -> Option<FnKind> {
-    match aux {
-        0 => Some(FnKind::Floor),
-        1 => Some(FnKind::Ceil),
-        2 => Some(FnKind::Round),
-        _ => None,
-    }
-}
-
-fn op_from_u8(aux: u8) -> Option<Op> {
-    match aux {
-        0 => Some(Op::LParen),
-        1 => Some(Op::RParen),
-        2 => Some(Op::Comma),
-        3 => Some(Op::Plus),
-        4 => Some(Op::Minus),
-        5 => Some(Op::Star),
-        6 => Some(Op::Slash),
-        7 => Some(Op::Percent),
-        8 => Some(Op::Shl),
-        9 => Some(Op::Shr),
-        10 => Some(Op::Lt),
-        11 => Some(Op::Le),
-        12 => Some(Op::Gt),
-        13 => Some(Op::Ge),
-        14 => Some(Op::Eq),
-        15 => Some(Op::Ne),
-        16 => Some(Op::And),
-        17 => Some(Op::Or),
-        18 => Some(Op::Xor),
-        19 => Some(Op::Bang),
-        _ => None,
-    }
-}
-
-fn tok_to_ffi(t: TokKind) -> FfiTok {
-    match t {
-        TokKind::Num(n) => FfiTok { kind: TOK_NUM, aux: 0, num: n },
-        TokKind::V => FfiTok { kind: TOK_V, aux: 0, num: 0.0 },
-        TokKind::B(idx) => FfiTok { kind: TOK_B, aux: idx, num: 0.0 },
-        TokKind::Fn(f) => FfiTok { kind: TOK_FN, aux: f as u8, num: 0.0 },
-        TokKind::Op(o) => FfiTok { kind: TOK_OP, aux: o as u8, num: 0.0 },
-    }
-}
-
-fn ffi_to_tok(f: FfiTok) -> Option<TokKind> {
-    Some(match f.kind {
-        TOK_NUM => TokKind::Num(f.num),
-        TOK_V => TokKind::V,
-        TOK_B if f.aux < crate::CAN_FRAME_MAX_BYTES as u8 => TokKind::B(f.aux),
-        TOK_FN => TokKind::Fn(fn_from_u8(f.aux)?),
-        TOK_OP => TokKind::Op(op_from_u8(f.aux)?),
-        _ => return None,
-    })
-}
-
-pub fn lex_to_ffi(expr: &[u8], out: &mut [FfiTok]) -> Option<usize> {
-    let mut tokens = [TokKind::V; MAX_TOKENS];
-    let n = lex(expr, &mut tokens)?;
-    if out.len() < n {
-        return None;
-    }
-    for i in 0..n {
-        out[i] = tok_to_ffi(tokens[i]);
-    }
-    Some(n)
-}
-
-#[must_use]
-pub fn eval_ffi(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
-    let n = tokens.len();
-    if n == 0 || n > MAX_TOKENS {
-        return 0.0;
-    }
-    let mut buf = [TokKind::V; MAX_TOKENS];
-    for i in 0..n {
-        match ffi_to_tok(tokens[i]) {
-            Some(t) => buf[i] = t,
-            None => return 0.0,
-        }
-    }
-    let mut state = ParseState { tokens: &buf[..n], pos: 0 };
-    let Some(result) = parse_or(&mut state, ctx) else {
-        return 0.0;
-    };
-    if state.pos != n {
-        return 0.0;
-    }
-    if result.is_finite() { result } else { 0.0 }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn ctx(v: f32, bytes: &[u8]) -> EvalContext {
         EvalContext { v, bytes }
-    }
-
-    fn eval_tokenized(expr: &[u8], ctx: &EvalContext) -> f32 {
-        let mut toks = [FfiTok { kind: 0, aux: 0, num: 0.0 }; MAX_TOKENS];
-        match lex_to_ffi(expr, &mut toks) {
-            Some(n) => eval_ffi(&toks[..n], ctx),
-            None => 0.0,
-        }
-    }
-
-    #[test]
-    fn tokenized_matches_oneshot() {
-        let bytes = [117u8, 20, 30, 40, 50, 60, 70, 80];
-        let exprs: &[&[u8]] = &[
-            b"42",
-            b"V",
-            b"0xFF",
-            b"B0",
-            b"B7",
-            b"2+3*4",
-            b"V==0xD7",
-            b"1<<4",
-            b"0xFF&0x0F",
-            b"Floor(3.7)",
-            b"(Floor(V/200)/2)*100",
-            b"(V==0xD7)|(V==0xEF)",
-            b"14.7*(B0/117)",
-            b"",
-            b"@@@",
-        ];
-        for e in exprs {
-            let c = ctx(0xD7 as f32, &bytes);
-            assert_eq!(eval(e, &c), eval_tokenized(e, &c), "expr {e:?}");
-        }
     }
 
     #[test]

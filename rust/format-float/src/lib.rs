@@ -62,71 +62,76 @@ pub fn format_fixed(buf: &mut [u8], value: f32, decimals: i32) -> usize {
     copy_terminated(buf, &scratch[..pos])
 }
 
-// Parses "<prefix>%[.N]f<suffix>" from JSON configs. Falls back to %.1f on bad spec.
-#[must_use]
-pub fn format_from_spec(buf: &mut [u8], value: f32, spec: &[u8]) -> usize {
-    if buf.is_empty() {
-        return 0;
-    }
-    if spec.is_empty() {
-        return format_fixed(buf, value, 1);
-    }
+struct FixedSpec {
+    percent: usize,
+    decimals: i32,
+    after: usize,
+}
 
-    // Scan for the first `%[.N]f` token. `%%` is the escape — skip both.
-    let mut percent_off: Option<usize> = None;
-    let mut decimals = 1i32;
-    let mut after_spec_off = 0usize;
+// `.N` after a `%`: None past two digits (malformed); no dot keeps the %.1f default.
+fn parse_precision(spec: &[u8], start: usize) -> (Option<i32>, usize) {
+    if start >= spec.len() || spec[start] != b'.' {
+        return (Some(1), start);
+    }
+    let mut j = start + 1;
+    let mut n: i32 = 0;
+    let mut digits = 0;
+    while j < spec.len() && spec[j].is_ascii_digit() {
+        n = n * 10 + i32::from(spec[j] - b'0');
+        j += 1;
+        digits += 1;
+        if digits > 2 {
+            return (None, j);
+        }
+    }
+    (Some(n), j)
+}
+
+// First `%[.N]f` token; `%%` is the escape — skip both.
+fn find_fixed_spec(spec: &[u8]) -> Option<FixedSpec> {
     let mut i = 0usize;
     while i < spec.len() {
         if spec[i] == b'%' && i + 1 < spec.len() && spec[i + 1] == b'%' {
             i += 2;
             continue;
         }
-        if spec[i] == b'%' {
-            let mut j = i + 1;
-            let mut dec: i32 = 1;
-            if j < spec.len() && spec[j] == b'.' {
-                j += 1;
-                let mut n: i32 = 0;
-                let mut parsed = 0;
-                let mut bail = false;
-                while j < spec.len() && spec[j].is_ascii_digit() {
-                    n = n * 10 + ((spec[j] - b'0') as i32);
-                    j += 1;
-                    parsed += 1;
-                    if parsed > 2 {
-                        bail = true;
-                        break;
-                    }
-                }
-                if bail {
-                    i = j;
-                    continue;
-                }
-                dec = n;
-            }
-            if j < spec.len() && spec[j] == b'f' {
-                percent_off = Some(i);
-                decimals = dec;
-                after_spec_off = j + 1;
-                break;
-            }
-            i = j + 1;
+        if spec[i] != b'%' {
+            i += 1;
             continue;
         }
-        i += 1;
+        let (precision, j) = parse_precision(spec, i + 1);
+        let Some(decimals) = precision else {
+            i = j;
+            continue;
+        };
+        if j < spec.len() && spec[j] == b'f' {
+            return Some(FixedSpec {
+                percent: i,
+                decimals,
+                after: j + 1,
+            });
+        }
+        i = j + 1;
     }
+    None
+}
 
-    let Some(percent) = percent_off else {
+// Parses "<prefix>%[.N]f<suffix>" from JSON configs. Falls back to %.1f on bad spec.
+#[must_use]
+pub fn format_from_spec(buf: &mut [u8], value: f32, spec: &[u8]) -> usize {
+    if buf.is_empty() {
+        return 0;
+    }
+    let Some(found) = find_fixed_spec(spec) else {
         return format_fixed(buf, value, 1);
     };
 
     let mut number_scratch = [0u8; 32];
-    let number_len_total = format_fixed(&mut number_scratch, value, decimals);
+    let number_len_total = format_fixed(&mut number_scratch, value, found.decimals);
     let number = &number_scratch[..number_len_total];
 
-    let prefix = &spec[..percent];
-    let suffix = &spec[after_spec_off..];
+    let prefix = &spec[..found.percent];
+    let suffix = &spec[found.after..];
     let total = prefix.len() + number.len() + suffix.len();
 
     let mut out = 0usize;

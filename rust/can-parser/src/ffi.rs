@@ -1,4 +1,5 @@
-use crate::expr::{eval_ffi, lex_to_ffi, EvalContext, FfiTok};
+use crate::expr::EvalContext;
+use crate::expr_ffi::{eval_ffi, lex_to_ffi, FfiTok};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
