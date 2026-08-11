@@ -177,6 +177,12 @@ def build_one(crate, objcopy):
 if not enabled_crates:
     print("[rust] no USE_RUST_* flags set — skipping Rust build")
 else:
+    parity = subprocess.run(
+        [sys.executable, os.path.join(PROJECT_DIR, "scripts", "check_ffi_parity.py")],
+        check=False,
+    )
+    if parity.returncode != 0:
+        fail("FFI constants disagree between rust/ and include/ — see above")
     check_cargo()
     objcopy = find_objcopy()
     for crate in enabled_crates:
