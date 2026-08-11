@@ -140,6 +140,7 @@ struct CfgButtonState {
 struct CfgButtonParams {
     CfgButtonMode mode;
     char label[CFG_MAX_NAME_LEN];
+    char kicker[CFG_MAX_NAME_LEN];
     bool isToggle;
     bool showLabel;
     bool hasColors;

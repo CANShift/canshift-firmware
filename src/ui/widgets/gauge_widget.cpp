@@ -21,8 +21,8 @@ namespace {
 static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr const char *kStalePlaceholder = "- -";
 
-static constexpr int16_t kValueFontHeightPrimary = 125;
-static constexpr int16_t kValueFontHeightSecondary = 60;
+static constexpr int16_t kValueFontHeightPrimary = 90;
+static constexpr int16_t kValueFontHeightSecondary = 40;
 static constexpr uint8_t kValueFontSizePrimary = 72;
 static constexpr uint8_t kValueFontSizeSecondary = 34;
 static constexpr uint8_t kValueFontSizeUnits = 14;

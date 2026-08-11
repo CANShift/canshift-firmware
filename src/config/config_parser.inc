@@ -285,6 +285,7 @@ void parseCycleStates(JsonArrayConst statesArr, const char *widgetId, CfgButtonP
 
 void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParams *out) {
     strlcpy(out->label, cfg["label"] | "", CFG_MAX_NAME_LEN);
+    strlcpy(out->kicker, cfg["kicker"] | "", CFG_MAX_NAME_LEN);
     out->isToggle = cfg["isToggle"] | false;
     out->showLabel = cfg["showLabel"] | true;
     parseButtonColors(cfg, out);
