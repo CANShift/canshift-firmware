@@ -1,7 +1,9 @@
 #include "rotation_config.h"
 #include "app_config.h"
 #include "hardware_profile.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
+#include "hal/storage/nvs_store.h"
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -32,15 +34,16 @@ uint8_t computeLgfxRotation() {
 void applyAndReboot(uint16_t offsetDeg) {
     const uint16_t normalized = (offsetDeg == 180) ? 180 : 0;
 
-    Preferences p;
-    p.begin(NVS_NS, false);
-    p.putUShort(NVS_KEY_OFFSET, normalized);
-    p.end();
+    if (!NvsStore::putUShort(NVS_NS, NVS_KEY_OFFSET, normalized)) {
+        LOG_ERROR("Rotation", "offset write failed — touch cal kept, rebooting unchanged");
+        ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "rotation offset not persisted");
+        delay(PRE_RESTART_FLUSH_DELAY_MS);
+        esp_restart();
+    }
 
-    Preferences cal;
-    cal.begin(TOUCH_NVS_NS, false);
-    cal.remove(TOUCH_NVS_KEY_CAL);
-    cal.end();
+    if (!NvsStore::remove(TOUCH_NVS_NS, TOUCH_NVS_KEY_CAL)) {
+        LOG_WARN("Rotation", "touch cal invalidation failed — recalibrate manually if skewed");
+    }
 
     LOG_INFO("Rotation", "Saved offset=%u° — invalidated touch cal — rebooting", normalized);
     delay(PRE_RESTART_FLUSH_DELAY_MS);

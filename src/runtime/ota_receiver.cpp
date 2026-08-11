@@ -19,10 +19,10 @@ size_t s_writtenSize = 0;
 mbedtls_sha256_context s_shaCtx;
 uint8_t s_expectedSha[32] = {0};
 
-void resetShaContext() {
+bool startShaContext() {
     mbedtls_sha256_free(&s_shaCtx);
     mbedtls_sha256_init(&s_shaCtx);
-    mbedtls_sha256_starts_ret(&s_shaCtx, 0);
+    return mbedtls_sha256_starts_ret(&s_shaCtx, 0) == 0;
 }
 
 void teardownOtaHandle() {
@@ -79,7 +79,12 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
     s_expectedSize = totalSize;
     s_writtenSize = 0;
     memcpy(s_expectedSha, expectedSha256, 32);
-    resetShaContext();
+    if (!startShaContext()) {
+        LOG_ERROR("OTA", "sha256 engine start failed");
+        teardownOtaHandle();
+        s_state = State::Failed;
+        return {false, "sha_engine_failed"};
+    }
     s_state = State::Receiving;
 
     LOG_INFO("OTA", "begin: target='%s' size=%u", target->label, static_cast<unsigned>(totalSize));
@@ -105,7 +110,12 @@ WriteResult writeChunk(uint32_t offset, const uint8_t *data, size_t len) {
         return {false, "ota_write_failed", s_writtenSize};
     }
 
-    mbedtls_sha256_update_ret(&s_shaCtx, data, len);
+    if (mbedtls_sha256_update_ret(&s_shaCtx, data, len) != 0) {
+        LOG_ERROR("OTA", "sha256 update failed at offset=%u", static_cast<unsigned>(offset));
+        teardownOtaHandle();
+        s_state = State::Failed;
+        return {false, "sha_engine_failed", s_writtenSize};
+    }
     s_writtenSize += len;
     return {true, nullptr, s_writtenSize};
 }
@@ -122,7 +132,12 @@ CommitResult commit() {
     }
 
     uint8_t actualSha[32] = {0};
-    mbedtls_sha256_finish_ret(&s_shaCtx, actualSha);
+    if (mbedtls_sha256_finish_ret(&s_shaCtx, actualSha) != 0) {
+        LOG_ERROR("OTA", "sha256 finish failed");
+        teardownOtaHandle();
+        s_state = State::Failed;
+        return {false, "sha_engine_failed", 0};
+    }
     if (memcmp(actualSha, s_expectedSha, 32) != 0) {
         LOG_ERROR("OTA", "sha256 mismatch — aborting");
         teardownOtaHandle();

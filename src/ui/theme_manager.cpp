@@ -1,7 +1,9 @@
 #include "theme_manager.h"
 #include "page_manager.h"
 #include "config/config_loader.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
+#include "hal/storage/nvs_store.h"
 
 #include <lvgl.h>
 #include <Preferences.h>
@@ -10,6 +12,13 @@ static constexpr char NVS_NS[] = "theme";
 static constexpr char KEY_DAY_MODE[] = "day_mode";
 
 static bool s_isDayMode = false;
+
+static void persistDayMode() {
+    if (!NvsStore::putBool(NVS_NS, KEY_DAY_MODE, s_isDayMode)) {
+        LOG_ERROR("THEME", "day-mode NVS write failed");
+        ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "day mode not persisted");
+    }
+}
 
 void ThemeManager::apply() {
     lv_disp_t *disp = lv_disp_get_default();
@@ -44,11 +53,7 @@ void ThemeManager::toggleDayMode() {
         return;
 
     s_isDayMode = !s_isDayMode;
-
-    Preferences p;
-    p.begin(NVS_NS, false);
-    p.putBool(KEY_DAY_MODE, s_isDayMode);
-    p.end();
+    persistDayMode();
 
     LOG_INFO("THEME", "Day mode toggled: %s", s_isDayMode ? "ON" : "OFF");
     PageManager::requestRebuild();
@@ -62,11 +67,7 @@ void ThemeManager::setDayMode(bool day) {
         return;
 
     s_isDayMode = day;
-
-    Preferences p;
-    p.begin(NVS_NS, false);
-    p.putBool(KEY_DAY_MODE, s_isDayMode);
-    p.end();
+    persistDayMode();
 
     LOG_INFO("THEME", "Day mode set: %s", s_isDayMode ? "ON" : "OFF");
 

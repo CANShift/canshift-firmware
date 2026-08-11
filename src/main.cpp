@@ -15,6 +15,7 @@
 
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_hold_timer.h"
 #include "diag/perf_counters.h"
@@ -25,6 +26,7 @@
 #include "runtime/input_buttons.h"
 #include "runtime/lvgl_lock.h"
 #include "runtime/pending_actions.h"
+#include "runtime/task_spawn.h"
 #include "ui/burn_overlay.h"
 #include "ui/day_night_auto.h"
 #include "ui/ota_overlay.h"
@@ -45,9 +47,9 @@ SemaphoreHandle_t g_lvglMutex = nullptr;
 
 TaskHandle_t g_uiTaskHandle = nullptr;
 
-#if APP_PROFILE_UI
 static TaskHandle_t s_canTaskHandle = nullptr;
 static TaskHandle_t s_usbTaskHandle = nullptr;
+#if APP_BLE_ENABLED
 static TaskHandle_t s_bleTaskHandle = nullptr;
 #endif
 
@@ -79,9 +81,15 @@ static void startLvglTickTimer() {
         .name = "lvgl_tick",
         .skip_unhandled_events = false,
     };
-    ESP_ERROR_CHECK(esp_timer_create(&args, &s_lvglTickTimer));
-    ESP_ERROR_CHECK(
-        esp_timer_start_periodic(s_lvglTickTimer, static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL));
+    esp_err_t err = esp_timer_create(&args, &s_lvglTickTimer);
+    if (err == ESP_OK) {
+        err = esp_timer_start_periodic(s_lvglTickTimer,
+                                       static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL);
+    }
+    if (err != ESP_OK) {
+        LOG_ERROR("BOOT", "LVGL tick timer failed: %s", esp_err_to_name(err));
+        ErrorStore::push(ERROR_SRC_SYSTEM, "lvgl_tick", "LVGL tick timer failed");
+    }
 }
 
 static void preallocateTaskStacks() {
@@ -129,55 +137,15 @@ static void registerBurnOverlayObserver() {
 }
 
 static void createAllTasks() {
-    TaskHandle_t uiHandle = xTaskCreateStaticPinnedToCore(
-        taskUI, "ui", TASK_STACK_UI, nullptr, TASK_PRIO_UI, s_uiStack, &s_uiTaskTCB, TASK_CORE_UI);
-    g_uiTaskHandle = uiHandle;
-
-    TaskHandle_t canHandle =
-        xTaskCreateStaticPinnedToCore(taskCAN, "can", TASK_STACK_CAN, nullptr, TASK_PRIO_CAN,
-                                      s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
-#if APP_PROFILE_UI
-    s_canTaskHandle = canHandle;
-#endif
-
-    TaskHandle_t usbHandle =
-        xTaskCreateStaticPinnedToCore(taskUSBComm, "usb", TASK_STACK_USB, nullptr, TASK_PRIO_USB,
-                                      s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
-#if APP_PROFILE_UI
-    s_usbTaskHandle = usbHandle;
-#endif
-
+    g_uiTaskHandle = TaskSpawn::spawnStatic("ui", taskUI, TASK_STACK_UI, TASK_PRIO_UI, s_uiStack,
+                                            &s_uiTaskTCB, TASK_CORE_UI);
+    s_canTaskHandle = TaskSpawn::spawnStatic("can", taskCAN, TASK_STACK_CAN, TASK_PRIO_CAN,
+                                             s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
+    s_usbTaskHandle = TaskSpawn::spawnStatic("usb", taskUSBComm, TASK_STACK_USB, TASK_PRIO_USB,
+                                             s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
 #if APP_BLE_ENABLED
-    TaskHandle_t bleHandle =
-        xTaskCreateStaticPinnedToCore(taskBLE, "ble", TASK_STACK_BLE, nullptr, TASK_PRIO_BLE,
-                                      s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
-    #if APP_PROFILE_UI
-    s_bleTaskHandle = bleHandle;
-    #endif
-#endif
-
-    if (uiHandle) {
-        const esp_err_t err = esp_task_wdt_add(uiHandle);
-        if (err != ESP_OK)
-            LOG_WARN("BOOT", "WDT add(ui) failed: %d", static_cast<int>(err));
-    }
-    if (canHandle) {
-        const esp_err_t err = esp_task_wdt_add(canHandle);
-        if (err != ESP_OK)
-            LOG_WARN("BOOT", "WDT add(can) failed: %d", static_cast<int>(err));
-    }
-    if (usbHandle) {
-        const esp_err_t err = esp_task_wdt_add(usbHandle);
-        if (err != ESP_OK)
-            LOG_WARN("BOOT", "WDT add(usb) failed: %d", static_cast<int>(err));
-    }
-#if APP_BLE_ENABLED
-
-    if (bleHandle) {
-        const esp_err_t err = esp_task_wdt_add(bleHandle);
-        if (err != ESP_OK)
-            LOG_WARN("BOOT", "WDT add(ble) failed: %d", static_cast<int>(err));
-    }
+    s_bleTaskHandle = TaskSpawn::spawnStatic("ble", taskBLE, TASK_STACK_BLE, TASK_PRIO_BLE,
+                                             s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
 #endif
 }
 
@@ -378,7 +346,9 @@ inline void uiReportStackHeadroom() {
     logStackHeadroom("ui", g_uiTaskHandle);
     logStackHeadroom("can", s_canTaskHandle);
     logStackHeadroom("usb", s_usbTaskHandle);
+    #if APP_BLE_ENABLED
     logStackHeadroom("ble", s_bleTaskHandle);
+    #endif
 }
 #endif
 

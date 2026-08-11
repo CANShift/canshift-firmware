@@ -6,8 +6,10 @@
 
     #include "config/json_reader.h"
     #include "config/rotation_config.h"
+    #include "diag/error_store.h"
     #include "diag/logger.h"
     #include "diag/lvgl_hold_timer.h"
+    #include "hal/storage/nvs_store.h"
     #include "runtime/lvgl_lock.h"
     #include "runtime/pending_actions.h"
     #include "runtime/timer_service.h"
@@ -17,7 +19,6 @@
     #include <ArduinoJson.h>
     #include <Arduino.h>
     #include <NimBLEDevice.h>
-    #include <Preferences.h>
     #include <atomic>
     #include <esp_heap_caps.h>
     #include <esp_random.h>
@@ -271,60 +272,86 @@ class TimerStateCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
-void setupGatt() {
+NimBLECharacteristic *requireChar(NimBLEService *svc, const char *uuid, uint32_t props) {
+    NimBLECharacteristic *ch = svc->createCharacteristic(uuid, props);
+    if (ch == nullptr) {
+        LOG_ERROR("BLE", "GATT characteristic alloc failed (%s)", uuid);
+    }
+    return ch;
+}
 
-    static ServerCallbacks s_serverCb;
+bool createGattCharacteristics(NimBLEService *pSvc) {
     static SettingsCallbacks s_settingsCb;
     static CmdCallbacks s_cmdCb;
     static TimerCmdCallbacks s_timerCmdCb;
     static TimerStateCallbacks s_timerStateCb;
 
+    BleServerInternal::s_pTele =
+        requireChar(pSvc, TELE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+    BleServerInternal::s_pStatus =
+        requireChar(pSvc, STATUS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+    NimBLECharacteristic *pSettings =
+        requireChar(pSvc, SETTINGS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
+    NimBLECharacteristic *pCmd =
+        requireChar(pSvc, CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+    NimBLECharacteristic *pTimerCmd =
+        requireChar(pSvc, TIMER_CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+    BleServerInternal::s_pTimerState =
+        requireChar(pSvc, TIMER_STATE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+    BleServerInternal::s_pTimerLap = requireChar(pSvc, TIMER_LAP_UUID, NIMBLE_PROPERTY::NOTIFY);
+
+    if (!BleServerInternal::s_pTele || !BleServerInternal::s_pStatus || !pSettings || !pCmd ||
+        !pTimerCmd || !BleServerInternal::s_pTimerState || !BleServerInternal::s_pTimerLap) {
+        return false;
+    }
+
+    BleServerInternal::s_pTele->setValue("{}");
+    BleServerInternal::updateStatus();
+    pSettings->setCallbacks(&s_settingsCb);
+    pCmd->setCallbacks(&s_cmdCb);
+    pTimerCmd->setCallbacks(&s_timerCmdCb);
+    BleServerInternal::s_pTimerState->setCallbacks(&s_timerStateCb);
+    BleServerInternal::s_pTimerState->setValue("{\"st\":0,\"el\":0,\"lc\":0,\"sid\":0,\"ver\":0}");
+    return true;
+}
+
+bool setupGatt() {
+    static ServerCallbacks s_serverCb;
+
     NimBLEServer *pServer = NimBLEDevice::createServer();
+    if (pServer == nullptr) {
+        LOG_ERROR("BLE", "GATT server alloc failed");
+        return false;
+    }
     pServer->setCallbacks(&s_serverCb);
 
     NimBLEService *pSvc = pServer->createService(SVC_UUID);
-
-    BleServerInternal::s_pTele =
-        pSvc->createCharacteristic(TELE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pTele->setValue("{}");
-
-    BleServerInternal::s_pStatus = pSvc->createCharacteristic(
-        STATUS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-
-    BleServerInternal::updateStatus();
-
-    NimBLECharacteristic *pSettings = pSvc->createCharacteristic(
-        SETTINGS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
-    pSettings->setCallbacks(&s_settingsCb);
-
-    NimBLECharacteristic *pCmd = pSvc->createCharacteristic(
-        CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
-    pCmd->setCallbacks(&s_cmdCb);
-
-    NimBLECharacteristic *pTimerCmd = pSvc->createCharacteristic(
-        TIMER_CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
-    pTimerCmd->setCallbacks(&s_timerCmdCb);
-
-    BleServerInternal::s_pTimerState = pSvc->createCharacteristic(
-        TIMER_STATE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pTimerState->setCallbacks(&s_timerStateCb);
-    BleServerInternal::s_pTimerState->setValue("{\"st\":0,\"el\":0,\"lc\":0,\"sid\":0,\"ver\":0}");
-
-    BleServerInternal::s_pTimerLap =
-        pSvc->createCharacteristic(TIMER_LAP_UUID, NIMBLE_PROPERTY::NOTIFY);
-
-    pSvc->start();
+    if (pSvc == nullptr) {
+        LOG_ERROR("BLE", "GATT service alloc failed");
+        return false;
+    }
+    if (!createGattCharacteristics(pSvc)) {
+        return false;
+    }
+    if (!pSvc->start()) {
+        LOG_ERROR("BLE", "GATT service start failed");
+        return false;
+    }
 
     NimBLEAdvertising *pAdv = NimBLEDevice::getAdvertising();
     pAdv->addServiceUUID(SVC_UUID);
     pAdv->setName("CANShift");
     pAdv->setScanResponse(false);
-    pAdv->start();
+    if (!pAdv->start()) {
+        LOG_ERROR("BLE", "advertising start failed");
+        return false;
+    }
 
     s_gattInited = true;
     s_enabled = true;
     LOG_INFO("BLE", "Advertising as 'CANShift' — %s",
              NimBLEDevice::getAddress().toString().c_str());
+    return true;
 }
 
 bool startStack() {
@@ -361,18 +388,19 @@ bool startStack() {
         return false;
     }
 
-    setupGatt();
-    return true;
+    return setupGatt();
+}
+
+void reportStartFailure() {
+    LOG_ERROR("BLE", "BLE stack start failed");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "ble_start", "BLE stack start failed");
+    BleServer::setPendingEnabled(false);
 }
 
 } // namespace
 
 void BleServer::earlyInit() {
-
-    Preferences p;
-    p.begin("screen_cfg", true);
-    const bool enabled = p.getUChar("ble_en", BLE_DEFAULT_ENABLED) != 0;
-    p.end();
+    const bool enabled = NvsStore::getUChar("screen_cfg", "ble_en", BLE_DEFAULT_ENABLED) != 0;
 
     if (!enabled) {
         LOG_INFO("BLE", "BLE disabled in NVS — skipping early init");
@@ -395,7 +423,9 @@ void BleServer::earlyInit() {
     LOG_INFO("BLE", "BLE stack initialized (%u B available) — building GATT tree",
              static_cast<unsigned>(avail));
 
-    setupGatt();
+    if (!setupGatt()) {
+        ErrorStore::push(ERROR_SRC_SYSTEM, "ble_start", "BLE GATT setup failed");
+    }
 }
 
 void BleServer::init() {
@@ -403,16 +433,19 @@ void BleServer::init() {
         LOG_INFO("BLE", "BLE disabled by user setting — skipping init");
         return;
     }
-    startStack();
-    if (s_enabled) {
-        BleServerInternal::updateStatus();
+    if (!startStack()) {
+        reportStartFailure();
+        return;
     }
+    BleServerInternal::updateStatus();
 }
 
 void BleServer::start() {
     if (s_enabled)
         return;
-    startStack();
+    if (!startStack()) {
+        reportStartFailure();
+    }
 }
 
 void BleServer::stop() {

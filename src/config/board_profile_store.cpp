@@ -2,6 +2,7 @@
 
 #include "config/board_profile_loader.h"
 #include "diag/logger.h"
+#include "hal/storage/nvs_store.h"
 
 #include <Preferences.h>
 
@@ -41,13 +42,7 @@ bool save(const char *blob, size_t len) {
         return false;
     }
 
-    Preferences prefs;
-    if (!prefs.begin(kNvsNamespace, false)) {
-        return false;
-    }
-    const size_t written = prefs.putString(kNvsKey, blob);
-    prefs.end();
-    return written == len;
+    return NvsStore::putString(kNvsNamespace, kNvsKey, blob, len);
 }
 
 } // namespace BoardProfileStore
