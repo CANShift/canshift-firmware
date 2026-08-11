@@ -18,20 +18,16 @@ car produces render in monospace with tabular figures.
 
 ## Weight / size matrix
 
-| Intent    | Family / weight          | Sizes (px)     | Files                                              |
-| --------- | ------------------------ | -------------- | -------------------------------------------------- |
-| primary   | JB Mono ExtraBold (800)  | 72             | in-flash twin only — no SPIFFS .bin                |
-| danger    | JB Mono ExtraBold (800)  | 46             | in-flash twin only — no SPIFFS .bin                |
-| secondary | JB Mono Bold (700)       | 34             | `jbmono_bold_34.bin`                               |
-| units     | JB Mono Medium (500)     | 14             | in-flash (`lv_font_jbmono_medium_14_nk.c`)         |
-| label     | Archivo ExtraBold (800)  | 10, 12, 14, 16, 28 | `archivo_extrabold_{10,12,16,28}.bin` (14 in-flash) |
+| Intent    | Family / weight          | Sizes (px, device)  | Files                                              |
+| --------- | ------------------------ | ------------------- | -------------------------------------------------- |
+| value     | JB Mono ExtraBold (800)  | 32, 40, 44, 48      | in-flash twins only — no SPIFFS .bin               |
+| value     | JB Mono ExtraBold (800)  | 17, 22, 24          | `jbmono_extrabold_{17,22,24}.bin`                  |
+| units     | JB Mono Medium (500)     | 10                  | in-flash (`lv_font_jbmono_medium_10_nk.c`)         |
+| label     | Archivo ExtraBold (800)  | 10, 12, 14, 16      | `archivo_extrabold_{10,12,16}.bin` (14 in-flash)   |
 
-Sizes follow `PROMPT_DASH_DESIGN.md`: primary value 72 px, danger 46 px,
-secondary 34 px, units 14–15 px muted inline. The 56 px OTA percent lands
-with firmware #7.
-
-Labels never render below 10 px — the mockups set the floor at a 9 px
-equivalent, so a request for 8 snaps up to 10.
+Sizes follow `docs/design/PROMPT_DASH_IN_TUNER.md` (device scale: the canvas is 2×):
+hero 48/44/40, primary 32, mid 24/22, secondary 17, unit/status 10. The size class
+comes from the widget's `big` property via `WidgetHelpers::deviceFontPxForBig`.
 
 ## In-flash twins
 

@@ -16,26 +16,26 @@ namespace {
 
 constexpr const char *kStalePlaceholder = "- -";
 
-constexpr uint8_t kBarHeightPx = 3;
-constexpr int16_t kBarSideMarginPx = 4;
-constexpr int16_t kValueClusterInsetPx = 4;
+constexpr uint8_t kBarHeightPx = 2;
+constexpr int16_t kBarSideMarginPx = 0;
+constexpr int16_t kValueClusterInsetPx = 0;
 
-uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
-    const int byHeight = (lineH * 65) / 100;
-    const int byWidth = (widgetW * 52) / 100;
+uint8_t pickValueFontSize(const CfgWidget &cfg) {
+    if (cfg.label.big > 0)
+        return WidgetHelpers::deviceFontPxForBig(cfg.label.big);
+    const int byHeight = (cfg.layout.h * 65) / 100;
+    const int byWidth = (cfg.layout.w * 52) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
-    if (s < 12)
-        s = 12;
-    if (s > 72)
-        s = 72;
+    if (s < 10)
+        s = 10;
+    if (s > 48)
+        s = 48;
     return static_cast<uint8_t>(s);
 }
 
 const lv_font_t *valueFontFor(uint8_t size) {
-    if (size >= 72)
-        return FontManager::primary(size);
-    if (size >= 34)
-        return FontManager::secondary(size);
+    if (size >= 17)
+        return FontManager::value(size);
     return FontManager::units();
 }
 
@@ -52,8 +52,6 @@ struct LabelTag {
     float lastValue;
     bool lastValid;
     bool lastDangerActive;
-    bool dangerFontSwap;
-    const lv_font_t *baseValueFont;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
     uint32_t ruleBaseRgb;
@@ -81,10 +79,6 @@ void applyDangerAppearance(LabelTag *tag, bool danger) {
             tag->kickerLastRgb = kickerRgb;
         }
     }
-    if (!tag->dangerFontSwap)
-        return;
-    lv_obj_set_style_text_font(tag->valueLabel, danger ? FontManager::danger() : tag->baseValueFont,
-                               0);
 }
 
 void applyDangerState(LabelTag *tag) {
@@ -109,7 +103,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     const int16_t valueLineH = cfg.layout.h;
 
-    const uint8_t valueSize = pickValueFontSize(valueLineH, cfg.layout.w);
+    const uint8_t valueSize = pickValueFontSize(cfg);
     const lv_font_t *valueFont = valueFontFor(valueSize);
 
     lv_obj_t *kicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
@@ -140,8 +134,7 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, valueFont, 0);
-    if (valueSize >= WidgetHelpers::kRulePrimaryFontMin)
-        lv_obj_set_style_text_letter_space(label, WidgetHelpers::kPrimaryValueTrackingPx, 0);
+    lv_obj_set_style_text_letter_space(label, WidgetHelpers::valueTrackingPx(valueSize), 0);
     lv_label_set_text(label, kStalePlaceholder);
 
     lv_obj_t *unitLabel = nullptr;
@@ -213,8 +206,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->ruleLastRgb = ruleRgb;
     tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
     tag->lastDangerActive = false;
-    tag->dangerFontSwap = !primary && valueSize >= 34;
-    tag->baseValueFont = valueFont;
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);

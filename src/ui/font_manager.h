@@ -8,11 +8,7 @@ class FontManager {
 
     static void shutdown();
 
-    static const lv_font_t *primary(uint8_t size);
-
-    static const lv_font_t *secondary(uint8_t size);
-
-    static const lv_font_t *danger();
+    static const lv_font_t *value(uint8_t devicePx);
 
     static const lv_font_t *units();
 
