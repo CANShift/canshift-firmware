@@ -1,4 +1,5 @@
 #include "alert_banner.h"
+#include "ui/alert_sources.h"
 #include "top_bar.h"
 #include "ui/font_manager.h"
 #include "runtime/alert_engine.h"
@@ -17,16 +18,15 @@ namespace {
 constexpr uint32_t UPDATE_PERIOD_MS = 250;
 constexpr size_t TEXT_BUF_LEN = 96;
 
-constexpr uint32_t COL_CRIT_BG = 0xB00000;
+constexpr uint32_t COL_CRIT_BG = 0xFF4444;
 constexpr uint32_t COL_CRIT_TEXT = 0xFFFFFF;
-constexpr uint32_t COL_MIL_BG = 0xE0A000;
-constexpr uint32_t COL_MIL_TEXT = 0x000000;
-constexpr uint32_t COL_LOST_BG = 0xE0A000;
-constexpr uint32_t COL_LOST_TEXT = 0x000000;
+constexpr uint32_t COL_MIL_BG = 0x222222;
+constexpr uint32_t COL_MIL_TEXT = 0xBABABA;
+constexpr uint32_t COL_LOST_BG = 0x222222;
+constexpr uint32_t COL_LOST_TEXT = 0xBABABA;
 
 constexpr int16_t CHIP_PAD_H = 8;
 constexpr int16_t CHIP_PAD_V = 4;
-constexpr int16_t CHIP_RADIUS = 4;
 constexpr int16_t CHIP_GAP = 6;
 constexpr int16_t BANNER_TOP_GAP = 2;
 
@@ -44,33 +44,12 @@ bool s_lastCritVisible = false;
 bool s_lastMilVisible = false;
 bool s_lastLostVisible = false;
 
-struct CriticalSource {
-    const char *label;
-    SignalId id;
-    const char *unit;
-    int decimals;
-    AlertEngine::AlertLevel AlertEngine::AlertState::*level;
-    bool AlertEngine::AlertState::*sensorLost;
-};
-
-constexpr CriticalSource kSources[] = {
-    {"COOLANT", SignalIds::COOLANT_TEMP_C, "C", 0, &AlertEngine::AlertState::coolantTemp,
-     &AlertEngine::AlertState::coolantSensorLost},
-    {"OIL TEMP", SignalIds::OIL_TEMP_C, "C", 0, &AlertEngine::AlertState::oilTemp,
-     &AlertEngine::AlertState::oilTempSensorLost},
-    {"OIL PRESS", SignalIds::OIL_PRESS_BAR, "bar", 1, &AlertEngine::AlertState::oilPressure,
-     &AlertEngine::AlertState::oilPressureSensorLost},
-    {"BATT", SignalIds::BATTERY_VOLTS, "V", 1, &AlertEngine::AlertState::batteryVoltage,
-     &AlertEngine::AlertState::batterySensorLost},
-};
-
 lv_obj_t *makeChip(lv_obj_t *parent, uint32_t bgRgb) {
     lv_obj_t *chip = lv_obj_create(parent);
     lv_obj_remove_style_all(chip);
     lv_obj_set_size(chip, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_color(chip, lv_color_hex(bgRgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(chip, LayoutScale::square(CHIP_RADIUS), LV_PART_MAIN);
     lv_obj_set_style_pad_hor(chip, LayoutScale::x(CHIP_PAD_H), LV_PART_MAIN);
     lv_obj_set_style_pad_ver(chip, LayoutScale::y(CHIP_PAD_V), LV_PART_MAIN);
     lv_obj_clear_flag(chip, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
@@ -98,7 +77,7 @@ bool appendPart(char *buf, size_t len, size_t &used, const char *part) {
 void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t len) {
     size_t used = 0;
     buf[0] = '\0';
-    for (const CriticalSource &src : kSources) {
+    for (const AlertSources::CriticalSource &src : AlertSources::kSources) {
         if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
             continue;
         if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
@@ -106,7 +85,7 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
         char valBuf[16];
         FloatFormat::formatFixed(valBuf, sizeof(valBuf), SignalStore::read(src.id), src.decimals);
         char part[32];
-        snprintf(part, sizeof(part), "%s %s%s", src.label, valBuf, src.unit);
+        snprintf(part, sizeof(part), "%s %s%s", src.chipLabel, valBuf, src.unit);
         if (!appendPart(buf, len, used, part))
             break;
     }
@@ -115,11 +94,11 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
 void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size_t len) {
     size_t used = 0;
     buf[0] = '\0';
-    for (const CriticalSource &src : kSources) {
+    for (const AlertSources::CriticalSource &src : AlertSources::kSources) {
         if (!(state.*(src.sensorLost)))
             continue;
         char part[32];
-        snprintf(part, sizeof(part), "%s SENSOR LOST", src.label);
+        snprintf(part, sizeof(part), "%s SENSOR LOST", src.chipLabel);
         if (!appendPart(buf, len, used, part))
             break;
     }
