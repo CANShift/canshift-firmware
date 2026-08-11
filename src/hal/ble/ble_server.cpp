@@ -7,7 +7,8 @@
     #include "config/json_reader.h"
     #include "config/rotation_config.h"
     #include "diag/logger.h"
-    #include "diag/lvgl_lock_guard.h"
+    #include "diag/lvgl_hold_timer.h"
+    #include "runtime/lvgl_lock.h"
     #include "runtime/pending_actions.h"
     #include "runtime/timer_service.h"
     #include "runtime/track_store.h"
@@ -23,8 +24,6 @@
     #include <freertos/semphr.h>
     #include <string.h>
 
-extern SemaphoreHandle_t g_lvglMutex;
-
 static constexpr char SVC_UUID[] = "4fa0b6a0-0000-0000-0000-000000000001";
 static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
 static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
@@ -37,6 +36,7 @@ static constexpr char TIMER_LAP_UUID[] = "4fa0b6a0-0000-0000-0000-000000000008";
 static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
 static constexpr size_t BLE_MAX_WRITE_LEN = 256U;
+static constexpr uint32_t BLE_SETTINGS_MUTEX_TIMEOUT_MS = 50U;
 
 static constexpr uint16_t BLE_PREFERRED_MTU = 247U;
 
@@ -123,16 +123,15 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonVariantConst brightnessVar = doc["brightness"];
         if (!brightnessVar.isNull()) {
             const uint8_t brightness = brightnessVar.as<uint8_t>();
-            if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_BLE);
-                SettingsPage::applyFromUsb(brightness);
-                xSemaphoreGive(g_lvglMutex);
-                LOG_DEBUG("BLE", "Settings applied via BLE");
-            } else {
+            LvglLock lock(pdMS_TO_TICKS(BLE_SETTINGS_MUTEX_TIMEOUT_MS));
+            if (!lock.held()) {
                 LOG_WARN("BLE", "SETTINGS write: LVGL mutex busy — brightness dropped");
                 pChar->setValue("{\"err\":\"busy\"}");
                 return;
             }
+            LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_BLE);
+            SettingsPage::applyFromUsb(brightness);
+            LOG_DEBUG("BLE", "Settings applied via BLE");
         }
 
         JsonVariantConst rotationVar = doc["rotation"];

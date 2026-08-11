@@ -16,13 +16,14 @@
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
 #include "diag/logger.h"
-#include "diag/lvgl_lock_guard.h"
+#include "diag/lvgl_hold_timer.h"
 #include "diag/perf_counters.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/usb/usb_comm.h"
 #include "runtime/alert_engine.h"
 #include "runtime/input_buttons.h"
+#include "runtime/lvgl_lock.h"
 #include "runtime/pending_actions.h"
 #include "ui/burn_overlay.h"
 #include "ui/day_night_auto.h"
@@ -240,18 +241,6 @@ inline void uiDrainPreMutexActions() {
     }
 }
 
-inline BaseType_t uiAcquireLvglMutex() {
-#if APP_PROFILE_UI
-    const int64_t lockStartUs = esp_timer_get_time();
-#endif
-    const BaseType_t mutexTaken = xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(10));
-#if APP_PROFILE_UI
-    ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
-                                 static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
-#endif
-    return mutexTaken;
-}
-
 inline bool uiDrainDayNightActions() {
     const bool prevIsDay = ThemeManager::isDayMode();
 
@@ -319,17 +308,30 @@ inline void uiRunLvTaskHandler() {
 #endif
 }
 
-inline bool uiRunMutexBody() {
-    LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_UI);
-    const bool didDayNightChange = uiDrainDayNightActions();
+constexpr uint32_t UI_LVGL_LOCK_TIMEOUT_MS = 10;
+
+inline bool uiRunMutexFrame(bool &didDayNightChange) {
+#if APP_PROFILE_UI
+    const int64_t lockStartUs = esp_timer_get_time();
+#endif
+    LvglLock lock(pdMS_TO_TICKS(UI_LVGL_LOCK_TIMEOUT_MS));
+#if APP_PROFILE_UI
+    ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
+                                 static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
+#endif
+    if (!lock.held()) {
+        LOG_WARN("UI", "LVGL mutex timeout — skipping update");
+        return false;
+    }
+    LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_UI);
+    didDayNightChange = uiDrainDayNightActions();
     uiDrainPasskeyActions();
     uiDrainBurnOverlayActions();
     uiDrainOtaOverlayActions();
     uiDrainNavActions();
     PageManager::updateWidgets();
     uiRunLvTaskHandler();
-    xSemaphoreGive(g_lvglMutex);
-    return didDayNightChange;
+    return true;
 }
 
 inline void uiHandleOtaMark(int &successfulFrames, bool &otaSlotMarked) {
@@ -447,10 +449,7 @@ void taskUI(void *pvParameters) {
         uiDrainPreMutexActions();
 
         bool didDayNightChange = false;
-        if (uiAcquireLvglMutex() != pdTRUE) {
-            LOG_WARN("UI", "LVGL mutex timeout — skipping update");
-        } else {
-            didDayNightChange = uiRunMutexBody();
+        if (uiRunMutexFrame(didDayNightChange)) {
             uiHandleOtaMark(successfulFrames, otaSlotMarked);
         }
 

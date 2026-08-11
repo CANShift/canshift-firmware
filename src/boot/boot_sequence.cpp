@@ -18,6 +18,7 @@
 #include "runtime/signal_store.h"
 #include "runtime/track_store.h"
 #include "runtime/alert_engine.h"
+#include "runtime/lvgl_lock.h"
 #include "runtime/timer_service.h"
 #include "ui/icon_assets.h"
 #include "ui/page_manager.h"
@@ -32,8 +33,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
-
-extern SemaphoreHandle_t g_lvglMutex;
 
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
@@ -265,9 +264,10 @@ static void buildUI() {
     PageManager::init();
     LOG_INFO("BOOT", "Navigating to default page...");
 
-    xSemaphoreTake(g_lvglMutex, portMAX_DELAY);
-    PageManager::navigateTo(PageManager::getDefaultPageId());
-    xSemaphoreGive(g_lvglMutex);
+    {
+        LvglLock lock(portMAX_DELAY);
+        PageManager::navigateTo(PageManager::getDefaultPageId());
+    }
 
     lv_mem_monitor_t mon;
     lv_mem_monitor(&mon);
