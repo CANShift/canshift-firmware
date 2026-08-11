@@ -29,7 +29,7 @@ static constexpr uint32_t COLOR_BLE_CONN_DAY = 0x0044BB;
 static constexpr uint32_t COLOR_BLE_ADV_NIGHT = 0x66AACC;
 static constexpr uint32_t COLOR_BLE_ADV_DAY = 0x336699;
 
-static constexpr const char *STALE_PLACEHOLDER = "--";
+static constexpr const char *STALE_PLACEHOLDER = "- -";
 
 static constexpr uint32_t CAN_BUS_LIVE_THRESHOLD_MS = 2000;
 

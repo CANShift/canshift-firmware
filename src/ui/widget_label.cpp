@@ -24,13 +24,15 @@ void alignHeader(lv_obj_t *lbl, HeaderPos pos) {
     }
 }
 
-void drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
+constexpr int16_t kKickerTrackingPx = 2;
+
+lv_obj_t *drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
     lv_obj_t *lbl = lv_label_create(cont);
     lv_label_set_text(lbl, text);
 
     lv_obj_set_style_text_color(lbl, lv_color_hex(kLabelDimRgb), 0);
     lv_obj_set_style_text_font(lbl, FontManager::label(10), 0);
-    lv_obj_set_style_text_letter_space(lbl, 1, 0);
+    lv_obj_set_style_text_letter_space(lbl, kKickerTrackingPx, 0);
 
     const lv_coord_t parentW = lv_obj_get_width(cont);
     if (parentW > 8) {
@@ -39,6 +41,7 @@ void drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
     }
 
     alignHeader(lbl, pos);
+    return lbl;
 }
 
 } // namespace
@@ -87,15 +90,13 @@ const char *displayLabelForSignal(const char *signalId) {
     return nullptr;
 }
 
-void applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {
+lv_obj_t *applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {
     if (!cont || !signalId || signalId[0] == '\0')
-        return;
+        return nullptr;
 
     const char *curated = displayLabelForSignal(signalId);
-    if (curated != nullptr) {
-        drawHeader(cont, curated, pos);
-        return;
-    }
+    if (curated != nullptr)
+        return drawHeader(cont, curated, pos);
 
     char buf[32];
     size_t i = 0;
@@ -110,7 +111,7 @@ void applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {
     }
     buf[i] = '\0';
 
-    drawHeader(cont, buf, pos);
+    return drawHeader(cont, buf, pos);
 }
 
 } // namespace WidgetLabelOverlay

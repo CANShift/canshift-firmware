@@ -9,6 +9,7 @@
 #include <string.h>
 
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_72_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_46_nk);
 LV_FONT_DECLARE(lv_font_jbmono_medium_14_nk);
 LV_FONT_DECLARE(lv_font_archivo_extrabold_14_nk);
 
@@ -144,7 +145,8 @@ void FontManager::shutdown() {
 
             const bool isInFlash = slots[i] == &lv_font_jbmono_medium_14_nk ||
                                    slots[i] == &lv_font_archivo_extrabold_14_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_72_nk;
+                                   slots[i] == &lv_font_jbmono_extrabold_72_nk ||
+                                   slots[i] == &lv_font_jbmono_extrabold_46_nk;
             if (slots[i] != nullptr && !isInFlash) {
                 lv_font_free(const_cast<lv_font_t *>(slots[i]));
             }
@@ -164,6 +166,10 @@ const lv_font_t *FontManager::primary(uint8_t size) {
 const lv_font_t *FontManager::secondary(uint8_t size) {
     return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size,
                    &lv_font_jbmono_medium_14_nk);
+}
+
+const lv_font_t *FontManager::danger() {
+    return &lv_font_jbmono_extrabold_46_nk;
 }
 
 const lv_font_t *FontManager::units() {

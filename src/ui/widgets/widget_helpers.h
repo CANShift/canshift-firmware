@@ -14,6 +14,12 @@ namespace WidgetHelpers {
 constexpr uint32_t kZoneDangerRgb = 0xFF4444;
 constexpr uint32_t kAccentRgb = 0xFF4747;
 constexpr uint32_t kMutedRgb = 0xBABABA;
+constexpr uint32_t kTrackRgb = 0x222222;
+
+constexpr uint8_t kRulePrimaryPx = 2;
+constexpr uint8_t kRuleSecondaryPx = 1;
+constexpr uint8_t kRulePrimaryFontMin = 72;
+constexpr int16_t kPrimaryValueTrackingPx = -3;
 
 float clampPct(float value, float minValue, float maxValue);
 
@@ -36,6 +42,10 @@ void resetContainerStyle(lv_obj_t *obj);
 lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb);
 
 lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb);
+
+lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb);
+
+void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb);
 
 inline void disableInteract(lv_obj_t *obj) {
     if (!obj)
