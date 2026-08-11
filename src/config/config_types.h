@@ -8,19 +8,19 @@
     #error "CONFIG_SCHEMA_VERSION not defined — extra_targets.py must inject it from canshift-core"
 #endif
 
-#define CFG_MAX_TOPBAR_ITEMS 16
+constexpr int32_t CFG_MAX_TOPBAR_ITEMS = 16;
 
-#define CFG_MAX_BUTTON_ACTIONS 4
+constexpr int32_t CFG_MAX_BUTTON_ACTIONS = 4;
 
-#define CFG_MAX_CYCLE_STATES 4
+constexpr int32_t CFG_MAX_CYCLE_STATES = 4;
 
-#define CFG_MAX_ID_LEN 32
-#define CFG_MAX_NAME_LEN 32
-#define CFG_MAX_SIGNAL_LEN 64
-#define CFG_MAX_EXPR_LEN 128
-#define CFG_MAX_PROFILE_ID_LEN 24
-#define CFG_MAX_PATH_LEN 64
-#define CFG_MAX_COLOR_LEN 8
+constexpr int32_t CFG_MAX_ID_LEN = 32;
+constexpr int32_t CFG_MAX_NAME_LEN = 32;
+constexpr int32_t CFG_MAX_SIGNAL_LEN = 64;
+constexpr int32_t CFG_MAX_EXPR_LEN = 128;
+constexpr int32_t CFG_MAX_PROFILE_ID_LEN = 24;
+constexpr int32_t CFG_MAX_PATH_LEN = 64;
+constexpr int32_t CFG_MAX_COLOR_LEN = 8;
 
 struct CfgColor {
     uint32_t rgb;
@@ -325,7 +325,7 @@ struct CfgDeviceConfig {
     bool loaded;
 };
 
-#define CFG_MAX_INPUT_BINDINGS 16
+constexpr int32_t CFG_MAX_INPUT_BINDINGS = 16;
 
 enum class CfgInputActive : uint8_t {
     ACTIVE_LOW = 0,
