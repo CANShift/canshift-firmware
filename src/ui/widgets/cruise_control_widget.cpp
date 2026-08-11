@@ -316,10 +316,7 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
 
     CfgButtonParams &p = *w.button;
     strlcpy(p.label, spec.label, CFG_MAX_NAME_LEN);
-    p.iconPath[0] = '\0';
-    p.iconName[0] = '\0';
     p.isToggle = false;
-    p.showIcon = false;
     p.showLabel = true;
     p.hasColors = false;
     p.actionsCount = 1;

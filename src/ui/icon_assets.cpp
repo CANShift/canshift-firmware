@@ -151,21 +151,6 @@ void preloadDashboardAssets() {
                 case WidgetType::WARNING:
                     preloadIconNameOnce(seen, seenCount, widget.warning.iconName);
                     break;
-                case WidgetType::BUTTON:
-                    if (!widget.button)
-                        break;
-                    preloadIconNameOnce(seen, seenCount, widget.button->iconName);
-
-                    if (widget.button->iconPath[0] != '\0') {
-                        char lvglPath[64];
-                        const char *prefix = (widget.button->iconPath[0] == '/') ? "" : "/";
-                        snprintf(lvglPath, sizeof(lvglPath), "S:%s%s", prefix,
-                                 widget.button->iconPath);
-                        if (exists(lvglPath) &&
-                            rememberSeen(seen, seenCount, widget.button->iconPath))
-                            preload(lvglPath);
-                    }
-                    break;
                 default:
                     break;
             }

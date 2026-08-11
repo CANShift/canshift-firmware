@@ -4,9 +4,7 @@
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
-#include "ui/icon_assets.h"
 #include "ui/widget_label.h"
-#include "ui/icon_assets_baked.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
 #include "ui/widgets/widget_helpers.h"
@@ -22,19 +20,10 @@
 
 namespace {
 
-constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
-
 constexpr int16_t BUTTON_PAD_X = 6;
 constexpr int16_t BUTTON_PAD_Y = 4;
 constexpr int16_t BUTTON_ROW_GAP = 2;
-constexpr int16_t ICON_MIN_PX = 18;
-constexpr int16_t ICON_MAX_PX = 56;
-constexpr int16_t ICON_H_BUDGET_DROP = 14;
-constexpr float ICON_H_RATIO = 0.75f;
-constexpr float ICON_W_RATIO = 0.70f;
-constexpr float LABEL_NO_ICON_VBUDGET_RATIO = 0.48f;
-constexpr float LABEL_WITH_ICON_VBUDGET_RATIO = 0.20f;
-constexpr float LABEL_ICON_FRACTION = 0.40f;
+constexpr float LABEL_VBUDGET_RATIO = 0.48f;
 constexpr float LABEL_W_RATIO = 0.22f;
 constexpr int16_t LABEL_FONT_MIN = 8;
 constexpr int16_t LABEL_BUDGET_PAD = 12;
@@ -50,24 +39,8 @@ constexpr uint8_t BUTTON_KICKER_FONT_PX = 10;
 constexpr int16_t BUTTON_KICKER_TRACKING_PX = 2;
 constexpr lv_opa_t BUTTON_KICKER_ENGAGED_OPA = 0xC0;
 
-int16_t computeIconSize(int16_t w, int16_t h) {
-    int16_t budget = static_cast<int16_t>(h * ICON_H_RATIO);
-    if (h - ICON_H_BUDGET_DROP < budget)
-        budget = static_cast<int16_t>(h - ICON_H_BUDGET_DROP);
-    const int16_t widthCap = static_cast<int16_t>(w * ICON_W_RATIO);
-    if (widthCap < budget)
-        budget = widthCap;
-    if (budget > ICON_MAX_PX)
-        budget = ICON_MAX_PX;
-    if (budget < ICON_MIN_PX)
-        budget = ICON_MIN_PX;
-    return budget;
-}
-
-int16_t computeLabelFontSize(int16_t w, int16_t h, bool showIcon, int16_t iconSize) {
-    const float verticalBudget =
-        showIcon ? fminf(h * LABEL_WITH_ICON_VBUDGET_RATIO, iconSize * LABEL_ICON_FRACTION)
-                 : h * LABEL_NO_ICON_VBUDGET_RATIO;
+int16_t computeLabelFontSize(int16_t w, int16_t h) {
+    const float verticalBudget = h * LABEL_VBUDGET_RATIO;
     const float labelBudget = static_cast<float>(w - LABEL_BUDGET_PAD);
     float fontSize = fminf(verticalBudget, labelBudget * LABEL_W_RATIO);
     if (fontSize < LABEL_FONT_MIN)
@@ -90,7 +63,6 @@ static constexpr uint32_t MAP_BADGE_COLOR = WidgetHelpers::kAccentRgb;
 
 constexpr lv_opa_t BUTTON_BG_OPA_IDLE = LV_OPA_TRANSP;
 constexpr lv_opa_t BUTTON_BG_OPA_ACTIVE = LV_OPA_COVER;
-constexpr lv_opa_t BUTTON_ICON_OPA = 0xCC;
 constexpr int16_t BUTTON_BORDER_WIDTH = 2;
 constexpr uint32_t BUTTON_ACTIVE_TEXT_RGB = 0xFFFFFF;
 constexpr int16_t BUTTON_MIN_TOUCH_W = 48;
@@ -99,11 +71,9 @@ constexpr int16_t BUTTON_MIN_TOUCH_H = 50;
 struct ButtonTag {
     const CfgWidget *cfg;
     const CfgButtonParams *params;
-    lv_obj_t *iconImg;
     lv_obj_t *labelObj;
     lv_obj_t *kickerObj;
     bool toggleActive;
-    char lvglPath[LVGL_PATH_LEN];
     lv_obj_t *activeBadge;
     uint8_t mapSwitchIndex;
     bool hasMapSwitch;
@@ -111,30 +81,6 @@ struct ButtonTag {
     uint32_t signalSyncIgnoreUntilMs;
     uint8_t cycleIndex;
 };
-
-struct IconSource {
-    const lv_img_dsc_t *dsc;
-    const char *path;
-};
-
-IconSource resolveIconAsset(const CfgButtonParams &p, char *pathBuf, size_t pathBufLen) {
-    pathBuf[0] = '\0';
-    IconSource result{nullptr, pathBuf};
-    if (p.iconPath[0] != '\0') {
-        const char *prefix = (p.iconPath[0] == '/') ? "" : "/";
-        snprintf(pathBuf, pathBufLen, "S:%s%s", prefix, p.iconPath);
-        if (!IconAssets::exists(pathBuf))
-            pathBuf[0] = '\0';
-        return result;
-    }
-    result.dsc = IconAssetsBaked::resolve(p.iconName);
-    if (result.dsc != nullptr)
-        return result;
-    const char *spiffs = IconAssets::path(p.iconName);
-    if (spiffs[0] != '\0')
-        strlcpy(pathBuf, spiffs, pathBufLen);
-    return result;
-}
 
 struct ButtonVisual {
     uint32_t bgColor;
@@ -169,9 +115,6 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     lv_obj_set_style_border_width(btn, BUTTON_BORDER_WIDTH, LV_PART_MAIN);
     if (tag.labelObj) {
         lv_obj_set_style_text_color(tag.labelObj, lv_color_hex(v.textColor), 0);
-    }
-    if (tag.iconImg) {
-        lv_obj_set_style_img_recolor(tag.iconImg, lv_color_hex(v.textColor), 0);
     }
     if (tag.kickerObj) {
         const bool engaged = v.bgOpa == BUTTON_BG_OPA_ACTIVE;
@@ -291,11 +234,9 @@ void applyButtonTouchPadding(lv_obj_t *btn, int16_t scaledW, int16_t scaledH) {
 void initButtonTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &p) {
     tag->cfg = &cfg;
     tag->params = &p;
-    tag->iconImg = nullptr;
     tag->labelObj = nullptr;
     tag->kickerObj = nullptr;
     tag->toggleActive = false;
-    tag->lvglPath[0] = '\0';
     tag->activeBadge = nullptr;
     tag->mapSwitchIndex = 0;
     tag->hasMapSwitch = false;
@@ -311,25 +252,6 @@ void initButtonTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &
                 break;
             }
         }
-    }
-}
-
-void createButtonIcon(lv_obj_t *btn, ButtonTag *tag, const CfgButtonParams &p) {
-    const IconSource icon = resolveIconAsset(p, tag->lvglPath, sizeof(tag->lvglPath));
-    const bool heapOk = icon.dsc != nullptr ||
-                        heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= LVGL_FS_MIN_HEAP_BYTES;
-    const bool hasSrc = icon.dsc != nullptr || tag->lvglPath[0] != '\0';
-    if (hasSrc && heapOk) {
-        tag->iconImg = lv_img_create(btn);
-        if (icon.dsc != nullptr) {
-            lv_img_set_src(tag->iconImg, icon.dsc);
-        } else {
-            lv_img_set_src(tag->iconImg, tag->lvglPath);
-        }
-    } else if (hasSrc && !heapOk) {
-        LOG_WARN("BTN", "skipping icon %s — largest=%u below threshold", tag->lvglPath,
-                 static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-        tag->lvglPath[0] = '\0';
     }
 }
 
@@ -361,10 +283,6 @@ void applyButtonInitialVisual(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cf
                               const CfgButtonParams &p) {
     const ButtonVisual idle = computeButtonVisual(cfg, p, false);
     applyButtonVisual(btn, *tag, idle);
-    if (tag->iconImg) {
-        lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(idle.textColor), 0);
-        lv_obj_set_style_img_recolor_opa(tag->iconImg, BUTTON_ICON_OPA, 0);
-    }
     if (!p.isToggle) {
         const ButtonVisual pressed = computeButtonVisual(cfg, p, true);
         lv_obj_set_style_bg_color(btn, lv_color_hex(pressed.bgColor),
@@ -376,10 +294,6 @@ void applyButtonInitialVisual(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cf
     if (tag->labelObj) {
         lv_obj_set_style_text_color(tag->labelObj, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
                                     LV_PART_MAIN | LV_STATE_PRESSED);
-    }
-    if (tag->iconImg) {
-        lv_obj_set_style_img_recolor(tag->iconImg, lv_color_hex(BUTTON_ACTIVE_TEXT_RGB),
-                                     LV_PART_MAIN | LV_STATE_PRESSED);
     }
 }
 
@@ -416,10 +330,9 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     lv_obj_set_style_pad_hor(btn, LayoutScale::x(BUTTON_PAD_X), LV_PART_MAIN);
     lv_obj_set_style_pad_ver(btn, LayoutScale::y(BUTTON_PAD_Y), LV_PART_MAIN);
 
-    const bool hasIcon = p.showIcon && (p.iconPath[0] != '\0' || p.iconName[0] != '\0');
     const bool hasLabel = p.showLabel && p.label[0] != '\0';
 
-    if (hasIcon || hasLabel) {
+    if (hasLabel) {
         lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_style_pad_row(btn, LayoutScale::y(BUTTON_ROW_GAP), LV_PART_MAIN);
@@ -437,19 +350,13 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     initButtonTag(tag, cfg, p);
 
-    const int16_t targetIconSize = hasIcon ? computeIconSize(cfg.layout.w, cfg.layout.h) : 0;
-    const int16_t targetFontSize =
-        computeLabelFontSize(cfg.layout.w, cfg.layout.h, hasIcon, targetIconSize);
+    const int16_t targetFontSize = computeLabelFontSize(cfg.layout.w, cfg.layout.h);
     const lv_font_t *btnFont = selectButtonFontFromTarget(targetFontSize);
 
-    if (hasLabel)
+    if (hasLabel) {
         createButtonKicker(btn, tag, cfg);
-
-    if (hasIcon)
-        createButtonIcon(btn, tag, p);
-
-    if (hasLabel)
         createButtonLabel(btn, tag, p, btnFont);
+    }
 
     applyButtonInitialVisual(btn, tag, cfg, p);
 

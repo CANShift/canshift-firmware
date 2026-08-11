@@ -372,8 +372,6 @@ bool loadSignals() {
             }
         }
 
-        parseColorRamp(sig["colorRamp"], s.name, &s.colorRamp);
-
         {
             const char *exprStr = sig["expr"] | (const char *)nullptr;
             if (exprStr) {

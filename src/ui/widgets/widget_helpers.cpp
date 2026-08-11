@@ -79,13 +79,6 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text) {
     return true;
 }
 
-const CfgColorRamp *resolveSignalRamp(const char *signalId) {
-    const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
-    const CfgColorRampDef empty{};
-    const CfgColorRampDef &perSignal = def ? def->colorRamp : empty;
-    return resolveRamp(perSignal, signalId);
-}
-
 const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
 
     if (configSuffix && configSuffix[0] != '\0')

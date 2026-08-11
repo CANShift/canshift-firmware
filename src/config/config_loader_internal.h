@@ -51,6 +51,4 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out);
 
 void parseWidget(JsonObjectConst src, CfgWidget *w);
 
-void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef *out);
-
 } // namespace ConfigLoaderInternal
