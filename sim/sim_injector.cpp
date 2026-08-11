@@ -6,6 +6,7 @@
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
 
+#include <Arduino.h>
 #include <SDL.h>
 
 #include <lvgl.h>
@@ -79,7 +80,7 @@ void dumpObj(lv_obj_t *obj, int depth) {
         dumpObj(lv_obj_get_child(obj, i), depth + 1);
 }
 
-void handleKey(int key) {
+void handleKey(int key, uint32_t nowMs) {
     switch (key) {
         case SDLK_c:
             s_mode = Mode::Cruise;
@@ -100,7 +101,7 @@ void handleKey(int key) {
         case SDLK_f:
             s_otaDemo = !s_otaDemo;
             if (s_otaDemo) {
-                s_otaStartMs = SDL_GetTicks();
+                s_otaStartMs = nowMs;
                 OtaOverlay::show(kOtaTotalBytes);
                 printf("ota demo: started\n");
             } else {
@@ -131,7 +132,7 @@ namespace SimInjector {
 
 void init(const char *scenarioPath) {
     (void)scenarioPath;
-    s_startMs = SDL_GetTicks();
+    s_startMs = millis();
     printf("keys: C cruise · R rev-limit · O oil-critical · X stale · F ota · ←/→ pages · S "
            "screenshot · ESC quit\n");
 }
@@ -139,7 +140,7 @@ void init(const char *scenarioPath) {
 void tick(uint32_t nowMs) {
     int key;
     while ((key = SimDisplay::pollKey()) != 0)
-        handleKey(key);
+        handleKey(key, nowMs);
 
     tickOtaDemo(nowMs);
 
