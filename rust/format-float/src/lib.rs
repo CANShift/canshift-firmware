@@ -269,9 +269,9 @@ mod tests {
     #[test]
     fn fixed_basic_two_decimals() {
         let mut buf = [0u8; 32];
-        let n = format_fixed(&mut buf, 3.14159, 2);
+        let n = format_fixed(&mut buf, 8.14159, 2);
         assert_eq!(n, 4);
-        assert_eq!(as_str(&buf), "3.14");
+        assert_eq!(as_str(&buf), "8.14");
     }
 
     #[test]
@@ -379,8 +379,9 @@ mod tests {
     #[test]
     fn spec_prefix_and_suffix() {
         let mut buf = [0u8; 32];
-        format_from_spec(&mut buf, 3.14, b"value=%.2fkg!");
-        assert_eq!(as_str(&buf), "value=3.14kg!");
+        let n = format_from_spec(&mut buf, 8.14, b"value=%.2fkg!");
+        assert_eq!(n, 13);
+        assert_eq!(as_str(&buf), "value=8.14kg!");
     }
 
     #[test]
