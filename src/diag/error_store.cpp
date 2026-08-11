@@ -14,6 +14,18 @@ static uint8_t s_count = 0;
 static uint32_t s_version = 0;
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
+const char *ErrorStore::sourceLabel(ErrorSource source) {
+    switch (source) {
+        case ERROR_SRC_CAN:
+            return "CAN";
+        case ERROR_SRC_CONFIG:
+            return "CFG";
+        case ERROR_SRC_SYSTEM:
+            return "SYS";
+    }
+    return "?";
+}
+
 void ErrorStore::push(ErrorSource source, const char *code, const char *message) {
     portENTER_CRITICAL(&s_mux);
     error_store_push_rs(s_ring, RING_SIZE, &s_head, &s_count, &s_version,

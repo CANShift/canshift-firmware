@@ -6,6 +6,7 @@
 #include "runtime/signal_store.h"
 #include "can/signal_map.h"
 #include "util/format_float.h"
+#include "ui/widgets/widget_helpers.h"
 #include "layout_scale.h"
 
 #include <Arduino.h>
@@ -104,14 +105,6 @@ void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size
     }
 }
 
-void setChipVisible(lv_obj_t *chip, bool visible) {
-    if (visible) {
-        lv_obj_clear_flag(chip, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
 } // namespace
 
 void AlertBanner::init() {
@@ -177,13 +170,9 @@ void AlertBanner::update() {
         lv_label_set_text(s_critLabel, text);
     if (lostVisible)
         lv_label_set_text(s_lostLabel, lostText);
-    setChipVisible(s_critChip, critVisible);
-    setChipVisible(s_lostChip, lostVisible);
-    setChipVisible(s_milChip, milVisible);
+    WidgetHelpers::setVisible(s_critChip, critVisible);
+    WidgetHelpers::setVisible(s_lostChip, lostVisible);
+    WidgetHelpers::setVisible(s_milChip, milVisible);
 
-    if (critVisible || lostVisible || milVisible) {
-        lv_obj_clear_flag(s_container, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(s_container, LV_OBJ_FLAG_HIDDEN);
-    }
+    WidgetHelpers::setVisible(s_container, critVisible || lostVisible || milVisible);
 }

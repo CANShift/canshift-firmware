@@ -41,8 +41,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     buildRebootRow(y, rowW);
     y += LayoutScale::y(GAP_ROW);
     buildAboutRow(y, rowW);
-    y += LayoutScale::y(GAP_ROW);
-    buildActionsRow(y, rowW);
 
     applyBrightness();
     LOG_INFO("Settings", "Settings page initialized");

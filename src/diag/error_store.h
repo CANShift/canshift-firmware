@@ -16,6 +16,8 @@ struct FwError {
 
 namespace ErrorStore {
 
+const char *sourceLabel(ErrorSource source);
+
 void push(ErrorSource source, const char *code, const char *message);
 
 void getAll(FwError *buf, uint8_t *count, uint8_t maxCount);

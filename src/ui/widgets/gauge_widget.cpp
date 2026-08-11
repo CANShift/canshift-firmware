@@ -210,8 +210,7 @@ static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     return valueRow;
 }
 
-static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint32_t /*textRgb*/,
-                                 const CfgWidget & /*cfg*/) {
+static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font) {
     lv_obj_t *label = lv_label_create(valueRow);
     lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, font, 0);
@@ -253,19 +252,17 @@ struct GaugeBuildState {
     bool hasDanger;
 };
 
-static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
-                              lv_obj_t *&outLabel, lv_obj_t *&outKicker) {
+static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, lv_obj_t *&outLabel,
+                              lv_obj_t *&outKicker) {
     uint8_t intFontSize = kValueFontSizeUnits;
     const lv_font_t *font = resolveValueFont(cfg, intFontSize);
     lv_obj_t *valueRow = buildValueRow(cont);
-    const uint32_t valueRgb = cfg.style.primaryColor.rgb;
-    outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
+    outLabel = buildValueLabel(valueRow, font);
     if (outLabel)
         lv_obj_set_style_text_letter_space(outLabel, WidgetHelpers::valueTrackingPx(intFontSize),
                                            0);
     outKicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
                                                       WidgetLabelOverlay::HeaderPos::TOP_LEFT);
-    (void)textRgb;
 }
 
 static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built,
@@ -318,7 +315,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     lv_obj_t *label = nullptr;
     lv_obj_t *kicker = nullptr;
-    buildValueCluster(cont, cfg, textRgb, label, kicker);
+    buildValueCluster(cont, cfg, label, kicker);
 
     const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
     const uint32_t ruleRgb = primaryTier ? textRgb : WidgetHelpers::kTrackRgb;

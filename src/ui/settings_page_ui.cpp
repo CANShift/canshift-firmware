@@ -235,11 +235,6 @@ void buildRebootRow(int16_t &y, int16_t rowW) {
     y += BTN_H;
 }
 
-void buildActionsRow(int16_t y, int16_t rowW) {
-    (void)y;
-    (void)rowW;
-}
-
 void animSetY(void *obj, int32_t v) {
     lv_obj_set_y(static_cast<lv_obj_t *>(obj), static_cast<lv_coord_t>(v));
 }

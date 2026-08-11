@@ -215,18 +215,6 @@ void buildErrorsSection(lv_obj_t *parent) {
     s_errorEmptyLabel = empty;
 }
 
-const char *errorSrcLabel(ErrorSource src) {
-    switch (src) {
-        case ERROR_SRC_CAN:
-            return "CAN";
-        case ERROR_SRC_CONFIG:
-            return "CFG";
-        case ERROR_SRC_SYSTEM:
-            return "SYS";
-    }
-    return "?";
-}
-
 void onCloseReleased(lv_event_t *) {
 
     LOG_INFO("DIAG_DRAWER", "close release");
@@ -453,23 +441,15 @@ void update() {
                 continue;
             if (i < fetched) {
                 char codeBuf[24];
-                snprintf(codeBuf, sizeof(codeBuf), "%s:%s", errorSrcLabel(errors[i].source),
-                         errors[i].code);
+                snprintf(codeBuf, sizeof(codeBuf), "%s:%s",
+                         ErrorStore::sourceLabel(errors[i].source), errors[i].code);
                 lv_label_set_text(s_errorCodes[i], codeBuf);
                 lv_label_set_text(s_errorMsgs[i], errors[i].message);
-                lv_obj_clear_flag(s_errorRows[i], LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(s_errorRows[i], LV_OBJ_FLAG_HIDDEN);
             }
+            WidgetHelpers::setVisible(s_errorRows[i], i < fetched);
         }
 
-        if (s_errorEmptyLabel) {
-            if (fetched == 0) {
-                lv_obj_clear_flag(s_errorEmptyLabel, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(s_errorEmptyLabel, LV_OBJ_FLAG_HIDDEN);
-            }
-        }
+        WidgetHelpers::setVisible(s_errorEmptyLabel, fetched == 0);
     }
 }
 

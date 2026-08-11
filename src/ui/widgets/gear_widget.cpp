@@ -18,8 +18,6 @@ struct GearTag {
     uint32_t lastColorRgb;
 };
 
-constexpr int16_t kSigHeaderH = 14;
-
 const lv_font_t *selectFont(const CfgWidget &cfg, uint8_t &sizeOut) {
     if (cfg.label.big > 0) {
         sizeOut = WidgetHelpers::deviceFontPxForBig(cfg.label.big);
@@ -49,12 +47,8 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
-    const int16_t sigHeaderH = 0;
-    const int16_t digitBandH = cfg.layout.h;
-    (void)kSigHeaderH;
-
     lv_obj_t *label = lv_label_create(cont);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, static_cast<int16_t>(sigHeaderH / 2));
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
     uint8_t fontSize = 0;
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);

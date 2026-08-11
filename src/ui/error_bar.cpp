@@ -26,7 +26,7 @@ static constexpr int16_t DISMISS_H = 32;
 
 static constexpr int16_t SOURCE_STRIP_W = 4;
 
-static constexpr uint8_t MAX_ROWS = 6;
+static constexpr uint8_t MAX_ROWS = ERROR_STORE_RING_SIZE;
 static constexpr int16_t DETAIL_MAX_H = 160;
 
 static constexpr uint32_t COL_BORDER_CRITICAL = 0xCC3333;
@@ -77,18 +77,6 @@ static lv_obj_t *s_detailDism[MAX_ROWS] = {nullptr};
 static bool s_expanded = false;
 static uint32_t s_lastVersion = UINT32_MAX;
 
-static const char *srcLabel(ErrorSource src) {
-    switch (src) {
-        case ERROR_SRC_CAN:
-            return "CAN";
-        case ERROR_SRC_CONFIG:
-            return "CFG";
-        case ERROR_SRC_SYSTEM:
-            return "SYS";
-    }
-    return "?";
-}
-
 static lv_obj_t *makeLabel(lv_obj_t *parent, uint32_t color) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_obj_set_style_text_font(lbl, FONT(), 0);
@@ -124,13 +112,7 @@ static void applyRowStyle(lv_obj_t *row) {
 
 static void setExpanded(bool expand) {
     s_expanded = expand;
-    if (!s_detailPanel)
-        return;
-    if (expand) {
-        lv_obj_clear_flag(s_detailPanel, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(s_detailPanel, LV_OBJ_FLAG_HIDDEN);
-    }
+    WidgetHelpers::setVisible(s_detailPanel, expand);
 }
 
 static void onContainerGesture(lv_event_t *e) {
@@ -329,7 +311,8 @@ void ErrorBar::update() {
 
     {
         char codeBuf[20];
-        snprintf(codeBuf, sizeof(codeBuf), "%s:%s", srcLabel(errors[0].source), errors[0].code);
+        snprintf(codeBuf, sizeof(codeBuf), "%s:%s", ErrorStore::sourceLabel(errors[0].source),
+                 errors[0].code);
         lv_label_set_text(s_codeLabel, codeBuf);
         lv_label_set_text(s_msgLabel, errors[0].message);
 
@@ -350,7 +333,8 @@ void ErrorBar::update() {
             continue;
         if (i < fetched) {
             char codeBuf[20];
-            snprintf(codeBuf, sizeof(codeBuf), "%s:%s", srcLabel(errors[i].source), errors[i].code);
+            snprintf(codeBuf, sizeof(codeBuf), "%s:%s", ErrorStore::sourceLabel(errors[i].source),
+                     errors[i].code);
             lv_label_set_text(s_detailCode[i], codeBuf);
             lv_label_set_text(s_detailMsg[i], errors[i].message);
             lv_obj_clear_flag(s_detailRows[i], LV_OBJ_FLAG_HIDDEN);
