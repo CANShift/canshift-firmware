@@ -1,6 +1,6 @@
 # canshift-firmware — Project Rules
 
-ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · Arduino · PlatformIO · LVGL 8.3, with Rust modules under `rust/` (FFI via cbindgen).
+ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · Arduino · PlatformIO · LVGL 8.3, with Rust modules under `rust/` (FFI via hand-written `include/*_rs.h`).
 
 ## Commands
 
@@ -10,7 +10,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 
 ## Rules
 
-- New pure-logic modules in Rust; HAL/LVGL/Arduino stay C++.
+- New pure-logic modules in Rust; HAL/LVGL/Arduino stay C++. Each crate ships a hand-written `include/<name>_rs.h`; there is no cbindgen step.
 - `src/config/config_types.h` mirrors `@canshift/core` schemas; `core-schema-version.txt` pins `CURRENT_SCHEMA_VERSION` for standalone builds (a sibling `../canshift-core` checkout wins) — update the pin on every schema bump.
 - Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
 - Zero comments policy (rationale lives in canshift-docs); clang-format gates every PR.
@@ -24,7 +24,7 @@ Non-negotiable. Reviewed on every PR, ahead of feature count.
 - Every return code is consumed at the call site. Never call a `bool` or `esp_err_t` function as a bare statement; never fail silently — `LOG_ERROR` plus `ErrorStore::push`. Persistent writes (NVS, storage) are checked before anything reports success.
 - Acquisition is RAII. A take/lock in one function whose release lives in another is a bug, and a helper must be named for what it actually does.
 - Dispatch is a `constexpr` table. No `switch` with inline case bodies, no `strcmp` chain, and never two transports carrying separate copies of one command set.
-- `constexpr` in a namespace, not `#define`. `#define` is for preprocessor conditions and build flags only. Constants shared with Rust are generated, not hand-mirrored.
+- `constexpr` in a namespace, not `#define`. `#define` is for preprocessor conditions and build flags only. A constant shared with Rust exists twice — register the pair in `scripts/check_ffi_parity.py`, which fails the build and the `lint` job on drift.
 - Third copy gets extracted — LVGL style ladders and show/hide toggles included. If a helper already exists in one file, promote it to `WidgetHelpers` instead of retyping it.
 - A constant must be read by the code it names. `(void)symbol;` to silence an unused warning means delete the symbol.
 - The zero-comment rule covers `rust/` too.

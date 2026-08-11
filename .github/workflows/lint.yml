@@ -18,3 +18,8 @@ jobs:
         run: |
           FILES=$(find src include -name "*.cpp" -o -name "*.h" | grep -v 'lv_conf\.h')
           clang-format --dry-run --Werror --style=file $FILES
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: FFI constant parity
+        run: python3 scripts/check_ffi_parity.py
