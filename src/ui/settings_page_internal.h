@@ -83,7 +83,6 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW);
 void buildDayModeRow(int16_t &y, int16_t rowW);
 void buildAboutRow(int16_t &y, int16_t rowW);
 void buildRebootRow(int16_t &y, int16_t rowW);
-void buildActionsRow(int16_t y, int16_t rowW);
 
 void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb);
 void onSnapOpenDone(lv_anim_t *a);

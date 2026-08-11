@@ -27,11 +27,8 @@ bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
 
 namespace TopBarMetrics {
 constexpr float DOT_RATIO = 0.30f;
-constexpr float FONT_SIZE_RATIO = 0.45f;
-constexpr float SEPARATOR_RATIO = 0.55f;
 constexpr float GAP_RATIO = 0.25f;
 constexpr float PADDING_RATIO = 0.40f;
-constexpr float ICON_SIZE_RATIO = 1.15f;
 } // namespace TopBarMetrics
 
 static inline int16_t metricRound(float v) {
@@ -46,10 +43,6 @@ static inline int16_t derivedGap(int16_t height) {
 static inline int16_t derivedPadding(int16_t height) {
     return metricRound(static_cast<float>(height) * TopBarMetrics::PADDING_RATIO);
 }
-static inline int16_t derivedIconSize(int16_t fontSize) {
-    return metricRound(static_cast<float>(fontSize) * TopBarMetrics::ICON_SIZE_RATIO);
-}
-
 static lv_obj_t *s_themeIcon = nullptr;
 static int16_t s_height = 30;
 

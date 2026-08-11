@@ -73,6 +73,26 @@ inline void disableInteract(lv_obj_t *obj) {
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 }
 
+inline void setVisible(lv_obj_t *obj, bool visible) {
+    if (!obj)
+        return;
+    if (visible) {
+        lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// Skips the LVGL call when the flag already matches — the top-bar update path
+// runs every frame and invalidation is not free.
+inline void setVisibleIfChanged(lv_obj_t *obj, bool visible) {
+    if (!obj)
+        return;
+    if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN) == visible) {
+        setVisible(obj, visible);
+    }
+}
+
 template <typename T>
 inline void attachTagDeleter(lv_obj_t *obj, T *tag) {
     if (!obj || !tag)

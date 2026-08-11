@@ -30,38 +30,6 @@ struct WidgetEntry {
 static WidgetEntry s_widgets[MAX_TRACKED_WIDGETS];
 static uint8_t s_widgetCount = 0;
 
-lv_obj_t *createGauge(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    lv_obj_t *obj = GaugeWidget::create(parent, cfg, yOffset);
-    return obj;
-}
-
-lv_obj_t *createLabel(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    lv_obj_t *obj = LabelWidget::create(parent, cfg, yOffset);
-    return obj;
-}
-
-lv_obj_t *createWarning(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    lv_obj_t *obj = WarningWidget::create(parent, cfg, yOffset);
-    return obj;
-}
-
-lv_obj_t *createButton(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    lv_obj_t *obj = ButtonWidget::create(parent, cfg, yOffset);
-    return obj;
-}
-
-lv_obj_t *createGear(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    return GearWidget::create(parent, cfg, yOffset);
-}
-
-lv_obj_t *createTimer(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    return TimerWidget::create(parent, cfg, yOffset);
-}
-
-lv_obj_t *createImage(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    return ImageWidget::create(parent, cfg, yOffset);
-}
-
 void updateWidget(WidgetEntry &entry,
                   const SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS]) {
 
@@ -123,28 +91,28 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
     switch (cfg.type) {
         case WidgetType::GAUGE:
-            obj = createGauge(parent, cfg, yOffset);
+            obj = GaugeWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::LABEL:
-            obj = createLabel(parent, cfg, yOffset);
+            obj = LabelWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::GEAR_IND:
-            obj = createGear(parent, cfg, yOffset);
+            obj = GearWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::TIMER:
-            obj = createTimer(parent, cfg, yOffset);
+            obj = TimerWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::IMAGE:
-            obj = createImage(parent, cfg, yOffset);
+            obj = ImageWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::SHIFT_LIGHT:
             obj = ShiftLightWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::WARNING:
-            obj = createWarning(parent, cfg, yOffset);
+            obj = WarningWidget::create(parent, cfg, yOffset);
             break;
         case WidgetType::BUTTON:
-            obj = createButton(parent, cfg, yOffset);
+            obj = ButtonWidget::create(parent, cfg, yOffset);
             break;
         default:
             LOG_WARN("WF", "Unknown widget type for '%s'", cfg.id);

@@ -13,6 +13,7 @@
     #include "hal/ble/ble_server.h"
 #endif
 #include "util/format_float.h"
+#include "ui/widgets/widget_helpers.h"
 
 #include <lvgl.h>
 #include <stdio.h>
@@ -75,12 +76,10 @@ static void updateDynSignalLabel(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
 
     if (sid >= SignalIds::SIGNAL_COUNT) {
-        if (!lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
-            lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+        WidgetHelpers::setVisibleIfChanged(d.obj, false);
         return;
     }
-    if (lv_obj_has_flag(d.obj, LV_OBJ_FLAG_HIDDEN))
-        lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
+    WidgetHelpers::setVisibleIfChanged(d.obj, true);
 
     if (!SignalStore::isValid(sid)) {
         if (strcmp(STALE_PLACEHOLDER, d.lastText) != 0) {
@@ -136,11 +135,7 @@ static void updateModeFlag(DynItem &d) {
     }
     const bool wantHidden = !active;
     if (wantHidden != d.hidden) {
-        if (wantHidden) {
-            lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-        }
+        WidgetHelpers::setVisible(d.obj, active);
         d.hidden = wantHidden;
     }
     applyDynTextColor(d, active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE);
@@ -166,11 +161,7 @@ static void updateTrackBadge(DynItem &d) {
     const bool active = TrackStore::isActiveWithin(TRACK_BADGE_TIMEOUT_MS);
     const bool wantHidden = !active;
     if (wantHidden != d.hidden) {
-        if (wantHidden) {
-            lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-        }
+        WidgetHelpers::setVisible(d.obj, active);
         d.hidden = wantHidden;
     }
     if (wantHidden)
@@ -202,11 +193,7 @@ static void updateLinkedSeparator(DynItem &d) {
         TopBarSeparatorLink::wantsHidden(d.nextFlagIdx, dynCount, linkedHidden, nextFlagHidden);
     if (wantHidden == d.hidden)
         return;
-    if (wantHidden) {
-        lv_obj_add_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_clear_flag(d.obj, LV_OBJ_FLAG_HIDDEN);
-    }
+    WidgetHelpers::setVisible(d.obj, !wantHidden);
     d.hidden = wantHidden;
 }
 
