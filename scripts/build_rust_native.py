@@ -16,7 +16,6 @@ CRATES = (
     ("format-float", "libformat_float.a"),
     ("error-store", "liberror_store.a"),
     ("alert-engine", "libalert_engine.a"),
-    ("sensor-color-ramp", "libsensor_color_ramp.a"),
     ("timer-core", "libtimer_core.a"),
     ("layout-grid", "liblayout_grid.a"),
 )
