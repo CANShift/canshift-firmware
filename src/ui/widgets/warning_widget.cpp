@@ -129,13 +129,9 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     }
 
     WidgetTagPool::Slot<WarningTag> tagSlot;
-    WarningTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("WARN", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(root);
+    WarningTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "WARN", root);
+    if (!tag)
         return nullptr;
-    }
     tag->root = root;
     tag->iconImg = iconImg;
     tag->signalLabel = signalLabel;

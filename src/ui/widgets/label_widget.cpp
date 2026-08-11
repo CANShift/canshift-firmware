@@ -269,13 +269,9 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     WidgetTagPool::Slot<LabelTag> tagSlot;
-    LabelTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("WF", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(cont);
+    LabelTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "WF", cont);
+    if (!tag)
         return nullptr;
-    }
     initLabelTag(tag, cfg, parts);
 
     AlertFlash::attach(tag->alert, cont);

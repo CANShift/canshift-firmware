@@ -373,13 +373,9 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     }
 
     WidgetTagPool::Slot<ButtonTag> tagSlot;
-    ButtonTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("BTN", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(btn);
+    ButtonTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "BTN", btn);
+    if (!tag)
         return nullptr;
-    }
     LOG_DEBUG("BTN", "create %s heap.largest=%u", cfg.id,
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     initButtonTag(tag, cfg, p);

@@ -324,13 +324,9 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         ruleRgb);
 
     WidgetTagPool::Slot<GaugeTag> tagSlot;
-    GaugeTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("GAUGE", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(cont);
+    GaugeTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "GAUGE", cont);
+    if (!tag)
         return nullptr;
-    }
     const GaugeBuildState built = {label,   fillArc,           topRule,        kicker,
                                    ruleRgb, modes.dangerAngle, modes.hasDanger};
     initGaugeTag(tag, cfg, built, textRgb);

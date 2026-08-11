@@ -62,13 +62,9 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
     WidgetTagPool::Slot<GearTag> tagSlot;
-    GearTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("GEAR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(cont);
+    GearTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "GEAR", cont);
+    if (!tag)
         return nullptr;
-    }
     tag->label = label;
     tag->lastColorRgb = textRgb;
     lv_obj_set_user_data(cont, tag);

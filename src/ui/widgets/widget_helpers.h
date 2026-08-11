@@ -67,6 +67,8 @@ lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb);
 
 void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb);
 
+void logTagPoolExhausted(const char *logTag, const char *widgetId);
+
 inline void disableInteract(lv_obj_t *obj) {
     if (!obj)
         return;
@@ -91,6 +93,21 @@ inline void setVisibleIfChanged(lv_obj_t *obj, bool visible) {
     if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN) == visible) {
         setVisible(obj, visible);
     }
+}
+
+// Returns nullptr when the pool is dry, after deleting `deleteOnFailure` if the
+// caller has no way to render without a tag. Pass nullptr to keep the object.
+template <typename T>
+inline T *acquireTag(WidgetTagPool::Slot<T> &slot, const char *widgetId, const char *logTag,
+                     lv_obj_t *deleteOnFailure) {
+    T *tag = slot.get();
+    if (tag)
+        return tag;
+    logTagPoolExhausted(logTag, widgetId);
+    if (deleteOnFailure) {
+        lv_obj_del(deleteOnFailure);
+    }
+    return nullptr;
 }
 
 template <typename T>
