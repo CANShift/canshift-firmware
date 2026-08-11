@@ -102,7 +102,9 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
     return nullptr;
 }
 
+#include "config_dashboard_loader.inc"
 #include "config_file_loaders.inc"
 #include "config_parser.inc"
+#include "config_signals_loader.inc"
 #include "config_validators.inc"
 #include "json_helpers.inc"
