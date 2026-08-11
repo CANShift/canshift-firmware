@@ -25,14 +25,14 @@ const lv_font_t *selectFont(int16_t h, int16_t w) {
     int s = byHeight < byWidth ? byHeight : byWidth;
     if (s < 12)
         s = 12;
-    if (s > 48)
-        s = 48;
+    if (s > 72)
+        s = 72;
     const uint8_t size = static_cast<uint8_t>(s);
-    if (size >= 32)
+    if (size >= 72)
         return FontManager::primary(size);
-    if (size >= 20)
+    if (size >= 34)
         return FontManager::secondary(size);
-    return FontManager::label(size);
+    return FontManager::units();
 }
 
 } // namespace

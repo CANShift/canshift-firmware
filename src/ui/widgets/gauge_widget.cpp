@@ -24,16 +24,14 @@ static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr uint32_t kColorGradientBg = 0x2A2A2A;
 static constexpr const char *kStalePlaceholder = "--";
 
-static constexpr int16_t kValueFontHeightXl = 165;
-static constexpr int16_t kValueFontHeightLg = 125;
-static constexpr int16_t kValueFontHeightMd = 95;
-static constexpr uint8_t kValueFontSizeXl = 48;
-static constexpr uint8_t kValueFontSizeLg = 32;
-static constexpr uint8_t kValueFontSizeMd = 24;
-static constexpr uint8_t kValueFontSizeSm = 20;
+static constexpr int16_t kValueFontHeightPrimary = 125;
+static constexpr int16_t kValueFontHeightSecondary = 60;
+static constexpr uint8_t kValueFontSizePrimary = 72;
+static constexpr uint8_t kValueFontSizeSecondary = 34;
+static constexpr uint8_t kValueFontSizeUnits = 14;
 
 static constexpr uint8_t kFracFontMinPx = 12;
-static constexpr uint8_t kFracFontSecondaryThresholdPx = 20;
+static constexpr uint8_t kFracFontSecondaryThresholdPx = 34;
 
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
@@ -247,20 +245,16 @@ static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam,
 
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
     const int16_t h = cfg.layout.h;
-    if (h >= kValueFontHeightXl) {
-        intFontSizeOut = kValueFontSizeXl;
-        return FontManager::primary(kValueFontSizeXl);
+    if (h >= kValueFontHeightPrimary) {
+        intFontSizeOut = kValueFontSizePrimary;
+        return FontManager::primary(kValueFontSizePrimary);
     }
-    if (h >= kValueFontHeightLg) {
-        intFontSizeOut = kValueFontSizeLg;
-        return FontManager::primary(kValueFontSizeLg);
+    if (h >= kValueFontHeightSecondary) {
+        intFontSizeOut = kValueFontSizeSecondary;
+        return FontManager::secondary(kValueFontSizeSecondary);
     }
-    if (h >= kValueFontHeightMd) {
-        intFontSizeOut = kValueFontSizeMd;
-        return FontManager::secondary(kValueFontSizeMd);
-    }
-    intFontSizeOut = kValueFontSizeSm;
-    return FontManager::secondary(kValueFontSizeSm);
+    intFontSizeOut = kValueFontSizeUnits;
+    return FontManager::units();
 }
 
 static constexpr int16_t kValueRowYOffset = kArcYShift;

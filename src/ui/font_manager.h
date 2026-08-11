@@ -12,5 +12,7 @@ class FontManager {
 
     static const lv_font_t *secondary(uint8_t size);
 
+    static const lv_font_t *units();
+
     static const lv_font_t *label(uint8_t size);
 };

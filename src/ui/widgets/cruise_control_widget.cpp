@@ -417,8 +417,7 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
         const bool isSymbol = (i == static_cast<uint8_t>(CruiseCorner::kTL)) ||
                               (i == static_cast<uint8_t>(CruiseCorner::kTR));
-        lv_obj_set_style_text_font(
-            label, isSymbol ? FontManager::primary(32) : FontManager::secondary(24), 0);
+        lv_obj_set_style_text_font(label, FontManager::secondary(34), 0);
         const int16_t cx = x + (buttonW / 2) + shiftX;
         const int16_t cy = y + (buttonH / 2) + shiftY;
         lv_obj_set_pos(label, cx - (isSymbol ? 12 : 24), cy - (isSymbol ? 16 : 12));
@@ -466,10 +465,10 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
 
     lv_label_set_text(setValue, "0");
     lv_obj_set_style_text_color(setValue, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
-    lv_obj_set_style_text_font(setValue, FontManager::primary(32), 0);
+    lv_obj_set_style_text_font(setValue, FontManager::secondary(34), 0);
     lv_obj_set_width(setValue, centerW);
     lv_obj_set_style_text_align(setValue, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(setValue, 0, (centerH - 32) / 2);
+    lv_obj_set_pos(setValue, 0, (centerH - 34) / 2);
 
     lv_obj_t *setUnit = lv_label_create(center);
     lv_label_set_text(setUnit, "km/h");
