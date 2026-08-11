@@ -7,7 +7,7 @@
  "revLimitRpm": 7200,
  "topBar": {
   "height": 16,
-  "bgColor": "#0D0D0D",
+  "bgColor": "#121212",
   "textColor": "#AAAAAA",
   "layout": [
    {
@@ -43,7 +43,7 @@
   {
    "id": "street",
    "backgroundImage": null,
-   "backgroundColor": "#000000",
+   "backgroundColor": "#121212",
    "showTopBar": true,
    "widgets": [
     {
@@ -255,7 +255,7 @@
   {
    "id": "track",
    "backgroundImage": null,
-   "backgroundColor": "#000000",
+   "backgroundColor": "#121212",
    "showTopBar": true,
    "widgets": [
     {
@@ -515,7 +515,7 @@
   {
    "id": "engine",
    "backgroundImage": null,
-   "backgroundColor": "#000000",
+   "backgroundColor": "#121212",
    "showTopBar": true,
    "widgets": [
     {
@@ -726,7 +726,7 @@
   {
    "id": "tuning",
    "backgroundImage": null,
-   "backgroundColor": "#000000",
+   "backgroundColor": "#121212",
    "showTopBar": true,
    "widgets": [
     {
@@ -938,7 +938,7 @@
   {
    "id": "timing",
    "backgroundImage": null,
-   "backgroundColor": "#000000",
+   "backgroundColor": "#121212",
    "showTopBar": true,
    "widgets": [
     {
@@ -1088,7 +1088,7 @@
   {
    "id": "controls",
    "backgroundImage": null,
-   "backgroundColor": "#000000",
+   "backgroundColor": "#121212",
    "showTopBar": true,
    "widgets": [
     {
