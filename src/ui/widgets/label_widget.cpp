@@ -320,8 +320,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
     }
 
-    const bool unchanged =
-        tag->lastValid && !std::isnan(tag->lastValue) && value == tag->lastValue;
+    const bool unchanged = tag->lastValid && !std::isnan(tag->lastValue) && value == tag->lastValue;
     if (!unchanged) {
         char buf[40];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,

@@ -81,6 +81,16 @@ class Preferences {
         return store().erase(m_ns + "/" + key) > 0;
     }
 
+    bool isKey(const char *key) {
+        return store().find(m_ns + "/" + key) != store().end();
+    }
+
+    size_t putBytes(const char *key, const void *data, size_t len) {
+        store()[m_ns + "/" + key] =
+            std::string(static_cast<const char *>(data), len);
+        return len;
+    }
+
   private:
     static std::map<std::string, std::string> &store() {
         static std::map<std::string, std::string> s;

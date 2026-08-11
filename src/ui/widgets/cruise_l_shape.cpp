@@ -18,10 +18,9 @@ bool isBottomRow(Corner corner) {
 
 lv_point_t bezierAt(const lv_point_t &p0, const lv_point_t &pc, const lv_point_t &p2, float t) {
     const float omt = 1.0f - t;
-    return {static_cast<lv_coord_t>(
-                lroundf(omt * omt * p0.x + 2.0f * omt * t * pc.x + t * t * p2.x)),
-            static_cast<lv_coord_t>(
-                lroundf(omt * omt * p0.y + 2.0f * omt * t * pc.y + t * t * p2.y))};
+    return {
+        static_cast<lv_coord_t>(lroundf(omt * omt * p0.x + 2.0f * omt * t * pc.x + t * t * p2.x)),
+        static_cast<lv_coord_t>(lroundf(omt * omt * p0.y + 2.0f * omt * t * pc.y + t * t * p2.y))};
 }
 
 struct PathBuilder {
@@ -101,8 +100,7 @@ bool hitInNotch(const lv_area_t &area, Corner corner, const Geometry &geom,
     const int16_t py = static_cast<int16_t>(point.y - area.y1);
     const int16_t w = static_cast<int16_t>(area.x2 - area.x1 + 1);
     const int16_t h = static_cast<int16_t>(area.y2 - area.y1 + 1);
-    const bool inNotchX =
-        isRightColumn(corner) ? (px < geom.notchW) : (px >= w - geom.notchW);
+    const bool inNotchX = isRightColumn(corner) ? (px < geom.notchW) : (px >= w - geom.notchW);
     const bool inNotchY = isBottomRow(corner) ? (py < geom.notchH) : (py >= h - geom.notchH);
     return inNotchX && inNotchY;
 }
