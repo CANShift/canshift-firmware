@@ -182,13 +182,9 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_flag(lapLabel, LV_OBJ_FLAG_HIDDEN);
 
     WidgetTagPool::Slot<TimerTag> tagSlot;
-    TimerTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("TMR", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(cont);
+    TimerTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "TMR", cont);
+    if (!tag)
         return nullptr;
-    }
     tag->cont = cont;
     tag->timeLabel = label;
     tag->lapLabel = lapLabel;

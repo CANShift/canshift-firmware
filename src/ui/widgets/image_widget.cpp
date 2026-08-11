@@ -37,12 +37,9 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     }
 
     WidgetTagPool::Slot<ImageTag> tagSlot;
-    ImageTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("IMG", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+    ImageTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "IMG", nullptr);
+    if (!tag)
         return cont;
-    }
     snprintf(tag->lvglPath, sizeof(tag->lvglPath), "S:%s", cfg.image.imagePath);
 
     lv_obj_t *img = lv_img_create(cont);

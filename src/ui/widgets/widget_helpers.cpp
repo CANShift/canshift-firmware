@@ -1,6 +1,7 @@
 #include "widget_helpers.h"
 
 #include "config/config_loader.h"
+#include "diag/logger.h"
 #include "ui/screen_profile.h"
 #include "util/format_float.h"
 
@@ -152,6 +153,11 @@ void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb) {
         return;
     lv_obj_set_style_bg_color(rule, lv_color_hex(rgb), LV_PART_MAIN);
     lastRgb = rgb;
+}
+
+void logTagPoolExhausted(const char *logTag, const char *widgetId) {
+    LOG_WARN(logTag, "Tag pool exhausted for '%s' (all %u slots busy)", widgetId,
+             static_cast<unsigned>(WidgetTagPool::kPoolSlots));
 }
 
 } // namespace WidgetHelpers

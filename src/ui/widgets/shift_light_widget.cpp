@@ -59,13 +59,9 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
                                  cfg.style.borderColor.rgb);
 
     WidgetTagPool::Slot<ShiftLightTag> tagSlot;
-    ShiftLightTag *tag = tagSlot.get();
-    if (!tag) {
-        LOG_WARN("SHIFT", "Tag pool exhausted for '%s' (all %u slots busy)", cfg.id,
-                 static_cast<unsigned>(WidgetTagPool::kPoolSlots));
-        lv_obj_del(cont);
+    ShiftLightTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "SHIFT", cont);
+    if (!tag)
         return nullptr;
-    }
 
     const int16_t w = cfg.layout.w;
     const int16_t h = cfg.layout.h;

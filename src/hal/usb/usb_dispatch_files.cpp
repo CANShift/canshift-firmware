@@ -36,6 +36,12 @@ struct ChunkTransfer {
 };
 ChunkTransfer s_chunk = {{0}, 0, 0, 0};
 
+void resetChunkState() {
+    s_chunk.path[0] = '\0';
+    s_chunk.expectedIdx = 0;
+    s_chunk.total = 0;
+}
+
 class BufferPrint : public Print {
   public:
     BufferPrint(char *dst, size_t cap) : dst_(dst), cap_(cap), used_(0) {}
@@ -71,9 +77,12 @@ void abortChunkTransfer(const char *reason) {
         LOG_WARN("USB", "Aborting chunked transfer: %s (path=%s)", reason, s_chunk.path);
         StorageDriver::abortChunkedWrite();
     }
-    s_chunk.path[0] = '\0';
-    s_chunk.expectedIdx = 0;
-    s_chunk.total = 0;
+    resetChunkState();
+}
+
+void failChunk(const char *reason) {
+    UsbComm::sendError(reason);
+    abortChunkTransfer(reason);
 }
 
 void handlePutFile(const JsonObjectConst &obj) {
@@ -83,14 +92,14 @@ void handlePutFile(const JsonObjectConst &obj) {
     const char *b64 = obj["data"];
 
     if (!UsbDispatchValidation::isPathSafe(path) || !b64 || total == 0 || idx >= total) {
-        UsbComm::sendError("bad_args");
-        abortChunkTransfer("bad_args");
+        failChunk("bad_args");
         return;
     }
 
     if (idx == 0) {
         abortChunkTransfer("new transfer");
         if (!StorageDriver::beginChunkedWriteAtomic(path)) {
+            // No abort: the call above already cleared state and nothing is open.
             UsbComm::sendError("open_failed");
             return;
         }
@@ -99,8 +108,7 @@ void handlePutFile(const JsonObjectConst &obj) {
         s_chunk.expectedIdx = 0;
     } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
                strcmp(s_chunk.path, path) != 0) {
-        UsbComm::sendError("out_of_sequence");
-        abortChunkTransfer("out_of_sequence");
+        failChunk("out_of_sequence");
         return;
     }
 
@@ -109,15 +117,13 @@ void handlePutFile(const JsonObjectConst &obj) {
         reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
         reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     if (rc != 0) {
-        UsbComm::sendError("b64_decode");
-        abortChunkTransfer("b64_decode");
+        failChunk("b64_decode");
         return;
     }
 
     if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf),
                                     decoded)) {
-        UsbComm::sendError("write_failed");
-        abortChunkTransfer("write_failed");
+        failChunk("write_failed");
         return;
     }
 
@@ -127,16 +133,13 @@ void handlePutFile(const JsonObjectConst &obj) {
     if (idx == total - 1) {
         const bool finalized = StorageDriver::endChunkedWrite();
         if (!finalized) {
+            // endChunkedWrite already closed the handle, so this is a reset, not an abort.
             UsbComm::sendError("write_failed");
-            s_chunk.path[0] = '\0';
-            s_chunk.expectedIdx = 0;
-            s_chunk.total = 0;
+            resetChunkState();
             return;
         }
         LOG_INFO("USB", "PUT_FILE done: %s (%u chunks)", s_chunk.path, total);
-        s_chunk.path[0] = '\0';
-        s_chunk.expectedIdx = 0;
-        s_chunk.total = 0;
+        resetChunkState();
     }
 
     UsbComm::sendOk();
