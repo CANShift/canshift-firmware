@@ -3,13 +3,13 @@
 
 #include "ui/font_manager.h"
 #include "ui/widget_factory.h"
+#include "ui/widgets/cruise_l_shape.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include "layout_scale.h"
 
 #include "diag/logger.h"
 
 #include <lvgl.h>
-#include <math.h>
 #include <string.h>
 
 namespace CruiseControlWidget {
@@ -29,15 +29,16 @@ constexpr int16_t CRUISE_NOTCH_H = CRUISE_CENTER_H / 2 + CRUISE_NOTCH_MARGIN;
 constexpr int16_t CRUISE_BUTTON_RADIUS = 8;
 constexpr int16_t CRUISE_INNER_R = 5;
 constexpr int16_t CRUISE_BUTTON_BORDER_W = 2;
-constexpr uint8_t CRUISE_BEZIER_SEGS = 4;
-constexpr uint8_t CRUISE_L_MAX_PTS = 40;
 constexpr uint32_t CRUISE_BUTTON_FILL_RGB = 0x1A1A1Au;
 constexpr uint32_t CRUISE_BUTTON_FILL_PRESSED_RGB = 0x3A3A3Au;
 constexpr uint32_t CRUISE_BUTTON_STROKE_RGB = 0xE03030u;
 constexpr uint32_t CRUISE_CENTER_DIM_RGB = 0x888888u;
 constexpr uint32_t CRUISE_CENTER_VALUE_RGB = 0xFFFFFFu;
-
-enum class CruiseCorner : uint8_t { kTL = 0, kTR = 1, kBL = 2, kBR = 3 };
+constexpr uint8_t CRUISE_LABEL_FONT_PX = 22;
+constexpr int16_t CRUISE_LABEL_SYMBOL_HALF_W = 12;
+constexpr int16_t CRUISE_LABEL_SYMBOL_HALF_H = 16;
+constexpr int16_t CRUISE_LABEL_WORD_HALF_W = 24;
+constexpr int16_t CRUISE_LABEL_WORD_HALF_H = 12;
 
 struct CruiseToggleCtx {
     bool active;
@@ -58,143 +59,22 @@ constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
     {"cruise_off", "OFF", CfgCruiseOp::OFF},
 };
 
-inline lv_point_t cruiseBezierAt(int16_t x0, int16_t y0, int16_t xc, int16_t yc, int16_t x2,
-                                 int16_t y2, float t) {
-    const float omt = 1.0f - t;
-    return {static_cast<lv_coord_t>(lroundf(omt * omt * x0 + 2.0f * omt * t * xc + t * t * x2)),
-            static_cast<lv_coord_t>(lroundf(omt * omt * y0 + 2.0f * omt * t * yc + t * t * y2))};
+struct CruiseGrid {
+    int16_t buttonW;
+    int16_t buttonH;
+    int16_t gapX;
+    int16_t gapY;
+    int16_t startX;
+    int16_t startY;
+};
+
+CruiseLShape::Geometry cruiseGeometry() {
+    return {LayoutScale::square(CRUISE_BUTTON_RADIUS), LayoutScale::square(CRUISE_INNER_R),
+            LayoutScale::x(CRUISE_NOTCH_W), LayoutScale::y(CRUISE_NOTCH_H)};
 }
 
-inline void cruiseEmitBezier(lv_point_t *out, uint8_t &n, int16_t x0, int16_t y0, int16_t xc,
-                             int16_t yc, int16_t x2, int16_t y2) {
-
-    for (uint8_t i = 1; i <= CRUISE_BEZIER_SEGS; ++i) {
-        out[n++] =
-            cruiseBezierAt(x0, y0, xc, yc, x2, y2, static_cast<float>(i) / CRUISE_BEZIER_SEGS);
-    }
-}
-
-uint8_t buildCruiseLPath(lv_point_t *pts, const lv_area_t &area, CruiseCorner corner) {
-    const int16_t x = area.x1;
-    const int16_t y = area.y1;
-    const int16_t w = static_cast<int16_t>(area.x2 - area.x1 + 1);
-    const int16_t h = static_cast<int16_t>(area.y2 - area.y1 + 1);
-    const int16_t r = LayoutScale::square(CRUISE_BUTTON_RADIUS);
-    const int16_t ir = LayoutScale::square(CRUISE_INNER_R);
-    const int16_t nW = LayoutScale::x(CRUISE_NOTCH_W);
-    const int16_t nH = LayoutScale::y(CRUISE_NOTCH_H);
-    uint8_t n = 0;
-
-    switch (corner) {
-        case CruiseCorner::kTL:
-
-            pts[n++] = {static_cast<lv_coord_t>(x + r), y};
-            pts[n++] = {static_cast<lv_coord_t>(x + w - r), y};
-            cruiseEmitBezier(pts, n, x + w - r, y, x + w, y, x + w, y + r);
-            pts[n++] = {static_cast<lv_coord_t>(x + w), static_cast<lv_coord_t>(y + h - nH - ir)};
-            cruiseEmitBezier(pts, n, x + w, y + h - nH - ir, x + w, y + h - nH, x + w - ir,
-                             y + h - nH);
-            pts[n++] = {static_cast<lv_coord_t>(x + w - nW + ir),
-                        static_cast<lv_coord_t>(y + h - nH)};
-            cruiseEmitBezier(pts, n, x + w - nW + ir, y + h - nH, x + w - nW, y + h - nH,
-                             x + w - nW, y + h - nH + ir);
-            pts[n++] = {static_cast<lv_coord_t>(x + w - nW), static_cast<lv_coord_t>(y + h - ir)};
-            cruiseEmitBezier(pts, n, x + w - nW, y + h - ir, x + w - nW, y + h, x + w - nW - ir,
-                             y + h);
-            pts[n++] = {static_cast<lv_coord_t>(x + r), static_cast<lv_coord_t>(y + h)};
-            cruiseEmitBezier(pts, n, x + r, y + h, x, y + h, x, y + h - r);
-            pts[n++] = {x, static_cast<lv_coord_t>(y + r)};
-            cruiseEmitBezier(pts, n, x, y + r, x, y, x + r, y);
-            break;
-        case CruiseCorner::kTR:
-
-            pts[n++] = {static_cast<lv_coord_t>(x + r), y};
-            pts[n++] = {static_cast<lv_coord_t>(x + w - r), y};
-            cruiseEmitBezier(pts, n, x + w - r, y, x + w, y, x + w, y + r);
-            pts[n++] = {static_cast<lv_coord_t>(x + w), static_cast<lv_coord_t>(y + h - r)};
-            cruiseEmitBezier(pts, n, x + w, y + h - r, x + w, y + h, x + w - r, y + h);
-            pts[n++] = {static_cast<lv_coord_t>(x + nW + ir), static_cast<lv_coord_t>(y + h)};
-            cruiseEmitBezier(pts, n, x + nW + ir, y + h, x + nW, y + h, x + nW, y + h - ir);
-            pts[n++] = {static_cast<lv_coord_t>(x + nW), static_cast<lv_coord_t>(y + h - nH + ir)};
-            cruiseEmitBezier(pts, n, x + nW, y + h - nH + ir, x + nW, y + h - nH, x + nW - ir,
-                             y + h - nH);
-            pts[n++] = {static_cast<lv_coord_t>(x + ir), static_cast<lv_coord_t>(y + h - nH)};
-            cruiseEmitBezier(pts, n, x + ir, y + h - nH, x, y + h - nH, x, y + h - nH - ir);
-            pts[n++] = {x, static_cast<lv_coord_t>(y + r)};
-            cruiseEmitBezier(pts, n, x, y + r, x, y, x + r, y);
-            break;
-        case CruiseCorner::kBL:
-
-            pts[n++] = {static_cast<lv_coord_t>(x + r), y};
-            pts[n++] = {static_cast<lv_coord_t>(x + w - nW - ir), y};
-            cruiseEmitBezier(pts, n, x + w - nW - ir, y, x + w - nW, y, x + w - nW, y + ir);
-            pts[n++] = {static_cast<lv_coord_t>(x + w - nW), static_cast<lv_coord_t>(y + nH - ir)};
-            cruiseEmitBezier(pts, n, x + w - nW, y + nH - ir, x + w - nW, y + nH, x + w - nW + ir,
-                             y + nH);
-            pts[n++] = {static_cast<lv_coord_t>(x + w - ir), static_cast<lv_coord_t>(y + nH)};
-            cruiseEmitBezier(pts, n, x + w - ir, y + nH, x + w, y + nH, x + w, y + nH + ir);
-            pts[n++] = {static_cast<lv_coord_t>(x + w), static_cast<lv_coord_t>(y + h - r)};
-            cruiseEmitBezier(pts, n, x + w, y + h - r, x + w, y + h, x + w - r, y + h);
-            pts[n++] = {static_cast<lv_coord_t>(x + r), static_cast<lv_coord_t>(y + h)};
-            cruiseEmitBezier(pts, n, x + r, y + h, x, y + h, x, y + h - r);
-            pts[n++] = {x, static_cast<lv_coord_t>(y + r)};
-            cruiseEmitBezier(pts, n, x, y + r, x, y, x + r, y);
-            break;
-        case CruiseCorner::kBR:
-
-            pts[n++] = {static_cast<lv_coord_t>(x + nW + ir), y};
-            pts[n++] = {static_cast<lv_coord_t>(x + w - r), y};
-            cruiseEmitBezier(pts, n, x + w - r, y, x + w, y, x + w, y + r);
-            pts[n++] = {static_cast<lv_coord_t>(x + w), static_cast<lv_coord_t>(y + h - r)};
-            cruiseEmitBezier(pts, n, x + w, y + h - r, x + w, y + h, x + w - r, y + h);
-            pts[n++] = {static_cast<lv_coord_t>(x + r), static_cast<lv_coord_t>(y + h)};
-            cruiseEmitBezier(pts, n, x + r, y + h, x, y + h, x, y + h - r);
-            pts[n++] = {x, static_cast<lv_coord_t>(y + nH + ir)};
-            cruiseEmitBezier(pts, n, x, y + nH + ir, x, y + nH, x + ir, y + nH);
-            pts[n++] = {static_cast<lv_coord_t>(x + nW - ir), static_cast<lv_coord_t>(y + nH)};
-            cruiseEmitBezier(pts, n, x + nW - ir, y + nH, x + nW, y + nH, x + nW, y + nH - ir);
-            pts[n++] = {static_cast<lv_coord_t>(x + nW), static_cast<lv_coord_t>(y + ir)};
-            cruiseEmitBezier(pts, n, x + nW, y + ir, x + nW, y, x + nW + ir, y);
-            break;
-    }
-    return n;
-}
-
-void buildCruiseLFillArms(const lv_area_t &btn, CruiseCorner corner, lv_area_t *armH,
-                          lv_area_t *armV) {
-    const int16_t x = btn.x1;
-    const int16_t y = btn.y1;
-    const int16_t w = static_cast<int16_t>(btn.x2 - btn.x1 + 1);
-    const int16_t h = static_cast<int16_t>(btn.y2 - btn.y1 + 1);
-    const int16_t nW = LayoutScale::x(CRUISE_NOTCH_W);
-    const int16_t nH = LayoutScale::y(CRUISE_NOTCH_H);
-    switch (corner) {
-        case CruiseCorner::kTL:
-
-            *armH = {x, y, static_cast<lv_coord_t>(x + w - 1),
-                     static_cast<lv_coord_t>(y + h - nH - 1)};
-            *armV = {x, y, static_cast<lv_coord_t>(x + w - nW - 1),
-                     static_cast<lv_coord_t>(y + h - 1)};
-            break;
-        case CruiseCorner::kTR:
-            *armH = {x, y, static_cast<lv_coord_t>(x + w - 1),
-                     static_cast<lv_coord_t>(y + h - nH - 1)};
-            *armV = {static_cast<lv_coord_t>(x + nW), y, static_cast<lv_coord_t>(x + w - 1),
-                     static_cast<lv_coord_t>(y + h - 1)};
-            break;
-        case CruiseCorner::kBL:
-            *armH = {x, static_cast<lv_coord_t>(y + nH), static_cast<lv_coord_t>(x + w - 1),
-                     static_cast<lv_coord_t>(y + h - 1)};
-            *armV = {x, y, static_cast<lv_coord_t>(x + w - nW - 1),
-                     static_cast<lv_coord_t>(y + h - 1)};
-            break;
-        case CruiseCorner::kBR:
-            *armH = {x, static_cast<lv_coord_t>(y + nH), static_cast<lv_coord_t>(x + w - 1),
-                     static_cast<lv_coord_t>(y + h - 1)};
-            *armV = {static_cast<lv_coord_t>(x + nW), y, static_cast<lv_coord_t>(x + w - 1),
-                     static_cast<lv_coord_t>(y + h - 1)};
-            break;
-    }
+CruiseLShape::Corner cornerFor(uint8_t index) {
+    return static_cast<CruiseLShape::Corner>(index);
 }
 
 void cruiseLDrawCb(lv_event_t *e) {
@@ -206,7 +86,8 @@ void cruiseLDrawCb(lv_event_t *e) {
     if (!draw_ctx)
         return;
     const auto corner =
-        static_cast<CruiseCorner>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
+        static_cast<CruiseLShape::Corner>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
+    const CruiseLShape::Geometry geom = cruiseGeometry();
 
     lv_area_t area;
     lv_obj_get_coords(btn, &area);
@@ -220,12 +101,12 @@ void cruiseLDrawCb(lv_event_t *e) {
     fill.border_width = 0;
     fill.radius = 0;
     lv_area_t armH, armV;
-    buildCruiseLFillArms(area, corner, &armH, &armV);
+    CruiseLShape::buildFillArms(area, corner, geom, &armH, &armV);
     lv_draw_rect(draw_ctx, &fill, &armH);
     lv_draw_rect(draw_ctx, &fill, &armV);
 
-    lv_point_t pts[CRUISE_L_MAX_PTS];
-    const uint8_t n = buildCruiseLPath(pts, area, corner);
+    lv_point_t pts[CruiseLShape::kMaxPoints];
+    const uint8_t n = CruiseLShape::buildOutline(pts, area, corner, geom);
     lv_draw_line_dsc_t stroke;
     lv_draw_line_dsc_init(&stroke);
     stroke.color = lv_color_hex(CRUISE_BUTTON_STROKE_RGB);
@@ -267,36 +148,16 @@ void cruiseLHitTestCb(lv_event_t *e) {
         return;
     lv_obj_t *btn = static_cast<lv_obj_t *>(lv_event_get_target(e));
     const auto corner =
-        static_cast<CruiseCorner>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
+        static_cast<CruiseLShape::Corner>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
     lv_area_t area;
     lv_obj_get_coords(btn, &area);
-    const int16_t px = info->point->x - area.x1;
-    const int16_t py = info->point->y - area.y1;
-    const int16_t w = static_cast<int16_t>(area.x2 - area.x1 + 1);
-    const int16_t h = static_cast<int16_t>(area.y2 - area.y1 + 1);
-    const int16_t nW = LayoutScale::x(CRUISE_NOTCH_W);
-    const int16_t nH = LayoutScale::y(CRUISE_NOTCH_H);
-    bool inNotch = false;
-    switch (corner) {
-        case CruiseCorner::kTL:
-            inNotch = (px >= w - nW) && (py >= h - nH);
-            break;
-        case CruiseCorner::kTR:
-            inNotch = (px < nW) && (py >= h - nH);
-            break;
-        case CruiseCorner::kBL:
-            inNotch = (px >= w - nW) && (py < nH);
-            break;
-        case CruiseCorner::kBR:
-            inNotch = (px < nW) && (py < nH);
-            break;
-    }
-    if (inNotch)
+    if (CruiseLShape::hitInNotch(area, corner, cruiseGeometry(), *info->point)) {
         info->res = false;
+    }
 }
 
-CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg, int16_t x,
-                           int16_t y, CfgButtonParams *storage) {
+CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, int16_t x, int16_t y,
+                           CfgButtonParams *storage) {
     CfgWidget w = {};
     w.button = storage;
     *storage = CfgButtonParams{};
@@ -309,10 +170,9 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
     w.layout.h = CRUISE_BUTTON_H;
     w.layout.zOrder = 0;
 
-    (void)pageCfg;
     w.style.primaryColor = CfgColor{CRUISE_BUTTON_FILL_RGB};
-    w.style.textColor = CfgColor{0xFFFFFFu};
-    w.style.fontSize = 22;
+    w.style.textColor = CfgColor{CRUISE_CENTER_VALUE_RGB};
+    w.style.fontSize = CRUISE_LABEL_FONT_PX;
 
     CfgButtonParams &p = *w.button;
     strlcpy(p.label, spec.label, CFG_MAX_NAME_LEN);
@@ -335,114 +195,144 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, const CfgPage &pageCfg,
     return w;
 }
 
-} // namespace
-
-void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
-    const int16_t buttonW = LayoutScale::x(CRUISE_BUTTON_W);
-    const int16_t buttonH = LayoutScale::y(CRUISE_BUTTON_H);
-    const int16_t gapX = LayoutScale::x(CRUISE_GAP_X);
-    const int16_t gapY = LayoutScale::y(CRUISE_GAP_Y);
+CruiseGrid computeCruiseGrid(int16_t contentY) {
+    CruiseGrid g;
+    g.buttonW = LayoutScale::x(CRUISE_BUTTON_W);
+    g.buttonH = LayoutScale::y(CRUISE_BUTTON_H);
+    g.gapX = LayoutScale::x(CRUISE_GAP_X);
+    g.gapY = LayoutScale::y(CRUISE_GAP_Y);
     const int16_t outerPadX = LayoutScale::x(CRUISE_OUTER_PAD);
     const int16_t outerPadY = LayoutScale::y(CRUISE_OUTER_PAD);
-    const int16_t gridW = buttonW * 2 + gapX;
-    const int16_t gridH = buttonH * 2 + gapY;
+    const int16_t gridW = g.buttonW * 2 + g.gapX;
+    const int16_t gridH = g.buttonH * 2 + g.gapY;
     const int16_t contentH = LV_VER_RES - contentY;
-    int16_t startX = (LV_HOR_RES - gridW) / 2;
-    int16_t startY = contentY + (contentH - gridH) / 2;
-    if (startX < outerPadX)
-        startX = outerPadX;
-    if (startY < contentY + outerPadY)
-        startY = contentY + outerPadY;
+    g.startX = (LV_HOR_RES - gridW) / 2;
+    g.startY = contentY + (contentH - gridH) / 2;
+    if (g.startX < outerPadX)
+        g.startX = outerPadX;
+    if (g.startY < contentY + outerPadY)
+        g.startY = contentY + outerPadY;
+    return g;
+}
 
-    uint8_t created = 0;
-    for (uint8_t i = 0; i < 4; ++i) {
-        const uint8_t col = i % 2;
-        const uint8_t row = i / 2;
-        const int16_t x = startX + col * (buttonW + gapX);
-        const int16_t y = startY + row * (buttonH + gapY);
-        static CfgButtonParams s_cruiseParams[4];
-        static CfgWidget s_cruiseWidgets[4];
-        s_cruiseWidgets[i] = makeCruiseButton(CRUISE_BUTTONS[i], cfg, x, y, &s_cruiseParams[i]);
-        const CfgWidget &w = s_cruiseWidgets[i];
-        lv_obj_t *btn = WidgetFactory::create(screen, w, 0);
-        if (!btn)
-            continue;
+void initCruiseButtonShell(lv_obj_t *btn, int16_t x, int16_t y, const CruiseGrid &g) {
+    lv_obj_remove_style_all(btn);
+    lv_obj_set_pos(btn, x, y);
+    lv_obj_set_size(btn, g.buttonW, g.buttonH);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
 
-        lv_obj_remove_style_all(btn);
-        lv_obj_set_pos(btn, x, y);
-        lv_obj_set_size(btn, buttonW, buttonH);
-        lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-        lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
-
-        for (lv_state_t st : {lv_state_t(LV_STATE_DEFAULT), lv_state_t(LV_STATE_PRESSED),
-                              lv_state_t(LV_STATE_FOCUSED), lv_state_t(LV_STATE_FOCUS_KEY),
-                              lv_state_t(LV_STATE_CHECKED), lv_state_t(LV_STATE_EDITED),
-                              lv_state_t(LV_STATE_HOVERED), lv_state_t(LV_STATE_DISABLED)}) {
-            lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
-            lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
-            lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
-            lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | st);
-            lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
-            lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFFu), LV_PART_MAIN | st);
-        }
-
-        void *cornerData = reinterpret_cast<void *>(static_cast<uintptr_t>(i));
-        lv_obj_add_event_cb(btn, cruiseLDrawCb, LV_EVENT_DRAW_MAIN_END, cornerData);
-
-        auto pressInvalidateCb = [](lv_event_t *ev) { lv_obj_invalidate(lv_event_get_target(ev)); };
-        lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESSED, nullptr);
-        lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_RELEASED, nullptr);
-        lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESS_LOST, nullptr);
-        lv_obj_add_flag(btn, LV_OBJ_FLAG_ADV_HITTEST);
-        lv_obj_add_event_cb(btn, cruiseLHitTestCb, LV_EVENT_HIT_TEST, cornerData);
-        lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
-
-        const int16_t LABEL_OFF_X = LayoutScale::x(CRUISE_NOTCH_W) / 2;
-        const int16_t LABEL_OFF_Y = LayoutScale::y(CRUISE_NOTCH_H) / 2;
-        const int16_t shiftX = (col == 0) ? -LABEL_OFF_X : LABEL_OFF_X;
-        const int16_t shiftY = (row == 0) ? -LABEL_OFF_Y : LABEL_OFF_Y;
-
-        if (lv_obj_get_child_cnt(btn) > 0) {
-            lv_obj_t *innerLabel = lv_obj_get_child(btn, 0);
-            if (innerLabel) {
-                lv_obj_add_flag(innerLabel, LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-        lv_obj_t *label = lv_label_create(screen);
-        lv_label_set_text(label, CRUISE_BUTTONS[i].label);
-        lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFFu), 0);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-        const bool isSymbol = (i == static_cast<uint8_t>(CruiseCorner::kTL)) ||
-                              (i == static_cast<uint8_t>(CruiseCorner::kTR));
-        lv_obj_set_style_text_font(label, FontManager::value(22), 0);
-        const int16_t cx = x + (buttonW / 2) + shiftX;
-        const int16_t cy = y + (buttonH / 2) + shiftY;
-        lv_obj_set_pos(label, cx - (isSymbol ? 12 : 24), cy - (isSymbol ? 16 : 12));
-
-        if (i == static_cast<uint8_t>(CruiseCorner::kBR)) {
-            WidgetTagPool::Slot<CruiseToggleCtx> ctxSlot;
-            CruiseToggleCtx *ctx = ctxSlot.get();
-            if (ctx) {
-                ctx->active = false;
-                ctx->toggleBtn = btn;
-                ctx->toggleLabel = label;
-                lv_obj_add_event_cb(btn, cruiseToggleClickCb, LV_EVENT_CLICKED, ctx);
-                lv_obj_add_event_cb(btn, WidgetTagPool::deleteHandler<CruiseToggleCtx>,
-                                    LV_EVENT_DELETE, ctxSlot.commit());
-            } else {
-                LOG_WARN("UI", "Cruise toggle ctx pool exhausted on page '%s'", cfg.id);
-            }
-        }
-        ++created;
+    for (lv_state_t st :
+         {lv_state_t(LV_STATE_DEFAULT), lv_state_t(LV_STATE_PRESSED), lv_state_t(LV_STATE_FOCUSED),
+          lv_state_t(LV_STATE_FOCUS_KEY), lv_state_t(LV_STATE_CHECKED), lv_state_t(LV_STATE_EDITED),
+          lv_state_t(LV_STATE_HOVERED), lv_state_t(LV_STATE_DISABLED)}) {
+        lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
+        lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
+        lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
+        lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | st);
+        lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
+        lv_obj_set_style_text_color(btn, lv_color_hex(CRUISE_CENTER_VALUE_RGB), LV_PART_MAIN | st);
     }
+}
 
+void attachCruiseLBehavior(lv_obj_t *btn, uint8_t cornerIdx) {
+    void *cornerData = reinterpret_cast<void *>(static_cast<uintptr_t>(cornerIdx));
+    lv_obj_add_event_cb(btn, cruiseLDrawCb, LV_EVENT_DRAW_MAIN_END, cornerData);
+
+    auto pressInvalidateCb = [](lv_event_t *ev) { lv_obj_invalidate(lv_event_get_target(ev)); };
+    lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_RELEASED, nullptr);
+    lv_obj_add_event_cb(btn, pressInvalidateCb, LV_EVENT_PRESS_LOST, nullptr);
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_ADV_HITTEST);
+    lv_obj_add_event_cb(btn, cruiseLHitTestCb, LV_EVENT_HIT_TEST, cornerData);
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+}
+
+lv_obj_t *makeCruiseFloatingLabel(lv_obj_t *btn, lv_obj_t *screen, uint8_t i, int16_t x, int16_t y,
+                                  const CruiseGrid &g) {
+    if (lv_obj_get_child_cnt(btn) > 0) {
+        lv_obj_t *innerLabel = lv_obj_get_child(btn, 0);
+        if (innerLabel) {
+            lv_obj_add_flag(innerLabel, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    lv_obj_t *label = lv_label_create(screen);
+    lv_label_set_text(label, CRUISE_BUTTONS[i].label);
+    lv_obj_set_style_text_color(label, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(label, FontManager::value(CRUISE_LABEL_FONT_PX), 0);
+
+    const uint8_t col = i % 2;
+    const uint8_t row = i / 2;
+    const int16_t offX = LayoutScale::x(CRUISE_NOTCH_W) / 2;
+    const int16_t offY = LayoutScale::y(CRUISE_NOTCH_H) / 2;
+    const int16_t cx = x + g.buttonW / 2 + (col == 0 ? -offX : offX);
+    const int16_t cy = y + g.buttonH / 2 + (row == 0 ? -offY : offY);
+    const bool isSymbol = i == static_cast<uint8_t>(CruiseLShape::Corner::kTL) ||
+                          i == static_cast<uint8_t>(CruiseLShape::Corner::kTR);
+    const int16_t halfW = isSymbol ? CRUISE_LABEL_SYMBOL_HALF_W : CRUISE_LABEL_WORD_HALF_W;
+    const int16_t halfH = isSymbol ? CRUISE_LABEL_SYMBOL_HALF_H : CRUISE_LABEL_WORD_HALF_H;
+    lv_obj_set_pos(label, cx - halfW, cy - halfH);
+    return label;
+}
+
+void attachToggleCtx(lv_obj_t *btn, lv_obj_t *label, const CfgPage &cfg) {
+    WidgetTagPool::Slot<CruiseToggleCtx> ctxSlot;
+    CruiseToggleCtx *ctx = ctxSlot.get();
+    if (!ctx) {
+        LOG_WARN("UI", "Cruise toggle ctx pool exhausted on page '%s'", cfg.id);
+        return;
+    }
+    ctx->active = false;
+    ctx->toggleBtn = btn;
+    ctx->toggleLabel = label;
+    lv_obj_add_event_cb(btn, cruiseToggleClickCb, LV_EVENT_CLICKED, ctx);
+    lv_obj_add_event_cb(btn, WidgetTagPool::deleteHandler<CruiseToggleCtx>, LV_EVENT_DELETE,
+                        ctxSlot.commit());
+}
+
+bool buildCruiseCorner(lv_obj_t *screen, const CfgPage &cfg, const CruiseGrid &g, uint8_t i) {
+    const uint8_t col = i % 2;
+    const uint8_t row = i / 2;
+    const int16_t x = g.startX + col * (g.buttonW + g.gapX);
+    const int16_t y = g.startY + row * (g.buttonH + g.gapY);
+
+    static CfgButtonParams s_cruiseParams[4];
+    static CfgWidget s_cruiseWidgets[4];
+    s_cruiseWidgets[i] = makeCruiseButton(CRUISE_BUTTONS[i], x, y, &s_cruiseParams[i]);
+    lv_obj_t *btn = WidgetFactory::create(screen, s_cruiseWidgets[i], 0);
+    if (!btn)
+        return false;
+
+    initCruiseButtonShell(btn, x, y, g);
+    attachCruiseLBehavior(btn, i);
+    lv_obj_t *label = makeCruiseFloatingLabel(btn, screen, i, x, y, g);
+
+    if (cornerFor(i) == CruiseLShape::Corner::kBR) {
+        attachToggleCtx(btn, label, cfg);
+    }
+    return true;
+}
+
+lv_obj_t *makeCenterLabel(lv_obj_t *center, const char *text, const lv_font_t *font, uint32_t rgb,
+                          int16_t yPos, int16_t centerW) {
+    lv_obj_t *label = lv_label_create(center);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(label, lv_color_hex(rgb), 0);
+    lv_obj_set_style_text_font(label, font, 0);
+    lv_obj_set_width(label, centerW);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(label, 0, yPos);
+    return label;
+}
+
+void buildCenterReadout(lv_obj_t *screen, int16_t contentY) {
+    const int16_t contentH = LV_VER_RES - contentY;
     const int16_t centerW = LayoutScale::x(CRUISE_CENTER_W);
     const int16_t centerH = LayoutScale::y(CRUISE_CENTER_H);
-    const int16_t centerX = (LV_HOR_RES - centerW) / 2;
-    const int16_t centerY = contentY + (contentH - centerH) / 2;
 
     lv_obj_t *center = lv_obj_create(screen);
-    lv_obj_set_pos(center, centerX, centerY);
+    lv_obj_set_pos(center, (LV_HOR_RES - centerW) / 2, contentY + (contentH - centerH) / 2);
     lv_obj_set_size(center, centerW, centerH);
     lv_obj_set_style_bg_opa(center, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(center, 0, 0);
@@ -450,30 +340,27 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
     lv_obj_clear_flag(center, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(center, LV_OBJ_FLAG_CLICKABLE);
 
-    lv_obj_t *setHeader = lv_label_create(center);
-    lv_label_set_text(setHeader, "SET");
-    lv_obj_set_style_text_color(setHeader, lv_color_hex(CRUISE_CENTER_DIM_RGB), 0);
-    lv_obj_set_style_text_font(setHeader, FontManager::label(12), 0);
-    lv_obj_set_width(setHeader, centerW);
-    lv_obj_set_style_text_align(setHeader, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(setHeader, 0, LayoutScale::y(4));
+    makeCenterLabel(center, "SET", FontManager::label(12), CRUISE_CENTER_DIM_RGB, LayoutScale::y(4),
+                    centerW);
+    makeCenterLabel(center, "0", FontManager::value(24), CRUISE_CENTER_VALUE_RGB,
+                    (centerH - 24) / 2, centerW);
+    makeCenterLabel(center, "km/h", FontManager::label(12), CRUISE_CENTER_DIM_RGB,
+                    centerH - LayoutScale::y(16), centerW);
+}
 
-    lv_obj_t *setValue = lv_label_create(center);
+} // namespace
 
-    lv_label_set_text(setValue, "0");
-    lv_obj_set_style_text_color(setValue, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
-    lv_obj_set_style_text_font(setValue, FontManager::value(24), 0);
-    lv_obj_set_width(setValue, centerW);
-    lv_obj_set_style_text_align(setValue, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(setValue, 0, (centerH - 24) / 2);
+void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
+    const CruiseGrid grid = computeCruiseGrid(contentY);
 
-    lv_obj_t *setUnit = lv_label_create(center);
-    lv_label_set_text(setUnit, "km/h");
-    lv_obj_set_style_text_color(setUnit, lv_color_hex(CRUISE_CENTER_DIM_RGB), 0);
-    lv_obj_set_style_text_font(setUnit, FontManager::label(12), 0);
-    lv_obj_set_width(setUnit, centerW);
-    lv_obj_set_style_text_align(setUnit, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(setUnit, 0, centerH - LayoutScale::y(16));
+    uint8_t created = 0;
+    for (uint8_t i = 0; i < 4; ++i) {
+        if (buildCruiseCorner(screen, cfg, grid, i)) {
+            ++created;
+        }
+    }
+
+    buildCenterReadout(screen, contentY);
 
     LOG_INFO("UI", "Built cruise_control template on page '%s' (%u/4 buttons + SET display)",
              cfg.id, created);
