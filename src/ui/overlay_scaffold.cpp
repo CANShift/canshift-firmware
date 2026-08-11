@@ -25,6 +25,8 @@ void breathCb(void *obj, int32_t v) {
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0);
 }
 
+// Deliberately not WidgetHelpers::resetContainerStyle: this runs after the caller
+// has set its own background, and that helper would reset bg_opa to transparent.
 void flatten(lv_obj_t *obj) {
     lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(obj, 0, LV_PART_MAIN);

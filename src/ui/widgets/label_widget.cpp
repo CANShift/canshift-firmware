@@ -108,11 +108,8 @@ lv_obj_t *makeValueRow(lv_obj_t *cont) {
     if (!valueRow)
         return nullptr;
     lv_obj_set_size(valueRow, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
+    WidgetHelpers::resetContainerStyle(valueRow);
     lv_obj_set_style_pad_column(valueRow, kValueRowPadColumnPx, LV_PART_MAIN);
-    lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     lv_obj_align(valueRow, LV_ALIGN_LEFT_MID, kValueClusterInsetPx, kValueRowYOffsetPx);
