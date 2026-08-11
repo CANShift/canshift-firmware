@@ -110,7 +110,6 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define CONFIG_DASHBOARD_HEAP_BUDGET_BYTES (48u * 1024u)
 #define CONFIG_MAX_SIGNALS 32
 
-
 #ifndef DEFAULT_CONFIG_PROVISION_ENABLED
     #define DEFAULT_CONFIG_PROVISION_ENABLED 1
 #endif
