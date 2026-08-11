@@ -1,5 +1,6 @@
 #include "touch_driver.h"
 #include "app_config.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/perf_counters.h"
 #include "diag/touch_latency.h"
@@ -12,6 +13,7 @@ static lv_indev_drv_t s_indevDrv;
 #include "hardware_profile.h"
 #include "config/board_profile_loader.h"
 #include "hal/display/display_driver.h"
+#include "hal/storage/nvs_store.h"
 #include <Preferences.h>
 #include <esp_task_wdt.h>
 
@@ -133,21 +135,23 @@ void TouchDriver::calibrate() {
             LOG_WARN("TOUCH", "WDT re-subscribe failed: %d", static_cast<int>(err));
     }
 
-    Preferences p;
-    p.begin(NVS_NS, false);
-    p.putBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
-    p.end();
-
     s_lcd.setTouchCalibrate(calData);
+
+    if (!NvsStore::putBytes(NVS_NS, NVS_KEY_CAL, calData, CAL_DATA_SIZE)) {
+        LOG_ERROR("TOUCH", "calibration NVS write failed — lost on reboot");
+        ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "touch calibration not persisted");
+        return;
+    }
     LOG_INFO("TOUCH", "Calibration complete and saved to NVS");
 }
 
 void TouchDriver::resetCalibration() {
     if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration)
         return;
-    Preferences p;
-    p.begin(NVS_NS, false);
-    p.remove(NVS_KEY_CAL);
-    p.end();
+    if (!NvsStore::remove(NVS_NS, NVS_KEY_CAL)) {
+        LOG_ERROR("TOUCH", "calibration NVS clear failed");
+        ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "touch calibration clear failed");
+        return;
+    }
     LOG_INFO("TOUCH", "Calibration data cleared from NVS");
 }

@@ -6,6 +6,7 @@
 #include "config/config_loader.h"
 #include "diag/logger.h"
 #include "runtime/signal_store.h"
+#include "runtime/task_spawn.h"
 #include "ui/alert_takeover.h"
 
 #include <Arduino.h>
@@ -155,15 +156,9 @@ void init() {
                  cfg.bindings[i].pin, static_cast<unsigned>(cfg.bindings[i].debounceMs));
     }
 
-    TaskHandle_t inputHandle = nullptr;
-    const BaseType_t ok = xTaskCreatePinnedToCore(taskInput, "input", TASK_STACK_INPUT, nullptr,
-                                                  TASK_PRIO_INPUT, &inputHandle, TASK_CORE_INPUT);
-    if (ok != pdPASS) {
-        LOG_ERROR("INPUT", "xTaskCreatePinnedToCore(input) failed");
-    } else if (inputHandle) {
-        const esp_err_t wdtErr = esp_task_wdt_add(inputHandle);
-        if (wdtErr != ESP_OK)
-            LOG_WARN("INPUT", "WDT add(input) failed: %d", static_cast<int>(wdtErr));
+    if (TaskSpawn::spawnDynamic("input", taskInput, TASK_STACK_INPUT, TASK_PRIO_INPUT,
+                                TASK_CORE_INPUT) == nullptr) {
+        LOG_ERROR("INPUT", "input task not started — bindings inert");
     }
     s_initDone = true;
 }

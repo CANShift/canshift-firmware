@@ -7,7 +7,9 @@
 #include "hal/touch/touch_driver.h"
 #include "runtime/pending_actions.h"
 #include "ui/theme_manager.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
+#include "hal/storage/nvs_store.h"
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -56,11 +58,13 @@ void nvsLoad() {
 }
 
 void nvsSave() {
-    Preferences p;
-    p.begin(NVS_NS, false);
-    p.putUChar(KEY_BRIGHTNESS, s_brightness);
-    p.putUChar(KEY_BLE_ENABLED, s_bleEnabled ? 1 : 0);
-    p.end();
+    const bool saved = NvsStore::putUChar(NVS_NS, KEY_BRIGHTNESS, s_brightness) &&
+                       NvsStore::putUChar(NVS_NS, KEY_BLE_ENABLED, s_bleEnabled ? 1 : 0);
+    if (!saved) {
+        LOG_ERROR("Settings", "NVS write failed — settings not persisted");
+        ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "settings not persisted");
+        return;
+    }
     LOG_INFO("Settings", "Saved — brightness=%d%% ble=%d", s_brightness, s_bleEnabled ? 1 : 0);
 }
 

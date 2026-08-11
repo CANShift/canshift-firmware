@@ -258,9 +258,7 @@ bool CanManager::tick() {
             memcpy(sf.data, message.data, sf.len);
             UsbComm::pushCanFrame(sf);
         }
-    } else if (err == ESP_ERR_TIMEOUT) {
-
-    } else {
+    } else if (err != ESP_ERR_TIMEOUT) {
         s_errorCount++;
 
         static uint32_t s_lastErrLogMs = 0;
@@ -272,11 +270,13 @@ bool CanManager::tick() {
         }
 
         twai_status_info_t status;
-        if (twai_get_status_info(&status) == ESP_OK) {
-            if (status.state == TWAI_STATE_BUS_OFF) {
-                LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
-                twai_initiate_recovery();
-                ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
+        if (twai_get_status_info(&status) == ESP_OK && status.state == TWAI_STATE_BUS_OFF) {
+            LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
+            ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
+            const esp_err_t recoveryErr = twai_initiate_recovery();
+            if (recoveryErr != ESP_OK) {
+                LOG_ERROR("CAN", "recovery initiation failed: %s", esp_err_to_name(recoveryErr));
+                ErrorStore::push(ERROR_SRC_CAN, "REC_FAIL", "bus-off recovery not started");
             }
         }
 
