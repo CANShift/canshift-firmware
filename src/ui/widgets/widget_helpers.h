@@ -11,9 +11,9 @@
 
 namespace WidgetHelpers {
 
-constexpr uint32_t kZoneNormalRgb = 0x00CC44;
-constexpr uint32_t kZoneWarningRgb = 0xFF8800;
 constexpr uint32_t kZoneDangerRgb = 0xFF4444;
+constexpr uint32_t kAccentRgb = 0xFF4747;
+constexpr uint32_t kMutedRgb = 0xBABABA;
 
 float clampPct(float value, float minValue, float maxValue);
 
