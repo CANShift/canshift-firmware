@@ -19,6 +19,8 @@ constexpr const char *kStalePlaceholder = "- -";
 constexpr uint8_t kBarHeightPx = 2;
 constexpr int16_t kBarSideMarginPx = 0;
 constexpr int16_t kValueClusterInsetPx = 0;
+constexpr int16_t kValueRowPadColumnPx = 3;
+constexpr int16_t kValueRowYOffsetPx = 8;
 
 uint8_t pickValueFontSize(const CfgWidget &cfg) {
     if (cfg.label.big > 0)
@@ -90,6 +92,165 @@ void applyDangerState(LabelTag *tag) {
     applyDangerAppearance(tag, tag->alert.active);
 }
 
+struct LabelParts {
+    lv_obj_t *kicker = nullptr;
+    lv_obj_t *valueLabel = nullptr;
+    lv_obj_t *unitLabel = nullptr;
+    lv_obj_t *topRule = nullptr;
+    lv_obj_t *barFill = nullptr;
+    int16_t barMaxW = 0;
+    uint32_t textRgb = 0;
+    uint32_t ruleRgb = 0;
+};
+
+lv_obj_t *makeValueRow(lv_obj_t *cont) {
+    lv_obj_t *valueRow = lv_obj_create(cont);
+    if (!valueRow)
+        return nullptr;
+    lv_obj_set_size(valueRow, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(valueRow, kValueRowPadColumnPx, LV_PART_MAIN);
+    lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_align(valueRow, LV_ALIGN_LEFT_MID, kValueClusterInsetPx, kValueRowYOffsetPx);
+    return valueRow;
+}
+
+lv_obj_t *makeValueLabel(lv_obj_t *valueRow, uint8_t valueSize) {
+    lv_obj_t *label = lv_label_create(valueRow);
+    if (!label)
+        return nullptr;
+    lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
+    lv_obj_set_style_text_font(label, valueFontFor(valueSize), 0);
+    lv_obj_set_style_text_letter_space(label, WidgetHelpers::valueTrackingPx(valueSize), 0);
+    lv_label_set_text(label, kStalePlaceholder);
+    return label;
+}
+
+lv_obj_t *makeUnitLabel(lv_obj_t *valueRow, const CfgWidget &cfg) {
+    const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
+    if (unit[0] == '\0')
+        return nullptr;
+    lv_obj_t *unitLabel = lv_label_create(valueRow);
+    if (!unitLabel)
+        return nullptr;
+    lv_obj_set_style_text_color(unitLabel, lv_color_hex(WidgetHelpers::kMutedRgb), 0);
+    lv_obj_set_style_text_font(unitLabel, FontManager::units(), 0);
+    lv_label_set_text(unitLabel, unit);
+    return unitLabel;
+}
+
+lv_obj_t *makeBarRect(lv_obj_t *cont, int16_t w, uint32_t rgb) {
+    lv_obj_t *rect = lv_obj_create(cont);
+    if (!rect)
+        return nullptr;
+    lv_obj_set_size(rect, w, kBarHeightPx);
+    lv_obj_align(rect, LV_ALIGN_BOTTOM_LEFT, kBarSideMarginPx, 0);
+    lv_obj_set_style_bg_color(rect, lv_color_hex(rgb), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(rect, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(rect, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(rect, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(rect, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    return rect;
+}
+
+lv_obj_t *makeProgressBar(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
+                          int16_t *barMaxW) {
+    *barMaxW = 0;
+    if (!cfg.label.showBar || cfg.label.maxValue <= cfg.label.minValue)
+        return nullptr;
+    const int16_t maxW = static_cast<int16_t>(cfg.layout.w - 2 * kBarSideMarginPx);
+    if (maxW <= 0)
+        return nullptr;
+    makeBarRect(cont, maxW, WidgetHelpers::kTrackRgb);
+    lv_obj_t *fill = makeBarRect(cont, 1, textRgb);
+    if (fill) {
+        *barMaxW = maxW;
+    }
+    return fill;
+}
+
+bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
+    const uint8_t valueSize = pickValueFontSize(cfg);
+    parts->textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    parts->kicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
+    lv_obj_t *valueRow = makeValueRow(cont);
+    if (!valueRow) {
+        LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
+        return false;
+    }
+    parts->valueLabel = makeValueLabel(valueRow, valueSize);
+    if (!parts->valueLabel) {
+        LOG_ERROR("WF", "lv_label_create failed for '%s' — LVGL pool OOM", cfg.id);
+        return false;
+    }
+    parts->unitLabel = makeUnitLabel(valueRow, cfg);
+    const bool primary = valueSize >= WidgetHelpers::kRulePrimaryFontMin;
+    parts->ruleRgb = primary ? parts->textRgb : WidgetHelpers::kTrackRgb;
+    parts->topRule = WidgetHelpers::makeTopRule(
+        cont, primary ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
+        parts->ruleRgb);
+    parts->barFill = makeProgressBar(cont, cfg, parts->textRgb, &parts->barMaxW);
+    return true;
+}
+
+void renderStale(LabelTag *tag) {
+    if (tag->lastValid) {
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
+        tag->lastValue = NAN;
+        tag->lastValid = false;
+    }
+    if (!tag->alert.active) {
+        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb,
+                                            ThemeManager::getStaleTextColor());
+    }
+    if (tag->barFill && tag->lastBarW != 0) {
+        lv_obj_set_width(tag->barFill, 1);
+        tag->lastBarW = 0;
+    }
+    AlertFlash::update(tag->alert, 0.0f, tag->alertThreshold);
+    applyDangerState(tag);
+}
+
+void updateBar(LabelTag *tag, const CfgWidget &cfg, float displayValue) {
+    if (!tag->barFill || tag->barMaxW <= 0)
+        return;
+    const float range = cfg.label.maxValue - cfg.label.minValue;
+    float pct = range > 0.0f ? (displayValue - cfg.label.minValue) / range : 0.0f;
+    if (pct < 0.0f)
+        pct = 0.0f;
+    if (pct > 1.0f)
+        pct = 1.0f;
+    const int16_t barW = static_cast<int16_t>(pct * tag->barMaxW);
+    if (barW != tag->lastBarW) {
+        lv_obj_set_width(tag->barFill, barW > 0 ? barW : 1);
+        tag->lastBarW = barW;
+    }
+}
+
+void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) {
+    tag->valueLabel = parts.valueLabel;
+    tag->unitLabel = parts.unitLabel;
+    tag->topRule = parts.topRule;
+    tag->kicker = parts.kicker;
+    tag->barFill = parts.barFill;
+    tag->barMaxW = parts.barMaxW;
+    tag->lastBarW = -1;
+    tag->alertThreshold = cfg.label.alertThreshold;
+    tag->lastValue = NAN;
+    tag->lastValid = false;
+    tag->baseTextRgb = parts.textRgb;
+    tag->lastTintRgb = 0xFFFFFFFFu;
+    tag->ruleBaseRgb = parts.ruleRgb;
+    tag->ruleLastRgb = parts.ruleRgb;
+    tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
+    tag->lastDangerActive = false;
+}
+
 } // namespace
 
 lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
@@ -101,85 +262,10 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    const int16_t valueLineH = cfg.layout.h;
-
-    const uint8_t valueSize = pickValueFontSize(cfg);
-    const lv_font_t *valueFont = valueFontFor(valueSize);
-
-    lv_obj_t *kicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
-
-    lv_obj_t *valueRow = lv_obj_create(cont);
-    if (!valueRow) {
-        LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
+    LabelParts parts;
+    if (!buildLabelParts(cont, cfg, &parts)) {
         lv_obj_del(cont);
         return nullptr;
-    }
-    lv_obj_set_size(valueRow, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(valueRow, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(valueRow, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(valueRow, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_column(valueRow, 3, LV_PART_MAIN);
-    lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    lv_obj_align(valueRow, LV_ALIGN_LEFT_MID, kValueClusterInsetPx, 8);
-
-    lv_obj_t *label = lv_label_create(valueRow);
-    if (!label) {
-        LOG_ERROR("WF", "lv_label_create failed for '%s' — LVGL pool OOM", cfg.id);
-        lv_obj_del(cont);
-        return nullptr;
-    }
-    const uint32_t textRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
-    lv_obj_set_style_text_font(label, valueFont, 0);
-    lv_obj_set_style_text_letter_space(label, WidgetHelpers::valueTrackingPx(valueSize), 0);
-    lv_label_set_text(label, kStalePlaceholder);
-
-    lv_obj_t *unitLabel = nullptr;
-    const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
-    if (unit[0] != '\0') {
-        unitLabel = lv_label_create(valueRow);
-        if (unitLabel) {
-            lv_obj_set_style_text_color(unitLabel, lv_color_hex(WidgetHelpers::kMutedRgb), 0);
-            lv_obj_set_style_text_font(unitLabel, FontManager::units(), 0);
-            lv_label_set_text(unitLabel, unit);
-        }
-    }
-
-    const bool primary = valueSize >= WidgetHelpers::kRulePrimaryFontMin;
-    const uint32_t ruleRgb = primary ? textRgb : WidgetHelpers::kTrackRgb;
-    lv_obj_t *topRule = WidgetHelpers::makeTopRule(
-        cont, primary ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx, ruleRgb);
-
-    lv_obj_t *barFill = nullptr;
-    int16_t barMaxW = 0;
-    if (cfg.label.showBar && cfg.label.maxValue > cfg.label.minValue) {
-        barMaxW = static_cast<int16_t>(cfg.layout.w - 2 * kBarSideMarginPx);
-        if (barMaxW > 0) {
-            lv_obj_t *track = lv_obj_create(cont);
-            if (track) {
-                lv_obj_set_size(track, barMaxW, kBarHeightPx);
-                lv_obj_align(track, LV_ALIGN_BOTTOM_LEFT, kBarSideMarginPx, 0);
-                lv_obj_set_style_bg_color(track, lv_color_hex(WidgetHelpers::kTrackRgb),
-                                          LV_PART_MAIN);
-                lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN);
-                lv_obj_set_style_border_width(track, 0, LV_PART_MAIN);
-                lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN);
-                lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-            }
-            barFill = lv_obj_create(cont);
-            if (barFill) {
-                lv_obj_set_size(barFill, 1, kBarHeightPx);
-                lv_obj_align(barFill, LV_ALIGN_BOTTOM_LEFT, kBarSideMarginPx, 0);
-                lv_obj_set_style_bg_color(barFill, lv_color_hex(textRgb), LV_PART_MAIN);
-                lv_obj_set_style_bg_opa(barFill, LV_OPA_COVER, LV_PART_MAIN);
-                lv_obj_set_style_border_width(barFill, 0, LV_PART_MAIN);
-                lv_obj_set_style_pad_all(barFill, 0, LV_PART_MAIN);
-                lv_obj_clear_flag(barFill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-            }
-        }
     }
 
     WidgetTagPool::Slot<LabelTag> tagSlot;
@@ -190,25 +276,10 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    tag->valueLabel = label;
-    tag->unitLabel = unitLabel;
-    tag->topRule = topRule;
-    tag->kicker = kicker;
-    tag->barFill = barFill;
-    tag->barMaxW = barMaxW;
-    tag->lastBarW = -1;
-    tag->alertThreshold = cfg.label.alertThreshold;
-    tag->lastValue = NAN;
-    tag->lastValid = false;
-    tag->baseTextRgb = textRgb;
-    tag->lastTintRgb = 0xFFFFFFFFu;
-    tag->ruleBaseRgb = ruleRgb;
-    tag->ruleLastRgb = ruleRgb;
-    tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
-    tag->lastDangerActive = false;
+    initLabelTag(tag, cfg, parts);
 
     AlertFlash::attach(tag->alert, cont);
-    AlertFlash::watchLabel(tag->alert, label, textRgb);
+    AlertFlash::watchLabel(tag->alert, tag->valueLabel, parts.textRgb);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<LabelTag>, LV_EVENT_DELETE,
@@ -244,56 +315,28 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!tag || !tag->valueLabel)
         return;
 
-    const float displayValue = valid ? value : 0.0f;
-
     if (!valid) {
-        if (tag->lastValid) {
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
-            tag->lastValue = NAN;
-            tag->lastValid = false;
-        }
-        if (!tag->alert.active) {
-            const uint32_t staleRgb = ThemeManager::getStaleTextColor();
-            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, staleRgb);
-        }
-        if (tag->barFill && tag->lastBarW != 0) {
-            lv_obj_set_width(tag->barFill, 1);
-            tag->lastBarW = 0;
-        }
-        AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
-        applyDangerState(tag);
+        renderStale(tag);
         return;
     }
 
     const bool unchanged =
-        tag->lastValid == valid && !std::isnan(tag->lastValue) && displayValue == tag->lastValue;
+        tag->lastValid && !std::isnan(tag->lastValue) && value == tag->lastValue;
     if (!unchanged) {
         char buf[40];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
-                                   displayValue, nullptr);
+                                   value, nullptr);
         WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
-        tag->lastValue = displayValue;
-        tag->lastValid = valid;
+        tag->lastValue = value;
+        tag->lastValid = true;
     }
 
     if (!tag->alert.active) {
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tag->baseTextRgb);
     }
 
-    if (tag->barFill && tag->barMaxW > 0) {
-        const float range = cfg.label.maxValue - cfg.label.minValue;
-        float pct = range > 0.0f ? (displayValue - cfg.label.minValue) / range : 0.0f;
-        if (pct < 0.0f)
-            pct = 0.0f;
-        if (pct > 1.0f)
-            pct = 1.0f;
-        const int16_t barW = static_cast<int16_t>(pct * tag->barMaxW);
-        if (barW != tag->lastBarW) {
-            lv_obj_set_width(tag->barFill, barW > 0 ? barW : 1);
-            tag->lastBarW = barW;
-        }
-    }
+    updateBar(tag, cfg, value);
 
-    AlertFlash::update(tag->alert, displayValue, tag->alertThreshold);
+    AlertFlash::update(tag->alert, value, tag->alertThreshold);
     applyDangerState(tag);
 }
