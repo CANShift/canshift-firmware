@@ -36,6 +36,12 @@ static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
 static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
 static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
 static constexpr uint32_t TWAI_RX_ERROR_BACKOFF_MS = 5;
+static constexpr uint32_t TWAI_RX_POLL_TIMEOUT_MS = 10;
+static constexpr uint32_t TWAI_DOWN_TICK_DELAY_MS = 100;
+static constexpr uint32_t RX_ERROR_REPORT_INTERVAL_MS = 1000;
+
+static uint32_t s_lastErrLogMs = 0;
+static uint32_t s_lastErrPushMs = 0;
 
 static StackType_t *s_initTaskStack = nullptr;
 static StaticTask_t s_initTaskTCB;
@@ -212,101 +218,112 @@ esp_err_t CanManager::initHardware() {
     return result;
 }
 
+static void tickInitRetry() {
+    const uint32_t nowMs = millis();
+    const bool retryDue = s_retryAttempts < TWAI_INIT_MAX_RETRIES &&
+                          (s_lastRetryMs == 0 || nowMs - s_lastRetryMs >= TWAI_INIT_RETRY_MS);
+    if (retryDue) {
+        s_retryAttempts++;
+        s_lastRetryMs = nowMs;
+        if (CanManager::initHardware() == ESP_OK) {
+            LOG_INFO("CAN", "TWAI initialized after %u retries", s_retryAttempts);
+        }
+        return;
+    }
+    if (s_retryAttempts >= TWAI_INIT_MAX_RETRIES && !s_permanentlyDownWarned) {
+        LOG_ERROR("CAN", "TWAI permanently down — heap too low at boot");
+        ErrorStore::push(ERROR_SRC_CAN, "PERM_DOWN", "TWAI permanently down");
+        s_permanentlyDownWarned = true;
+    }
+}
+
+static void routeFrame(const twai_message_t &message) {
+    s_windowFrames++;
+    s_lastRxMs = millis();
+    if (message.rtr)
+        return;
+    const uint8_t safeLen =
+        static_cast<uint8_t>(message.data_length_code < kCanFrameMaxBytes ? message.data_length_code
+                                                                          : kCanFrameMaxBytes);
+    const bool consumedByPoller = Obd2Dtc::onRxFrame(message.identifier, message.data, safeLen);
+    Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
+    if (!consumedByPoller) {
+        CanParser::parseFrame(message.identifier, message.data, safeLen);
+    }
+    UsbComm::CanScanFrame sf;
+    sf.id = message.identifier;
+    sf.len = safeLen;
+    memcpy(sf.data, message.data, sf.len);
+    UsbComm::pushCanFrame(sf);
+}
+
+static void maybeInitiateBusOffRecovery() {
+    twai_status_info_t status;
+    if (twai_get_status_info(&status) != ESP_OK || status.state != TWAI_STATE_BUS_OFF)
+        return;
+    LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
+    ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
+    const esp_err_t recoveryErr = twai_initiate_recovery();
+    if (recoveryErr != ESP_OK) {
+        LOG_ERROR("CAN", "recovery initiation failed: %s", esp_err_to_name(recoveryErr));
+        ErrorStore::push(ERROR_SRC_CAN, "REC_FAIL", "bus-off recovery not started");
+    }
+}
+
+static void handleRxError(esp_err_t err) {
+    s_errorCount++;
+    const uint32_t nowMs = millis();
+    if (nowMs - s_lastErrLogMs >= RX_ERROR_REPORT_INTERVAL_MS) {
+        LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err),
+                 s_errorCount);
+        s_lastErrLogMs = nowMs;
+    }
+    maybeInitiateBusOffRecovery();
+    if (nowMs - s_lastErrPushMs >= RX_ERROR_REPORT_INTERVAL_MS) {
+        char msg[52];
+        snprintf(msg, sizeof(msg), "%s (total: %lu)", esp_err_to_name(err),
+                 static_cast<unsigned long>(s_errorCount));
+        ErrorStore::push(ERROR_SRC_CAN, "TWAI_ERR", msg);
+        s_lastErrPushMs = nowMs;
+    }
+
+    // Hard errors return immediately (no rx-timeout block) — without a
+    // backoff this priority-15 task starves core 0 during bus-off recovery.
+    vTaskDelay(pdMS_TO_TICKS(TWAI_RX_ERROR_BACKOFF_MS));
+}
+
+static void updateStatsWindow(uint32_t nowMs) {
+    if (s_lastStatMs == 0) {
+        s_lastStatMs = nowMs;
+        return;
+    }
+    if (nowMs - s_lastStatMs < STAT_INTERVAL_MS)
+        return;
+    const uint32_t elapsed = nowMs - s_lastStatMs;
+    const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
+    s_lastBusRateX10 = fpsX10;
+    UsbComm::updateCanStats(fpsX10, s_errorCount);
+    s_windowFrames = 0;
+    s_lastStatMs = nowMs;
+}
+
 bool CanManager::tick() {
     if (!s_twaiInstalled) {
-        const uint32_t nowMs = millis();
-        if (s_retryAttempts < TWAI_INIT_MAX_RETRIES &&
-            (s_lastRetryMs == 0 || nowMs - s_lastRetryMs >= TWAI_INIT_RETRY_MS)) {
-            s_retryAttempts++;
-            s_lastRetryMs = nowMs;
-            esp_err_t err = initHardware();
-            if (err == ESP_OK) {
-                LOG_INFO("CAN", "TWAI initialized after %u retries", s_retryAttempts);
-            }
-        } else if (s_retryAttempts >= TWAI_INIT_MAX_RETRIES && !s_twaiInstalled &&
-                   !s_permanentlyDownWarned) {
-            LOG_ERROR("CAN", "TWAI permanently down — heap too low at boot");
-            ErrorStore::push(ERROR_SRC_CAN, "PERM_DOWN", "TWAI permanently down");
-            s_permanentlyDownWarned = true;
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        tickInitRetry();
+        vTaskDelay(pdMS_TO_TICKS(TWAI_DOWN_TICK_DELAY_MS));
         return false;
     }
 
     twai_message_t message;
-    esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(10));
-
+    const esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(TWAI_RX_POLL_TIMEOUT_MS));
     if (err == ESP_OK) {
-        s_windowFrames++;
-        s_lastRxMs = millis();
-
-        if (!(message.rtr)) {
-
-            const uint8_t safeLen =
-                static_cast<uint8_t>(message.data_length_code < 8 ? message.data_length_code : 8);
-
-            const bool consumedByPoller =
-                Obd2Dtc::onRxFrame(message.identifier, message.data, safeLen);
-            Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
-            if (!consumedByPoller) {
-                CanParser::parseFrame(message.identifier, message.data, safeLen);
-            }
-
-            UsbComm::CanScanFrame sf;
-            sf.id = message.identifier;
-            sf.len = safeLen;
-            memcpy(sf.data, message.data, sf.len);
-            UsbComm::pushCanFrame(sf);
-        }
+        routeFrame(message);
     } else if (err != ESP_ERR_TIMEOUT) {
-        s_errorCount++;
-
-        static uint32_t s_lastErrLogMs = 0;
-        const uint32_t nowErrLog = millis();
-        if (nowErrLog - s_lastErrLogMs >= 1000) {
-            LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err),
-                     s_errorCount);
-            s_lastErrLogMs = nowErrLog;
-        }
-
-        twai_status_info_t status;
-        if (twai_get_status_info(&status) == ESP_OK && status.state == TWAI_STATE_BUS_OFF) {
-            LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
-            ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
-            const esp_err_t recoveryErr = twai_initiate_recovery();
-            if (recoveryErr != ESP_OK) {
-                LOG_ERROR("CAN", "recovery initiation failed: %s", esp_err_to_name(recoveryErr));
-                ErrorStore::push(ERROR_SRC_CAN, "REC_FAIL", "bus-off recovery not started");
-            }
-        }
-
-        static uint32_t s_lastErrPushMs = 0;
-        const uint32_t nowPush = millis();
-        if (nowPush - s_lastErrPushMs >= 1000) {
-            char msg[52];
-            snprintf(msg, sizeof(msg), "%s (total: %lu)", esp_err_to_name(err),
-                     static_cast<unsigned long>(s_errorCount));
-            ErrorStore::push(ERROR_SRC_CAN, "TWAI_ERR", msg);
-            s_lastErrPushMs = nowPush;
-        }
-
-        // Hard errors return immediately (no rx-timeout block) — without a
-        // backoff this priority-15 task starves core 0 during bus-off recovery.
-        vTaskDelay(pdMS_TO_TICKS(TWAI_RX_ERROR_BACKOFF_MS));
+        handleRxError(err);
     }
 
     const uint32_t nowMs = millis();
-    if (s_lastStatMs == 0) {
-        s_lastStatMs = nowMs;
-    } else if (nowMs - s_lastStatMs >= STAT_INTERVAL_MS) {
-        const uint32_t elapsed = nowMs - s_lastStatMs;
-        const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
-        s_lastBusRateX10 = fpsX10;
-        UsbComm::updateCanStats(fpsX10, s_errorCount);
-        s_windowFrames = 0;
-        s_lastStatMs = nowMs;
-    }
-
+    updateStatsWindow(nowMs);
     Obd2Poller::tick(nowMs);
 
     return err == ESP_OK;
