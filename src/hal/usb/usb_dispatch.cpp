@@ -9,6 +9,7 @@
 #include "diag/logger.h"
 #include "diag/lvgl_hold_timer.h"
 #include "runtime/lvgl_lock.h"
+#include "runtime/device_commands.h"
 #include "runtime/pending_actions.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
@@ -50,6 +51,44 @@ void handleSetBoardProfile(const JsonObjectConst &doc) {
     UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
     vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
     esp_restart();
+}
+
+void sendStatusResponse() {
+    char resp[160];
+    const int n = snprintf(resp, sizeof(resp),
+                           "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
+                           "\"board_id\":\"%s\"}",
+                           APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
+                           ThemeManager::isDayMode() ? 1 : 0, kBoard.board_id);
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
+        LOG_WARN("USB", "GET_STATUS payload truncated (n=%d, cap=%u)", n,
+                 static_cast<unsigned>(sizeof(resp)));
+        return;
+    }
+    UsbComm::sendLine(resp);
+}
+
+void sendPingResponse() {
+    char resp[48];
+    const int n = snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"uptime_ms\":%lu}",
+                           static_cast<unsigned long>(millis()));
+    if (n > 0 && static_cast<size_t>(n) < sizeof(resp)) {
+        UsbComm::sendLine(resp);
+    }
+}
+
+void renderSharedOutcome(DeviceCommands::Outcome outcome) {
+    if (outcome == DeviceCommands::Outcome::MissingDayField) {
+        UsbComm::sendError("missing_day");
+        return;
+    }
+    if (outcome == DeviceCommands::Outcome::RebootRequested) {
+        UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
+        vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
+        esp_restart();
+        return;
+    }
+    UsbComm::sendOk();
 }
 
 void handleScreenSettings(const JsonObjectConst &obj) {
@@ -112,6 +151,100 @@ uint8_t extractCmdByte(const char *jsonLine) {
     return static_cast<uint8_t>(parsed);
 }
 
+bool parseOrFail(const char *jsonLine, size_t jsonLen, JsonDocument &doc, const char *abortReason) {
+    const DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
+    if (!err)
+        return true;
+    LOG_WARN("USB", "JSON parse error: %s", err.c_str());
+    UsbComm::sendError("parse_error");
+    if (abortReason != nullptr) {
+        abortChunkTransfer(abortReason);
+    }
+    return false;
+}
+
+// PUT_CONFIG and OTA_WRITE read their payload straight off the raw line; PUT_FILE
+// parses first but must abort an open chunk transfer when that fails.
+bool consumeRawPayloadCommand(uint8_t cmd, const char *jsonLine, size_t jsonLen) {
+    if (cmd == UsbComm::CMD_PUT_CONFIG) {
+        handlePutConfig(jsonLine);
+        return true;
+    }
+    if (cmd == UsbComm::CMD_OTA_WRITE) {
+        handleOtaWriteRaw(jsonLine);
+        return true;
+    }
+    if (cmd != UsbComm::CMD_PUT_FILE) {
+        return false;
+    }
+    JsonDocument doc;
+    if (parseOrFail(jsonLine, jsonLen, doc, "parse_error")) {
+        handlePutFile(doc.as<JsonObjectConst>());
+    }
+    return true;
+}
+
+struct UsbCommand {
+    uint8_t code;
+    void (*run)(const JsonObjectConst &);
+};
+
+// The xtensa toolchain rejects captureless lambdas in a constexpr initializer,
+// so commands that ignore the payload get a named adapter.
+void runGetStatus(const JsonObjectConst &) {
+    sendStatusResponse();
+}
+void runPing(const JsonObjectConst &) {
+    sendPingResponse();
+}
+void runGetConfig(const JsonObjectConst &) {
+    handleGetConfig();
+}
+void runGetDeviceConfig(const JsonObjectConst &) {
+    sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", nullptr);
+}
+void runGetInputBindings(const JsonObjectConst &) {
+    sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", "input_bindings");
+}
+void runCanScanStart(const JsonObjectConst &) {
+    handleCanScanStart();
+}
+void runCanScanStop(const JsonObjectConst &) {
+    handleCanScanStop();
+}
+void runObdReadDtc(const JsonObjectConst &) {
+    handleObdReadDtc();
+}
+void runObdClearDtc(const JsonObjectConst &) {
+    handleObdClearDtc();
+}
+
+constexpr UsbCommand kUsbCommands[] = {
+    {UsbComm::CMD_GET_STATUS, &runGetStatus},
+    {UsbComm::CMD_PING, &runPing},
+    {UsbComm::CMD_GET_CONFIG, &runGetConfig},
+    {UsbComm::CMD_GET_DEVICE_CONFIG, &runGetDeviceConfig},
+    {UsbComm::CMD_PUT_DEVICE_CONFIG, &handlePutDeviceConfig},
+    {UsbComm::CMD_GET_INPUT_BINDINGS, &runGetInputBindings},
+    {UsbComm::CMD_PUT_INPUT_BINDINGS, &handlePutInputBindings},
+    {UsbComm::CMD_SCREEN_SETTINGS, &handleScreenSettings},
+    {UsbComm::CMD_SET_BOARD_PROFILE, &handleSetBoardProfile},
+    {UsbComm::CMD_OTA_BEGIN, &handleOtaBegin},
+    {UsbComm::CMD_OTA_END, &handleOtaEnd},
+    {UsbComm::CMD_CAN_SCAN_START, &runCanScanStart},
+    {UsbComm::CMD_CAN_SCAN_STOP, &runCanScanStop},
+    {UsbComm::CMD_OBD_READ_DTC, &runObdReadDtc},
+    {UsbComm::CMD_OBD_CLEAR_DTC, &runObdClearDtc},
+};
+
+const UsbCommand *findUsbCommand(uint8_t code) {
+    for (const UsbCommand &c : kUsbCommands) {
+        if (c.code == code)
+            return &c;
+    }
+    return nullptr;
+}
+
 void handleCommand(const char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
@@ -120,144 +253,27 @@ void handleCommand(const char *jsonLine) {
     const uint8_t cmd = extractCmdByte(jsonLine);
     CmdHeapGuard heapGuard{cmd};
 
-    if (cmd == UsbComm::CMD_PUT_CONFIG) {
-        handlePutConfig(jsonLine);
+    if (consumeRawPayloadCommand(cmd, jsonLine, jsonLen))
         return;
-    }
-
-    if (cmd == UsbComm::CMD_PUT_FILE) {
-        JsonDocument doc;
-        DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
-        if (err) {
-            LOG_WARN("USB", "PUT_FILE parse error: %s", err.c_str());
-            UsbComm::sendError("parse_error");
-            abortChunkTransfer("parse_error");
-            return;
-        }
-        handlePutFile(doc.as<JsonObjectConst>());
-        return;
-    }
-
-    if (cmd == UsbComm::CMD_OTA_WRITE) {
-        handleOtaWriteRaw(jsonLine);
-        return;
-    }
 
     JsonDocument doc;
-    DeserializationError err = JsonReader::parse(doc, jsonLine, jsonLen);
-    if (err) {
-        LOG_WARN("USB", "JSON parse error: %s", err.c_str());
-        UsbComm::sendError("parse_error");
+    if (!parseOrFail(jsonLine, jsonLen, doc, nullptr))
+        return;
+
+    const JsonObjectConst obj = doc.as<JsonObjectConst>();
+
+    if (const DeviceCommands::Command *shared = DeviceCommands::findByUsbCode(cmd)) {
+        renderSharedOutcome(shared->run(obj));
         return;
     }
 
-    switch (cmd) {
-        case UsbComm::CMD_GET_STATUS: {
-            char resp[160];
-            const int n =
-                snprintf(resp, sizeof(resp),
-                         "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
-                         "\"board_id\":\"%s\"}",
-                         APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                         ThemeManager::isDayMode() ? 1 : 0, kBoard.board_id);
-            if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
-                LOG_WARN("USB", "GET_STATUS payload truncated (n=%d, cap=%u)", n,
-                         static_cast<unsigned>(sizeof(resp)));
-                break;
-            }
-            UsbComm::sendLine(resp);
-            break;
-        }
-        case UsbComm::CMD_OTA_BEGIN:
-            handleOtaBegin(doc.as<JsonObjectConst>());
-            break;
-        case UsbComm::CMD_OTA_END:
-            handleOtaEnd(doc.as<JsonObjectConst>());
-            break;
-        case UsbComm::CMD_PING: {
-            char resp[48];
-            const int n = snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"uptime_ms\":%lu}",
-                                   static_cast<unsigned long>(millis()));
-            if (n > 0 && static_cast<size_t>(n) < sizeof(resp)) {
-                UsbComm::sendLine(resp);
-            }
-            break;
-        }
-        case UsbComm::CMD_GET_CONFIG:
-            handleGetConfig();
-            break;
-        case UsbComm::CMD_GET_DEVICE_CONFIG:
-
-            sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", nullptr);
-            break;
-        case UsbComm::CMD_PUT_DEVICE_CONFIG:
-            handlePutDeviceConfig(doc.as<JsonObjectConst>());
-            break;
-        case UsbComm::CMD_GET_INPUT_BINDINGS:
-
-            sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", "input_bindings");
-            break;
-        case UsbComm::CMD_PUT_INPUT_BINDINGS:
-            handlePutInputBindings(doc.as<JsonObjectConst>());
-            break;
-        case UsbComm::CMD_SCREEN_SETTINGS:
-            handleScreenSettings(doc.as<JsonObjectConst>());
-            break;
-        case UsbComm::CMD_TOGGLE_DAY_NIGHT:
-            PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
-            LOG_INFO("USB", "CMD: day/night toggle queued");
-            UsbComm::sendOk();
-            break;
-        case UsbComm::CMD_SET_DAY_NIGHT: {
-            JsonVariantConst dayVar = doc["day"];
-            if (dayVar.isNull() || !dayVar.is<bool>()) {
-                LOG_WARN("USB", "set_day_night missing 'day' bool");
-                UsbComm::sendError("missing_day");
-                break;
-            }
-            const bool day = dayVar.as<bool>();
-            PendingActions::dayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
-            LOG_INFO("USB", "CMD: day/night set queued — %s", day ? "day" : "night");
-            UsbComm::sendOk();
-            break;
-        }
-        case UsbComm::CMD_CALIBRATE_TOUCH:
-            PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
-            LOG_INFO("USB", "CMD: calibration queued");
-            UsbComm::sendOk();
-            break;
-        case UsbComm::CMD_RESET_TOUCH_CAL:
-            PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
-            LOG_INFO("USB", "CMD: calibration reset queued");
-            UsbComm::sendOk();
-            break;
-        case UsbComm::CMD_SET_BOARD_PROFILE:
-            handleSetBoardProfile(doc.as<JsonObjectConst>());
-            break;
-        case UsbComm::CMD_REBOOT:
-            LOG_INFO("USB", "CMD_REBOOT — restarting");
-            UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-            vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
-            esp_restart();
-            break;
-        case UsbComm::CMD_CAN_SCAN_START:
-            handleCanScanStart();
-            break;
-        case UsbComm::CMD_OBD_READ_DTC:
-            handleObdReadDtc();
-            break;
-        case UsbComm::CMD_OBD_CLEAR_DTC:
-            handleObdClearDtc();
-            break;
-        case UsbComm::CMD_CAN_SCAN_STOP:
-            handleCanScanStop();
-            break;
-        default:
-
-            LOG_WARN("USB", "Unknown cmd: 0x%02X — replying unknown_command", cmd);
-            UsbComm::sendError("unknown_command");
-            break;
+    const UsbCommand *entry = findUsbCommand(cmd);
+    if (entry == nullptr) {
+        LOG_WARN("USB", "Unknown cmd: 0x%02X — replying unknown_command", cmd);
+        UsbComm::sendError("unknown_command");
+        return;
     }
+    entry->run(obj);
 }
 
 } // namespace UsbCommInternal
