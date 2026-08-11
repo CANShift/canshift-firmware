@@ -8,6 +8,7 @@
 #include "diag/heap_stats.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
+#include "runtime/lvgl_lock.h"
 
 #include <ArduinoJson.h>
 #include <esp_system.h>
@@ -21,8 +22,6 @@
 
 #include <stdint.h>
 #include <string.h>
-
-extern SemaphoreHandle_t g_lvglMutex;
 
 namespace {
 
@@ -160,7 +159,8 @@ void handlePutConfig(const char *jsonLine) {
     UsbCommInternal::invokeBurnOverlayShow();
     vTaskDelay(pdMS_TO_TICKS(BURN_OVERLAY_RENDER_GRACE_MS));
 
-    if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(USB_PUT_CONFIG_MUTEX_TIMEOUT_MS)) != pdTRUE) {
+    LvglLock lock(pdMS_TO_TICKS(USB_PUT_CONFIG_MUTEX_TIMEOUT_MS));
+    if (!lock.held()) {
         LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
         UsbCommInternal::invokeBurnOverlayShowError(0);
         UsbComm::sendError("busy");
@@ -170,8 +170,6 @@ void handlePutConfig(const char *jsonLine) {
     bool ok = StorageDriver::writeFileAtomic(
         CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
-        xSemaphoreGive(g_lvglMutex);
-
         UsbCommInternal::invokeBurnOverlayShowError(0);
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
         UsbComm::sendError("write_failed");

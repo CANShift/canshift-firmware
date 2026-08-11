@@ -7,7 +7,8 @@
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "diag/logger.h"
-#include "diag/lvgl_lock_guard.h"
+#include "diag/lvgl_hold_timer.h"
+#include "runtime/lvgl_lock.h"
 #include "runtime/pending_actions.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
@@ -26,8 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern SemaphoreHandle_t g_lvglMutex;
 
 namespace {
 
@@ -57,16 +56,14 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     JsonVariantConst brightnessVar = obj["brightness"];
     if (!brightnessVar.isNull()) {
         const uint8_t brightness = brightnessVar.as<uint8_t>();
-        if (xSemaphoreTake(g_lvglMutex, pdMS_TO_TICKS(USB_SCREEN_SETTINGS_MUTEX_TIMEOUT_MS)) ==
-            pdTRUE) {
-            LVGL_HOLD_GUARD(::PerfCounters::MUTEX_HOLD_USB);
-            SettingsPage::applyFromUsb(brightness);
-            xSemaphoreGive(g_lvglMutex);
-        } else {
+        LvglLock lock(pdMS_TO_TICKS(USB_SCREEN_SETTINGS_MUTEX_TIMEOUT_MS));
+        if (!lock.held()) {
             LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
             UsbComm::sendError("busy");
             return;
         }
+        LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_USB);
+        SettingsPage::applyFromUsb(brightness);
     }
 
     JsonVariantConst rotationVar = obj["rotation"];
