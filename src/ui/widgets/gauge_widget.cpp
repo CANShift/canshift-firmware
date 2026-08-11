@@ -27,9 +27,6 @@ static constexpr uint8_t kValueFontSizePrimary = 72;
 static constexpr uint8_t kValueFontSizeSecondary = 34;
 static constexpr uint8_t kValueFontSizeUnits = 14;
 
-static constexpr uint8_t kFracFontMinPx = 12;
-static constexpr uint8_t kFracFontSecondaryThresholdPx = 34;
-
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
 static constexpr uint16_t kArcRotation = 135;
@@ -107,43 +104,8 @@ static int32_t scaleForDisplay(float value, uint8_t decimals) {
     return static_cast<int32_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
 }
 
-static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
-                         size_t fracCap) {
-    if (fracCap > 0)
-        fracOut[0] = '\0';
-    const char *dot = strchr(in, '.');
-    if (dot) {
-        const size_t intLen = static_cast<size_t>(dot - in);
-        const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
-        memcpy(intOut, in, copyInt);
-        intOut[copyInt] = '\0';
-        strlcpy(fracOut, dot, fracCap);
-        return;
-    }
-    const size_t total = strlen(in);
-    const char *digits = in;
-    size_t digitCount = total;
-    bool negative = false;
-    if (total > 0 && in[0] == '-') {
-        negative = true;
-        digits = in + 1;
-        digitCount = total - 1;
-    }
-    if (digitCount > 3 && fracCap >= 4) {
-        const size_t headLen = digitCount - 3;
-        const size_t copyHead = headLen + (negative ? 1u : 0u);
-        const size_t safeHead = copyHead < intCap - 1 ? copyHead : intCap - 1;
-        memcpy(intOut, in, safeHead);
-        intOut[safeHead] = '\0';
-        strlcpy(fracOut, digits + headLen, fracCap);
-        return;
-    }
-    strlcpy(intOut, in, intCap);
-}
-
 struct GaugeTag {
     lv_obj_t *valueLabel;
-    lv_obj_t *fracLabel;
     lv_obj_t *fillArc;
     lv_obj_t *topRule;
     lv_obj_t *kicker;
@@ -231,15 +193,16 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
 }
 
 static constexpr int16_t kValueRowYOffset = kArcYShift;
+static constexpr int16_t kValueClusterInsetPx = 4;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
     lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, kValueRowYOffset);
+    lv_obj_align(valueRow, LV_ALIGN_LEFT_MID, kValueClusterInsetPx, kValueRowYOffset);
     WidgetHelpers::resetContainerStyle(valueRow);
     lv_obj_set_style_pad_column(valueRow, 2, LV_PART_MAIN);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     return valueRow;
 }
 
@@ -250,33 +213,6 @@ static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font, uint
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, kStalePlaceholder);
     return label;
-}
-
-static bool canBeWideInt(const CfgWidget &cfg) {
-    if (cfg.gauge.decimalPlaces != 0)
-        return false;
-    if (cfg.gauge.prefix != nullptr && cfg.gauge.prefix[0] != '\0')
-        return false;
-    return cfg.gauge.maxValue >= 1000.0f || cfg.gauge.minValue <= -1000.0f;
-}
-
-static lv_obj_t *buildFracLabel(lv_obj_t *valueRow, const CfgWidget &cfg, uint8_t intFontSize,
-                                uint32_t textRgb) {
-    if (cfg.gauge.decimalPlaces == 0 && !canBeWideInt(cfg))
-        return nullptr;
-    lv_obj_t *fracLabel = lv_label_create(valueRow);
-    if (!fracLabel)
-        return nullptr;
-    uint8_t fracSize = static_cast<uint8_t>((intFontSize * 7) / 10);
-    if (fracSize < kFracFontMinPx)
-        fracSize = kFracFontMinPx;
-    const lv_font_t *fracFont = (fracSize >= kFracFontSecondaryThresholdPx)
-                                    ? FontManager::secondary(fracSize)
-                                    : FontManager::label(fracSize);
-    lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
-    lv_obj_set_style_text_font(fracLabel, fracFont, 0);
-    lv_label_set_text(fracLabel, "");
-    return fracLabel;
 }
 
 static float resolveRevFlashThreshold(const CfgWidget &cfg) {
@@ -305,7 +241,6 @@ static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
 
 struct GaugeBuildState {
     lv_obj_t *label;
-    lv_obj_t *fracLabel;
     lv_obj_t *fillArc;
     lv_obj_t *topRule;
     lv_obj_t *kicker;
@@ -315,7 +250,7 @@ struct GaugeBuildState {
 };
 
 static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
-                              lv_obj_t *&outLabel, lv_obj_t *&outFrac, lv_obj_t *&outKicker) {
+                              lv_obj_t *&outLabel, lv_obj_t *&outKicker) {
     uint8_t intFontSize = kValueFontSizeUnits;
     const lv_font_t *font = resolveValueFont(cfg, intFontSize);
     lv_obj_t *valueRow = buildValueRow(cont);
@@ -323,7 +258,6 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t tex
     outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
     if (outLabel && intFontSize >= WidgetHelpers::kRulePrimaryFontMin)
         lv_obj_set_style_text_letter_space(outLabel, WidgetHelpers::kPrimaryValueTrackingPx, 0);
-    outFrac = buildFracLabel(valueRow, cfg, intFontSize, valueRgb);
     outKicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
                                                       WidgetLabelOverlay::HeaderPos::TOP_LEFT);
     (void)textRgb;
@@ -332,7 +266,6 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t tex
 static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built,
                          uint32_t inkRgb) {
     tag->valueLabel = built.label;
-    tag->fracLabel = built.fracLabel;
     tag->fillArc = built.fillArc;
     tag->topRule = built.topRule;
     tag->kicker = built.kicker;
@@ -360,9 +293,6 @@ static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg
     AlertFlash::attach(tag->alert, cont);
     const uint32_t valueRgb = tag->inkRgb;
     AlertFlash::watchLabel(tag->alert, tag->valueLabel, valueRgb);
-    if (tag->fracLabel) {
-        AlertFlash::watchLabel(tag->alert, tag->fracLabel, valueRgb);
-    }
 }
 
 } // namespace
@@ -382,9 +312,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_t *fillArc = buildValueFillArc(cont, diam, textRgb, strokeW);
 
     lv_obj_t *label = nullptr;
-    lv_obj_t *fracLabel = nullptr;
     lv_obj_t *kicker = nullptr;
-    buildValueCluster(cont, cfg, textRgb, label, fracLabel, kicker);
+    buildValueCluster(cont, cfg, textRgb, label, kicker);
 
     const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
     const uint32_t ruleRgb = primaryTier ? textRgb : WidgetHelpers::kTrackRgb;
@@ -400,8 +329,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    const GaugeBuildState built = {label,  fracLabel, fillArc,           topRule,
-                                   kicker, ruleRgb,   modes.dangerAngle, modes.hasDanger};
+    const GaugeBuildState built = {label,   fillArc,           topRule,        kicker,
+                                   ruleRgb, modes.dangerAngle, modes.hasDanger};
     initGaugeTag(tag, cfg, built, textRgb);
     attachAlertFlash(tag, cont, cfg);
 
@@ -437,9 +366,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!valid) {
         if (tag->lastValid) {
             WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
-            if (tag->fracLabel) {
-                WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, "");
-            }
             tag->lastValue = NAN;
             tag->lastValid = false;
             tag->lastDisplayScaled = INT32_MIN;
@@ -447,10 +373,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         if (!tag->alert.active) {
             const uint32_t staleRgb = ThemeManager::getStaleTextColor();
             WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
-            if (tag->fracLabel) {
-                uint32_t fracLast = tag->lastLabelRgb;
-                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, staleRgb);
-            }
         }
         if (tag->fillArc && tag->lastAngle != 0u) {
             lv_arc_set_angles(tag->fillArc, 0, 0);
@@ -472,10 +394,6 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         const bool inDanger = tag->hasDanger && value >= cfg.gauge.dangerLevel;
         const uint32_t labelColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
-        if (tag->fracLabel) {
-            uint32_t fracLast = tag->lastLabelRgb;
-            WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, labelColor);
-        }
     }
 
     if (tag->fillArc) {
@@ -498,15 +416,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         char buf[24];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
                                    value, nullptr);
-        if (tag->fracLabel) {
-            char intPart[16];
-            char fracPart[12];
-            splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
-            WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
-        } else {
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
-        }
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastDisplayScaled = displayScaled;
     }
 

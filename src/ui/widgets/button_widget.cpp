@@ -20,15 +20,15 @@
 
 namespace {
 
-constexpr int16_t BUTTON_PAD_X = 6;
-constexpr int16_t BUTTON_PAD_Y = 4;
+constexpr int16_t BUTTON_PAD_X = 7;
+constexpr int16_t BUTTON_PAD_Y = 6;
 constexpr int16_t BUTTON_ROW_GAP = 2;
-constexpr float LABEL_VBUDGET_RATIO = 0.48f;
-constexpr float LABEL_W_RATIO = 0.22f;
+constexpr int16_t BUTTON_KICKER_BAND_PX = 24;
+constexpr float LABEL_GLYPH_WIDTH_RATIO = 0.65f;
 constexpr int16_t LABEL_FONT_MIN = 8;
-constexpr int16_t LABEL_BUDGET_PAD = 12;
+constexpr int16_t LABEL_BUDGET_PAD = 14;
 
-constexpr int16_t BUTTON_FONT_TARGET_XL = 22;
+constexpr int16_t BUTTON_FONT_TARGET_XL = 27;
 constexpr int16_t BUTTON_FONT_TARGET_LG = 15;
 constexpr int16_t BUTTON_FONT_TARGET_MD = 13;
 constexpr uint8_t BUTTON_FONT_SIZE_XL = 28;
@@ -39,10 +39,13 @@ constexpr uint8_t BUTTON_KICKER_FONT_PX = 10;
 constexpr int16_t BUTTON_KICKER_TRACKING_PX = 2;
 constexpr lv_opa_t BUTTON_KICKER_ENGAGED_OPA = 0xC0;
 
-int16_t computeLabelFontSize(int16_t w, int16_t h) {
-    const float verticalBudget = h * LABEL_VBUDGET_RATIO;
+int16_t computeLabelFontSize(int16_t w, int16_t h, bool hasKicker, size_t labelLen) {
+    const float verticalBudget =
+        static_cast<float>(h - (hasKicker ? BUTTON_KICKER_BAND_PX : 2 * BUTTON_PAD_Y));
     const float labelBudget = static_cast<float>(w - LABEL_BUDGET_PAD);
-    float fontSize = fminf(verticalBudget, labelBudget * LABEL_W_RATIO);
+    const float glyphs = static_cast<float>(labelLen > 0 ? labelLen : 1);
+    const float widthCap = labelBudget / (glyphs * LABEL_GLYPH_WIDTH_RATIO);
+    float fontSize = fminf(verticalBudget, widthCap);
     if (fontSize < LABEL_FONT_MIN)
         fontSize = LABEL_FONT_MIN;
     return static_cast<int16_t>(fontSize);
@@ -81,6 +84,16 @@ struct ButtonTag {
     uint32_t signalSyncIgnoreUntilMs;
     uint8_t cycleIndex;
 };
+
+void setUppercased(lv_obj_t *label, const char *text) {
+    char upper[CFG_MAX_NAME_LEN];
+    size_t i = 0;
+    for (; i < sizeof(upper) - 1 && text[i] != '\0'; ++i)
+        upper[i] =
+            (text[i] >= 'a' && text[i] <= 'z') ? static_cast<char>(text[i] - 'a' + 'A') : text[i];
+    upper[i] = '\0';
+    lv_label_set_text(label, upper);
+}
 
 struct ButtonVisual {
     uint32_t bgColor;
@@ -173,7 +186,7 @@ void applyCycleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
 
     if (tag.labelObj) {
         const char *labelText = state.label[0] != '\0' ? state.label : tag.params->label;
-        lv_label_set_text(tag.labelObj, labelText);
+        setUppercased(tag.labelObj, labelText);
     }
 }
 
@@ -258,14 +271,37 @@ void initButtonTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &
 void createButtonLabel(lv_obj_t *btn, ButtonTag *tag, const CfgButtonParams &p,
                        const lv_font_t *btnFont) {
     lv_obj_t *label = lv_label_create(btn);
-    lv_label_set_text(label, p.label);
+    setUppercased(label, p.label);
     lv_obj_set_style_text_font(label, btnFont, 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, 0);
     tag->labelObj = label;
 }
 
+const char *kickerFromAction(const CfgButtonParams &p) {
+    if (p.actionsCount == 0 && p.mode != CfgButtonMode::CYCLE)
+        return nullptr;
+    const CfgButtonActionType type =
+        p.mode == CfgButtonMode::CYCLE
+            ? (p.statesCount > 0 ? p.states[0].action.type : CfgButtonActionType::UNKNOWN)
+            : p.actions[0].type;
+    switch (type) {
+        case CfgButtonActionType::NAV_PAGE:
+            return "PAGE";
+        case CfgButtonActionType::MAP_SWITCH:
+            return "MAP";
+        case CfgButtonActionType::CRUISE_CONTROL:
+            return "CRUISE";
+        case CfgButtonActionType::CAN_RAW:
+        case CfgButtonActionType::UNKNOWN:
+        default:
+            return nullptr;
+    }
+}
+
 void createButtonKicker(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cfg) {
     const char *text = WidgetLabelOverlay::displayLabelForSignal(cfg.signalId);
+    if (!text && cfg.button)
+        text = kickerFromAction(*cfg.button);
     if (!text)
         return;
     lv_obj_t *kicker = lv_label_create(btn);
@@ -350,13 +386,15 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
               static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     initButtonTag(tag, cfg, p);
 
-    const int16_t targetFontSize = computeLabelFontSize(cfg.layout.w, cfg.layout.h);
+    if (hasLabel)
+        createButtonKicker(btn, tag, cfg);
+
+    const int16_t targetFontSize = computeLabelFontSize(cfg.layout.w, cfg.layout.h,
+                                                        tag->kickerObj != nullptr, strlen(p.label));
     const lv_font_t *btnFont = selectButtonFontFromTarget(targetFontSize);
 
-    if (hasLabel) {
-        createButtonKicker(btn, tag, cfg);
+    if (hasLabel)
         createButtonLabel(btn, tag, p, btnFont);
-    }
 
     applyButtonInitialVisual(btn, tag, cfg, p);
 
