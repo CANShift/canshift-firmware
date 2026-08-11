@@ -10,13 +10,13 @@ from pathlib import Path
 LATIN_RANGE = "0x20-0x7F,0xB0,0x2022"
 
 FAMILIES = (
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (46, 72), "lvgl"),
-    ("jbmono", "bold", "JetBrainsMono-Bold.ttf", (34,), "bin"),
-    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16, 28), "bin"),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (32, 40, 44, 48), "lvgl"),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (17, 22, 24), "bin"),
+    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16), "bin"),
     ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (14,), "lvgl"),
 )
 
-JBMONO_VALUE_FALLBACK = ("jbmono", "medium", "JetBrainsMono-Medium.ttf", (14,), "lvgl")
+JBMONO_VALUE_FALLBACK = ("jbmono", "medium", "JetBrainsMono-Medium.ttf", (10,), "lvgl")
 
 
 def run_lv_font_conv(*args: str) -> None:

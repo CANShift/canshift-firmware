@@ -13,8 +13,8 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 pub const COLUMNS: u8 = 12;
 pub const ROWS: u8 = 12;
-pub const GUTTER: u32 = 12;
-pub const FRAME_PADDING: u32 = 16;
+pub const GUTTER: u32 = 6;
+pub const FRAME_PADDING: u32 = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -127,35 +127,35 @@ mod tests {
 
     #[test]
     fn golden_columns_320_wide() {
-        assert_eq!(resolve_grid_rect(place(0, 1, 0, 1), 320, 240).w, 13);
-        assert_eq!(resolve_grid_rect(place(0, 6, 0, 1), 320, 240).w, 138);
-        assert_eq!(resolve_grid_rect(place(0, 6, 0, 1), 320, 240).x, 16);
-        assert_eq!(resolve_grid_rect(place(6, 6, 0, 1), 320, 240).x, 166);
-        assert_eq!(resolve_grid_rect(place(6, 6, 0, 1), 320, 240).w, 138);
-        assert_eq!(resolve_grid_rect(place(0, 12, 0, 1), 320, 240).w, 288);
-        assert_eq!(resolve_grid_rect(place(0, 12, 0, 1), 320, 240).x, 16);
+        assert_eq!(resolve_grid_rect(place(0, 1, 0, 1), 320, 240).w, 20);
+        assert_eq!(resolve_grid_rect(place(0, 6, 0, 1), 320, 240).w, 149);
+        assert_eq!(resolve_grid_rect(place(0, 6, 0, 1), 320, 240).x, 8);
+        assert_eq!(resolve_grid_rect(place(6, 6, 0, 1), 320, 240).x, 163);
+        assert_eq!(resolve_grid_rect(place(6, 6, 0, 1), 320, 240).w, 149);
+        assert_eq!(resolve_grid_rect(place(0, 12, 0, 1), 320, 240).w, 304);
+        assert_eq!(resolve_grid_rect(place(0, 12, 0, 1), 320, 240).x, 8);
     }
 
     #[test]
     fn golden_column_pitch_320_wide() {
         let a = resolve_grid_rect(place(0, 1, 0, 1), 320, 240).x;
         let b = resolve_grid_rect(place(1, 1, 0, 1), 320, 240).x;
-        assert_eq!(b - a, 25);
+        assert_eq!(b - a, 26);
     }
 
     #[test]
     fn golden_rows_224_tall() {
-        assert_eq!(resolve_grid_rect(place(0, 1, 0, 3), 320, 224).h, 39);
-        assert_eq!(resolve_grid_rect(place(0, 1, 0, 6), 320, 224).h, 90);
-        assert_eq!(resolve_grid_rect(place(0, 1, 0, 6), 320, 224).y, 16);
-        assert_eq!(resolve_grid_rect(place(0, 1, 6, 6), 320, 224).y, 118);
+        assert_eq!(resolve_grid_rect(place(0, 1, 0, 3), 320, 224).h, 48);
+        assert_eq!(resolve_grid_rect(place(0, 1, 0, 6), 320, 224).h, 101);
+        assert_eq!(resolve_grid_rect(place(0, 1, 0, 6), 320, 224).y, 8);
+        assert_eq!(resolve_grid_rect(place(0, 1, 6, 6), 320, 224).y, 115);
     }
 
     #[test]
     fn golden_row_pitch_224_tall() {
         let a = resolve_grid_rect(place(0, 1, 0, 1), 320, 224).y;
         let b = resolve_grid_rect(place(0, 1, 1, 1), 320, 224).y;
-        assert_eq!(b - a, 17);
+        assert_eq!(b - a, 18);
     }
 
     #[test]

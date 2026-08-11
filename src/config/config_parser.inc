@@ -143,6 +143,7 @@ void parseWidgetStyle(JsonObjectConst style, CfgStyle *out) {
 }
 
 void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
+    out->big = cfg["big"] | 0;
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
     out->dangerLevel = cfg["dangerLevel"] | 95.0f;
@@ -155,6 +156,7 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
 }
 
 void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThreshold) {
+    out->big = cfg["big"] | 0;
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     out->alertThreshold = alertThreshold;
     out->showBar = cfg["showBar"] | false;
@@ -315,6 +317,7 @@ void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParam
 }
 
 void parseTimerWidget(JsonObjectConst cfg, CfgTimerParams *out) {
+    out->big = cfg["big"] | 0;
     out->autoStart = cfg["autoStart"] | false;
     out->formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
 }

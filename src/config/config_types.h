@@ -64,6 +64,7 @@ struct CfgStyle {
 };
 
 struct CfgGaugeParams {
+    uint8_t big;
     float minValue;
     float maxValue;
     float dangerLevel;
@@ -76,6 +77,7 @@ struct CfgGaugeParams {
 };
 
 struct CfgLabelParams {
+    uint8_t big;
     uint8_t decimalPlaces;
     char prefix[16];
     char suffix[16];
@@ -154,6 +156,7 @@ struct CfgButtonParams {
 };
 
 struct CfgTimerParams {
+    uint8_t big;
     bool autoStart;
     bool formatMsec;
 };

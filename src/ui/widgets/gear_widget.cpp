@@ -20,20 +20,22 @@ struct GearTag {
 
 constexpr int16_t kSigHeaderH = 14;
 
-const lv_font_t *selectFont(int16_t h, int16_t w, uint8_t &sizeOut) {
-    const int byHeight = (h * 85) / 100;
-    const int byWidth = (w * 72) / 100;
+const lv_font_t *selectFont(const CfgWidget &cfg, uint8_t &sizeOut) {
+    if (cfg.label.big > 0) {
+        sizeOut = WidgetHelpers::deviceFontPxForBig(cfg.label.big);
+        return FontManager::value(sizeOut);
+    }
+    const int byHeight = (cfg.layout.h * 85) / 100;
+    const int byWidth = (cfg.layout.w * 72) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
-    if (s < 12)
-        s = 12;
-    if (s > 72)
-        s = 72;
+    if (s < 10)
+        s = 10;
+    if (s > 48)
+        s = 48;
     const uint8_t size = static_cast<uint8_t>(s);
     sizeOut = size;
-    if (size >= 72)
-        return FontManager::primary(size);
-    if (size >= 34)
-        return FontManager::secondary(size);
+    if (size >= 17)
+        return FontManager::value(size);
     return FontManager::units();
 }
 
@@ -56,7 +58,7 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
 
     uint8_t fontSize = 0;
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
-    lv_obj_set_style_text_font(label, selectFont(digitBandH, cfg.layout.w, fontSize), 0);
+    lv_obj_set_style_text_font(label, selectFont(cfg, fontSize), 0);
     lv_label_set_text(label, "N");
 
     const bool primaryTier = fontSize >= WidgetHelpers::kRulePrimaryFontMin;

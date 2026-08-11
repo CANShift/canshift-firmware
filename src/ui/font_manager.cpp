@@ -8,23 +8,23 @@
 #include <stdio.h>
 #include <string.h>
 
-LV_FONT_DECLARE(lv_font_jbmono_extrabold_72_nk);
-LV_FONT_DECLARE(lv_font_jbmono_extrabold_46_nk);
-LV_FONT_DECLARE(lv_font_jbmono_medium_14_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_40_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_44_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
+LV_FONT_DECLARE(lv_font_jbmono_medium_10_nk);
 LV_FONT_DECLARE(lv_font_archivo_extrabold_14_nk);
 
 namespace {
 
-constexpr uint8_t kPrimarySizes[] = {72};
-constexpr uint8_t kSecondarySizes[] = {34};
-constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16, 28};
+constexpr uint8_t kValueSizes[] = {17, 22, 24, 32, 40, 44, 48};
+constexpr uint8_t kSpiffsValueCount = 3;
+constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16};
 
-constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
-constexpr size_t kSecondaryCount = sizeof(kSecondarySizes) / sizeof(kSecondarySizes[0]);
+constexpr size_t kValueCount = sizeof(kValueSizes) / sizeof(kValueSizes[0]);
 constexpr size_t kLabelCount = sizeof(kLabelSizes) / sizeof(kLabelSizes[0]);
 
-const lv_font_t *s_primary[kPrimaryCount] = {nullptr};
-const lv_font_t *s_secondary[kSecondaryCount] = {nullptr};
+const lv_font_t *s_value[kValueCount] = {nullptr};
 const lv_font_t *s_label[kLabelCount] = {nullptr};
 bool s_initialized = false;
 
@@ -40,15 +40,15 @@ size_t snapIndex(const uint8_t *sizes, size_t count, uint8_t size) {
     return idx;
 }
 
-void logFontHeap(const char *stage, const char *weight, uint8_t size) {
+void logFontHeap(const char *stage, const char *family, const char *weight, uint8_t size) {
     const uint32_t free = ESP.getFreeHeap();
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    LOG_INFO("FONT", "%s jbmono_%s_%u: free=%u largest=%u", stage, weight,
+    LOG_INFO("FONT", "%s %s_%s_%u: free=%u largest=%u", stage, family, weight,
              static_cast<unsigned>(size), static_cast<unsigned>(free),
              static_cast<unsigned>(largest));
 }
 
-bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
+bool poolHasRoomFor(const char *spiffsPath, const char *family, const char *weight, uint8_t size) {
     File f = SPIFFS.open(spiffsPath, "r");
     if (!f) {
 
@@ -64,10 +64,10 @@ bool poolHasRoomFor(const char *spiffsPath, const char *weight, uint8_t size) {
     const uint32_t needed = static_cast<uint32_t>(fileSize) + kOverheadBytes;
     if (mon.free_size < needed) {
         LOG_ERROR("FONT",
-                  "LVGL pool too small for jbmono_%s_%u.bin: need ~%u B, "
+                  "LVGL pool too small for %s_%s_%u.bin: need ~%u B, "
                   "have %u B free (pool=%u B). Skipping to avoid NULL-deref "
                   "inside lv_font_load.",
-                  weight, static_cast<unsigned>(size), static_cast<unsigned>(needed),
+                  family, weight, static_cast<unsigned>(size), static_cast<unsigned>(needed),
                   static_cast<unsigned>(mon.free_size), static_cast<unsigned>(mon.total_size));
         char detail[60];
         snprintf(detail, sizeof(detail), "pool too small for %s_%u", weight, size);
@@ -85,25 +85,24 @@ void loadOne(const char *family, const char *weight, const char *intent, uint8_t
     char spiffsPath[64];
     snprintf(spiffsPath, sizeof(spiffsPath), "/fonts/%s_%s_%u.bin", family, weight, size);
 
-    logFontHeap("before", weight, size);
+    logFontHeap("before", family, weight, size);
 
     const lv_font_t *font = nullptr;
-    if (poolHasRoomFor(spiffsPath, weight, size)) {
+    if (poolHasRoomFor(spiffsPath, family, weight, size)) {
         font = lv_font_load(path);
     }
 
-    logFontHeap("after ", weight, size);
+    logFontHeap("after ", family, weight, size);
 
     if (font == nullptr) {
-        LOG_ERROR("FONT",
-                  "Failed to load jbmono_%s_%u.bin from SPIFFS — falling back to built-in 14",
-                  weight, size);
+        LOG_ERROR("FONT", "Failed to load %s_%s_%u.bin from SPIFFS — falling back to built-in",
+                  family, weight, size);
 
         char detail[60];
-        snprintf(detail, sizeof(detail), "jbmono_%s_%u.bin missing", weight, size);
+        snprintf(detail, sizeof(detail), "%s_%s_%u.bin missing", family, weight, size);
         ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_LOAD", detail);
     } else {
-        LOG_INFO("FONT", "Loaded jbmono_%s_%u.bin from SPIFFS (%s)", weight, size, intent);
+        LOG_INFO("FONT", "Loaded %s_%s_%u.bin from SPIFFS (%s)", family, weight, size, intent);
     }
     slot = font;
 }
@@ -121,21 +120,22 @@ void FontManager::init() {
     if (s_initialized) {
         return;
     }
-    LOG_INFO("FONT", "Loading font family 'jbmono'");
+    LOG_INFO("FONT", "Loading font family 'jbmono' (device scale)");
 
-    s_primary[0] = &lv_font_jbmono_extrabold_72_nk;
-    LOG_INFO("FONT", "jbmono_extrabold_72: using in-flash copy (saves ~85 KB pool)");
-
-    for (size_t i = 0; i < kSecondaryCount; ++i) {
-        loadOne("jbmono", "bold", "secondary", kSecondarySizes[i], s_secondary[i]);
+    for (uint8_t i = 0; i < kSpiffsValueCount; ++i) {
+        loadOne("jbmono", "extrabold", "value", kValueSizes[i], s_value[i]);
     }
+    s_value[3] = &lv_font_jbmono_extrabold_32_nk;
+    s_value[4] = &lv_font_jbmono_extrabold_40_nk;
+    s_value[5] = &lv_font_jbmono_extrabold_44_nk;
+    s_value[6] = &lv_font_jbmono_extrabold_48_nk;
+    LOG_INFO("FONT", "jbmono_extrabold_{32,40,44,48}: using in-flash copies");
 
     loadOne("archivo", "extrabold", "label", kLabelSizes[0], s_label[0]);
     loadOne("archivo", "extrabold", "label", kLabelSizes[1], s_label[1]);
     s_label[2] = &lv_font_archivo_extrabold_14_nk;
-    LOG_INFO("FONT", "archivo_extrabold_14: using in-flash copy (saves ~4.6 KB pool)");
+    LOG_INFO("FONT", "archivo_extrabold_14: using in-flash copy");
     loadOne("archivo", "extrabold", "label", kLabelSizes[3], s_label[3]);
-    loadOne("archivo", "extrabold", "label", kLabelSizes[4], s_label[4]);
 
     s_initialized = true;
 }
@@ -144,37 +144,29 @@ void FontManager::shutdown() {
     auto freeAll = [](const lv_font_t **slots, size_t count) {
         for (size_t i = 0; i < count; ++i) {
 
-            const bool isInFlash = slots[i] == &lv_font_jbmono_medium_14_nk ||
+            const bool isInFlash = slots[i] == &lv_font_jbmono_medium_10_nk ||
                                    slots[i] == &lv_font_archivo_extrabold_14_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_72_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_46_nk;
+                                   slots[i] == &lv_font_jbmono_extrabold_32_nk ||
+                                   slots[i] == &lv_font_jbmono_extrabold_40_nk ||
+                                   slots[i] == &lv_font_jbmono_extrabold_44_nk ||
+                                   slots[i] == &lv_font_jbmono_extrabold_48_nk;
             if (slots[i] != nullptr && !isInFlash) {
                 lv_font_free(const_cast<lv_font_t *>(slots[i]));
             }
             slots[i] = nullptr;
         }
     };
-    freeAll(s_primary, kPrimaryCount);
-    freeAll(s_secondary, kSecondaryCount);
+    freeAll(s_value, kValueCount);
     freeAll(s_label, kLabelCount);
     s_initialized = false;
 }
 
-const lv_font_t *FontManager::primary(uint8_t size) {
-    return resolve(kPrimarySizes, kPrimaryCount, s_primary, size, &lv_font_jbmono_medium_14_nk);
-}
-
-const lv_font_t *FontManager::secondary(uint8_t size) {
-    return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size,
-                   &lv_font_jbmono_medium_14_nk);
-}
-
-const lv_font_t *FontManager::danger() {
-    return &lv_font_jbmono_extrabold_46_nk;
+const lv_font_t *FontManager::value(uint8_t devicePx) {
+    return resolve(kValueSizes, kValueCount, s_value, devicePx, &lv_font_jbmono_medium_10_nk);
 }
 
 const lv_font_t *FontManager::units() {
-    return &lv_font_jbmono_medium_14_nk;
+    return &lv_font_jbmono_medium_10_nk;
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {

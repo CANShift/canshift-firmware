@@ -85,9 +85,9 @@ void buildLayer() {
     lv_obj_align(s_name, LV_ALIGN_TOP_LEFT, LayoutScale::x(kEdgePadPx), LayoutScale::y(kEdgePadPx));
 
     s_value = lv_label_create(s_root);
-    lv_obj_set_style_text_font(s_value, FontManager::primary(72), 0);
+    lv_obj_set_style_text_font(s_value, FontManager::value(48), 0);
     lv_obj_set_style_text_color(s_value, lv_color_hex(0xFFFFFFu), 0);
-    lv_obj_set_style_text_letter_space(s_value, WidgetHelpers::kPrimaryValueTrackingPx, 0);
+    lv_obj_set_style_text_letter_space(s_value, WidgetHelpers::valueTrackingPx(48), 0);
     lv_obj_align(s_value, LV_ALIGN_LEFT_MID, LayoutScale::x(kEdgePadPx),
                  LayoutScale::y(kValueYOffsetPx));
     lv_label_set_text(s_value, "");

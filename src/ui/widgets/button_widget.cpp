@@ -23,18 +23,16 @@ namespace {
 constexpr int16_t BUTTON_PAD_X = 7;
 constexpr int16_t BUTTON_PAD_Y = 6;
 constexpr int16_t BUTTON_ROW_GAP = 2;
-constexpr int16_t BUTTON_KICKER_BAND_PX = 24;
+constexpr int16_t BUTTON_KICKER_BAND_PX = 16;
 constexpr float LABEL_GLYPH_WIDTH_RATIO = 0.65f;
 constexpr int16_t LABEL_FONT_MIN = 8;
 constexpr int16_t LABEL_BUDGET_PAD = 14;
 
-constexpr int16_t BUTTON_FONT_TARGET_XL = 27;
-constexpr int16_t BUTTON_FONT_TARGET_LG = 15;
-constexpr int16_t BUTTON_FONT_TARGET_MD = 13;
-constexpr uint8_t BUTTON_FONT_SIZE_XL = 28;
-constexpr uint8_t BUTTON_FONT_SIZE_LG = 16;
-constexpr uint8_t BUTTON_FONT_SIZE_MD = 14;
-constexpr uint8_t BUTTON_FONT_SIZE_SM = 12;
+constexpr int16_t BUTTON_FONT_TARGET_LG = 13;
+constexpr int16_t BUTTON_FONT_TARGET_MD = 11;
+constexpr uint8_t BUTTON_FONT_SIZE_LG = 14;
+constexpr uint8_t BUTTON_FONT_SIZE_MD = 12;
+constexpr uint8_t BUTTON_FONT_SIZE_SM = 10;
 constexpr uint8_t BUTTON_KICKER_FONT_PX = 10;
 constexpr int16_t BUTTON_KICKER_TRACKING_PX = 2;
 constexpr lv_opa_t BUTTON_KICKER_ENGAGED_OPA = 0xC0;
@@ -52,8 +50,6 @@ int16_t computeLabelFontSize(int16_t w, int16_t h, bool hasKicker, size_t labelL
 }
 
 const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
-    if (targetPx >= BUTTON_FONT_TARGET_XL)
-        return FontManager::label(BUTTON_FONT_SIZE_XL);
     if (targetPx >= BUTTON_FONT_TARGET_LG)
         return FontManager::label(BUTTON_FONT_SIZE_LG);
     if (targetPx >= BUTTON_FONT_TARGET_MD)

@@ -17,8 +17,31 @@ constexpr uint32_t kTrackRgb = 0x222222;
 
 constexpr uint8_t kRulePrimaryPx = 2;
 constexpr uint8_t kRuleSecondaryPx = 1;
-constexpr uint8_t kRulePrimaryFontMin = 72;
-constexpr int16_t kPrimaryValueTrackingPx = -3;
+constexpr uint8_t kRulePrimaryFontMin = 32;
+
+struct BigFontStep {
+    uint8_t minBig;
+    uint8_t devicePx;
+};
+
+constexpr BigFontStep kBigFontSteps[] = {{96, 48}, {88, 44}, {80, 40}, {64, 32},
+                                         {48, 24}, {44, 22}, {0, 17}};
+
+inline uint8_t deviceFontPxForBig(uint8_t big) {
+    for (const BigFontStep &step : kBigFontSteps) {
+        if (big >= step.minBig)
+            return step.devicePx;
+    }
+    return 17;
+}
+
+inline int16_t valueTrackingPx(uint8_t devicePx) {
+    if (devicePx >= 40)
+        return -2;
+    if (devicePx >= 22)
+        return -1;
+    return 0;
+}
 
 float clampPct(float value, float minValue, float maxValue);
 

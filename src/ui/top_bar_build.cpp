@@ -40,12 +40,6 @@ static inline int16_t metricRound(float v) {
 static inline int16_t derivedDot(int16_t height) {
     return metricRound(static_cast<float>(height) * TopBarMetrics::DOT_RATIO);
 }
-static inline int16_t derivedFontSize(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::FONT_SIZE_RATIO);
-}
-static inline int16_t derivedSeparator(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::SEPARATOR_RATIO);
-}
 static inline int16_t derivedGap(int16_t height) {
     return metricRound(static_cast<float>(height) * TopBarMetrics::GAP_RATIO);
 }
@@ -81,7 +75,7 @@ static lv_obj_t *makeFlagBadge(lv_obj_t *parent, const char *text) {
 
     lv_obj_t *lbl = lv_label_create(cont);
     lv_label_set_text(lbl, text);
-    lv_obj_set_style_text_font(lbl, FontManager::label(BAR_LABEL_FONT_PX), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
     lv_obj_set_style_text_color(cont, lv_color_hex(COLOR_MODE_ACTIVE), 0);
     lv_obj_update_layout(cont);
     return cont;
@@ -92,8 +86,7 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
 
-    (void)derivedFontSize;
-    lv_obj_set_style_text_font(lbl, FontManager::label(BAR_LABEL_FONT_PX), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
     lv_obj_set_style_text_letter_space(lbl, BAR_LETTER_SPACE_PX, 0);
     return lbl;
 }
@@ -102,8 +95,7 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_label_set_text(lbl, "|");
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
-    const uint8_t target = static_cast<uint8_t>(derivedSeparator(s_height));
-    lv_obj_set_style_text_font(lbl, FontManager::label(target), 0);
+    lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
     return lbl;
 }
 
@@ -165,7 +157,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             obj = lv_label_create(s_bar);
             lv_label_set_text(obj, "BLE");
             lv_obj_set_style_text_color(obj, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
-            lv_obj_set_style_text_font(obj, FontManager::label(BAR_LABEL_FONT_PX), 0);
+            lv_obj_set_style_text_font(obj, FontManager::units(), 0);
             anchor(obj, gap);
             break;
         }

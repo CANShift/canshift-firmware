@@ -5,7 +5,7 @@
 
 namespace {
 
-constexpr uint16_t FRAME = 16;
+constexpr uint16_t FRAME = 8;
 
 LayoutGridRectRs resolve(uint8_t col, uint8_t colSpan, uint8_t row, uint8_t rowSpan, uint16_t areaW,
                          uint16_t areaH) {
@@ -15,32 +15,32 @@ LayoutGridRectRs resolve(uint8_t col, uint8_t colSpan, uint8_t row, uint8_t rowS
 }
 
 void test_columns_320wide() {
-    TEST_ASSERT_EQUAL_INT16(13, resolve(0, 1, 0, 1, 320, 240).w);
-    TEST_ASSERT_EQUAL_INT16(138, resolve(0, 6, 0, 1, 320, 240).w);
-    TEST_ASSERT_EQUAL_INT16(16, resolve(0, 6, 0, 1, 320, 240).x);
-    TEST_ASSERT_EQUAL_INT16(166, resolve(6, 6, 0, 1, 320, 240).x);
-    TEST_ASSERT_EQUAL_INT16(138, resolve(6, 6, 0, 1, 320, 240).w);
-    TEST_ASSERT_EQUAL_INT16(288, resolve(0, 12, 0, 1, 320, 240).w);
-    TEST_ASSERT_EQUAL_INT16(16, resolve(0, 12, 0, 1, 320, 240).x);
+    TEST_ASSERT_EQUAL_INT16(20, resolve(0, 1, 0, 1, 320, 240).w);
+    TEST_ASSERT_EQUAL_INT16(149, resolve(0, 6, 0, 1, 320, 240).w);
+    TEST_ASSERT_EQUAL_INT16(8, resolve(0, 6, 0, 1, 320, 240).x);
+    TEST_ASSERT_EQUAL_INT16(163, resolve(6, 6, 0, 1, 320, 240).x);
+    TEST_ASSERT_EQUAL_INT16(149, resolve(6, 6, 0, 1, 320, 240).w);
+    TEST_ASSERT_EQUAL_INT16(304, resolve(0, 12, 0, 1, 320, 240).w);
+    TEST_ASSERT_EQUAL_INT16(8, resolve(0, 12, 0, 1, 320, 240).x);
 }
 
 void test_columnPitch_320wide() {
     const int16_t a = resolve(0, 1, 0, 1, 320, 240).x;
     const int16_t b = resolve(1, 1, 0, 1, 320, 240).x;
-    TEST_ASSERT_EQUAL_INT16(25, b - a);
+    TEST_ASSERT_EQUAL_INT16(26, b - a);
 }
 
 void test_rows_224tall() {
-    TEST_ASSERT_EQUAL_INT16(39, resolve(0, 1, 0, 3, 320, 224).h);
-    TEST_ASSERT_EQUAL_INT16(90, resolve(0, 1, 0, 6, 320, 224).h);
-    TEST_ASSERT_EQUAL_INT16(16, resolve(0, 1, 0, 6, 320, 224).y);
-    TEST_ASSERT_EQUAL_INT16(118, resolve(0, 1, 6, 6, 320, 224).y);
+    TEST_ASSERT_EQUAL_INT16(48, resolve(0, 1, 0, 3, 320, 224).h);
+    TEST_ASSERT_EQUAL_INT16(101, resolve(0, 1, 0, 6, 320, 224).h);
+    TEST_ASSERT_EQUAL_INT16(8, resolve(0, 1, 0, 6, 320, 224).y);
+    TEST_ASSERT_EQUAL_INT16(115, resolve(0, 1, 6, 6, 320, 224).y);
 }
 
 void test_rowPitch_224tall() {
     const int16_t a = resolve(0, 1, 0, 1, 320, 224).y;
     const int16_t b = resolve(0, 1, 1, 1, 320, 224).y;
-    TEST_ASSERT_EQUAL_INT16(17, b - a);
+    TEST_ASSERT_EQUAL_INT16(18, b - a);
 }
 
 void test_degenerateArea_clampsToMin1px() {

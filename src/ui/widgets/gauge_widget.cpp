@@ -23,9 +23,9 @@ static constexpr const char *kStalePlaceholder = "- -";
 
 static constexpr int16_t kValueFontHeightPrimary = 90;
 static constexpr int16_t kValueFontHeightSecondary = 40;
-static constexpr uint8_t kValueFontSizePrimary = 72;
-static constexpr uint8_t kValueFontSizeSecondary = 34;
-static constexpr uint8_t kValueFontSizeUnits = 14;
+static constexpr uint8_t kValueFontSizePrimary = 48;
+static constexpr uint8_t kValueFontSizeSecondary = 17;
+static constexpr uint8_t kValueFontSizeUnits = 10;
 
 static constexpr float kArcSweep = 270.0f;
 static constexpr uint16_t kArcSweepInt = 270;
@@ -179,21 +179,25 @@ static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam, uint32_t inkRgb
 }
 
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
+    if (cfg.gauge.big > 0) {
+        intFontSizeOut = WidgetHelpers::deviceFontPxForBig(cfg.gauge.big);
+        return FontManager::value(intFontSizeOut);
+    }
     const int16_t h = cfg.layout.h;
     if (h >= kValueFontHeightPrimary) {
         intFontSizeOut = kValueFontSizePrimary;
-        return FontManager::primary(kValueFontSizePrimary);
+        return FontManager::value(kValueFontSizePrimary);
     }
     if (h >= kValueFontHeightSecondary) {
         intFontSizeOut = kValueFontSizeSecondary;
-        return FontManager::secondary(kValueFontSizeSecondary);
+        return FontManager::value(kValueFontSizeSecondary);
     }
     intFontSizeOut = kValueFontSizeUnits;
     return FontManager::units();
 }
 
 static constexpr int16_t kValueRowYOffset = kArcYShift;
-static constexpr int16_t kValueClusterInsetPx = 4;
+static constexpr int16_t kValueClusterInsetPx = 0;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
     lv_obj_t *valueRow = lv_obj_create(cont);
@@ -256,8 +260,9 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t tex
     lv_obj_t *valueRow = buildValueRow(cont);
     const uint32_t valueRgb = cfg.style.primaryColor.rgb;
     outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
-    if (outLabel && intFontSize >= WidgetHelpers::kRulePrimaryFontMin)
-        lv_obj_set_style_text_letter_space(outLabel, WidgetHelpers::kPrimaryValueTrackingPx, 0);
+    if (outLabel)
+        lv_obj_set_style_text_letter_space(outLabel, WidgetHelpers::valueTrackingPx(intFontSize),
+                                           0);
     outKicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
                                                       WidgetLabelOverlay::HeaderPos::TOP_LEFT);
     (void)textRgb;
