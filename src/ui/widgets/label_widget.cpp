@@ -18,8 +18,7 @@ constexpr const char *kStalePlaceholder = "- -";
 
 constexpr uint8_t kBarHeightPx = 3;
 constexpr int16_t kBarSideMarginPx = 4;
-constexpr uint8_t kDangerFontPx = 46;
-constexpr uint8_t kDangerFracFontPx = 34;
+constexpr int16_t kValueClusterInsetPx = 4;
 
 uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     const int byHeight = (lineH * 65) / 100;
@@ -42,7 +41,6 @@ const lv_font_t *valueFontFor(uint8_t size) {
 
 struct LabelTag {
     lv_obj_t *valueLabel;
-    lv_obj_t *fracLabel;
     lv_obj_t *unitLabel;
     lv_obj_t *topRule;
     lv_obj_t *kicker;
@@ -56,7 +54,6 @@ struct LabelTag {
     bool lastDangerActive;
     bool dangerFontSwap;
     const lv_font_t *baseValueFont;
-    const lv_font_t *baseFracFont;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
     uint32_t ruleBaseRgb;
@@ -83,11 +80,6 @@ void applyDangerAppearance(LabelTag *tag, bool danger) {
         return;
     lv_obj_set_style_text_font(tag->valueLabel, danger ? FontManager::danger() : tag->baseValueFont,
                                0);
-    if (tag->fracLabel && tag->baseFracFont) {
-        lv_obj_set_style_text_font(
-            tag->fracLabel, danger ? FontManager::secondary(kDangerFracFontPx) : tag->baseFracFont,
-            0);
-    }
 }
 
 void applyDangerState(LabelTag *tag) {
@@ -130,8 +122,8 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_pad_column(valueRow, 3, LV_PART_MAIN);
     lv_obj_clear_flag(valueRow, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    lv_obj_align(valueRow, LV_ALIGN_CENTER, 0, 8);
+    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_align(valueRow, LV_ALIGN_LEFT_MID, kValueClusterInsetPx, 8);
 
     lv_obj_t *label = lv_label_create(valueRow);
     if (!label) {
@@ -146,23 +138,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (valueSize >= WidgetHelpers::kRulePrimaryFontMin)
         lv_obj_set_style_text_letter_space(label, WidgetHelpers::kPrimaryValueTrackingPx, 0);
     lv_label_set_text(label, kStalePlaceholder);
-
-    lv_obj_t *fracLabel = nullptr;
-    const lv_font_t *fracFont = nullptr;
-    const bool wantsFrac = cfg.label.decimalPlaces > 0 || cfg.label.prefix[0] == '\0';
-    if (wantsFrac) {
-        fracLabel = lv_label_create(valueRow);
-        if (fracLabel) {
-            const uint8_t intSize = valueSize;
-            uint8_t fracSize = static_cast<uint8_t>((intSize * 7) / 10);
-            if (fracSize < 12)
-                fracSize = 12;
-            fracFont = valueFontFor(fracSize);
-            lv_obj_set_style_text_color(fracLabel, lv_color_hex(textRgb), 0);
-            lv_obj_set_style_text_font(fracLabel, fracFont, 0);
-            lv_label_set_text(fracLabel, "");
-        }
-    }
 
     lv_obj_t *unitLabel = nullptr;
     const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
@@ -218,7 +193,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         return nullptr;
     }
     tag->valueLabel = label;
-    tag->fracLabel = fracLabel;
     tag->unitLabel = unitLabel;
     tag->topRule = topRule;
     tag->kicker = kicker;
@@ -234,54 +208,17 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->ruleLastRgb = ruleRgb;
     tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
     tag->lastDangerActive = false;
-    tag->dangerFontSwap = !primary && valueSize >= kDangerFracFontPx;
+    tag->dangerFontSwap = !primary && valueSize >= 34;
     tag->baseValueFont = valueFont;
-    tag->baseFracFont = fracFont;
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
-    if (fracLabel)
-        AlertFlash::watchLabel(tag->alert, fracLabel, textRgb);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<LabelTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
 
     return cont;
-}
-
-static void splitDecimal(const char *in, char *intOut, size_t intCap, char *fracOut,
-                         size_t fracCap) {
-    if (fracCap > 0)
-        fracOut[0] = '\0';
-    const char *dot = strchr(in, '.');
-    if (dot) {
-        const size_t intLen = static_cast<size_t>(dot - in);
-        const size_t copyInt = intLen < intCap - 1 ? intLen : intCap - 1;
-        memcpy(intOut, in, copyInt);
-        intOut[copyInt] = '\0';
-        strlcpy(fracOut, dot, fracCap);
-        return;
-    }
-    const size_t total = strlen(in);
-    const char *digits = in;
-    size_t digitCount = total;
-    bool negative = false;
-    if (total > 0 && in[0] == '-') {
-        negative = true;
-        digits = in + 1;
-        digitCount = total - 1;
-    }
-    if (digitCount > 3 && fracCap >= 4) {
-        const size_t headLen = digitCount - 3;
-        const size_t copyHead = headLen + (negative ? 1u : 0u);
-        const size_t safeHead = copyHead < intCap - 1 ? copyHead : intCap - 1;
-        memcpy(intOut, in, safeHead);
-        intOut[safeHead] = '\0';
-        strlcpy(fracOut, digits + headLen, fracCap);
-        return;
-    }
-    strlcpy(intOut, in, intCap);
 }
 
 void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
@@ -297,10 +234,6 @@ void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
         lv_obj_set_style_bg_color(tag->barFill, lv_color_hex(textRgb), LV_PART_MAIN);
     }
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, textRgb);
-    if (tag->fracLabel) {
-        uint32_t fracLast = tag->lastTintRgb;
-        WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, textRgb);
-    }
     if (tag->ruleBaseRgb != WidgetHelpers::kTrackRgb) {
         tag->ruleBaseRgb = textRgb;
         if (!tag->alert.active)
@@ -320,19 +253,12 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!valid) {
         if (tag->lastValid) {
             WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
-            if (tag->fracLabel) {
-                WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, "");
-            }
             tag->lastValue = NAN;
             tag->lastValid = false;
         }
         if (!tag->alert.active) {
             const uint32_t staleRgb = ThemeManager::getStaleTextColor();
             WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, staleRgb);
-            if (tag->fracLabel) {
-                uint32_t fracLast = tag->lastTintRgb;
-                WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, staleRgb);
-            }
         }
         if (tag->barFill && tag->lastBarW != 0) {
             lv_obj_set_width(tag->barFill, 1);
@@ -349,25 +275,13 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         char buf[40];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
                                    displayValue, nullptr);
-        if (tag->fracLabel) {
-            char intPart[24];
-            char fracPart[16];
-            splitDecimal(buf, intPart, sizeof(intPart), fracPart, sizeof(fracPart));
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, intPart);
-            WidgetHelpers::setLabelTextIfChanged(tag->fracLabel, fracPart);
-        } else {
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
-        }
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastValue = displayValue;
         tag->lastValid = valid;
     }
 
     if (!tag->alert.active) {
         WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tag->baseTextRgb);
-        if (tag->fracLabel) {
-            uint32_t fracLast = tag->lastTintRgb;
-            WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, tag->baseTextRgb);
-        }
     }
 
     if (tag->barFill && tag->barMaxW > 0) {
