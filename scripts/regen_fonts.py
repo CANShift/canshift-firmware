@@ -10,7 +10,7 @@ from pathlib import Path
 LATIN_RANGE = "0x20-0x7F,0xB0,0x2022"
 
 FAMILIES = (
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (72,), "lvgl"),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (46, 72), "lvgl"),
     ("jbmono", "bold", "JetBrainsMono-Bold.ttf", (34,), "bin"),
     ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16), "bin"),
     ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (14,), "lvgl"),

@@ -140,4 +140,25 @@ lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb) {
     return badge;
 }
 
+lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb) {
+    lv_obj_t *rule = lv_obj_create(cont);
+    if (!rule)
+        return nullptr;
+    lv_obj_set_size(rule, LV_PCT(100), heightPx);
+    lv_obj_align(rule, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_color(rule, lv_color_hex(rgb), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(rule, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(rule, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(rule, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    return rule;
+}
+
+void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb) {
+    if (!rule || lastRgb == rgb)
+        return;
+    lv_obj_set_style_bg_color(rule, lv_color_hex(rgb), LV_PART_MAIN);
+    lastRgb = rgb;
+}
+
 } // namespace WidgetHelpers

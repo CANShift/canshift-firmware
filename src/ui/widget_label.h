@@ -11,9 +11,10 @@ enum class HeaderPos : uint8_t {
     BOTTOM_LEFT = 1,
 };
 
-constexpr uint32_t kLabelDimRgb = 0x888888;
+constexpr uint32_t kLabelDimRgb = 0xBABABA;
 
-void applySignalHeader(_lv_obj_t *cont, const char *signalId, HeaderPos pos = HeaderPos::TOP_LEFT);
+_lv_obj_t *applySignalHeader(_lv_obj_t *cont, const char *signalId,
+                             HeaderPos pos = HeaderPos::TOP_LEFT);
 
 const char *displayLabelForSignal(const char *signalId);
 

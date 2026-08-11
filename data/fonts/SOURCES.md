@@ -21,13 +21,14 @@ car produces render in monospace with tabular figures.
 | Intent    | Family / weight          | Sizes (px)     | Files                                              |
 | --------- | ------------------------ | -------------- | -------------------------------------------------- |
 | primary   | JB Mono ExtraBold (800)  | 72             | in-flash twin only — no SPIFFS .bin                |
+| danger    | JB Mono ExtraBold (800)  | 46             | in-flash twin only — no SPIFFS .bin                |
 | secondary | JB Mono Bold (700)       | 34             | `jbmono_bold_34.bin`                               |
 | units     | JB Mono Medium (500)     | 14             | in-flash (`lv_font_jbmono_medium_14_nk.c`)         |
 | label     | Archivo ExtraBold (800)  | 10, 12, 14, 16 | `archivo_extrabold_{10,12,16}.bin` (14 in-flash)   |
 
-Sizes follow `PROMPT_DASH_DESIGN.md`: primary value 72 px, secondary 34 px,
-units 14–15 px muted inline. The danger tier (46 px) lands with the widget
-grammar (firmware #127).
+Sizes follow `PROMPT_DASH_DESIGN.md`: primary value 72 px, danger 46 px,
+secondary 34 px, units 14–15 px muted inline. The 56 px OTA percent lands
+with firmware #7.
 
 Labels never render below 10 px — the mockups set the floor at a 9 px
 equivalent, so a request for 8 snaps up to 10.

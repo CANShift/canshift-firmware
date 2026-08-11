@@ -19,7 +19,7 @@
 namespace {
 
 static constexpr uint32_t kColorBgDim = 0x222222;
-static constexpr const char *kStalePlaceholder = "--";
+static constexpr const char *kStalePlaceholder = "- -";
 
 static constexpr int16_t kValueFontHeightPrimary = 125;
 static constexpr int16_t kValueFontHeightSecondary = 60;
@@ -145,6 +145,8 @@ struct GaugeTag {
     lv_obj_t *valueLabel;
     lv_obj_t *fracLabel;
     lv_obj_t *fillArc;
+    lv_obj_t *topRule;
+    lv_obj_t *kicker;
     float minValue;
     float maxValue;
     float lastValue;
@@ -158,9 +160,29 @@ struct GaugeTag {
     AlertFlash::State alert;
     uint32_t lastLabelRgb;
     uint32_t lastFillRgb;
+    uint32_t ruleBaseRgb;
+    uint32_t ruleLastRgb;
+    uint32_t kickerLastRgb;
+    bool lastDangerActive;
     uint16_t lastAngle;
     int32_t lastDisplayScaled;
 };
+
+static void applyDangerChrome(GaugeTag *tag, bool danger) {
+    WidgetHelpers::setRuleColorIfChanged(tag->topRule, tag->ruleLastRgb,
+                                         danger ? WidgetHelpers::kZoneDangerRgb : tag->ruleBaseRgb);
+    if (danger == tag->lastDangerActive)
+        return;
+    tag->lastDangerActive = danger;
+    if (!tag->kicker)
+        return;
+    const uint32_t kickerRgb =
+        danger ? WidgetHelpers::kZoneDangerRgb : WidgetLabelOverlay::kLabelDimRgb;
+    if (tag->kickerLastRgb != kickerRgb) {
+        lv_obj_set_style_text_color(tag->kicker, lv_color_hex(kickerRgb), 0);
+        tag->kickerLastRgb = kickerRgb;
+    }
+}
 
 inline float effectiveAlertThreshold(const GaugeTag &tag) {
     const bool hasAlert = !std::isnan(tag.alertThreshold);
@@ -285,20 +307,25 @@ struct GaugeBuildState {
     lv_obj_t *label;
     lv_obj_t *fracLabel;
     lv_obj_t *fillArc;
+    lv_obj_t *topRule;
+    lv_obj_t *kicker;
+    uint32_t ruleBaseRgb;
     uint16_t dangerAngle;
     bool hasDanger;
 };
 
 static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb,
-                              lv_obj_t *&outLabel, lv_obj_t *&outFrac) {
-    uint8_t intFontSize = 20;
+                              lv_obj_t *&outLabel, lv_obj_t *&outFrac, lv_obj_t *&outKicker) {
+    uint8_t intFontSize = kValueFontSizeUnits;
     const lv_font_t *font = resolveValueFont(cfg, intFontSize);
     lv_obj_t *valueRow = buildValueRow(cont);
     const uint32_t valueRgb = cfg.style.primaryColor.rgb;
     outLabel = buildValueLabel(valueRow, font, valueRgb, cfg);
+    if (outLabel && intFontSize >= WidgetHelpers::kRulePrimaryFontMin)
+        lv_obj_set_style_text_letter_space(outLabel, WidgetHelpers::kPrimaryValueTrackingPx, 0);
     outFrac = buildFracLabel(valueRow, cfg, intFontSize, valueRgb);
-    WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
-                                          WidgetLabelOverlay::HeaderPos::TOP_LEFT);
+    outKicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
+                                                      WidgetLabelOverlay::HeaderPos::TOP_LEFT);
     (void)textRgb;
 }
 
@@ -307,6 +334,12 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->valueLabel = built.label;
     tag->fracLabel = built.fracLabel;
     tag->fillArc = built.fillArc;
+    tag->topRule = built.topRule;
+    tag->kicker = built.kicker;
+    tag->ruleBaseRgb = built.ruleBaseRgb;
+    tag->ruleLastRgb = built.ruleBaseRgb;
+    tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
+    tag->lastDangerActive = false;
     tag->minValue = cfg.gauge.minValue;
     tag->maxValue = cfg.gauge.maxValue;
     tag->lastValue = NAN;
@@ -350,7 +383,14 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     lv_obj_t *label = nullptr;
     lv_obj_t *fracLabel = nullptr;
-    buildValueCluster(cont, cfg, textRgb, label, fracLabel);
+    lv_obj_t *kicker = nullptr;
+    buildValueCluster(cont, cfg, textRgb, label, fracLabel, kicker);
+
+    const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
+    const uint32_t ruleRgb = primaryTier ? textRgb : WidgetHelpers::kTrackRgb;
+    lv_obj_t *topRule = WidgetHelpers::makeTopRule(
+        cont, primaryTier ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
+        ruleRgb);
 
     WidgetTagPool::Slot<GaugeTag> tagSlot;
     GaugeTag *tag = tagSlot.get();
@@ -360,7 +400,8 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         lv_obj_del(cont);
         return nullptr;
     }
-    const GaugeBuildState built = {label, fracLabel, fillArc, modes.dangerAngle, modes.hasDanger};
+    const GaugeBuildState built = {label,  fracLabel, fillArc,           topRule,
+                                   kicker, ruleRgb,   modes.dangerAngle, modes.hasDanger};
     initGaugeTag(tag, cfg, built, textRgb);
     attachAlertFlash(tag, cont, cfg);
 
@@ -415,6 +456,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             lv_arc_set_angles(tag->fillArc, 0, 0);
             tag->lastAngle = 0u;
         }
+        applyDangerChrome(tag, false);
         AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
         return;
     }
@@ -448,6 +490,8 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
                                            LV_PART_INDICATOR);
     }
+
+    applyDangerChrome(tag, tag->hasDanger && value >= cfg.gauge.dangerLevel);
 
     const int32_t displayScaled = scaleForDisplay(value, cfg.gauge.decimalPlaces);
     if (displayScaled != tag->lastDisplayScaled) {
