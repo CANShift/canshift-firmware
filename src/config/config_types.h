@@ -131,8 +131,6 @@ enum class CfgButtonMode : uint8_t {
 
 struct CfgButtonState {
     char label[CFG_MAX_NAME_LEN];
-    char iconName[16];
-    bool hasIconName;
     bool hasColors;
     CfgColor colorNormal;
     CfgColor colorActive;
@@ -142,10 +140,7 @@ struct CfgButtonState {
 struct CfgButtonParams {
     CfgButtonMode mode;
     char label[CFG_MAX_NAME_LEN];
-    char iconPath[CFG_MAX_PATH_LEN];
-    char iconName[16];
     bool isToggle;
-    bool showIcon;
     bool showLabel;
     bool hasColors;
     CfgColor colorNormal;
@@ -280,22 +275,6 @@ struct CfgDashboard {
     CfgDashboard &operator=(const CfgDashboard &) = delete;
 };
 
-enum class CfgRampInterp : uint8_t {
-    Linear = 0,
-    Step = 1,
-};
-
-struct CfgRampStopDef {
-    float value;
-    uint32_t color;
-};
-
-struct CfgColorRampDef {
-    uint8_t count;
-    CfgRampInterp interpolate;
-    CfgRampStopDef stops[CFG_MAX_RAMP_STOPS];
-};
-
 struct CfgSignalDef {
     char name[CFG_MAX_SIGNAL_LEN];
     uint32_t canFrameId;
@@ -314,7 +293,6 @@ struct CfgSignalDef {
     float highDangerLevel;
     uint32_t timeoutMs;
     uint8_t bitMask;
-    CfgColorRampDef colorRamp;
     uint8_t pollMode;
     uint8_t pollPid;
     uint32_t pollIntervalMs;

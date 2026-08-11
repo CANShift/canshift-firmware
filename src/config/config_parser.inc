@@ -104,39 +104,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
     }
 }
 
-void parseColorRamp(JsonObjectConst src, const char *signalName, CfgColorRampDef *out) {
-    out->count = 0;
-    out->interpolate = CfgRampInterp::Linear;
-    if (src.isNull())
-        return;
-
-    const char *interp = src["interpolate"] | "linear";
-    out->interpolate = (strcmp(interp, "step") == 0) ? CfgRampInterp::Step : CfgRampInterp::Linear;
-
-    JsonArrayConst stops = src["stops"];
-    if (stops.isNull())
-        return;
-
-    const size_t total = stops.size();
-    if (total > CFG_MAX_RAMP_STOPS) {
-        LOG_WARN(
-            "CFG", "signal '%s': colorRamp has %u stops > CFG_MAX_RAMP_STOPS=%u — extras dropped",
-            signalName, static_cast<unsigned>(total), static_cast<unsigned>(CFG_MAX_RAMP_STOPS));
-    }
-    for (JsonObjectConst stop : stops) {
-        if (out->count >= CFG_MAX_RAMP_STOPS)
-            break;
-        CfgRampStopDef &dst = out->stops[out->count];
-        dst.value = stop["value"] | 0.0f;
-        const char *color = stop["color"] | "#000000";
-        dst.color = parseHexColorValue(color);
-        ++out->count;
-    }
-    if (out->count < 2) {
-        out->count = 0;
-    }
-}
-
 namespace {
 
 float readAlertThreshold(JsonObjectConst cfg) {
@@ -278,9 +245,6 @@ void applyLegacyTargetPageId(JsonObjectConst cfg, CfgButtonParams *out) {
 void parseButtonState(JsonObjectConst stateJson, const char *widgetId, uint8_t stateIndex,
                       CfgButtonState *out) {
     strlcpy(out->label, stateJson["label"] | "", CFG_MAX_NAME_LEN);
-    const char *iconName = stateJson["iconName"] | "";
-    out->hasIconName = iconName[0] != '\0';
-    strlcpy(out->iconName, iconName, sizeof(out->iconName));
 
     JsonObjectConst colors = stateJson["colors"];
     out->hasColors = !colors.isNull();
@@ -321,10 +285,7 @@ void parseCycleStates(JsonArrayConst statesArr, const char *widgetId, CfgButtonP
 
 void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParams *out) {
     strlcpy(out->label, cfg["label"] | "", CFG_MAX_NAME_LEN);
-    strlcpy(out->iconPath, cfg["iconPath"] | "", CFG_MAX_PATH_LEN);
-    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
     out->isToggle = cfg["isToggle"] | false;
-    out->showIcon = cfg["showIcon"] | true;
     out->showLabel = cfg["showLabel"] | true;
     parseButtonColors(cfg, out);
 

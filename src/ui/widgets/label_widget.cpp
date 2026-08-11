@@ -2,7 +2,6 @@
 #include "diag/logger.h"
 #include "ui/alert_flash.h"
 #include "ui/font_manager.h"
-#include "ui/sensor_color_ramp.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -58,7 +57,6 @@ struct LabelTag {
     bool dangerFontSwap;
     const lv_font_t *baseValueFont;
     const lv_font_t *baseFracFont;
-    const CfgColorRamp *ramp;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
     uint32_t ruleBaseRgb;
@@ -239,7 +237,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->dangerFontSwap = !primary && valueSize >= kDangerFracFontPx;
     tag->baseValueFont = valueFont;
     tag->baseFracFont = fracFont;
-    tag->ramp = WidgetHelpers::resolveSignalRamp(cfg.signalId);
 
     AlertFlash::attach(tag->alert, cont);
     AlertFlash::watchLabel(tag->alert, label, textRgb);
@@ -366,11 +363,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     }
 
     if (!tag->alert.active) {
-        const uint32_t tint = tag->ramp ? colorAtValue(*tag->ramp, value) : tag->baseTextRgb;
-        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tint);
+        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tag->baseTextRgb);
         if (tag->fracLabel) {
             uint32_t fracLast = tag->lastTintRgb;
-            WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, tint);
+            WidgetStyles::setTextColorIfChanged(tag->fracLabel, fracLast, tag->baseTextRgb);
         }
     }
 

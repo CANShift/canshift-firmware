@@ -1,7 +1,6 @@
 #pragma once
 
 #include "config/config_types.h"
-#include "ui/sensor_color_ramp.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_tag_pool.h"
 
@@ -29,8 +28,6 @@ int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, 
                 const char *suffix);
 
 bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
-
-const CfgColorRamp *resolveSignalRamp(const char *signalId);
 
 const char *resolveDisplayUnit(const char *signalId, const char *configSuffix);
 
