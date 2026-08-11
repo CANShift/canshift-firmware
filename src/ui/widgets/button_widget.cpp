@@ -5,6 +5,7 @@
 #include "can/signal_map.h"
 #include "ui/font_manager.h"
 #include "ui/icon_assets.h"
+#include "ui/widget_label.h"
 #include "ui/icon_assets_baked.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
@@ -38,11 +39,16 @@ constexpr float LABEL_W_RATIO = 0.22f;
 constexpr int16_t LABEL_FONT_MIN = 8;
 constexpr int16_t LABEL_BUDGET_PAD = 12;
 
+constexpr int16_t BUTTON_FONT_TARGET_XL = 22;
 constexpr int16_t BUTTON_FONT_TARGET_LG = 15;
 constexpr int16_t BUTTON_FONT_TARGET_MD = 13;
+constexpr uint8_t BUTTON_FONT_SIZE_XL = 28;
 constexpr uint8_t BUTTON_FONT_SIZE_LG = 16;
 constexpr uint8_t BUTTON_FONT_SIZE_MD = 14;
 constexpr uint8_t BUTTON_FONT_SIZE_SM = 12;
+constexpr uint8_t BUTTON_KICKER_FONT_PX = 10;
+constexpr int16_t BUTTON_KICKER_TRACKING_PX = 2;
+constexpr lv_opa_t BUTTON_KICKER_ENGAGED_OPA = 0xC0;
 
 int16_t computeIconSize(int16_t w, int16_t h) {
     int16_t budget = static_cast<int16_t>(h * ICON_H_RATIO);
@@ -70,6 +76,8 @@ int16_t computeLabelFontSize(int16_t w, int16_t h, bool showIcon, int16_t iconSi
 }
 
 const lv_font_t *selectButtonFontFromTarget(int16_t targetPx) {
+    if (targetPx >= BUTTON_FONT_TARGET_XL)
+        return FontManager::label(BUTTON_FONT_SIZE_XL);
     if (targetPx >= BUTTON_FONT_TARGET_LG)
         return FontManager::label(BUTTON_FONT_SIZE_LG);
     if (targetPx >= BUTTON_FONT_TARGET_MD)
@@ -93,6 +101,7 @@ struct ButtonTag {
     const CfgButtonParams *params;
     lv_obj_t *iconImg;
     lv_obj_t *labelObj;
+    lv_obj_t *kickerObj;
     bool toggleActive;
     char lvglPath[LVGL_PATH_LEN];
     lv_obj_t *activeBadge;
@@ -127,18 +136,6 @@ IconSource resolveIconAsset(const CfgButtonParams &p, char *pathBuf, size_t path
     return result;
 }
 
-constexpr uint32_t TOGGLE_DERIVED_ACTIVE_DELTA = 0x40;
-
-uint32_t lightenRgb(uint32_t rgb, uint32_t delta) {
-    const uint32_t r = (rgb >> 16) & 0xFF;
-    const uint32_t g = (rgb >> 8) & 0xFF;
-    const uint32_t b = rgb & 0xFF;
-    const uint32_t rL = r + delta > 0xFF ? 0xFF : r + delta;
-    const uint32_t gL = g + delta > 0xFF ? 0xFF : g + delta;
-    const uint32_t bL = b + delta > 0xFF ? 0xFF : b + delta;
-    return (rL << 16) | (gL << 8) | bL;
-}
-
 struct ButtonVisual {
     uint32_t bgColor;
     lv_opa_t bgOpa;
@@ -148,9 +145,7 @@ struct ButtonVisual {
 
 ButtonVisual computeButtonVisual(const CfgWidget &cfg, const CfgButtonParams &p, bool active) {
     const uint32_t normalColor = p.hasColors ? p.colorNormal.rgb : cfg.style.primaryColor.rgb;
-    const uint32_t activeColor =
-        p.hasColors ? p.colorActive.rgb
-                    : lightenRgb(cfg.style.primaryColor.rgb, TOGGLE_DERIVED_ACTIVE_DELTA);
+    const uint32_t activeColor = p.hasColors ? p.colorActive.rgb : WidgetHelpers::kAccentRgb;
     ButtonVisual v;
     if (active) {
         v.bgColor = activeColor;
@@ -178,6 +173,13 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     if (tag.iconImg) {
         lv_obj_set_style_img_recolor(tag.iconImg, lv_color_hex(v.textColor), 0);
     }
+    if (tag.kickerObj) {
+        const bool engaged = v.bgOpa == BUTTON_BG_OPA_ACTIVE;
+        lv_obj_set_style_text_color(
+            tag.kickerObj, lv_color_hex(engaged ? 0xFFFFFFu : WidgetHelpers::kMutedRgb), 0);
+        lv_obj_set_style_text_opa(tag.kickerObj, engaged ? BUTTON_KICKER_ENGAGED_OPA : LV_OPA_COVER,
+                                  0);
+    }
 }
 
 void applyToggleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
@@ -201,7 +203,8 @@ uint32_t cycleActiveColor(const CfgWidget &cfg, const CfgButtonParams &p, const 
         return s.colorActive.rgb;
     if (p.hasColors)
         return p.colorActive.rgb;
-    return lightenRgb(cfg.style.primaryColor.rgb, TOGGLE_DERIVED_ACTIVE_DELTA);
+    (void)cfg;
+    return WidgetHelpers::kAccentRgb;
 }
 
 void applyCycleVisualState(lv_obj_t *btn, const ButtonTag &tag) {
@@ -290,6 +293,7 @@ void initButtonTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &
     tag->params = &p;
     tag->iconImg = nullptr;
     tag->labelObj = nullptr;
+    tag->kickerObj = nullptr;
     tag->toggleActive = false;
     tag->lvglPath[0] = '\0';
     tag->activeBadge = nullptr;
@@ -334,8 +338,23 @@ void createButtonLabel(lv_obj_t *btn, ButtonTag *tag, const CfgButtonParams &p,
     lv_obj_t *label = lv_label_create(btn);
     lv_label_set_text(label, p.label);
     lv_obj_set_style_text_font(label, btnFont, 0);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, 0);
     tag->labelObj = label;
+}
+
+void createButtonKicker(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cfg) {
+    const char *text = WidgetLabelOverlay::displayLabelForSignal(cfg.signalId);
+    if (!text)
+        return;
+    lv_obj_t *kicker = lv_label_create(btn);
+    if (!kicker)
+        return;
+    lv_label_set_text(kicker, text);
+    lv_obj_set_style_text_font(kicker, FontManager::label(BUTTON_KICKER_FONT_PX), 0);
+    lv_obj_set_style_text_letter_space(kicker, BUTTON_KICKER_TRACKING_PX, 0);
+    lv_obj_set_style_text_color(kicker, lv_color_hex(WidgetHelpers::kMutedRgb), 0);
+    lv_obj_set_style_text_align(kicker, LV_TEXT_ALIGN_LEFT, 0);
+    tag->kickerObj = kicker;
 }
 
 void applyButtonInitialVisual(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cfg,
@@ -402,8 +421,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     if (hasIcon || hasLabel) {
         lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_style_pad_row(btn, LayoutScale::y(BUTTON_ROW_GAP), LV_PART_MAIN);
     }
 
@@ -423,6 +441,9 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
     const int16_t targetFontSize =
         computeLabelFontSize(cfg.layout.w, cfg.layout.h, hasIcon, targetIconSize);
     const lv_font_t *btnFont = selectButtonFontFromTarget(targetFontSize);
+
+    if (hasLabel)
+        createButtonKicker(btn, tag, cfg);
 
     if (hasIcon)
         createButtonIcon(btn, tag, p);
