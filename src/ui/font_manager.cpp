@@ -17,7 +17,7 @@ namespace {
 
 constexpr uint8_t kPrimarySizes[] = {72};
 constexpr uint8_t kSecondarySizes[] = {34};
-constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16};
+constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16, 28};
 
 constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
 constexpr size_t kSecondaryCount = sizeof(kSecondarySizes) / sizeof(kSecondarySizes[0]);
@@ -135,6 +135,7 @@ void FontManager::init() {
     s_label[2] = &lv_font_archivo_extrabold_14_nk;
     LOG_INFO("FONT", "archivo_extrabold_14: using in-flash copy (saves ~4.6 KB pool)");
     loadOne("archivo", "extrabold", "label", kLabelSizes[3], s_label[3]);
+    loadOne("archivo", "extrabold", "label", kLabelSizes[4], s_label[4]);
 
     s_initialized = true;
 }

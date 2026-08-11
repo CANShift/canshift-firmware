@@ -24,7 +24,7 @@ car produces render in monospace with tabular figures.
 | danger    | JB Mono ExtraBold (800)  | 46             | in-flash twin only — no SPIFFS .bin                |
 | secondary | JB Mono Bold (700)       | 34             | `jbmono_bold_34.bin`                               |
 | units     | JB Mono Medium (500)     | 14             | in-flash (`lv_font_jbmono_medium_14_nk.c`)         |
-| label     | Archivo ExtraBold (800)  | 10, 12, 14, 16 | `archivo_extrabold_{10,12,16}.bin` (14 in-flash)   |
+| label     | Archivo ExtraBold (800)  | 10, 12, 14, 16, 28 | `archivo_extrabold_{10,12,16,28}.bin` (14 in-flash) |
 
 Sizes follow `PROMPT_DASH_DESIGN.md`: primary value 72 px, danger 46 px,
 secondary 34 px, units 14–15 px muted inline. The 56 px OTA percent lands

@@ -19,6 +19,9 @@ extern const uint8_t kFontLabel12End[] asm("_binary_data_fonts_archivo_extrabold
 
 extern const uint8_t kFontLabel16Start[] asm("_binary_data_fonts_archivo_extrabold_16_bin_start");
 extern const uint8_t kFontLabel16End[] asm("_binary_data_fonts_archivo_extrabold_16_bin_end");
+
+extern const uint8_t kFontLabel28Start[] asm("_binary_data_fonts_archivo_extrabold_28_bin_start");
+extern const uint8_t kFontLabel28End[] asm("_binary_data_fonts_archivo_extrabold_28_bin_end");
 }
 
 namespace {
@@ -35,6 +38,7 @@ const EmbeddedFont kEmbeddedFonts[] = {
     {"/fonts/archivo_extrabold_10.bin", kFontLabel10Start, kFontLabel10End, "archivo_extrabold_10"},
     {"/fonts/archivo_extrabold_12.bin", kFontLabel12Start, kFontLabel12End, "archivo_extrabold_12"},
     {"/fonts/archivo_extrabold_16.bin", kFontLabel16Start, kFontLabel16End, "archivo_extrabold_16"},
+    {"/fonts/archivo_extrabold_28.bin", kFontLabel28Start, kFontLabel28End, "archivo_extrabold_28"},
 };
 
 bool writeOne(const EmbeddedFont &font) {
