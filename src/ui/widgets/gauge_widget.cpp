@@ -358,6 +358,25 @@ void GaugeWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
     tag->lastFillRgb = 0xFFFFFFFFu;
 }
 
+static void renderStale(GaugeTag *tag) {
+    if (tag->lastValid) {
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
+        tag->lastValue = NAN;
+        tag->lastValid = false;
+        tag->lastDisplayScaled = INT32_MIN;
+    }
+    if (!tag->alert.active) {
+        const uint32_t staleRgb = ThemeManager::getStaleTextColor();
+        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
+    }
+    if (tag->fillArc && tag->lastAngle != 0u) {
+        lv_arc_set_angles(tag->fillArc, 0, 0);
+        tag->lastAngle = 0u;
+    }
+    applyDangerChrome(tag, false);
+    AlertFlash::update(tag->alert, 0.0f, effectiveAlertThreshold(*tag));
+}
+
 void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
     if (!obj)
         return;
@@ -369,22 +388,7 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const float displayValue = valid ? value : 0.0f;
 
     if (!valid) {
-        if (tag->lastValid) {
-            WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
-            tag->lastValue = NAN;
-            tag->lastValid = false;
-            tag->lastDisplayScaled = INT32_MIN;
-        }
-        if (!tag->alert.active) {
-            const uint32_t staleRgb = ThemeManager::getStaleTextColor();
-            WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
-        }
-        if (tag->fillArc && tag->lastAngle != 0u) {
-            lv_arc_set_angles(tag->fillArc, 0, 0);
-            tag->lastAngle = 0u;
-        }
-        applyDangerChrome(tag, false);
-        AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
+        renderStale(tag);
         return;
     }
 
