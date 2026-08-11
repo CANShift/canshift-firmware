@@ -8,7 +8,6 @@ members = [
     "format-float",
     "error-store",
     "alert-engine",
-    "sensor-color-ramp",
     "timer-core",
     "layout-grid",
 ]
