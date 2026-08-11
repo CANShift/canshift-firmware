@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 14 px
  * Bpp: 4
- * Opts: --no-compress --no-prefilter --no-kerning --bpp 4 --size 14 --font /Users/thomas/Developer/TMBK/CANShift/canshift-mobile/node_modules/@expo-google-fonts/archivo/800ExtraBold/Archivo_800ExtraBold.ttf -r 0x20-0x7F,0xB0,0x2022 --format lvgl -o src/ui/fonts/lv_font_archivo_extrabold_14_nk.c
+ * Opts: --no-compress --no-prefilter --no-kerning --bpp 4 --size 14 --font /private/tmp/claude-501/-Users-thomas-Developer-TMBK-CANShift/b103132b-fcb8-4b28-9bad-a652379ec864/scratchpad/ttf/Archivo-ExtraBold.ttf -r 0x20-0x7F,0xB0,0x2022 --format lvgl -o /Users/thomas/Developer/TMBK/CANShift/canshift-firmware/src/ui/fonts/lv_font_archivo_extrabold_14_nk.c
  ******************************************************************************/
 
 #include "lvgl.h"

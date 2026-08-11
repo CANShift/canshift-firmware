@@ -8,15 +8,14 @@
 #include <stdio.h>
 #include <string.h>
 
-LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
-LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_72_nk);
 LV_FONT_DECLARE(lv_font_jbmono_medium_14_nk);
 LV_FONT_DECLARE(lv_font_archivo_extrabold_14_nk);
 
 namespace {
 
-constexpr uint8_t kPrimarySizes[] = {32, 48};
-constexpr uint8_t kSecondarySizes[] = {20, 24};
+constexpr uint8_t kPrimarySizes[] = {72};
+constexpr uint8_t kSecondarySizes[] = {34};
 constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16};
 
 constexpr size_t kPrimaryCount = sizeof(kPrimarySizes) / sizeof(kPrimarySizes[0]);
@@ -123,10 +122,8 @@ void FontManager::init() {
     }
     LOG_INFO("FONT", "Loading font family 'jbmono'");
 
-    s_primary[0] = &lv_font_jbmono_extrabold_32_nk;
-    LOG_INFO("FONT", "jbmono_extrabold_32: using in-flash copy (saves ~20 KB pool)");
-    s_primary[1] = &lv_font_jbmono_extrabold_48_nk;
-    LOG_INFO("FONT", "jbmono_extrabold_48: using in-flash copy (saves ~44 KB pool)");
+    s_primary[0] = &lv_font_jbmono_extrabold_72_nk;
+    LOG_INFO("FONT", "jbmono_extrabold_72: using in-flash copy (saves ~85 KB pool)");
 
     for (size_t i = 0; i < kSecondaryCount; ++i) {
         loadOne("jbmono", "bold", "secondary", kSecondarySizes[i], s_secondary[i]);
@@ -147,8 +144,7 @@ void FontManager::shutdown() {
 
             const bool isInFlash = slots[i] == &lv_font_jbmono_medium_14_nk ||
                                    slots[i] == &lv_font_archivo_extrabold_14_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_32_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_48_nk;
+                                   slots[i] == &lv_font_jbmono_extrabold_72_nk;
             if (slots[i] != nullptr && !isInFlash) {
                 lv_font_free(const_cast<lv_font_t *>(slots[i]));
             }
@@ -168,6 +164,10 @@ const lv_font_t *FontManager::primary(uint8_t size) {
 const lv_font_t *FontManager::secondary(uint8_t size) {
     return resolve(kSecondarySizes, kSecondaryCount, s_secondary, size,
                    &lv_font_jbmono_medium_14_nk);
+}
+
+const lv_font_t *FontManager::units() {
+    return &lv_font_jbmono_medium_14_nk;
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {

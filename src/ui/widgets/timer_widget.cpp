@@ -160,18 +160,18 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
 
-    const lv_font_t *font = FontManager::secondary(20);
+    const lv_font_t *font = FontManager::units();
     if (cfg.layout.h >= 80)
-        font = FontManager::secondary(24);
-    if (cfg.layout.h >= 110)
-        font = FontManager::primary(32);
+        font = FontManager::secondary(34);
+    if (cfg.layout.h >= 110 && cfg.layout.w >= 260)
+        font = FontManager::primary(72);
     lv_obj_set_style_text_font(label, font, 0);
     lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
 
     lv_obj_t *lapLabel = lv_label_create(cont);
     lv_obj_align(lapLabel, LV_ALIGN_TOP_RIGHT, -LayoutScale::x(kLapBadgeInsetPx),
                  LayoutScale::y(kLapBadgeInsetPx));
-    lv_obj_set_style_text_font(lapLabel, FontManager::secondary(10), 0);
+    lv_obj_set_style_text_font(lapLabel, FontManager::units(), 0);
     lv_obj_set_style_text_color(lapLabel, lv_color_hex(textRgb), 0);
     lv_obj_set_style_text_opa(lapLabel, kLapBadgeOpa, 0);
     lv_label_set_text(lapLabel, "");

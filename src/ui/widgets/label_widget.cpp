@@ -37,17 +37,17 @@ uint8_t pickValueFontSize(int16_t lineH, int16_t widgetW) {
     int s = byHeight < byWidth ? byHeight : byWidth;
     if (s < 12)
         s = 12;
-    if (s > 48)
-        s = 48;
+    if (s > 72)
+        s = 72;
     return static_cast<uint8_t>(s);
 }
 
 const lv_font_t *valueFontFor(uint8_t size) {
-    if (size >= 32)
+    if (size >= 72)
         return FontManager::primary(size);
-    if (size >= 20)
+    if (size >= 34)
         return FontManager::secondary(size);
-    return FontManager::label(size);
+    return FontManager::units();
 }
 
 struct LabelTag {

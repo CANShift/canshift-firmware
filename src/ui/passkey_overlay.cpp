@@ -48,7 +48,7 @@ void PasskeyOverlay::show(uint32_t passkey) {
     lv_obj_t *code = lv_label_create(root);
     lv_label_set_text(code, buf);
     lv_obj_set_style_text_color(code, lv_color_hex(0xE08030), 0);
-    lv_obj_set_style_text_font(code, FontManager::secondary(24), 0);
+    lv_obj_set_style_text_font(code, FontManager::secondary(34), 0);
     lv_obj_align(code, LV_ALIGN_CENTER, 0, -8);
 
     lv_obj_t *hint = lv_label_create(root);

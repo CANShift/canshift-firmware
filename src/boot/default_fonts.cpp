@@ -8,11 +8,8 @@
 #include <Arduino.h>
 
 extern "C" {
-extern const uint8_t kFontBold20Start[] asm("_binary_data_fonts_jbmono_bold_20_bin_start");
-extern const uint8_t kFontBold20End[] asm("_binary_data_fonts_jbmono_bold_20_bin_end");
-
-extern const uint8_t kFontBold24Start[] asm("_binary_data_fonts_jbmono_bold_24_bin_start");
-extern const uint8_t kFontBold24End[] asm("_binary_data_fonts_jbmono_bold_24_bin_end");
+extern const uint8_t kFontBold34Start[] asm("_binary_data_fonts_jbmono_bold_34_bin_start");
+extern const uint8_t kFontBold34End[] asm("_binary_data_fonts_jbmono_bold_34_bin_end");
 
 extern const uint8_t kFontLabel10Start[] asm("_binary_data_fonts_archivo_extrabold_10_bin_start");
 extern const uint8_t kFontLabel10End[] asm("_binary_data_fonts_archivo_extrabold_10_bin_end");
@@ -34,8 +31,7 @@ struct EmbeddedFont {
 };
 
 const EmbeddedFont kEmbeddedFonts[] = {
-    {"/fonts/jbmono_bold_20.bin", kFontBold20Start, kFontBold20End, "jbmono_bold_20"},
-    {"/fonts/jbmono_bold_24.bin", kFontBold24Start, kFontBold24End, "jbmono_bold_24"},
+    {"/fonts/jbmono_bold_34.bin", kFontBold34Start, kFontBold34End, "jbmono_bold_34"},
     {"/fonts/archivo_extrabold_10.bin", kFontLabel10Start, kFontLabel10End, "archivo_extrabold_10"},
     {"/fonts/archivo_extrabold_12.bin", kFontLabel12Start, kFontLabel12End, "archivo_extrabold_12"},
     {"/fonts/archivo_extrabold_16.bin", kFontLabel16Start, kFontLabel16End, "archivo_extrabold_16"},
