@@ -98,16 +98,6 @@ CfgCruiseOp parseCruiseOp(const char *op) {
     return CfgCruiseOp::UNKNOWN;
 }
 
-CfgArcFillStyle parseArcFillStyle(const char *str) {
-    if (!str)
-        return CfgArcFillStyle::INK;
-    if (strcmp(str, "gradient") == 0)
-        return CfgArcFillStyle::GRADIENT;
-    if (strcmp(str, "zones") == 0)
-        return CfgArcFillStyle::ZONES;
-    return CfgArcFillStyle::INK;
-}
-
 WidgetType parseWidgetType(const char *str) {
     if (!str)
         return WidgetType::UNKNOWN;

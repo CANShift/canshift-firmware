@@ -63,12 +63,6 @@ struct CfgStyle {
     bool respectDayMode;
 };
 
-enum class CfgArcFillStyle : uint8_t {
-    ZONES = 0,
-    GRADIENT = 1,
-    INK = 2,
-};
-
 struct CfgGaugeParams {
     float minValue;
     float maxValue;
@@ -78,7 +72,6 @@ struct CfgGaugeParams {
     uint8_t decimalPlaces;
     char prefix[8];
     char suffix[16];
-    CfgArcFillStyle arcFillStyle;
     char iconName[16];
 };
 

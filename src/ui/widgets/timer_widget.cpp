@@ -33,8 +33,8 @@ struct TimerTag {
 constexpr uint32_t LONG_PRESS_MS = 600;
 constexpr uint32_t BLINK_PERIOD_MS = 1000;
 
-constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kZoneNormalRgb;
-constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kZoneWarningRgb;
+constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kAccentRgb;
+constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kMutedRgb;
 constexpr uint8_t kStateBorderWidth = 2;
 constexpr lv_opa_t kResetTextOpa = LV_OPA_60;
 constexpr lv_opa_t kLapBadgeOpa = LV_OPA_80;
