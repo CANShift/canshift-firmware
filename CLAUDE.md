@@ -6,6 +6,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 
 - `pio run -e debug` — dev build (prod env requires the OTA HMAC secret)
 - `pio test -e native` — native tests; `pio run -e crowpanel_28 -t buildfs` — SPIFFS
+- `cd rust && cargo test --workspace` — host tests for the Rust crates; CI runs this plus `cargo clippy` on stable (`RUSTUP_TOOLCHAIN=stable`), since the host pass does not need the pinned Espressif fork
 - Stale `.pio/build` can corrupt — `rm -rf .pio` fixes it. RTK truncates pio logs: use `rtk proxy` + exit codes, not `tee | tail`.
 
 ## Rules

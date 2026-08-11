@@ -23,3 +23,19 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: FFI constant parity
         run: python3 scripts/check_ffi_parity.py
+
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    # The workspace pins the Espressif fork for the xtensa target; the host
+    # test and lint pass needs neither, so it runs on stable without espup.
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: cargo test
+        run: cargo test --workspace
+        working-directory: rust
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets
+        working-directory: rust
