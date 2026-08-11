@@ -11,9 +11,9 @@
     #include "diag/lvgl_hold_timer.h"
     #include "hal/storage/nvs_store.h"
     #include "runtime/lvgl_lock.h"
+    #include "runtime/device_commands.h"
     #include "runtime/pending_actions.h"
     #include "runtime/timer_service.h"
-    #include "runtime/track_store.h"
     #include "ui/settings_page.h"
 
     #include <ArduinoJson.h>
@@ -177,44 +177,15 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             return;
 
         const char *cmd = doc["cmd"] | "";
+        const DeviceCommands::Command *entry = DeviceCommands::findByBleName(cmd);
+        if (entry == nullptr) {
+            LOG_WARN("BLE", "Unknown CMD: %s", cmd);
+            return;
+        }
 
-        if (strcmp(cmd, "toggle_day_night") == 0) {
-            PendingActions::dayNightToggle.store(true, std::memory_order_relaxed);
-            LOG_INFO("BLE", "CMD: day/night toggle queued");
-        } else if (strcmp(cmd, "set_day_night") == 0) {
-            JsonVariantConst dayVar = doc["day"];
-            if (dayVar.isNull() || !dayVar.is<bool>()) {
-                LOG_WARN("BLE", "set_day_night missing 'day' bool — ignoring");
-            } else {
-                const bool day = dayVar.as<bool>();
-                PendingActions::dayNightSet.store(day ? 1 : 0, std::memory_order_relaxed);
-                LOG_INFO("BLE", "CMD: day/night set queued — %s", day ? "day" : "night");
-            }
-        } else if (strcmp(cmd, "start_calibration") == 0) {
-            PendingActions::touchCalibrate.store(true, std::memory_order_relaxed);
-            LOG_INFO("BLE", "CMD: calibration queued");
-        } else if (strcmp(cmd, "reset_calibration") == 0) {
-            PendingActions::touchCalibrationReset.store(true, std::memory_order_relaxed);
-            LOG_INFO("BLE", "CMD: calibration reset queued");
-        } else if (strcmp(cmd, "track_state") == 0) {
-
-            TrackStore::State next = {};
-            next.trackMode = doc["trackMode"] | false;
-            next.currentLapMs = doc["currentLapMs"] | 0;
-            next.lastLapMs = doc["lastLapMs"] | 0;
-            next.bestLapMs = doc["bestLapMs"] | 0;
-            const int lapNum = doc["lapNumber"] | 0;
-            next.lapNumber =
-                (lapNum < 0) ? 0 : static_cast<uint16_t>(lapNum > 9999 ? 9999 : lapNum);
-            next.deltaMs = doc["deltaMs"] | 0;
-            next.isBestLap = doc["isBestLap"] | false;
-            TrackStore::setTelemetry(next);
-        } else if (strcmp(cmd, "reboot") == 0) {
-            LOG_INFO("BLE", "CMD: reboot");
+        if (entry->run(doc.as<JsonObjectConst>()) == DeviceCommands::Outcome::RebootRequested) {
             delay(PRE_RESTART_FLUSH_DELAY_MS);
             esp_restart();
-        } else {
-            LOG_WARN("BLE", "Unknown CMD: %s", cmd);
         }
     }
 };
