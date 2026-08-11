@@ -299,7 +299,9 @@ const char *kickerFromAction(const CfgButtonParams &p) {
 }
 
 void createButtonKicker(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cfg) {
-    const char *text = WidgetLabelOverlay::displayLabelForSignal(cfg.signalId);
+    const char *text = cfg.button && cfg.button->kicker[0] != '\0' ? cfg.button->kicker : nullptr;
+    if (!text)
+        text = WidgetLabelOverlay::displayLabelForSignal(cfg.signalId);
     if (!text && cfg.button)
         text = kickerFromAction(*cfg.button);
     if (!text)

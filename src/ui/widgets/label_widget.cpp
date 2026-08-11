@@ -68,6 +68,11 @@ void setRuleColorIfChanged(LabelTag *tag, uint32_t rgb) {
 void applyDangerState(LabelTag *tag);
 
 void applyDangerAppearance(LabelTag *tag, bool danger) {
+    if (tag->barFill) {
+        lv_obj_set_style_bg_color(
+            tag->barFill, lv_color_hex(danger ? WidgetHelpers::kZoneDangerRgb : tag->baseTextRgb),
+            LV_PART_MAIN);
+    }
     if (tag->kicker) {
         const uint32_t kickerRgb =
             danger ? WidgetHelpers::kZoneDangerRgb : WidgetLabelOverlay::kLabelDimRgb;
