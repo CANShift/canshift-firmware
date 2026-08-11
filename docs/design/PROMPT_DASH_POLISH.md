@@ -1,9 +1,14 @@
 # Prompt — CANShift dash: the remaining polish pass
 
-Companion to `~/Downloads/design_handoff_mobile_dash/PROMPT_DASH_DESIGN.md` (still the binding
-token/type/grammar spec) and the six page mockups in `CANShift Brand Book.dc.html` §04. This
-prompt is self-sufficient: it records exactly what already conforms, every remaining deviation,
-and the order to fix them. **Verify every change in the simulator before pushing**
+> **SUPERSEDED IN PART (2026-08-11): `PROMPT_DASH_IN_TUNER.md` is the binding spec for scale.**
+> The mockup canvas is 2× — device font sizes are hero 48/44/40, primary 32, mid 24/22,
+> secondary 17, unit/status 10 (NOT the 72/46/34 this file assumes); danger is a colour state,
+> not a size; frame padding is 8 and the grid gap 6 on device; sizes come from the Tuner's
+> per-widget `big` property. Read that file first; the deviation list below still holds for
+> everything that is not a size.
+
+Companion to `PROMPT_DASH_IN_TUNER.md` (scale + grammar authority) and the six page mockups in
+`CANShift Brand Book.dc.html` §04. **Verify every change in the simulator before pushing**
 (`pio run -e sim && .pio/build/sim/program` — see `sim/README.md` for the injector keys).
 
 ## Already conform — do not redo
