@@ -1,5 +1,6 @@
 #include "shift_light_widget.h"
 #include "config/config_loader.h"
+#include "ui/dash_metrics.h"
 #include "ui/theme_manager.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
@@ -10,8 +11,8 @@
 namespace {
 
 constexpr uint8_t kSegmentCount = 12;
-constexpr int16_t kSegmentGapPx = 2;
-constexpr int16_t kSegmentHeightPx = 7;
+constexpr int16_t kSegmentGapPx = DashMetrics::kShiftStripGapPx;
+constexpr int16_t kSegmentHeightPx = DashMetrics::kShiftStripHeightPx;
 
 struct ShiftLightTag {
     lv_obj_t *segments[kSegmentCount];

@@ -32,6 +32,10 @@ extern uint8_t s_pendingLazyBuildIdx;
 
 void buildPage(uint8_t idx, const CfgPage &cfg);
 
+[[nodiscard]] bool pageDeclaresShiftStrip(const CfgPage &cfg);
+
+[[nodiscard]] int16_t shiftStripInset(const CfgPage &cfg);
+
 void reapplyThemeAllPages();
 
 void showPage(uint8_t idx);
