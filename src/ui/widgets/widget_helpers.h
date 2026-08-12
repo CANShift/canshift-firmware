@@ -21,6 +21,7 @@ constexpr uint8_t kRuleSecondaryPx = 1;
 constexpr uint8_t kRulePrimaryFontMin = 32;
 
 constexpr int16_t kValueRightInsetPx = 8;
+constexpr uint16_t kFillCatchUpMs = 120;
 
 struct BigFontStep {
     uint8_t minBig;
@@ -72,6 +73,10 @@ void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb);
 
 void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
                          const char *unit);
+
+void animateFill(lv_obj_t *obj, lv_anim_exec_xcb_t setter, int32_t from, int32_t to);
+
+void setFillImmediate(lv_obj_t *obj, lv_anim_exec_xcb_t setter, int32_t value);
 
 void logTagPoolExhausted(const char *logTag, const char *widgetId);
 

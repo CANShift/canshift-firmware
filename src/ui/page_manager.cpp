@@ -6,6 +6,7 @@
 #include "day_night_auto.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
+#include "rev_limit_flash.h"
 #include "error_bar.h"
 #include "gesture_controller.h"
 #include "setup_screen.h"
@@ -29,7 +30,6 @@ namespace PageManagerInternal {
 Page s_pages[MAX_PAGES];
 uint8_t s_pageCount = 0;
 uint8_t s_currentIdx = 0;
-lv_obj_t *s_revOverlay = nullptr;
 bool s_rebuildRequested = false;
 
 uint8_t s_pendingFreeIdx = 0xFF;
@@ -94,16 +94,6 @@ void PageManager::init() {
     AlertBanner::init();
     AlertTakeover::init();
 
-    s_revOverlay = lv_obj_create(lv_layer_top());
-    lv_obj_remove_style_all(s_revOverlay);
-    lv_obj_set_size(s_revOverlay, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_border_color(s_revOverlay, lv_color_hex(0xFF0000), LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_revOverlay, REVLIMIT_BORDER_WIDTH_PX, LV_PART_MAIN);
-    lv_obj_set_style_border_opa(s_revOverlay, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-
     LOG_INFO("UI", "PageManager initialized: %d pages", s_pageCount);
 }
 
@@ -166,6 +156,10 @@ void PageManager::updateWidgets() {
     lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
     SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
+
+    AlertEngine::tick(snap);
+    RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
+                       AlertEngine::isRevLimiterFlashOn());
     {
         PERF_SCOPE(::PerfCounters::WIDGETS);
         WidgetFactory::updateAll(currentScreen, snap);
@@ -186,27 +180,9 @@ void PageManager::updateWidgets() {
         lastTimeoutCheck = now;
     }
 
-    AlertEngine::tick(snap);
-    const bool revCritical =
-        (AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL);
-    setRevLimiterOverlay(revCritical, AlertEngine::isRevLimiterFlashOn());
     AlertBanner::update();
     AlertTakeover::update();
 
     ErrorBar::update();
     DiagDrawer::update();
-}
-
-void PageManager::setRevLimiterOverlay(bool visible, bool flashPhase) {
-    using namespace PageManagerInternal;
-    LVGL_ASSERT_LOCKED();
-    if (!s_revOverlay)
-        return;
-    if (!visible) {
-        lv_obj_add_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
-        return;
-    }
-    lv_obj_clear_flag(s_revOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_style_border_opa(s_revOverlay, flashPhase ? LV_OPA_COVER : REVLIMIT_BORDER_DIM_OPA,
-                                LV_PART_MAIN);
 }

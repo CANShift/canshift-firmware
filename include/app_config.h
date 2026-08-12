@@ -119,7 +119,7 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define ALERT_REVLIMIT_WARN_PCT 95
 #define ALERT_REVLIMIT_FLASH_PCT 100
 /* ≤3 Hz keeps the pulsing overlay out of the photosensitive-seizure band (WCAG 2.3.1). */
-#define ALERT_REVLIMIT_FLASH_HZ 3
+#define ALERT_REVLIMIT_FLASH_HZ 6
 
 #define ALERT_HYSTERESIS_PCT 2.0f
 #define ALERT_MIN_ACTIVE_MS 2000U

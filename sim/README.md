@@ -9,8 +9,14 @@ driven by a keyboard-controlled injector. No hardware involved.
 ```
 brew install sdl2
 pio run -e sim
-.pio/build/sim/program            # data root defaults to ./data
+.pio/build/sim/program                          # data root defaults to ./data
+.pio/build/sim/program data rev track 3000      # scenario, start page, capture-and-exit after N ms
 ```
+
+`program [dataRoot] [scenario] [pageId] [captureAfterMs]`. Scenarios are `cruise`,
+`rev`, `oil` and `stale` — the same modes as the keys below. With `captureAfterMs`
+the run writes `sim-screenshot.bmp` and exits, which is how a PR captures a given
+frame (e.g. both phases of the 6 Hz rev-limit blink) without touching the keyboard.
 
 ## Keys
 

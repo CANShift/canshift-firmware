@@ -1,6 +1,7 @@
 #include "shift_light_widget.h"
 #include "config/config_loader.h"
 #include "ui/dash_metrics.h"
+#include "ui/rev_limit_flash.h"
 #include "ui/theme_manager.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
@@ -23,6 +24,7 @@ struct ShiftLightTag {
     uint32_t litRgb;
     uint32_t trackRgb;
     bool lastValid;
+    bool lastBlanked;
 };
 
 float resolveFullValue(const CfgShiftLightParams &params) {
@@ -81,6 +83,7 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
     tag->trackRgb = ThemeManager::trackColor();
     tag->lastLit = 0xFF;
     tag->lastValid = false;
+    tag->lastBlanked = false;
 
     for (uint8_t i = 0; i < kSegmentCount; ++i) {
         lv_obj_t *seg = lv_obj_create(cont);
@@ -117,7 +120,9 @@ void ShiftLightWidget::update(lv_obj_t *obj, float value, bool valid, const CfgW
     }
     tag->lastValid = true;
 
-    const uint8_t lit = litSegments(value, *tag);
-    if (lit != tag->lastLit)
+    const bool blanked = RevLimitFlash::isBlanked();
+    const uint8_t lit = blanked ? 0 : litSegments(value, *tag);
+    if (lit != tag->lastLit || blanked != tag->lastBlanked)
         paintSegments(tag, lit);
+    tag->lastBlanked = blanked;
 }

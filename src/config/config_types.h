@@ -83,6 +83,7 @@ struct CfgLabelParams {
     char suffix[16];
     float alertThreshold;
     bool showBar;
+    bool revFlash;
     float minValue;
     float maxValue;
 };

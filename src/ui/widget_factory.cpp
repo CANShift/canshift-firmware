@@ -50,7 +50,7 @@ void updateWidget(WidgetEntry &entry,
 
     switch (entry.type) {
         case WidgetType::GAUGE:
-            GaugeWidget::update(entry.obj, value, valid, *entry.cfg);
+            GaugeWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::LABEL:
             LabelWidget::update(entry.obj, rawValue, valid, *entry.cfg);
@@ -65,7 +65,7 @@ void updateWidget(WidgetEntry &entry,
             GearWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::TIMER:
-            TimerWidget::update(entry.obj, value, valid, *entry.cfg);
+            TimerWidget::update(entry.obj, rawValue, valid, *entry.cfg);
             break;
         case WidgetType::SHIFT_LIGHT:
             ShiftLightWidget::update(entry.obj, value, valid, *entry.cfg);
