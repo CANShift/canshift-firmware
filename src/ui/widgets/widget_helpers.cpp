@@ -161,17 +161,21 @@ void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb) {
 }
 
 namespace {
+
 int16_t textWidthPx(const char *text, const lv_font_t *font, int16_t trackingPx) {
     lv_point_t size = {};
     lv_txt_get_size(&size, text, font, trackingPx, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     return static_cast<int16_t>(size.x);
 }
+
 float widestConfiguredValue(const CfgWidget &cfg) {
     const float maxValue = cfg.type == WidgetType::GAUGE ? cfg.gauge.maxValue : cfg.label.maxValue;
     const float minValue = cfg.type == WidgetType::GAUGE ? cfg.gauge.minValue : cfg.label.minValue;
     return -minValue > maxValue ? minValue : maxValue;
 }
+
 } // namespace
+
 void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
                          const char *unit) {
     if (!font || cfg.layout.w <= 0)
@@ -191,6 +195,8 @@ void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t tr
               cfg.id, widest, unit ? unit : "", static_cast<int>(needed),
               static_cast<int>(available));
     ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", cfg.id);
+}
+
 void animateFill(lv_obj_t *obj, lv_anim_exec_xcb_t setter, int32_t from, int32_t to) {
     if (!obj)
         return;
