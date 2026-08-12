@@ -161,7 +161,7 @@
     {
      "id": "street_fuel",
      "type": "gauge",
-     "signal": "fuel_level_pct",
+     "signal": "fuel_press_bar",
      "layout": {
       "col": 9,
       "colSpan": 3,
@@ -181,10 +181,9 @@
       "type": "gauge",
       "displayStyle": "numeric",
       "minValue": 0,
-      "maxValue": 100,
+      "maxValue": 6,
       "dangerLevel": 5,
-      "decimalPlaces": 0,
-      "showBar": true
+      "decimalPlaces": 1
      }
     },
     {
@@ -218,7 +217,7 @@
     {
      "id": "street_map",
      "type": "gauge",
-     "signal": "odo_km",
+     "signal": "map_kpa",
      "layout": {
       "col": 4,
       "colSpan": 4,
@@ -238,7 +237,8 @@
       "type": "gauge",
       "displayStyle": "numeric",
       "minValue": 0,
-      "maxValue": 999999,
+      "maxValue": 250,
+      "dangerLevel": 240,
       "decimalPlaces": 0
      }
     },
@@ -481,7 +481,7 @@
     {
      "id": "track_manifold",
      "type": "gauge",
-     "signal": "boost_bar",
+     "signal": "map_kpa",
      "layout": {
       "col": 6,
       "colSpan": 3,
@@ -501,9 +501,9 @@
       "type": "gauge",
       "displayStyle": "numeric",
       "minValue": 0,
-      "maxValue": 2,
-      "dangerLevel": 1.8,
-      "decimalPlaces": 2
+      "maxValue": 250,
+      "dangerLevel": 240,
+      "decimalPlaces": 0
      }
     },
     {
@@ -665,7 +665,7 @@
     {
      "id": "engine_iat",
      "type": "gauge",
-     "signal": "gearbox_temp_c",
+     "signal": "iat_c",
      "layout": {
       "col": 0,
       "colSpan": 4,
@@ -685,15 +685,15 @@
       "type": "gauge",
       "displayStyle": "numeric",
       "minValue": 0,
-      "maxValue": 150,
-      "dangerLevel": 120,
+      "maxValue": 90,
+      "dangerLevel": 70,
       "decimalPlaces": 0
      }
     },
     {
      "id": "engine_lambda",
      "type": "gauge",
-     "signal": "diff_temp_c",
+     "signal": "lambda_1",
      "layout": {
       "col": 4,
       "colSpan": 4,
@@ -712,10 +712,10 @@
      "config": {
       "type": "gauge",
       "displayStyle": "numeric",
-      "minValue": 0,
-      "maxValue": 150,
-      "dangerLevel": 120,
-      "decimalPlaces": 0
+      "minValue": 0.6,
+      "maxValue": 1.4,
+      "dangerLevel": 1.25,
+      "decimalPlaces": 2
      }
     },
     {
@@ -757,7 +757,7 @@
     {
      "id": "tuning_manifold",
      "type": "gauge",
-     "signal": "boost_bar",
+     "signal": "map_kpa",
      "layout": {
       "col": 0,
       "colSpan": 7,
@@ -777,9 +777,9 @@
       "type": "gauge",
       "displayStyle": "numeric",
       "minValue": 0,
-      "maxValue": 2,
-      "dangerLevel": 1.8,
-      "decimalPlaces": 2,
+      "maxValue": 250,
+      "dangerLevel": 240,
+      "decimalPlaces": 0,
       "showBar": true,
       "big": 88
      }
@@ -903,7 +903,7 @@
     {
      "id": "tuning_lambda2",
      "type": "gauge",
-     "signal": "egt_c",
+     "signal": "lambda_1",
      "layout": {
       "col": 4,
       "colSpan": 4,
@@ -922,10 +922,10 @@
      "config": {
       "type": "gauge",
       "displayStyle": "numeric",
-      "minValue": 0,
-      "maxValue": 1000,
-      "dangerLevel": 950,
-      "decimalPlaces": 0
+      "minValue": 0.6,
+      "maxValue": 1.4,
+      "dangerLevel": 1.25,
+      "decimalPlaces": 2
      }
     },
     {
@@ -1157,7 +1157,7 @@
     {
      "id": "controls_tps",
      "type": "gauge",
-     "signal": "clutch_state",
+     "signal": "throttle_pos",
      "layout": {
       "col": 7,
       "colSpan": 5,
@@ -1177,7 +1177,8 @@
       "type": "gauge",
       "displayStyle": "numeric",
       "minValue": 0,
-      "maxValue": 1,
+      "maxValue": 100,
+      "dangerLevel": 100,
       "decimalPlaces": 0,
       "big": 64
      }
