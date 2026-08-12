@@ -98,7 +98,12 @@ mod tests {
     fn ffi_spec_null_falls_back_to_one_decimal() {
         let mut buf = [0u8; 16];
         unsafe {
-            format_from_spec_rs(buf.as_mut_ptr() as *mut c_char, buf.len(), 5.67, ptr::null());
+            format_from_spec_rs(
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len(),
+                5.67,
+                ptr::null(),
+            );
         }
         assert_eq!(as_str(&buf), "5.7");
     }

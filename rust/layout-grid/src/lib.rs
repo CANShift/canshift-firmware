@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(scale(240, 240, 320), 320);
         assert_eq!(scale(32, 240, 320), 43); // 32*320/240 = 42.67 -> 43
         assert_eq!(scale(44, 320, 480), 66); // 44*480/320 = 66.0
-        // 800x480 (7" class) target.
+                                             // 800x480 (7" class) target.
         assert_eq!(scale(320, 320, 800), 800);
         assert_eq!(scale(240, 240, 480), 480);
         assert_eq!(scale(18, 320, 800), 45); // 18*800/320 = 45.0
