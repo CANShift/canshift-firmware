@@ -17,13 +17,9 @@ struct Page {
     uint8_t cfgIdx;
 };
 
-static constexpr lv_coord_t REVLIMIT_BORDER_WIDTH_PX = 8;
-static constexpr lv_opa_t REVLIMIT_BORDER_DIM_OPA = LV_OPA_50;
-
 extern Page s_pages[MAX_PAGES];
 extern uint8_t s_pageCount;
 extern uint8_t s_currentIdx;
-extern lv_obj_t *s_revOverlay;
 extern bool s_rebuildRequested;
 
 extern uint8_t s_pendingFreeIdx;

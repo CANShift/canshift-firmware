@@ -160,6 +160,7 @@ void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThres
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     out->alertThreshold = alertThreshold;
     out->showBar = cfg["showBar"] | false;
+    out->revFlash = cfg["revFlash"] | false;
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));

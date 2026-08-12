@@ -1,7 +1,7 @@
 #include "label_widget.h"
 #include "diag/logger.h"
-#include "ui/alert_flash.h"
 #include "ui/font_manager.h"
+#include "ui/rev_limit_flash.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -50,10 +50,12 @@ struct LabelTag {
     int16_t barMaxW;
     int16_t lastBarW;
     float alertThreshold;
-    AlertFlash::State alert;
     float lastValue;
     bool lastValid;
+    bool dangerActive;
     bool lastDangerActive;
+    bool revFlash;
+    bool lastBlanked;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
     uint32_t ruleBaseRgb;
@@ -85,11 +87,11 @@ void applyDangerAppearance(LabelTag *tag, bool danger) {
 
 void applyDangerState(LabelTag *tag) {
     setRuleColorIfChanged(tag,
-                          tag->alert.active ? WidgetHelpers::kZoneDangerRgb : tag->ruleBaseRgb);
-    if (tag->alert.active == tag->lastDangerActive)
+                          tag->dangerActive ? WidgetHelpers::kZoneDangerRgb : tag->ruleBaseRgb);
+    if (tag->dangerActive == tag->lastDangerActive)
         return;
-    tag->lastDangerActive = tag->alert.active;
-    applyDangerAppearance(tag, tag->alert.active);
+    tag->lastDangerActive = tag->dangerActive;
+    applyDangerAppearance(tag, tag->dangerActive);
 }
 
 struct LabelParts {
@@ -198,38 +200,44 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     return true;
 }
 
+void applyRevFlash(LabelTag *tag) {
+    const bool blanked = tag->revFlash && RevLimitFlash::isBlanked();
+    if (blanked == tag->lastBlanked)
+        return;
+    tag->lastBlanked = blanked;
+    WidgetHelpers::setVisible(tag->valueLabel, !blanked);
+}
+
+void barWidthAnimCb(void *obj, int32_t w) {
+    lv_obj_set_width(static_cast<lv_obj_t *>(obj), w > 0 ? w : 1);
+}
+
 void renderStale(LabelTag *tag) {
     if (tag->lastValid) {
         WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
         tag->lastValue = NAN;
         tag->lastValid = false;
     }
-    if (!tag->alert.active) {
-        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb,
-                                            ThemeManager::getStaleTextColor());
-    }
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb,
+                                        ThemeManager::getStaleTextColor());
     if (tag->barFill && tag->lastBarW != 0) {
-        lv_obj_set_width(tag->barFill, 1);
+        WidgetHelpers::setFillImmediate(tag->barFill, barWidthAnimCb, 1);
         tag->lastBarW = 0;
     }
-    AlertFlash::update(tag->alert, 0.0f, tag->alertThreshold);
+    tag->dangerActive = false;
     applyDangerState(tag);
 }
 
 void updateBar(LabelTag *tag, const CfgWidget &cfg, float displayValue) {
     if (!tag->barFill || tag->barMaxW <= 0)
         return;
-    const float range = cfg.label.maxValue - cfg.label.minValue;
-    float pct = range > 0.0f ? (displayValue - cfg.label.minValue) / range : 0.0f;
-    if (pct < 0.0f)
-        pct = 0.0f;
-    if (pct > 1.0f)
-        pct = 1.0f;
+    const float pct = WidgetHelpers::clampPct(displayValue, cfg.label.minValue, cfg.label.maxValue);
     const int16_t barW = static_cast<int16_t>(pct * tag->barMaxW);
-    if (barW != tag->lastBarW) {
-        lv_obj_set_width(tag->barFill, barW > 0 ? barW : 1);
-        tag->lastBarW = barW;
-    }
+    if (barW == tag->lastBarW)
+        return;
+    WidgetHelpers::animateFill(tag->barFill, barWidthAnimCb,
+                               static_cast<int32_t>(lv_obj_get_width(tag->barFill)), barW);
+    tag->lastBarW = barW;
 }
 
 void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) {
@@ -243,6 +251,9 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->alertThreshold = cfg.label.alertThreshold;
     tag->lastValue = NAN;
     tag->lastValid = false;
+    tag->dangerActive = false;
+    tag->revFlash = cfg.label.revFlash;
+    tag->lastBlanked = false;
     tag->baseTextRgb = parts.textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
     tag->ruleBaseRgb = parts.ruleRgb;
@@ -274,9 +285,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         return nullptr;
     initLabelTag(tag, cfg, parts);
 
-    AlertFlash::attach(tag->alert, cont);
-    AlertFlash::watchLabel(tag->alert, tag->valueLabel, parts.textRgb);
-
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<LabelTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
@@ -296,6 +304,8 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
     }
 
+    applyRevFlash(tag);
+
     const bool unchanged = tag->lastValid && !std::isnan(tag->lastValue) && value == tag->lastValue;
     if (!unchanged) {
         char buf[40];
@@ -306,12 +316,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastValid = true;
     }
 
-    if (!tag->alert.active) {
-        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, tag->baseTextRgb);
-    }
+    tag->dangerActive = !std::isnan(tag->alertThreshold) && value > tag->alertThreshold;
+    const uint32_t valueRgb = tag->dangerActive ? WidgetHelpers::kZoneDangerRgb : tag->baseTextRgb;
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, valueRgb);
 
     updateBar(tag, cfg, value);
-
-    AlertFlash::update(tag->alert, value, tag->alertThreshold);
     applyDangerState(tag);
 }

@@ -31,6 +31,8 @@ int main(int argc, char **argv) {
     setvbuf(stdout, nullptr, _IOLBF, 0);
     const char *dataRoot = argc > 1 ? argv[1] : "data";
     const char *scenario = argc > 2 ? argv[2] : nullptr;
+    const char *pageId = argc > 3 ? argv[3] : nullptr;
+    const uint32_t captureAfterMs = argc > 4 ? strtoul(argv[4], nullptr, 10) : 0;
 
     Logger::init();
     lv_init();
@@ -49,11 +51,15 @@ int main(int argc, char **argv) {
     SignalStore::init();
     AlertEngine::init();
     PageManager::init();
-    PageManager::navigateTo(PageManager::getDefaultPageId());
+    if (!PageManager::navigateTo(pageId ? pageId : PageManager::getDefaultPageId())) {
+        printf("page '%s' not found\n", pageId);
+        return 1;
+    }
 
     SimInjector::init(scenario);
 
-    uint32_t lastTickMs = millis();
+    const uint32_t startMs = millis();
+    uint32_t lastTickMs = startMs;
     while (!SimDisplay::quitRequested()) {
         SimDisplay::pumpEvents();
 
@@ -64,14 +70,16 @@ int main(int argc, char **argv) {
         SimInjector::tick(now);
         SignalStore::checkTimeouts();
 
-        static SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
-        SignalStore::snapshotAll(snap);
-        AlertEngine::tick(snap);
         PageManager::updateWidgets();
         lv_timer_handler();
 
         if (SimDisplay::screenshotRequested())
             SimDisplay::writeScreenshot("sim-screenshot.bmp");
+
+        if (captureAfterMs > 0 && now - startMs >= captureAfterMs) {
+            SimDisplay::writeScreenshot("sim-screenshot.bmp");
+            return 0;
+        }
 
         delay(kFrameMs);
     }

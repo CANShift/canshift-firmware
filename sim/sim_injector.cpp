@@ -13,10 +13,21 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 namespace {
 
 enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, AllStale };
+
+struct ScenarioName {
+    const char *name;
+    Mode mode;
+};
+
+constexpr ScenarioName kScenarioNames[] = {{"cruise", Mode::Cruise},
+                                           {"rev", Mode::RevLimit},
+                                           {"oil", Mode::OilCritical},
+                                           {"stale", Mode::AllStale}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;
@@ -140,9 +151,14 @@ void handleKey(int key, uint32_t nowMs) {
 
 namespace SimInjector {
 
-void init(const char *scenarioPath) {
-    (void)scenarioPath;
+void init(const char *scenario) {
     s_startMs = millis();
+    for (const ScenarioName &entry : kScenarioNames) {
+        if (scenario && strcmp(scenario, entry.name) == 0) {
+            s_mode = entry.mode;
+            printf("scenario: %s\n", entry.name);
+        }
+    }
     printf("keys: C cruise · R rev-limit · O oil-critical · X stale · F ota · ←/→ pages · S "
            "screenshot · ESC quit\n");
 }

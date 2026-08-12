@@ -1,6 +1,6 @@
 #include "gauge_widget.h"
-#include "ui/alert_flash.h"
 #include "ui/font_manager.h"
+#include "ui/rev_limit_flash.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -111,14 +111,13 @@ struct GaugeTag {
     float minValue;
     float maxValue;
     float lastValue;
-    float alertThreshold;
-    float revFlashThreshold;
     uint16_t dangerAngle;
     bool hasDanger;
     bool lastValid;
+    bool revFlash;
+    bool lastBlanked;
     uint32_t inkRgb;
     float dangerLevel;
-    AlertFlash::State alert;
     uint32_t lastLabelRgb;
     uint32_t lastFillRgb;
     uint32_t ruleBaseRgb;
@@ -144,17 +143,16 @@ static void applyDangerChrome(GaugeTag *tag, bool danger) {
     }
 }
 
-inline float effectiveAlertThreshold(const GaugeTag &tag) {
-    const bool hasAlert = !std::isnan(tag.alertThreshold);
-    const bool hasRev = !std::isnan(tag.revFlashThreshold);
-    if (hasAlert && hasRev)
-        return tag.alertThreshold < tag.revFlashThreshold ? tag.alertThreshold
-                                                          : tag.revFlashThreshold;
-    if (hasAlert)
-        return tag.alertThreshold;
-    if (hasRev)
-        return tag.revFlashThreshold;
-    return NAN;
+static void arcAngleAnimCb(void *obj, int32_t angle) {
+    lv_arc_set_angles(static_cast<lv_obj_t *>(obj), 0, static_cast<uint16_t>(angle));
+}
+
+static void applyRevFlash(GaugeTag *tag) {
+    const bool blanked = tag->revFlash && RevLimitFlash::isBlanked();
+    if (blanked == tag->lastBlanked)
+        return;
+    tag->lastBlanked = blanked;
+    WidgetHelpers::setVisible(tag->valueLabel, !blanked);
 }
 
 static int32_t computeArcDiameter(const CfgWidget &cfg) {
@@ -216,15 +214,6 @@ static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font) {
     return label;
 }
 
-static float resolveRevFlashThreshold(const CfgWidget &cfg) {
-    if (!cfg.gauge.revFlash)
-        return NAN;
-    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (!dash.loaded || dash.revLimitRpm <= 0.0f)
-        return NAN;
-    return dash.revLimitRpm - 1.0f;
-}
-
 struct GaugeArcModes {
     uint16_t dangerAngle;
     bool hasDanger;
@@ -276,7 +265,6 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->minValue = cfg.gauge.minValue;
     tag->maxValue = cfg.gauge.maxValue;
     tag->lastValue = NAN;
-    tag->alertThreshold = cfg.gauge.alertThreshold;
     tag->dangerAngle = built.dangerAngle;
     tag->hasDanger = built.hasDanger;
     tag->inkRgb = inkRgb;
@@ -286,13 +274,8 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastAngle = 0xFFFFu;
     tag->lastDisplayScaled = INT32_MIN;
     tag->dangerLevel = cfg.gauge.dangerLevel;
-    tag->revFlashThreshold = resolveRevFlashThreshold(cfg);
-}
-
-static void attachAlertFlash(GaugeTag *tag, lv_obj_t *cont, const CfgWidget &cfg) {
-    AlertFlash::attach(tag->alert, cont);
-    const uint32_t valueRgb = tag->inkRgb;
-    AlertFlash::watchLabel(tag->alert, tag->valueLabel, valueRgb);
+    tag->revFlash = cfg.gauge.revFlash;
+    tag->lastBlanked = false;
 }
 
 } // namespace
@@ -334,7 +317,6 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     const GaugeBuildState built = {label,   fillArc,           topRule,        kicker,
                                    ruleRgb, modes.dangerAngle, modes.hasDanger};
     initGaugeTag(tag, cfg, built, textRgb);
-    attachAlertFlash(tag, cont, cfg);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GaugeTag>, LV_EVENT_DELETE,
@@ -350,16 +332,13 @@ static void renderStale(GaugeTag *tag) {
         tag->lastValid = false;
         tag->lastDisplayScaled = INT32_MIN;
     }
-    if (!tag->alert.active) {
-        const uint32_t staleRgb = ThemeManager::getStaleTextColor();
-        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
-    }
+    const uint32_t staleRgb = ThemeManager::getStaleTextColor();
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
     if (tag->fillArc && tag->lastAngle != 0u) {
-        lv_arc_set_angles(tag->fillArc, 0, 0);
+        WidgetHelpers::setFillImmediate(tag->fillArc, arcAngleAnimCb, 0);
         tag->lastAngle = 0u;
     }
     applyDangerChrome(tag, false);
-    AlertFlash::update(tag->alert, 0.0f, effectiveAlertThreshold(*tag));
 }
 
 void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -370,40 +349,36 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!tag)
         return;
 
-    const float displayValue = valid ? value : 0.0f;
-
     if (!valid) {
         renderStale(tag);
         return;
     }
 
-    if (tag->lastValid && value == tag->lastValue) {
-        AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
+    applyRevFlash(tag);
+
+    if (tag->lastValid && value == tag->lastValue)
         return;
-    }
     tag->lastValue = value;
     tag->lastValid = true;
 
-    if (!tag->alert.active) {
-        const bool inDanger = tag->hasDanger && value >= cfg.gauge.dangerLevel;
-        const uint32_t labelColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
-        WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
-    }
+    const bool inDanger = tag->hasDanger && value >= cfg.gauge.dangerLevel;
+    const uint32_t labelColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
 
     if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
         if (angle != tag->lastAngle) {
-            lv_arc_set_angles(tag->fillArc, 0, angle);
+            WidgetHelpers::animateFill(tag->fillArc, arcAngleAnimCb,
+                                       lv_arc_get_angle_end(tag->fillArc), angle);
             tag->lastAngle = angle;
         }
 
-        const bool fillDanger = tag->hasDanger && value >= cfg.gauge.dangerLevel;
-        const uint32_t fillColor = fillDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
+        const uint32_t fillColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
         WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
                                            LV_PART_INDICATOR);
     }
 
-    applyDangerChrome(tag, tag->hasDanger && value >= cfg.gauge.dangerLevel);
+    applyDangerChrome(tag, inDanger);
 
     const int32_t displayScaled = scaleForDisplay(value, cfg.gauge.decimalPlaces);
     if (displayScaled != tag->lastDisplayScaled) {
@@ -413,6 +388,4 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastDisplayScaled = displayScaled;
     }
-
-    AlertFlash::update(tag->alert, displayValue, effectiveAlertThreshold(*tag));
 }
