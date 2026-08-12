@@ -1,4 +1,4 @@
-use can_parser::expr::{EvalContext, eval};
+use can_parser::expr::{eval, EvalContext};
 
 const FIXTURES_JSON: &str = include_str!("expr-parity.json");
 
@@ -22,17 +22,14 @@ fn extract_field<'a>(blob: &'a str, key: &str) -> &'a str {
     let i = blob.find(&pat).expect("key not found");
     let after = &blob[i + pat.len()..];
     let after = after.trim_start();
-    if after.starts_with('"') {
-        let rest = &after[1..];
+    if let Some(rest) = after.strip_prefix('"') {
         let end = rest.find('"').expect("unterminated string");
         &rest[..end]
     } else if after.starts_with('[') {
         let end = after.find(']').expect("unterminated array") + 1;
         &after[..end]
     } else {
-        let end = after
-            .find(|c: char| c == ',' || c == '}')
-            .expect("number not terminated");
+        let end = after.find([',', '}']).expect("number not terminated");
         after[..end].trim()
     }
 }
@@ -56,13 +53,7 @@ fn rust_matches_fixtures() {
         let bytes = parse_bytes(bytes_str);
         let expected = parse_number(expected_str);
 
-        let actual = eval(
-            expr_str.as_bytes(),
-            &EvalContext {
-                v,
-                bytes: &bytes,
-            },
-        );
+        let actual = eval(expr_str.as_bytes(), &EvalContext { v, bytes: &bytes });
         let tol = 1e-4_f32 * expected.abs().max(1.0);
         assert!(
             (actual - expected).abs() < tol,

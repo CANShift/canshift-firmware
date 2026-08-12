@@ -105,7 +105,7 @@ mod tests {
     use super::*;
 
     fn slice(s: &str, range: (usize, usize)) -> &str {
-        core::str::from_utf8(&s.as_bytes()[range.0..range.0 + range.1]).unwrap()
+        &s[range.0..range.0 + range.1]
     }
 
     #[test]

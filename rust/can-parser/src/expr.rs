@@ -358,7 +358,11 @@ fn parse_unary(s: &mut ParseState, ctx: &EvalContext) -> Option<f32> {
         Some(Op::Bang) => {
             s.pos += 1;
             let inner = parse_unary(s, ctx)?;
-            Some(if inner == 0.0 { 1.0 } else { 0.0 })
+            Some(if inner == 0.0 {
+                1.0
+            } else {
+                0.0
+            })
         }
         _ => parse_primary(s, ctx),
     }
@@ -454,14 +458,18 @@ pub fn eval(expr: &[u8], ctx: &EvalContext) -> f32 {
     if state.pos != n {
         return 0.0;
     }
-    if result.is_finite() { result } else { 0.0 }
+    if result.is_finite() {
+        result
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn ctx(v: f32, bytes: &[u8]) -> EvalContext {
+    fn ctx<'a>(v: f32, bytes: &'a [u8]) -> EvalContext<'a> {
         EvalContext { v, bytes }
     }
 

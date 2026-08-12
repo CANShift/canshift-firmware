@@ -428,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn battery_at_low_crit_is_NOT_critical_strict_less_than() {
+    fn battery_at_low_crit_is_not_critical_strict_less_than() {
         // Exactly at low_crit_v: NOT < low_crit_v → falls through to the
         // low-warn check. 11.0 < 11.5 → WARNING.
         assert_eq!(

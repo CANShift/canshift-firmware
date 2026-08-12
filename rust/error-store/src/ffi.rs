@@ -24,12 +24,7 @@ pub unsafe extern "C" fn error_store_push_rs(
     code: *const c_char,
     message: *const c_char,
 ) {
-    if ring.is_null()
-        || head.is_null()
-        || count.is_null()
-        || version.is_null()
-        || ring_size == 0
-    {
+    if ring.is_null() || head.is_null() || count.is_null() || version.is_null() || ring_size == 0 {
         return;
     }
     let ring_slice = unsafe { slice::from_raw_parts_mut(ring, ring_size as usize) };
@@ -74,12 +69,7 @@ pub unsafe extern "C" fn error_store_dismiss_at_rs(
     version: *mut u32,
     row: u8,
 ) {
-    if ring.is_null()
-        || head.is_null()
-        || count.is_null()
-        || version.is_null()
-        || ring_size == 0
-    {
+    if ring.is_null() || head.is_null() || count.is_null() || version.is_null() || ring_size == 0 {
         return;
     }
     let ring_slice = unsafe { slice::from_raw_parts_mut(ring, ring_size as usize) };
@@ -152,14 +142,7 @@ mod tests {
 
         let mut out = blank_ring();
         let n = unsafe {
-            error_store_get_all_rs(
-                ring.as_ptr(),
-                RING,
-                head,
-                count,
-                out.as_mut_ptr(),
-                RING,
-            )
+            error_store_get_all_rs(ring.as_ptr(), RING, head, count, out.as_mut_ptr(), RING)
         };
         assert_eq!(n, 1);
         assert_eq!(&out[0].code[..1], b"A");
