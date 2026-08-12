@@ -16,6 +16,7 @@ struct DynItem {
     lv_obj_t *obj;
     char signalId[CFG_MAX_SIGNAL_LEN];
     char format[DYN_TEXT_CAP];
+    char prefix[16];
 
     char lastText[DYN_TEXT_CAP];
     uint32_t lastColor;

@@ -50,6 +50,8 @@ TopBarItemKind parseTopBarItemKind(const char *str) {
         return TopBarItemKind::TRACK_BADGE;
     if (strcmp(str, "canRate") == 0)
         return TopBarItemKind::CAN_RATE;
+    if (strcmp(str, "signalMax") == 0)
+        return TopBarItemKind::SIGNAL_MAX;
     return TopBarItemKind::UNKNOWN;
 }
 

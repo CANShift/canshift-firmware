@@ -124,11 +124,37 @@ void parseThemes(const JsonDocument &doc, CfgDashboard *out) {
     }
 }
 
+bool parseStatusItem(JsonObjectConst item, CfgTopBarItem *out) {
+    if (item.isNull())
+        return false;
+    CfgTopBarItem tmp{};
+    tmp.kind = parseTopBarItemKind(item["type"] | "");
+    if (tmp.kind == TopBarItemKind::UNKNOWN)
+        return false;
+    tmp.position = parseTopBarItemPos(item["position"] | "right");
+    strlcpy(tmp.signalId, item["signal"] | "", CFG_MAX_SIGNAL_LEN);
+    strlcpy(tmp.text, item["text"] | "", sizeof(tmp.text));
+    strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
+    *out = tmp;
+    return true;
+}
+
+void parsePageStatusRow(JsonObjectConst page, CfgPage *p) {
+    p->statusRow.hasCenter = false;
+    p->statusRow.hasRight = false;
+    JsonObjectConst statusRow = page["statusRow"];
+    if (statusRow.isNull())
+        return;
+    p->statusRow.hasCenter = parseStatusItem(statusRow["center"], &p->statusRow.center);
+    p->statusRow.hasRight = parseStatusItem(statusRow["right"], &p->statusRow.right);
+}
+
 void parsePageMeta(JsonObjectConst page, CfgPage *p) {
     strlcpy(p->id, page["id"] | "", CFG_MAX_ID_LEN);
     strlcpy(p->bgImagePath, page["backgroundImage"] | "", CFG_MAX_PATH_LEN);
     parseColor(page["backgroundColor"] | "#1A1A1A", &p->bgColor);
     p->showTopBar = page["showTopBar"] | true;
+    parsePageStatusRow(page, p);
     p->visible = page["visible"] | true;
     const char *templateStr = page["template"] | "custom";
     if (strcmp(templateStr, "cruise_control") == 0) {
