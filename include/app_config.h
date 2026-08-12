@@ -118,7 +118,9 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 
 #define ALERT_REVLIMIT_WARN_PCT 95
 #define ALERT_REVLIMIT_FLASH_PCT 100
-/* ≤3 Hz keeps the pulsing overlay out of the photosensitive-seizure band (WCAG 2.3.1). */
+/* 6 Hz is the design spec. It exceeds WCAG 2.3.1's 3-flash limit, which guarded the
+   full-screen border this replaced; the strip and one numeral are far under the
+   25%-of-viewport area the threshold applies to. Drop to 3 to restore the old margin. */
 #define ALERT_REVLIMIT_FLASH_HZ 6
 
 #define ALERT_HYSTERESIS_PCT 2.0f
