@@ -9,7 +9,6 @@
 #include <string.h>
 
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
-LV_FONT_DECLARE(lv_font_jbmono_extrabold_40_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_44_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
 LV_FONT_DECLARE(lv_font_jbmono_medium_10_nk);
@@ -17,8 +16,8 @@ LV_FONT_DECLARE(lv_font_archivo_extrabold_14_nk);
 
 namespace {
 
-constexpr uint8_t kValueSizes[] = {17, 22, 24, 32, 40, 44, 48};
-constexpr uint8_t kSpiffsValueCount = 3;
+constexpr uint8_t kValueSizes[] = {17, 22, 32, 44, 48};
+constexpr uint8_t kSpiffsValueCount = 2;
 constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16};
 
 constexpr size_t kValueCount = sizeof(kValueSizes) / sizeof(kValueSizes[0]);
@@ -125,11 +124,10 @@ void FontManager::init() {
     for (uint8_t i = 0; i < kSpiffsValueCount; ++i) {
         loadOne("jbmono", "extrabold", "value", kValueSizes[i], s_value[i]);
     }
-    s_value[3] = &lv_font_jbmono_extrabold_32_nk;
-    s_value[4] = &lv_font_jbmono_extrabold_40_nk;
-    s_value[5] = &lv_font_jbmono_extrabold_44_nk;
-    s_value[6] = &lv_font_jbmono_extrabold_48_nk;
-    LOG_INFO("FONT", "jbmono_extrabold_{32,40,44,48}: using in-flash copies");
+    s_value[2] = &lv_font_jbmono_extrabold_32_nk;
+    s_value[3] = &lv_font_jbmono_extrabold_44_nk;
+    s_value[4] = &lv_font_jbmono_extrabold_48_nk;
+    LOG_INFO("FONT", "jbmono_extrabold_{32,44,48}: using in-flash copies");
 
     loadOne("archivo", "extrabold", "label", kLabelSizes[0], s_label[0]);
     loadOne("archivo", "extrabold", "label", kLabelSizes[1], s_label[1]);
@@ -147,7 +145,6 @@ void FontManager::shutdown() {
             const bool isInFlash = slots[i] == &lv_font_jbmono_medium_10_nk ||
                                    slots[i] == &lv_font_archivo_extrabold_14_nk ||
                                    slots[i] == &lv_font_jbmono_extrabold_32_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_40_nk ||
                                    slots[i] == &lv_font_jbmono_extrabold_44_nk ||
                                    slots[i] == &lv_font_jbmono_extrabold_48_nk;
             if (slots[i] != nullptr && !isInFlash) {
