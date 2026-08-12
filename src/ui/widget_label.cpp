@@ -58,7 +58,7 @@ constexpr SignalPresentation kSignalPresentation[] = {
     {"coolant_temp_c", "WATER", "\u00b0C"},
     {"oil_temp_c", "OIL", "\u00b0C"},
     {"oil_press_bar", "OIL", "bar"},
-    {"fuel_press_bar", "FUEL", "bar"},
+    {"fuel_press_bar", "FUEL PRESS", "bar"},
     {"fuel_level_pct", "FUEL", "%"},
     {"map_kpa", "MAP", "kPa"},
     {"boost_bar", "BOOST", "bar"},
