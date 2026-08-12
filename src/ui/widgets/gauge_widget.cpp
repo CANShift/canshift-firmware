@@ -18,7 +18,6 @@
 
 namespace {
 
-static constexpr uint32_t kColorBgDim = 0x222222;
 static constexpr const char *kStalePlaceholder = "- -";
 
 static constexpr int16_t kValueFontHeightPrimary = 90;
@@ -138,8 +137,7 @@ static void applyDangerChrome(GaugeTag *tag, bool danger) {
     tag->lastDangerActive = danger;
     if (!tag->kicker)
         return;
-    const uint32_t kickerRgb =
-        danger ? WidgetHelpers::kZoneDangerRgb : WidgetLabelOverlay::kLabelDimRgb;
+    const uint32_t kickerRgb = danger ? WidgetHelpers::kZoneDangerRgb : ThemeManager::dimColor();
     if (tag->kickerLastRgb != kickerRgb) {
         lv_obj_set_style_text_color(tag->kicker, lv_color_hex(kickerRgb), 0);
         tag->kickerLastRgb = kickerRgb;
@@ -168,7 +166,7 @@ static int32_t computeArcDiameter(const CfgWidget &cfg) {
 }
 
 static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, uint8_t strokeW) {
-    createSectorArc(cont, diam, 0, kArcSweepInt, kColorBgDim, strokeW);
+    createSectorArc(cont, diam, 0, kArcSweepInt, ThemeManager::trackColor(), strokeW);
 }
 
 static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam, uint32_t inkRgb, uint8_t strokeW) {
@@ -273,7 +271,7 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->kicker = built.kicker;
     tag->ruleBaseRgb = built.ruleBaseRgb;
     tag->ruleLastRgb = built.ruleBaseRgb;
-    tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
+    tag->kickerLastRgb = ThemeManager::dimColor();
     tag->lastDangerActive = false;
     tag->minValue = cfg.gauge.minValue;
     tag->maxValue = cfg.gauge.maxValue;
@@ -324,7 +322,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix));
 
     const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
-    const uint32_t ruleRgb = primaryTier ? textRgb : WidgetHelpers::kTrackRgb;
+    const uint32_t ruleRgb = primaryTier ? textRgb : ThemeManager::trackColor();
     lv_obj_t *topRule = WidgetHelpers::makeTopRule(
         cont, primaryTier ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
         ruleRgb);
@@ -343,18 +341,6 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                         tagSlot.commit());
 
     return cont;
-}
-
-void GaugeWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
-    if (!obj)
-        return;
-    auto *tag = static_cast<GaugeTag *>(lv_obj_get_user_data(obj));
-    if (!tag)
-        return;
-    tag->inkRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    tag->lastLabelRgb = 0xFFFFFFFFu;
-    tag->lastFillRgb = 0xFFFFFFFFu;
 }
 
 static void renderStale(GaugeTag *tag) {

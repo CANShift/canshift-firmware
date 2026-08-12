@@ -151,43 +151,6 @@ void WidgetFactory::updateAll(lv_obj_t *parent, const SignalStore::SignalValue *
     }
 }
 
-void WidgetFactory::reapplyTheme(lv_obj_t *parent) {
-    LVGL_ASSERT_LOCKED();
-    for (uint8_t i = 0; i < s_widgetCount; ++i) {
-        if (s_widgets[i].parent != parent)
-            continue;
-        const WidgetEntry &entry = s_widgets[i];
-        if (!entry.obj || !entry.cfg)
-            continue;
-        switch (entry.type) {
-            case WidgetType::GAUGE:
-                GaugeWidget::reapplyTheme(entry.obj, *entry.cfg);
-                break;
-            case WidgetType::LABEL:
-                LabelWidget::reapplyTheme(entry.obj, *entry.cfg);
-                break;
-            case WidgetType::TIMER:
-                TimerWidget::reapplyTheme(entry.obj, *entry.cfg);
-                break;
-            case WidgetType::SHIFT_LIGHT:
-                ShiftLightWidget::reapplyTheme(entry.obj, *entry.cfg);
-                break;
-            case WidgetType::GEAR_IND:
-                GearWidget::reapplyTheme(entry.obj, *entry.cfg);
-                break;
-            case WidgetType::WARNING:
-                WarningWidget::reapplyTheme(entry.obj, *entry.cfg);
-                break;
-            case WidgetType::BUTTON:
-            case WidgetType::IMAGE:
-
-                break;
-            default:
-                break;
-        }
-    }
-}
-
 void WidgetFactory::clearAll(lv_obj_t *parent) {
     LVGL_ASSERT_LOCKED();
     uint8_t out = 0;

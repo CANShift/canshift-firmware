@@ -146,17 +146,6 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     return root;
 }
 
-void WarningWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &) {
-    if (!obj)
-        return;
-    auto *tag = static_cast<WarningTag *>(lv_obj_get_user_data(obj));
-    if (!tag)
-        return;
-    if (tag->state == WarnState::STALE) {
-        applyStaleStyle(tag);
-    }
-}
-
 void WarningWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
     if (!obj)
         return;

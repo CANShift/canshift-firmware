@@ -7,6 +7,7 @@
 #include "ui/widget_label.h"
 #include "ui/screen_profile.h"
 #include "ui/theme_manager.h"
+#include "ui/theme_tokens.h"
 #include "ui/widgets/widget_helpers.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include "layout_scale.h"
@@ -128,7 +129,8 @@ void applyButtonVisual(lv_obj_t *btn, const ButtonTag &tag, const ButtonVisual &
     if (tag.kickerObj) {
         const bool engaged = v.bgOpa == BUTTON_BG_OPA_ACTIVE;
         lv_obj_set_style_text_color(
-            tag.kickerObj, lv_color_hex(engaged ? 0xFFFFFFu : WidgetHelpers::kMutedRgb), 0);
+            tag.kickerObj,
+            lv_color_hex(engaged ? ThemeTokens::kInkNight : ThemeManager::dimColor()), 0);
         lv_obj_set_style_text_opa(tag.kickerObj, engaged ? BUTTON_KICKER_ENGAGED_OPA : LV_OPA_COVER,
                                   0);
     }
@@ -308,7 +310,7 @@ void createButtonKicker(lv_obj_t *btn, ButtonTag *tag, const CfgWidget &cfg) {
     lv_label_set_text(kicker, text);
     lv_obj_set_style_text_font(kicker, FontManager::label(BUTTON_KICKER_FONT_PX), 0);
     lv_obj_set_style_text_letter_space(kicker, BUTTON_KICKER_TRACKING_PX, 0);
-    lv_obj_set_style_text_color(kicker, lv_color_hex(WidgetHelpers::kMutedRgb), 0);
+    lv_obj_set_style_text_color(kicker, lv_color_hex(ThemeManager::dimColor()), 0);
     lv_obj_set_style_text_align(kicker, LV_TEXT_ALIGN_LEFT, 0);
     tag->kickerObj = kicker;
 }

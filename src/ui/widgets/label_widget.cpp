@@ -75,7 +75,7 @@ void applyDangerAppearance(LabelTag *tag, bool danger) {
     }
     if (tag->kicker) {
         const uint32_t kickerRgb =
-            danger ? WidgetHelpers::kZoneDangerRgb : WidgetLabelOverlay::kLabelDimRgb;
+            danger ? WidgetHelpers::kZoneDangerRgb : ThemeManager::dimColor();
         if (tag->kickerLastRgb != kickerRgb) {
             lv_obj_set_style_text_color(tag->kicker, lv_color_hex(kickerRgb), 0);
             tag->kickerLastRgb = kickerRgb;
@@ -134,7 +134,7 @@ lv_obj_t *makeUnitLabel(lv_obj_t *valueRow, const CfgWidget &cfg) {
     lv_obj_t *unitLabel = lv_label_create(valueRow);
     if (!unitLabel)
         return nullptr;
-    lv_obj_set_style_text_color(unitLabel, lv_color_hex(WidgetHelpers::kMutedRgb), 0);
+    lv_obj_set_style_text_color(unitLabel, lv_color_hex(ThemeManager::dimColor()), 0);
     lv_obj_set_style_text_font(unitLabel, FontManager::units(), 0);
     lv_label_set_text(unitLabel, unit);
     return unitLabel;
@@ -162,7 +162,7 @@ lv_obj_t *makeProgressBar(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb
     const int16_t maxW = static_cast<int16_t>(cfg.layout.w - 2 * kBarSideMarginPx);
     if (maxW <= 0)
         return nullptr;
-    makeBarRect(cont, maxW, WidgetHelpers::kTrackRgb);
+    makeBarRect(cont, maxW, ThemeManager::trackColor());
     lv_obj_t *fill = makeBarRect(cont, 1, textRgb);
     if (fill) {
         *barMaxW = maxW;
@@ -187,7 +187,7 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     }
     parts->unitLabel = makeUnitLabel(valueRow, cfg);
     const bool primary = valueSize >= WidgetHelpers::kRulePrimaryFontMin;
-    parts->ruleRgb = primary ? parts->textRgb : WidgetHelpers::kTrackRgb;
+    parts->ruleRgb = primary ? parts->textRgb : ThemeManager::trackColor();
     parts->topRule = WidgetHelpers::makeTopRule(
         cont, primary ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
         parts->ruleRgb);
@@ -247,7 +247,7 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->lastTintRgb = 0xFFFFFFFFu;
     tag->ruleBaseRgb = parts.ruleRgb;
     tag->ruleLastRgb = parts.ruleRgb;
-    tag->kickerLastRgb = WidgetLabelOverlay::kLabelDimRgb;
+    tag->kickerLastRgb = ThemeManager::dimColor();
     tag->lastDangerActive = false;
 }
 
@@ -282,26 +282,6 @@ lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                         tagSlot.commit());
 
     return cont;
-}
-
-void LabelWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
-    if (!obj)
-        return;
-    auto *tag = static_cast<LabelTag *>(lv_obj_get_user_data(obj));
-    if (!tag || !tag->valueLabel)
-        return;
-    const uint32_t textRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    tag->baseTextRgb = textRgb;
-    if (tag->barFill) {
-        lv_obj_set_style_bg_color(tag->barFill, lv_color_hex(textRgb), LV_PART_MAIN);
-    }
-    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, textRgb);
-    if (tag->ruleBaseRgb != WidgetHelpers::kTrackRgb) {
-        tag->ruleBaseRgb = textRgb;
-        if (!tag->alert.active)
-            setRuleColorIfChanged(tag, textRgb);
-    }
 }
 
 void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {

@@ -23,6 +23,10 @@ void setDayMode(bool day);
 
 [[nodiscard]] uint32_t pickColor(uint32_t nightRgb, uint32_t dayRgb);
 
+[[nodiscard]] uint32_t dimColor();
+
+[[nodiscard]] uint32_t trackColor();
+
 [[nodiscard]] uint32_t getStaleTextColor();
 
 } // namespace ThemeManager

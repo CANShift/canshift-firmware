@@ -1,4 +1,5 @@
 #include "theme_manager.h"
+#include "theme_tokens.h"
 #include "page_manager.h"
 #include "config/config_loader.h"
 #include "diag/error_store.h"
@@ -98,7 +99,7 @@ uint32_t ThemeManager::getEffectiveTextColor() {
     const CfgTheme *theme = activeThemeWithPalette();
     if (theme != nullptr)
         return theme->text.rgb;
-    return s_isDayMode ? 0x000000u : 0xFFFFFFu;
+    return pickColor(ThemeTokens::kInkNight, ThemeTokens::kInkDay);
 }
 
 uint32_t ThemeManager::getEffectiveTextColor(uint32_t styleTextColor, bool respectDayMode) {
@@ -111,12 +112,17 @@ uint32_t ThemeManager::pickColor(uint32_t nightRgb, uint32_t dayRgb) {
     return s_isDayMode ? dayRgb : nightRgb;
 }
 
-static constexpr uint32_t STALE_TEXT_NIGHT = 0x555555;
-static constexpr uint32_t STALE_TEXT_DAY = 0x888888;
-
-uint32_t ThemeManager::getStaleTextColor() {
+uint32_t ThemeManager::dimColor() {
     const CfgTheme *theme = activeThemeWithPalette();
     if (theme != nullptr)
         return theme->textDim.rgb;
-    return pickColor(STALE_TEXT_NIGHT, STALE_TEXT_DAY);
+    return pickColor(ThemeTokens::kDimNight, ThemeTokens::kDimDay);
+}
+
+uint32_t ThemeManager::trackColor() {
+    return pickColor(ThemeTokens::kTrackNight, ThemeTokens::kTrackDay);
+}
+
+uint32_t ThemeManager::getStaleTextColor() {
+    return dimColor();
 }

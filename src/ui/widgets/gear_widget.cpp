@@ -58,7 +58,7 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     const bool primaryTier = fontSize >= WidgetHelpers::kRulePrimaryFontMin;
     WidgetHelpers::makeTopRule(
         cont, primaryTier ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
-        primaryTier ? textRgb : WidgetHelpers::kTrackRgb);
+        primaryTier ? textRgb : ThemeManager::trackColor());
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
     WidgetTagPool::Slot<GearTag> tagSlot;
@@ -72,18 +72,6 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
                         tagSlot.commit());
 
     return cont;
-}
-
-void GearWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
-    if (!obj)
-        return;
-    auto *tag = static_cast<GearTag *>(lv_obj_get_user_data(obj));
-    if (!tag || !tag->label)
-        return;
-
-    const uint32_t textRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    WidgetStyles::setTextColorIfChanged(tag->label, tag->lastColorRgb, textRgb);
 }
 
 void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
