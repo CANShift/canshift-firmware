@@ -25,8 +25,8 @@
 
 namespace {
 
-constexpr uint32_t CHUNK_TIMEOUT_MS = 10000;
-constexpr uint32_t BURN_OVERLAY_RENDER_GRACE_MS = 20;
+constexpr uint32_t kChunkTimeoutMs = 10000;
+constexpr uint32_t kBurnOverlayRenderGraceMs = 20;
 
 struct ChunkTransfer {
     char path[CFG_MAX_PATH_LEN];
@@ -160,7 +160,7 @@ void handlePutConfig(const char *jsonLine) {
     }
 
     UsbCommInternal::invokeBurnOverlayShow();
-    vTaskDelay(pdMS_TO_TICKS(BURN_OVERLAY_RENDER_GRACE_MS));
+    vTaskDelay(pdMS_TO_TICKS(kBurnOverlayRenderGraceMs));
 
     LvglLock lock(pdMS_TO_TICKS(USB_PUT_CONFIG_MUTEX_TIMEOUT_MS));
     if (!lock.held()) {
@@ -233,7 +233,7 @@ void handleGetConfig() {
 
 void tickChunkTransferTimeout() {
     if (StorageDriver::isChunkedWriteOpen() &&
-        (millis() - s_chunk.lastActivityMs) > CHUNK_TIMEOUT_MS) {
+        (millis() - s_chunk.lastActivityMs) > kChunkTimeoutMs) {
         abortChunkTransfer("idle timeout");
     }
 }

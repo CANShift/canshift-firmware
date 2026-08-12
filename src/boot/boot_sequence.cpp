@@ -177,11 +177,11 @@ static void buildSelfTestScreen() {
     addSelfTestRow(scr, 116, ecuRow, signals.loaded ? "CFG" : "-", nullptr);
     addSelfTestRow(scr, 136, "PAGES", pagesResult, nullptr);
 
-    static constexpr int16_t BAR_MARGIN_PX = 17;
-    const int16_t BAR_W = static_cast<int16_t>(canshift::display::width()) - 2 * BAR_MARGIN_PX;
-    static constexpr int16_t BAR_H = 4;
+    static constexpr int16_t kBarMarginPx = 17;
+    const int16_t BAR_W = static_cast<int16_t>(canshift::display::width()) - 2 * kBarMarginPx;
+    static constexpr int16_t kBarH = 4;
     lv_obj_t *bar = lv_bar_create(scr);
-    lv_obj_set_size(bar, BAR_W, BAR_H);
+    lv_obj_set_size(bar, BAR_W, kBarH);
     lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, -34);
     lv_bar_set_range(bar, 0, 100);
     lv_bar_set_value(bar, 0, LV_ANIM_OFF);
@@ -312,13 +312,13 @@ static void initPsramAndLogEntry() {
 }
 
 static void initTaskWatchdog() {
-    constexpr uint32_t WDT_TIMEOUT_S = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
-    const esp_err_t wdtErr = esp_task_wdt_init(WDT_TIMEOUT_S, true);
+    constexpr uint32_t kWdtTimeoutS = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
+    const esp_err_t wdtErr = esp_task_wdt_init(kWdtTimeoutS, true);
     if (wdtErr != ESP_OK) {
         LOG_ERROR("BOOT", "Task WDT init failed: %d — continuing without WDT",
                   static_cast<int>(wdtErr));
     } else {
-        LOG_INFO("BOOT", "Task WDT armed (%u s)", static_cast<unsigned>(WDT_TIMEOUT_S));
+        LOG_INFO("BOOT", "Task WDT armed (%u s)", static_cast<unsigned>(kWdtTimeoutS));
     }
 }
 
@@ -468,17 +468,17 @@ static void buildUiWithHeapBracket() {
     logHeap("dashboard ready");
 }
 
-static constexpr uint32_t SPLASH_MIN_MS = 4000;
+static constexpr uint32_t kSplashMinMs = 4000;
 
-static constexpr uint32_t SPLASH_WAIT_STEP_MS = 50;
+static constexpr uint32_t kSplashWaitStepMs = 50;
 
 static void holdSplashUntilMin(uint32_t bootStartMs) {
     while (true) {
         const uint32_t bootElapsed = millis() - bootStartMs;
-        if (bootElapsed >= SPLASH_MIN_MS)
+        if (bootElapsed >= kSplashMinMs)
             break;
-        const uint32_t remaining = SPLASH_MIN_MS - bootElapsed;
-        const uint32_t step = remaining < SPLASH_WAIT_STEP_MS ? remaining : SPLASH_WAIT_STEP_MS;
+        const uint32_t remaining = kSplashMinMs - bootElapsed;
+        const uint32_t step = remaining < kSplashWaitStepMs ? remaining : kSplashWaitStepMs;
         vTaskDelay(pdMS_TO_TICKS(step));
     }
 }
