@@ -31,14 +31,18 @@ const char *failureReason(Obd2Dtc::Result result) {
 namespace UsbCommInternal {
 
 void handleObdReadDtc() {
-    uint8_t bytes[Obd2Dtc::kMaxDtcBytes];
-    const Obd2Dtc::ReadOutcome outcome = Obd2Dtc::read(bytes, sizeof bytes, kReadTimeoutMs);
-
-    if (outcome.result != Obd2Dtc::Result::Ok) {
-        UsbComm::sendError(failureReason(outcome.result));
+    if (Obd2Dtc::beginRead(kReadTimeoutMs))
         return;
-    }
+    UsbComm::sendError(Obd2Dtc::isBusy() ? "obd_busy" : "obd_send_failed");
+}
 
+void handleObdClearDtc() {
+    if (Obd2Dtc::beginClear(kClearTimeoutMs))
+        return;
+    UsbComm::sendError(Obd2Dtc::isBusy() ? "obd_busy" : "obd_send_failed");
+}
+
+void sendReadResponse(const Obd2Dtc::Outcome &outcome) {
     char resp[kResponseCap];
     int n = snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"dtc_bytes\":[");
     if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
@@ -48,7 +52,7 @@ void handleObdReadDtc() {
 
     for (uint8_t i = 0; i < outcome.byteCount; ++i) {
         const int written = snprintf(resp + n, sizeof(resp) - static_cast<size_t>(n), "%s%u",
-                                     i == 0 ? "" : ",", static_cast<unsigned>(bytes[i]));
+                                     i == 0 ? "" : ",", static_cast<unsigned>(outcome.bytes[i]));
         if (written <= 0 || static_cast<size_t>(n) + static_cast<size_t>(written) >= sizeof(resp)) {
             UsbComm::sendError("obd_response_truncated");
             return;
@@ -65,13 +69,21 @@ void handleObdReadDtc() {
     UsbComm::sendLine(resp);
 }
 
-void handleObdClearDtc() {
-    const Obd2Dtc::Result result = Obd2Dtc::clear(kClearTimeoutMs);
-    if (result != Obd2Dtc::Result::Ok) {
-        UsbComm::sendError(failureReason(result));
+// The reply lands on a later tick than the request; the host sees one status
+// line either way, so the wire protocol is unchanged.
+void tickObdDtc() {
+    Obd2Dtc::Outcome outcome;
+    if (!Obd2Dtc::takeOutcome(&outcome))
+        return;
+    if (outcome.result != Obd2Dtc::Result::Ok) {
+        UsbComm::sendError(failureReason(outcome.result));
         return;
     }
-    UsbComm::sendLine("{\"status\":\"ok\"}");
+    if (!outcome.wasRead) {
+        UsbComm::sendLine("{\"status\":\"ok\"}");
+        return;
+    }
+    sendReadResponse(outcome);
 }
 
 } // namespace UsbCommInternal

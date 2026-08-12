@@ -8,14 +8,21 @@ constexpr uint8_t kMaxDtcBytes = 32;
 
 enum class Result : uint8_t { Ok, Timeout, SendFailed, Busy };
 
-struct ReadOutcome {
+struct Outcome {
     Result result;
+    bool wasRead;
     uint8_t byteCount;
+    uint8_t bytes[kMaxDtcBytes];
 };
 
-[[nodiscard]] ReadOutcome read(uint8_t *out, uint8_t outCap, uint32_t timeoutMs);
+[[nodiscard]] bool beginRead(uint32_t timeoutMs);
 
-[[nodiscard]] Result clear(uint32_t timeoutMs);
+[[nodiscard]] bool beginClear(uint32_t timeoutMs);
+
+[[nodiscard]] bool isBusy();
+
+// Non-blocking: true once the in-flight exchange resolved, either way.
+[[nodiscard]] bool takeOutcome(Outcome *out);
 
 bool onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length);
 

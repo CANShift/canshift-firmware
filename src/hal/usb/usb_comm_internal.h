@@ -35,6 +35,7 @@ void handleCanScanStop();
 
 void handleObdReadDtc();
 void handleObdClearDtc();
+void tickObdDtc();
 
 constexpr size_t kTypedPutMaxPayloadBytes = 8192;
 
