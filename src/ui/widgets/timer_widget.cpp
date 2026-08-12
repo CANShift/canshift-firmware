@@ -30,8 +30,8 @@ struct TimerTag {
     char lastText[12];
 };
 
-constexpr uint32_t LONG_PRESS_MS = 600;
-constexpr uint32_t BLINK_PERIOD_MS = 1000;
+constexpr uint32_t kLongPressMs = 600;
+constexpr uint32_t kBlinkPeriodMs = 1000;
 
 constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kAccentRgb;
 constexpr uint32_t kPausedBorderRgb = WidgetHelpers::kMutedRgb;
@@ -96,7 +96,7 @@ void onTimerTouch(lv_event_t *e) {
     }
 
     if (code == LV_EVENT_PRESSING) {
-        if (!t->longPressFired && (millis() - t->pressStartMs) >= LONG_PRESS_MS) {
+        if (!t->longPressFired && (millis() - t->pressStartMs) >= kLongPressMs) {
             t->longPressFired = true;
             switch (TimerService::getState()) {
                 case TimerService::State::Running:
@@ -247,8 +247,8 @@ void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
     bool blinkOn = true;
     if (snap.state == TimerService::State::Paused && !tag->formatMsec) {
         const uint32_t phase = static_cast<uint32_t>(
-            static_cast<uint64_t>(esp_timer_get_time() / 1000) % BLINK_PERIOD_MS);
-        blinkOn = (phase < (BLINK_PERIOD_MS / 2));
+            static_cast<uint64_t>(esp_timer_get_time() / 1000) % kBlinkPeriodMs);
+        blinkOn = (phase < (kBlinkPeriodMs / 2));
     }
 
     char buf[12];
