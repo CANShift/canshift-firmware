@@ -10,7 +10,8 @@
 namespace {
 
 constexpr uint8_t kSegmentCount = 12;
-constexpr int16_t kSegmentGapPx = 3;
+constexpr int16_t kSegmentGapPx = 2;
+constexpr int16_t kSegmentHeightPx = 7;
 
 struct ShiftLightTag {
     lv_obj_t *segments[kSegmentCount];
@@ -64,12 +65,10 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
         return nullptr;
 
     const int16_t w = cfg.layout.w;
-    const int16_t h = cfg.layout.h;
+    const int16_t h = cfg.layout.h < kSegmentHeightPx ? cfg.layout.h : kSegmentHeightPx;
     const int16_t segW =
         static_cast<int16_t>((w - kSegmentGapPx * (kSegmentCount - 1)) / kSegmentCount);
-    const int16_t usedW =
-        static_cast<int16_t>(segW * kSegmentCount + kSegmentGapPx * (kSegmentCount - 1));
-    const int16_t x0 = static_cast<int16_t>((w - usedW) / 2);
+    constexpr int16_t x0 = 0;
 
     tag->startValue = cfg.shiftLight.startValue;
     tag->fullValue = resolveFullValue(cfg.shiftLight);

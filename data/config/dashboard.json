@@ -241,40 +241,6 @@
       "dangerLevel": 240,
       "decimalPlaces": 0
      }
-    },
-    {
-     "id": "street_to_track",
-     "type": "button",
-     "signal": "",
-     "layout": {
-      "col": 8,
-      "colSpan": 4,
-      "row": 9,
-      "rowSpan": 3,
-      "zOrder": 0
-     },
-     "style": {
-      "primaryColor": "#FFFFFF",
-      "secondaryColor": "#222222",
-      "warningColor": "#FF8800",
-      "criticalColor": "#FF4444",
-      "textColor": "#FFFFFF",
-      "fontSize": 48
-     },
-     "config": {
-      "type": "button",
-      "mode": "single",
-      "label": "TRACK",
-      "kicker": "PAGE",
-      "showLabel": true,
-      "actions": [
-       {
-        "category": "dashboard",
-        "type": "navigate",
-        "pageId": "track"
-       }
-      ]
-     }
     }
    ]
   },
@@ -306,7 +272,7 @@
      "config": {
       "type": "shift_light",
       "startValue": 5200,
-      "redSegments": 4
+      "redSegments": 5
      }
     },
     {
@@ -927,40 +893,6 @@
       "dangerLevel": 1.25,
       "decimalPlaces": 2
      }
-    },
-    {
-     "id": "tuning_to_timing",
-     "type": "button",
-     "signal": "",
-     "layout": {
-      "col": 8,
-      "colSpan": 4,
-      "row": 9,
-      "rowSpan": 3,
-      "zOrder": 0
-     },
-     "style": {
-      "primaryColor": "#FFFFFF",
-      "secondaryColor": "#222222",
-      "warningColor": "#FF8800",
-      "criticalColor": "#FF4444",
-      "textColor": "#FFFFFF",
-      "fontSize": 48
-     },
-     "config": {
-      "type": "button",
-      "mode": "single",
-      "label": "TIMING",
-      "kicker": "PAGE",
-      "showLabel": true,
-      "actions": [
-       {
-        "category": "dashboard",
-        "type": "navigate",
-        "pageId": "timing"
-       }
-      ]
-     }
     }
    ]
   },
@@ -1047,74 +979,6 @@
       "dangerLevel": 280,
       "decimalPlaces": 0,
       "big": 48
-     }
-    },
-    {
-     "id": "timing_to_controls",
-     "type": "button",
-     "signal": "",
-     "layout": {
-      "col": 0,
-      "colSpan": 6,
-      "row": 9,
-      "rowSpan": 3,
-      "zOrder": 0
-     },
-     "style": {
-      "primaryColor": "#FFFFFF",
-      "secondaryColor": "#222222",
-      "warningColor": "#FF8800",
-      "criticalColor": "#FF4444",
-      "textColor": "#FFFFFF",
-      "fontSize": 48
-     },
-     "config": {
-      "type": "button",
-      "mode": "single",
-      "label": "CONTROLS",
-      "kicker": "PAGE",
-      "showLabel": true,
-      "actions": [
-       {
-        "category": "dashboard",
-        "type": "navigate",
-        "pageId": "controls"
-       }
-      ]
-     }
-    },
-    {
-     "id": "timing_to_street",
-     "type": "button",
-     "signal": "",
-     "layout": {
-      "col": 6,
-      "colSpan": 6,
-      "row": 9,
-      "rowSpan": 3,
-      "zOrder": 0
-     },
-     "style": {
-      "primaryColor": "#FFFFFF",
-      "secondaryColor": "#222222",
-      "warningColor": "#FF8800",
-      "criticalColor": "#FF4444",
-      "textColor": "#FFFFFF",
-      "fontSize": 48
-     },
-     "config": {
-      "type": "button",
-      "mode": "single",
-      "label": "STREET",
-      "kicker": "PAGE",
-      "showLabel": true,
-      "actions": [
-       {
-        "category": "dashboard",
-        "type": "navigate",
-        "pageId": "street"
-       }
-      ]
      }
     }
    ]
@@ -1321,43 +1185,9 @@
       "showLabel": true,
       "actions": [
        {
-        "category": "dashboard",
-        "type": "navigate",
-        "pageId": "street"
-       }
-      ]
-     }
-    },
-    {
-     "id": "controls_home",
-     "type": "button",
-     "signal": "",
-     "layout": {
-      "col": 8,
-      "colSpan": 4,
-      "row": 9,
-      "rowSpan": 3,
-      "zOrder": 0
-     },
-     "style": {
-      "primaryColor": "#FFFFFF",
-      "secondaryColor": "#222222",
-      "warningColor": "#FF8800",
-      "criticalColor": "#FF4444",
-      "textColor": "#FFFFFF",
-      "fontSize": 48
-     },
-     "config": {
-      "type": "button",
-      "mode": "single",
-      "label": "STREET",
-      "kicker": "PAGE",
-      "showLabel": true,
-      "actions": [
-       {
-        "category": "dashboard",
-        "type": "navigate",
-        "pageId": "street"
+        "category": "ecu",
+        "type": "map_switch",
+        "mapIndex": 1
        }
       ]
      }
