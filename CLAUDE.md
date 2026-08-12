@@ -14,6 +14,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 - New pure-logic modules in Rust; HAL/LVGL/Arduino stay C++. Each crate ships a hand-written `include/<name>_rs.h`; there is no cbindgen step.
 - `src/config/config_types.h` mirrors `@canshift/core` schemas; `core-schema-version.txt` pins `CURRENT_SCHEMA_VERSION` for standalone builds (a sibling `../canshift-core` checkout wins) — update the pin on every schema bump.
 - Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
+- `docs/design/DASH_DESIGN_SYSTEM.md` is the binding dash spec and `docs/design/DASH_PAGES.json` the six default pages as data — where the firmware differs, the firmware is wrong. Read both before touching a widget; open deviations live on #127.
 - Zero comments policy (rationale lives in canshift-docs); clang-format gates every PR.
 
 ## Code shape
