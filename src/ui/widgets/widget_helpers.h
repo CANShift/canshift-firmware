@@ -5,6 +5,7 @@
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_tag_pool.h"
 
+#include <cmath>
 #include <lvgl.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -45,6 +46,13 @@ inline int16_t valueTrackingPx(uint8_t devicePx) {
     if (devicePx >= 14)
         return -1;
     return 0;
+}
+
+// Mirrors core's isValueInDanger: the danger tier is a threshold plus a side.
+inline bool isValueInDanger(float value, float dangerLevel, bool dangerBelow) {
+    if (std::isnan(dangerLevel))
+        return false;
+    return dangerBelow ? value <= dangerLevel : value >= dangerLevel;
 }
 
 float clampPct(float value, float minValue, float maxValue);

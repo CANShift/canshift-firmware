@@ -68,7 +68,7 @@ struct CfgGaugeParams {
     float minValue;
     float maxValue;
     float dangerLevel;
-    float alertThreshold;
+    bool dangerBelow;
     bool revFlash;
     uint8_t decimalPlaces;
     char prefix[8];
@@ -81,7 +81,8 @@ struct CfgLabelParams {
     uint8_t decimalPlaces;
     char prefix[16];
     char suffix[16];
-    float alertThreshold;
+    float dangerLevel;
+    bool dangerBelow;
     bool showBar;
     bool revFlash;
     float minValue;

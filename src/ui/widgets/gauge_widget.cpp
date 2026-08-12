@@ -361,7 +361,9 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValue = value;
     tag->lastValid = true;
 
-    const bool inDanger = tag->hasDanger && value >= cfg.gauge.dangerLevel;
+    const bool inDanger =
+        tag->hasDanger &&
+        WidgetHelpers::isValueInDanger(value, cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
     const uint32_t labelColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
 
