@@ -7,6 +7,7 @@
 #include "diag/logger.h"
 
 #include "json_reader.h"
+#include "ui/dash_metrics.h"
 
 #include <ArduinoJson.h>
 #include <cstdint>
@@ -200,18 +201,44 @@ bool parsePages(JsonArrayConst pages, CfgDashboard *out) {
     return true;
 }
 
+bool declaresShiftStrip(const CfgPage &p) {
+    for (uint8_t wi = 0; wi < p.widgetCount; ++wi) {
+        if (p.widgets[wi].type == WidgetType::SHIFT_LIGHT)
+            return true;
+    }
+    return false;
+}
+
+// The strip is page chrome, not a grid cell: the spec stacks it above the status
+// row, so it keeps the grid's x/width but is pinned to the frame padding.
+void resolveShiftStrip(CfgLayout &L, uint16_t designWidth) {
+    LayoutGridRectRs rect = {};
+    layout_grid_resolve_rs(L.col, L.colSpan, 0, 1, designWidth, designWidth, &rect);
+    L.x = rect.x;
+    L.w = rect.w;
+    L.y = DashMetrics::kFramePaddingPx;
+    L.h = DashMetrics::kShiftStripHeightPx;
+}
+
 void resolvePageLayouts(CfgDashboard *out) {
     const ScreenProfile::DesignDimensions design =
         ScreenProfile::lookupDesignDimensions(out->targetProfile);
     for (uint8_t pi = 0; pi < out->pageCount; ++pi) {
         const CfgPage &p = out->pages[pi];
         const uint16_t topBarHeight = p.showTopBar ? out->topBar.height : 0;
-        const uint16_t contentHeight =
-            design.height > topBarHeight ? design.height - topBarHeight : 0;
+        const bool hasStrip = declaresShiftStrip(p);
+        const uint16_t stripBand = hasStrip ? DashMetrics::kShiftStripBandPx : 0;
+        const uint16_t reserved = topBarHeight + stripBand;
+        const uint16_t contentHeight = design.height > reserved ? design.height - reserved : 0;
         for (uint8_t wi = 0; wi < p.widgetCount; ++wi) {
             CfgLayout &L = p.widgets[wi].layout;
+            if (hasStrip && p.widgets[wi].type == WidgetType::SHIFT_LIGHT) {
+                resolveShiftStrip(L, design.width);
+                continue;
+            }
+            const uint8_t row = hasStrip && L.row > 0 ? static_cast<uint8_t>(L.row - 1) : L.row;
             LayoutGridRectRs rect = {};
-            layout_grid_resolve_rs(L.col, L.colSpan, L.row, L.rowSpan, design.width, contentHeight,
+            layout_grid_resolve_rs(L.col, L.colSpan, row, L.rowSpan, design.width, contentHeight,
                                    &rect);
             L.x = rect.x;
             L.y = rect.y;

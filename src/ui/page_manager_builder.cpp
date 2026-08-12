@@ -4,6 +4,7 @@
 #include "diag_drawer.h"
 #include "error_bar.h"
 #include "icon_assets.h"
+#include "dash_metrics.h"
 #include "theme_manager.h"
 #include "theme_tokens.h"
 #include "top_bar.h"
@@ -20,6 +21,20 @@
 #include <string.h>
 
 namespace PageManagerInternal {
+
+bool pageDeclaresShiftStrip(const CfgPage &cfg) {
+    for (uint8_t i = 0; i < cfg.widgetCount; ++i) {
+        if (cfg.widgets[i].type == WidgetType::SHIFT_LIGHT)
+            return true;
+    }
+    return false;
+}
+
+int16_t shiftStripInset(const CfgPage &cfg) {
+    if (!pageDeclaresShiftStrip(cfg))
+        return 0;
+    return DashMetrics::kFramePaddingPx + DashMetrics::kShiftStripHeightPx;
+}
 
 namespace {
 
@@ -57,7 +72,10 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
     applyPageBackground(p.screen, cfg, ThemeManager::getEffectiveBgColor(cfg.bgColor));
 
-    int16_t contentY = cfg.showTopBar ? TopBar::getHeight() : 0;
+    const bool hasStrip = pageDeclaresShiftStrip(cfg);
+    const int16_t stripBand = hasStrip ? DashMetrics::kShiftStripBandPx : 0;
+    const int16_t contentY =
+        static_cast<int16_t>((cfg.showTopBar ? TopBar::getHeight() : 0) + stripBand);
 
     if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
         CruiseControlWidget::build(p.screen, cfg, contentY);
@@ -76,7 +94,8 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
     uint8_t created = 0;
     for (uint8_t w = 0; w < cfg.widgetCount; ++w) {
         const CfgWidget &wCfg = cfg.widgets[w];
-        if (WidgetFactory::create(p.screen, wCfg, contentY) != nullptr)
+        const int16_t yOffset = wCfg.type == WidgetType::SHIFT_LIGHT ? 0 : contentY;
+        if (WidgetFactory::create(p.screen, wCfg, yOffset) != nullptr)
             ++created;
     }
 

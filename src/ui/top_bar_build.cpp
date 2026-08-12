@@ -45,6 +45,7 @@ static inline int16_t derivedPadding(int16_t height) {
 }
 static lv_obj_t *s_themeIcon = nullptr;
 static int16_t s_height = 30;
+static int16_t s_topInset = 0;
 
 static constexpr uint32_t COLOR_BAR_BG_DAY = 0xF0F0F0;
 
@@ -258,6 +259,14 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
 
 } // namespace
 
+void TopBar::setTopInset(int16_t px) {
+    if (s_topInset == px)
+        return;
+    s_topInset = px;
+    if (s_bar)
+        lv_obj_align(s_bar, LV_ALIGN_TOP_MID, 0, s_topInset);
+}
+
 void TopBar::init() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     const CfgTopBar &cfg = dash.topBar;
@@ -265,7 +274,7 @@ void TopBar::init() {
 
     s_bar = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_bar, LV_HOR_RES, s_height);
-    lv_obj_align(s_bar, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_align(s_bar, LV_ALIGN_TOP_MID, 0, s_topInset);
     lv_obj_set_style_bg_color(s_bar, lv_color_hex(barBgColor(cfg)), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_bar, 0, LV_PART_MAIN);
