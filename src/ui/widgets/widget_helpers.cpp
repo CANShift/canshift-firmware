@@ -3,6 +3,7 @@
 #include "config/config_loader.h"
 #include "diag/logger.h"
 #include "ui/screen_profile.h"
+#include "ui/widget_label.h"
 #include "util/format_float.h"
 
 #include <ctype.h>
@@ -87,7 +88,9 @@ const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
     if (!signalId || signalId[0] == '\0')
         return "";
     const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
-    return (def && def->unit[0] != '\0') ? def->unit : "";
+    if (def && def->unit[0] != '\0')
+        return def->unit;
+    return WidgetLabelOverlay::displayUnitForSignal(signalId);
 }
 
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,

@@ -44,6 +44,16 @@ void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1
     SignalStore::update(SignalIds::BATTERY_VOLTS, 13.8f);
     SignalStore::update(SignalIds::IAT_C, 38.0f);
     SignalStore::update(SignalIds::LAMBDA_1, 0.95f + 0.05f * sinf(t * 2.0f));
+    SignalStore::update(SignalIds::AFR_1, 14.0f + sweep * 0.9f);
+    SignalStore::update(SignalIds::FUEL_LEVEL_PCT, 46.0f);
+    SignalStore::update(SignalIds::EGT_C, 780.0f + sweep * 180.0f);
+    SignalStore::update(SignalIds::GEARBOX_TEMP_C, 96.0f);
+    SignalStore::update(SignalIds::DIFF_TEMP_C, 104.0f);
+    SignalStore::update(SignalIds::KNOCK_COUNT, 0.0f);
+    SignalStore::update(SignalIds::CLUTCH_STATE, 0.0f);
+    SignalStore::update(SignalIds::ODO_KM, 184203.0f);
+    SignalStore::update(SignalIds::TRIP_KM, 128.0f);
+    SignalStore::update(SignalIds::MAP_NUMBER, 1.0f);
 }
 
 void feedRevLimit(uint32_t nowMs) {
