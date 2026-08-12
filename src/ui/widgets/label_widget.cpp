@@ -49,7 +49,8 @@ struct LabelTag {
     lv_obj_t *barFill;
     int16_t barMaxW;
     int16_t lastBarW;
-    float alertThreshold;
+    float dangerLevel;
+    bool dangerBelow;
     float lastValue;
     bool lastValid;
     bool dangerActive;
@@ -248,7 +249,8 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->barFill = parts.barFill;
     tag->barMaxW = parts.barMaxW;
     tag->lastBarW = -1;
-    tag->alertThreshold = cfg.label.alertThreshold;
+    tag->dangerLevel = cfg.label.dangerLevel;
+    tag->dangerBelow = cfg.label.dangerBelow;
     tag->lastValue = NAN;
     tag->lastValid = false;
     tag->dangerActive = false;
@@ -316,7 +318,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastValid = true;
     }
 
-    tag->dangerActive = !std::isnan(tag->alertThreshold) && value > tag->alertThreshold;
+    tag->dangerActive = WidgetHelpers::isValueInDanger(value, tag->dangerLevel, tag->dangerBelow);
     const uint32_t valueRgb = tag->dangerActive ? WidgetHelpers::kZoneDangerRgb : tag->baseTextRgb;
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, valueRgb);
 

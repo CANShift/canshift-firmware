@@ -17,7 +17,7 @@
 
 namespace {
 
-enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, AllStale };
+enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, OilLow, AllStale };
 
 struct ScenarioName {
     const char *name;
@@ -27,6 +27,7 @@ struct ScenarioName {
 constexpr ScenarioName kScenarioNames[] = {{"cruise", Mode::Cruise},
                                            {"rev", Mode::RevLimit},
                                            {"oil", Mode::OilCritical},
+                                           {"oil-low", Mode::OilLow},
                                            {"stale", Mode::AllStale}};
 
 Mode s_mode = Mode::Cruise;
@@ -38,6 +39,7 @@ constexpr float kRevLimitRpm = 7400.0f;
 constexpr size_t kOtaTotalBytes = 1024 * 1024;
 constexpr uint32_t kOtaDurationMs = 12000;
 constexpr uint32_t kOtaFailDetail = 0x1502;
+constexpr float kOilLowBar = 1.2f;
 
 void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f) {
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
@@ -74,6 +76,10 @@ void feedRevLimit(uint32_t nowMs) {
 
 void feedOilCritical(uint32_t nowMs) {
     feedCruise(nowMs, 0.4f);
+}
+
+void feedOilLow(uint32_t nowMs) {
+    feedCruise(nowMs, kOilLowBar);
 }
 
 void startOtaDemo(uint32_t nowMs) {
@@ -209,6 +215,9 @@ void tick(uint32_t nowMs) {
             break;
         case Mode::OilCritical:
             feedOilCritical(nowMs);
+            break;
+        case Mode::OilLow:
+            feedOilLow(nowMs);
             break;
         case Mode::AllStale:
             break;

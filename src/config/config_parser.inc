@@ -106,10 +106,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
 
 namespace {
 
-float readAlertThreshold(JsonObjectConst cfg) {
-    return cfg["alertThreshold"].is<float>() ? cfg["alertThreshold"].as<float>() : NAN;
-}
-
 uint8_t clampLayoutTrack(int value, int minValue, int maxValue) {
     const int clamped = value < minValue ? minValue : value > maxValue ? maxValue : value;
     return static_cast<uint8_t>(clamped);
@@ -147,7 +143,7 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     out->minValue = cfg["minValue"] | 0.0f;
     out->maxValue = cfg["maxValue"] | 100.0f;
     out->dangerLevel = cfg["dangerLevel"] | 95.0f;
-    out->alertThreshold = readAlertThreshold(cfg);
+    out->dangerBelow = cfg["dangerBelow"] | false;
     out->revFlash = cfg["revFlash"] | false;
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
     strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
@@ -155,10 +151,11 @@ void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
     strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
 }
 
-void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThreshold) {
+void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out) {
     out->big = cfg["big"] | 0;
     out->decimalPlaces = cfg["decimalPlaces"] | 0;
-    out->alertThreshold = alertThreshold;
+    out->dangerLevel = cfg["dangerLevel"].is<float>() ? cfg["dangerLevel"].as<float>() : NAN;
+    out->dangerBelow = cfg["dangerBelow"] | false;
     out->showBar = cfg["showBar"] | false;
     out->revFlash = cfg["revFlash"] | false;
     out->minValue = cfg["minValue"] | 0.0f;
@@ -169,10 +166,9 @@ void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out, float alertThres
 
 void parseGaugeWidget(JsonObjectConst cfg, CfgWidget *w) {
     const char *displayStyle = cfg["displayStyle"] | "arc";
-    const float alertThreshold = readAlertThreshold(cfg);
     if (strcmp(displayStyle, "numeric") == 0) {
         w->type = WidgetType::LABEL;
-        parseLabelParams(cfg, &w->label, alertThreshold);
+        parseLabelParams(cfg, &w->label);
     } else {
         parseArcGaugeParams(cfg, &w->gauge);
     }
@@ -349,7 +345,7 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
             parseGaugeWidget(cfg, w);
             break;
         case WidgetType::LABEL:
-            parseLabelParams(cfg, &w->label, readAlertThreshold(cfg));
+            parseLabelParams(cfg, &w->label);
             break;
         case WidgetType::WARNING:
             parseWarningWidget(cfg, &w->warning);

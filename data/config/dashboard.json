@@ -1,6 +1,6 @@
 {
  "_comment": "CANShift default dashboard \u2014 the six restyle pages: street, track, engine, tuning, timing, controls (#1823). Shift-light strip pending its own widget type.",
- "version": "1.33.0",
+ "version": "1.34.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
  "defaultPageId": "street",
@@ -383,7 +383,8 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 8,
-      "dangerLevel": 7.5,
+      "dangerLevel": 1.5,
+      "dangerBelow": true,
       "decimalPlaces": 1,
       "big": 64
      }
@@ -592,7 +593,8 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 8,
-      "dangerLevel": 7.5,
+      "dangerLevel": 1.5,
+      "dangerBelow": true,
       "decimalPlaces": 1,
       "showBar": true,
       "big": 64
