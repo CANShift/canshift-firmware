@@ -87,13 +87,7 @@ pub fn get_all(ring: &[FwError], head: u8, count: u8, out: &mut [FwError]) -> u8
 }
 
 // Out-of-range row is a no-op (and doesn't bump version).
-pub fn dismiss_at(
-    ring: &mut [FwError],
-    head: &mut u8,
-    count: &mut u8,
-    version: &mut u32,
-    row: u8,
-) {
+pub fn dismiss_at(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: &mut u32, row: u8) {
     let ring_size = ring.len() as u8;
     if ring_size == 0 || row >= *count {
         return;
@@ -183,7 +177,15 @@ mod tests {
         code: &str,
         message: &str,
     ) {
-        push(ring, head, count, version, source, code.as_bytes(), message.as_bytes());
+        push(
+            ring,
+            head,
+            count,
+            version,
+            source,
+            code.as_bytes(),
+            message.as_bytes(),
+        );
     }
 
     fn code_of(e: &FwError) -> &str {
@@ -192,7 +194,11 @@ mod tests {
     }
 
     fn message_of(e: &FwError) -> &str {
-        let end = e.message.iter().position(|&b| b == 0).unwrap_or(e.message.len());
+        let end = e
+            .message
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(e.message.len());
         core::str::from_utf8(&e.message[..end]).unwrap()
     }
 
@@ -208,7 +214,15 @@ mod tests {
         let mut count = 0u8;
         let mut version = 0u32;
 
-        push_one(&mut ring, &mut head, &mut count, &mut version, 1, "CODE", "first");
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            1,
+            "CODE",
+            "first",
+        );
         assert_eq!(count, 1);
         assert_eq!(head, 0);
         assert_eq!(version, 1);
@@ -223,9 +237,33 @@ mod tests {
         let mut count = 0u8;
         let mut version = 0u32;
 
-        push_one(&mut ring, &mut head, &mut count, &mut version, 1, "DUP", "old");
-        push_one(&mut ring, &mut head, &mut count, &mut version, 2, "OTHER", "x");
-        push_one(&mut ring, &mut head, &mut count, &mut version, 1, "DUP", "new");
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            1,
+            "DUP",
+            "old",
+        );
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            2,
+            "OTHER",
+            "x",
+        );
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            1,
+            "DUP",
+            "new",
+        );
 
         assert_eq!(count, 2);
         assert_eq!(version, 3);
@@ -243,12 +281,28 @@ mod tests {
         for i in 0..6 {
             let code = format!("C{i}");
             let msg = format!("m{i}");
-            push_one(&mut ring, &mut head, &mut count, &mut version, 1, &code, &msg);
+            push_one(
+                &mut ring,
+                &mut head,
+                &mut count,
+                &mut version,
+                1,
+                &code,
+                &msg,
+            );
         }
         assert_eq!(count, 6);
         assert_eq!(head, 0);
 
-        push_one(&mut ring, &mut head, &mut count, &mut version, 1, "C6", "m6");
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            1,
+            "C6",
+            "m6",
+        );
         assert_eq!(count, 6);
         assert_eq!(head, 1);
         assert_eq!(code_of(&ring[0]), "C6");
@@ -262,7 +316,15 @@ mod tests {
         let mut version = 0u32;
 
         let long_msg = "x".repeat(60);
-        push_one(&mut ring, &mut head, &mut count, &mut version, 1, "C", &long_msg);
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            1,
+            "C",
+            &long_msg,
+        );
         assert_eq!(message_of(&ring[0]).len(), MESSAGE_LEN - 1);
         assert_eq!(ring[0].message[MESSAGE_LEN - 1], 0);
     }
@@ -274,9 +336,33 @@ mod tests {
         let mut count = 0u8;
         let mut version = 0u32;
 
-        push_one(&mut ring, &mut head, &mut count, &mut version, 1, "A", "first");
-        push_one(&mut ring, &mut head, &mut count, &mut version, 2, "B", "second");
-        push_one(&mut ring, &mut head, &mut count, &mut version, 3, "C", "third");
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            1,
+            "A",
+            "first",
+        );
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            2,
+            "B",
+            "second",
+        );
+        push_one(
+            &mut ring,
+            &mut head,
+            &mut count,
+            &mut version,
+            3,
+            "C",
+            "third",
+        );
 
         let mut out = [FwError {
             source: 0,

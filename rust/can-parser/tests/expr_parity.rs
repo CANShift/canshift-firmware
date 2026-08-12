@@ -1,4 +1,4 @@
-use can_parser::expr::{EvalContext, eval};
+use can_parser::expr::{eval, EvalContext};
 
 const FIXTURES_JSON: &str = include_str!("expr-parity.json");
 
@@ -53,13 +53,7 @@ fn rust_matches_fixtures() {
         let bytes = parse_bytes(bytes_str);
         let expected = parse_number(expected_str);
 
-        let actual = eval(
-            expr_str.as_bytes(),
-            &EvalContext {
-                v,
-                bytes: &bytes,
-            },
-        );
+        let actual = eval(expr_str.as_bytes(), &EvalContext { v, bytes: &bytes });
         let tol = 1e-4_f32 * expected.abs().max(1.0);
         assert!(
             (actual - expected).abs() < tol,

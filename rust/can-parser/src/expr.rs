@@ -458,7 +458,11 @@ pub fn eval(expr: &[u8], ctx: &EvalContext) -> f32 {
     if state.pos != n {
         return 0.0;
     }
-    if result.is_finite() { result } else { 0.0 }
+    if result.is_finite() {
+        result
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]
