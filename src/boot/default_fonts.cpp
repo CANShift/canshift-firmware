@@ -14,9 +14,6 @@ extern const uint8_t kFontValue17End[] asm("_binary_data_fonts_jbmono_extrabold_
 extern const uint8_t kFontValue22Start[] asm("_binary_data_fonts_jbmono_extrabold_22_bin_start");
 extern const uint8_t kFontValue22End[] asm("_binary_data_fonts_jbmono_extrabold_22_bin_end");
 
-extern const uint8_t kFontValue24Start[] asm("_binary_data_fonts_jbmono_extrabold_24_bin_start");
-extern const uint8_t kFontValue24End[] asm("_binary_data_fonts_jbmono_extrabold_24_bin_end");
-
 extern const uint8_t kFontLabel10Start[] asm("_binary_data_fonts_archivo_extrabold_10_bin_start");
 extern const uint8_t kFontLabel10End[] asm("_binary_data_fonts_archivo_extrabold_10_bin_end");
 
@@ -39,7 +36,6 @@ struct EmbeddedFont {
 const EmbeddedFont kEmbeddedFonts[] = {
     {"/fonts/jbmono_extrabold_17.bin", kFontValue17Start, kFontValue17End, "jbmono_extrabold_17"},
     {"/fonts/jbmono_extrabold_22.bin", kFontValue22Start, kFontValue22End, "jbmono_extrabold_22"},
-    {"/fonts/jbmono_extrabold_24.bin", kFontValue24Start, kFontValue24End, "jbmono_extrabold_24"},
     {"/fonts/archivo_extrabold_10.bin", kFontLabel10Start, kFontLabel10End, "archivo_extrabold_10"},
     {"/fonts/archivo_extrabold_12.bin", kFontLabel12Start, kFontLabel12End, "archivo_extrabold_12"},
     {"/fonts/archivo_extrabold_16.bin", kFontLabel16Start, kFontLabel16End, "archivo_extrabold_16"},

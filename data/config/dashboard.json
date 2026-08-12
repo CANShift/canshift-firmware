@@ -796,7 +796,7 @@
       "maxValue": 250,
       "dangerLevel": 240,
       "decimalPlaces": 0,
-      "big": 48
+      "big": 64
      }
     },
     {
@@ -944,7 +944,7 @@
      "config": {
       "type": "timer",
       "format": "mm:ss",
-      "big": 80
+      "big": 96
      }
     },
     {
@@ -998,7 +998,7 @@
       "maxValue": 300,
       "dangerLevel": 280,
       "decimalPlaces": 0,
-      "big": 48
+      "big": 64
      }
     }
    ]

@@ -29,8 +29,7 @@ struct BigFontStep {
     uint8_t devicePx;
 };
 
-constexpr BigFontStep kBigFontSteps[] = {{96, 48}, {88, 44}, {80, 40}, {64, 32},
-                                         {48, 24}, {44, 22}, {0, 17}};
+constexpr BigFontStep kBigFontSteps[] = {{96, 48}, {88, 44}, {64, 32}, {44, 22}, {0, 17}};
 
 inline uint8_t deviceFontPxForBig(uint8_t big) {
     for (const BigFontStep &step : kBigFontSteps) {
