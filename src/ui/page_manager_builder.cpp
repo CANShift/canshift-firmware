@@ -5,6 +5,7 @@
 #include "error_bar.h"
 #include "icon_assets.h"
 #include "theme_manager.h"
+#include "theme_tokens.h"
 #include "top_bar.h"
 #include "widget_factory.h"
 #include "widgets/cruise_control_widget.h"
@@ -94,6 +95,15 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
              static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 }
 
+void releasePage(Page &p) {
+    if (!p.screen)
+        return;
+    WidgetFactory::clearAll(p.screen);
+    lv_obj_del(p.screen);
+    p.screen = nullptr;
+    p.built = false;
+}
+
 void reapplyThemeAllPages() {
     s_rebuildRequested = false;
 
@@ -101,14 +111,30 @@ void reapplyThemeAllPages() {
     if (!dash.loaded || s_pageCount == 0)
         return;
 
-    for (uint8_t i = 0; i < s_pageCount; ++i) {
-        if (!s_pages[i].screen)
-            continue;
-        const CfgPage &cfg = dash.pages[s_pages[i].cfgIdx];
-        const CfgColor effectiveBg = ThemeManager::getEffectiveBgColor(cfg.bgColor);
-        lv_obj_set_style_bg_color(s_pages[i].screen, lv_color_hex(effectiveBg.rgb), LV_PART_MAIN);
-        WidgetFactory::reapplyTheme(s_pages[i].screen);
+    lv_obj_t *blank = lv_obj_create(nullptr);
+    if (!blank) {
+        LOG_ERROR("UI", "Theme rebuild: placeholder alloc failed — keeping the current palette");
+        return;
     }
+    lv_obj_set_style_bg_color(blank, lv_color_hex(ThemeTokens::kGroundNight), LV_PART_MAIN);
+    lv_scr_load(blank);
+
+    const uint8_t target =
+        s_pendingLazyBuildIdx < s_pageCount ? s_pendingLazyBuildIdx : s_currentIdx;
+
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        releasePage(s_pages[i]);
+    }
+    s_pendingFreeIdx = 0xFF;
+    s_pendingLazyBuildIdx = 0xFF;
+
+    buildPage(target, dash.pages[s_pages[target].cfgIdx]);
+    if (!s_pages[target].screen) {
+        LOG_ERROR("UI", "Theme rebuild: page '%s' failed to build", s_pages[target].id);
+        return;
+    }
+    lv_scr_load_anim(s_pages[target].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+    s_currentIdx = target;
 
     TopBar::reapplyTheme();
     ErrorBar::reapplyTheme();

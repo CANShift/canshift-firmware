@@ -11,7 +11,6 @@ namespace {
 
 constexpr uint8_t kSegmentCount = 12;
 constexpr int16_t kSegmentGapPx = 3;
-constexpr uint32_t kTrackRgb = 0x222222;
 
 struct ShiftLightTag {
     lv_obj_t *segments[kSegmentCount];
@@ -20,6 +19,7 @@ struct ShiftLightTag {
     uint8_t redFromIndex;
     uint8_t lastLit;
     uint32_t litRgb;
+    uint32_t trackRgb;
     bool lastValid;
 };
 
@@ -43,7 +43,7 @@ uint8_t litSegments(float value, const ShiftLightTag &tag) {
 
 void paintSegments(ShiftLightTag *tag, uint8_t lit) {
     for (uint8_t i = 0; i < kSegmentCount; ++i) {
-        const uint32_t rgb = (i >= lit)                 ? kTrackRgb
+        const uint32_t rgb = (i >= lit)                 ? tag->trackRgb
                              : (i >= tag->redFromIndex) ? WidgetHelpers::kZoneDangerRgb
                                                         : tag->litRgb;
         lv_obj_set_style_bg_color(tag->segments[i], lv_color_hex(rgb), 0);
@@ -78,6 +78,7 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
                                                  : kSegmentCount - cfg.shiftLight.redSegments);
     tag->litRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    tag->trackRgb = ThemeManager::trackColor();
     tag->lastLit = 0xFF;
     tag->lastValid = false;
 
@@ -87,7 +88,7 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
         lv_obj_set_pos(seg, static_cast<int16_t>(x0 + i * (segW + kSegmentGapPx)), 0);
         WidgetHelpers::resetContainerStyle(seg);
         lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(seg, lv_color_hex(kTrackRgb), 0);
+        lv_obj_set_style_bg_color(seg, lv_color_hex(tag->trackRgb), 0);
         lv_obj_clear_flag(seg, LV_OBJ_FLAG_CLICKABLE);
         tag->segments[i] = seg;
     }
@@ -119,15 +120,4 @@ void ShiftLightWidget::update(lv_obj_t *obj, float value, bool valid, const CfgW
     const uint8_t lit = litSegments(value, *tag);
     if (lit != tag->lastLit)
         paintSegments(tag, lit);
-}
-
-void ShiftLightWidget::reapplyTheme(lv_obj_t *obj, const CfgWidget &cfg) {
-    if (!obj)
-        return;
-    auto *tag = static_cast<ShiftLightTag *>(lv_obj_get_user_data(obj));
-    if (!tag)
-        return;
-    tag->litRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    paintSegments(tag, tag->lastLit == 0xFF ? 0 : tag->lastLit);
 }
