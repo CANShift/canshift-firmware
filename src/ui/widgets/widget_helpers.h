@@ -19,6 +19,8 @@ constexpr uint8_t kRulePrimaryPx = 2;
 constexpr uint8_t kRuleSecondaryPx = 1;
 constexpr uint8_t kRulePrimaryFontMin = 32;
 
+constexpr int16_t kValueRightInsetPx = 8;
+
 struct BigFontStep {
     uint8_t minBig;
     uint8_t devicePx;
@@ -66,6 +68,9 @@ lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb);
 lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb);
 
 void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb);
+
+void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
+                         const char *unit);
 
 void logTagPoolExhausted(const char *logTag, const char *widgetId);
 

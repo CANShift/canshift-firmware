@@ -317,6 +317,12 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_t *kicker = nullptr;
     buildValueCluster(cont, cfg, label, kicker);
 
+    uint8_t valueFontPx = kValueFontSizeUnits;
+    const lv_font_t *valueFont = resolveValueFont(cfg, valueFontPx);
+    WidgetHelpers::reportValueOverflow(
+        cfg, valueFont, WidgetHelpers::valueTrackingPx(valueFontPx),
+        WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix));
+
     const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
     const uint32_t ruleRgb = primaryTier ? textRgb : WidgetHelpers::kTrackRgb;
     lv_obj_t *topRule = WidgetHelpers::makeTopRule(

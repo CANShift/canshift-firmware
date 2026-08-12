@@ -1,6 +1,8 @@
 #include "widget_helpers.h"
 
 #include "config/config_loader.h"
+#include "diag/error_store.h"
+#include "ui/font_manager.h"
 #include "diag/logger.h"
 #include "ui/screen_profile.h"
 #include "ui/widget_label.h"
@@ -156,6 +158,48 @@ void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb) {
         return;
     lv_obj_set_style_bg_color(rule, lv_color_hex(rgb), LV_PART_MAIN);
     lastRgb = rgb;
+}
+
+namespace {
+
+int16_t textWidthPx(const char *text, const lv_font_t *font, int16_t trackingPx) {
+    lv_point_t size = {};
+    lv_txt_get_size(&size, text, font, trackingPx, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return static_cast<int16_t>(size.x);
+}
+
+float widestConfiguredValue(const CfgWidget &cfg) {
+    const float maxValue = cfg.type == WidgetType::GAUGE ? cfg.gauge.maxValue : cfg.label.maxValue;
+    const float minValue = cfg.type == WidgetType::GAUGE ? cfg.gauge.minValue : cfg.label.minValue;
+    return -minValue > maxValue ? minValue : maxValue;
+}
+
+} // namespace
+
+void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
+                         const char *unit) {
+    if (!font || cfg.layout.w <= 0)
+        return;
+
+    const uint8_t decimals =
+        cfg.type == WidgetType::GAUGE ? cfg.gauge.decimalPlaces : cfg.label.decimalPlaces;
+    const char *prefix = cfg.type == WidgetType::GAUGE ? cfg.gauge.prefix : cfg.label.prefix;
+
+    char widest[40];
+    formatValue(widest, sizeof(widest), prefix, decimals, widestConfiguredValue(cfg), nullptr);
+
+    int16_t needed = textWidthPx(widest, font, trackingPx);
+    if (unit && unit[0] != '\0')
+        needed = static_cast<int16_t>(needed + textWidthPx(unit, FontManager::units(), 0));
+
+    const int16_t available = static_cast<int16_t>(cfg.layout.w - kValueRightInsetPx);
+    if (needed <= available)
+        return;
+
+    LOG_ERROR("WF", "Widget '%s': '%s%s' needs %d px, column gives %d — layout does not fit",
+              cfg.id, widest, unit ? unit : "", static_cast<int>(needed),
+              static_cast<int>(available));
+    ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", cfg.id);
 }
 
 void logTagPoolExhausted(const char *logTag, const char *widgetId) {
