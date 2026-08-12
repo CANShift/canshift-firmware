@@ -12,7 +12,7 @@ uint32_t msSinceLastRx() {
 }
 
 uint32_t busRateHz() {
-    return 500000;
+    return 842;
 }
 
 bool sendFrame(uint32_t id, const uint8_t *, uint8_t len, bool) {

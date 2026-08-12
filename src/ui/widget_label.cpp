@@ -25,6 +25,7 @@ void alignHeader(lv_obj_t *lbl, HeaderPos pos) {
 }
 
 constexpr int16_t kKickerTrackingPx = 2;
+constexpr lv_coord_t kWidgetRightInsetPx = 8;
 
 lv_obj_t *drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
     lv_obj_t *lbl = lv_label_create(cont);
@@ -35,9 +36,9 @@ lv_obj_t *drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
     lv_obj_set_style_text_letter_space(lbl, kKickerTrackingPx, 0);
 
     const lv_coord_t parentW = lv_obj_get_width(cont);
-    if (parentW > 8) {
-        lv_obj_set_width(lbl, parentW - 4);
-        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+    if (parentW > kWidgetRightInsetPx) {
+        lv_obj_set_width(lbl, static_cast<lv_coord_t>(parentW - kWidgetRightInsetPx));
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
     }
 
     alignHeader(lbl, pos);
