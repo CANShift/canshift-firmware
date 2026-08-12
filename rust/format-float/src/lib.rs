@@ -19,7 +19,16 @@ const MAX_DECIMALS: i32 = 9;
 const MAX_SIG_DIGITS: i32 = 9;
 
 const POW10: [i64; 10] = [
-    1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000,
+    1,
+    10,
+    100,
+    1_000,
+    10_000,
+    100_000,
+    1_000_000,
+    10_000_000,
+    100_000_000,
+    1_000_000_000,
 ];
 
 #[must_use]
@@ -33,11 +42,22 @@ pub fn format_fixed(buf: &mut [u8], value: f32, decimals: i32) -> usize {
         return copy_terminated(buf, b"nan");
     }
     if value.is_infinite() {
-        return copy_terminated(buf, if value < 0.0 { b"-inf" } else { b"inf" });
+        return copy_terminated(
+            buf,
+            if value < 0.0 {
+                b"-inf"
+            } else {
+                b"inf"
+            },
+        );
     }
 
     let negative = value < 0.0;
-    let abs_value = if negative { -value } else { value };
+    let abs_value = if negative {
+        -value
+    } else {
+        value
+    };
 
     let scale = POW10[decimals as usize];
     let scaled = (abs_value * (scale as f32) + 0.5) as i64;
@@ -159,7 +179,14 @@ pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
         return copy_terminated(buf, b"nan");
     }
     if value.is_infinite() {
-        return copy_terminated(buf, if value < 0.0 { b"-inf" } else { b"inf" });
+        return copy_terminated(
+            buf,
+            if value < 0.0 {
+                b"-inf"
+            } else {
+                b"inf"
+            },
+        );
     }
 
     // 12-iteration cap guards +inf-adjacent values; mirrors C++ exactly.
@@ -173,13 +200,7 @@ pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
             int_digits += 1;
         }
     }
-    let mut decimals = sig_digits - int_digits;
-    if decimals < 0 {
-        decimals = 0;
-    }
-    if decimals > MAX_DECIMALS {
-        decimals = MAX_DECIMALS;
-    }
+    let decimals = (sig_digits - int_digits).clamp(0, MAX_DECIMALS);
 
     let mut scratch = [0u8; 32];
     let len = format_fixed(&mut scratch, value, decimals);
@@ -285,14 +306,14 @@ mod tests {
     #[test]
     fn fixed_negative_value() {
         let mut buf = [0u8; 32];
-        format_fixed(&mut buf, -12.5, 1);
+        assert_eq!(format_fixed(&mut buf, -12.5, 1), 5);
         assert_eq!(as_str(&buf), "-12.5");
     }
 
     #[test]
     fn fixed_handles_zero() {
         let mut buf = [0u8; 32];
-        format_fixed(&mut buf, 0.0, 3);
+        assert_eq!(format_fixed(&mut buf, 0.0, 3), 5);
         assert_eq!(as_str(&buf), "0.000");
     }
 
@@ -307,28 +328,28 @@ mod tests {
     #[test]
     fn fixed_positive_infinity() {
         let mut buf = [0u8; 32];
-        format_fixed(&mut buf, f32::INFINITY, 2);
+        assert_eq!(format_fixed(&mut buf, f32::INFINITY, 2), 3);
         assert_eq!(as_str(&buf), "inf");
     }
 
     #[test]
     fn fixed_negative_infinity() {
         let mut buf = [0u8; 32];
-        format_fixed(&mut buf, f32::NEG_INFINITY, 2);
+        assert_eq!(format_fixed(&mut buf, f32::NEG_INFINITY, 2), 4);
         assert_eq!(as_str(&buf), "-inf");
     }
 
     #[test]
     fn fixed_clamps_decimals_high() {
         let mut buf = [0u8; 32];
-        format_fixed(&mut buf, 1.0, 99);
+        assert_eq!(format_fixed(&mut buf, 1.0, 99), 11);
         assert_eq!(as_str(&buf), "1.000000000");
     }
 
     #[test]
     fn fixed_clamps_decimals_negative() {
         let mut buf = [0u8; 32];
-        format_fixed(&mut buf, 1.5, -1);
+        assert_eq!(format_fixed(&mut buf, 1.5, -1), 1);
         assert_eq!(as_str(&buf), "2");
     }
 
@@ -358,21 +379,21 @@ mod tests {
     #[test]
     fn spec_default_precision() {
         let mut buf = [0u8; 32];
-        format_from_spec(&mut buf, 5.4321, b"%fV");
+        assert_eq!(format_from_spec(&mut buf, 5.4321, b"%fV"), 4);
         assert_eq!(as_str(&buf), "5.4V");
     }
 
     #[test]
     fn spec_explicit_precision() {
         let mut buf = [0u8; 32];
-        format_from_spec(&mut buf, 5.4321, b"%.3fV");
+        assert_eq!(format_from_spec(&mut buf, 5.4321, b"%.3fV"), 6);
         assert_eq!(as_str(&buf), "5.432V");
     }
 
     #[test]
     fn spec_zero_precision() {
         let mut buf = [0u8; 32];
-        format_from_spec(&mut buf, 5.7, b"%.0f bar");
+        assert_eq!(format_from_spec(&mut buf, 5.7, b"%.0f bar"), 5);
         assert_eq!(as_str(&buf), "6 bar");
     }
 
@@ -388,28 +409,28 @@ mod tests {
     fn spec_double_percent_is_skip_not_unescape() {
         let mut buf = [0u8; 32];
         // C++ quirk: %% survives in the prefix verbatim, NOT printf-style.
-        format_from_spec(&mut buf, 9.8, b"%%V%.1f");
+        assert_eq!(format_from_spec(&mut buf, 9.8, b"%%V%.1f"), 6);
         assert_eq!(as_str(&buf), "%%V9.8");
     }
 
     #[test]
     fn spec_unreasonable_precision_bails_and_keeps_scanning() {
         let mut buf = [0u8; 32];
-        format_from_spec(&mut buf, 4.5, b"%.123fV");
+        assert_eq!(format_from_spec(&mut buf, 4.5, b"%.123fV"), 3);
         assert_eq!(as_str(&buf), "4.5");
     }
 
     #[test]
     fn spec_empty_string_is_one_decimal() {
         let mut buf = [0u8; 32];
-        format_from_spec(&mut buf, 1.2345, b"");
+        assert_eq!(format_from_spec(&mut buf, 1.2345, b""), 3);
         assert_eq!(as_str(&buf), "1.2");
     }
 
     #[test]
     fn general_strips_trailing_zeros() {
         let mut buf = [0u8; 32];
-        format_general(&mut buf, 1.5, 4);
+        assert_eq!(format_general(&mut buf, 1.5, 4), 3);
         // 4 sig digits, 1 int digit → 3 decimals → "1.500" → strip → "1.5"
         assert_eq!(as_str(&buf), "1.5");
     }
@@ -417,14 +438,14 @@ mod tests {
     #[test]
     fn general_keeps_meaningful_decimals() {
         let mut buf = [0u8; 32];
-        format_general(&mut buf, 1.234, 4);
+        assert_eq!(format_general(&mut buf, 1.234, 4), 5);
         assert_eq!(as_str(&buf), "1.234");
     }
 
     #[test]
     fn general_large_magnitude_no_decimals() {
         let mut buf = [0u8; 32];
-        format_general(&mut buf, 12345.0, 4);
+        assert_eq!(format_general(&mut buf, 12345.0, 4), 5);
         // 4 sig digits, 5 int digits → 0 decimals → "12345" (no trailing
         // strip needed).
         assert_eq!(as_str(&buf), "12345");
@@ -435,21 +456,21 @@ mod tests {
         let mut buf = [0u8; 32];
         // abs < 1 → int_digits stays at 1 (the early return path), so
         // 4 sig digits → 3 decimals → "0.123" with the trailing strip.
-        format_general(&mut buf, 0.123, 4);
+        assert_eq!(format_general(&mut buf, 0.123, 4), 5);
         assert_eq!(as_str(&buf), "0.123");
     }
 
     #[test]
     fn general_negative() {
         let mut buf = [0u8; 32];
-        format_general(&mut buf, -1.5, 3);
+        assert_eq!(format_general(&mut buf, -1.5, 3), 4);
         assert_eq!(as_str(&buf), "-1.5");
     }
 
     #[test]
     fn general_clamps_sig_digits_low() {
         let mut buf = [0u8; 32];
-        format_general(&mut buf, 9.876, 0);
+        assert_eq!(format_general(&mut buf, 9.876, 0), 2);
         // Clamped to 1 → 1 int digit → 0 decimals → "10" after rounding.
         assert_eq!(as_str(&buf), "10");
     }
@@ -457,13 +478,13 @@ mod tests {
     #[test]
     fn general_nan_and_inf() {
         let mut buf = [0u8; 32];
-        format_general(&mut buf, f32::NAN, 3);
+        assert_eq!(format_general(&mut buf, f32::NAN, 3), 3);
         assert_eq!(as_str(&buf), "nan");
 
-        format_general(&mut buf, f32::INFINITY, 3);
+        assert_eq!(format_general(&mut buf, f32::INFINITY, 3), 3);
         assert_eq!(as_str(&buf), "inf");
 
-        format_general(&mut buf, f32::NEG_INFINITY, 3);
+        assert_eq!(format_general(&mut buf, f32::NEG_INFINITY, 3), 4);
         assert_eq!(as_str(&buf), "-inf");
     }
 }

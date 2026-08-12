@@ -24,6 +24,7 @@ pub const CAN_FRAME_MAX_BYTES: usize = 8;
 /// Returns 0.0 on bad input. When bit_mask != 0, ignores is_signed/scale/offset
 /// and returns 1.0 if the masked bits are set, 0.0 otherwise.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn decode_bytes(
     data: &[u8],
     start_byte: u8,
@@ -55,7 +56,11 @@ pub fn decode_bytes(
     }
 
     if bit_mask != 0 {
-        return if raw & bit_mask as u32 != 0 { 1.0 } else { 0.0 };
+        return if raw & bit_mask as u32 != 0 {
+            1.0
+        } else {
+            0.0
+        };
     }
 
     let physical: f32 = if is_signed {
