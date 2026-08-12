@@ -241,23 +241,46 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Download release binaries
+        run: |
+          TAG=${{ needs.check-version.outputs.tag }}
+          mkdir -p dist
+          for i in 1 2 3 4 5; do
+            gh release download "${TAG}" --dir dist --pattern 'canshift-*.bin' --clobber && break
+            if [ $i -eq 5 ]; then exit 1; fi
+            echo "Attempt ${i}: assets not ready, retrying in 30s..."
+            sleep 30
+          done
+          ls -l dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
       - name: Build manifest.json
         run: |
           TAG=${{ needs.check-version.outputs.tag }}
           VERSION=${{ needs.check-version.outputs.version }}
-          jq --arg tag "$TAG" --arg version "$VERSION" '
+          ( cd dist && sha256sum *.bin ) \
+            | jq -R -s 'split("\n")
+                        | map(select(length > 0) | split("  "))
+                        | map({ key: .[1], value: .[0] })
+                        | from_entries' > sums.json
+          jq --arg tag "$TAG" --arg version "$VERSION" --slurpfile sums sums.json '
+            ($sums[0]) as $s |
             {
-              schema: 1,
+              schema: 2,
               version: $version,
               tag: $tag,
               boards: [
-                .[] | {
+                .[] | . as $b | {
                   id, chip, display, touch,
-                  artifacts: {
-                    merged:   "canshift-\(.id)-\($tag)-merged.bin",
-                    firmware: "canshift-\(.id)-\($tag)-firmware.bin",
-                    spiffs:   "canshift-\(.id)-\($tag)-spiffs.bin"
-                  }
+                  artifacts: (
+                    ["merged", "firmware", "spiffs"]
+                    | map(. as $kind
+                        | ("canshift-\($b.id)-\($tag)-\($kind).bin") as $file
+                        | { key: $kind, value: { file: $file, sha256: ($s[$file] // null) } })
+                    | from_entries
+                  )
                 }
               ]
             }' .github/boards.json > manifest.json
