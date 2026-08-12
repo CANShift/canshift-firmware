@@ -22,9 +22,9 @@ constexpr size_t TEXT_BUF_LEN = 96;
 constexpr uint32_t COL_CRIT_BG = 0xFF4444;
 constexpr uint32_t COL_CRIT_TEXT = 0xFFFFFF;
 constexpr uint32_t COL_MIL_BG = 0x222222;
-constexpr uint32_t COL_MIL_TEXT = 0xBABABA;
+constexpr uint32_t COL_MIL_TEXT = ThemeTokens::kDimNight;
 constexpr uint32_t COL_LOST_BG = 0x222222;
-constexpr uint32_t COL_LOST_TEXT = 0xBABABA;
+constexpr uint32_t COL_LOST_TEXT = ThemeTokens::kDimNight;
 
 constexpr int16_t CHIP_PAD_H = 8;
 constexpr int16_t CHIP_PAD_V = 4;

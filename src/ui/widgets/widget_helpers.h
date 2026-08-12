@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config/config_types.h"
+#include "ui/theme_tokens.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_tag_pool.h"
 
@@ -10,10 +11,10 @@
 
 namespace WidgetHelpers {
 
-constexpr uint32_t kZoneDangerRgb = 0xFF4444;
-constexpr uint32_t kAccentRgb = 0xFF4747;
-constexpr uint32_t kMutedRgb = 0xBABABA;
-constexpr uint32_t kTrackRgb = 0x222222;
+constexpr uint32_t kZoneDangerRgb = ThemeTokens::kDanger;
+constexpr uint32_t kAccentRgb = ThemeTokens::kEngaged;
+constexpr uint32_t kMutedRgb = ThemeTokens::kDimNight;
+constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
 
 constexpr uint8_t kRulePrimaryPx = 2;
 constexpr uint8_t kRuleSecondaryPx = 1;
@@ -40,7 +41,7 @@ inline uint8_t deviceFontPxForBig(uint8_t big) {
 inline int16_t valueTrackingPx(uint8_t devicePx) {
     if (devicePx >= 40)
         return -2;
-    if (devicePx >= 22)
+    if (devicePx >= 14)
         return -1;
     return 0;
 }

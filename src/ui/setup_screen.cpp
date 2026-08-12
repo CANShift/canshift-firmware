@@ -4,6 +4,7 @@
 #include "diag/logger.h"
 #include "ui/brand_mark.h"
 #include "ui/font_manager.h"
+#include "ui/theme_tokens.h"
 #include "ui/widgets/widget_helpers.h"
 #include "layout_scale.h"
 
@@ -17,7 +18,7 @@ namespace {
 constexpr uint32_t kBgRgb = 0x121212;
 constexpr uint32_t kInkRgb = 0xFFFFFF;
 constexpr uint32_t kAccentRgb = 0xFF4747;
-constexpr uint32_t kDimRgb = 0xBABABA;
+constexpr uint32_t kDimRgb = ThemeTokens::kDimNight;
 
 constexpr int16_t kMarginPx = 17;
 constexpr int16_t kWaitSquarePx = 7;

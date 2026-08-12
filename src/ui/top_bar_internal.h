@@ -1,6 +1,7 @@
 #pragma once
 
 #include "theme_manager.h"
+#include "ui/theme_tokens.h"
 #include "config/config_types.h"
 
 #include <lvgl.h>
@@ -31,13 +32,13 @@ extern uint8_t s_dynCount;
 extern bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS];
 
 constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
-constexpr uint32_t COLOR_MODE_ACTIVE = 0xFF4747;
+constexpr uint32_t COLOR_MODE_ACTIVE = ThemeTokens::kEngaged;
 constexpr uint32_t COLOR_UNSET = 0xFFFFFFFFu;
 
-constexpr uint32_t COLOR_LABEL_NIGHT = 0xBABABA;
-constexpr uint32_t COLOR_LABEL_DAY = 0x5A5A5A;
-constexpr uint32_t COLOR_MUTED_NIGHT = 0xBABABA;
-constexpr uint32_t COLOR_MUTED_DAY = 0x5A5A5A;
+constexpr uint32_t COLOR_LABEL_NIGHT = ThemeTokens::kDimNight;
+constexpr uint32_t COLOR_LABEL_DAY = ThemeTokens::kDimDay;
+constexpr uint32_t COLOR_MUTED_NIGHT = ThemeTokens::kDimNight;
+constexpr uint32_t COLOR_MUTED_DAY = ThemeTokens::kDimDay;
 
 constexpr int16_t BAR_LETTER_SPACE_PX = 1;
 constexpr int16_t FLAG_SQUARE_PX = 7;
