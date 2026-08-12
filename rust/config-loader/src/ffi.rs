@@ -89,10 +89,7 @@ mod tests {
         ] {
             let cs = c_str(s);
             unsafe {
-                assert_eq!(
-                    parse_major_version_rs(cs.as_ptr() as *const c_char),
-                    *expected
-                );
+                assert_eq!(parse_major_version_rs(cs.as_ptr() as *const c_char), *expected);
             }
         }
     }

@@ -128,11 +128,7 @@ pub fn eval_ffi(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
     if state.pos != n {
         return 0.0;
     }
-    if result.is_finite() {
-        result
-    } else {
-        0.0
-    }
+    if result.is_finite() { result } else { 0.0 }
 }
 
 #[cfg(test)]

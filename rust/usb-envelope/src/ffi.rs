@@ -96,9 +96,8 @@ mod tests {
         let mut out_len: usize = 0;
         unsafe {
             assert!(find_payload_slice_rs(ptr::null(), 10, &mut out_len).is_null());
-            assert!(
-                find_payload_slice_rs(b"{\"payload\":{}}".as_ptr(), 14, ptr::null_mut()).is_null()
-            );
+            assert!(find_payload_slice_rs(b"{\"payload\":{}}".as_ptr(), 14, ptr::null_mut())
+                .is_null());
         }
     }
 }
