@@ -20,8 +20,7 @@ pub type SignalId = u8;
 /// Sentinel for unknown name. Must mirror SignalIds::SIGNAL_COUNT in signal_map.h.
 pub const SIGNAL_COUNT: SignalId = 64;
 
-// Numeric gaps (15..=19, 25..=29, 32..=39, 41..=63) reserve room per band.
-// Locked against drift by tests/parity.rs.
+// Numeric gaps reserve room per band; test/test_signal_map asserts the C++ mirror.
 pub mod ids {
     use super::SignalId;
     pub const RPM: SignalId = 0;
@@ -38,13 +37,21 @@ pub mod ids {
     pub const SPEED_KPH: SignalId = 11;
     pub const GEAR: SignalId = 12;
     pub const BATTERY_VOLTS: SignalId = 13;
+    pub const FUEL_LEVEL_PCT: SignalId = 14;
+    pub const EGT_C: SignalId = 15;
+    pub const GEARBOX_TEMP_C: SignalId = 16;
+    pub const DIFF_TEMP_C: SignalId = 17;
+    pub const KNOCK_COUNT: SignalId = 18;
     pub const FLAG_MIL: SignalId = 20;
     pub const FLAG_LAUNCH_CTRL: SignalId = 21;
     pub const FLAG_FLAT_SHIFT: SignalId = 22;
     pub const FLAG_ANTI_LAG: SignalId = 23;
     pub const FLAG_TRACTION_CUT: SignalId = 24;
+    pub const CLUTCH_STATE: SignalId = 25;
     pub const MAP_NUMBER: SignalId = 30;
     pub const MAP_NAME_IDX: SignalId = 31;
+    pub const ODO_KM: SignalId = 32;
+    pub const TRIP_KM: SignalId = 33;
     pub const LAP_TIMER_MS: SignalId = 40;
 }
 
@@ -63,13 +70,21 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("speed_kph", ids::SPEED_KPH),
     ("gear", ids::GEAR),
     ("battery_volts", ids::BATTERY_VOLTS),
+    ("fuel_level_pct", ids::FUEL_LEVEL_PCT),
+    ("egt_c", ids::EGT_C),
+    ("gearbox_temp_c", ids::GEARBOX_TEMP_C),
+    ("diff_temp_c", ids::DIFF_TEMP_C),
+    ("knock_count", ids::KNOCK_COUNT),
     ("flag_mil", ids::FLAG_MIL),
     ("flag_launch_ctrl", ids::FLAG_LAUNCH_CTRL),
     ("flag_flat_shift", ids::FLAG_FLAT_SHIFT),
     ("flag_anti_lag", ids::FLAG_ANTI_LAG),
     ("flag_traction_cut", ids::FLAG_TRACTION_CUT),
+    ("clutch_state", ids::CLUTCH_STATE),
     ("map_number", ids::MAP_NUMBER),
     ("map_name_idx", ids::MAP_NAME_IDX),
+    ("odo_km", ids::ODO_KM),
+    ("trip_km", ids::TRIP_KM),
     ("lap_timer_ms", ids::LAP_TIMER_MS),
 ];
 
@@ -123,13 +138,21 @@ mod tests {
             ids::SPEED_KPH,
             ids::GEAR,
             ids::BATTERY_VOLTS,
+            ids::FUEL_LEVEL_PCT,
+            ids::EGT_C,
+            ids::GEARBOX_TEMP_C,
+            ids::DIFF_TEMP_C,
+            ids::KNOCK_COUNT,
             ids::FLAG_MIL,
             ids::FLAG_LAUNCH_CTRL,
             ids::FLAG_FLAT_SHIFT,
             ids::FLAG_ANTI_LAG,
             ids::FLAG_TRACTION_CUT,
+            ids::CLUTCH_STATE,
             ids::MAP_NUMBER,
             ids::MAP_NAME_IDX,
+            ids::ODO_KM,
+            ids::TRIP_KM,
             ids::LAP_TIMER_MS,
         ];
         for id in known_ids {

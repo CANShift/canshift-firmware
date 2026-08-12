@@ -46,48 +46,60 @@ lv_obj_t *drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
 
 } // namespace
 
-const char *displayLabelForSignal(const char *signalId) {
+struct SignalPresentation {
+    const char *signalId;
+    const char *kicker;
+    const char *unit;
+};
+
+constexpr SignalPresentation kSignalPresentation[] = {
+    {"rpm", "RPM", "rpm"},
+    {"speed_kph", "SPEED", "km/h"},
+    {"coolant_temp_c", "WATER", "\u00b0C"},
+    {"oil_temp_c", "OIL", "\u00b0C"},
+    {"oil_press_bar", "OIL", "bar"},
+    {"fuel_press_bar", "FUEL", "bar"},
+    {"fuel_level_pct", "FUEL", "%"},
+    {"map_kpa", "MAP", "kPa"},
+    {"boost_bar", "BOOST", "bar"},
+    {"throttle_pos", "TPS", "%"},
+    {"gear", "GEAR", ""},
+    {"afr_1", "AFR", ""},
+    {"lambda_1", "LAMBDA", "\u03bb"},
+    {"iat_c", "IAT", "\u00b0C"},
+    {"egt_c", "EGT", "\u00b0C"},
+    {"gearbox_temp_c", "GEARBOX", "\u00b0C"},
+    {"diff_temp_c", "DIFF", "\u00b0C"},
+    {"knock_count", "KNOCK", ""},
+    {"clutch_state", "CLUTCH", ""},
+    {"odo_km", "ODO", "km"},
+    {"trip_km", "TRIP", "km"},
+    {"battery_volts", "BATT", "V"},
+    {"flag_mil", "MIL", ""},
+    {"flag_anti_lag", "ALS", ""},
+    {"flag_launch_ctrl", "LAUNCH", ""},
+    {"flag_traction_cut", "TC", ""},
+    {"flag_flat_shift", "FLAT SHIFT", ""},
+};
+
+const SignalPresentation *findPresentation(const char *signalId) {
     if (!signalId || signalId[0] == '\0')
         return nullptr;
-    if (strcmp(signalId, "rpm") == 0)
-        return "RPM";
-    if (strcmp(signalId, "speed_kph") == 0)
-        return "SPEED";
-    if (strcmp(signalId, "coolant_temp_c") == 0)
-        return "WATER";
-    if (strcmp(signalId, "oil_temp_c") == 0)
-        return "OIL";
-    if (strcmp(signalId, "oil_press_bar") == 0)
-        return "OIL";
-    if (strcmp(signalId, "fuel_press_bar") == 0)
-        return "FUEL";
-    if (strcmp(signalId, "map_kpa") == 0)
-        return "MAP";
-    if (strcmp(signalId, "boost_bar") == 0)
-        return "BOOST";
-    if (strcmp(signalId, "throttle_pos") == 0)
-        return "TPS";
-    if (strcmp(signalId, "gear") == 0)
-        return "GEAR";
-    if (strcmp(signalId, "afr_1") == 0)
-        return "AFR";
-    if (strcmp(signalId, "lambda_1") == 0)
-        return "LAMBDA";
-    if (strcmp(signalId, "iat_c") == 0)
-        return "IAT";
-    if (strcmp(signalId, "battery_volts") == 0)
-        return "BATT";
-    if (strcmp(signalId, "flag_mil") == 0)
-        return "MIL";
-    if (strcmp(signalId, "flag_anti_lag") == 0)
-        return "ALS";
-    if (strcmp(signalId, "flag_launch_ctrl") == 0)
-        return "LAUNCH";
-    if (strcmp(signalId, "flag_traction_cut") == 0)
-        return "TC";
-    if (strcmp(signalId, "flag_flat_shift") == 0)
-        return "FLAT SHIFT";
+    for (const SignalPresentation &entry : kSignalPresentation) {
+        if (strcmp(signalId, entry.signalId) == 0)
+            return &entry;
+    }
     return nullptr;
+}
+
+const char *displayLabelForSignal(const char *signalId) {
+    const SignalPresentation *entry = findPresentation(signalId);
+    return entry != nullptr ? entry->kicker : nullptr;
+}
+
+const char *displayUnitForSignal(const char *signalId) {
+    const SignalPresentation *entry = findPresentation(signalId);
+    return entry != nullptr ? entry->unit : "";
 }
 
 lv_obj_t *applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {

@@ -5,6 +5,9 @@
 #include "can/signal_map.h"
 #include "app_config.h"
 
+static_assert(SIGNAL_STORE_MAX_SIGNALS >= SignalIds::SIGNAL_COUNT,
+              "signal store must hold every id the catalogue can hand out");
+
 namespace SignalStore {
 
 struct SignalValue {

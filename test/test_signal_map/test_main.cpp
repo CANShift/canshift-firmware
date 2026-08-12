@@ -24,6 +24,17 @@ void test_known_temp_pressure_fuel_signals() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::AFR_1, signalIdFromName("afr_1"));
 }
 
+void test_dash_page_signals() {
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FUEL_LEVEL_PCT, signalIdFromName("fuel_level_pct"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::EGT_C, signalIdFromName("egt_c"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::GEARBOX_TEMP_C, signalIdFromName("gearbox_temp_c"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::DIFF_TEMP_C, signalIdFromName("diff_temp_c"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::KNOCK_COUNT, signalIdFromName("knock_count"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::CLUTCH_STATE, signalIdFromName("clutch_state"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::ODO_KM, signalIdFromName("odo_km"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::TRIP_KM, signalIdFromName("trip_km"));
+}
+
 void test_known_vehicle_electrical_signals() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::SPEED_KPH, signalIdFromName("speed_kph"));
     TEST_ASSERT_EQUAL_UINT8(SignalIds::GEAR, signalIdFromName("gear"));
@@ -68,6 +79,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_known_engine_signals);
     RUN_TEST(test_known_temp_pressure_fuel_signals);
+    RUN_TEST(test_dash_page_signals);
     RUN_TEST(test_known_vehicle_electrical_signals);
     RUN_TEST(test_known_flag_signals);
     RUN_TEST(test_known_map_and_lap_signals);

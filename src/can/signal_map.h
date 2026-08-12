@@ -27,15 +27,25 @@ static constexpr SignalId SPEED_KPH = 11;
 static constexpr SignalId GEAR = 12;
 
 static constexpr SignalId BATTERY_VOLTS = 13;
+static constexpr SignalId FUEL_LEVEL_PCT = 14;
+
+static constexpr SignalId EGT_C = 15;
+static constexpr SignalId GEARBOX_TEMP_C = 16;
+static constexpr SignalId DIFF_TEMP_C = 17;
+static constexpr SignalId KNOCK_COUNT = 18;
 
 static constexpr SignalId FLAG_MIL = 20;
 static constexpr SignalId FLAG_LAUNCH_CTRL = 21;
 static constexpr SignalId FLAG_FLAT_SHIFT = 22;
 static constexpr SignalId FLAG_ANTI_LAG = 23;
 static constexpr SignalId FLAG_TRACTION_CUT = 24;
+static constexpr SignalId CLUTCH_STATE = 25;
 
 static constexpr SignalId MAP_NUMBER = 30;
 static constexpr SignalId MAP_NAME_IDX = 31;
+
+static constexpr SignalId ODO_KM = 32;
+static constexpr SignalId TRIP_KM = 33;
 
 static constexpr SignalId LAP_TIMER_MS = 40;
 

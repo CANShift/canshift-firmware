@@ -75,7 +75,7 @@ static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 256;
     #define LVGL_FS_MIN_HEAP_BYTES 256
 #endif
 
-#define SIGNAL_STORE_MAX_SIGNALS 32
+#define SIGNAL_STORE_MAX_SIGNALS 64
 
 #define SIGNAL_DEFAULT_TIMEOUT_MS 500
 

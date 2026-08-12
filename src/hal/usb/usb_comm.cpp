@@ -100,7 +100,7 @@ void sendTelemetry() {
     memcpy(p, prefix, prefixLen);
     p += prefixLen;
 
-    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    static SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
 
     bool first = true;

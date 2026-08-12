@@ -35,7 +35,7 @@ constexpr SignalId BLE_TELE_SIGNALS[] = {
 constexpr size_t BLE_TELE_SIGNAL_COUNT = sizeof(BLE_TELE_SIGNALS) / sizeof(BLE_TELE_SIGNALS[0]);
 
 size_t buildTelemetryPayload(uint8_t *buf, size_t bufSize) {
-    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    static SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
 
     TelemetryFrame::Field fields[BLE_TELE_SIGNAL_COUNT];
