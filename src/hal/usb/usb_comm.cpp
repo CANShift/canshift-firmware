@@ -274,6 +274,7 @@ void UsbComm::tick() {
     }
 
     UsbCommInternal::tickChunkTransferTimeout();
+    UsbCommInternal::tickObdDtc();
 
     while (Serial.available() > 0) {
         char c = static_cast<char>(Serial.read());
