@@ -97,6 +97,8 @@ void handleOtaWriteRaw(const char *jsonLine) {
                  result.error != nullptr ? result.error : "write_failed",
                  static_cast<unsigned>(result.writtenTotal));
         UsbComm::sendLine(resp);
+        PendingActions::requestOtaOverlayFailed(static_cast<int8_t>(OtaOverlay::FailReason::Write),
+                                                static_cast<uint32_t>(result.writtenTotal));
         return;
     }
     OtaOverlay::setProgress(result.writtenTotal);
@@ -117,16 +119,20 @@ void handleOtaEnd(const JsonObjectConst &obj) {
                      result.error != nullptr ? result.error : "commit_failed",
                      static_cast<unsigned>(result.detailCode));
             UsbComm::sendLine(resp);
-            PendingActions::otaOverlayHide.store(true, std::memory_order_relaxed);
+            PendingActions::requestOtaOverlayFailed(
+                static_cast<int8_t>(OtaOverlay::FailReason::Commit),
+                static_cast<uint32_t>(result.detailCode));
             return;
         }
         UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-        vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
+        PendingActions::otaOverlayComplete.store(true, std::memory_order_relaxed);
+        vTaskDelay(pdMS_TO_TICKS(OTA_COMPLETE_SCREEN_HOLD_MS));
         esp_restart();
         return;
     }
     OtaReceiver::abort("host_requested");
-    PendingActions::otaOverlayHide.store(true, std::memory_order_relaxed);
+    PendingActions::requestOtaOverlayFailed(static_cast<int8_t>(OtaOverlay::FailReason::Aborted),
+                                            0);
     UsbComm::sendOk();
 }
 
