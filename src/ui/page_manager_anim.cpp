@@ -55,6 +55,7 @@ void asyncDoLazyBuild(void *) {
 
     PERF_RECORD_PAGE_XSTART();
     TopBar::setTopInset(shiftStripInset(dash.pages[s_pages[idx].cfgIdx]));
+    TopBar::applyPage(dash.pages[s_pages[idx].cfgIdx]);
     lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, placeholderActive);
     s_currentIdx = idx;
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
@@ -94,8 +95,9 @@ void showPage(uint8_t idx) {
     }
 
     PERF_RECORD_PAGE_XSTART();
-    TopBar::setTopInset(
-        shiftStripInset(ConfigLoader::getDashboardConfig().pages[s_pages[idx].cfgIdx]));
+    const CfgPage &target = ConfigLoader::getDashboardConfig().pages[s_pages[idx].cfgIdx];
+    TopBar::setTopInset(shiftStripInset(target));
+    TopBar::applyPage(target);
     lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
 
 #if APP_PROFILE_UI

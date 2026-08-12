@@ -16,6 +16,7 @@
 
 #include "config/config_loader.h"
 #include "runtime/alert_engine.h"
+#include "runtime/signal_stats.h"
 #include "runtime/signal_store.h"
 
 #include "diag/logger.h"
@@ -157,6 +158,7 @@ void PageManager::updateWidgets() {
     SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
     SignalStore::snapshotAll(snap);
 
+    SignalStats::tick(snap);
     AlertEngine::tick(snap);
     RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
                        AlertEngine::isRevLimiterFlashOn());

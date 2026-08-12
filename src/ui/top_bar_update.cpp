@@ -1,5 +1,7 @@
 #include "top_bar.h"
 #include "top_bar_internal.h"
+
+#include "runtime/signal_stats.h"
 #include "top_bar_separator_link.h"
 
 #include "app_config.h"
@@ -99,6 +101,30 @@ static void updateDynSignalLabel(DynItem &d) {
         strlcpy(d.lastText, buf, sizeof(d.lastText));
     }
     applyDynTextColor(d, labelColor());
+}
+
+static void updateDynSignalMax(DynItem &d) {
+    const SignalId sid = signalIdFromName(d.signalId);
+    if (sid >= SignalIds::SIGNAL_COUNT) {
+        WidgetHelpers::setVisibleIfChanged(d.obj, false);
+        return;
+    }
+    WidgetHelpers::setVisibleIfChanged(d.obj, true);
+    const bool known = SignalStats::hasMax(sid);
+    char buf[DYN_TEXT_CAP];
+    if (!known) {
+        snprintf(buf, sizeof(buf), "%s %s", d.prefix, STALE_PLACEHOLDER);
+    } else {
+        const char *fmt = d.format[0] ? d.format : "%.0f";
+        char value[DYN_TEXT_CAP];
+        FloatFormat::formatFromSpec(value, sizeof(value), SignalStats::maxValue(sid), fmt);
+        snprintf(buf, sizeof(buf), "%s %s", d.prefix, value);
+    }
+    if (strcmp(buf, d.lastText) != 0) {
+        lv_label_set_text(d.obj, buf);
+        strlcpy(d.lastText, buf, sizeof(d.lastText));
+    }
+    applyDynTextColor(d, known ? labelColor() : ThemeManager::getStaleTextColor());
 }
 
 static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
@@ -210,6 +236,9 @@ void TopBar::update() {
                 break;
             case TopBarItemKind::SIGNAL:
                 updateDynSignalLabel(d);
+                break;
+            case TopBarItemKind::SIGNAL_MAX:
+                updateDynSignalMax(d);
                 break;
             case TopBarItemKind::BLE_ICON:
                 updateBleIcon(d.obj, &d);

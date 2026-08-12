@@ -1,6 +1,6 @@
 {
  "_comment": "CANShift default dashboard \u2014 the six restyle pages: street, track, engine, tuning, timing, controls (#1823). Shift-light strip pending its own widget type.",
- "version": "1.35.0",
+ "version": "1.36.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
  "defaultPageId": "street",
@@ -508,6 +508,15 @@
    "backgroundImage": "",
    "backgroundColor": "#121212",
    "showTopBar": true,
+   "statusRow": {
+    "right": {
+     "type": "signalMax",
+     "signal": "oil_temp_c",
+     "text": "MAX OIL",
+     "format": "%.0f",
+     "position": "right"
+    }
+   },
    "widgets": [
     {
      "id": "engine_water",
@@ -721,6 +730,15 @@
    "backgroundImage": "",
    "backgroundColor": "#121212",
    "showTopBar": true,
+   "statusRow": {
+    "right": {
+     "type": "signalMax",
+     "signal": "map_kpa",
+     "text": "PEAK",
+     "format": "%.0f",
+     "position": "right"
+    }
+   },
    "widgets": [
     {
      "id": "tuning_manifold",

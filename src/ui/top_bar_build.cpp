@@ -46,6 +46,7 @@ static inline int16_t derivedPadding(int16_t height) {
 static lv_obj_t *s_themeIcon = nullptr;
 static int16_t s_height = 30;
 static int16_t s_topInset = 0;
+static bool s_pageOverridden = false;
 
 static constexpr uint32_t COLOR_BAR_BG_DAY = 0xF0F0F0;
 
@@ -140,7 +141,8 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             anchor(obj, gap);
             break;
         }
-        case TopBarItemKind::SIGNAL: {
+        case TopBarItemKind::SIGNAL:
+        case TopBarItemKind::SIGNAL_MAX: {
 
             obj = makeBarLabel(s_bar, "", labelColor());
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -201,9 +203,9 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
     const int8_t prevFlagIdx = TopBarSeparatorLink::linkedFlagForSeparator(trackers[posIdx]);
     bool needsUpdate =
         (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
-         item.kind == TopBarItemKind::BLE_ICON || item.kind == TopBarItemKind::MODE_FLAG ||
-         item.kind == TopBarItemKind::TRACK_BADGE || item.kind == TopBarItemKind::CAN_RATE ||
-         item.kind == TopBarItemKind::LABEL ||
+         item.kind == TopBarItemKind::SIGNAL_MAX || item.kind == TopBarItemKind::BLE_ICON ||
+         item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::TRACK_BADGE ||
+         item.kind == TopBarItemKind::CAN_RATE || item.kind == TopBarItemKind::LABEL ||
          (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
     if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
         const uint8_t myIdx = s_dynCount;
@@ -212,6 +214,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
         d.obj = obj;
         strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
         strlcpy(d.format, item.format, sizeof(d.format));
+        strlcpy(d.prefix, item.text, sizeof(d.prefix));
         d.lastText[0] = '\0';
         d.lastColor = COLOR_UNSET;
         d.lastSeenValid = false;
@@ -257,6 +260,35 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     }
 }
 
+void clearDynItems() {
+    for (uint8_t i = 0; i < s_dynCount; ++i) {
+        if (s_dynItems[i].obj)
+            lv_obj_del(s_dynItems[i].obj);
+    }
+    s_dynCount = 0;
+    s_themeIcon = nullptr;
+    memset(s_dynEverSeen, 0, sizeof(s_dynEverSeen));
+}
+
+// The status row's centre and right fields are per page (§8 of the design
+// system); the left field is always the bus rate.
+uint8_t mergePageStatusRow(const CfgTopBar &base, const CfgStatusRow &row, CfgTopBarItem *out) {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < base.itemCount && n < CFG_MAX_TOPBAR_ITEMS; ++i) {
+        const CfgTopBarItem &item = base.items[i];
+        if (row.hasCenter && item.position == TopBarItemPos::CENTER)
+            continue;
+        if (row.hasRight && item.position == TopBarItemPos::RIGHT)
+            continue;
+        out[n++] = item;
+    }
+    if (row.hasCenter && n < CFG_MAX_TOPBAR_ITEMS)
+        out[n++] = row.center;
+    if (row.hasRight && n < CFG_MAX_TOPBAR_ITEMS)
+        out[n++] = row.right;
+    return n;
+}
+
 } // namespace
 
 void TopBar::setTopInset(int16_t px) {
@@ -265,6 +297,22 @@ void TopBar::setTopInset(int16_t px) {
     s_topInset = px;
     if (s_bar)
         lv_obj_align(s_bar, LV_ALIGN_TOP_MID, 0, s_topInset);
+}
+
+void TopBar::applyPage(const CfgPage &page) {
+    if (!s_bar)
+        return;
+    if (!page.statusRow.hasCenter && !page.statusRow.hasRight && !s_pageOverridden)
+        return;
+
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    CfgTopBar effective = dash.topBar;
+    effective.itemCount = mergePageStatusRow(dash.topBar, page.statusRow, effective.items);
+
+    clearDynItems();
+    buildFromLayout(effective, dash.hasDayTheme);
+    s_pageOverridden = page.statusRow.hasCenter || page.statusRow.hasRight;
+    TopBar::update();
 }
 
 void TopBar::init() {

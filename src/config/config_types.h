@@ -198,18 +198,6 @@ enum class CfgPageTemplate : uint8_t {
     CRUISE_CONTROL,
 };
 
-struct CfgPage {
-    char id[CFG_MAX_ID_LEN];
-    char bgImagePath[CFG_MAX_PATH_LEN];
-    CfgColor bgColor;
-    bool showTopBar;
-    bool visible;
-    CfgPageTemplate templateKind;
-    uint8_t widgetCount;
-    uint8_t widgetCapacity;
-    CfgWidget *widgets;
-};
-
 enum class TopBarItemKind : uint8_t {
     UNKNOWN = 0,
     STATUS_DOT,
@@ -221,6 +209,7 @@ enum class TopBarItemKind : uint8_t {
     MODE_FLAG,
     TRACK_BADGE,
     CAN_RATE,
+    SIGNAL_MAX,
 };
 
 enum class TopBarItemPos : uint8_t {
@@ -235,6 +224,26 @@ struct CfgTopBarItem {
     char signalId[CFG_MAX_SIGNAL_LEN];
     char text[16];
     char format[16];
+};
+
+struct CfgStatusRow {
+    bool hasCenter;
+    CfgTopBarItem center;
+    bool hasRight;
+    CfgTopBarItem right;
+};
+
+struct CfgPage {
+    char id[CFG_MAX_ID_LEN];
+    char bgImagePath[CFG_MAX_PATH_LEN];
+    CfgColor bgColor;
+    bool showTopBar;
+    bool visible;
+    CfgPageTemplate templateKind;
+    CfgStatusRow statusRow;
+    uint8_t widgetCount;
+    uint8_t widgetCapacity;
+    CfgWidget *widgets;
 };
 
 struct CfgTopBar {
