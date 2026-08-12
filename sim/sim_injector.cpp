@@ -37,6 +37,7 @@ uint32_t s_otaStartMs = 0;
 constexpr float kRevLimitRpm = 7400.0f;
 constexpr size_t kOtaTotalBytes = 1024 * 1024;
 constexpr uint32_t kOtaDurationMs = 12000;
+constexpr uint32_t kOtaFailDetail = 0x1502;
 
 void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f) {
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
@@ -74,6 +75,28 @@ void feedRevLimit(uint32_t nowMs) {
 void feedOilCritical(uint32_t nowMs) {
     feedCruise(nowMs, 0.4f);
 }
+
+void startOtaDemo(uint32_t nowMs) {
+    s_otaDemo = true;
+    s_otaStartMs = nowMs;
+    OtaOverlay::show(kOtaTotalBytes);
+}
+
+void startOtaComplete(uint32_t) {
+    OtaOverlay::showComplete();
+}
+
+void startOtaFailed(uint32_t) {
+    OtaOverlay::showFailed(OtaOverlay::FailReason::Commit, kOtaFailDetail);
+}
+
+struct OverlayScenario {
+    const char *name;
+    void (*start)(uint32_t nowMs);
+};
+
+constexpr OverlayScenario kOverlayScenarios[] = {
+    {"ota", startOtaDemo}, {"ota-complete", startOtaComplete}, {"ota-failed", startOtaFailed}};
 
 void tickOtaDemo(uint32_t nowMs) {
     if (!s_otaDemo)
@@ -120,14 +143,13 @@ void handleKey(int key, uint32_t nowMs) {
             printf("mode: all signals stale\n");
             break;
         case SDLK_f:
-            s_otaDemo = !s_otaDemo;
             if (s_otaDemo) {
-                s_otaStartMs = nowMs;
-                OtaOverlay::show(kOtaTotalBytes);
-                printf("ota demo: started\n");
-            } else {
+                s_otaDemo = false;
                 OtaOverlay::hide();
                 printf("ota demo: hidden\n");
+            } else {
+                startOtaDemo(nowMs);
+                printf("ota demo: started\n");
             }
             break;
         case SDLK_d:
@@ -153,14 +175,22 @@ namespace SimInjector {
 
 void init(const char *scenario) {
     s_startMs = millis();
+    printf("keys: C cruise · R rev-limit · O oil-critical · X stale · F ota · ←/→ pages · S "
+           "screenshot · ESC quit\n");
+    if (!scenario)
+        return;
     for (const ScenarioName &entry : kScenarioNames) {
-        if (scenario && strcmp(scenario, entry.name) == 0) {
+        if (strcmp(scenario, entry.name) == 0) {
             s_mode = entry.mode;
             printf("scenario: %s\n", entry.name);
         }
     }
-    printf("keys: C cruise · R rev-limit · O oil-critical · X stale · F ota · ←/→ pages · S "
-           "screenshot · ESC quit\n");
+    for (const OverlayScenario &entry : kOverlayScenarios) {
+        if (strcmp(scenario, entry.name) == 0) {
+            entry.start(s_startMs);
+            printf("scenario: %s\n", entry.name);
+        }
+    }
 }
 
 void tick(uint32_t nowMs) {

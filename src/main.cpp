@@ -255,8 +255,13 @@ inline void uiDrainOtaOverlayActions() {
     if (showSize > 0) {
         OtaOverlay::show(showSize);
     }
-    if (PendingActions::takeOtaOverlayHide()) {
-        OtaOverlay::hide();
+    if (PendingActions::takeOtaOverlayComplete()) {
+        OtaOverlay::showComplete();
+    }
+    uint32_t failDetail = 0;
+    const int8_t failReason = PendingActions::takeOtaOverlayFailReason(&failDetail);
+    if (failReason >= 0) {
+        OtaOverlay::showFailed(static_cast<OtaOverlay::FailReason>(failReason), failDetail);
     }
     OtaOverlay::Detail::tick();
 }

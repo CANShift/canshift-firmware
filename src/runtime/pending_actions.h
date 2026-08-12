@@ -28,7 +28,11 @@ inline std::atomic<int8_t> burnOverlayShowError{-1};
 
 inline std::atomic<uint32_t> otaOverlayShowSize{0};
 
-inline std::atomic<bool> otaOverlayHide{false};
+inline std::atomic<bool> otaOverlayComplete{false};
+
+inline std::atomic<int8_t> otaOverlayFailReason{-1};
+
+inline std::atomic<uint32_t> otaOverlayFailDetail{0};
 
 inline std::atomic<bool> navPagePending{false};
 
@@ -70,8 +74,24 @@ inline uint32_t takeOtaOverlayShowSize() {
     return otaOverlayShowSize.exchange(0, std::memory_order_relaxed);
 }
 
-inline bool takeOtaOverlayHide() {
-    return otaOverlayHide.exchange(false, std::memory_order_relaxed);
+inline bool takeOtaOverlayComplete() {
+    return otaOverlayComplete.exchange(false, std::memory_order_relaxed);
+}
+
+// The detail code is read before the reason is cleared, so the UI task never
+// pairs a reason with the detail of a later failure.
+inline int8_t takeOtaOverlayFailReason(uint32_t *detailOut) {
+    const int8_t reason = otaOverlayFailReason.load(std::memory_order_acquire);
+    if (reason < 0)
+        return -1;
+    *detailOut = otaOverlayFailDetail.load(std::memory_order_relaxed);
+    otaOverlayFailReason.store(-1, std::memory_order_release);
+    return reason;
+}
+
+inline void requestOtaOverlayFailed(int8_t reason, uint32_t detailCode) {
+    otaOverlayFailDetail.store(detailCode, std::memory_order_relaxed);
+    otaOverlayFailReason.store(reason, std::memory_order_release);
 }
 
 // Single slot, last-write-wins. Release/acquire pairs the id write with the
