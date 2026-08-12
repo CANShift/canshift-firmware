@@ -1,13 +1,18 @@
 //! FFI token mapping for the expression evaluator — the tokenized form the C++
 //! side caches per signal so hot-path evals skip the lexer.
 
-use crate::expr::{lex, parse_or, EvalContext, FnKind, Op, ParseState, TokKind, MAX_TOKENS};
+use crate::expr::{
+    all_refs_resolve, lex, parse_or, EvalContext, FnKind, Op, ParseState, TokKind, MAX_TOKENS,
+};
 
 const TOK_NUM: u8 = 0;
 const TOK_V: u8 = 1;
 const TOK_B: u8 = 2;
 const TOK_FN: u8 = 3;
 const TOK_OP: u8 = 4;
+const TOK_ID: u8 = 5;
+
+pub const MAX_REFS: usize = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -79,6 +84,11 @@ fn tok_to_ffi(t: TokKind) -> FfiTok {
             aux: o as u8,
             num: 0.0,
         },
+        TokKind::Id(target_id) => FfiTok {
+            kind: TOK_ID,
+            aux: 0,
+            num: f32::from(target_id),
+        },
     }
 }
 
@@ -89,6 +99,7 @@ fn ffi_to_tok(f: FfiTok) -> Option<TokKind> {
         TOK_B if f.aux < crate::CAN_FRAME_MAX_BYTES as u8 => TokKind::B(f.aux),
         TOK_FN => TokKind::Fn(fn_from_u8(f.aux)?),
         TOK_OP => TokKind::Op(op_from_u8(f.aux)?),
+        TOK_ID if f.num >= 0.0 && f.num <= f32::from(u16::MAX) => TokKind::Id(f.num as u16),
         _ => return None,
     })
 }
@@ -135,6 +146,41 @@ pub fn eval_ffi(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
     }
 }
 
+// Mirrors core's evalExprChecked: NaN means "cannot be published", where
+// eval_ffi coerces to 0.0 to keep the shared parity fixtures agreeing.
+#[must_use]
+pub fn eval_ffi_checked(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
+    let n = tokens.len();
+    if n == 0 || n > MAX_TOKENS {
+        return f32::NAN;
+    }
+    let mut buf = [TokKind::V; MAX_TOKENS];
+    for i in 0..n {
+        match ffi_to_tok(tokens[i]) {
+            Some(t) => buf[i] = t,
+            None => return f32::NAN,
+        }
+    }
+    if !all_refs_resolve(&buf[..n], ctx) {
+        return f32::NAN;
+    }
+    let mut state = ParseState {
+        tokens: &buf[..n],
+        pos: 0,
+    };
+    let Some(result) = parse_or(&mut state, ctx) else {
+        return f32::NAN;
+    };
+    if state.pos != n {
+        return f32::NAN;
+    }
+    if result.is_finite() {
+        result
+    } else {
+        f32::NAN
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,6 +220,7 @@ mod tests {
         ];
         for e in exprs {
             let c = EvalContext {
+                refs: &[],
                 v: 0xD7 as f32,
                 bytes: &bytes,
             };

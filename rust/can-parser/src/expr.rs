@@ -13,6 +13,7 @@ pub(crate) enum TokKind {
     B(u8),
     Fn(FnKind),
     Op(Op),
+    Id(u16),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -48,9 +49,17 @@ pub(crate) enum Op {
     Bang,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RefValue {
+    pub target_id: u16,
+    pub value: f32,
+}
+
 pub struct EvalContext<'a> {
     pub v: f32,
     pub bytes: &'a [u8],
+    pub refs: &'a [RefValue],
 }
 
 fn lex_two_char_op(a: u8, b: u8) -> Option<Op> {
@@ -115,10 +124,31 @@ fn lex_decimal(expr: &[u8], start: usize) -> Option<(TokKind, usize)> {
     Some((TokKind::Num(num), i))
 }
 
+fn lex_target_id(word: &[u8]) -> Option<u16> {
+    let digits = match word {
+        [b'I' | b'i', b'D' | b'd', rest @ ..] if !rest.is_empty() => rest,
+        _ => return None,
+    };
+    let mut acc: u32 = 0;
+    for d in digits {
+        if !d.is_ascii_digit() {
+            return None;
+        }
+        acc = acc.checked_mul(10)?.checked_add(u32::from(d - b'0'))?;
+        if acc > u32::from(u16::MAX) {
+            return None;
+        }
+    }
+    Some(acc as u16)
+}
+
 fn lex_ident(expr: &[u8], start: usize) -> Option<(TokKind, usize)> {
     let mut i = start;
     while i < expr.len() && (expr[i].is_ascii_alphanumeric() || expr[i] == b'_') {
         i += 1;
+    }
+    if let Some(id) = lex_target_id(&expr[start..i]) {
+        return Some((TokKind::Id(id), i));
     }
     let tok = match &expr[start..i] {
         b"V" => TokKind::V,
@@ -194,6 +224,17 @@ impl<'a> ParseState<'a> {
 
 fn read_byte(ctx: &EvalContext, idx: u8) -> f32 {
     ctx.bytes.get(idx as usize).copied().unwrap_or(0) as f32
+}
+
+// Absent reference evaluates to NaN so the whole expression is non-finite:
+// substituting 0 would read as "no fault" when the truth is "unknown".
+fn read_ref(ctx: &EvalContext, target_id: u16) -> f32 {
+    for r in ctx.refs {
+        if r.target_id == target_id {
+            return r.value;
+        }
+    }
+    f32::NAN
 }
 
 pub(crate) fn parse_or(s: &mut ParseState, ctx: &EvalContext) -> Option<f32> {
@@ -393,6 +434,11 @@ fn parse_primary(s: &mut ParseState, ctx: &EvalContext) -> Option<f32> {
             s.pos += 1;
             Some(read_byte(ctx, i))
         }
+        TokKind::Id(target_id) => {
+            let id = *target_id;
+            s.pos += 1;
+            Some(read_ref(ctx, id))
+        }
         TokKind::Fn(kind) => {
             let k = *kind;
             s.pos += 1;
@@ -439,6 +485,43 @@ fn libm_round(x: f32) -> f32 {
     }
 }
 
+// A missing reference cannot be signalled by NaN alone: the bitwise operators
+// cast to u32, and NaN casts to 0 — which reads as "no fault" on an OR over
+// fault flags. Unresolved references fail the whole expression instead.
+#[must_use]
+pub(crate) fn all_refs_resolve(tokens: &[TokKind], ctx: &EvalContext) -> bool {
+    tokens.iter().all(|t| match t {
+        TokKind::Id(target_id) => !read_ref(ctx, *target_id).is_nan(),
+        _ => true,
+    })
+}
+
+#[must_use]
+pub fn eval_checked(expr: &[u8], ctx: &EvalContext) -> f32 {
+    let mut tokens = [TokKind::V; MAX_TOKENS];
+    let Some(n) = lex(expr, &mut tokens) else {
+        return f32::NAN;
+    };
+    if n == 0 || !all_refs_resolve(&tokens[..n], ctx) {
+        return f32::NAN;
+    }
+    let mut state = ParseState {
+        tokens: &tokens[..n],
+        pos: 0,
+    };
+    let Some(result) = parse_or(&mut state, ctx) else {
+        return f32::NAN;
+    };
+    if state.pos != n {
+        return f32::NAN;
+    }
+    if result.is_finite() {
+        result
+    } else {
+        f32::NAN
+    }
+}
+
 #[must_use]
 pub fn eval(expr: &[u8], ctx: &EvalContext) -> f32 {
     let mut tokens = [TokKind::V; MAX_TOKENS];
@@ -469,68 +552,103 @@ pub fn eval(expr: &[u8], ctx: &EvalContext) -> f32 {
 mod tests {
     use super::*;
 
-    fn ctx<'a>(v: f32, bytes: &'a [u8]) -> EvalContext<'a> {
-        EvalContext { v, bytes }
+    fn ctx<'a>(v: f32, bytes: &'a [u8], refs: &'a [RefValue]) -> EvalContext<'a> {
+        EvalContext { v, bytes, refs }
+    }
+
+    fn ctx_no_refs<'a>(v: f32, bytes: &'a [u8]) -> EvalContext<'a> {
+        ctx(v, bytes, &[])
+    }
+
+    #[test]
+    fn target_id_reads_a_reference() {
+        let refs = [RefValue {
+            target_id: 37,
+            value: 41.0,
+        }];
+        assert_eq!(eval(b"ID37+1", &ctx(0.0, &[], &refs)), 42.0);
+        assert_eq!(eval_checked(b"ID37+1", &ctx(0.0, &[], &refs)), 42.0);
+    }
+
+    #[test]
+    fn missing_reference_poisons_the_expression() {
+        let refs = [RefValue {
+            target_id: 481,
+            value: 1.0,
+        }];
+        assert!(eval_checked(b"ID481|ID482", &ctx(0.0, &[], &refs)).is_nan());
+        assert!(eval_checked(b"ID999", &ctx(0.0, &[], &[])).is_nan());
+        assert_eq!(eval_checked(b"ID481|ID481", &ctx(0.0, &[], &refs)), 1.0);
+    }
+
+    #[test]
+    fn target_id_is_case_insensitive_and_bounded() {
+        let refs = [RefValue {
+            target_id: 7,
+            value: 3.0,
+        }];
+        assert_eq!(eval(b"id7", &ctx(0.0, &[], &refs)), 3.0);
+        assert_eq!(eval(b"ID70000", &ctx(0.0, &[], &refs)), 0.0);
     }
 
     #[test]
     fn numbers_and_v() {
-        assert_eq!(eval(b"42", &ctx(0.0, &[])), 42.0);
-        assert_eq!(eval(b"V", &ctx(7.0, &[])), 7.0);
-        assert_eq!(eval(b"0xFF", &ctx(0.0, &[])), 255.0);
+        assert_eq!(eval(b"42", &ctx_no_refs(0.0, &[])), 42.0);
+        assert_eq!(eval(b"V", &ctx_no_refs(7.0, &[])), 7.0);
+        assert_eq!(eval(b"0xFF", &ctx_no_refs(0.0, &[])), 255.0);
     }
 
     #[test]
     fn byte_refs() {
         let bytes = [10u8, 20, 30, 40, 50, 60, 70, 80];
-        assert_eq!(eval(b"B0", &ctx(0.0, &bytes)), 10.0);
-        assert_eq!(eval(b"B7", &ctx(0.0, &bytes)), 80.0);
+        assert_eq!(eval(b"B0", &ctx_no_refs(0.0, &bytes)), 10.0);
+        assert_eq!(eval(b"B7", &ctx_no_refs(0.0, &bytes)), 80.0);
     }
 
     #[test]
     fn arithmetic() {
-        assert_eq!(eval(b"6*7", &ctx(0.0, &[])), 42.0);
-        assert_eq!(eval(b"20/4", &ctx(0.0, &[])), 5.0);
-        assert_eq!(eval(b"2+3*4", &ctx(0.0, &[])), 14.0);
+        assert_eq!(eval(b"6*7", &ctx_no_refs(0.0, &[])), 42.0);
+        assert_eq!(eval(b"20/4", &ctx_no_refs(0.0, &[])), 5.0);
+        assert_eq!(eval(b"2+3*4", &ctx_no_refs(0.0, &[])), 14.0);
     }
 
     #[test]
     fn comparisons() {
-        assert_eq!(eval(b"V==0xD7", &ctx(0xD7 as f32, &[])), 1.0);
-        assert_eq!(eval(b"V==0xD7", &ctx(0.0, &[])), 0.0);
-        assert_eq!(eval(b"V>10", &ctx(20.0, &[])), 1.0);
+        assert_eq!(eval(b"V==0xD7", &ctx_no_refs(0xD7 as f32, &[])), 1.0);
+        assert_eq!(eval(b"V==0xD7", &ctx_no_refs(0.0, &[])), 0.0);
+        assert_eq!(eval(b"V>10", &ctx_no_refs(20.0, &[])), 1.0);
     }
 
     #[test]
     fn bit_ops_and_shifts() {
-        assert_eq!(eval(b"1<<4", &ctx(0.0, &[])), 16.0);
-        assert_eq!(eval(b"256>>4", &ctx(0.0, &[])), 16.0);
-        assert_eq!(eval(b"0xFF&0x0F", &ctx(0.0, &[])), 15.0);
-        assert_eq!(eval(b"0xF0|0x0F", &ctx(0.0, &[])), 255.0);
+        assert_eq!(eval(b"1<<4", &ctx_no_refs(0.0, &[])), 16.0);
+        assert_eq!(eval(b"256>>4", &ctx_no_refs(0.0, &[])), 16.0);
+        assert_eq!(eval(b"0xFF&0x0F", &ctx_no_refs(0.0, &[])), 15.0);
+        assert_eq!(eval(b"0xF0|0x0F", &ctx_no_refs(0.0, &[])), 255.0);
     }
 
     #[test]
     fn functions() {
-        assert_eq!(eval(b"Floor(3.7)", &ctx(0.0, &[])), 3.0);
-        assert_eq!(eval(b"Ceil(3.2)", &ctx(0.0, &[])), 4.0);
-        assert_eq!(eval(b"Round(3.5)", &ctx(0.0, &[])), 4.0);
-        assert_eq!(eval(b"(Floor(V/200)/2)*100", &ctx(401.0, &[])), 100.0);
+        assert_eq!(eval(b"Floor(3.7)", &ctx_no_refs(0.0, &[])), 3.0);
+        assert_eq!(eval(b"Ceil(3.2)", &ctx_no_refs(0.0, &[])), 4.0);
+        assert_eq!(eval(b"Round(3.5)", &ctx_no_refs(0.0, &[])), 4.0);
+        assert_eq!(eval(b"(Floor(V/200)/2)*100", &ctx_no_refs(401.0, &[])), 100.0);
     }
 
     #[test]
     fn catalogue_patterns() {
-        assert_eq!(eval(b"(V==0xD7)|(V==0xEF)", &ctx(0xD7 as f32, &[])), 1.0);
-        assert_eq!(eval(b"(V==0xD7)|(V==0xEF)", &ctx(0.0, &[])), 0.0);
-        assert_eq!(eval(b"(V&1)*100", &ctx(1.0, &[])), 100.0);
+        assert_eq!(eval(b"(V==0xD7)|(V==0xEF)", &ctx_no_refs(0xD7 as f32, &[])), 1.0);
+        assert_eq!(eval(b"(V==0xD7)|(V==0xEF)", &ctx_no_refs(0.0, &[])), 0.0);
+        assert_eq!(eval(b"(V&1)*100", &ctx_no_refs(1.0, &[])), 100.0);
 
         let bytes = [117u8];
-        let r = eval(b"14.7*(B0/117)", &ctx(0.0, &bytes));
+        let r = eval(b"14.7*(B0/117)", &ctx_no_refs(0.0, &bytes));
         assert!((r - 14.7).abs() < 1e-4);
     }
 
     #[test]
     fn error_paths() {
-        assert_eq!(eval(b"", &ctx(0.0, &[])), 0.0);
-        assert_eq!(eval(b"@@@", &ctx(0.0, &[])), 0.0);
+        assert_eq!(eval(b"", &ctx_no_refs(0.0, &[])), 0.0);
+        assert_eq!(eval(b"@@@", &ctx_no_refs(0.0, &[])), 0.0);
     }
 }

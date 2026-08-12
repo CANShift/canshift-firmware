@@ -28,6 +28,13 @@ PAIRS = (
         "CANSHIFT_EXPR_MAX_TOKENS",
     ),
     (
+        "expression reference cap",
+        "rust/can-parser/src/expr_ffi.rs",
+        "MAX_REFS",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_MAX_REFS",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",
