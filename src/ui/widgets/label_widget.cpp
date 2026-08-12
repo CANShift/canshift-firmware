@@ -192,6 +192,9 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
         cont, primary ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
         parts->ruleRgb);
     parts->barFill = makeProgressBar(cont, cfg, parts->textRgb, &parts->barMaxW);
+    WidgetHelpers::reportValueOverflow(
+        cfg, valueFontFor(valueSize), WidgetHelpers::valueTrackingPx(valueSize),
+        WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix));
     return true;
 }
 
