@@ -119,13 +119,43 @@ void parseSignalBitMask(JsonObjectConst sig, CfgSignalDef *s) {
     s->bitMask = 0;
 }
 
-void parseSignalExpr(JsonObjectConst sig, CfgSignalDef *s) {
-    const char *exprStr = sig["expr"] | (const char *)nullptr;
-    if (exprStr) {
-        strlcpy(s->expr, exprStr, sizeof(s->expr));
+void parseSignalExprRefs(JsonObjectConst sig, CfgSignalDef *s) {
+    s->exprRefCount = 0;
+    JsonArrayConst refs = sig["exprRefs"];
+    if (refs.isNull())
+        return;
+    if (refs.size() > CFG_MAX_EXPR_REFS) {
+        LOG_WARN("CFG", "signal '%s': %u exprRefs exceed CFG_MAX_EXPR_REFS=%d — expression dropped",
+                 s->name, static_cast<unsigned>(refs.size()), CFG_MAX_EXPR_REFS);
+        s->expr[0] = '\0';
         return;
     }
-    s->expr[0] = '\0';
+    for (JsonVariantConst ref : refs) {
+        const uint32_t id = ref | 0u;
+        if (id > UINT16_MAX) {
+            LOG_WARN("CFG", "signal '%s': exprRef %lu out of range — expression dropped", s->name,
+                     static_cast<unsigned long>(id));
+            s->expr[0] = '\0';
+            s->exprRefCount = 0;
+            return;
+        }
+        s->exprRefs[s->exprRefCount++] = static_cast<uint16_t>(id);
+    }
+}
+
+void parseSignalExpr(JsonObjectConst sig, CfgSignalDef *s) {
+    const uint32_t targetId = sig["targetId"] | 0xFFFFFFFFu;
+    s->hasTargetId = targetId <= UINT16_MAX;
+    s->targetId = s->hasTargetId ? static_cast<uint16_t>(targetId) : 0;
+
+    const char *exprStr = sig["expr"] | (const char *)nullptr;
+    if (!exprStr) {
+        s->expr[0] = '\0';
+        s->exprRefCount = 0;
+        return;
+    }
+    strlcpy(s->expr, exprStr, sizeof(s->expr));
+    parseSignalExprRefs(sig, s);
 }
 
 void parseSignalPolling(JsonObjectConst sig, CfgSignalDef *s) {

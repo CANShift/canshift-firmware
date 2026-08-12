@@ -1,5 +1,5 @@
-use crate::expr::EvalContext;
-use crate::expr_ffi::{eval_ffi, lex_to_ffi, FfiTok};
+use crate::expr::{EvalContext, RefValue};
+use crate::expr_ffi::{eval_ffi, eval_ffi_checked, lex_to_ffi, FfiTok};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
@@ -74,8 +74,55 @@ pub unsafe extern "C" fn eval_tokens_rs(
         return 0.0;
     }
     let toks = unsafe { slice::from_raw_parts(tokens, n_tokens) };
-    let ctx = EvalContext { v, bytes: frame };
+    let ctx = EvalContext {
+        v,
+        bytes: frame,
+        refs: &[],
+    };
     eval_ffi(toks, &ctx)
+}
+
+/// # Safety
+/// `data`, `tokens` and `refs` must point to at least `data_len`, `n_tokens`
+/// and `n_refs` readable elements; `refs` may be null when `n_refs` is 0.
+#[no_mangle]
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn eval_tokens_refs_rs(
+    data: *const u8,
+    start_byte: u8,
+    byte_len: u8,
+    big_endian: bool,
+    is_signed: bool,
+    bit_mask: u8,
+    scale: f32,
+    offset: f32,
+    data_len: usize,
+    tokens: *const FfiTok,
+    n_tokens: usize,
+    refs: *const RefValue,
+    n_refs: usize,
+) -> f32 {
+    if data.is_null() || tokens.is_null() || n_tokens == 0 {
+        return f32::NAN;
+    }
+    let len = data_len.min(CAN_FRAME_MAX_BYTES);
+    let frame = unsafe { slice::from_raw_parts(data, len) };
+    let v = decode_bytes(
+        frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
+    );
+    let ref_slice = if refs.is_null() || n_refs == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(refs, n_refs) }
+    };
+    let toks = unsafe { slice::from_raw_parts(tokens, n_tokens) };
+    let ctx = EvalContext {
+        v,
+        bytes: frame,
+        refs: ref_slice,
+    };
+    eval_ffi_checked(toks, &ctx)
 }
 
 #[cfg(test)]
