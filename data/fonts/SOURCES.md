@@ -25,9 +25,10 @@ car produces render in monospace with tabular figures.
 | units     | JB Mono Medium (500)     | 10                  | in-flash (`lv_font_jbmono_medium_10_nk.c`)         |
 | label     | Archivo ExtraBold (800)  | 10, 12, 14, 16      | `archivo_extrabold_{10,12,16}.bin` (14 in-flash)   |
 
-Sizes follow `docs/design/PROMPT_DASH_IN_TUNER.md` (device scale: the canvas is 2×):
-hero 48/44/40, primary 32, mid 24/22, secondary 17, unit/status 10. The size class
-comes from the widget's `big` property via `WidgetHelpers::deviceFontPxForBig`.
+Sizes follow `docs/design/DASH_DESIGN_SYSTEM.md` §3 (device scale: the references are 2×):
+hero 48, heroTrack 44, primary 32, mid 22, secondary 17, button 14, kicker/unit/status 10.
+The size class comes from the widget's `big` property via `WidgetHelpers::deviceFontPxForBig`.
+The 40 and 24 tiers predate that table and no class uses them — see #127.
 
 ## In-flash twins
 

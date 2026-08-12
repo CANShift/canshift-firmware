@@ -1,0 +1,96 @@
+{
+  "note": "CANShift dash — the six default pages, as data. Every geometry number here is in DEVICE pixels (320 x 240). The design references render at 2x; multiply by 2 to compare with a screenshot of CANShift Dash Pages.dc.html.",
+  "panel": { "width": 320, "height": 240, "padding": 8, "gridColumns": 12, "gridGap": 6, "rowGap": 6, "snap": 8 },
+  "valueClasses": {
+    "hero":      { "device": 48, "canvas": 96, "tracking": -0.045, "lineHeight": 0.92, "rule": "2px ink" },
+    "heroTrack": { "device": 44, "canvas": 88, "tracking": -0.045, "lineHeight": 0.92, "rule": "2px ink" },
+    "primary":   { "device": 32, "canvas": 64, "tracking": -0.045, "lineHeight": 0.92, "rule": "2px ink" },
+    "mid":       { "device": 22, "canvas": 44, "tracking": -0.03,  "lineHeight": 0.92, "rule": "1px track" },
+    "secondary": { "device": 17, "canvas": 34, "tracking": -0.03,  "lineHeight": 0.92, "rule": "1px track" },
+    "button":    { "device": 14, "canvas": 28, "tracking": 0,      "lineHeight": 1,    "rule": "2px box" },
+    "kicker":    { "device": 10, "canvas": 10, "tracking": 0.18, "case": "upper" },
+    "unit":      { "device": 10, "canvas": 16 },
+    "statusRow": { "device": 10, "canvas": 12, "tracking": 0.1 }
+  },
+  "pages": [
+    {
+      "id": "street", "num": "01", "name": "Street", "shiftLight": false,
+      "status": ["CAN 842 Hz", "MAP 1", "TRIP 128 km"],
+      "widgets": [
+        { "kicker": "SPEED", "span": 7, "class": "hero", "value": "82", "unit": "km/h" },
+        { "kicker": "GEAR", "span": 5, "class": "hero", "value": "4" },
+        { "kicker": "RPM", "span": 6, "class": "mid", "value": "2400", "unit": "rpm", "bar": 0.29 },
+        { "kicker": "WATER", "span": 3, "class": "secondary", "value": "88", "unit": "\u00b0C" },
+        { "kicker": "FUEL", "span": 3, "class": "secondary", "value": "46", "unit": "%", "bar": 0.46 },
+        { "kicker": "BATT", "span": 4, "class": "secondary", "value": "13.8", "unit": "V" },
+        { "kicker": "ODO", "span": 8, "class": "secondary", "value": "184203", "unit": "km" }
+      ]
+    },
+    {
+      "id": "track", "num": "02", "name": "Track", "shiftLight": true, "shiftLightLit": 9,
+      "status": ["CAN 842 Hz", "MAP 1", "LAP 4 \u2014 1:38.42"],
+      "widgets": [
+        { "kicker": "RPM", "span": 7, "class": "heroTrack", "value": "5200", "unit": "rpm" },
+        { "kicker": "GEAR", "span": 5, "class": "heroTrack", "value": "3" },
+        { "kicker": "SPEED", "span": 6, "class": "primary", "value": "195", "unit": "km/h" },
+        { "kicker": "OIL PRESS", "span": 6, "class": "primary", "value": "1.1", "unit": "bar", "danger": true },
+        { "kicker": "WATER", "span": 3, "class": "secondary", "value": "78", "unit": "\u00b0C" },
+        { "kicker": "OIL T", "span": 3, "class": "secondary", "value": "112", "unit": "\u00b0C" },
+        { "kicker": "BOOST", "span": 3, "class": "secondary", "value": "1.42", "unit": "bar" },
+        { "kicker": "BATT", "span": 3, "class": "secondary", "value": "13.3", "unit": "V" }
+      ]
+    },
+    {
+      "id": "engine", "num": "03", "name": "Engine", "shiftLight": false,
+      "status": ["CAN 842 Hz", "MAP 1", "MAX OIL 128"],
+      "widgets": [
+        { "kicker": "WATER", "span": 6, "class": "primary", "value": "98", "unit": "\u00b0C", "bar": 0.70 },
+        { "kicker": "OIL TEMP", "span": 6, "class": "primary", "value": "112", "unit": "\u00b0C", "bar": 0.78 },
+        { "kicker": "OIL PRESS", "span": 6, "class": "primary", "value": "1.1", "unit": "bar", "danger": true, "bar": 0.22 },
+        { "kicker": "FUEL PRESS", "span": 6, "class": "primary", "value": "3.8", "unit": "bar", "bar": 0.63 },
+        { "kicker": "GEARBOX", "span": 4, "class": "secondary", "value": "96", "unit": "\u00b0C" },
+        { "kicker": "DIFF", "span": 4, "class": "secondary", "value": "104", "unit": "\u00b0C" },
+        { "kicker": "BATT", "span": 4, "class": "secondary", "value": "13.3", "unit": "V" }
+      ]
+    },
+    {
+      "id": "tuning", "num": "04", "name": "Tuning", "shiftLight": false,
+      "status": ["CAN 842 Hz", "MAP 2", "PEAK 1.61"],
+      "widgets": [
+        { "kicker": "BOOST", "span": 7, "class": "heroTrack", "value": "1.42", "unit": "bar", "bar": 0.68 },
+        { "kicker": "TARGET", "span": 5, "class": "primary", "value": "1.50", "unit": "bar" },
+        { "kicker": "LAMBDA", "span": 6, "class": "primary", "value": "0.88", "unit": "\u03bb", "danger": true },
+        { "kicker": "THROTTLE", "span": 6, "class": "primary", "value": "92", "unit": "%", "bar": 0.92 },
+        { "kicker": "IAT", "span": 4, "class": "secondary", "value": "34", "unit": "\u00b0C" },
+        { "kicker": "EGT", "span": 4, "class": "secondary", "value": "912", "unit": "\u00b0C" },
+        { "kicker": "KNOCK", "span": 4, "class": "secondary", "value": "0" }
+      ]
+    },
+    {
+      "id": "timing", "num": "05", "name": "Timing", "shiftLight": false,
+      "status": ["CAN 842 Hz", "LAP 4", "BEST 1:36.08"],
+      "widgets": [
+        { "kicker": "LAP", "span": 7, "class": "hero", "value": "1:38.42" },
+        { "kicker": "DELTA", "span": 5, "class": "hero", "value": "\u22120.42", "unit": "s" },
+        { "kicker": "BEST", "span": 6, "class": "mid", "value": "1:36.08" },
+        { "kicker": "LAST", "span": 4, "class": "mid", "value": "1:37.19" },
+        { "kicker": "LAPS", "span": 2, "class": "mid", "value": "4" },
+        { "kicker": "TIMER", "span": 6, "class": "button", "value": "RUNNING", "engaged": true },
+        { "kicker": "RESET LAP", "span": 6, "class": "button", "value": "RESET" }
+      ]
+    },
+    {
+      "id": "controls", "num": "06", "name": "Controls", "shiftLight": false,
+      "status": ["CAN 842 Hz", "ALS ON", "ARMED"],
+      "widgets": [
+        { "kicker": "LAUNCH RPM", "span": 7, "class": "heroTrack", "value": "4200", "unit": "rpm" },
+        { "kicker": "CLUTCH", "span": 5, "class": "primary", "value": "IN" },
+        { "kicker": "LAUNCH", "span": 6, "class": "button", "value": "ARMED", "engaged": true },
+        { "kicker": "ANTI-LAG", "span": 6, "class": "button", "value": "ON", "engaged": true },
+        { "kicker": "ECU MAP", "span": 4, "class": "button", "value": "MAP 1" },
+        { "kicker": "PIT LIMIT", "span": 4, "class": "button", "value": "OFF" },
+        { "kicker": "CRUISE", "span": 4, "class": "button", "value": "110" }
+      ]
+    }
+  ]
+}
