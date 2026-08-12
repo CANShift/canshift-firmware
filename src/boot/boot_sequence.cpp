@@ -4,6 +4,7 @@
 #include "hardware_profile.h"
 
 #include "diag/logger.h"
+#include "ui/theme_tokens.h"
 #include "diag/error_store.h"
 #include "hal/display/display_driver.h"
 #include "hal/memory/psram.h"
@@ -95,7 +96,7 @@ constexpr uint32_t kMarkMinMs = 2000;
 constexpr uint32_t kSplashBgRgb = 0x121212;
 constexpr uint32_t kSplashInkRgb = 0xFFFFFF;
 constexpr uint32_t kSplashAccentRgb = 0xFF4747;
-constexpr uint32_t kSplashDimRgb = 0xBABABA;
+constexpr uint32_t kSplashDimRgb = ThemeTokens::kDimNight;
 constexpr uint32_t kSplashTrackRgb = 0x222222;
 lv_obj_t *makeMonoLabel(lv_obj_t *parent, const char *text, uint32_t rgb, uint8_t fontSize) {
     lv_obj_t *lbl = lv_label_create(parent);
