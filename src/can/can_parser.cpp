@@ -66,7 +66,7 @@ void evalCrossSignal(const RuntimeSignal &sig, const uint8_t *data, uint8_t leng
     const float val = eval_tokens_refs_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
                                           sig.isSigned, sig.bitMask, sig.scale, sig.offset, length,
                                           sig.tokens, sig.tokenCount, refs, sig.refCount);
-    if (isnan(val))
+    if (std::isnan(val))
         return;
     SignalStore::update(sig.signalId, val);
 }

@@ -632,12 +632,18 @@ mod tests {
         assert_eq!(eval(b"Floor(3.7)", &ctx_no_refs(0.0, &[])), 3.0);
         assert_eq!(eval(b"Ceil(3.2)", &ctx_no_refs(0.0, &[])), 4.0);
         assert_eq!(eval(b"Round(3.5)", &ctx_no_refs(0.0, &[])), 4.0);
-        assert_eq!(eval(b"(Floor(V/200)/2)*100", &ctx_no_refs(401.0, &[])), 100.0);
+        assert_eq!(
+            eval(b"(Floor(V/200)/2)*100", &ctx_no_refs(401.0, &[])),
+            100.0
+        );
     }
 
     #[test]
     fn catalogue_patterns() {
-        assert_eq!(eval(b"(V==0xD7)|(V==0xEF)", &ctx_no_refs(0xD7 as f32, &[])), 1.0);
+        assert_eq!(
+            eval(b"(V==0xD7)|(V==0xEF)", &ctx_no_refs(0xD7 as f32, &[])),
+            1.0
+        );
         assert_eq!(eval(b"(V==0xD7)|(V==0xEF)", &ctx_no_refs(0.0, &[])), 0.0);
         assert_eq!(eval(b"(V&1)*100", &ctx_no_refs(1.0, &[])), 100.0);
 
