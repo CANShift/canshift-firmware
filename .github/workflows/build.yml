@@ -110,7 +110,7 @@ jobs:
           cache-suffix: esp32s3
 
       - name: build (esp32s3)
-        run: pio run -e esp32s3
+        run: pio run -e esp32s3 -e waveshare_s3_28
 
   diagnostic:
     name: diagnostic builds

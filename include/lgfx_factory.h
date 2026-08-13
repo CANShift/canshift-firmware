@@ -4,6 +4,7 @@
 #include <LovyanGFX.hpp>
 
 #include "board.h"
+#include "touch_cst3530.h"
 #include "board_profile.h"
 #include "config/board_profile_loader.h"
 
@@ -15,6 +16,7 @@ class LGFX : public lgfx::LGFX_Device {
     lgfx::Touch_XPT2046 _touchXpt2046;
     lgfx::Touch_GT911 _touchGt911;
     lgfx::Touch_CST816S _touchCst816s;
+    canshift::touch::Touch_CST3530 _touchCst3530;
 
   public:
     LGFX() = default;
@@ -31,6 +33,7 @@ class LGFX : public lgfx::LGFX_Device {
   private:
     static constexpr int16_t kGt911I2cAddr = 0x5D;
     static constexpr int16_t kCst816sI2cAddr = 0x15;
+    static constexpr int16_t kCst3530I2cAddr = 0x58;
 
     void configureBus(const canshift::boards::BoardProfile &b) {
         auto cfg = _spiBus.config();
@@ -105,6 +108,9 @@ class LGFX : public lgfx::LGFX_Device {
             case canshift::boards::TouchDriver::CST816S:
                 touch = configureCapacitiveTouch(_touchCst816s, b, kCst816sI2cAddr);
                 break;
+            case canshift::boards::TouchDriver::CST3530:
+                touch = configureCapacitiveTouch(_touchCst3530, b, kCst3530I2cAddr);
+                break;
             case canshift::boards::TouchDriver::FT6336:
             case canshift::boards::TouchDriver::None:
             default:
@@ -143,7 +149,7 @@ class LGFX : public lgfx::LGFX_Device {
         cfg.y_min = 0;
         cfg.y_max = b.lcd.panel_height - 1;
         cfg.pin_int = b.touch.pin_irq;
-        cfg.pin_rst = -1;
+        cfg.pin_rst = b.touch.pin_rst;
         cfg.bus_shared = false;
         cfg.offset_rotation = 0;
         cfg.i2c_port = 0;

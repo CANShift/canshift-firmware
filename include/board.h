@@ -11,9 +11,11 @@
     #include "boards/generic_ili9341_gt911.h"
 #elif defined(BOARD_GENERIC_ESP32S3)
     #include "boards/generic_esp32s3.h"
+#elif defined(BOARD_WAVESHARE_S3_28)
+    #include "boards/waveshare_s3_28.h"
 #else
     #error                                                                                         \
-        "No board profile selected. Define BOARD_CROWPANEL_28, BOARD_GENERIC_ILI9341, BOARD_GENERIC_ILI9341_GT911, or BOARD_GENERIC_ESP32S3 (or another supported BOARD_*) via platformio.ini build_flags."
+        "No board profile selected. Define BOARD_CROWPANEL_28, BOARD_GENERIC_ILI9341, BOARD_GENERIC_ILI9341_GT911, BOARD_GENERIC_ESP32S3, or BOARD_WAVESHARE_S3_28 (or another supported BOARD_*) via platformio.ini build_flags."
 #endif
 
 inline constexpr const canshift::boards::BoardProfile &kBoard = canshift::boards::kActiveBoard;

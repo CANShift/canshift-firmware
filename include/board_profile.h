@@ -6,7 +6,7 @@ namespace canshift::boards {
 
 enum class ChipFamily : uint8_t { Esp32, Esp32s3 };
 enum class LcdDriver : uint8_t { ILI9341, ST7789, ILI9488, GC9A01 };
-enum class TouchDriver : uint8_t { None, XPT2046, FT6336, GT911, CST816S };
+enum class TouchDriver : uint8_t { None, XPT2046, FT6336, GT911, CST816S, CST3530 };
 enum class CanController : uint8_t { None, EspTwai };
 
 struct LcdProfile {
@@ -47,6 +47,7 @@ struct TouchProfile {
     bool needs_calibration;
     int8_t pin_sda;
     int8_t pin_scl;
+    int8_t pin_rst;
 };
 
 struct CanProfile {

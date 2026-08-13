@@ -27,7 +27,7 @@ constexpr EnumSlug<LcdDriver> kLcdDrivers[] = {
 constexpr EnumSlug<TouchDriver> kTouchDrivers[] = {
     {"none", TouchDriver::None},       {"xpt2046", TouchDriver::XPT2046},
     {"ft6336", TouchDriver::FT6336},   {"gt911", TouchDriver::GT911},
-    {"cst816s", TouchDriver::CST816S},
+    {"cst816s", TouchDriver::CST816S}, {"cst3530", TouchDriver::CST3530},
 };
 constexpr EnumSlug<CanController> kCanControllers[] = {
     {"none", CanController::None},

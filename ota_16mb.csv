@@ -1,0 +1,21 @@
+# Partition table — 16MB flash with dual OTA + SPIFFS (Waveshare ESP32-S3 2.8").
+#
+# Same shape as ota_4mb.csv, with the space the S3 board actually has:
+#   nvs        20 KB   — settings, NVS Preferences
+#   otadata     8 KB   — active OTA slot tracking
+#   app0     4096 KB   — firmware slot 0 (ota_0)
+#   app1     4096 KB   — firmware slot 1 (ota_1)
+#   spiffs   7552 KB   — config files, fonts, future datalog
+#   coredump  128 KB   — panic dumps
+#
+# App slots are deliberately generous: the S3 build carries the same image as
+# the 4 MB boards today, and the headroom is what lets #84 (SD datalog) and
+# larger fonts land without another partition migration.
+#
+# Name,   Type, SubType,  Offset,   Size,    Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+otadata,  data, ota,      0xe000,   0x2000,
+app0,     app,  ota_0,    0x10000,  0x400000,
+app1,     app,  ota_1,    0x410000, 0x400000,
+spiffs,   data, spiffs,   0x810000, 0x760000,
+coredump, data, coredump, 0xF70000, 0x20000,
