@@ -259,16 +259,16 @@ static void loadConfig() {
 }
 
 static void buildUI() {
+    // One lock for the whole build: the mutex is non-recursive, and every call
+    // below touches lv_* — taking it per call is what left init() unguarded.
+    LvglLock lock(portMAX_DELAY);
+
     LOG_INFO("BOOT", "Applying theme...");
     ThemeManager::apply();
     LOG_INFO("BOOT", "Initializing PageManager...");
     PageManager::init();
     LOG_INFO("BOOT", "Navigating to default page...");
-
-    {
-        LvglLock lock(portMAX_DELAY);
-        PageManager::navigateTo(PageManager::getDefaultPageId());
-    }
+    PageManager::navigateTo(PageManager::getDefaultPageId());
 
     lv_mem_monitor_t mon;
     lv_mem_monitor(&mon);
