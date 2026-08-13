@@ -48,6 +48,7 @@ constexpr BoardProfile kActiveBoard = {
         false,
         21,
         22,
+        -1,
     },
 
     {

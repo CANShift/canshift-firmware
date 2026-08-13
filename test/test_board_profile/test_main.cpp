@@ -11,8 +11,8 @@ namespace {
 char s_idBuf[kBoardIdCapacity];
 char s_nameBuf[kBoardNameCapacity];
 
-const char *buildBlob(char *buf, size_t cap, const char *boardId, const char *lcdDriver,
-                      int lcdPinCs) {
+const char *buildBlobWithTouch(char *buf, size_t cap, const char *boardId, const char *lcdDriver,
+                               int lcdPinCs, const char *touchDriver) {
     snprintf(
         buf, cap,
         "{\"magic\":\"CANSHIFT_BOARD\",\"schema\":\"board-profile\",\"formatVersion\":1,"
@@ -24,14 +24,19 @@ const char *buildBlob(char *buf, size_t cap, const char *boardId, const char *lc
         "true,\"readable\":false,\"color_depth\":16},\"backlight\":{\"present\":true,\"pwm_"
         "channel\""
         ":0,\"pwm_freq_hz\":5000,\"default_duty\":200,\"invert\":false},\"touch\":{\"driver\":"
-        "\"cst816s\",\"pin_cs\":-1,\"pin_irq\":-1,\"freq_hz\":400000,\"needs_calibration\":false,"
+        "\"%s\",\"pin_cs\":-1,\"pin_irq\":-1,\"freq_hz\":400000,\"needs_calibration\":false,"
         "\"pin_sda\":21,\"pin_scl\":22},\"can\":{\"controller\":\"esp_twai\",\"pin_tx\":25,\"pin_"
         "rx\""
         ":32,\"default_speed_kbps\":500},\"storage\":{\"spiffs_present\":true,\"spiffs_size_kb\":"
         "1024,\"sd_present\":false,\"sd_pin_cs\":-1},\"conn\":{\"wifi_supported\":true,"
         "\"ble_supported\":true,\"psram_present\":true}}}",
-        boardId, lcdDriver, lcdPinCs);
+        boardId, lcdDriver, lcdPinCs, touchDriver);
     return buf;
+}
+
+const char *buildBlob(char *buf, size_t cap, const char *boardId, const char *lcdDriver,
+                      int lcdPinCs) {
+    return buildBlobWithTouch(buf, cap, boardId, lcdDriver, lcdPinCs, "cst816s");
 }
 
 BoardProfileParse parse(const char *json, BoardProfile &out) {
@@ -115,6 +120,14 @@ void test_outOfRangePin_rejected() {
                       static_cast<int>(parse(blob, out)));
 }
 
+void test_cst3530TouchSlug_parses() {
+    char blob[1200];
+    buildBlobWithTouch(blob, sizeof blob, "test_board", "st7789", 15, "cst3530");
+    BoardProfile out{};
+    TEST_ASSERT_EQUAL(static_cast<int>(BoardProfileParse::Ok), static_cast<int>(parse(blob, out)));
+    TEST_ASSERT_EQUAL(static_cast<int>(TouchDriver::CST3530), static_cast<int>(out.touch.driver));
+}
+
 void test_unknownEnum_rejected() {
     char blob[1200];
     buildBlob(blob, sizeof blob, "test_board", "not_a_driver", 15);
@@ -185,6 +198,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_newerFormatVersion_rejected);
     RUN_TEST(test_missingProfileFields_rejected);
     RUN_TEST(test_outOfRangePin_rejected);
+    RUN_TEST(test_cst3530TouchSlug_parses);
     RUN_TEST(test_unknownEnum_rejected);
     RUN_TEST(test_runtimeDefaultsToCompileTimeBoard);
     RUN_TEST(test_applyValidBlob_overridesRuntimeProfile);

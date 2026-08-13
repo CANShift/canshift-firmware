@@ -6,27 +6,27 @@
 namespace canshift::boards {
 
 constexpr BoardProfile kActiveBoard = {
-    "generic_esp32s3",
-    "Generic ESP32-S3 + ST7789 240x320 + CST816S",
+    "waveshare_s3_28",
+    "Waveshare ESP32-S3-Touch-LCD-2.8 (ST7789T3 + CST3530)",
     ChipFamily::Esp32s3,
 
     {
         LcdDriver::ST7789,
+        45,
         -1,
-        -1,
-        -1,
-        -1,
-        -1,
-        -1,
-        -1,
-        40000000UL,
+        40,
+        42,
+        41,
+        39,
+        5,
+        80000000UL,
         240,
         320,
         240,
         320,
         1,
         false,
-        false,
+        true,
         false,
         false,
         16,
@@ -34,34 +34,34 @@ constexpr BoardProfile kActiveBoard = {
 
     {
         true,
-        0,
-        5000,
+        1,
+        20000,
         200,
         false,
     },
 
     {
-        TouchDriver::CST816S,
+        TouchDriver::CST3530,
         -1,
         -1,
         400000UL,
         false,
-        -1,
-        -1,
-        -1,
+        1,
+        3,
+        2,
     },
 
     {
         CanController::EspTwai,
-        -1,
-        -1,
+        17,
+        18,
         500,
     },
 
     {
         true,
         1024,
-        false,
+        true,
         -1,
     },
 
@@ -72,4 +72,4 @@ constexpr BoardProfile kActiveBoard = {
     },
 };
 
-}
+} // namespace canshift::boards
