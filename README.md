@@ -36,15 +36,15 @@ the linker, so each binary carries only the code its board needs.
 | `crowpanel_28`           | ILI9341 320×240  | XPT2046 resistive | Hardware target     |
 | `generic_ili9341`        | ILI9341 320×240  | XPT2046 resistive | CI-built only       |
 | `generic_ili9341_gt911`  | ILI9341 320×240  | GT911 capacitive  | CI-built only       |
-| `waveshare_s3_28`        | ST7789 240×320   | CST3530 capacitive| Hardware bring-up   |
+| `waveshare_s3_28`        | ST7789 240×320   | CST3530 capacitive| Hardware target     |
 
 `crowpanel_28` is the reference hardware — the [Elecrow CrowPanel 2.8"](#hardware-platform)
 the dashboard ships on. The two `generic_*` profiles are portability seams: they
 build green in CI on every push but their pinouts are representative starting
 points, unverified against physical hardware. **CI-built only** means the leg
 compiles and links; it does not mean the pin map is correct for any given board.
-`waveshare_s3_28` is the ESP32-S3 board tracked on #81: display, SPIFFS, BLE and
-CAN are verified on hardware, the CST3530 touch driver is not yet.
+`waveshare_s3_28` is the ESP32-S3 board tracked on #81 — display, touch, SPIFFS,
+BLE and CAN all verified on the board itself.
 
 ### How it fits together
 
