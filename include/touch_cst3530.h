@@ -99,6 +99,7 @@ class Touch_CST3530 : public lgfx::ITouch {
     static constexpr uint8_t kFailuresBeforeReprobe = 3;
     static constexpr uint32_t kProbeRetryMs = 10;
     static constexpr uint32_t kReprobeIntervalMs = 2000;
+    static constexpr uint32_t kSampleLogIntervalMs = 500;
     static constexpr uint32_t kResetHoldMs = 30;
     static constexpr uint32_t kResetReleaseMs = 50;
 
@@ -106,6 +107,7 @@ class Touch_CST3530 : public lgfx::ITouch {
     bool _sleeping = false;
     uint8_t _readFailures = 0;
     uint32_t _lastProbeMs = 0;
+    uint32_t _lastSampleLogMs = 0;
 
     void noteReadFailure() {
         if (_readFailures < kFailuresBeforeReprobe) {
@@ -203,15 +205,23 @@ class Touch_CST3530 : public lgfx::ITouch {
         return writeCommand(kCommandModeStage);
     }
 
-    static uint_fast8_t decodePoints(const uint8_t *frame, lgfx::touch_point_t *tp,
-                                     uint_fast8_t count) {
+    void logSampleOccasionally(const cst3530::Sample &sample, uint8_t decoded) {
+        const uint32_t now = lgfx::millis();
+        if (now - _lastSampleLogMs < kSampleLogIntervalMs) {
+            return;
+        }
+        _lastSampleLogMs = now;
+        LOG_VERBOSE("TOUCH", "%u pt raw %u,%u", static_cast<unsigned>(decoded),
+                    static_cast<unsigned>(sample.x), static_cast<unsigned>(sample.y));
+    }
+
+    uint_fast8_t decodePoints(const uint8_t *frame, lgfx::touch_point_t *tp, uint_fast8_t count) {
         cst3530::Sample samples[cst3530::kMaxPoints] = {};
         const uint8_t capacity =
             count < cst3530::kMaxPoints ? static_cast<uint8_t>(count) : cst3530::kMaxPoints;
         const uint8_t decoded = cst3530::decodeFrame(frame, samples, capacity);
         if (decoded > 0) {
-            LOG_VERBOSE("TOUCH", "%u pt raw %u,%u", static_cast<unsigned>(decoded),
-                        static_cast<unsigned>(samples[0].x), static_cast<unsigned>(samples[0].y));
+            logSampleOccasionally(samples[0], decoded);
         }
         for (uint8_t i = 0; i < decoded; ++i) {
             tp[i].x = static_cast<int16_t>(samples[i].x);
