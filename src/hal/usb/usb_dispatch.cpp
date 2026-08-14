@@ -227,6 +227,7 @@ constexpr UsbCommand kUsbCommands[] = {
     {UsbComm::CMD_PUT_INPUT_BINDINGS, &handlePutInputBindings},
     {UsbComm::CMD_SCREEN_SETTINGS, &handleScreenSettings},
     {UsbComm::CMD_SET_BOARD_PROFILE, &handleSetBoardProfile},
+    {UsbComm::CMD_PUT_CONFIG_CHUNK, &handlePutConfigChunk},
     {UsbComm::CMD_OTA_BEGIN, &handleOtaBegin},
     {UsbComm::CMD_OTA_END, &handleOtaEnd},
     {UsbComm::CMD_CAN_SCAN_START, &runCanScanStart},

@@ -5,6 +5,7 @@
 #include "app_config.h"
 #include "board_config.h"
 #include "config/config_types.h"
+#include "config/json_reader.h"
 #include "diag/heap_stats.h"
 #include "diag/logger.h"
 #include "runtime/pending_actions.h"
@@ -156,6 +157,133 @@ void handlePutFile(const JsonObjectConst &obj) {
     UsbComm::sendOk();
 }
 
+namespace {
+
+constexpr size_t kConfigChunkMaxRawBytes = 1024;
+
+struct ConfigChunkState {
+    uint32_t total;
+    uint32_t expectedIdx;
+    uint32_t lastActivityMs;
+    uint32_t declaredBytes;
+    uint32_t writtenBytes;
+    char firstByte;
+    char lastByte;
+    bool open;
+};
+
+ConfigChunkState s_configChunk = {};
+
+void abortConfigChunk(const char *reason) {
+    if (!s_configChunk.open) {
+        return;
+    }
+    LOG_WARN("USB", "PUT_CONFIG_CHUNK aborted: %s", reason);
+    StorageDriver::abortChunkedWrite();
+    s_configChunk = {};
+    UsbCommInternal::invokeBurnOverlayShowError(0);
+}
+
+bool configChunkIdleExpired() {
+    return s_configChunk.open && (millis() - s_configChunk.lastActivityMs) > kChunkTimeoutMs;
+}
+
+// Parsing a 16 KB config would overflow the USB task's 4 KB stack, so integrity
+// is checked from what passed through: exact byte count, and the JSON delimiters.
+bool receivedConfigLooksComplete() {
+    if (s_configChunk.declaredBytes == 0 ||
+        s_configChunk.writtenBytes != s_configChunk.declaredBytes) {
+        LOG_ERROR("USB", "PUT_CONFIG_CHUNK: %u bytes received, %u announced",
+                  static_cast<unsigned>(s_configChunk.writtenBytes),
+                  static_cast<unsigned>(s_configChunk.declaredBytes));
+        return false;
+    }
+    if (s_configChunk.firstByte != '{' || s_configChunk.lastByte != '}') {
+        LOG_ERROR("USB", "PUT_CONFIG_CHUNK: payload is not a JSON object");
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+void handlePutConfigChunk(const JsonObjectConst &obj) {
+    const uint32_t total = obj["total"] | 0u;
+    const uint32_t idx = obj["idx"] | 0u;
+    const char *b64 = obj["data"];
+
+    if (b64 == nullptr || total == 0 || idx >= total) {
+        abortConfigChunk("bad_args");
+        UsbComm::sendError("bad_args");
+        return;
+    }
+
+    if (idx == 0) {
+        abortConfigChunk("new transfer");
+        if (!StorageDriver::beginChunkedWriteAtomic(CONFIG_PATH_DASHBOARD)) {
+            UsbComm::sendError("open_failed");
+            return;
+        }
+        s_configChunk = {};
+        s_configChunk.total = total;
+        s_configChunk.lastActivityMs = millis();
+        s_configChunk.declaredBytes = obj["bytes"] | 0u;
+        s_configChunk.open = true;
+        UsbCommInternal::invokeBurnOverlayShow();
+    } else if (!s_configChunk.open || s_configChunk.expectedIdx != idx ||
+               s_configChunk.total != total) {
+        abortConfigChunk("out_of_sequence");
+        UsbComm::sendError("out_of_sequence");
+        return;
+    }
+
+    uint8_t raw[kConfigChunkMaxRawBytes];
+    size_t decoded = 0;
+    if (mbedtls_base64_decode(raw, sizeof(raw), &decoded,
+                              reinterpret_cast<const unsigned char *>(b64), strlen(b64)) != 0) {
+        abortConfigChunk("b64_decode");
+        UsbComm::sendError("b64_decode");
+        return;
+    }
+
+    if (!StorageDriver::appendChunk(raw, decoded)) {
+        abortConfigChunk("write_failed");
+        UsbComm::sendError("write_failed");
+        return;
+    }
+    if (decoded > 0) {
+        if (idx == 0) {
+            s_configChunk.firstByte = static_cast<char>(raw[0]);
+        }
+        s_configChunk.lastByte = static_cast<char>(raw[decoded - 1]);
+        s_configChunk.writtenBytes += decoded;
+    }
+    s_configChunk.expectedIdx = idx + 1;
+    s_configChunk.lastActivityMs = millis();
+
+    if (idx + 1 < total) {
+        UsbComm::sendOk();
+        return;
+    }
+
+    const bool complete = receivedConfigLooksComplete();
+    const bool committed = complete && StorageDriver::endChunkedWrite();
+    if (!complete) {
+        StorageDriver::abortChunkedWrite();
+    }
+    s_configChunk = {};
+    if (!committed) {
+        UsbCommInternal::invokeBurnOverlayShowError(0);
+        UsbComm::sendError("write_failed");
+        return;
+    }
+
+    LOG_INFO("USB", "PUT_CONFIG_CHUNK: config replaced from %u chunks — reloading live",
+             static_cast<unsigned>(total));
+    PendingActions::configReload.store(true, std::memory_order_relaxed);
+    UsbComm::sendOk();
+}
+
 void handlePutConfig(const char *jsonLine) {
 #ifdef ARDUINO
     HeapStats::logHeapBracket("PUT_CONFIG");
@@ -235,9 +363,13 @@ void handleGetConfig() {
 }
 
 void tickChunkTransferTimeout() {
-    if (StorageDriver::isChunkedWriteOpen() &&
+    if (s_chunk.total > 0 && StorageDriver::isChunkedWriteOpen() &&
         (millis() - s_chunk.lastActivityMs) > kChunkTimeoutMs) {
         abortChunkTransfer("idle timeout");
+        return;
+    }
+    if (configChunkIdleExpired()) {
+        abortConfigChunk("idle timeout");
     }
 }
 
