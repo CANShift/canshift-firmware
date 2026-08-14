@@ -27,6 +27,14 @@ void setDayMode(bool day);
 
 [[nodiscard]] uint32_t trackColor();
 
+[[nodiscard]] uint32_t warnColor();
+
+[[nodiscard]] uint32_t dangerColor();
+
+[[nodiscard]] uint32_t lockLineColor();
+
+[[nodiscard]] uint32_t lockInkColor();
+
 [[nodiscard]] uint32_t getStaleTextColor();
 
 } // namespace ThemeManager

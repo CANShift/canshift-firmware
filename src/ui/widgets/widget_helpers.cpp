@@ -1,5 +1,7 @@
 #include "widget_helpers.h"
 
+#include "alert_engine_rs.h"
+
 #include "config/config_loader.h"
 #include "diag/error_store.h"
 #include "ui/font_manager.h"
@@ -95,6 +97,16 @@ const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
     return WidgetLabelOverlay::displayUnitForSignal(signalId);
 }
 
+float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow) {
+    if (!signalId || signalId[0] == '\0')
+        return NAN;
+    const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
+    if (!def)
+        return NAN;
+    return alert_warn_level_for_rs(dangerLevel, dangerBelow, def->warningLevel,
+                                   def->highWarningLevel);
+}
+
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
                    uint32_t borderRgb) {
     if (!cont)
@@ -115,6 +127,7 @@ void resetContainerStyle(lv_obj_t *obj) {
     lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(obj, 0, LV_PART_MAIN);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 }
 
@@ -151,13 +164,6 @@ lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb) {
     lv_obj_set_style_pad_all(rule, 0, LV_PART_MAIN);
     lv_obj_clear_flag(rule, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     return rule;
-}
-
-void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb) {
-    if (!rule || lastRgb == rgb)
-        return;
-    lv_obj_set_style_bg_color(rule, lv_color_hex(rgb), LV_PART_MAIN);
-    lastRgb = rgb;
 }
 
 namespace {

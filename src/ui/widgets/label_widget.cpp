@@ -2,6 +2,7 @@
 #include "diag/logger.h"
 #include "ui/font_manager.h"
 #include "ui/rev_limit_flash.h"
+#include "ui/severity.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -44,55 +45,33 @@ const lv_font_t *valueFontFor(uint8_t size) {
 struct LabelTag {
     lv_obj_t *valueLabel;
     lv_obj_t *unitLabel;
-    lv_obj_t *topRule;
-    lv_obj_t *kicker;
     lv_obj_t *barFill;
+    Severity::Surface severity;
     int16_t barMaxW;
     int16_t lastBarW;
+    float warnLevel;
     float dangerLevel;
     bool dangerBelow;
     float lastValue;
     bool lastValid;
-    bool dangerActive;
-    bool lastDangerActive;
     bool revFlash;
     bool lastBlanked;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
-    uint32_t ruleBaseRgb;
-    uint32_t ruleLastRgb;
-    uint32_t kickerLastRgb;
+    uint32_t lastBarRgb;
 };
 
-void setRuleColorIfChanged(LabelTag *tag, uint32_t rgb) {
-    WidgetHelpers::setRuleColorIfChanged(tag->topRule, tag->ruleLastRgb, rgb);
+uint32_t valueRgbFor(const LabelTag *tag, Severity::Level level) {
+    if (level == Severity::Level::INFORMATION)
+        return tag->baseTextRgb;
+    return Severity::inkFor(level);
 }
 
-void applyDangerState(LabelTag *tag);
-
-void applyDangerAppearance(LabelTag *tag, bool danger) {
-    if (tag->barFill) {
-        lv_obj_set_style_bg_color(
-            tag->barFill, lv_color_hex(danger ? WidgetHelpers::kZoneDangerRgb : tag->baseTextRgb),
-            LV_PART_MAIN);
-    }
-    if (tag->kicker) {
-        const uint32_t kickerRgb =
-            danger ? WidgetHelpers::kZoneDangerRgb : ThemeManager::dimColor();
-        if (tag->kickerLastRgb != kickerRgb) {
-            lv_obj_set_style_text_color(tag->kicker, lv_color_hex(kickerRgb), 0);
-            tag->kickerLastRgb = kickerRgb;
-        }
-    }
-}
-
-void applyDangerState(LabelTag *tag) {
-    setRuleColorIfChanged(tag,
-                          tag->dangerActive ? WidgetHelpers::kZoneDangerRgb : tag->ruleBaseRgb);
-    if (tag->dangerActive == tag->lastDangerActive)
+void applySeverity(LabelTag *tag, Severity::Level level) {
+    Severity::repaint(tag->severity, level);
+    if (!tag->barFill)
         return;
-    tag->lastDangerActive = tag->dangerActive;
-    applyDangerAppearance(tag, tag->dangerActive);
+    WidgetStyles::setBgColorIfChanged(tag->barFill, tag->lastBarRgb, valueRgbFor(tag, level));
 }
 
 struct LabelParts {
@@ -103,7 +82,7 @@ struct LabelParts {
     lv_obj_t *barFill = nullptr;
     int16_t barMaxW = 0;
     uint32_t textRgb = 0;
-    uint32_t ruleRgb = 0;
+    uint8_t rulePx = Severity::kRulePrimaryPx;
 };
 
 lv_obj_t *makeValueRow(lv_obj_t *cont) {
@@ -190,10 +169,9 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     }
     parts->unitLabel = makeUnitLabel(valueRow, cfg);
     const bool primary = valueSize >= WidgetHelpers::kRulePrimaryFontMin;
-    parts->ruleRgb = primary ? parts->textRgb : ThemeManager::trackColor();
+    parts->rulePx = primary ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx;
     parts->topRule = WidgetHelpers::makeTopRule(
-        cont, primary ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
-        parts->ruleRgb);
+        cont, parts->rulePx, Severity::baseRuleRgbFor(parts->rulePx, parts->textRgb));
     parts->barFill = makeProgressBar(cont, cfg, parts->textRgb, &parts->barMaxW);
     WidgetHelpers::reportValueOverflow(
         cfg, valueFontFor(valueSize), WidgetHelpers::valueTrackingPx(valueSize),
@@ -225,8 +203,7 @@ void renderStale(LabelTag *tag) {
         WidgetHelpers::setFillImmediate(tag->barFill, barWidthAnimCb, 1);
         tag->lastBarW = 0;
     }
-    tag->dangerActive = false;
-    applyDangerState(tag);
+    applySeverity(tag, Severity::Level::INFORMATION);
 }
 
 void updateBar(LabelTag *tag, const CfgWidget &cfg, float displayValue) {
@@ -244,24 +221,22 @@ void updateBar(LabelTag *tag, const CfgWidget &cfg, float displayValue) {
 void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) {
     tag->valueLabel = parts.valueLabel;
     tag->unitLabel = parts.unitLabel;
-    tag->topRule = parts.topRule;
-    tag->kicker = parts.kicker;
     tag->barFill = parts.barFill;
+    tag->severity =
+        Severity::adopt(parts.topRule, parts.kicker, nullptr, parts.rulePx, parts.textRgb);
     tag->barMaxW = parts.barMaxW;
     tag->lastBarW = -1;
+    tag->warnLevel =
+        WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.label.dangerLevel, cfg.label.dangerBelow);
     tag->dangerLevel = cfg.label.dangerLevel;
     tag->dangerBelow = cfg.label.dangerBelow;
     tag->lastValue = NAN;
     tag->lastValid = false;
-    tag->dangerActive = false;
     tag->revFlash = cfg.label.revFlash;
     tag->lastBlanked = false;
     tag->baseTextRgb = parts.textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
-    tag->ruleBaseRgb = parts.ruleRgb;
-    tag->ruleLastRgb = parts.ruleRgb;
-    tag->kickerLastRgb = ThemeManager::dimColor();
-    tag->lastDangerActive = false;
+    tag->lastBarRgb = parts.textRgb;
 }
 
 } // namespace
@@ -318,10 +293,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastValid = true;
     }
 
-    tag->dangerActive = WidgetHelpers::isValueInDanger(value, tag->dangerLevel, tag->dangerBelow);
-    const uint32_t valueRgb = tag->dangerActive ? WidgetHelpers::kZoneDangerRgb : tag->baseTextRgb;
-    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, valueRgb);
+    const Severity::Level level =
+        Severity::forReading(value, tag->warnLevel, tag->dangerLevel, tag->dangerBelow);
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, valueRgbFor(tag, level));
 
     updateBar(tag, cfg, value);
-    applyDangerState(tag);
+    applySeverity(tag, level);
 }

@@ -1,6 +1,7 @@
 
 #include "gear_widget.h"
 #include "ui/font_manager.h"
+#include "ui/severity.h"
 #include "ui/widget_label.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_styles.h"
@@ -56,9 +57,9 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_label_set_text(label, "N");
 
     const bool primaryTier = fontSize >= WidgetHelpers::kRulePrimaryFontMin;
-    WidgetHelpers::makeTopRule(
-        cont, primaryTier ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
-        primaryTier ? textRgb : ThemeManager::trackColor());
+    WidgetHelpers::makeTopRule(cont,
+                               primaryTier ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx,
+                               primaryTier ? textRgb : ThemeManager::trackColor());
     WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
 
     WidgetTagPool::Slot<GearTag> tagSlot;

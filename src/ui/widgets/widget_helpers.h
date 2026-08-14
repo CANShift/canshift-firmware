@@ -17,8 +17,6 @@ constexpr uint32_t kAccentRgb = ThemeTokens::kEngaged;
 constexpr uint32_t kMutedRgb = ThemeTokens::kDimNight;
 constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
 
-constexpr uint8_t kRulePrimaryPx = 2;
-constexpr uint8_t kRuleSecondaryPx = 1;
 constexpr uint8_t kRulePrimaryFontMin = 32;
 
 constexpr int16_t kValueRightInsetPx = 8;
@@ -47,13 +45,6 @@ inline int16_t valueTrackingPx(uint8_t devicePx) {
     return 0;
 }
 
-// Mirrors core's isValueInDanger: the danger tier is a threshold plus a side.
-inline bool isValueInDanger(float value, float dangerLevel, bool dangerBelow) {
-    if (std::isnan(dangerLevel))
-        return false;
-    return dangerBelow ? value <= dangerLevel : value >= dangerLevel;
-}
-
 float clampPct(float value, float minValue, float maxValue);
 
 void formatSignalLabel(const char *src, char *out, size_t outLen);
@@ -65,6 +56,8 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
 
 const char *resolveDisplayUnit(const char *signalId, const char *configSuffix);
 
+float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow);
+
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
                    uint32_t borderRgb);
 
@@ -75,8 +68,6 @@ lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb);
 lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb);
 
 lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb);
-
-void setRuleColorIfChanged(lv_obj_t *rule, uint32_t &lastRgb, uint32_t rgb);
 
 void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
                          const char *unit);

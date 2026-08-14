@@ -42,6 +42,23 @@ uint8_t alert_battery_step_rs(AlertLevelHoldRs *hold, float volts, float low_war
                               float low_crit_v, float high_warn_v, float high_crit_v,
                               uint32_t now_ms, float hysteresis_pct, uint32_t min_active_ms);
 
+/* Mirror of rust/alert-engine SEVERITY_LEVEL_COUNT — gated by check_ffi_parity.py. */
+enum { ALERT_SEVERITY_LEVEL_COUNT = 4 };
+
+/* Mirror of rust/alert-engine Severity (repr(u8)) — keep in sync. */
+enum {
+    ALERT_SEVERITY_INFORMATION = 0,
+    ALERT_SEVERITY_WARNING = 1,
+    ALERT_SEVERITY_CRITICAL = 2,
+    ALERT_SEVERITY_FAILURE = 3
+};
+
+float alert_warn_level_for_rs(float danger_level, bool danger_below, float sig_warn,
+                              float sig_high_warn);
+
+uint8_t alert_severity_for_reading_rs(float value, float warn_level, float danger_level,
+                                      bool danger_below);
+
 uint8_t alert_eval_high_side_rs(float value, float high_warn, float high_crit);
 
 uint8_t alert_eval_rev_limiter_rs(float rpm, float rev_limit_rpm, uint8_t warn_pct,

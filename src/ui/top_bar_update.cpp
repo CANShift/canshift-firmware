@@ -24,7 +24,7 @@
 using namespace TopBarInternal;
 
 static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;
-static constexpr uint32_t COLOR_DOT_STALE = 0xFF8800;
+static constexpr uint32_t COLOR_DOT_STALE = ThemeTokens::kWarn;
 static constexpr uint32_t COLOR_MODE_IDLE = 0x1C1C1C;
 
 static constexpr uint32_t COLOR_BLE_CONN_NIGHT = 0x4499FF;
