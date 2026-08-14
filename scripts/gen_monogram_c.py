@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Bake the brand monogram into src/ui/monogram_baked.cpp as LVGL images.
 
-Rasterizes the exact stroke outlines of the bracket monogram (path stroke 13,
-butt caps, skewX(-11 deg)) at 4x supersampling, then emits RGB565+A8
+Rasterizes the brand monogram strokes (canshift-monogram.svg: stroke 13,
+skewX(-11 deg), joins filled) at 4x supersampling, then emits RGB565+A8
 (LV_IMG_CF_TRUE_COLOR_ALPHA, LV_COLOR_16_SWAP=0) C arrays at the sizes the
 boot screens use. Run from canshift-firmware/:  python3 scripts/gen_monogram_c.py
 """
@@ -19,16 +19,11 @@ SS = 4  # supersample factor per axis
 INK = (0xFF, 0xFF, 0xFF)
 ACCENT = (0xFF, 0x47, 0x47)
 
-C_OUTLINE = [
-    (46, 19.5), (15.5, 19.5), (15.5, 80.5), (46, 80.5),
-    (46, 67.5), (28.5, 67.5), (28.5, 32.5), (46, 32.5),
-]
+STROKE_W = 13.0
 
-S_OUTLINE = [
-    (96, 19.5), (59.5, 19.5), (59.5, 56.5), (89.5, 56.5),
-    (89.5, 80.5), (66, 80.5), (66, 67.5), (102.5, 67.5),
-    (102.5, 43.5), (72.5, 43.5), (72.5, 32.5), (96, 32.5),
-]
+C_PATH = [(46, 26), (22, 26), (22, 74), (46, 74)]
+
+S_PATH = [(96, 26), (66, 26), (66, 50), (96, 50), (96, 74), (66, 74)]
 
 SIZES = [("mark", 84), ("header", 32)]
 
@@ -37,26 +32,32 @@ OUT_CPP = ROOT / "src" / "ui" / "monogram_baked.cpp"
 OUT_H = ROOT / "src" / "ui" / "monogram_baked.h"
 
 
-def skew(pts: list[tuple[float, float]], scale: float) -> list[tuple[float, float]]:
-    return [((10.0 + x - SKEW_TAN * y) * scale, y * scale) for x, y in pts]
+def stroke_boxes(path: list[tuple[float, float]]) -> list[tuple[float, float, float, float]]:
+    half = STROKE_W / 2.0
+    boxes = []
+    for (x0, y0), (x1, y1) in zip(path, path[1:]):
+        if y0 == y1:
+            boxes.append((min(x0, x1), y0 - half, max(x0, x1), y0 + half))
+        else:
+            boxes.append((x0 - half, min(y0, y1), x0 + half, max(y0, y1)))
+    for x, y in path[1:-1]:
+        boxes.append((x - half, y - half, x + half, y + half))
+    return boxes
 
 
-def point_in_polygon(px: float, py: float, poly: list[tuple[float, float]]) -> bool:
-    inside = False
-    n = len(poly)
-    for i in range(n):
-        x0, y0 = poly[i]
-        x1, y1 = poly[(i + 1) % n]
-        if (y0 > py) != (y1 > py):
-            xint = x0 + (py - y0) * (x1 - x0) / (y1 - y0)
-            if px < xint:
-                inside = not inside
-    return inside
+def unskew(px: float, py: float, scale: float) -> tuple[float, float]:
+    y = py / scale
+    return px / scale - 10.0 + SKEW_TAN * y, y
+
+
+def in_boxes(px: float, py: float, boxes, scale: float) -> bool:
+    x, y = unskew(px, py, scale)
+    return any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in boxes)
 
 
 def rasterize(height: int) -> tuple[int, int, bytes]:
     scale = height / 100.0
-    polys = [(skew(C_OUTLINE, scale), INK), (skew(S_OUTLINE, scale), ACCENT)]
+    shapes = [(stroke_boxes(C_PATH), INK), (stroke_boxes(S_PATH), ACCENT)]
     width = int(116.0 * scale + 0.5) + 1
     h = height + 1
     data = bytearray()
@@ -67,8 +68,8 @@ def rasterize(height: int) -> tuple[int, int, bytes]:
                 py = y + (sy + 0.5) / SS
                 for sx in range(SS):
                     px = x + (sx + 0.5) / SS
-                    for i, (poly, _) in enumerate(polys):
-                        if point_in_polygon(px, py, poly):
+                    for i, (boxes, _) in enumerate(shapes):
+                        if in_boxes(px, py, boxes, scale):
                             cov[i] += 1
                             break
             total = cov[0] + cov[1]
