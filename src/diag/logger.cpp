@@ -100,22 +100,16 @@ bool Logger::writeAll(const uint8_t *bytes, size_t len) {
     while (sent < len) {
         const size_t remaining = len - sent;
         const size_t piece = remaining < USB_TX_PIECE_BYTES ? remaining : USB_TX_PIECE_BYTES;
-        if (static_cast<size_t>(Serial.availableForWrite()) < piece) {
-            if (static_cast<int32_t>(millis() - deadline) >= 0) {
-                return false;
-            }
-            kickStalledTxDrain();
-            continue;
+        const bool roomForPiece = static_cast<size_t>(Serial.availableForWrite()) >= piece;
+        sent += roomForPiece ? Serial.write(bytes + sent, piece) : 0;
+        if (sent >= len) {
+            return true;
         }
-        const size_t justSent = Serial.write(bytes + sent, piece);
-        if (justSent == 0) {
-            if (static_cast<int32_t>(millis() - deadline) >= 0) {
-                return false;
-            }
-            kickStalledTxDrain();
-            continue;
+        if (static_cast<int32_t>(millis() - deadline) >= 0) {
+            return false;
         }
-        sent += justSent;
+        kickStalledTxDrain();
+        vTaskDelay(1);
     }
     return true;
 }
