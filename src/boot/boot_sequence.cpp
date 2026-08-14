@@ -89,9 +89,9 @@ static bool s_selfTestBuilt = false;
 static uint32_t s_markShownMs = 0;
 static uint32_t s_selfTestShownMs = 0;
 
-constexpr uint32_t kSelfTestMinMs = 2500;
+constexpr uint32_t kSelfTestMinMs = 1000;
 
-constexpr uint32_t kMarkMinMs = 2000;
+constexpr uint32_t kMarkMinMs = 1500;
 
 constexpr uint32_t kSplashBgRgb = 0x121212;
 constexpr uint32_t kSplashInkRgb = 0xFFFFFF;
