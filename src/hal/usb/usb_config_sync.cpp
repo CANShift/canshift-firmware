@@ -67,10 +67,7 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
 
     LOG_INFO("USB", "PUT %s: %u bytes written — rebooting", path, static_cast<unsigned>(written));
     UsbComm::sendOkRebooting();
-#ifdef ARDUINO
-    Serial.flush();
-    esp_restart();
-#endif
+    UsbComm::flushAndRestart();
 }
 
 } // namespace

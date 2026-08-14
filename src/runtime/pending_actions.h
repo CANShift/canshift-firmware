@@ -34,6 +34,8 @@ inline std::atomic<int8_t> otaOverlayFailReason{-1};
 
 inline std::atomic<uint32_t> otaOverlayFailDetail{0};
 
+inline std::atomic<bool> configReload{false};
+
 inline std::atomic<bool> navPagePending{false};
 
 inline char navPageId[CFG_MAX_ID_LEN] = {};
@@ -60,6 +62,10 @@ inline uint32_t takeBlePasskeyShow() {
 
 inline bool takeBlePasskeyHide() {
     return blePasskeyHide.exchange(false, std::memory_order_relaxed);
+}
+
+inline bool takeConfigReload() {
+    return configReload.exchange(false, std::memory_order_relaxed);
 }
 
 inline bool takeBurnOverlayShow() {

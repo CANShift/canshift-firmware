@@ -1,6 +1,7 @@
 #include "ota_overlay.h"
 #include "ui/font_manager.h"
 #include "ui/overlay_scaffold.h"
+#include "ui/theme_tokens.h"
 #include "app_config.h"
 #include "layout_scale.h"
 
@@ -10,12 +11,12 @@
 
 namespace {
 
-constexpr uint32_t kGroundRgb = 0x121212;
-constexpr uint32_t kFailedGroundRgb = 0xFF4444;
-constexpr uint32_t kInkRgb = 0xFFFFFF;
-constexpr uint32_t kDimRgb = 0xBABABA;
-constexpr uint32_t kTrackRgb = 0x222222;
-constexpr uint32_t kAccentRgb = 0xFF4747;
+constexpr uint32_t kGroundRgb = ThemeTokens::kGroundNight;
+constexpr uint32_t kFailedGroundRgb = ThemeTokens::kDanger;
+constexpr uint32_t kInkRgb = ThemeTokens::kInkNight;
+constexpr uint32_t kDimRgb = ThemeTokens::kDimNight;
+constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
+constexpr uint32_t kAccentRgb = ThemeTokens::kEngaged;
 constexpr uint32_t kWarnRgb = 0xFF8800;
 
 constexpr int16_t kFramePadPx = 8;

@@ -127,7 +127,7 @@ void handleOtaEnd(const JsonObjectConst &obj) {
         UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
         PendingActions::otaOverlayComplete.store(true, std::memory_order_relaxed);
         vTaskDelay(pdMS_TO_TICKS(OTA_COMPLETE_SCREEN_HOLD_MS));
-        esp_restart();
+        UsbComm::flushAndRestart();
         return;
     }
     OtaReceiver::abort("host_requested");

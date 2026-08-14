@@ -65,32 +65,7 @@ void PageManager::init() {
     DayNightAuto::init();
     TopBar::init();
 
-    const char *defaultId = dash.defaultPageId;
-    for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
-        if (!dash.pages[i].visible) {
-            LOG_INFO("UI", "Skipping hidden page '%s' (visible=false)", dash.pages[i].id);
-            continue;
-        }
-        Page &p = s_pages[s_pageCount];
-        strlcpy(p.id, dash.pages[i].id, CFG_MAX_ID_LEN);
-        p.screen = nullptr;
-        p.built = false;
-        p.cfgIdx = i;
-
-        if (strcmp(p.id, defaultId) == 0) {
-            buildPage(s_pageCount, dash.pages[i]);
-        }
-        s_pageCount++;
-    }
-
-    if (s_pageCount > 0 && !s_pages[0].screen) {
-        for (uint8_t i = 0; i < s_pageCount; ++i) {
-            if (!s_pages[i].screen) {
-                buildPage(i, dash.pages[s_pages[i].cfgIdx]);
-                break;
-            }
-        }
-    }
+    buildPageList();
 
     AlertBanner::init();
     AlertTakeover::init();

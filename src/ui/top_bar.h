@@ -9,6 +9,8 @@ namespace TopBar {
 
 void init();
 
+void rebuild();
+
 void update();
 
 int16_t getHeight();

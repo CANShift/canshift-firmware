@@ -9,6 +9,8 @@ namespace PageManager {
 
 void init();
 
+void reloadFromStorage();
+
 bool navigateTo(const char *pageId);
 
 void navigateNext();

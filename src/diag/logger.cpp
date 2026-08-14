@@ -76,7 +76,39 @@ void escapeJson(const char *src, char *dst, size_t dstCap) {
     dst[w] = '\0';
 }
 
+// HWCDC::write returns 0 without re-arming the TX interrupt when its ring is
+// full, so the ring never drains again on its own. flush() is what re-arms it.
+void kickStalledTxDrain() {
+    Serial.flush();
+}
+
 } // namespace
+
+bool Logger::writeAll(const uint8_t *bytes, size_t len) {
+    size_t sent = 0;
+    const uint32_t deadline = millis() + USB_TX_WRITE_TIMEOUT_MS;
+    while (sent < len) {
+        const size_t remaining = len - sent;
+        const size_t piece = remaining < USB_TX_PIECE_BYTES ? remaining : USB_TX_PIECE_BYTES;
+        if (static_cast<size_t>(Serial.availableForWrite()) < piece) {
+            if (static_cast<int32_t>(millis() - deadline) >= 0) {
+                return false;
+            }
+            kickStalledTxDrain();
+            continue;
+        }
+        const size_t justSent = Serial.write(bytes + sent, piece);
+        if (justSent == 0) {
+            if (static_cast<int32_t>(millis() - deadline) >= 0) {
+                return false;
+            }
+            kickStalledTxDrain();
+            continue;
+        }
+        sent += justSent;
+    }
+    return true;
+}
 
 void Logger::init() {
 
@@ -159,7 +191,7 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
             (static_cast<size_t>(n) >= sizeof(line)) ? sizeof(line) - 1 : static_cast<size_t>(n);
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        Serial.write(reinterpret_cast<const uint8_t *>(line), toWrite);
+        (void)Logger::writeAll(reinterpret_cast<const uint8_t *>(line), toWrite);
     }
 
     if (s_uartMutex) {

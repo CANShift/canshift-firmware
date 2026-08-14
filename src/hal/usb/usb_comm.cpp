@@ -1,4 +1,6 @@
 #include "usb_comm.h"
+
+#include <esp_system.h>
 #include "usb_comm_internal.h"
 
 #include "app_config.h"
@@ -54,12 +56,14 @@ void serialSink(const char *data, size_t len) {
     if (!data || len == 0)
         return;
     const bool needsNewline = data[len - 1] != '\n';
-    const bool locked = Logger::lockUart(pdMS_TO_TICKS(50));
-    Serial.write(reinterpret_cast<const uint8_t *>(data), len);
-    if (needsNewline)
-        Serial.write('\n');
-    if (locked)
-        Logger::unlockUart();
+    if (!Logger::lockUart(pdMS_TO_TICKS(USB_TX_LOCK_TIMEOUT_MS))) {
+        return;
+    }
+    static constexpr uint8_t kNewline = '\n';
+    if (Logger::writeAll(reinterpret_cast<const uint8_t *>(data), len) && needsNewline) {
+        (void)Logger::writeAll(&kNewline, 1);
+    }
+    Logger::unlockUart();
 }
 #else
 void serialSink(const char *, size_t) {}
@@ -215,6 +219,14 @@ void UsbComm::sendOk() {
 
 void UsbComm::sendOkRebooting() {
     sendLine("{\"status\":\"ok\",\"rebooting\":true}");
+}
+
+void UsbComm::flushAndRestart() {
+#ifdef ARDUINO
+    Serial.flush();
+    vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
+    esp_restart();
+#endif
 }
 
 void UsbComm::sendError(const char *code) {
