@@ -1,10 +1,12 @@
 use crate::{
     eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure, eval_oil_temp,
-    eval_rev_limiter, eval_with_hysteresis, sensor_health_step, AlertLevel, LevelHold,
-    SensorHealth,
+    eval_rev_limiter, eval_with_hysteresis, sensor_health_step, severity_for_reading,
+    warn_level_for, AlertLevel, LevelHold, SensorHealth, Severity, SEVERITY_LEVEL_COUNT,
 };
 
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
+const _: () = assert!(core::mem::size_of::<Severity>() == 1);
+const _: () = assert!(Severity::Failure as u8 == SEVERITY_LEVEL_COUNT - 1);
 
 #[no_mangle]
 pub extern "C" fn alert_eval_high_side_rs(value: f32, high_warn: f32, high_crit: f32) -> u8 {
@@ -181,9 +183,45 @@ pub unsafe extern "C" fn alert_battery_step_rs(
     })
 }
 
+#[no_mangle]
+pub extern "C" fn alert_severity_for_reading_rs(
+    value: f32,
+    warn_level: f32,
+    danger_level: f32,
+    danger_below: bool,
+) -> u8 {
+    severity_for_reading(value, warn_level, danger_level, danger_below) as u8
+}
+
+#[no_mangle]
+pub extern "C" fn alert_warn_level_for_rs(
+    danger_level: f32,
+    danger_below: bool,
+    sig_warn: f32,
+    sig_high_warn: f32,
+) -> f32 {
+    warn_level_for(danger_level, danger_below, sig_warn, sig_high_warn)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ffi_warn_level_passes_through() {
+        assert_eq!(
+            alert_warn_level_for_rs(150.0, false, 130.0, f32::NAN),
+            130.0
+        );
+        assert!(alert_warn_level_for_rs(240.0, false, 250.0, f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn ffi_severity_maps_the_four_levels_to_their_discriminants() {
+        assert_eq!(alert_severity_for_reading_rs(88.0, 110.0, 125.0, false), 0);
+        assert_eq!(alert_severity_for_reading_rs(112.0, 110.0, 125.0, false), 1);
+        assert_eq!(alert_severity_for_reading_rs(128.0, 110.0, 125.0, false), 3);
+    }
 
     #[test]
     fn ffi_returns_normal_as_zero() {

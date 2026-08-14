@@ -218,9 +218,148 @@ pub fn eval_battery(
     base.max(eval_high_side(volts, high_warn_v, high_crit_v))
 }
 
+pub const SEVERITY_LEVEL_COUNT: u8 = 4;
+
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+pub enum Severity {
+    #[default]
+    Information = 0,
+    Warning = 1,
+    Critical = 2,
+    Failure = 3,
+}
+
+#[must_use]
+fn crossed(value: f32, threshold: f32, below: bool) -> bool {
+    if threshold.is_nan() {
+        return false;
+    }
+    if below {
+        value <= threshold
+    } else {
+        value >= threshold
+    }
+}
+
+#[must_use]
+pub fn warn_level_for(
+    danger_level: f32,
+    danger_below: bool,
+    sig_warn: f32,
+    sig_high_warn: f32,
+) -> f32 {
+    let ordered = |w: f32| -> bool {
+        if w.is_nan() || danger_level.is_nan() {
+            return false;
+        }
+        if danger_below {
+            w > danger_level
+        } else {
+            w < danger_level
+        }
+    };
+    let (first, second) = if danger_below {
+        (sig_warn, sig_high_warn)
+    } else {
+        (sig_high_warn, sig_warn)
+    };
+    if ordered(first) {
+        return first;
+    }
+    if ordered(second) {
+        return second;
+    }
+    f32::NAN
+}
+
+#[must_use]
+pub fn severity_for_reading(
+    value: f32,
+    warn_level: f32,
+    danger_level: f32,
+    danger_below: bool,
+) -> Severity {
+    if value.is_nan() {
+        return Severity::Information;
+    }
+    if crossed(value, danger_level, danger_below) {
+        return Severity::Failure;
+    }
+    if crossed(value, warn_level, danger_below) {
+        return Severity::Warning;
+    }
+    Severity::Information
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn severity_high_side_walks_the_three_tiers() {
+        assert_eq!(
+            severity_for_reading(88.0, 110.0, 125.0, false),
+            Severity::Information
+        );
+        assert_eq!(
+            severity_for_reading(128.0, 110.0, 125.0, false),
+            Severity::Failure
+        );
+        assert_eq!(
+            severity_for_reading(112.0, 110.0, 125.0, false),
+            Severity::Warning
+        );
+    }
+
+    #[test]
+    fn severity_low_side_walks_the_three_tiers() {
+        assert_eq!(
+            severity_for_reading(4.1, 2.0, 1.0, true),
+            Severity::Information
+        );
+        assert_eq!(severity_for_reading(1.8, 2.0, 1.0, true), Severity::Warning);
+        assert_eq!(severity_for_reading(0.4, 2.0, 1.0, true), Severity::Failure);
+    }
+
+    #[test]
+    fn severity_nan_threshold_disables_its_tier() {
+        assert_eq!(
+            severity_for_reading(300.0, f32::NAN, f32::NAN, false),
+            Severity::Information
+        );
+        assert_eq!(
+            severity_for_reading(300.0, f32::NAN, 125.0, false),
+            Severity::Failure
+        );
+        assert_eq!(
+            severity_for_reading(f32::NAN, 110.0, 125.0, false),
+            Severity::Information
+        );
+    }
+
+    #[test]
+    fn warn_level_takes_the_side_the_danger_level_is_on() {
+        assert_eq!(warn_level_for(150.0, false, 130.0, f32::NAN), 130.0);
+        assert_eq!(warn_level_for(15.5, false, 12.0, 15.0), 15.0);
+        assert_eq!(warn_level_for(1.0, true, 1.5, f32::NAN), 1.5);
+    }
+
+    #[test]
+    fn warn_level_rejects_a_threshold_on_the_wrong_side() {
+        assert!(warn_level_for(240.0, false, 250.0, f32::NAN).is_nan());
+        assert!(warn_level_for(1.5, true, 1.5, f32::NAN).is_nan());
+        assert!(warn_level_for(f32::NAN, false, 130.0, f32::NAN).is_nan());
+        assert!(warn_level_for(150.0, false, f32::NAN, f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn severity_never_returns_the_takeover_level() {
+        assert_ne!(
+            severity_for_reading(0.0, 2.0, 1.0, true),
+            Severity::Critical
+        );
+    }
 
     #[test]
     fn max_level_picks_more_severe() {

@@ -35,6 +35,13 @@ PAIRS = (
         "CANSHIFT_EXPR_MAX_REFS",
     ),
     (
+        "severity level count",
+        "rust/alert-engine/src/lib.rs",
+        "SEVERITY_LEVEL_COUNT",
+        "include/alert_engine_rs.h",
+        "ALERT_SEVERITY_LEVEL_COUNT",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",

@@ -23,8 +23,8 @@ static void persistDayMode() {
 
 void ThemeManager::apply() {
     lv_disp_t *disp = lv_disp_get_default();
-    lv_theme_t *th = lv_theme_default_init(disp, lv_color_hex(0xFF4444), lv_color_hex(0xFF8800),
-                                           true, LV_FONT_DEFAULT);
+    lv_theme_t *th = lv_theme_default_init(disp, lv_color_hex(ThemeTokens::kDanger),
+                                           lv_color_hex(ThemeTokens::kWarn), true, LV_FONT_DEFAULT);
     lv_disp_set_theme(disp, th);
     LOG_INFO("THEME", "LVGL dark theme applied");
 }
@@ -121,6 +121,22 @@ uint32_t ThemeManager::dimColor() {
 
 uint32_t ThemeManager::trackColor() {
     return pickColor(ThemeTokens::kTrackNight, ThemeTokens::kTrackDay);
+}
+
+uint32_t ThemeManager::warnColor() {
+    return ThemeTokens::kWarn;
+}
+
+uint32_t ThemeManager::dangerColor() {
+    return ThemeTokens::kDanger;
+}
+
+uint32_t ThemeManager::lockLineColor() {
+    return pickColor(ThemeTokens::kLockLineNight, ThemeTokens::kLockLineDay);
+}
+
+uint32_t ThemeManager::lockInkColor() {
+    return pickColor(ThemeTokens::kLockInkNight, ThemeTokens::kLockInkDay);
 }
 
 uint32_t ThemeManager::getStaleTextColor() {

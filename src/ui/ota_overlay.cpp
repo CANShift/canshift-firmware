@@ -17,7 +17,7 @@ constexpr uint32_t kInkRgb = ThemeTokens::kInkNight;
 constexpr uint32_t kDimRgb = ThemeTokens::kDimNight;
 constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
 constexpr uint32_t kAccentRgb = ThemeTokens::kEngaged;
-constexpr uint32_t kWarnRgb = 0xFF8800;
+constexpr uint32_t kWarnRgb = ThemeTokens::kWarn;
 
 constexpr int16_t kFramePadPx = 8;
 constexpr int16_t kBarHeightPx = 10;

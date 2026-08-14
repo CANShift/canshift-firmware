@@ -1,12 +1,9 @@
 # CANShift dash — design system
 
 The binding specification for the firmware UI (LVGL, CrowPanel 2.8″, 320 × 240, landscape).
-Visual references: `CANShift Dash Pages.dc.html` in [CANShift/canshift-brand](https://github.com/CANShift/canshift-brand)
-`design/` (the six pages rendered at 2×) and `DASH_PAGES.json` next to this file (the same six pages as
-data). Where the firmware and this document disagree, the firmware is wrong.
-
-This document replaces `PROMPT_DASH_IN_TUNER.md` and `PROMPT_DASH_POLISH.md`; the deviations still open
-against it are tracked on issue #127.
+Visual references: `CANShift Dash Pages.dc.html` (the six pages rendered at 2×), `DASH_PAGES.json` (the
+same six pages as data) and `CANShift States and Alerts.dc.html` (the severity levels, the system states
+and the full control-state matrix). Where the firmware and this document disagree, the firmware is wrong.
 
 Read the whole document before writing code. Then: audit, list deviations, fix in the order at the end.
 
@@ -41,15 +38,28 @@ Two themes. Danger and engaged are the same in both — they are safety colours,
 | Ink — values, primary rules, button outlines | `CS_INK` | `#FFFFFF` | `#000000` |
 | Dim — kickers, units, status row | `CS_DIM` | `#BABAB8` | `#5A5A5A` |
 | Track — bar grounds, unlit shift cells, 1 px rules | `CS_TRACK` | `#222222` | `#C4C4C4` |
+| Warning | `CS_WARN` | `#FF8800` | `#FF8800` |
 | Danger | `CS_DANGER` | `#FF4444` | `#FF4444` |
 | Engaged | `CS_ENGAGED` | `#FF4747` | `#FF4747` |
+| Locked — unavailable control outline | `CS_LOCK_LINE` | `#333333` | `#B4B4B4` |
+| Locked — unavailable control text | `CS_LOCK_INK` | `#6B6B6B` | `#8A8A8A` |
 
-Six colours. There is no seventh. No gradient, no shadow, no tint, no opacity below 100 % except the
+Nine tokens, and there is no tenth. No gradient, no shadow, no tint, no opacity below 100 % except the
 75 % white used for a kicker on an engaged button and the pulse in §9.
 
-**Danger vs engaged.** `#FF4444` means *this reading is out of range* — it colours the widget's rule,
-kicker and value. `#FF4747` means *this function is on* — it fills a button. They are never swapped and
-never mixed on the same widget.
+**Four severity levels**, and the level is always carried by the rule and the ground — never by an icon or
+a badge:
+
+| Level | Token | Reads as |
+| --- | --- | --- |
+| Information | none | a normal widget. A transient state needing no action looks like a healthy value. |
+| Warning | `CS_WARN` | one reading out of range: rule, kicker and value amber, unit stays Dim, page untouched, nothing blinks. |
+| Critical | `CS_DANGER` | the engine is at risk: full pulsing takeover (§10). Physical danger only. |
+| Failure | `CS_DANGER` | the system cannot continue: danger rule on the normal ground, the reason in mono, one stated way out. Never a takeover. |
+
+**Warning vs danger vs engaged.** `#FF8800` means *out of range, keep driving and watch it* — and it is
+also the DO NOT UNPLUG line during a firmware update. `#FF4444` means *danger or failure*. `#FF4747`
+means *this function is on* and only ever fills a button. Never swapped, never two on one widget.
 
 ## 3. Type
 
@@ -115,8 +125,8 @@ Device metrics:
 
 - **Left padding is zero.** The kicker and the value sit flush on the column edge; only the right side is
   inset so two widgets do not touch.
-- **Danger variant**: rule, kicker and value all in `CS_DANGER`; the unit stays Dim. Nothing else changes
-  — no fill, no icon, no box, no blink.
+- **Warning variant**: rule, kicker and value all in `CS_WARN`; the unit stays Dim. Nothing else changes.
+- **Danger variant**: same, in `CS_DANGER`. Neither variant adds a fill, an icon, a box or a blink.
 - **Bar gauge** (only where `DASH_PAGES.json` gives a `bar`): 2 px tall device, ground `CS_TRACK`, fill
   `CS_INK` (or `CS_DANGER` in a danger widget), 4 px above it, right margin matching the widget, square
   ends, no border, no label.
@@ -132,10 +142,34 @@ The only boxed widget. Used on Controls and for the Timing timer.
 | Padding | 6 vertical / 7 horizontal |
 | Content | kicker above, state word below, both flush left, vertically centred |
 
-- **Idle**: border `CS_INK`, ground = the page ground, kicker Dim, state word Ink.
-- **Engaged**: border **and** ground `CS_ENGAGED`, kicker white at 75 %, state word white.
+Four states, and every control reads the same four ways so the driver never learns a second vocabulary:
+
+- **Off**: border `CS_INK`, ground = the page ground, kicker Dim, state word Ink.
+- **Armed**: identical to off, pulsing per §9. The condition is met but the function has not fired
+  (`LAUNCH · 4200 rpm — ARMED`, `CRUISE · SET 110 — ARMED`).
+- **Active**: border **and** ground `CS_ENGAGED`, kicker white at 75 %, state word white. **Steady** — an
+  active control never pulses. A control that is intervening says so in its kicker
+  (`TRACTION · CUTTING`), it does not move.
+- **Unavailable**: border `CS_LOCK_LINE`, text `CS_LOCK_INK`, and **the kicker states why** — never a bare
+  grey-out: `ANTI-LAG · EGT HIGH`, `LAUNCH · MOVING`, `TRACTION · NO WHEEL SPEED`,
+  `PIT LIMIT · GEAR 4`, `CRUISE · BRAKE CUT`. State word `LOCKED`, `N/A` or `CANCELLED`.
+
+**Two kinds of button**, legible from the state word alone:
+
+- **Toggle** — anti-lag, launch, pit limit, cruise. One tap engages, the next disengages; the state word
+  is a word (`ON`/`OFF`, `ARMED`, `READY`).
+- **Stepper** — traction control and the ECU map. **Each tap raises the level by one** (1, 2, 3 … 6), and
+  the tap past the top wraps back to `OFF`, so the whole range is reachable with one finger and no second
+  button. A 600 ms long press returns to level 1. The segment row under the state word is the only
+  readout of the current level.
+
+Extra rules:
+
 - Real touch target never below 48 × 50 px device — widen the span rather than shrink the box.
-- No unit, no icon, no state dot.
+- No unit, no icon, no state dot. A traction-control glyph is an OEM convention and unreadable at
+  320 px; the word plus the state carries it, and the word is what the driver would say out loud.
+- A level control (traction 1–6) shows a row of segment cells under the state word: 2 px device high,
+  lit in Ink (white at 30 % over an engaged fill), unlit in `CS_TRACK`.
 
 ## 7. Shift light
 
@@ -144,6 +178,21 @@ Only on a page that declares it (Track). One row across the full content width:
 - 12 equal cells, height 7 px device, gaps 2 px device, square, no border.
 - Cells 1–7 `CS_INK`, cells 8–9 `CS_DANGER`, cells 10–12 `CS_TRACK` when unlit.
 - Fills left to right with rpm. At the limiter the whole row blinks (§9).
+
+## 7b. Cut band
+
+A protection cut (boost, fuel, ignition, knock retard, rev limit, overheat, limp) shows a persistent
+full-width band directly under the shift light for as long as the cut lasts: a 2 px rule in the severity
+colour, the cut name in Archivo 800 (0.16em, uppercase), the measured value against its limit in mono, and
+the elapsed time right-aligned. 13 px device tall.
+
+Amber CS_WARN when the cut holds a target (overboost, rev limit, traction, pit limit), detail dim; danger
+CS_DANGER when it protects the engine (oil pressure, overheat, limp), detail in Ink. The causing value
+takes the same colour on its own widget. Cut names come from the ECU profile, never invented at runtime.
+
+Minimum on-screen time 1.5 s so a 60 ms cut is readable; a latched cut reads LATCHED instead of a timer;
+concurrent cuts stack most-severe-first, three maximum. A cut is not driver-requested, so it never takes
+the screen and never pulses — see §F of the states plank.
 
 ## 8. Status row
 
@@ -169,7 +218,7 @@ Nothing else on the dash moves.
 | Value update | **snap**. Never tween a numeral. |
 | Bar gauge / arc | catch up in 120 ms **linear** |
 | Rev limit | hard on/off blink at 6 Hz, no easing |
-| Engaged / armed state | 1 s ease-in-out pulse, 100 % → 35 % opacity |
+| **Armed** state | 1 s ease-in-out pulse, 100 % → 35 % opacity. The pulse belongs to armed and to armed only — active is steady, warnings never blink. |
 | Stale signal (500 ms with no frame) | value drops to Dim and renders `- -`, unit kept |
 | Page change | instant cut — no slide, no fade |
 
@@ -198,9 +247,12 @@ fit 320 × 240 is **rejected at config load**, and the Tuner flags it before wri
 - [ ] Spans match `DASH_PAGES.json` on all six pages.
 - [ ] Status row has exactly three fields, bus rate on the left.
 - [ ] Shift light: 7 ink + 2 danger + 3 track, 12 cells.
-- [ ] Engaged buttons filled `#FF4747`; danger readings `#FF4444`; the two never swapped.
+- [ ] Warning readings amber `#FF8800`; danger `#FF4444`; engaged buttons filled `#FF4747`; never swapped.
+- [ ] All four button states present, and every unavailable control states its reason in the kicker.
+- [ ] Only armed pulses. No active control, no warning and no cut band moves.
+- [ ] Cut band: right severity colour, name from the profile, 1.5 s minimum, stacks to three.
 - [ ] No animation outside §9; page change is a cut.
-- [ ] Radius 0, no shadow, no gradient, no seventh colour.
+- [ ] Radius 0, no shadow, no gradient, no tenth token.
 
 ## 13. Order of work
 
@@ -209,7 +261,7 @@ fit 320 × 240 is **rejected at config load**, and the Tuner flags it before wri
 3. The widget grammar (§5) — this is where the drift is; strip any card/box/fill first.
 4. Grid and spans per page from `DASH_PAGES.json` (§4).
 5. Shift light and status row (§7, §8).
-6. Buttons (§6).
+6. Buttons (§6) — all four states, including the unavailable pair.
 7. Motion (§9), then the alert (§10) and the overflow assert (§11).
 
 Follow the firmware's own ownership rules (`2.3 LVGL ownership`, `2.4 Page lifecycle`): widgets are

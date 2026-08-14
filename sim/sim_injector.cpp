@@ -2,6 +2,7 @@
 #include "sim_display.h"
 
 #include "can/signal_map.h"
+#include "diag/error_store.h"
 #include "runtime/signal_store.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
@@ -17,18 +18,16 @@
 
 namespace {
 
-enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, OilLow, AllStale };
+enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, OilLow, Warning, AllStale };
 
 struct ScenarioName {
     const char *name;
     Mode mode;
 };
 
-constexpr ScenarioName kScenarioNames[] = {{"cruise", Mode::Cruise},
-                                           {"rev", Mode::RevLimit},
-                                           {"oil", Mode::OilCritical},
-                                           {"oil-low", Mode::OilLow},
-                                           {"stale", Mode::AllStale}};
+constexpr ScenarioName kScenarioNames[] = {{"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},
+                                           {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow},
+                                           {"warn", Mode::Warning},    {"stale", Mode::AllStale}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;
@@ -40,6 +39,9 @@ constexpr size_t kOtaTotalBytes = 1024 * 1024;
 constexpr uint32_t kOtaDurationMs = 12000;
 constexpr uint32_t kOtaFailDetail = 0x1502;
 constexpr float kOilLowBar = 1.2f;
+constexpr float kWarnCoolantC = 105.0f;
+constexpr float kWarnOilTempC = 138.0f;
+constexpr float kWarnIatC = 58.0f;
 
 void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f) {
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
@@ -82,6 +84,13 @@ void feedOilLow(uint32_t nowMs) {
     feedCruise(nowMs, kOilLowBar);
 }
 
+void feedWarning(uint32_t nowMs) {
+    feedCruise(nowMs);
+    SignalStore::update(SignalIds::COOLANT_TEMP_C, kWarnCoolantC);
+    SignalStore::update(SignalIds::OIL_TEMP_C, kWarnOilTempC);
+    SignalStore::update(SignalIds::IAT_C, kWarnIatC);
+}
+
 void startOtaDemo(uint32_t nowMs) {
     s_otaDemo = true;
     s_otaStartMs = nowMs;
@@ -96,13 +105,20 @@ void startOtaFailed(uint32_t) {
     OtaOverlay::showFailed(OtaOverlay::FailReason::Commit, kOtaFailDetail);
 }
 
+void startFailureSurface(uint32_t) {
+    ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", "PAGE 4 EXCEEDS 240 PX");
+    ErrorStore::push(ERROR_SRC_CAN, "NO_FRAMES", "BUS SILENT 4 s - CHECK WIRING");
+}
+
 struct OverlayScenario {
     const char *name;
     void (*start)(uint32_t nowMs);
 };
 
-constexpr OverlayScenario kOverlayScenarios[] = {
-    {"ota", startOtaDemo}, {"ota-complete", startOtaComplete}, {"ota-failed", startOtaFailed}};
+constexpr OverlayScenario kOverlayScenarios[] = {{"ota", startOtaDemo},
+                                                 {"ota-complete", startOtaComplete},
+                                                 {"ota-failed", startOtaFailed},
+                                                 {"failure", startFailureSurface}};
 
 void tickOtaDemo(uint32_t nowMs) {
     if (!s_otaDemo)
@@ -144,6 +160,10 @@ void handleKey(int key, uint32_t nowMs) {
             s_mode = Mode::OilCritical;
             printf("mode: oil pressure critical\n");
             break;
+        case SDLK_w:
+            s_mode = Mode::Warning;
+            printf("mode: warning band\n");
+            break;
         case SDLK_x:
             s_mode = Mode::AllStale;
             printf("mode: all signals stale\n");
@@ -181,8 +201,8 @@ namespace SimInjector {
 
 void init(const char *scenario) {
     s_startMs = millis();
-    printf("keys: C cruise · R rev-limit · O oil-critical · X stale · F ota · ←/→ pages · S "
-           "screenshot · ESC quit\n");
+    printf("keys: C cruise · R rev-limit · O oil-critical · W warning · X stale · F ota · ←/→ "
+           "pages · S screenshot · ESC quit\n");
     if (!scenario)
         return;
     for (const ScenarioName &entry : kScenarioNames) {
@@ -218,6 +238,9 @@ void tick(uint32_t nowMs) {
             break;
         case Mode::OilLow:
             feedOilLow(nowMs);
+            break;
+        case Mode::Warning:
+            feedWarning(nowMs);
             break;
         case Mode::AllStale:
             break;

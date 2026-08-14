@@ -1,6 +1,7 @@
 #include "gauge_widget.h"
 #include "ui/font_manager.h"
 #include "ui/rev_limit_flash.h"
+#include "ui/severity.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -106,8 +107,7 @@ static int32_t scaleForDisplay(float value, uint8_t decimals) {
 struct GaugeTag {
     lv_obj_t *valueLabel;
     lv_obj_t *fillArc;
-    lv_obj_t *topRule;
-    lv_obj_t *kicker;
+    Severity::Surface severity;
     float minValue;
     float maxValue;
     float lastValue;
@@ -117,30 +117,18 @@ struct GaugeTag {
     bool revFlash;
     bool lastBlanked;
     uint32_t inkRgb;
+    float warnLevel;
     float dangerLevel;
     uint32_t lastLabelRgb;
     uint32_t lastFillRgb;
-    uint32_t ruleBaseRgb;
-    uint32_t ruleLastRgb;
-    uint32_t kickerLastRgb;
-    bool lastDangerActive;
     uint16_t lastAngle;
     int32_t lastDisplayScaled;
 };
 
-static void applyDangerChrome(GaugeTag *tag, bool danger) {
-    WidgetHelpers::setRuleColorIfChanged(tag->topRule, tag->ruleLastRgb,
-                                         danger ? WidgetHelpers::kZoneDangerRgb : tag->ruleBaseRgb);
-    if (danger == tag->lastDangerActive)
-        return;
-    tag->lastDangerActive = danger;
-    if (!tag->kicker)
-        return;
-    const uint32_t kickerRgb = danger ? WidgetHelpers::kZoneDangerRgb : ThemeManager::dimColor();
-    if (tag->kickerLastRgb != kickerRgb) {
-        lv_obj_set_style_text_color(tag->kicker, lv_color_hex(kickerRgb), 0);
-        tag->kickerLastRgb = kickerRgb;
-    }
+static uint32_t gaugeInkFor(const GaugeTag *tag, Severity::Level level) {
+    if (level == Severity::Level::INFORMATION)
+        return tag->inkRgb;
+    return Severity::inkFor(level);
 }
 
 static void arcAngleAnimCb(void *obj, int32_t angle) {
@@ -234,7 +222,7 @@ struct GaugeBuildState {
     lv_obj_t *fillArc;
     lv_obj_t *topRule;
     lv_obj_t *kicker;
-    uint32_t ruleBaseRgb;
+    uint8_t rulePx;
     uint16_t dangerAngle;
     bool hasDanger;
 };
@@ -256,12 +244,7 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
                          uint32_t inkRgb) {
     tag->valueLabel = built.label;
     tag->fillArc = built.fillArc;
-    tag->topRule = built.topRule;
-    tag->kicker = built.kicker;
-    tag->ruleBaseRgb = built.ruleBaseRgb;
-    tag->ruleLastRgb = built.ruleBaseRgb;
-    tag->kickerLastRgb = ThemeManager::dimColor();
-    tag->lastDangerActive = false;
+    tag->severity = Severity::adopt(built.topRule, built.kicker, nullptr, built.rulePx, inkRgb);
     tag->minValue = cfg.gauge.minValue;
     tag->maxValue = cfg.gauge.maxValue;
     tag->lastValue = NAN;
@@ -273,6 +256,8 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->lastAngle = 0xFFFFu;
     tag->lastDisplayScaled = INT32_MIN;
+    tag->warnLevel =
+        WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->revFlash = cfg.gauge.revFlash;
     tag->lastBlanked = false;
@@ -305,17 +290,16 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix));
 
     const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
-    const uint32_t ruleRgb = primaryTier ? textRgb : ThemeManager::trackColor();
-    lv_obj_t *topRule = WidgetHelpers::makeTopRule(
-        cont, primaryTier ? WidgetHelpers::kRulePrimaryPx : WidgetHelpers::kRuleSecondaryPx,
-        ruleRgb);
+    const uint8_t rulePx = primaryTier ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx;
+    lv_obj_t *topRule =
+        WidgetHelpers::makeTopRule(cont, rulePx, Severity::baseRuleRgbFor(rulePx, textRgb));
 
     WidgetTagPool::Slot<GaugeTag> tagSlot;
     GaugeTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "GAUGE", cont);
     if (!tag)
         return nullptr;
-    const GaugeBuildState built = {label,   fillArc,           topRule,        kicker,
-                                   ruleRgb, modes.dangerAngle, modes.hasDanger};
+    const GaugeBuildState built = {label,  fillArc,           topRule,        kicker,
+                                   rulePx, modes.dangerAngle, modes.hasDanger};
     initGaugeTag(tag, cfg, built, textRgb);
 
     lv_obj_set_user_data(cont, tag);
@@ -338,7 +322,7 @@ static void renderStale(GaugeTag *tag) {
         WidgetHelpers::setFillImmediate(tag->fillArc, arcAngleAnimCb, 0);
         tag->lastAngle = 0u;
     }
-    applyDangerChrome(tag, false);
+    Severity::repaint(tag->severity, Severity::Level::INFORMATION);
 }
 
 void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -361,11 +345,12 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     tag->lastValue = value;
     tag->lastValid = true;
 
-    const bool inDanger =
-        tag->hasDanger &&
-        WidgetHelpers::isValueInDanger(value, cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
-    const uint32_t labelColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
-    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, labelColor);
+    const Severity::Level level =
+        tag->hasDanger
+            ? Severity::forReading(value, tag->warnLevel, tag->dangerLevel, cfg.gauge.dangerBelow)
+            : Severity::Level::INFORMATION;
+    const uint32_t levelRgb = gaugeInkFor(tag, level);
+    WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, levelRgb);
 
     if (tag->fillArc) {
         const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
@@ -375,12 +360,11 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
             tag->lastAngle = angle;
         }
 
-        const uint32_t fillColor = inDanger ? cfg.style.criticalColor.rgb : tag->inkRgb;
-        WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, fillColor,
+        WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, levelRgb,
                                            LV_PART_INDICATOR);
     }
 
-    applyDangerChrome(tag, inDanger);
+    Severity::repaint(tag->severity, level);
 
     const int32_t displayScaled = scaleForDisplay(value, cfg.gauge.decimalPlaces);
     if (displayScaled != tag->lastDisplayScaled) {
