@@ -98,6 +98,12 @@ class HardwareSerialMock : public Print {
         buf[len] = '\0';
         return take;
     }
+    int availableForWrite() {
+        const size_t cap = 4096 - 1;
+        const size_t len = canshift_test::serialCaptureLen();
+        return static_cast<int>(len >= cap ? 0 : cap - len);
+    }
+    void flush() {}
 };
 
 inline HardwareSerialMock &serialInstance() {
