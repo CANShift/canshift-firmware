@@ -151,9 +151,9 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     }
 
     char line[LINE_BUF_SIZE];
-    const int n =
-        snprintf(line, sizeof(line), "{\"log\":1,\"lvl\":\"%c\",\"tag\":\"%s\",\"msg\":\"%s\"}\n",
-                 lvl, tagBuf, escaped);
+    const int n = snprintf(line, sizeof(line),
+                           "{\"log\":1,\"ts\":%lu,\"lvl\":\"%c\",\"tag\":\"%s\",\"msg\":\"%s\"}\n",
+                           static_cast<unsigned long>(millis()), lvl, tagBuf, escaped);
     if (n > 0) {
         const size_t toWrite =
             (static_cast<size_t>(n) >= sizeof(line)) ? sizeof(line) - 1 : static_cast<size_t>(n);
