@@ -27,6 +27,8 @@ void handleOtaEnd(const JsonObjectConst &obj);
 
 void handlePutFile(const JsonObjectConst &obj);
 void handlePutConfig(const char *jsonLine);
+
+void handlePutConfigChunk(const JsonObjectConst &obj);
 void handleGetConfig();
 void abortChunkTransfer(const char *reason);
 

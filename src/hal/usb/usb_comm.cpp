@@ -288,6 +288,13 @@ void UsbComm::tick() {
     UsbCommInternal::tickChunkTransferTimeout();
     UsbCommInternal::tickObdDtc();
 
+    if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > USB_RX_LINE_TIMEOUT_MS) {
+        LOG_WARN("USB", "RX line abandoned after %u ms — dropping %u buffered byte(s)",
+                 static_cast<unsigned>(USB_RX_LINE_TIMEOUT_MS), static_cast<unsigned>(s_rxPos));
+        s_rxPos = 0;
+        s_rxDraining = false;
+    }
+
     while (Serial.available() > 0) {
         char c = static_cast<char>(Serial.read());
 

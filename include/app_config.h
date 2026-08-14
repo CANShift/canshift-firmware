@@ -167,6 +167,8 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #define USB_TX_BUFFER_BYTES 4096
 
 #define USB_TX_PIECE_BYTES 64
+
+#define USB_RX_LINE_TIMEOUT_MS 2000
 #define OTA_COMPLETE_SCREEN_HOLD_MS 1200
 #define USB_TASK_TICK_INTERVAL_MS 20
 

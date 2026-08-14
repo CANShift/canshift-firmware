@@ -34,6 +34,7 @@ static constexpr uint8_t CMD_GET_INPUT_BINDINGS = 0x0B;
 
 static constexpr uint8_t CMD_PUT_INPUT_BINDINGS = 0x0C;
 static constexpr uint8_t CMD_SET_BOARD_PROFILE = 0x0D;
+static constexpr uint8_t CMD_PUT_CONFIG_CHUNK = 0x0E;
 static constexpr uint8_t CMD_GET_STATUS = 0x10;
 static constexpr uint8_t CMD_PING = 0x11;
 static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
