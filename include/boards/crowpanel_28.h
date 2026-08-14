@@ -53,8 +53,8 @@ constexpr BoardProfile kActiveBoard = {
 
     {
         CanController::EspTwai,
-        25,
-        32,
+        22,
+        21,
         500,
     },
 

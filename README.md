@@ -118,7 +118,7 @@ set is the follow-up, tracked in #64). Wrap container geometry, not text metrics
 - Default-config provisioning — embedded `dashboard.json` / `signals.json` / `theme.json` are written to fresh SPIFFS on first boot. User data is never overwritten (`src/config/default_config.h`, `src/boot/boot_sequence.cpp`).
 - Atomic config writes via `StorageDriver::writeFileAtomic` with a `.bak` fallback (see `readAndParseWithBak` in `src/config/config_loader.cpp`).
 - Burn overlay — full-screen "Saving config…" feedback with auto error state on storage write failure (`src/ui/burn_overlay.h`).
-- Runtime device config (`device.json`) overrides TWAI pins and CAN bus speed without recompiling (see `CanManager::begin` in `src/can/can_manager.cpp`).
+- Runtime device config (`device.json`) can override the CAN bus speed and, if needed, the TWAI pins — but it ships without pins, so each board uses the ones in its own profile (see `installAndStartOnThisCore` in `src/can/can_manager.cpp`).
 - CAN-task IDLE0 yield fix — `vTaskDelay(CAN_TASK_YIELD_TICKS)` keeps the Task Watchdog Timer happy on a busy bus (see `taskCAN` in `src/main.cpp`, issue #200).
 - Splash screen with progress bar and a 2 s minimum hold (see `BootSequence::run` in `src/boot/boot_sequence.cpp`).
 - CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains them to USB at ≤32 frames per tick.
@@ -264,18 +264,19 @@ WiFi-extended image must be USB-reflashed via the Tuner before OTA resumes.
 
 ## First-flash checklist
 
-1. Verify pins in [`include/board_config.h`](include/board_config.h) **and** the
-   contents of [`data/config/device.json`](data/config/device.json) against
-   your CrowPanel 2.8" schematic and your CAN-Pal wiring.
+1. Verify the pins in your board's profile under
+   [`include/boards/`](include/boards/) against its schematic and your CAN-Pal
+   wiring.
 2. `pio run --target upload` — flash the default `[env:crowpanel_28]` build.
 3. Confirm the display initializes, the splash holds for 2 s, and the
    dashboard renders. Without a CAN transceiver attached the signal-driven
    widgets stay at their default values — the BLE path still comes up.
 4. Connect the CAN transceiver and verify signal reception via the Tuner's
    Diagnostics panel over WebSerial.
-5. Confirm `device.json` matches your CAN-Pal wiring (`twai_tx_pin`,
-   `twai_rx_pin`, `can_speed_kbps`). If absent, the firmware falls back to
-   `PIN_TWAI_TX` / `PIN_TWAI_RX` from `board_config.h`.
+5. The TWAI pins come from the active board profile in
+   [`include/boards/`](include/boards/); `device.json` ships with only
+   `can_speed_kbps` and does not name them. Add `twai_tx_pin` / `twai_rx_pin`
+   there only to override a board whose wiring differs from its profile.
 6. Connect the dash over USB and push a config from the browser Tuner
    ([canshift-tuner](https://github.com/CANShift/canshift-tuner)).
 
@@ -357,7 +358,7 @@ canshift-firmware/
 │   ├── config/
 │   │   ├── dashboard.json          # Default dashboard layout (also embedded)
 │   │   ├── signals.json            # Default CAN signal mapping (MaxxECU example, UNVERIFIED, also embedded)
-│   │   └── device.json             # Runtime hardware overrides
+│   │   └── device.json             # Runtime overrides — CAN speed, optionally the TWAI pins
 │   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
 │   └── fonts/                      # LVGL .bin fonts (orbitron_<weight>_<size>.bin)
 └── scripts/
