@@ -303,8 +303,11 @@ void BootSequence::markOtaSlotValidIfPending() {
     }
 }
 
-static void silenceNvsLogNoise() {
+static void silenceFrameworkLogNoise() {
     esp_log_level_set("nvs", ESP_LOG_WARN);
+#if !APP_DEBUG_BUILD
+    esp_log_level_set("*", ESP_LOG_NONE);
+#endif
 }
 
 static void initPsramAndLogEntry() {
@@ -492,7 +495,7 @@ static void logBootCompleteAndReady(uint32_t bootStartMs) {
 }
 
 void BootSequence::run() {
-    silenceNvsLogNoise();
+    silenceFrameworkLogNoise();
     BoardProfileStore::loadAndApply();
     const uint32_t bootStartMs = millis();
     initPsramAndLogEntry();

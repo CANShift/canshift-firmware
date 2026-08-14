@@ -70,7 +70,7 @@ void show() {
     if (urlIntro)
         lv_obj_align(urlIntro, LV_ALIGN_TOP_LEFT, marginX, LayoutScale::y(142));
 
-    lv_obj_t *url = makeMonoLabel(scr, "canshift-tuner.vercel.app", kInkRgb, 10);
+    lv_obj_t *url = makeMonoLabel(scr, "tuner.canshift.app", kInkRgb, 10);
     if (url)
         lv_obj_align(url, LV_ALIGN_TOP_LEFT, marginX, LayoutScale::y(158));
 

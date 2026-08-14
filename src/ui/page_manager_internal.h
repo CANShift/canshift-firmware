@@ -34,6 +34,12 @@ void buildPage(uint8_t idx, const CfgPage &cfg);
 
 void reapplyThemeAllPages();
 
+void buildPageList();
+
+uint8_t defaultPageIndex();
+
+void releasePage(Page &p);
+
 void showPage(uint8_t idx);
 
 void onSwipe(lv_dir_t dir);

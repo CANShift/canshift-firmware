@@ -151,6 +151,7 @@ static void createAllTasks() {
 
 void setup() {
     Serial.setRxBufferSize(2048);
+    Serial.setTxBufferSize(USB_TX_BUFFER_BYTES);
     Serial.begin(USB_SERIAL_BAUD);
     delay(200);
 
@@ -243,6 +244,13 @@ inline void uiDrainBurnOverlayActions() {
     }
 }
 
+inline void uiDrainConfigReload() {
+    if (!PendingActions::takeConfigReload()) {
+        return;
+    }
+    PageManager::reloadFromStorage();
+}
+
 inline void uiDrainNavActions() {
     char pageId[CFG_MAX_ID_LEN];
     if (PendingActions::takeNavPage(pageId, sizeof(pageId))) {
@@ -301,6 +309,7 @@ inline bool uiRunMutexFrame(bool &didDayNightChange) {
     uiDrainPasskeyActions();
     uiDrainBurnOverlayActions();
     uiDrainOtaOverlayActions();
+    uiDrainConfigReload();
     uiDrainNavActions();
     PageManager::updateWidgets();
     uiRunLvTaskHandler();

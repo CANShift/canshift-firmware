@@ -7,6 +7,7 @@
 #include "config/config_types.h"
 #include "diag/heap_stats.h"
 #include "diag/logger.h"
+#include "runtime/pending_actions.h"
 #include "hal/storage/storage_driver.h"
 #include "runtime/lvgl_lock.h"
 
@@ -41,6 +42,16 @@ void resetChunkState() {
     s_chunk.expectedIdx = 0;
     s_chunk.total = 0;
 }
+
+class SerialPrint : public Print {
+  public:
+    size_t write(uint8_t b) override {
+        return Logger::writeAll(&b, 1) ? 1 : 0;
+    }
+    size_t write(const uint8_t *data, size_t len) override {
+        return Logger::writeAll(data, len) ? len : 0;
+    }
+};
 
 class BufferPrint : public Print {
   public:
@@ -179,10 +190,9 @@ void handlePutConfig(const char *jsonLine) {
         return;
     }
 
-    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — rebooting", written);
-    UsbComm::sendOkRebooting();
-    Serial.flush();
-    esp_restart();
+    LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading live", written);
+    PendingActions::configReload.store(true, std::memory_order_relaxed);
+    UsbComm::sendOk();
 }
 
 void handleGetConfig() {
@@ -196,37 +206,30 @@ void handleGetConfig() {
         UsbComm::sendError("config_not_found");
         return;
     }
-    static constexpr size_t kEnvelopeOverhead = 32;
-    const size_t needed = fileBytes + kEnvelopeOverhead;
-    if (needed > USB_RX_BUF_SIZE) {
-        LOG_ERROR("USB", "GET_CONFIG: response %u B exceeds rxBuf %u B",
-                  static_cast<unsigned>(needed), static_cast<unsigned>(USB_RX_BUF_SIZE));
-        UsbComm::sendError("too_large");
-        return;
-    }
-    if (UsbCommInternal::s_rxBuf == nullptr) {
-        UsbComm::sendError("rxbuf_unavailable");
-        return;
-    }
-    char *buf = UsbCommInternal::s_rxBuf;
     static const char kPrefix[] = "{\"status\":\"ok\",\"config\":";
-    constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
-    memcpy(buf, kPrefix, kPrefixLen);
+    static const char kSuffix[] = "}\n";
 
-    BufferPrint sink(buf + kPrefixLen, needed - kPrefixLen - 2);
-    const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink, true);
-
-    if (streamed == 0 || sink.used() == 0 || streamed != sink.used()) {
-        LOG_WARN("USB", "GET_CONFIG: stream mismatch for %s (streamed=%u, sink=%u)",
-                 CONFIG_PATH_DASHBOARD, static_cast<unsigned>(streamed),
-                 static_cast<unsigned>(sink.used()));
-        UsbComm::sendError("config_read_failed");
+    if (!Logger::lockUart(pdMS_TO_TICKS(USB_TX_LOCK_TIMEOUT_MS))) {
+        LOG_WARN("USB", "GET_CONFIG: serial busy");
+        UsbComm::sendError("busy");
         return;
     }
-    size_t pos = kPrefixLen + sink.used();
-    buf[pos++] = '}';
-    buf[pos] = '\0';
-    UsbComm::sendLine(buf);
+
+    SerialPrint sink;
+    const bool prefixOk =
+        Logger::writeAll(reinterpret_cast<const uint8_t *>(kPrefix), sizeof(kPrefix) - 1);
+    const size_t streamed =
+        prefixOk ? StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink, true) : 0;
+    const bool suffixOk =
+        streamed > 0 &&
+        Logger::writeAll(reinterpret_cast<const uint8_t *>(kSuffix), sizeof(kSuffix) - 1);
+    Logger::unlockUart();
+
+    if (!suffixOk) {
+        LOG_ERROR("USB", "GET_CONFIG: stream to host failed after %u B",
+                  static_cast<unsigned>(streamed));
+        return;
+    }
 
     LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
 }

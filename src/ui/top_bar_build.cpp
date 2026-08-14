@@ -315,6 +315,15 @@ void TopBar::applyPage(const CfgPage &page) {
     TopBar::update();
 }
 
+void TopBar::rebuild() {
+    clearDynItems();
+    if (s_bar) {
+        lv_obj_del(s_bar);
+        s_bar = nullptr;
+    }
+    TopBar::init();
+}
+
 void TopBar::init() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     const CfgTopBar &cfg = dash.topBar;

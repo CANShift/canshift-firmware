@@ -6,12 +6,8 @@ namespace OverlayScaffold {
 
 namespace {
 
-constexpr uint16_t kSpinnerAdvanceDeg = 6;
-constexpr uint32_t kTrackRgb = 0x2A2A2A;
-constexpr uint32_t kIndicatorRgb = 0xFF4444;
-constexpr int16_t kArcStrokePx = 4;
-
-constexpr uint32_t kBreathHalfPeriodMs = 900;
+constexpr uint32_t kBreathHalfPeriodMs = 500;
+constexpr lv_opa_t kPulseFloorOpa = 89;
 
 constexpr int16_t kSleeveW = 18;
 constexpr int16_t kSleeveH = 24;
@@ -87,33 +83,12 @@ lv_obj_t *makeUsbIcon(lv_obj_t *parent, uint32_t rgb) {
     return icon;
 }
 
-lv_obj_t *makeSpinnerArc(lv_obj_t *parent, int16_t diameterPx) {
-    lv_obj_t *arc = lv_arc_create(parent);
-    lv_obj_set_size(arc, LayoutScale::square(diameterPx), LayoutScale::square(diameterPx));
-    lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_arc_set_bg_angles(arc, 0, 360);
-    lv_arc_set_angles(arc, 0, kSpinnerSpanDeg);
-    lv_arc_set_rotation(arc, 0);
-    lv_obj_set_style_arc_color(arc, lv_color_hex(kTrackRgb), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc, kArcStrokePx, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc, lv_color_hex(kIndicatorRgb), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc, kArcStrokePx, LV_PART_INDICATOR);
-    lv_obj_remove_style(arc, nullptr, LV_PART_KNOB);
-    return arc;
-}
-
-void stepSpinner(lv_obj_t *arc, uint16_t &angleDeg) {
-    angleDeg = static_cast<uint16_t>((angleDeg + kSpinnerAdvanceDeg) % 360);
-    const auto end = static_cast<uint16_t>((angleDeg + kSpinnerSpanDeg) % 360);
-    lv_arc_set_angles(arc, angleDeg, end);
-}
-
 void startBreath(lv_obj_t *obj) {
     lv_anim_t breath;
     lv_anim_init(&breath);
     lv_anim_set_exec_cb(&breath, breathCb);
     lv_anim_set_var(&breath, obj);
-    lv_anim_set_values(&breath, LV_OPA_20, LV_OPA_COVER);
+    lv_anim_set_values(&breath, kPulseFloorOpa, LV_OPA_COVER);
     lv_anim_set_time(&breath, kBreathHalfPeriodMs);
     lv_anim_set_playback_time(&breath, kBreathHalfPeriodMs);
     lv_anim_set_repeat_count(&breath, LV_ANIM_REPEAT_INFINITE);

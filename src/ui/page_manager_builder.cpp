@@ -1,6 +1,7 @@
 
 #include "page_manager_internal.h"
 
+#include "burn_overlay.h"
 #include "diag_drawer.h"
 #include "error_bar.h"
 #include "icon_assets.h"
@@ -8,6 +9,9 @@
 #include "theme_manager.h"
 #include "theme_tokens.h"
 #include "top_bar.h"
+#include "diag/lvgl_assert_lock.h"
+#include "page_manager.h"
+#include "setup_screen.h"
 #include "widget_factory.h"
 #include "widgets/cruise_control_widget.h"
 
@@ -123,6 +127,51 @@ void releasePage(Page &p) {
     p.built = false;
 }
 
+uint8_t defaultPageIndex() {
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        if (strcmp(s_pages[i].id, dash.defaultPageId) == 0) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+void buildPageList() {
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    const char *defaultId = dash.defaultPageId;
+
+    s_pageCount = 0;
+    s_currentIdx = 0;
+
+    for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
+        if (!dash.pages[i].visible) {
+            LOG_INFO("UI", "Skipping hidden page '%s' (visible=false)", dash.pages[i].id);
+            continue;
+        }
+        Page &p = s_pages[s_pageCount];
+        strlcpy(p.id, dash.pages[i].id, CFG_MAX_ID_LEN);
+        p.screen = nullptr;
+        p.built = false;
+        p.cfgIdx = i;
+
+        if (strcmp(p.id, defaultId) == 0) {
+            buildPage(s_pageCount, dash.pages[i]);
+        }
+        s_pageCount++;
+    }
+
+    if (s_pageCount == 0 || s_pages[0].screen) {
+        return;
+    }
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        if (!s_pages[i].screen) {
+            buildPage(i, dash.pages[s_pages[i].cfgIdx]);
+            return;
+        }
+    }
+}
+
 void reapplyThemeAllPages() {
     s_rebuildRequested = false;
 
@@ -161,3 +210,52 @@ void reapplyThemeAllPages() {
 }
 
 } // namespace PageManagerInternal
+
+void PageManager::reloadFromStorage() {
+    using namespace PageManagerInternal;
+
+    LVGL_ASSERT_LOCKED();
+
+    lv_obj_t *blank = lv_obj_create(nullptr);
+    if (!blank) {
+        LOG_ERROR("UI", "Config reload: placeholder alloc failed — keeping the running pages");
+        return;
+    }
+    lv_obj_set_style_bg_color(blank, lv_color_hex(ThemeTokens::kGroundNight), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(blank, LV_OPA_COVER, LV_PART_MAIN);
+    lv_scr_load(blank);
+
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        releasePage(s_pages[i]);
+    }
+    s_pageCount = 0;
+    s_pendingFreeIdx = 0xFF;
+    s_pendingLazyBuildIdx = 0xFF;
+
+    if (!ConfigLoader::reloadAll()) {
+        LOG_ERROR("UI", "Config reload: dashboard.json unusable — showing the setup screen");
+        SetupScreen::show();
+        return;
+    }
+
+    ThemeManager::init();
+    TopBar::rebuild();
+    buildPageList();
+
+    const uint8_t target = defaultPageIndex();
+    if (target >= s_pageCount || !s_pages[target].screen) {
+        LOG_ERROR("UI", "Config reload: no page could be built");
+        return;
+    }
+
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    const CfgPage &page = dash.pages[s_pages[target].cfgIdx];
+    TopBar::setTopInset(shiftStripInset(page));
+    TopBar::applyPage(page);
+    lv_scr_load_anim(s_pages[target].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+    s_currentIdx = target;
+
+    BurnOverlay::hide();
+    LOG_INFO("UI", "Config reloaded live: %u page(s), showing '%s'",
+             static_cast<unsigned>(s_pageCount), s_pages[target].id);
+}

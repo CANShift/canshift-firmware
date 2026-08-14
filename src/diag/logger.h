@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <stddef.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include "app_config.h"
@@ -9,6 +10,8 @@ namespace Logger {
 void init();
 
 void emit(char level, const char *tag, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+
+bool writeAll(const uint8_t *bytes, size_t len);
 
 bool lockUart(TickType_t timeout);
 void unlockUart();

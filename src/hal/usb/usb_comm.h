@@ -65,6 +65,8 @@ void sendOk();
 
 void sendOkRebooting();
 
+void flushAndRestart();
+
 void sendError(const char *code);
 
 using BurnOverlayShowCb = void (*)();

@@ -49,8 +49,7 @@ void handleSetBoardProfile(const JsonObjectConst &doc) {
     }
     LOG_INFO("USB", "CMD_SET_BOARD_PROFILE — profile stored, restarting");
     UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-    vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
-    esp_restart();
+    UsbComm::flushAndRestart();
 }
 
 void sendStatusResponse() {
@@ -84,8 +83,7 @@ void renderSharedOutcome(DeviceCommands::Outcome outcome) {
     }
     if (outcome == DeviceCommands::Outcome::RebootRequested) {
         UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-        vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
-        esp_restart();
+        UsbComm::flushAndRestart();
         return;
     }
     UsbComm::sendOk();
