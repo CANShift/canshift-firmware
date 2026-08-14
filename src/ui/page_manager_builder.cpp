@@ -34,12 +34,6 @@ bool pageDeclaresShiftStrip(const CfgPage &cfg) {
     return false;
 }
 
-int16_t shiftStripInset(const CfgPage &cfg) {
-    if (!pageDeclaresShiftStrip(cfg))
-        return 0;
-    return DashMetrics::kFramePaddingPx + DashMetrics::kShiftStripHeightPx;
-}
-
 namespace {
 
 void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &effectiveBg) {
@@ -78,8 +72,8 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
     const bool hasStrip = pageDeclaresShiftStrip(cfg);
     const int16_t stripBand = hasStrip ? DashMetrics::kShiftStripBandPx : 0;
-    const int16_t contentY =
-        static_cast<int16_t>((cfg.showTopBar ? TopBar::getHeight() : 0) + stripBand);
+    const int16_t topBarBand = cfg.showTopBar ? TopBar::getHeight() : 0;
+    const int16_t contentY = static_cast<int16_t>(topBarBand + stripBand);
 
     if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
         CruiseControlWidget::build(p.screen, cfg, contentY);
@@ -98,7 +92,7 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
     uint8_t created = 0;
     for (uint8_t w = 0; w < cfg.widgetCount; ++w) {
         const CfgWidget &wCfg = cfg.widgets[w];
-        const int16_t yOffset = wCfg.type == WidgetType::SHIFT_LIGHT ? 0 : contentY;
+        const int16_t yOffset = wCfg.type == WidgetType::SHIFT_LIGHT ? topBarBand : contentY;
         if (WidgetFactory::create(p.screen, wCfg, yOffset) != nullptr)
             ++created;
     }
@@ -250,7 +244,6 @@ void PageManager::reloadFromStorage() {
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     const CfgPage &page = dash.pages[s_pages[target].cfgIdx];
-    TopBar::setTopInset(shiftStripInset(page));
     TopBar::applyPage(page);
     lv_scr_load_anim(s_pages[target].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
     s_currentIdx = target;

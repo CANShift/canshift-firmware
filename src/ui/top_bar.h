@@ -15,8 +15,6 @@ void update();
 
 int16_t getHeight();
 
-void setTopInset(int16_t px);
-
 void reapplyTheme();
 
 void applyPage(const CfgPage &page);
