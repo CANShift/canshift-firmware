@@ -54,7 +54,6 @@ void asyncDoLazyBuild(void *) {
     }
 
     PERF_RECORD_PAGE_XSTART();
-    TopBar::setTopInset(shiftStripInset(dash.pages[s_pages[idx].cfgIdx]));
     TopBar::applyPage(dash.pages[s_pages[idx].cfgIdx]);
     lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, placeholderActive);
     s_currentIdx = idx;
@@ -96,7 +95,6 @@ void showPage(uint8_t idx) {
 
     PERF_RECORD_PAGE_XSTART();
     const CfgPage &target = ConfigLoader::getDashboardConfig().pages[s_pages[idx].cfgIdx];
-    TopBar::setTopInset(shiftStripInset(target));
     TopBar::applyPage(target);
     lv_scr_load_anim(s_pages[idx].screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
 
