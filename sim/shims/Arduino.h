@@ -75,6 +75,9 @@ class SerialShim : public Print {
         ::printf("%s\n", s);
     }
     void flush() {}
+    int availableForWrite() {
+        return 4096;
+    }
 };
 
 inline SerialShim Serial;
