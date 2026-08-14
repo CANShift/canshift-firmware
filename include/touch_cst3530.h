@@ -3,6 +3,8 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 
+#include "diag/error_store.h"
+#include "diag/logger.h"
 #include "touch_cst3530_frame.h"
 
 namespace canshift::touch {
@@ -22,12 +24,18 @@ class Touch_CST3530 : public lgfx::ITouch {
             return true;
         }
         if (!lgfx::i2c::init(_cfg.i2c_port, _cfg.pin_sda, _cfg.pin_scl).has_value()) {
+            LOG_ERROR("TOUCH", "i2c port %u sda %d scl %d refused to open",
+                      static_cast<unsigned>(_cfg.i2c_port), static_cast<int>(_cfg.pin_sda),
+                      static_cast<int>(_cfg.pin_scl));
+            ErrorStore::push(ERROR_SRC_SYSTEM, "TOUCH_BUS", "touch i2c bus did not open");
             return false;
         }
-        resetPanel();
-        _inited = probeChip();
         _sleeping = false;
-        return _inited;
+        if (probeChip()) {
+            return true;
+        }
+        logProbeFailure();
+        return false;
     }
 
     void wakeup() override {
@@ -47,12 +55,19 @@ class Touch_CST3530 : public lgfx::ITouch {
     }
 
     uint_fast8_t getTouchRaw(lgfx::touch_point_t *tp, uint_fast8_t count) override {
-        if (!_inited || _sleeping || tp == nullptr || count == 0) {
+        if (_sleeping || tp == nullptr || count == 0) {
+            return 0;
+        }
+        if (!_inited && !reprobeDue()) {
             return 0;
         }
         uint8_t frame[cst3530::kFrameBytes] = {};
-        const uint_fast8_t reported =
-            readCommand(kReadCommand, frame, sizeof(frame)) ? decodePoints(frame, tp, count) : 0;
+        if (!readCommand(kReadCommand, frame, sizeof(frame))) {
+            noteReadFailure();
+            return 0;
+        }
+        _readFailures = 0;
+        const uint_fast8_t reported = decodePoints(frame, tp, count);
         if (!writeCommand(kClearCommand)) {
             return 0;
         }
@@ -73,15 +88,36 @@ class Touch_CST3530 : public lgfx::ITouch {
     static constexpr uint32_t kWakeStage3 = 0xD0000100;
     static constexpr size_t kCommandBytes = 4;
     static constexpr size_t kInfoBytes = 50;
+    static constexpr size_t kInfoChipIdByte = 0;
     static constexpr size_t kInfoMagicByte = 2;
+    static constexpr size_t kInfoKeyCountByte = 27;
+    static constexpr size_t kInfoResolutionXByte = 28;
+    static constexpr size_t kInfoResolutionYByte = 30;
+    static constexpr size_t kInfoFirmwareByte = 32;
     static constexpr uint8_t kInfoMagic = 0xCA;
     static constexpr uint8_t kProbeAttempts = 5;
+    static constexpr uint8_t kFailuresBeforeReprobe = 3;
     static constexpr uint32_t kProbeRetryMs = 10;
+    static constexpr uint32_t kReprobeIntervalMs = 2000;
     static constexpr uint32_t kResetHoldMs = 30;
     static constexpr uint32_t kResetReleaseMs = 50;
 
     bool _inited = false;
     bool _sleeping = false;
+    uint8_t _readFailures = 0;
+    uint32_t _lastProbeMs = 0;
+
+    void noteReadFailure() {
+        if (_readFailures < kFailuresBeforeReprobe) {
+            ++_readFailures;
+            return;
+        }
+        _readFailures = 0;
+        _inited = false;
+        _lastProbeMs = lgfx::millis();
+        LOG_WARN("TOUCH", "CST3530 stopped answering, re-probing every %u ms",
+                 static_cast<unsigned>(kReprobeIntervalMs));
+    }
 
     void resetPanel() {
         if (_cfg.pin_rst < 0) {
@@ -97,15 +133,66 @@ class Touch_CST3530 : public lgfx::ITouch {
     }
 
     bool probeChip() {
+        resetPanel();
         for (uint8_t attempt = 0; attempt < kProbeAttempts; ++attempt) {
-            uint8_t info[kInfoBytes] = {};
-            if (readCommand(kInfoCommand, info, sizeof(info)) &&
-                info[kInfoMagicByte] == kInfoMagic && info[kInfoMagicByte + 1] == kInfoMagic) {
+            if (readChipInfo()) {
                 return true;
             }
             lgfx::delay(kProbeRetryMs);
         }
+        _lastProbeMs = lgfx::millis();
         return false;
+    }
+
+    bool reprobeDue() {
+        if (lgfx::millis() - _lastProbeMs < kReprobeIntervalMs) {
+            return false;
+        }
+        _lastProbeMs = lgfx::millis();
+        return readChipInfo();
+    }
+
+    bool readChipInfo() {
+        uint8_t info[kInfoBytes] = {};
+        if (!readCommand(kInfoCommand, info, sizeof(info))) {
+            return false;
+        }
+        if (info[kInfoMagicByte] != kInfoMagic || info[kInfoMagicByte + 1] != kInfoMagic) {
+            return false;
+        }
+        logChipInfo(info);
+        _inited = true;
+        _readFailures = 0;
+        return true;
+    }
+
+    void logProbeFailure() {
+        uint8_t info[kInfoBytes] = {};
+        const bool acked = readCommand(kInfoCommand, info, sizeof(info));
+        LOG_ERROR("TOUCH", "CST3530 silent at 0x%02X (sda %d scl %d): %s, head %02X %02X %02X %02X",
+                  static_cast<unsigned>(_cfg.i2c_addr), static_cast<int>(_cfg.pin_sda),
+                  static_cast<int>(_cfg.pin_scl), acked ? "acked" : "no ack",
+                  static_cast<unsigned>(info[0]), static_cast<unsigned>(info[1]),
+                  static_cast<unsigned>(info[2]), static_cast<unsigned>(info[3]));
+        ErrorStore::push(ERROR_SRC_SYSTEM, "TOUCH_INIT", "touch controller did not answer");
+    }
+
+    static void logChipInfo(const uint8_t *info) {
+        LOG_INFO("TOUCH", "CST3530 id 0x%08X %ux%u keys %u fw 0x%08X",
+                 static_cast<unsigned>(readLe32(&info[kInfoChipIdByte])),
+                 static_cast<unsigned>(readLe16(&info[kInfoResolutionXByte])),
+                 static_cast<unsigned>(readLe16(&info[kInfoResolutionYByte])),
+                 static_cast<unsigned>(info[kInfoKeyCountByte]),
+                 static_cast<unsigned>(readLe32(&info[kInfoFirmwareByte])));
+    }
+
+    static uint16_t readLe16(const uint8_t *bytes) {
+        return static_cast<uint16_t>(bytes[0] | (bytes[1] << 8));
+    }
+
+    static uint32_t readLe32(const uint8_t *bytes) {
+        return static_cast<uint32_t>(readLe16(bytes)) |
+               (static_cast<uint32_t>(readLe16(bytes + 2)) << 16);
     }
 
     bool enterCommandMode() {
@@ -122,6 +209,10 @@ class Touch_CST3530 : public lgfx::ITouch {
         const uint8_t capacity =
             count < cst3530::kMaxPoints ? static_cast<uint8_t>(count) : cst3530::kMaxPoints;
         const uint8_t decoded = cst3530::decodeFrame(frame, samples, capacity);
+        if (decoded > 0) {
+            LOG_VERBOSE("TOUCH", "%u pt raw %u,%u", static_cast<unsigned>(decoded),
+                        static_cast<unsigned>(samples[0].x), static_cast<unsigned>(samples[0].y));
+        }
         for (uint8_t i = 0; i < decoded; ++i) {
             tp[i].x = static_cast<int16_t>(samples[i].x);
             tp[i].y = static_cast<int16_t>(samples[i].y);
