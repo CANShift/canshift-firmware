@@ -21,7 +21,6 @@ namespace {
 
 constexpr int16_t kRowHeightPx = 26;
 constexpr int16_t kColumnGapPx = DashMetrics::kRowGapPx;
-constexpr int16_t kNameTrackingPx = 1;
 constexpr size_t kDetailBufLen = 64;
 constexpr size_t kReadoutBufLen = 12;
 constexpr size_t kRowCapacity = ALERT_CUT_ROW_CAPACITY;
@@ -114,7 +113,8 @@ bool buildRowParts(BandRow &row, lv_obj_t *parent) {
     if (!row.rule || !line)
         return false;
     lv_obj_set_style_bg_opa(row.rule, LV_OPA_COVER, LV_PART_MAIN);
-    row.name = makeLabel(line, FontManager::label(Severity::kKickerPx), kNameTrackingPx);
+    row.name =
+        makeLabel(line, FontManager::label(Severity::kKickerPx), Severity::kKickerTrackingPx);
     row.detail = makeLabel(line, FontManager::units(), 0);
     row.elapsed = makeLabel(line, FontManager::units(), 0);
     return row.name != nullptr && row.detail != nullptr && row.elapsed != nullptr;
