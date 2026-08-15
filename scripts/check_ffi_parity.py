@@ -49,6 +49,27 @@ PAIRS = (
         "ALERT_STALE_DASH_GROUPS_MAX",
     ),
     (
+        "control state count",
+        "rust/control-state/src/lib.rs",
+        "CONTROL_STATE_COUNT",
+        "include/control_state_rs.h",
+        "CONTROL_STATE_COUNT",
+    ),
+    (
+        "control step ceiling",
+        "rust/control-state/src/lib.rs",
+        "CONTROL_STEP_MAX",
+        "include/control_state_rs.h",
+        "CONTROL_STEP_MAX",
+    ),
+    (
+        "control long-press hold",
+        "rust/control-state/src/lib.rs",
+        "CONTROL_LONG_PRESS_MS",
+        "include/control_state_rs.h",
+        "CONTROL_LONG_PRESS_MS",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",

@@ -1,0 +1,15 @@
+[package]
+name = "control-state"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Pure control arbitration for the CANShift dash buttons (issue #194) — the four-state resolution and the stepper tap / long-press machine. LVGL painting stays C++."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []

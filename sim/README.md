@@ -23,7 +23,10 @@ surface renders), `boot` (D01), `self-test` (D02, with the CAN BUS row failing),
 `no-config` (D07, the first-boot empty screen) and `config-rejected` (D06, a
 layout that does not fit 240 px). The last two replace the whole screen and hide
 the dash chrome, so the captured frame is what a device with no usable config
-shows. With `captureAfterMs`
+shows. The control scenarios `controls`, `controls-armed`, `controls-active`,
+`controls-locked` and `controls-cruise` pin the signals behind the four button
+states and synthesise one tap per button 600 ms in, so armed and active can be
+captured without the keyboard. With `captureAfterMs`
 the run writes `sim-screenshot.bmp` and exits, which is how a PR captures a given
 frame (e.g. both phases of the 6 Hz rev-limit blink) without touching the keyboard.
 

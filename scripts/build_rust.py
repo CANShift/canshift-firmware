@@ -78,6 +78,12 @@ CRATES = (
         # Header at canshift-firmware/include/layout_grid_rs.h.
         "include": None,
     },
+    {
+        "flag": "USE_RUST_CONTROL_STATE=1",
+        "manifest": os.path.join(RUST_DIR, "control-state", "Cargo.toml"),
+        "libfile": "libcontrol_state.a",
+        "include": None,
+    },
 )
 
 

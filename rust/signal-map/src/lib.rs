@@ -48,6 +48,9 @@ pub mod ids {
     pub const FLAG_ANTI_LAG: SignalId = 23;
     pub const FLAG_TRACTION_CUT: SignalId = 24;
     pub const CLUTCH_STATE: SignalId = 25;
+    pub const FLAG_BRAKE: SignalId = 26;
+    pub const FLAG_PIT_LIMIT: SignalId = 27;
+    pub const FLAG_CRUISE: SignalId = 28;
     pub const MAP_NUMBER: SignalId = 30;
     pub const MAP_NAME_IDX: SignalId = 31;
     pub const ODO_KM: SignalId = 32;
@@ -81,6 +84,9 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("flag_anti_lag", ids::FLAG_ANTI_LAG),
     ("flag_traction_cut", ids::FLAG_TRACTION_CUT),
     ("clutch_state", ids::CLUTCH_STATE),
+    ("flag_brake", ids::FLAG_BRAKE),
+    ("flag_pit_limit", ids::FLAG_PIT_LIMIT),
+    ("flag_cruise", ids::FLAG_CRUISE),
     ("map_number", ids::MAP_NUMBER),
     ("map_name_idx", ids::MAP_NAME_IDX),
     ("odo_km", ids::ODO_KM),
@@ -149,6 +155,9 @@ mod tests {
             ids::FLAG_ANTI_LAG,
             ids::FLAG_TRACTION_CUT,
             ids::CLUTCH_STATE,
+            ids::FLAG_BRAKE,
+            ids::FLAG_PIT_LIMIT,
+            ids::FLAG_CRUISE,
             ids::MAP_NUMBER,
             ids::MAP_NAME_IDX,
             ids::ODO_KM,
