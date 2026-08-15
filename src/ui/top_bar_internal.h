@@ -42,6 +42,8 @@ constexpr uint32_t COLOR_LABEL_DAY = ThemeTokens::kDimDay;
 constexpr uint32_t COLOR_MUTED_NIGHT = ThemeTokens::kDimNight;
 constexpr uint32_t COLOR_MUTED_DAY = ThemeTokens::kDimDay;
 
+constexpr const char *BUS_RATE_SILENT = "— Hz";
+
 constexpr int16_t BAR_LETTER_SPACE_PX = 1;
 constexpr int16_t FLAG_SQUARE_PX = 7;
 constexpr int16_t FLAG_GAP_PX = 3;
