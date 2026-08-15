@@ -51,6 +51,7 @@ constexpr uint32_t kRevReleaseMs = 2000;
 constexpr size_t kOtaTotalBytes = 1024 * 1024;
 constexpr uint32_t kOtaDurationMs = 12000;
 constexpr uint32_t kOtaFailDetail = 0x1502;
+constexpr char kOtaTargetVersion[] = "0.1.1";
 constexpr float kOilLowBar = 1.2f;
 constexpr float kWarnCoolantC = 105.0f;
 constexpr float kWarnOilTempC = 138.0f;
@@ -126,7 +127,7 @@ void feedBusLost(uint32_t nowMs) {
 void startOtaDemo(uint32_t nowMs) {
     s_otaDemo = true;
     s_otaStartMs = nowMs;
-    OtaOverlay::show(kOtaTotalBytes);
+    OtaOverlay::show(kOtaTotalBytes, kOtaTargetVersion);
 }
 
 void startOtaComplete(uint32_t) {

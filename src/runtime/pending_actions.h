@@ -10,6 +10,8 @@
 
 namespace PendingActions {
 
+constexpr size_t kOtaVersionLen = 24;
+
 inline std::atomic<bool> dayNightToggle{false};
 
 inline std::atomic<int8_t> dayNightSet{-1};
@@ -27,6 +29,8 @@ inline std::atomic<bool> burnOverlayShow{false};
 inline std::atomic<int8_t> burnOverlayShowError{-1};
 
 inline std::atomic<uint32_t> otaOverlayShowSize{0};
+
+inline char otaOverlayTargetVersion[kOtaVersionLen] = {};
 
 inline std::atomic<bool> otaOverlayComplete{false};
 
@@ -76,8 +80,20 @@ inline int8_t takeBurnOverlayShowError() {
     return burnOverlayShowError.exchange(-1, std::memory_order_relaxed);
 }
 
-inline uint32_t takeOtaOverlayShowSize() {
-    return otaOverlayShowSize.exchange(0, std::memory_order_relaxed);
+// Release/acquire pairs the version write with the size so the UI task never
+// reads the version of a later update against this size.
+inline void requestOtaOverlayShow(uint32_t totalBytes, const char *targetVersion) {
+    strlcpy(otaOverlayTargetVersion, targetVersion ? targetVersion : "",
+            sizeof(otaOverlayTargetVersion));
+    otaOverlayShowSize.store(totalBytes, std::memory_order_release);
+}
+
+inline uint32_t takeOtaOverlayShow(char *versionOut, size_t versionLen) {
+    const uint32_t size = otaOverlayShowSize.exchange(0, std::memory_order_acquire);
+    if (size == 0)
+        return 0;
+    strlcpy(versionOut, otaOverlayTargetVersion, versionLen);
+    return size;
 }
 
 inline bool takeOtaOverlayComplete() {

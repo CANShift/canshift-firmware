@@ -259,9 +259,11 @@ inline void uiDrainNavActions() {
 }
 
 inline void uiDrainOtaOverlayActions() {
-    const uint32_t showSize = PendingActions::takeOtaOverlayShowSize();
+    char targetVersion[PendingActions::kOtaVersionLen];
+    const uint32_t showSize =
+        PendingActions::takeOtaOverlayShow(targetVersion, sizeof(targetVersion));
     if (showSize > 0) {
-        OtaOverlay::show(showSize);
+        OtaOverlay::show(showSize, targetVersion);
     }
     if (PendingActions::takeOtaOverlayComplete()) {
         OtaOverlay::showComplete();

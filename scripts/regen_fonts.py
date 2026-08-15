@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-LATIN_RANGE = "0x20-0x7F,0xB0,0x2022"
+LATIN_RANGE = "0x20-0x7F,0xB0,0x2022,0x2192"
 
 FAMILIES = (
     ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (32, 44, 48), "lvgl"),
