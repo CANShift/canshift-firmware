@@ -87,7 +87,7 @@ void rejectOverflow(const CfgWidget &w, uint8_t pageNumber, int16_t y, uint16_t 
     LOG_ERROR("CFG", "page %u: widget '%s' at y=%d h=%d exceeds %u px — config rejected",
               static_cast<unsigned>(pageNumber), w.id, y, w.layout.h, static_cast<unsigned>(maxY));
     char detail[52];
-    snprintf(detail, sizeof(detail), "page %u widget %s y=%d h=%d",
+    snprintf(detail, sizeof(detail), "page %u widget %.16s y=%d h=%d",
              static_cast<unsigned>(pageNumber), w.id, y, w.layout.h);
     ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", detail);
 }
