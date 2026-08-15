@@ -40,6 +40,7 @@ constexpr Face kLabelFaces[] = {{10, nullptr},
 
 constexpr size_t kValueCount = sizeof(kValueFaces) / sizeof(kValueFaces[0]);
 constexpr size_t kLabelCount = sizeof(kLabelFaces) / sizeof(kLabelFaces[0]);
+constexpr uint8_t kSmallestValuePx = kValueFaces[0].size;
 
 const lv_font_t *s_value[kValueCount] = {nullptr};
 const lv_font_t *s_label[kLabelCount] = {nullptr};
@@ -172,6 +173,8 @@ void FontManager::shutdown() {
 }
 
 const lv_font_t *FontManager::value(uint8_t devicePx) {
+    if (devicePx < kSmallestValuePx)
+        return units();
     return resolve(kValueFaces, kValueCount, s_value, devicePx, &lv_font_jbmono_medium_10_nk);
 }
 

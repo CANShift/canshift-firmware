@@ -35,9 +35,7 @@ const lv_font_t *selectFont(const CfgWidget &cfg, uint8_t &sizeOut) {
         s = 48;
     const uint8_t size = static_cast<uint8_t>(s);
     sizeOut = size;
-    if (size >= 17)
-        return FontManager::value(size);
-    return FontManager::units();
+    return FontManager::value(size);
 }
 
 } // namespace

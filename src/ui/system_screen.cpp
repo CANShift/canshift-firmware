@@ -12,14 +12,7 @@ namespace SystemScreen {
 
 namespace {
 
-constexpr uint8_t kMonoSmallPx = 10;
 constexpr uint16_t kPermille = 1000;
-
-const lv_font_t *monoFont(uint8_t devicePx) {
-    if (devicePx <= kMonoSmallPx)
-        return FontManager::units();
-    return FontManager::value(devicePx);
-}
 
 int16_t lineSpaceFor(const lv_font_t *font, uint8_t devicePx, uint16_t lineHeightPermille) {
     const int32_t target =
@@ -82,7 +75,7 @@ lv_obj_t *addMonoLine(lv_obj_t *parent, const char *text, uint32_t rgb, uint8_t 
     lv_obj_t *label = lv_label_create(parent);
     if (!label)
         return nullptr;
-    const lv_font_t *font = monoFont(devicePx);
+    const lv_font_t *font = FontManager::value(devicePx);
     lv_label_set_text(label, text ? text : "");
     lv_obj_set_style_text_font(label, font, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(rgb), 0);

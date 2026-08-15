@@ -21,7 +21,6 @@ constexpr int16_t kBarHeightPx = 5;
 constexpr int16_t kUnplugGapPx = 6;
 
 constexpr uint8_t kPercentFontPx = 48;
-constexpr uint8_t kUnitFontPx = 14;
 constexpr uint8_t kUnplugFontPx = 10;
 constexpr uint8_t kCodeFontPx = 32;
 
@@ -126,7 +125,7 @@ void buildPercent(lv_obj_t *body) {
     s_percentLabel = makeMono(row, "0", FontManager::value(kPercentFontPx),
                               ThemeManager::getEffectiveTextColor());
     lv_obj_set_style_text_letter_space(s_percentLabel, kPercentTrackingPx, 0);
-    makeMono(row, " %", FontManager::value(kUnitFontPx), ThemeManager::dimColor());
+    makeMono(row, " %", FontManager::units(), ThemeManager::dimColor());
 }
 
 void formatVersionLine(char *out, size_t outLen, const char *targetVersion) {
