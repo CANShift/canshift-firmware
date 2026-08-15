@@ -34,12 +34,6 @@ uint8_t pickValueFontSize(const CfgWidget &cfg) {
     return static_cast<uint8_t>(s);
 }
 
-const lv_font_t *valueFontFor(uint8_t size) {
-    if (size >= 17)
-        return FontManager::value(size);
-    return FontManager::units();
-}
-
 struct LabelTag {
     lv_obj_t *valueLabel;
     lv_obj_t *unitLabel;
@@ -101,7 +95,7 @@ lv_obj_t *makeValueLabel(lv_obj_t *valueRow, uint8_t valueSize) {
     if (!label)
         return nullptr;
     lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
-    lv_obj_set_style_text_font(label, valueFontFor(valueSize), 0);
+    lv_obj_set_style_text_font(label, FontManager::value(valueSize), 0);
     lv_obj_set_style_text_letter_space(label, WidgetHelpers::valueTrackingPx(valueSize), 0);
     return label;
 }
@@ -171,7 +165,7 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
         cont, parts->rulePx, Severity::baseRuleRgbFor(parts->rulePx, parts->textRgb));
     parts->barFill = makeProgressBar(cont, cfg, parts->textRgb, &parts->barMaxW);
     WidgetHelpers::reportValueOverflow(
-        cfg, valueFontFor(valueSize), WidgetHelpers::valueTrackingPx(valueSize),
+        cfg, FontManager::value(valueSize), WidgetHelpers::valueTrackingPx(valueSize),
         WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix));
     return true;
 }
