@@ -112,16 +112,18 @@ void parseThemeBlock(JsonObjectConst themeJson, const char *fallbackBg, CfgTheme
 }
 
 void parseThemes(const JsonDocument &doc, CfgDashboard *out) {
-    JsonObjectConst dayThemeJson = doc["dayTheme"];
-    out->hasDayTheme = !dayThemeJson.isNull();
-    if (out->hasDayTheme) {
-        parseThemeBlock(dayThemeJson, "#DDDDDD", &out->dayTheme);
+    JsonObjectConst themeJson = doc["theme"];
+    JsonObjectConst dayJson = themeJson["day"];
+    JsonObjectConst nightJson = themeJson["night"];
+    out->hasTheme = !dayJson.isNull() && !nightJson.isNull();
+    if (!out->hasTheme) {
+        if (!themeJson.isNull()) {
+            LOG_WARN("CFG", "dashboard.json: theme is missing a day or night face — ignored");
+        }
+        return;
     }
-    JsonObjectConst nightThemeJson = doc["nightTheme"];
-    out->hasNightTheme = !nightThemeJson.isNull();
-    if (out->hasNightTheme) {
-        parseThemeBlock(nightThemeJson, "#1A1A1A", &out->nightTheme);
-    }
+    parseThemeBlock(dayJson, "#DDDDDD", &out->dayFace);
+    parseThemeBlock(nightJson, "#1A1A1A", &out->nightFace);
 }
 
 bool parseStatusItem(JsonObjectConst item, CfgTopBarItem *out) {

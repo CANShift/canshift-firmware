@@ -268,10 +268,9 @@ struct CfgDashboard {
     float revLimitRpm;
     char targetProfile[CFG_MAX_PROFILE_ID_LEN];
     CfgTopBar topBar;
-    bool hasDayTheme;
-    CfgTheme dayTheme;
-    bool hasNightTheme;
-    CfgTheme nightTheme;
+    bool hasTheme;
+    CfgTheme dayFace;
+    CfgTheme nightFace;
     char dayNightSignal[CFG_MAX_ID_LEN];
     uint8_t pageCount;
     CfgPage pages[CONFIG_MAX_PAGES];

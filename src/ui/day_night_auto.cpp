@@ -15,7 +15,7 @@ void DayNightAuto::init() {
     s_lastHeadlightState = -1;
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (dash.dayNightSignal[0] == '\0' || !dash.hasDayTheme)
+    if (dash.dayNightSignal[0] == '\0' || !dash.hasTheme)
         return;
 
     const SignalId sid = signalIdFromName(dash.dayNightSignal);

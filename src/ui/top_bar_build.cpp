@@ -97,7 +97,7 @@ static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
 namespace {
 
 void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
-               TopBarSeparatorLink::Tracker trackers[3], bool hasDayTheme) {
+               TopBarSeparatorLink::Tracker trackers[3], bool hasTheme) {
     lv_obj_t *prev = prevByPos[static_cast<uint8_t>(item.position)];
     lv_obj_t *obj = nullptr;
 
@@ -179,7 +179,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             lv_img_set_src(obj, IconAssets::resolveSource(
                                     ThemeManager::isDayMode() ? "icon_day" : "icon_night"));
             anchor(obj, 0);
-            if (hasDayTheme) {
+            if (hasTheme) {
                 lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
 
                 lv_obj_set_ext_click_area(obj, 10);
@@ -241,7 +241,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
     }
 }
 
-void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
+void buildFromLayout(const CfgTopBar &cfg, bool hasTheme) {
     s_dynCount = 0;
     lv_obj_t *prevByPos[3] = {nullptr, nullptr, nullptr};
 
@@ -250,13 +250,13 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
     for (uint8_t i = 0; i < cfg.itemCount; ++i) {
         const auto pos = cfg.items[i].position;
         if (pos == TopBarItemPos::LEFT || pos == TopBarItemPos::CENTER) {
-            buildItem(cfg.items[i], prevByPos, trackers, hasDayTheme);
+            buildItem(cfg.items[i], prevByPos, trackers, hasTheme);
         }
     }
 
     for (int i = cfg.itemCount - 1; i >= 0; --i) {
         if (cfg.items[i].position == TopBarItemPos::RIGHT) {
-            buildItem(cfg.items[i], prevByPos, trackers, hasDayTheme);
+            buildItem(cfg.items[i], prevByPos, trackers, hasTheme);
         }
     }
 }
@@ -304,7 +304,7 @@ void TopBar::applyPage(const CfgPage &page) {
     effective.itemCount = mergePageStatusRow(dash.topBar, page.statusRow, effective.items);
 
     clearDynItems();
-    buildFromLayout(effective, dash.hasDayTheme);
+    buildFromLayout(effective, dash.hasTheme);
     s_pageOverridden = page.statusRow.hasCenter || page.statusRow.hasRight;
     TopBar::update();
 }
@@ -354,7 +354,7 @@ void TopBar::init() {
     s_dynCount = 0;
     memset(s_dynEverSeen, 0, sizeof(s_dynEverSeen));
 
-    buildFromLayout(cfg, dash.hasDayTheme);
+    buildFromLayout(cfg, dash.hasTheme);
     TopBarRevLimit::build(s_bar);
 
     SettingsPage::init(s_height, static_cast<int16_t>(LV_VER_RES - s_height));
