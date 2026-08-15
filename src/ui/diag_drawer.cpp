@@ -330,7 +330,7 @@ void init() {
     lv_obj_set_style_bg_opa(s_handle, LV_OPA_50, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_handle, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(s_handle, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_handle, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_handle, 0, LV_PART_MAIN);
     lv_obj_clear_flag(s_handle, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_handle, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(s_handle, LayoutScale::square(HANDLE_EXT_CLICK_PAD));

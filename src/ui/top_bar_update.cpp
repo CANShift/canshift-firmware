@@ -87,6 +87,10 @@ static void updateDynSignalLabel(DynItem &d) {
     WidgetHelpers::setVisibleIfChanged(d.obj, true);
 
     if (!SignalStore::isValid(sid)) {
+        if (d.lastSeenValid) {
+            applyDynTextColor(d, ThemeManager::getStaleTextColor());
+            return;
+        }
         if (strcmp(STALE_PLACEHOLDER, d.lastText) != 0) {
             lv_label_set_text(d.obj, STALE_PLACEHOLDER);
             strlcpy(d.lastText, STALE_PLACEHOLDER, sizeof(d.lastText));
@@ -94,6 +98,7 @@ static void updateDynSignalLabel(DynItem &d) {
         applyDynTextColor(d, ThemeManager::getStaleTextColor());
         return;
     }
+    d.lastSeenValid = true;
 
     const char *fmt = d.format[0] ? d.format : "%.1f";
     char buf[DYN_TEXT_CAP];

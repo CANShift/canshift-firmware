@@ -11,4 +11,7 @@ constexpr int16_t kShiftStripGapPx = 2;
 
 constexpr int16_t kShiftStripBandPx = kShiftStripHeightPx + kRowGapPx;
 
+constexpr int16_t kAlertLineHeightPx = 10;
+constexpr int16_t kAlertLineBandPx = kAlertLineHeightPx + kRowGapPx;
+
 } // namespace DashMetrics
