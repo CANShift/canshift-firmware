@@ -4,6 +4,7 @@
 #include "hal/usb/usb_comm.h"
 #include "runtime/pending_actions.h"
 #include "runtime/track_store.h"
+#include "ui/alert_takeover.h"
 
 #include <string.h>
 
@@ -48,6 +49,12 @@ Outcome requestReboot(const JsonObjectConst &) {
     return Outcome::RebootRequested;
 }
 
+Outcome acknowledgeAlert(const JsonObjectConst &) {
+    AlertTakeover::requestAcknowledge();
+    LOG_INFO("CMD", "critical alert acknowledged");
+    return Outcome::Ok;
+}
+
 Outcome applyTrackState(const JsonObjectConst &obj) {
     TrackStore::State next = {};
     next.trackMode = obj["trackMode"] | false;
@@ -70,6 +77,7 @@ constexpr Command kCommands[] = {
     {UsbComm::CMD_RESET_TOUCH_CAL, "reset_calibration", &resetCalibration},
     {UsbComm::CMD_REBOOT, "reboot", &requestReboot},
     {kNoUsbCode, "track_state", &applyTrackState},
+    {kNoUsbCode, "ack_alert", &acknowledgeAlert},
 };
 
 } // namespace

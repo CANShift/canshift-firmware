@@ -303,6 +303,38 @@ pub fn severity_for_reading(
     Severity::Information
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct CrossedLimit {
+    pub limit: f32,
+    pub below: bool,
+    pub valid: bool,
+}
+
+#[must_use]
+pub fn crossed_limit(
+    value: f32,
+    primary: f32,
+    primary_below: bool,
+    high_crit: f32,
+) -> CrossedLimit {
+    if crossed(value, high_crit, false) {
+        return CrossedLimit {
+            limit: high_crit,
+            below: false,
+            valid: true,
+        };
+    }
+    if crossed(value, primary, primary_below) {
+        return CrossedLimit {
+            limit: primary,
+            below: primary_below,
+            valid: true,
+        };
+    }
+    CrossedLimit::default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -833,5 +865,39 @@ mod tests {
         assert_eq!(h.level, AlertLevel::Critical);
         let h = hyst_step(h, 50.0, near_wrap.wrapping_add(MIN_ACTIVE_MS));
         assert_eq!(h.level, AlertLevel::Normal);
+    }
+
+    #[test]
+    fn crossed_limit_reports_the_low_side_threshold() {
+        let c = crossed_limit(0.4, 1.0, true, f32::NAN);
+        assert!(c.valid);
+        assert!(c.below);
+        assert_eq!(c.limit, 1.0);
+    }
+
+    #[test]
+    fn crossed_limit_reports_the_high_side_threshold() {
+        let c = crossed_limit(128.0, 125.0, false, f32::NAN);
+        assert!(c.valid);
+        assert!(!c.below);
+        assert_eq!(c.limit, 125.0);
+    }
+
+    #[test]
+    fn crossed_limit_prefers_the_high_crit_when_both_are_crossed() {
+        let c = crossed_limit(16.5, 11.5, true, 15.5);
+        assert!(c.valid);
+        assert!(!c.below);
+        assert_eq!(c.limit, 15.5);
+    }
+
+    #[test]
+    fn crossed_limit_is_invalid_when_nothing_is_crossed() {
+        assert!(!crossed_limit(4.1, 1.0, true, f32::NAN).valid);
+    }
+
+    #[test]
+    fn crossed_limit_ignores_nan_thresholds() {
+        assert!(!crossed_limit(0.4, f32::NAN, true, f32::NAN).valid);
     }
 }

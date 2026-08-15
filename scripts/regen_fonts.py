@@ -7,16 +7,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-LATIN_RANGE = "0x20-0x7F,0xB0,0x2022,0x2192"
+LATIN_RANGE = "0x20-0x7F,0xB0,0xB7,0x2022,0x2192"
+NUMERIC_RANGE = "0x20,0x2D,0x2E,0x30-0x39"
 
 FAMILIES = (
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (32, 44, 48), "lvgl"),
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (17, 22), "bin"),
-    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16), "bin"),
-    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (14,), "lvgl"),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (32, 44, 48), "lvgl", LATIN_RANGE),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (84,), "lvgl", NUMERIC_RANGE),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (17, 22), "bin", LATIN_RANGE),
+    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16), "bin", LATIN_RANGE),
+    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (13, 14, 15), "lvgl", LATIN_RANGE),
 )
 
-JBMONO_VALUE_FALLBACK = ("jbmono", "medium", "JetBrainsMono-Medium.ttf", (10,), "lvgl")
+JBMONO_VALUE_FALLBACK = ("jbmono", "medium", "JetBrainsMono-Medium.ttf", (10,), "lvgl", LATIN_RANGE)
 
 
 def run_lv_font_conv(*args: str) -> None:
@@ -41,7 +43,7 @@ def collapse_include(path: Path) -> None:
 def regen(input_dir: Path, bins_dir: Path, src_dir: Path) -> None:
     bins_dir.mkdir(parents=True, exist_ok=True)
     src_dir.mkdir(parents=True, exist_ok=True)
-    for family, weight, ttf_name, sizes, fmt in (*FAMILIES, JBMONO_VALUE_FALLBACK):
+    for family, weight, ttf_name, sizes, fmt, char_range in (*FAMILIES, JBMONO_VALUE_FALLBACK):
         ttf = input_dir / ttf_name
         if not ttf.exists():
             sys.exit(f"Missing TTF: {ttf} — see data/fonts/SOURCES.md")
@@ -53,7 +55,7 @@ def regen(input_dir: Path, bins_dir: Path, src_dir: Path) -> None:
             run_lv_font_conv(
                 "--size", str(size),
                 "--font", str(ttf),
-                "-r", LATIN_RANGE,
+                "-r", char_range,
                 "--format", fmt,
                 "-o", str(out),
             )

@@ -74,6 +74,8 @@ lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb);
 
 lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb);
 
+lv_obj_t *makeFlushColumn(lv_obj_t *parent);
+
 void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
                          const char *unit);
 

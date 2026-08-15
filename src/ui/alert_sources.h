@@ -18,9 +18,9 @@ struct CriticalSource {
 constexpr CriticalSource kSources[] = {
     {"OIL PRESS", "OIL PRESSURE", SignalIds::OIL_PRESS_BAR, "bar", 1,
      &AlertEngine::AlertState::oilPressure, &AlertEngine::AlertState::oilPressureSensorLost},
-    {"COOLANT", "WATER", SignalIds::COOLANT_TEMP_C, "C", 0, &AlertEngine::AlertState::coolantTemp,
+    {"COOLANT", "WATER", SignalIds::COOLANT_TEMP_C, "°C", 0, &AlertEngine::AlertState::coolantTemp,
      &AlertEngine::AlertState::coolantSensorLost},
-    {"OIL TEMP", "OIL TEMP", SignalIds::OIL_TEMP_C, "C", 0, &AlertEngine::AlertState::oilTemp,
+    {"OIL TEMP", "OIL TEMP", SignalIds::OIL_TEMP_C, "°C", 0, &AlertEngine::AlertState::oilTemp,
      &AlertEngine::AlertState::oilTempSensorLost},
     {"BATT", "BATTERY", SignalIds::BATTERY_VOLTS, "V", 1, &AlertEngine::AlertState::batteryVoltage,
      &AlertEngine::AlertState::batterySensorLost},

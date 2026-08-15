@@ -59,6 +59,16 @@ float alert_warn_level_for_rs(float danger_level, bool danger_below, float sig_w
 uint8_t alert_severity_for_reading_rs(float value, float warn_level, float danger_level,
                                       bool danger_below);
 
+/* Layout mirror of rust/alert-engine CrossedLimit (repr(C)) — keep in sync. */
+typedef struct {
+    float limit;
+    bool below;
+    bool valid;
+} AlertCrossedLimitRs;
+
+void alert_crossed_limit_rs(AlertCrossedLimitRs *out, float value, float primary,
+                            bool primary_below, float high_crit);
+
 uint8_t alert_eval_high_side_rs(float value, float high_warn, float high_crit);
 
 uint8_t alert_eval_rev_limiter_rs(float rpm, float rev_limit_rpm, uint8_t warn_pct,
