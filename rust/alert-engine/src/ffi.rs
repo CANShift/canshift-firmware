@@ -1,3 +1,4 @@
+use crate::bus_silence::{bus_silence, stale_dash_groups, BusSilence};
 use crate::{
     eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure, eval_oil_temp,
     eval_rev_limiter, eval_with_hysteresis, sensor_health_step, severity_for_reading,
@@ -7,6 +8,29 @@ use crate::{
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
 const _: () = assert!(core::mem::size_of::<Severity>() == 1);
 const _: () = assert!(Severity::Failure as u8 == SEVERITY_LEVEL_COUNT - 1);
+const _: () = assert!(core::mem::size_of::<BusSilence>() == 8);
+const _: () = assert!(core::mem::align_of::<BusSilence>() == 4);
+
+/// # Safety
+/// `out` must point to a valid, writable `BusSilence` (the C++ mirror struct
+/// `AlertBusSilenceRs` in alert_engine_rs.h — layouts must stay in sync).
+#[no_mangle]
+pub unsafe extern "C" fn alert_bus_silence_rs(
+    out: *mut BusSilence,
+    ms_since_rx: u32,
+    uptime_ms: u32,
+    threshold_ms: u32,
+) {
+    let Some(slot) = out.as_mut() else {
+        return;
+    };
+    *slot = bus_silence(ms_since_rx, uptime_ms, threshold_ms);
+}
+
+#[no_mangle]
+pub extern "C" fn alert_stale_dash_groups_rs(max_value: f32) -> u8 {
+    stale_dash_groups(max_value)
+}
 
 #[no_mangle]
 pub extern "C" fn alert_eval_high_side_rs(value: f32, high_warn: f32, high_crit: f32) -> u8 {

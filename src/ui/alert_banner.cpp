@@ -1,6 +1,7 @@
 #include "alert_banner.h"
 #include "layout_scale.h"
 #include "runtime/alert_engine.h"
+#include "runtime/bus_health.h"
 #include "runtime/signal_store.h"
 #include "top_bar.h"
 #include "ui/alert_sources.h"
@@ -49,6 +50,8 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
 void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size_t len) {
     size_t used = 0;
     buf[0] = '\0';
+    if (BusHealth::sample().silent)
+        return;
     for (const AlertSources::CriticalSource &src : AlertSources::kSources) {
         if (!(state.*(src.sensorLost)))
             continue;

@@ -15,8 +15,6 @@
 
 namespace {
 
-constexpr const char *kStalePlaceholder = "- -";
-
 constexpr uint8_t kBarHeightPx = 2;
 constexpr int16_t kBarSideMarginPx = 0;
 constexpr int16_t kValueClusterInsetPx = 0;
@@ -59,6 +57,7 @@ struct LabelTag {
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
     uint32_t lastBarRgb;
+    char stalePlaceholder[WidgetHelpers::kStalePlaceholderCap];
 };
 
 uint32_t valueRgbFor(const LabelTag *tag, Severity::Level level) {
@@ -105,7 +104,6 @@ lv_obj_t *makeValueLabel(lv_obj_t *valueRow, uint8_t valueSize) {
     lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, valueFontFor(valueSize), 0);
     lv_obj_set_style_text_letter_space(label, WidgetHelpers::valueTrackingPx(valueSize), 0);
-    lv_label_set_text(label, kStalePlaceholder);
     return label;
 }
 
@@ -193,17 +191,20 @@ void barWidthAnimCb(void *obj, int32_t w) {
 
 void renderStale(LabelTag *tag) {
     if (tag->lastValid) {
-        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
         tag->lastValue = NAN;
         tag->lastValid = false;
     }
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb,
                                         ThemeManager::getStaleTextColor());
-    if (tag->barFill && tag->lastBarW != 0) {
+    Severity::repaint(tag->severity, Severity::Level::INFORMATION);
+    if (!tag->barFill)
+        return;
+    if (tag->lastBarW != 0) {
         WidgetHelpers::setFillImmediate(tag->barFill, barWidthAnimCb, 1);
         tag->lastBarW = 0;
     }
-    applySeverity(tag, Severity::Level::INFORMATION);
+    WidgetStyles::setBgColorIfChanged(tag->barFill, tag->lastBarRgb, ThemeManager::trackColor());
 }
 
 void updateBar(LabelTag *tag, const CfgWidget &cfg, float displayValue) {
@@ -237,6 +238,9 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->baseTextRgb = parts.textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
     tag->lastBarRgb = parts.textRgb;
+    WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
+                                          cfg.label.maxValue);
+    WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
 }
 
 } // namespace

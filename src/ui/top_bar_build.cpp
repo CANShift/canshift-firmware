@@ -210,6 +210,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
         const uint8_t myIdx = s_dynCount;
         DynItem &d = s_dynItems[s_dynCount++];
         d.kind = item.kind;
+        d.position = item.position;
         d.obj = obj;
         strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
         strlcpy(d.format, item.format, sizeof(d.format));
