@@ -3,6 +3,7 @@
 
 #include "runtime/bus_health.h"
 #include "runtime/signal_stats.h"
+#include "top_bar_rev_limit.h"
 #include "top_bar_separator_link.h"
 
 #include "app_config.h"
@@ -241,8 +242,12 @@ void TopBar::update() {
         return;
 
     const bool silent = BusHealth::sample().silent;
+    const bool revLimitOverride = TopBarRevLimit::apply();
+
     for (uint8_t i = 0; i < s_dynCount; ++i) {
         DynItem &d = s_dynItems[i];
+        if (revLimitOverride && d.position == TopBarItemPos::RIGHT)
+            continue;
         switch (d.kind) {
             case TopBarItemKind::STATUS_DOT:
                 updateDynStatusDot(i, d);

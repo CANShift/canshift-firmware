@@ -11,7 +11,7 @@ enum class AlertLevel : uint8_t { NORMAL = 0, CAUTION = 1, WARNING = 2, CRITICAL
 
 struct AlertState {
     AlertLevel revLimiter;
-    bool revLimiterFlashActive;
+    bool revLimiterRowLit;
     AlertLevel coolantTemp;
     AlertLevel oilTemp;
     AlertLevel oilPressure;
@@ -30,8 +30,6 @@ void tick(const SignalStore::SignalValue *snap);
 
 AlertState getState();
 
-bool isRevLimiterFlashOn();
-
-uint32_t getRevLimiterOverlayColor();
+bool isRevLimiterRowLit();
 
 } // namespace AlertEngine

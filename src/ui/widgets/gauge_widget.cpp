@@ -113,7 +113,7 @@ struct GaugeTag {
     bool hasDanger;
     bool lastValid;
     bool revFlash;
-    bool lastBlanked;
+    bool lastLimiting;
     uint32_t inkRgb;
     float warnLevel;
     float dangerLevel;
@@ -134,12 +134,13 @@ static void arcAngleAnimCb(void *obj, int32_t angle) {
     lv_arc_set_angles(static_cast<lv_obj_t *>(obj), 0, static_cast<uint16_t>(angle));
 }
 
-static void applyRevFlash(GaugeTag *tag) {
-    const bool blanked = tag->revFlash && RevLimitFlash::isBlanked();
-    if (blanked == tag->lastBlanked)
-        return;
-    tag->lastBlanked = blanked;
-    WidgetHelpers::setVisible(tag->valueLabel, !blanked);
+static Severity::Level gaugeLevelFor(const GaugeTag *tag, float value, bool dangerBelow,
+                                     bool limiting) {
+    if (limiting)
+        return Severity::Level::FAILURE;
+    if (!tag->hasDanger)
+        return Severity::Level::INFORMATION;
+    return Severity::forReading(value, tag->warnLevel, tag->dangerLevel, dangerBelow);
 }
 
 static int32_t computeArcDiameter(const CfgWidget &cfg) {
@@ -258,7 +259,7 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
         WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->revFlash = cfg.gauge.revFlash;
-    tag->lastBlanked = false;
+    tag->lastLimiting = false;
     WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
                                           cfg.gauge.maxValue);
     WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
@@ -339,17 +340,14 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
     }
 
-    applyRevFlash(tag);
-
-    if (tag->lastValid && value == tag->lastValue)
+    const bool limiting = tag->revFlash && RevLimitFlash::isEngaged();
+    if (tag->lastValid && value == tag->lastValue && limiting == tag->lastLimiting)
         return;
     tag->lastValue = value;
     tag->lastValid = true;
+    tag->lastLimiting = limiting;
 
-    const Severity::Level level =
-        tag->hasDanger
-            ? Severity::forReading(value, tag->warnLevel, tag->dangerLevel, cfg.gauge.dangerBelow)
-            : Severity::Level::INFORMATION;
+    const Severity::Level level = gaugeLevelFor(tag, value, cfg.gauge.dangerBelow, limiting);
     const uint32_t levelRgb = gaugeInkFor(tag, level);
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, levelRgb);
 

@@ -15,9 +15,11 @@ pio run -e sim
 
 `program [dataRoot] [scenario] [pageId] [captureAfterMs]`. Scenarios are `cruise`,
 `rev`, `oil`, `oil-low`, `warn`, `stale` and `bus-lost` — the same modes as the
-keys below — plus the overlay scenarios `ota`, `ota-complete`, `ota-failed`,
-`failure` (pushes two errors so the failure surface renders), `boot` (D01) and
-`self-test` (D02, with the CAN BUS row failing). With `captureAfterMs`
+keys below — plus `rev-release` (2 s at the limiter, then back to cruise, so the
+frame after the limiter clears is reproducible) and the overlay scenarios `ota`,
+`ota-complete`, `ota-failed`, `failure` (pushes two errors so the failure surface
+renders), `boot` (D01) and `self-test` (D02, with the CAN BUS row failing). With
+`captureAfterMs`
 the run writes `sim-screenshot.bmp` and exits, which is how a PR captures a given
 frame (e.g. both phases of the 6 Hz rev-limit blink) without touching the keyboard.
 

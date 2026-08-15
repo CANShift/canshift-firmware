@@ -1,5 +1,6 @@
 #include "top_bar.h"
 #include "top_bar_internal.h"
+#include "top_bar_rev_limit.h"
 #include "top_bar_separator_link.h"
 
 #include "app_config.h"
@@ -261,6 +262,7 @@ void buildFromLayout(const CfgTopBar &cfg, bool hasDayTheme) {
 }
 
 void clearDynItems() {
+    TopBarRevLimit::clearOverride();
     for (uint8_t i = 0; i < s_dynCount; ++i) {
         if (s_dynItems[i].obj)
             lv_obj_del(s_dynItems[i].obj);
@@ -353,6 +355,7 @@ void TopBar::init() {
     memset(s_dynEverSeen, 0, sizeof(s_dynEverSeen));
 
     buildFromLayout(cfg, dash.hasDayTheme);
+    TopBarRevLimit::build(s_bar);
 
     SettingsPage::init(s_height, static_cast<int16_t>(LV_VER_RES - s_height));
 

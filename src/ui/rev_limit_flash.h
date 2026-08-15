@@ -2,8 +2,10 @@
 
 namespace RevLimitFlash {
 
-void set(bool limiterCritical, bool phaseOn);
+void set(bool limiterEngaged, bool rowLit);
 
-[[nodiscard]] bool isBlanked();
+[[nodiscard]] bool isEngaged();
+
+[[nodiscard]] bool isRowLit();
 
 } // namespace RevLimitFlash
