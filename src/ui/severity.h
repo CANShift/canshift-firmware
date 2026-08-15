@@ -26,6 +26,8 @@ constexpr int16_t kRightInsetPx = 8;
 
 [[nodiscard]] Level fromRaw(uint8_t raw);
 
+[[nodiscard]] Level strongerOf(Level a, Level b);
+
 [[nodiscard]] Level forReading(float value, float warnLevel, float dangerLevel, bool dangerBelow);
 
 [[nodiscard]] uint32_t inkFor(Level level);

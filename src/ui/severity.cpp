@@ -103,6 +103,10 @@ Level fromRaw(uint8_t raw) {
     return static_cast<Level>(indexOf(static_cast<Level>(raw)));
 }
 
+Level strongerOf(Level a, Level b) {
+    return static_cast<uint8_t>(a) >= static_cast<uint8_t>(b) ? a : b;
+}
+
 Level forReading(float value, float warnLevel, float dangerLevel, bool dangerBelow) {
     return fromRaw(alert_severity_for_reading_rs(value, warnLevel, dangerLevel, dangerBelow));
 }

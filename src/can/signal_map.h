@@ -33,6 +33,7 @@ static constexpr SignalId EGT_C = 15;
 static constexpr SignalId GEARBOX_TEMP_C = 16;
 static constexpr SignalId DIFF_TEMP_C = 17;
 static constexpr SignalId KNOCK_COUNT = 18;
+static constexpr SignalId KNOCK_CYL = 19;
 
 static constexpr SignalId FLAG_MIL = 20;
 static constexpr SignalId FLAG_LAUNCH_CTRL = 21;
@@ -43,6 +44,7 @@ static constexpr SignalId CLUTCH_STATE = 25;
 static constexpr SignalId FLAG_BRAKE = 26;
 static constexpr SignalId FLAG_PIT_LIMIT = 27;
 static constexpr SignalId FLAG_CRUISE = 28;
+static constexpr SignalId BOOST_TARGET_BAR = 29;
 
 static constexpr SignalId MAP_NUMBER = 30;
 static constexpr SignalId MAP_NAME_IDX = 31;
@@ -51,6 +53,15 @@ static constexpr SignalId ODO_KM = 32;
 static constexpr SignalId TRIP_KM = 33;
 
 static constexpr SignalId LAP_TIMER_MS = 40;
+
+static constexpr SignalId FLAG_BOOST_CUT = 48;
+static constexpr SignalId FLAG_FUEL_CUT = 49;
+static constexpr SignalId FLAG_IGNITION_CUT = 50;
+static constexpr SignalId FLAG_IGNITION_RETARD = 51;
+static constexpr SignalId FLAG_REV_LIMIT = 52;
+static constexpr SignalId FLAG_PIT_LIMIT_CUT = 53;
+static constexpr SignalId FLAG_OVERHEAT_PROTECT = 54;
+static constexpr SignalId FLAG_LIMP_MODE = 55;
 
 static constexpr SignalId SIGNAL_COUNT = 64;
 

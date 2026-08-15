@@ -5,6 +5,7 @@
 #include "alert_takeover.h"
 #include "bus_silent_line.h"
 #include "control_splash.h"
+#include "cut_band.h"
 #include "day_night_auto.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
@@ -80,6 +81,7 @@ void PageManager::init() {
 
     buildPageList();
 
+    CutBand::init();
     AlertBanner::init();
     ControlSplash::init();
     AlertTakeover::init();
@@ -117,6 +119,14 @@ void PageManager::navigatePrev() {
     showPage((s_currentIdx == 0) ? s_pageCount - 1 : s_currentIdx - 1);
 }
 
+int16_t PageManager::currentContentTopY() {
+    using namespace PageManagerInternal;
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
+    if (s_pageCount == 0 || !dash.loaded)
+        return TopBar::getHeight();
+    return contentTopY(dash.pages[s_pages[s_currentIdx].cfgIdx]);
+}
+
 const char *PageManager::getDefaultPageId() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     return dash.defaultPageId;
@@ -151,6 +161,7 @@ void PageManager::updateWidgets() {
     AlertEngine::tick(snap);
     RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
                        AlertEngine::isRevLimiterRowLit());
+    CutBand::update(snap);
     {
         PERF_SCOPE(::PerfCounters::WIDGETS);
         WidgetFactory::updateAll(currentScreen, snap);

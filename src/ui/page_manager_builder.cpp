@@ -3,6 +3,7 @@
 
 #include "bus_silent_line.h"
 #include "burn_overlay.h"
+#include "cut_band.h"
 #include "diag_drawer.h"
 #include "error_bar.h"
 #include "icon_assets.h"
@@ -32,6 +33,12 @@ bool pageDeclaresShiftStrip(const CfgPage &cfg) {
             return true;
     }
     return false;
+}
+
+int16_t contentTopY(const CfgPage &cfg) {
+    const int16_t stripBand = pageDeclaresShiftStrip(cfg) ? DashMetrics::kShiftStripBandPx : 0;
+    const int16_t topBarBand = cfg.showTopBar ? TopBar::getHeight() : 0;
+    return static_cast<int16_t>(topBarBand + stripBand);
 }
 
 namespace {
@@ -70,10 +77,8 @@ void buildPage(uint8_t idx, const CfgPage &cfg) {
 
     applyPageBackground(p.screen, cfg, ThemeManager::getEffectiveBgColor(cfg.bgColor));
 
-    const bool hasStrip = pageDeclaresShiftStrip(cfg);
-    const int16_t stripBand = hasStrip ? DashMetrics::kShiftStripBandPx : 0;
     const int16_t topBarBand = cfg.showTopBar ? TopBar::getHeight() : 0;
-    const int16_t contentY = static_cast<int16_t>(topBarBand + stripBand);
+    const int16_t contentY = contentTopY(cfg);
 
     if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
         CruiseControlWidget::build(p.screen, cfg, contentY);
@@ -201,6 +206,7 @@ void reapplyThemeAllPages() {
     TopBar::reapplyTheme();
     ErrorBar::reapplyTheme();
     BusSilentLine::reapplyTheme();
+    CutBand::reapplyTheme();
     DiagDrawer::reapplyTheme();
 }
 

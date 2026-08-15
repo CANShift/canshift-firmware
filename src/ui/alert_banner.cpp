@@ -8,6 +8,7 @@
 #include "ui/severity.h"
 #include "ui/widgets/widget_helpers.h"
 #include "util/format_float.h"
+#include "util/text_join.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -20,16 +21,6 @@ constexpr uint32_t kUpdatePeriodMs = 250;
 constexpr size_t kTextBufLen = 96;
 constexpr int16_t kBannerTopGapPx = 2;
 constexpr int16_t kRowGapPx = 4;
-constexpr const char *kSeparator = " · ";
-
-bool appendPart(char *buf, size_t len, size_t &used, const char *part) {
-    const int n = snprintf(buf + used, len - used, "%s%s", (used > 0) ? kSeparator : "", part);
-    if (n < 0 || static_cast<size_t>(n) >= len - used)
-        return false;
-    used += static_cast<size_t>(n);
-    return true;
-}
-
 void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t len) {
     size_t used = 0;
     buf[0] = '\0';
@@ -42,7 +33,7 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
         FloatFormat::formatFixed(valBuf, sizeof(valBuf), SignalStore::read(src.id), src.decimals);
         char part[32];
         snprintf(part, sizeof(part), "%s %s%s", src.chipLabel, valBuf, src.unit);
-        if (!appendPart(buf, len, used, part))
+        if (!TextJoin::append(buf, len, used, part))
             return;
     }
 }
@@ -55,7 +46,7 @@ void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size
     for (const AlertSources::CriticalSource &src : AlertSources::kSources) {
         if (!(state.*(src.sensorLost)))
             continue;
-        if (!appendPart(buf, len, used, src.chipLabel))
+        if (!TextJoin::append(buf, len, used, src.chipLabel))
             return;
     }
 }

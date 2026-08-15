@@ -1,4 +1,5 @@
 #include "gauge_widget.h"
+#include "ui/cut_band.h"
 #include "ui/font_manager.h"
 #include "ui/rev_limit_flash.h"
 #include "ui/severity.h"
@@ -122,6 +123,8 @@ struct GaugeTag {
     uint16_t lastAngle;
     int32_t lastDisplayScaled;
     char stalePlaceholder[WidgetHelpers::kStalePlaceholderCap];
+    SignalId signal;
+    Severity::Level cutLevel;
 };
 
 static uint32_t gaugeInkFor(const GaugeTag *tag, Severity::Level level) {
@@ -263,6 +266,8 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
                                           cfg.gauge.maxValue);
     WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
+    tag->signal = signalIdFromName(cfg.signalId);
+    tag->cutLevel = Severity::Level::INFORMATION;
 }
 
 } // namespace
@@ -341,13 +346,17 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     }
 
     const bool limiting = tag->revFlash && RevLimitFlash::isEngaged();
-    if (tag->lastValid && value == tag->lastValue && limiting == tag->lastLimiting)
+    const Severity::Level cutLevel = CutBand::levelFor(tag->signal);
+    if (tag->lastValid && value == tag->lastValue && limiting == tag->lastLimiting &&
+        cutLevel == tag->cutLevel)
         return;
     tag->lastValue = value;
     tag->lastValid = true;
     tag->lastLimiting = limiting;
+    tag->cutLevel = cutLevel;
 
-    const Severity::Level level = gaugeLevelFor(tag, value, cfg.gauge.dangerBelow, limiting);
+    const Severity::Level level =
+        Severity::strongerOf(gaugeLevelFor(tag, value, cfg.gauge.dangerBelow, limiting), cutLevel);
     const uint32_t levelRgb = gaugeInkFor(tag, level);
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, levelRgb);
 
