@@ -3,6 +3,7 @@
 
 #include "alert_banner.h"
 #include "alert_takeover.h"
+#include "bus_silent_line.h"
 #include "day_night_auto.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
@@ -64,6 +65,7 @@ void PageManager::init() {
     ThemeManager::init();
     DayNightAuto::init();
     TopBar::init();
+    BusSilentLine::init();
 
     buildPageList();
 
@@ -159,6 +161,7 @@ void PageManager::updateWidgets() {
 
     AlertBanner::update();
     AlertTakeover::update();
+    BusSilentLine::update();
 
     ErrorBar::update();
     DiagDrawer::update();

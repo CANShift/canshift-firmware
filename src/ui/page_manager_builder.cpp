@@ -1,6 +1,7 @@
 
 #include "page_manager_internal.h"
 
+#include "bus_silent_line.h"
 #include "burn_overlay.h"
 #include "diag_drawer.h"
 #include "error_bar.h"
@@ -200,6 +201,7 @@ void reapplyThemeAllPages() {
 
     TopBar::reapplyTheme();
     ErrorBar::reapplyTheme();
+    BusSilentLine::reapplyTheme();
     DiagDrawer::reapplyTheme();
 }
 

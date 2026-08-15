@@ -1,5 +1,6 @@
 #pragma once
 
+#include "alert_engine_rs.h"
 #include "config/config_types.h"
 #include "ui/theme_tokens.h"
 #include "ui/widget_styles.h"
@@ -18,6 +19,8 @@ constexpr uint32_t kMutedRgb = ThemeTokens::kDimNight;
 constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
 
 constexpr uint8_t kRulePrimaryFontMin = 32;
+
+constexpr size_t kStalePlaceholderCap = 2 * ALERT_STALE_DASH_GROUPS_MAX;
 
 constexpr int16_t kValueRightInsetPx = 8;
 constexpr uint16_t kFillCatchUpMs = 120;
@@ -53,6 +56,8 @@ int formatValue(char *out, size_t outLen, const char *prefix, uint8_t decimals, 
                 const char *suffix);
 
 bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
+
+void formatStalePlaceholder(char *out, size_t outLen, float maxValue);
 
 const char *resolveDisplayUnit(const char *signalId, const char *configSuffix);
 

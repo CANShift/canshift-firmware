@@ -19,8 +19,6 @@
 
 namespace {
 
-static constexpr const char *kStalePlaceholder = "- -";
-
 static constexpr int16_t kValueFontHeightPrimary = 90;
 static constexpr int16_t kValueFontHeightSecondary = 40;
 static constexpr uint8_t kValueFontSizePrimary = 48;
@@ -123,6 +121,7 @@ struct GaugeTag {
     uint32_t lastFillRgb;
     uint16_t lastAngle;
     int32_t lastDisplayScaled;
+    char stalePlaceholder[WidgetHelpers::kStalePlaceholderCap];
 };
 
 static uint32_t gaugeInkFor(const GaugeTag *tag, Severity::Level level) {
@@ -198,7 +197,6 @@ static lv_obj_t *buildValueLabel(lv_obj_t *valueRow, const lv_font_t *font) {
     lv_obj_t *label = lv_label_create(valueRow);
     lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, font, 0);
-    lv_label_set_text(label, kStalePlaceholder);
     return label;
 }
 
@@ -261,6 +259,9 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->revFlash = cfg.gauge.revFlash;
     tag->lastBlanked = false;
+    WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
+                                          cfg.gauge.maxValue);
+    WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
 }
 
 } // namespace
@@ -311,7 +312,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
 static void renderStale(GaugeTag *tag) {
     if (tag->lastValid) {
-        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, kStalePlaceholder);
+        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
         tag->lastValue = NAN;
         tag->lastValid = false;
         tag->lastDisplayScaled = INT32_MIN;

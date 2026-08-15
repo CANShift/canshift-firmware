@@ -42,6 +42,13 @@ PAIRS = (
         "ALERT_SEVERITY_LEVEL_COUNT",
     ),
     (
+        "stale dash group cap",
+        "rust/alert-engine/src/bus_silence.rs",
+        "STALE_DASH_GROUPS_MAX",
+        "include/alert_engine_rs.h",
+        "ALERT_STALE_DASH_GROUPS_MAX",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",

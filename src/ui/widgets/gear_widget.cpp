@@ -14,6 +14,8 @@
 
 namespace {
 
+constexpr const char *kStaleGear = "-";
+
 struct GearTag {
     lv_obj_t *label;
     uint32_t lastColorRgb;
@@ -52,9 +54,9 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
     uint8_t fontSize = 0;
-    lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
     lv_obj_set_style_text_font(label, selectFont(cfg, fontSize), 0);
-    lv_label_set_text(label, "N");
+    lv_label_set_text(label, kStaleGear);
 
     const bool primaryTier = fontSize >= WidgetHelpers::kRulePrimaryFontMin;
     WidgetHelpers::makeTopRule(cont,
@@ -67,7 +69,7 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     if (!tag)
         return nullptr;
     tag->label = label;
-    tag->lastColorRgb = textRgb;
+    tag->lastColorRgb = ThemeManager::getStaleTextColor();
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<GearTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
@@ -87,7 +89,7 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
     if (!valid) {
-        WidgetHelpers::setLabelTextIfChanged(label, "N");
+        WidgetHelpers::setLabelTextIfChanged(label, kStaleGear);
         WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb,
                                             ThemeManager::getStaleTextColor());
         return;

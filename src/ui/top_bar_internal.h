@@ -13,6 +13,7 @@ constexpr uint8_t DYN_TEXT_CAP = 16;
 
 struct DynItem {
     TopBarItemKind kind;
+    TopBarItemPos position;
     lv_obj_t *obj;
     char signalId[CFG_MAX_SIGNAL_LEN];
     char format[DYN_TEXT_CAP];

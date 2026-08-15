@@ -76,6 +76,20 @@ uint8_t alert_eval_oil_pressure_rs(float press_bar, float warn_bar, float crit_b
 uint8_t alert_eval_battery_rs(float volts, float low_warn_v, float low_crit_v, float high_warn_v,
                               float high_crit_v);
 
+/* Layout mirror of rust/alert-engine BusSilence (repr(C)) — keep in sync. */
+typedef struct {
+    bool silent;
+    uint32_t seconds;
+} AlertBusSilenceRs;
+
+/* Mirror of rust/alert-engine STALE_DASH_GROUPS_MAX — gated by check_ffi_parity.py. */
+enum { ALERT_STALE_DASH_GROUPS_MAX = 4 };
+
+void alert_bus_silence_rs(AlertBusSilenceRs *out, uint32_t ms_since_rx, uint32_t uptime_ms,
+                          uint32_t threshold_ms);
+
+uint8_t alert_stale_dash_groups_rs(float max_value);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,4 +1,5 @@
 #include "sim_injector.h"
+#include "sim_can_bus.h"
 #include "sim_display.h"
 
 #include "can/signal_map.h"
@@ -19,7 +20,7 @@
 
 namespace {
 
-enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, OilLow, Warning, AllStale };
+enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, OilLow, Warning, AllStale, BusLost };
 
 struct ScenarioName {
     const char *name;
@@ -28,7 +29,8 @@ struct ScenarioName {
 
 constexpr ScenarioName kScenarioNames[] = {{"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},
                                            {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow},
-                                           {"warn", Mode::Warning},    {"stale", Mode::AllStale}};
+                                           {"warn", Mode::Warning},    {"stale", Mode::AllStale},
+                                           {"bus-lost", Mode::BusLost}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;
@@ -43,8 +45,11 @@ constexpr float kOilLowBar = 1.2f;
 constexpr float kWarnCoolantC = 105.0f;
 constexpr float kWarnOilTempC = 138.0f;
 constexpr float kWarnIatC = 58.0f;
+constexpr uint32_t kBusLostFeedMs = 1000;
+constexpr float kBusLostBatteryVolts = 13.8f;
 
 void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f) {
+    SimCanBus::markRx();
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
     const float sweep = 0.5f + 0.5f * sinf(t * 0.6f);
     SignalStore::update(SignalIds::RPM,
@@ -90,6 +95,14 @@ void feedWarning(uint32_t nowMs) {
     SignalStore::update(SignalIds::COOLANT_TEMP_C, kWarnCoolantC);
     SignalStore::update(SignalIds::OIL_TEMP_C, kWarnOilTempC);
     SignalStore::update(SignalIds::IAT_C, kWarnIatC);
+}
+
+void feedBusLost(uint32_t nowMs) {
+    if (nowMs - s_startMs < kBusLostFeedMs) {
+        feedCruise(nowMs);
+        return;
+    }
+    SignalStore::update(SignalIds::BATTERY_VOLTS, kBusLostBatteryVolts);
 }
 
 void startOtaDemo(uint32_t nowMs) {
@@ -188,6 +201,11 @@ void handleKey(int key, uint32_t nowMs) {
             s_mode = Mode::AllStale;
             printf("mode: all signals stale\n");
             break;
+        case SDLK_b:
+            s_mode = Mode::BusLost;
+            s_startMs = nowMs;
+            printf("mode: bus lost\n");
+            break;
         case SDLK_f:
             if (s_otaDemo) {
                 s_otaDemo = false;
@@ -221,8 +239,8 @@ namespace SimInjector {
 
 void init(const char *scenario) {
     s_startMs = millis();
-    printf("keys: C cruise · R rev-limit · O oil-critical · W warning · X stale · F ota · ←/→ "
-           "pages · S screenshot · ESC quit\n");
+    printf("keys: C cruise · R rev-limit · O oil-critical · W warning · X stale · B bus-lost · "
+           "F ota · ←/→ pages · S screenshot · ESC quit\n");
     if (!scenario)
         return;
     for (const ScenarioName &entry : kScenarioNames) {
@@ -263,6 +281,9 @@ void tick(uint32_t nowMs) {
             feedWarning(nowMs);
             break;
         case Mode::AllStale:
+            break;
+        case Mode::BusLost:
+            feedBusLost(nowMs);
             break;
     }
 }

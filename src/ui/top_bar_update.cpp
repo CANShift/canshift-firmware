@@ -1,6 +1,7 @@
 #include "top_bar.h"
 #include "top_bar_internal.h"
 
+#include "runtime/bus_health.h"
 #include "runtime/signal_stats.h"
 #include "top_bar_separator_link.h"
 
@@ -33,6 +34,7 @@ static constexpr uint32_t COLOR_BLE_ADV_NIGHT = 0x66AACC;
 static constexpr uint32_t COLOR_BLE_ADV_DAY = 0x336699;
 
 static constexpr const char *STALE_PLACEHOLDER = "- -";
+static constexpr const char *BUS_RATE_SILENT = "- Hz";
 
 static constexpr uint32_t CAN_BUS_LIVE_THRESHOLD_MS = 2000;
 
@@ -169,10 +171,20 @@ static void updateModeFlag(DynItem &d) {
 
 static constexpr uint32_t TRACK_BADGE_TIMEOUT_MS = 5000;
 
-static void updateCanRate(DynItem &d) {
+static uint32_t busFieldColor(bool silent) {
+    return silent ? ThemeManager::warnColor() : labelColor();
+}
+
+static uint32_t staticLabelColor(const DynItem &d, bool silent) {
+    if (silent && d.position == TopBarItemPos::LEFT)
+        return ThemeManager::warnColor();
+    return mutedColor();
+}
+
+static void updateCanRate(DynItem &d, bool silent) {
     char buf[DYN_TEXT_CAP];
-    if (CanManager::msSinceLastRx() > CAN_BUS_LIVE_THRESHOLD_MS) {
-        strlcpy(buf, "-- Hz", sizeof(buf));
+    if (silent) {
+        strlcpy(buf, BUS_RATE_SILENT, sizeof(buf));
     } else {
         snprintf(buf, sizeof(buf), "%lu Hz", static_cast<unsigned long>(CanManager::busRateHz()));
     }
@@ -180,7 +192,7 @@ static void updateCanRate(DynItem &d) {
         lv_label_set_text(d.obj, buf);
         strlcpy(d.lastText, buf, sizeof(d.lastText));
     }
-    applyDynTextColor(d, labelColor());
+    applyDynTextColor(d, busFieldColor(silent));
 }
 
 static void updateTrackBadge(DynItem &d) {
@@ -228,6 +240,7 @@ void TopBar::update() {
     if (!s_bar)
         return;
 
+    const bool silent = BusHealth::sample().silent;
     for (uint8_t i = 0; i < s_dynCount; ++i) {
         DynItem &d = s_dynItems[i];
         switch (d.kind) {
@@ -250,13 +263,13 @@ void TopBar::update() {
                 updateTrackBadge(d);
                 break;
             case TopBarItemKind::CAN_RATE:
-                updateCanRate(d);
+                updateCanRate(d, silent);
                 break;
             case TopBarItemKind::SEPARATOR:
                 updateLinkedSeparator(d);
                 break;
             case TopBarItemKind::LABEL:
-                applyDynTextColor(d, mutedColor());
+                applyDynTextColor(d, staticLabelColor(d, silent));
                 break;
             default:
                 break;

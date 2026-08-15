@@ -1,14 +1,33 @@
+#include "sim_can_bus.h"
+
 #include "can/can_manager.h"
 #include "hal/ble/ble_server.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/usb/usb_comm.h"
 
+#include <Arduino.h>
+
+#include <cstdint>
 #include <cstdio>
+
+namespace {
+uint32_t s_lastRxMs = 0;
+}
+
+namespace SimCanBus {
+
+void markRx() {
+    s_lastRxMs = millis();
+}
+
+} // namespace SimCanBus
 
 namespace CanManager {
 
 uint32_t msSinceLastRx() {
-    return 0;
+    if (s_lastRxMs == 0)
+        return UINT32_MAX;
+    return millis() - s_lastRxMs;
 }
 
 uint32_t busRateHz() {

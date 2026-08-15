@@ -5,6 +5,8 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
+pub mod bus_silence;
+
 // Required for no_std staticlib — reaching here means invariant break.
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]

@@ -27,6 +27,19 @@ float clampPct(float value, float minValue, float maxValue) {
     return pct;
 }
 
+void formatStalePlaceholder(char *out, size_t outLen, float maxValue) {
+    if (!out || outLen == 0)
+        return;
+    const uint8_t groups = alert_stale_dash_groups_rs(maxValue);
+    size_t used = 0;
+    for (uint8_t i = 0; i < groups && used + 2 < outLen; ++i) {
+        if (i > 0)
+            out[used++] = ' ';
+        out[used++] = '-';
+    }
+    out[used] = '\0';
+}
+
 void formatSignalLabel(const char *src, char *out, size_t outLen) {
     if (outLen == 0)
         return;
