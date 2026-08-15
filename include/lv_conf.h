@@ -17,15 +17,23 @@
         #define LV_COLOR_CHROMA_KEY lv_color_hex(0x00ff00)
 
     #ifndef LV_MEM_SIZE
-
-        #define LV_MEM_SIZE (80U * 1024U)
+        #ifdef BOARD_HAS_PSRAM
+            #define LV_MEM_SIZE (512U * 1024U)
+        #else
+            #define LV_MEM_SIZE (80U * 1024U)
+        #endif
     #endif
 
         #define LV_MEM_ADR 0U
 
         #if LV_MEM_ADR == 0U
-            #define LV_MEM_POOL_INCLUDE <stdlib.h>
-            #define LV_MEM_POOL_ALLOC malloc
+            #ifdef BOARD_HAS_PSRAM
+                #define LV_MEM_POOL_INCLUDE "esp_heap_caps.h"
+                #define LV_MEM_POOL_ALLOC(size) heap_caps_malloc((size), MALLOC_CAP_SPIRAM)
+            #else
+                #define LV_MEM_POOL_INCLUDE <stdlib.h>
+                #define LV_MEM_POOL_ALLOC malloc
+            #endif
         #endif
 
         #define LV_DISP_DEF_REFR_PERIOD 20 
