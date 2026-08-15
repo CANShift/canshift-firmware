@@ -1,5 +1,6 @@
 #include "label_widget.h"
 #include "diag/logger.h"
+#include "ui/cut_band.h"
 #include "ui/font_manager.h"
 #include "ui/rev_limit_flash.h"
 #include "ui/severity.h"
@@ -51,6 +52,7 @@ struct LabelTag {
     uint32_t lastTintRgb;
     uint32_t lastBarRgb;
     char stalePlaceholder[WidgetHelpers::kStalePlaceholderCap];
+    SignalId signal;
 };
 
 uint32_t valueRgbFor(const LabelTag *tag, Severity::Level level) {
@@ -231,6 +233,7 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
                                           cfg.label.maxValue);
     WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
+    tag->signal = signalIdFromName(cfg.signalId);
 }
 
 } // namespace
@@ -285,7 +288,8 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastValid = true;
     }
 
-    const Severity::Level level = labelLevelFor(tag, value);
+    const Severity::Level level =
+        Severity::strongerOf(labelLevelFor(tag, value), CutBand::levelFor(tag->signal));
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, valueRgbFor(tag, level));
 
     updateBar(tag, cfg, value);

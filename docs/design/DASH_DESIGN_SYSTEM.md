@@ -184,7 +184,7 @@ Only on a page that declares it (Track). One row across the full content width:
 A protection cut (boost, fuel, ignition, knock retard, rev limit, overheat, limp) shows a persistent
 full-width band directly under the shift light for as long as the cut lasts: a 2 px rule in the severity
 colour, the cut name in Archivo 800 (0.16em, uppercase), the measured value against its limit in mono, and
-the elapsed time right-aligned. 13 px device tall.
+the elapsed time right-aligned. One line, flush left, 26 px device tall.
 
 Amber CS_WARN when the cut holds a target (overboost, rev limit, traction, pit limit), detail dim; danger
 CS_DANGER when it protects the engine (oil pressure, overheat, limp), detail in Ink. The causing value

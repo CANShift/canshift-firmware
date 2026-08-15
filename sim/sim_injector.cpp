@@ -33,7 +33,11 @@ enum class Mode : uint8_t {
     WaterCritical,
     Warning,
     AllStale,
-    BusLost
+    BusLost,
+    CutBoost,
+    CutKnock,
+    CutFuel,
+    CutLimp
 };
 
 struct ScenarioName {
@@ -42,9 +46,11 @@ struct ScenarioName {
 };
 
 constexpr ScenarioName kScenarioNames[] = {
-    {"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},   {"rev-release", Mode::RevRelease},
-    {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow}, {"water", Mode::WaterCritical},
-    {"warn", Mode::Warning},    {"stale", Mode::AllStale}, {"bus-lost", Mode::BusLost}};
+    {"cruise", Mode::Cruise},      {"rev", Mode::RevLimit},       {"rev-release", Mode::RevRelease},
+    {"oil", Mode::OilCritical},    {"oil-low", Mode::OilLow},     {"water", Mode::WaterCritical},
+    {"warn", Mode::Warning},       {"stale", Mode::AllStale},     {"bus-lost", Mode::BusLost},
+    {"cut-boost", Mode::CutBoost}, {"cut-knock", Mode::CutKnock}, {"cut-fuel", Mode::CutFuel},
+    {"cut-limp", Mode::CutLimp}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;
@@ -73,35 +79,57 @@ constexpr int16_t kRejectedWidgetY = 208;
 constexpr int16_t kRejectedWidgetH = 52;
 constexpr int16_t kRejectedMaxY = 240;
 
+struct Pin {
+    SignalId id;
+    float value;
+};
+
+template <size_t N>
+constexpr size_t pinCount(const Pin (&)[N]) {
+    return N;
+}
+
+const Pin *s_pins = nullptr;
+size_t s_pinCount = 0;
+
+void setSignal(SignalId id, float value) {
+    for (size_t i = 0; i < s_pinCount; ++i) {
+        if (s_pins[i].id != id)
+            continue;
+        SignalStore::update(id, s_pins[i].value);
+        return;
+    }
+    SignalStore::update(id, value);
+}
+
 void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f,
                 float coolantC = 92.0f) {
     SimCanBus::markRx();
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
     const float sweep = 0.5f + 0.5f * sinf(t * 0.6f);
-    SignalStore::update(SignalIds::RPM,
-                        rpmOverride >= 0.0f ? rpmOverride : 1200.0f + sweep * 4800.0f);
-    SignalStore::update(SignalIds::SPEED_KPH, 40.0f + sweep * 140.0f);
-    SignalStore::update(SignalIds::GEAR, 2.0f + floorf(sweep * 4.0f));
-    SignalStore::update(SignalIds::THROTTLE_POS, sweep * 100.0f);
-    SignalStore::update(SignalIds::BOOST_BAR, sweep * 1.4f);
-    SignalStore::update(SignalIds::MAP_KPA, 100.0f + sweep * 120.0f);
-    SignalStore::update(SignalIds::COOLANT_TEMP_C, coolantC);
-    SignalStore::update(SignalIds::OIL_TEMP_C, 104.0f);
-    SignalStore::update(SignalIds::OIL_PRESS_BAR, oilPressBar);
-    SignalStore::update(SignalIds::FUEL_PRESS_BAR, 3.0f);
-    SignalStore::update(SignalIds::BATTERY_VOLTS, 13.8f);
-    SignalStore::update(SignalIds::IAT_C, 38.0f);
-    SignalStore::update(SignalIds::LAMBDA_1, 0.95f + 0.05f * sinf(t * 2.0f));
-    SignalStore::update(SignalIds::AFR_1, 14.0f + sweep * 0.9f);
-    SignalStore::update(SignalIds::FUEL_LEVEL_PCT, 46.0f);
-    SignalStore::update(SignalIds::EGT_C, 780.0f + sweep * 180.0f);
-    SignalStore::update(SignalIds::GEARBOX_TEMP_C, 96.0f);
-    SignalStore::update(SignalIds::DIFF_TEMP_C, 104.0f);
-    SignalStore::update(SignalIds::KNOCK_COUNT, 0.0f);
-    SignalStore::update(SignalIds::CLUTCH_STATE, 0.0f);
-    SignalStore::update(SignalIds::ODO_KM, 184203.0f);
-    SignalStore::update(SignalIds::TRIP_KM, 128.0f);
-    SignalStore::update(SignalIds::MAP_NUMBER, 1.0f);
+    setSignal(SignalIds::RPM, rpmOverride >= 0.0f ? rpmOverride : 1200.0f + sweep * 4800.0f);
+    setSignal(SignalIds::SPEED_KPH, 40.0f + sweep * 140.0f);
+    setSignal(SignalIds::GEAR, 2.0f + floorf(sweep * 4.0f));
+    setSignal(SignalIds::THROTTLE_POS, sweep * 100.0f);
+    setSignal(SignalIds::BOOST_BAR, sweep * 1.4f);
+    setSignal(SignalIds::MAP_KPA, 100.0f + sweep * 120.0f);
+    setSignal(SignalIds::COOLANT_TEMP_C, coolantC);
+    setSignal(SignalIds::OIL_TEMP_C, 104.0f);
+    setSignal(SignalIds::OIL_PRESS_BAR, oilPressBar);
+    setSignal(SignalIds::FUEL_PRESS_BAR, 3.0f);
+    setSignal(SignalIds::BATTERY_VOLTS, 13.8f);
+    setSignal(SignalIds::IAT_C, 38.0f);
+    setSignal(SignalIds::LAMBDA_1, 0.95f + 0.05f * sinf(t * 2.0f));
+    setSignal(SignalIds::AFR_1, 14.0f + sweep * 0.9f);
+    setSignal(SignalIds::FUEL_LEVEL_PCT, 46.0f);
+    setSignal(SignalIds::EGT_C, 780.0f + sweep * 180.0f);
+    setSignal(SignalIds::GEARBOX_TEMP_C, 96.0f);
+    setSignal(SignalIds::DIFF_TEMP_C, 104.0f);
+    setSignal(SignalIds::KNOCK_COUNT, 0.0f);
+    setSignal(SignalIds::CLUTCH_STATE, 0.0f);
+    setSignal(SignalIds::ODO_KM, 184203.0f);
+    setSignal(SignalIds::TRIP_KM, 128.0f);
+    setSignal(SignalIds::MAP_NUMBER, 1.0f);
 }
 
 void feedRevLimit(uint32_t nowMs) {
@@ -141,6 +169,49 @@ void feedBusLost(uint32_t nowMs) {
         return;
     }
     SignalStore::update(SignalIds::BATTERY_VOLTS, kBusLostBatteryVolts);
+}
+
+constexpr Pin kBoostCutPins[] = {
+    {SignalIds::BOOST_BAR, 1.94f}, {SignalIds::THROTTLE_POS, 100.0f}, {SignalIds::MAP_KPA, 294.0f}};
+
+constexpr Pin kKnockPins[] = {{SignalIds::KNOCK_COUNT, 4.0f},
+                              {SignalIds::IAT_C, 52.0f},
+                              {SignalIds::LAMBDA_1, 0.84f},
+                              {SignalIds::EGT_C, 948.0f}};
+
+constexpr Pin kFuelCutPins[] = {{SignalIds::OIL_TEMP_C, 128.0f},
+                                {SignalIds::COOLANT_TEMP_C, 104.0f}};
+
+constexpr Pin kLimpPins[] = {{SignalIds::BOOST_BAR, 0.0f}, {SignalIds::MAP_KPA, 100.0f}};
+
+void feedPinned(uint32_t nowMs, const Pin *pins, size_t count, float oilPressBar, float rpm) {
+    s_pins = pins;
+    s_pinCount = count;
+    feedCruise(nowMs, oilPressBar, rpm);
+    s_pins = nullptr;
+    s_pinCount = 0;
+}
+
+void feedCutBoost(uint32_t nowMs) {
+    feedPinned(nowMs, kBoostCutPins, pinCount(kBoostCutPins), 4.1f, 6180.0f);
+    SignalStore::update(SignalIds::BOOST_TARGET_BAR, 1.80f);
+    SignalStore::update(SignalIds::FLAG_BOOST_CUT, 1.0f);
+}
+
+void feedCutKnock(uint32_t nowMs) {
+    feedPinned(nowMs, kKnockPins, pinCount(kKnockPins), 4.1f, -1.0f);
+    SignalStore::update(SignalIds::KNOCK_CYL, 3.0f);
+    SignalStore::update(SignalIds::FLAG_IGNITION_RETARD, 1.0f);
+}
+
+void feedCutFuel(uint32_t nowMs) {
+    feedPinned(nowMs, kFuelCutPins, pinCount(kFuelCutPins), 1.1f, 2400.0f);
+    SignalStore::update(SignalIds::FLAG_FUEL_CUT, 1.0f);
+}
+
+void feedCutLimp(uint32_t nowMs) {
+    feedPinned(nowMs, kLimpPins, pinCount(kLimpPins), 4.1f, 3000.0f);
+    SignalStore::update(SignalIds::FLAG_LIMP_MODE, 1.0f);
 }
 
 void startOtaDemo(uint32_t nowMs) {
@@ -257,6 +328,22 @@ void handleKey(int key, uint32_t nowMs) {
             s_mode = Mode::Warning;
             printf("mode: warning band\n");
             break;
+        case SDLK_1:
+            s_mode = Mode::CutBoost;
+            printf("mode: boost cut band\n");
+            break;
+        case SDLK_2:
+            s_mode = Mode::CutKnock;
+            printf("mode: ignition retard band\n");
+            break;
+        case SDLK_3:
+            s_mode = Mode::CutFuel;
+            printf("mode: fuel cut band\n");
+            break;
+        case SDLK_4:
+            s_mode = Mode::CutLimp;
+            printf("mode: limp mode band\n");
+            break;
         case SDLK_x:
             s_mode = Mode::AllStale;
             printf("mode: all signals stale\n");
@@ -300,7 +387,7 @@ namespace SimInjector {
 void init(const char *scenario) {
     s_startMs = millis();
     printf("keys: C cruise · R rev-limit · O oil-critical · W warning · X stale · B bus-lost · "
-           "F ota · ←/→ pages · S screenshot · ESC quit\n");
+           "F ota · 1-4 cut bands · ←/→ pages · S screenshot · ESC quit\n");
     if (!scenario)
         return;
     for (const ScenarioName &entry : kScenarioNames) {
@@ -364,6 +451,18 @@ void tick(uint32_t nowMs) {
             break;
         case Mode::BusLost:
             feedBusLost(nowMs);
+            break;
+        case Mode::CutBoost:
+            feedCutBoost(nowMs);
+            break;
+        case Mode::CutKnock:
+            feedCutKnock(nowMs);
+            break;
+        case Mode::CutFuel:
+            feedCutFuel(nowMs);
+            break;
+        case Mode::CutLimp:
+            feedCutLimp(nowMs);
             break;
     }
 }

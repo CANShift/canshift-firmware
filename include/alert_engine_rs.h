@@ -102,6 +102,38 @@ void alert_bus_silence_rs(AlertBusSilenceRs *out, uint32_t ms_since_rx, uint32_t
 
 uint8_t alert_stale_dash_groups_rs(float max_value);
 
+enum { ALERT_CUT_KIND_COUNT = 9 };
+enum { ALERT_CUT_ROW_CAPACITY = 3 };
+enum { ALERT_CUT_MIN_VISIBLE_MS = 1500 };
+
+enum {
+    ALERT_CUT_READOUT_ELAPSED = 0,
+    ALERT_CUT_READOUT_HOLDING = 1,
+    ALERT_CUT_READOUT_LATCHED = 2
+};
+
+typedef struct {
+    uint32_t raised_at_ms[ALERT_CUT_KIND_COUNT];
+    uint32_t ended_at_ms[ALERT_CUT_KIND_COUNT];
+    bool active[ALERT_CUT_KIND_COUNT];
+    bool visible[ALERT_CUT_KIND_COUNT];
+} CutBandStateRs;
+
+typedef struct {
+    uint8_t kind;
+    uint8_t severity;
+    uint8_t readout;
+    uint32_t elapsed_ms;
+} CutRowRs;
+
+void cut_band_reset_rs(CutBandStateRs *state);
+
+void cut_band_step_rs(CutBandStateRs *state, uint16_t flags, uint32_t now_ms);
+
+uint8_t cut_band_rows_rs(const CutBandStateRs *state, uint32_t now_ms, CutRowRs *out);
+
+const char *cut_kind_name_rs(uint8_t kind);
+
 #ifdef __cplusplus
 }
 #endif

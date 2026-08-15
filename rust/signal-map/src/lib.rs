@@ -42,6 +42,7 @@ pub mod ids {
     pub const GEARBOX_TEMP_C: SignalId = 16;
     pub const DIFF_TEMP_C: SignalId = 17;
     pub const KNOCK_COUNT: SignalId = 18;
+    pub const KNOCK_CYL: SignalId = 19;
     pub const FLAG_MIL: SignalId = 20;
     pub const FLAG_LAUNCH_CTRL: SignalId = 21;
     pub const FLAG_FLAT_SHIFT: SignalId = 22;
@@ -51,11 +52,20 @@ pub mod ids {
     pub const FLAG_BRAKE: SignalId = 26;
     pub const FLAG_PIT_LIMIT: SignalId = 27;
     pub const FLAG_CRUISE: SignalId = 28;
+    pub const BOOST_TARGET_BAR: SignalId = 29;
     pub const MAP_NUMBER: SignalId = 30;
     pub const MAP_NAME_IDX: SignalId = 31;
     pub const ODO_KM: SignalId = 32;
     pub const TRIP_KM: SignalId = 33;
     pub const LAP_TIMER_MS: SignalId = 40;
+    pub const FLAG_BOOST_CUT: SignalId = 48;
+    pub const FLAG_FUEL_CUT: SignalId = 49;
+    pub const FLAG_IGNITION_CUT: SignalId = 50;
+    pub const FLAG_IGNITION_RETARD: SignalId = 51;
+    pub const FLAG_REV_LIMIT: SignalId = 52;
+    pub const FLAG_PIT_LIMIT_CUT: SignalId = 53;
+    pub const FLAG_OVERHEAT_PROTECT: SignalId = 54;
+    pub const FLAG_LIMP_MODE: SignalId = 55;
 }
 
 const NAME_TO_ID: &[(&str, SignalId)] = &[
@@ -78,6 +88,7 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("gearbox_temp_c", ids::GEARBOX_TEMP_C),
     ("diff_temp_c", ids::DIFF_TEMP_C),
     ("knock_count", ids::KNOCK_COUNT),
+    ("knock_cyl", ids::KNOCK_CYL),
     ("flag_mil", ids::FLAG_MIL),
     ("flag_launch_ctrl", ids::FLAG_LAUNCH_CTRL),
     ("flag_flat_shift", ids::FLAG_FLAT_SHIFT),
@@ -87,11 +98,20 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("flag_brake", ids::FLAG_BRAKE),
     ("flag_pit_limit", ids::FLAG_PIT_LIMIT),
     ("flag_cruise", ids::FLAG_CRUISE),
+    ("boost_target_bar", ids::BOOST_TARGET_BAR),
     ("map_number", ids::MAP_NUMBER),
     ("map_name_idx", ids::MAP_NAME_IDX),
     ("odo_km", ids::ODO_KM),
     ("trip_km", ids::TRIP_KM),
     ("lap_timer_ms", ids::LAP_TIMER_MS),
+    ("flag_boost_cut", ids::FLAG_BOOST_CUT),
+    ("flag_fuel_cut", ids::FLAG_FUEL_CUT),
+    ("flag_ignition_cut", ids::FLAG_IGNITION_CUT),
+    ("flag_ignition_retard", ids::FLAG_IGNITION_RETARD),
+    ("flag_rev_limit", ids::FLAG_REV_LIMIT),
+    ("flag_pit_limit_cut", ids::FLAG_PIT_LIMIT_CUT),
+    ("flag_overheat_protect", ids::FLAG_OVERHEAT_PROTECT),
+    ("flag_limp_mode", ids::FLAG_LIMP_MODE),
 ];
 
 /// Returns SIGNAL_COUNT on unknown name or empty input.
@@ -149,6 +169,7 @@ mod tests {
             ids::GEARBOX_TEMP_C,
             ids::DIFF_TEMP_C,
             ids::KNOCK_COUNT,
+            ids::KNOCK_CYL,
             ids::FLAG_MIL,
             ids::FLAG_LAUNCH_CTRL,
             ids::FLAG_FLAT_SHIFT,
@@ -158,11 +179,20 @@ mod tests {
             ids::FLAG_BRAKE,
             ids::FLAG_PIT_LIMIT,
             ids::FLAG_CRUISE,
+            ids::BOOST_TARGET_BAR,
             ids::MAP_NUMBER,
             ids::MAP_NAME_IDX,
             ids::ODO_KM,
             ids::TRIP_KM,
             ids::LAP_TIMER_MS,
+            ids::FLAG_BOOST_CUT,
+            ids::FLAG_FUEL_CUT,
+            ids::FLAG_IGNITION_CUT,
+            ids::FLAG_IGNITION_RETARD,
+            ids::FLAG_REV_LIMIT,
+            ids::FLAG_PIT_LIMIT_CUT,
+            ids::FLAG_OVERHEAT_PROTECT,
+            ids::FLAG_LIMP_MODE,
         ];
         for id in known_ids {
             assert!(

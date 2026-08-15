@@ -32,6 +32,8 @@ void buildPage(uint8_t idx, const CfgPage &cfg);
 
 [[nodiscard]] bool pageDeclaresShiftStrip(const CfgPage &cfg);
 
+[[nodiscard]] int16_t contentTopY(const CfgPage &cfg);
+
 void reapplyThemeAllPages();
 
 void buildPageList();

@@ -91,6 +91,27 @@ PAIRS = (
         "CONTROL_SPLASH_KIND_COUNT",
     ),
     (
+        "cut kind count",
+        "rust/alert-engine/src/cuts.rs",
+        "CUT_KIND_COUNT",
+        "include/alert_engine_rs.h",
+        "ALERT_CUT_KIND_COUNT",
+    ),
+    (
+        "cut row capacity",
+        "rust/alert-engine/src/cuts.rs",
+        "CUT_ROW_CAPACITY",
+        "include/alert_engine_rs.h",
+        "ALERT_CUT_ROW_CAPACITY",
+    ),
+    (
+        "cut minimum visible ms",
+        "rust/alert-engine/src/cuts.rs",
+        "CUT_MIN_VISIBLE_MS",
+        "include/alert_engine_rs.h",
+        "ALERT_CUT_MIN_VISIBLE_MS",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",

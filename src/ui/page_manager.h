@@ -21,6 +21,8 @@ const char *getDefaultPageId();
 
 void updateWidgets();
 
+[[nodiscard]] int16_t currentContentTopY();
+
 void requestRebuild();
 
 } // namespace PageManager

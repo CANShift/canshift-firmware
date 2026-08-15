@@ -49,6 +49,21 @@ void test_known_flag_signals() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_TRACTION_CUT, signalIdFromName("flag_traction_cut"));
 }
 
+void test_known_cut_flag_signals() {
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_BOOST_CUT, signalIdFromName("flag_boost_cut"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_FUEL_CUT, signalIdFromName("flag_fuel_cut"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_IGNITION_CUT, signalIdFromName("flag_ignition_cut"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_IGNITION_RETARD,
+                            signalIdFromName("flag_ignition_retard"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_REV_LIMIT, signalIdFromName("flag_rev_limit"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_PIT_LIMIT_CUT, signalIdFromName("flag_pit_limit_cut"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_OVERHEAT_PROTECT,
+                            signalIdFromName("flag_overheat_protect"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::FLAG_LIMP_MODE, signalIdFromName("flag_limp_mode"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::KNOCK_CYL, signalIdFromName("knock_cyl"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::BOOST_TARGET_BAR, signalIdFromName("boost_target_bar"));
+}
+
 void test_known_map_and_lap_signals() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::MAP_NUMBER, signalIdFromName("map_number"));
     TEST_ASSERT_EQUAL_UINT8(SignalIds::MAP_NAME_IDX, signalIdFromName("map_name_idx"));
@@ -82,6 +97,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_dash_page_signals);
     RUN_TEST(test_known_vehicle_electrical_signals);
     RUN_TEST(test_known_flag_signals);
+    RUN_TEST(test_known_cut_flag_signals);
     RUN_TEST(test_known_map_and_lap_signals);
     RUN_TEST(test_unknown_returns_sentinel);
     RUN_TEST(test_null_returns_sentinel);

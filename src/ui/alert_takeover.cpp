@@ -6,6 +6,7 @@
 #include "ui/alert_takeover_view.h"
 #include "ui/ota_overlay.h"
 #include "util/format_float.h"
+#include "util/text_join.h"
 
 #include <Arduino.h>
 #include <atomic>
@@ -18,7 +19,6 @@ namespace {
 
 constexpr uint32_t kUpdatePeriodMs = 100;
 constexpr int kNoActiveSource = -1;
-constexpr const char *kSeparator = " · ";
 constexpr const char *kLimitWord[] = {"MAX", "MIN"};
 
 uint32_t s_lastUpdateMs = 0;
@@ -82,7 +82,7 @@ void formatContext(char *out, size_t outLen, const AlertSources::CriticalSource 
     char limitText[12];
     FloatFormat::formatFixed(limitText, sizeof(limitText), limit.limit, src.decimals);
     snprintf(out, outLen, "%s %s %s%sAT %d rpm", kLimitWord[limit.below ? 1 : 0], limitText,
-             src.unit, kSeparator, rpm);
+             src.unit, TextJoin::kSeparator, rpm);
 }
 
 void refreshContext(const AlertSources::CriticalSource &src) {

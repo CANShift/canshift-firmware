@@ -2,6 +2,10 @@
 // NaN value → Normal; NaN threshold → disabled (mirrors C++ via `>` semantics).
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod cuts;
+
+#[cfg(feature = "ffi")]
+mod cuts_ffi;
 #[cfg(feature = "ffi")]
 mod ffi;
 
