@@ -37,6 +37,7 @@ struct PageBand {
     uint16_t designHeight;
     uint16_t reserved;
     uint16_t contentHeight;
+    uint16_t contentBottom;
     bool hasStrip;
 };
 
@@ -45,9 +46,13 @@ PageBand pageBandFor(const CfgPage &p, const CfgDashboard &dash,
     const uint16_t topBarHeight = p.showTopBar ? dash.topBar.height : 0;
     const bool hasStrip = declaresShiftStrip(p);
     const uint16_t stripBand = hasStrip ? DashMetrics::kShiftStripBandPx : 0;
+    const uint16_t alertBand = static_cast<uint16_t>(DashMetrics::kAlertLineBandPx);
     const uint16_t reserved = static_cast<uint16_t>(topBarHeight + stripBand);
-    const uint16_t contentHeight = design.height > reserved ? design.height - reserved : 0;
-    return {design.width, design.height, reserved, contentHeight, hasStrip};
+    const uint16_t taken = static_cast<uint16_t>(reserved + alertBand);
+    const uint16_t contentHeight = design.height > taken ? design.height - taken : 0;
+    const uint16_t contentBottom =
+        design.height > alertBand ? static_cast<uint16_t>(design.height - alertBand) : 0;
+    return {design.width, design.height, reserved, contentHeight, contentBottom, hasStrip};
 }
 
 bool isStrip(const CfgWidget &w, const PageBand &band) {
@@ -97,9 +102,9 @@ bool resolvePageWidgets(const CfgPage &p, const PageBand &band, uint8_t pageNumb
         CfgWidget &w = p.widgets[wi];
         resolveWidgetLayout(w, band);
         const int16_t y = screenY(w, band);
-        if (y + w.layout.h <= static_cast<int16_t>(band.designHeight))
+        if (y + w.layout.h <= static_cast<int16_t>(band.contentBottom))
             continue;
-        rejectOverflow(w, pageNumber, y, band.designHeight);
+        rejectOverflow(w, pageNumber, y, band.contentBottom);
         return false;
     }
     return true;
