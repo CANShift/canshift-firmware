@@ -2,6 +2,7 @@
 #include "sim_can_bus.h"
 #include "sim_controls.h"
 #include "sim_display.h"
+#include "sim_splash.h"
 
 #include "can/signal_map.h"
 #include "diag/error_store.h"
@@ -310,6 +311,8 @@ void init(const char *scenario) {
     }
     if (SimControls::select(scenario, s_startMs))
         return;
+    if (SimSplash::select(scenario, s_startMs))
+        return;
     for (const OverlayScenario &entry : kOverlayScenarios) {
         if (strcmp(scenario, entry.name) == 0) {
             entry.start(s_startMs);
@@ -327,6 +330,11 @@ void tick(uint32_t nowMs) {
 
     if (SimControls::active()) {
         SimControls::tick(nowMs);
+        return;
+    }
+
+    if (SimSplash::active()) {
+        SimSplash::tick(nowMs);
         return;
     }
 

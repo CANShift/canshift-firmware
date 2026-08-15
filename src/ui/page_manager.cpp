@@ -4,6 +4,7 @@
 #include "alert_banner.h"
 #include "alert_takeover.h"
 #include "bus_silent_line.h"
+#include "control_splash.h"
 #include "day_night_auto.h"
 #include "diag_drawer.h"
 #include "ota_overlay.h"
@@ -80,6 +81,7 @@ void PageManager::init() {
     buildPageList();
 
     AlertBanner::init();
+    ControlSplash::init();
     AlertTakeover::init();
 
     LOG_INFO("UI", "PageManager initialized: %d pages", s_pageCount);
@@ -172,6 +174,7 @@ void PageManager::updateWidgets() {
     AlertBanner::update();
     AlertTakeover::update();
     BusSilentLine::update();
+    ControlSplash::update();
 
     ErrorBar::update();
     DiagDrawer::update();

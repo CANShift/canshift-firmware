@@ -3,6 +3,13 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
+mod splash;
+
+pub use splash::{
+    SplashKind, SplashTimer, CONTROL_SPLASH_CHANGE_MS, CONTROL_SPLASH_KIND_COUNT,
+    CONTROL_SPLASH_REFUSAL_MS,
+};
+
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

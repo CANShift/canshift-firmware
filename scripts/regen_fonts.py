@@ -10,10 +10,13 @@ from pathlib import Path
 LATIN_RANGE = "0x20-0x7F,0xB0,0xB7,0x2014,0x2022,0x2192"
 NUMERIC_RANGE = "0x20,0x2D,0x2E,0x30-0x39"
 
+HERO_RANGE = "0x20,0x2D,0x2F,0x30-0x39,0x41-0x5A"
+
 FAMILIES = (
     ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (32, 44, 48), "lvgl", LATIN_RANGE),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (64,), "lvgl", HERO_RANGE),
     ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (84,), "lvgl", NUMERIC_RANGE),
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (17, 22), "bin", LATIN_RANGE),
+    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (13, 15, 17, 22), "bin", LATIN_RANGE),
     ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16), "bin", LATIN_RANGE),
     ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (13, 14, 15), "lvgl", LATIN_RANGE),
 )

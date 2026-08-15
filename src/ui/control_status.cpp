@@ -101,6 +101,12 @@ int paramValue(ControlParam param, uint8_t level) {
     return 0;
 }
 
+GuardReading guardReading(ControlId id) {
+    const Guard &guard = kGuards[static_cast<uint8_t>(id)];
+    const bool valid = signalValid(guard.signal);
+    return {valid ? SignalStore::read(guard.signal, 0.0f) : 0.0f, guard.threshold, valid};
+}
+
 bool levelFromSignal(ControlId id, uint8_t *outLevel) {
     const SignalId sid = kLevelSources[static_cast<uint8_t>(id)];
     if (!outLevel || !signalValid(sid))

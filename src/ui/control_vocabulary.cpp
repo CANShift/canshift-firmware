@@ -7,7 +7,6 @@ namespace ControlVocabulary {
 
 namespace {
 
-constexpr const char *kSeparator = " · ";
 constexpr size_t kParamDigits = 12;
 
 constexpr Control kControls[] = {
@@ -125,6 +124,19 @@ void composeStateWord(const Control &control, ControlState state, int param, cha
 
 ControlState stateFromRaw(uint8_t raw) {
     return raw < kStateCount ? static_cast<ControlState>(raw) : ControlState::OFF;
+}
+
+void joinPhrase(const char *lead, const char *joiner, const char *tail, int param, char *out,
+                size_t outLen) {
+    if (!out || outLen == 0)
+        return;
+    size_t written = appendExpanded(out, outLen, 0, lead ? lead : "", param);
+    if (tail && tail[0] != '\0') {
+        if (written > 0)
+            written = appendLiteral(out, outLen, written, joiner ? joiner : kSeparator);
+        written = appendExpanded(out, outLen, written, tail, param);
+    }
+    out[written] = '\0';
 }
 
 } // namespace ControlVocabulary

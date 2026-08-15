@@ -7,6 +7,9 @@
 
 namespace ControlVocabulary {
 
+inline constexpr const char *kSeparator = " · ";
+inline constexpr const char *kDash = " — ";
+
 enum class ControlState : uint8_t {
     OFF = CONTROL_STATE_OFF,
     ARMED = CONTROL_STATE_ARMED,
@@ -54,5 +57,8 @@ void composeStateWord(const Control &control, ControlState state, int param, cha
                       size_t outLen);
 
 ControlState stateFromRaw(uint8_t raw);
+
+void joinPhrase(const char *lead, const char *joiner, const char *tail, int param, char *out,
+                size_t outLen);
 
 } // namespace ControlVocabulary

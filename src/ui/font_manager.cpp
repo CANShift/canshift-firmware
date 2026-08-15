@@ -11,6 +11,7 @@
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_44_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_64_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_84_nk);
 LV_FONT_DECLARE(lv_font_jbmono_medium_10_nk);
 LV_FONT_DECLARE(lv_font_archivo_extrabold_13_nk);
@@ -24,11 +25,14 @@ struct Face {
     const lv_font_t *inFlash;
 };
 
-constexpr Face kValueFaces[] = {{17, nullptr},
+constexpr Face kValueFaces[] = {{13, nullptr},
+                                {15, nullptr},
+                                {17, nullptr},
                                 {22, nullptr},
                                 {32, &lv_font_jbmono_extrabold_32_nk},
                                 {44, &lv_font_jbmono_extrabold_44_nk},
                                 {48, &lv_font_jbmono_extrabold_48_nk},
+                                {64, &lv_font_jbmono_extrabold_64_nk},
                                 {84, &lv_font_jbmono_extrabold_84_nk}};
 
 constexpr Face kLabelFaces[] = {{10, nullptr},

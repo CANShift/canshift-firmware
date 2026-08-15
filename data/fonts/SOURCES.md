@@ -21,8 +21,8 @@ car produces render in monospace with tabular figures.
 
 | Intent    | Family / weight          | Sizes (px, device)   | Files                                              |
 | --------- | ------------------------ | -------------------- | -------------------------------------------------- |
-| value     | JB Mono ExtraBold (800)  | 32, 44, 48, 84       | in-flash twins only — no SPIFFS .bin               |
-| value     | JB Mono ExtraBold (800)  | 17, 22               | `jbmono_extrabold_{17,22}.bin`                     |
+| value     | JB Mono ExtraBold (800)  | 32, 44, 48, 64, 84   | in-flash twins only — no SPIFFS .bin               |
+| value     | JB Mono ExtraBold (800)  | 13, 15, 17, 22       | `jbmono_extrabold_{13,15,17,22}.bin`               |
 | units     | JB Mono Medium (500)     | 10                   | in-flash (`lv_font_jbmono_medium_10_nk.c`)         |
 | label     | Archivo ExtraBold (800)  | 10, 12, 13, 14, 15, 16 | `archivo_extrabold_{10,12,16}.bin` (13/14/15 in-flash) |
 
@@ -35,6 +35,11 @@ The critical-alert takeover (§10) sits outside that ladder: signal name 13, val
 call to action 15. All three are in-flash so the screen renders on a device that was
 flashed without `pio run -t uploadfs`. The 84 px face carries digits, `.`, `-` and space
 only (`NUMERIC_RANGE`) — it is the takeover value and nothing else.
+
+The control splash (states plank §E) sits outside it too: hero 64, refusal hero 48,
+hero unit 15 and the refusal reason 13. The 64 px face is in-flash and carries space,
+`-`, `/`, digits and A–Z only (`HERO_RANGE`); the mono 13 and 15 ship as SPIFFS `.bin`
+so the splash costs no app flash.
 
 ## In-flash twins
 
