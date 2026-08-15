@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config_rejection.h"
 #include "config_types.h"
 
 namespace ConfigLoader {
@@ -20,6 +21,8 @@ struct LoadResult {
 [[nodiscard]] const CfgDeviceConfig &getDeviceConfig();
 
 [[nodiscard]] const CfgInputBindings &getInputBindings();
+
+[[nodiscard]] const CfgRejection &getRejection();
 
 [[nodiscard]] bool reloadAll();
 

@@ -12,7 +12,6 @@
 #include "top_bar.h"
 #include "diag/lvgl_assert_lock.h"
 #include "page_manager.h"
-#include "setup_screen.h"
 #include "widget_factory.h"
 #include "widgets/cruise_control_widget.h"
 
@@ -229,8 +228,8 @@ void PageManager::reloadFromStorage() {
     s_pendingLazyBuildIdx = 0xFF;
 
     if (!ConfigLoader::reloadAll()) {
-        LOG_ERROR("UI", "Config reload: dashboard.json unusable — showing the setup screen");
-        SetupScreen::show();
+        LOG_ERROR("UI", "Config reload: dashboard.json unusable — showing the failure screen");
+        showConfigFailure();
         return;
     }
 

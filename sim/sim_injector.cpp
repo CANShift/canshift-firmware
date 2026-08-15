@@ -6,6 +6,8 @@
 #include "diag/error_store.h"
 #include "runtime/signal_store.h"
 #include "ui/boot_screens.h"
+#include "ui/config_rejected_screen.h"
+#include "ui/no_config_screen.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
 
@@ -58,6 +60,11 @@ constexpr float kWarnOilTempC = 138.0f;
 constexpr float kWarnIatC = 58.0f;
 constexpr uint32_t kBusLostFeedMs = 1000;
 constexpr float kBusLostBatteryVolts = 13.8f;
+constexpr uint8_t kRejectedPage = 4;
+constexpr char kRejectedWidgetId[] = "egt";
+constexpr int16_t kRejectedWidgetY = 208;
+constexpr int16_t kRejectedWidgetH = 52;
+constexpr int16_t kRejectedMaxY = 240;
 
 void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f) {
     SimCanBus::markRx();
@@ -138,6 +145,27 @@ void startOtaFailed(uint32_t) {
     OtaOverlay::showFailed(OtaOverlay::FailReason::Commit, kOtaFailDetail);
 }
 
+void hideDashChrome() {
+    lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_HIDDEN);
+}
+
+void startNoConfig(uint32_t) {
+    hideDashChrome();
+    NoConfigScreen::show();
+}
+
+void startConfigRejected(uint32_t) {
+    hideDashChrome();
+    CfgRejection rejection = {};
+    rejection.present = true;
+    rejection.pageNumber = kRejectedPage;
+    strncpy(rejection.widgetId, kRejectedWidgetId, sizeof(rejection.widgetId) - 1);
+    rejection.widgetY = kRejectedWidgetY;
+    rejection.widgetH = kRejectedWidgetH;
+    rejection.maxY = kRejectedMaxY;
+    ConfigRejectedScreen::show(rejection);
+}
+
 void startFailureSurface(uint32_t) {
     ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", "PAGE 4 EXCEEDS 240 PX");
     ErrorStore::push(ERROR_SRC_CAN, "NO_FRAMES", "BUS SILENT 4 s - CHECK WIRING");
@@ -170,7 +198,8 @@ struct OverlayScenario {
 constexpr OverlayScenario kOverlayScenarios[] = {
     {"ota", startOtaDemo},          {"ota-complete", startOtaComplete},
     {"ota-failed", startOtaFailed}, {"failure", startFailureSurface},
-    {"boot", startBootScreen},      {"self-test", startSelfTestScreen}};
+    {"boot", startBootScreen},      {"self-test", startSelfTestScreen},
+    {"no-config", startNoConfig},   {"config-rejected", startConfigRejected}};
 
 void tickOtaDemo(uint32_t nowMs) {
     if (!s_otaDemo)
