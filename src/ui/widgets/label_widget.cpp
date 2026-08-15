@@ -53,7 +53,6 @@ struct LabelTag {
     float lastValue;
     bool lastValid;
     bool revFlash;
-    bool lastBlanked;
     uint32_t baseTextRgb;
     uint32_t lastTintRgb;
     uint32_t lastBarRgb;
@@ -177,12 +176,10 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     return true;
 }
 
-void applyRevFlash(LabelTag *tag) {
-    const bool blanked = tag->revFlash && RevLimitFlash::isBlanked();
-    if (blanked == tag->lastBlanked)
-        return;
-    tag->lastBlanked = blanked;
-    WidgetHelpers::setVisible(tag->valueLabel, !blanked);
+Severity::Level labelLevelFor(const LabelTag *tag, float value) {
+    if (tag->revFlash && RevLimitFlash::isEngaged())
+        return Severity::Level::FAILURE;
+    return Severity::forReading(value, tag->warnLevel, tag->dangerLevel, tag->dangerBelow);
 }
 
 void barWidthAnimCb(void *obj, int32_t w) {
@@ -234,7 +231,6 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->lastValue = NAN;
     tag->lastValid = false;
     tag->revFlash = cfg.label.revFlash;
-    tag->lastBlanked = false;
     tag->baseTextRgb = parts.textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
     tag->lastBarRgb = parts.textRgb;
@@ -285,8 +281,6 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         return;
     }
 
-    applyRevFlash(tag);
-
     const bool unchanged = tag->lastValid && !std::isnan(tag->lastValue) && value == tag->lastValue;
     if (!unchanged) {
         char buf[40];
@@ -297,8 +291,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
         tag->lastValid = true;
     }
 
-    const Severity::Level level =
-        Severity::forReading(value, tag->warnLevel, tag->dangerLevel, tag->dangerBelow);
+    const Severity::Level level = labelLevelFor(tag, value);
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastTintRgb, valueRgbFor(tag, level));
 
     updateBar(tag, cfg, value);

@@ -1,8 +1,9 @@
 use crate::bus_silence::{bus_silence, stale_dash_groups, BusSilence};
 use crate::{
     eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure, eval_oil_temp,
-    eval_rev_limiter, eval_with_hysteresis, sensor_health_step, severity_for_reading,
-    warn_level_for, AlertLevel, LevelHold, SensorHealth, Severity, SEVERITY_LEVEL_COUNT,
+    eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit, sensor_health_step,
+    severity_for_reading, warn_level_for, AlertLevel, LevelHold, SensorHealth, Severity,
+    SEVERITY_LEVEL_COUNT,
 };
 
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
@@ -45,6 +46,11 @@ pub extern "C" fn alert_eval_rev_limiter_rs(
     flash_pct: u8,
 ) -> u8 {
     eval_rev_limiter(rpm, rev_limit_rpm, warn_pct, flash_pct) as u8
+}
+
+#[no_mangle]
+pub extern "C" fn alert_rev_limit_row_lit_rs(elapsed_ms: u32, blink_hz: u8) -> bool {
+    rev_limit_row_lit(elapsed_ms, blink_hz)
 }
 
 #[no_mangle]
@@ -268,6 +274,13 @@ mod tests {
     #[test]
     fn ffi_rev_limiter_at_flash_is_critical() {
         assert_eq!(alert_eval_rev_limiter_rs(7200.0, 7200.0, 95, 100), 3);
+    }
+
+    #[test]
+    fn ffi_rev_limit_row_toggles_at_the_half_period() {
+        assert!(alert_rev_limit_row_lit_rs(0, 6));
+        assert!(!alert_rev_limit_row_lit_rs(84, 6));
+        assert!(alert_rev_limit_row_lit_rs(167, 6));
     }
 
     #[test]

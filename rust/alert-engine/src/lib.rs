@@ -142,6 +142,15 @@ pub fn eval_rev_limiter(rpm: f32, rev_limit_rpm: f32, warn_pct: u8, flash_pct: u
     AlertLevel::Normal
 }
 
+#[must_use]
+pub fn rev_limit_row_lit(elapsed_ms: u32, blink_hz: u8) -> bool {
+    if blink_hz == 0 {
+        return true;
+    }
+    let half_periods = (elapsed_ms as u64 * 2 * blink_hz as u64) / 1000;
+    (half_periods & 1) == 0
+}
+
 // CAUTION pre-band is `warn_c - 5°C` (mirrors C++ hard-coded constant).
 #[must_use]
 pub fn eval_coolant_temp(
@@ -454,6 +463,47 @@ mod tests {
             eval_rev_limiter(8000.0, 7200.0, 95, 100),
             AlertLevel::Critical
         );
+    }
+
+    fn blink_transitions(window_ms: u32, blink_hz: u8) -> u32 {
+        let mut transitions = 0;
+        let mut prev = rev_limit_row_lit(0, blink_hz);
+        for ms in 1..=window_ms {
+            let lit = rev_limit_row_lit(ms, blink_hz);
+            if lit != prev {
+                transitions += 1;
+            }
+            prev = lit;
+        }
+        transitions
+    }
+
+    #[test]
+    fn rev_limit_row_starts_lit() {
+        assert!(rev_limit_row_lit(0, 6));
+    }
+
+    #[test]
+    fn rev_limit_row_half_period_is_83_ms_at_6_hz() {
+        assert!(rev_limit_row_lit(83, 6));
+        assert!(!rev_limit_row_lit(84, 6));
+        assert!(rev_limit_row_lit(167, 6));
+    }
+
+    #[test]
+    fn rev_limit_blinks_exactly_6_hz() {
+        assert_eq!(blink_transitions(1000, 6), 12);
+    }
+
+    #[test]
+    fn rev_limit_blink_does_not_drift() {
+        assert_eq!(blink_transitions(10_000, 6), 120);
+    }
+
+    #[test]
+    fn rev_limit_row_stays_lit_when_blinking_is_disabled() {
+        assert!(rev_limit_row_lit(0, 0));
+        assert!(rev_limit_row_lit(5_000, 0));
     }
 
     // --- eval_coolant_temp ---------------------------------------------------

@@ -138,7 +138,7 @@ void PageManager::updateWidgets() {
     SignalStats::tick(snap);
     AlertEngine::tick(snap);
     RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
-                       AlertEngine::isRevLimiterFlashOn());
+                       AlertEngine::isRevLimiterRowLit());
     {
         PERF_SCOPE(::PerfCounters::WIDGETS);
         WidgetFactory::updateAll(currentScreen, snap);

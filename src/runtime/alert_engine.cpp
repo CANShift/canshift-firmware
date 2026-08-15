@@ -12,8 +12,8 @@
 #include <string.h>
 
 static AlertEngine::AlertState s_state = {};
-static uint32_t s_lastFlashToggleMs = 0;
-static bool s_flashPhase = false;
+static uint32_t s_revLimiterSinceMs = 0;
+static bool s_revLimiterEngaged = false;
 
 static float s_revLimitRpm = 7200.0f;
 
@@ -34,9 +34,21 @@ static float s_batteryLowCritV = BATTERY_DEFAULT_LOW_CRIT_V;
 static float s_batteryHighWarnV = BATTERY_DEFAULT_HIGH_WARN_V;
 static float s_batteryHighCritV = BATTERY_DEFAULT_HIGH_CRIT_V;
 
-static constexpr uint32_t FLASH_PERIOD_MS = 1000 / (ALERT_REVLIMIT_FLASH_HZ * 2);
-
 namespace {
+
+void stepRevLimitBlink(bool engaged, uint32_t now) {
+    if (!engaged) {
+        s_revLimiterEngaged = false;
+        s_state.revLimiterRowLit = false;
+        return;
+    }
+    if (!s_revLimiterEngaged) {
+        s_revLimiterEngaged = true;
+        s_revLimiterSinceMs = now;
+    }
+    s_state.revLimiterRowLit =
+        alert_rev_limit_row_lit_rs(now - s_revLimiterSinceMs, ALERT_REVLIMIT_FLASH_HZ);
+}
 
 struct SensorHealthSlot {
     const char *name;
@@ -114,8 +126,8 @@ AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
 
 void AlertEngine::init() {
     s_state = {};
-    s_lastFlashToggleMs = 0;
-    s_flashPhase = false;
+    s_revLimiterSinceMs = 0;
+    s_revLimiterEngaged = false;
     for (SensorHealthSlot &slot : s_sensorHealth)
         slot.health = {};
     s_coolantHold = {};
@@ -212,29 +224,13 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     s_state.global = maxLevel(s_state.global, s_state.oilPressure);
     s_state.global = maxLevel(s_state.global, s_state.batteryVoltage);
 
-    bool revCritical = (s_state.revLimiter == AlertLevel::CRITICAL);
-    if (revCritical) {
-        if (now - s_lastFlashToggleMs >= FLASH_PERIOD_MS) {
-            s_flashPhase = !s_flashPhase;
-            s_lastFlashToggleMs = now;
-        }
-        s_state.revLimiterFlashActive = s_flashPhase;
-    } else {
-        s_state.revLimiterFlashActive = false;
-        s_flashPhase = false;
-    }
+    stepRevLimitBlink(s_state.revLimiter == AlertLevel::CRITICAL, now);
 }
 
 AlertEngine::AlertState AlertEngine::getState() {
     return s_state;
 }
 
-bool AlertEngine::isRevLimiterFlashOn() {
-    return s_state.revLimiterFlashActive;
-}
-
-uint32_t AlertEngine::getRevLimiterOverlayColor() {
-    if (s_state.revLimiterFlashActive)
-        return 0xFF0000;
-    return 0x000000;
+bool AlertEngine::isRevLimiterRowLit() {
+    return s_state.revLimiterRowLit;
 }

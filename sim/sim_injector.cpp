@@ -20,17 +20,26 @@
 
 namespace {
 
-enum class Mode : uint8_t { Cruise, RevLimit, OilCritical, OilLow, Warning, AllStale, BusLost };
+enum class Mode : uint8_t {
+    Cruise,
+    RevLimit,
+    RevRelease,
+    OilCritical,
+    OilLow,
+    Warning,
+    AllStale,
+    BusLost
+};
 
 struct ScenarioName {
     const char *name;
     Mode mode;
 };
 
-constexpr ScenarioName kScenarioNames[] = {{"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},
-                                           {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow},
-                                           {"warn", Mode::Warning},    {"stale", Mode::AllStale},
-                                           {"bus-lost", Mode::BusLost}};
+constexpr ScenarioName kScenarioNames[] = {
+    {"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},    {"rev-release", Mode::RevRelease},
+    {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow},  {"warn", Mode::Warning},
+    {"stale", Mode::AllStale},  {"bus-lost", Mode::BusLost}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;
@@ -38,6 +47,7 @@ bool s_otaDemo = false;
 uint32_t s_otaStartMs = 0;
 
 constexpr float kRevLimitRpm = 7400.0f;
+constexpr uint32_t kRevReleaseMs = 2000;
 constexpr size_t kOtaTotalBytes = 1024 * 1024;
 constexpr uint32_t kOtaDurationMs = 12000;
 constexpr uint32_t kOtaFailDetail = 0x1502;
@@ -80,6 +90,14 @@ void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1
 
 void feedRevLimit(uint32_t nowMs) {
     feedCruise(nowMs, 4.1f, kRevLimitRpm);
+}
+
+void feedRevRelease(uint32_t nowMs) {
+    if (nowMs - s_startMs < kRevReleaseMs) {
+        feedRevLimit(nowMs);
+        return;
+    }
+    feedCruise(nowMs);
 }
 
 void feedOilCritical(uint32_t nowMs) {
@@ -270,6 +288,9 @@ void tick(uint32_t nowMs) {
             break;
         case Mode::RevLimit:
             feedRevLimit(nowMs);
+            break;
+        case Mode::RevRelease:
+            feedRevRelease(nowMs);
             break;
         case Mode::OilCritical:
             feedOilCritical(nowMs);
