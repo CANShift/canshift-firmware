@@ -170,7 +170,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             break;
         }
         case TopBarItemKind::CAN_RATE: {
-            obj = makeBarLabel(s_bar, "-- Hz", labelColor());
+            obj = makeBarLabel(s_bar, BUS_RATE_SILENT, labelColor());
             anchor(obj, gap);
             break;
         }
