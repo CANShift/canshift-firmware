@@ -18,6 +18,7 @@ CRATES = (
     ("alert-engine", "libalert_engine.a"),
     ("timer-core", "libtimer_core.a"),
     ("layout-grid", "liblayout_grid.a"),
+    ("control-state", "libcontrol_state.a"),
 )
 
 

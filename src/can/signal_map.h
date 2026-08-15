@@ -40,6 +40,9 @@ static constexpr SignalId FLAG_FLAT_SHIFT = 22;
 static constexpr SignalId FLAG_ANTI_LAG = 23;
 static constexpr SignalId FLAG_TRACTION_CUT = 24;
 static constexpr SignalId CLUTCH_STATE = 25;
+static constexpr SignalId FLAG_BRAKE = 26;
+static constexpr SignalId FLAG_PIT_LIMIT = 27;
+static constexpr SignalId FLAG_CRUISE = 28;
 
 static constexpr SignalId MAP_NUMBER = 30;
 static constexpr SignalId MAP_NAME_IDX = 31;
