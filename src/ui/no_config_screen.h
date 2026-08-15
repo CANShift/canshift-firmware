@@ -1,6 +1,6 @@
 #pragma once
 
-namespace SetupScreen {
+namespace NoConfigScreen {
 
 void show();
 

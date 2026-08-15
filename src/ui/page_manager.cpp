@@ -10,7 +10,8 @@
 #include "rev_limit_flash.h"
 #include "error_bar.h"
 #include "gesture_controller.h"
-#include "setup_screen.h"
+#include "config_rejected_screen.h"
+#include "no_config_screen.h"
 #include "theme_manager.h"
 #include "top_bar.h"
 #include "widget_factory.h"
@@ -37,6 +38,16 @@ bool s_rebuildRequested = false;
 uint8_t s_pendingFreeIdx = 0xFF;
 uint8_t s_pendingLazyBuildIdx = 0xFF;
 
+void showConfigFailure() {
+    const CfgRejection &rejection = ConfigLoader::getRejection();
+    if (!rejection.present) {
+        LOG_WARN("UI", "No dashboard config — showing the no-config screen");
+        NoConfigScreen::show();
+        return;
+    }
+    ConfigRejectedScreen::show(rejection);
+}
+
 } // namespace PageManagerInternal
 
 void PageManager::init() {
@@ -57,8 +68,7 @@ void PageManager::init() {
     DiagDrawer::init();
 
     if (!dash.loaded) {
-        LOG_WARN("UI", "No dashboard config — showing setup screen");
-        SetupScreen::show();
+        showConfigFailure();
         return;
     }
 

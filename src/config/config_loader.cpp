@@ -20,6 +20,7 @@ CfgDashboard *s_dashboard = nullptr;
 CfgSignalConfig s_signals = {};
 CfgDeviceConfig s_device = {};
 CfgInputBindings s_inputs = {};
+CfgRejection s_rejection = {};
 
 namespace {
 constexpr size_t kRollbackSnapshotSize = sizeof(CfgSignalConfig);
@@ -83,6 +84,9 @@ const CfgDeviceConfig &ConfigLoader::getDeviceConfig() {
 const CfgInputBindings &ConfigLoader::getInputBindings() {
     return ConfigLoaderInternal::s_inputs;
 }
+const CfgRejection &ConfigLoader::getRejection() {
+    return ConfigLoaderInternal::s_rejection;
+}
 bool ConfigLoader::reloadAll() {
     LoadResult r = loadAll();
     LOG_INFO("CFG", "Config reloaded: dashboard=%d signals=%d inputs=%d", r.dashboardOk,
@@ -104,6 +108,7 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
 
 #include "config_dashboard_loader.inc"
 #include "config_file_loaders.inc"
+#include "config_layout_resolver.inc"
 #include "config_parser.inc"
 #include "config_signals_loader.inc"
 #include "config_validators.inc"

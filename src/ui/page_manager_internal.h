@@ -26,6 +26,8 @@ extern uint8_t s_pendingFreeIdx;
 
 extern uint8_t s_pendingLazyBuildIdx;
 
+void showConfigFailure();
+
 void buildPage(uint8_t idx, const CfgPage &cfg);
 
 [[nodiscard]] bool pageDeclaresShiftStrip(const CfgPage &cfg);
