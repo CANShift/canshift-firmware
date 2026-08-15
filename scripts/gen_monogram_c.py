@@ -16,7 +16,7 @@ from pathlib import Path
 SKEW_TAN = 0.19438  # tan(11 deg)
 SS = 4  # supersample factor per axis
 
-INK = (0xFF, 0xFF, 0xFF)
+INK = (0xF3, 0xF2, 0xF2)
 ACCENT = (0xFF, 0x47, 0x47)
 
 STROKE_W = 13.0
@@ -25,7 +25,7 @@ C_PATH = [(46, 26), (22, 26), (22, 74), (46, 74)]
 
 S_PATH = [(96, 26), (66, 26), (66, 50), (96, 50), (96, 74), (66, 74)]
 
-SIZES = [("mark", 84), ("header", 32)]
+SIZES = [("mark", 55), ("header", 32)]
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_CPP = ROOT / "src" / "ui" / "monogram_baked.cpp"

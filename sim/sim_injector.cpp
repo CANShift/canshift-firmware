@@ -4,6 +4,7 @@
 #include "can/signal_map.h"
 #include "diag/error_store.h"
 #include "runtime/signal_store.h"
+#include "ui/boot_screens.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
 
@@ -110,15 +111,34 @@ void startFailureSurface(uint32_t) {
     ErrorStore::push(ERROR_SRC_CAN, "NO_FRAMES", "BUS SILENT 4 s - CHECK WIRING");
 }
 
+lv_obj_t *makeFullScreenOverlay() {
+    lv_obj_t *root = lv_obj_create(lv_layer_top());
+    if (!root)
+        return nullptr;
+    lv_obj_set_size(root, LV_HOR_RES, LV_VER_RES);
+    lv_obj_center(root);
+    return root;
+}
+
+void startBootScreen(uint32_t) {
+    BootScreens::buildBoot(makeFullScreenOverlay());
+}
+
+void startSelfTestScreen(uint32_t) {
+    constexpr BootScreens::CheckResult kSelfTest[BootScreens::kCheckCount] = {
+        {"OK", true}, {"OK", true}, {"OK", true}, {"6 PAGES", true}, {"NO FRAMES", false}};
+    BootScreens::buildSelfTest(makeFullScreenOverlay(), kSelfTest);
+}
+
 struct OverlayScenario {
     const char *name;
     void (*start)(uint32_t nowMs);
 };
 
-constexpr OverlayScenario kOverlayScenarios[] = {{"ota", startOtaDemo},
-                                                 {"ota-complete", startOtaComplete},
-                                                 {"ota-failed", startOtaFailed},
-                                                 {"failure", startFailureSurface}};
+constexpr OverlayScenario kOverlayScenarios[] = {
+    {"ota", startOtaDemo},          {"ota-complete", startOtaComplete},
+    {"ota-failed", startOtaFailed}, {"failure", startFailureSurface},
+    {"boot", startBootScreen},      {"self-test", startSelfTestScreen}};
 
 void tickOtaDemo(uint32_t nowMs) {
     if (!s_otaDemo)
