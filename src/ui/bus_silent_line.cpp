@@ -13,7 +13,7 @@
 
 namespace {
 
-constexpr const char *kTextFormat = "BUS SILENT %lu s - CHECK WIRING";
+constexpr const char *kTextFormat = "BUS SILENT %lu s — CHECK WIRING";
 constexpr size_t kTextCap = 40;
 constexpr uint32_t kSecondsCap = 999;
 constexpr uint32_t kSecondsUnset = UINT32_MAX;

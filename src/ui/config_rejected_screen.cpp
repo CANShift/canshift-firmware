@@ -14,7 +14,7 @@ namespace ConfigRejectedScreen {
 namespace {
 
 constexpr char kKicker[] = "CONFIG REJECTED";
-constexpr char kWayOut[] = "RUNNING LAST GOOD CONFIG - FIX IN THE TUNER";
+constexpr char kWayOut[] = "RUNNING LAST GOOD CONFIG — FIX IN THE TUNER";
 
 constexpr uint8_t kReasonPx = 22;
 constexpr uint8_t kDetailPx = 10;
@@ -41,7 +41,7 @@ void addDetail(const SystemScreen::Frame &frame, const CfgRejection &rejection) 
     WidgetHelpers::formatSignalLabel(rejection.widgetId, name, sizeof(name));
     const int overBy = rejection.widgetY + rejection.widgetH - rejection.maxY;
     char text[96];
-    snprintf(text, sizeof(text), "WIDGET %s AT Y %d, H %d\nMAX Y %d - OVER BY %d", name,
+    snprintf(text, sizeof(text), "WIDGET %s AT Y %d, H %d\nMAX Y %d — OVER BY %d", name,
              rejection.widgetY, rejection.widgetH, rejection.maxY, overBy);
     SystemScreen::setTopGap(SystemScreen::addMonoLine(frame.header.value, text,
                                                       ThemeManager::dimColor(), kDetailPx,
