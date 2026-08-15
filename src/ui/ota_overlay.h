@@ -11,7 +11,7 @@ enum class FailReason : int8_t {
     Aborted,
 };
 
-void show(size_t totalBytes);
+void show(size_t totalBytes, const char *targetVersion);
 
 void setProgress(size_t writtenBytes);
 

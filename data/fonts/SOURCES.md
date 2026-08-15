@@ -1,7 +1,7 @@
 # Firmware bin fonts — JetBrains Mono (values) + Archivo (labels)
 
 LVGL `.bin` fonts loaded at boot from SPIFFS by `FontManager::init()`
-(see `src/ui/font_manager.cpp`). Latin ASCII only (`0x20-0x7F`), bpp=4,
+(see `src/ui/font_manager.cpp`). Latin ASCII plus `°`, `•` and `→` (`0x20-0x7F,0xB0,0x2022,0x2192`), bpp=4,
 no kerning. Replaced Orbitron in the #1838 restyle (#1821): all values the
 car produces render in monospace with tabular figures.
 
@@ -13,7 +13,7 @@ car produces render in monospace with tabular figures.
 - Archivo: https://github.com/google/fonts/tree/main/ofl/archivo — static
   ExtraBold (800) instance, same OFL licence.
 - Conversion: `scripts/regen_fonts.py <ttf-dir>` — wraps
-  `lv_font_conv --size <S> --bpp 4 --no-kerning --range 0x20-0x7F,0xB0,0x2022`
+  `lv_font_conv --size <S> --bpp 4 --no-kerning --range 0x20-0x7F,0xB0,0x2022,0x2192`
   (`--format bin` for SPIFFS, `--format lvgl` for the in-flash twins).
 
 ## Weight / size matrix

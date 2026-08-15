@@ -11,6 +11,7 @@ brew install sdl2
 pio run -e sim
 .pio/build/sim/program                          # data root defaults to ./data
 .pio/build/sim/program data rev track 3000      # scenario, start page, capture-and-exit after N ms
+.pio/build/sim/program data ota engine 8160     # D03 at 68 % — the planche frame
 ```
 
 `program [dataRoot] [scenario] [pageId] [captureAfterMs]`. Scenarios are `cruise`,

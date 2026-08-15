@@ -64,7 +64,7 @@ void handleOtaBegin(const JsonObjectConst &obj) {
         UsbComm::sendError(result.error != nullptr ? result.error : "begin_failed");
         return;
     }
-    PendingActions::otaOverlayShowSize.store(total, std::memory_order_relaxed);
+    PendingActions::requestOtaOverlayShow(total, obj["version"] | "");
     UsbComm::sendOk();
 }
 
