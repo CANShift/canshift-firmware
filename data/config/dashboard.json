@@ -1183,7 +1183,7 @@
     {
      "id": "controls_pit",
      "type": "button",
-     "signal": "flag_pit_limit",
+     "signal": "flag_pit_limit_cut",
      "layout": {
       "col": 4,
       "colSpan": 4,
@@ -1218,9 +1218,9 @@
      }
     },
     {
-     "id": "controls_cruise",
+     "id": "controls_traction",
      "type": "button",
-     "signal": "flag_cruise",
+     "signal": "flag_traction_cut",
      "layout": {
       "col": 8,
       "colSpan": 4,
@@ -1240,7 +1240,7 @@
       "type": "button",
       "mode": "single",
       "label": "OFF",
-      "kicker": "CRUISE",
+      "kicker": "TRACTION",
       "showLabel": true,
       "isToggle": true,
       "actions": [
