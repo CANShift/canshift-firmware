@@ -183,7 +183,7 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
 
 void buildDayModeRow(int16_t &y, int16_t rowW) {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (!dash.hasDayTheme)
+    if (!dash.hasTheme)
         return;
 
     lv_obj_t *lbl = lv_label_create(s_panel);

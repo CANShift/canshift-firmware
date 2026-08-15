@@ -352,15 +352,14 @@ void test_loadDashboard_themePalette_parsesTextColorsAndDayNightSignal() {
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
 
     const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
-    TEST_ASSERT_TRUE(dashboard.hasDayTheme);
-    TEST_ASSERT_TRUE(dashboard.dayTheme.hasPalette);
-    TEST_ASSERT_EQUAL_UINT32(0xE8E6E1u, dashboard.dayTheme.bgColor.rgb);
-    TEST_ASSERT_EQUAL_UINT32(0x141414u, dashboard.dayTheme.text.rgb);
-    TEST_ASSERT_EQUAL_UINT32(0x6A665Fu, dashboard.dayTheme.textDim.rgb);
+    TEST_ASSERT_TRUE(dashboard.hasTheme);
+    TEST_ASSERT_TRUE(dashboard.dayFace.hasPalette);
+    TEST_ASSERT_EQUAL_UINT32(0xE8E6E1u, dashboard.dayFace.bgColor.rgb);
+    TEST_ASSERT_EQUAL_UINT32(0x141414u, dashboard.dayFace.text.rgb);
+    TEST_ASSERT_EQUAL_UINT32(0x6A665Fu, dashboard.dayFace.textDim.rgb);
 
-    TEST_ASSERT_TRUE(dashboard.hasNightTheme);
-    TEST_ASSERT_FALSE(dashboard.nightTheme.hasPalette);
-    TEST_ASSERT_EQUAL_UINT32(0x121212u, dashboard.nightTheme.bgColor.rgb);
+    TEST_ASSERT_FALSE(dashboard.nightFace.hasPalette);
+    TEST_ASSERT_EQUAL_UINT32(0x121212u, dashboard.nightFace.bgColor.rgb);
 
     TEST_ASSERT_EQUAL_STRING("flag_headlights", dashboard.dayNightSignal);
 }
@@ -371,8 +370,7 @@ void test_loadDashboard_noThemes_leavesDayNightSignalEmpty() {
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
 
     const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
-    TEST_ASSERT_FALSE(dashboard.hasDayTheme);
-    TEST_ASSERT_FALSE(dashboard.hasNightTheme);
+    TEST_ASSERT_FALSE(dashboard.hasTheme);
     TEST_ASSERT_EQUAL_STRING("", dashboard.dayNightSignal);
 }
 
@@ -386,10 +384,9 @@ void test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely() {
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
 
     const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
-    TEST_ASSERT_TRUE(dashboard.hasDayTheme);
-    TEST_ASSERT_FALSE(dashboard.dayTheme.hasPalette);
-    TEST_ASSERT_TRUE(dashboard.hasNightTheme);
-    TEST_ASSERT_FALSE(dashboard.nightTheme.hasPalette);
+    TEST_ASSERT_TRUE(dashboard.hasTheme);
+    TEST_ASSERT_FALSE(dashboard.dayFace.hasPalette);
+    TEST_ASSERT_FALSE(dashboard.nightFace.hasPalette);
     TEST_ASSERT_EQUAL_STRING("", dashboard.dayNightSignal);
 }
 

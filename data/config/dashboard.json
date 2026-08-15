@@ -1,6 +1,6 @@
 {
  "_comment": "CANShift default dashboard \u2014 the six restyle pages: street, track, engine, tuning, timing, controls (#1823). Shift-light strip pending its own widget type.",
- "version": "1.36.0",
+ "version": "1.37.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
  "defaultPageId": "street",
@@ -36,8 +36,13 @@
    }
   ]
  },
- "dayTheme": {
-  "bgColor": "#DDDDDD"
+ "theme": {
+  "day": {
+   "bgColor": "#DDDDDD"
+  },
+  "night": {
+   "bgColor": "#121212"
+  }
  },
  "pages": [
   {

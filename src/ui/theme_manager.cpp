@@ -31,7 +31,7 @@ void ThemeManager::apply() {
 
 void ThemeManager::init() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (!dash.hasDayTheme) {
+    if (!dash.hasTheme) {
         s_isDayMode = false;
         return;
     }
@@ -50,7 +50,7 @@ bool ThemeManager::isDayMode() {
 
 void ThemeManager::toggleDayMode() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (!dash.hasDayTheme)
+    if (!dash.hasTheme)
         return;
 
     s_isDayMode = !s_isDayMode;
@@ -62,7 +62,7 @@ void ThemeManager::toggleDayMode() {
 
 void ThemeManager::setDayMode(bool day) {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (!dash.hasDayTheme)
+    if (!dash.hasTheme)
         return;
     if (s_isDayMode == day)
         return;
@@ -77,22 +77,17 @@ void ThemeManager::setDayMode(bool day) {
 
 CfgColor ThemeManager::getEffectiveBgColor(const CfgColor &nightBg) {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (s_isDayMode && dash.hasDayTheme) {
-        return dash.dayTheme.bgColor;
-    }
-    if (!s_isDayMode && dash.hasNightTheme) {
-        return dash.nightTheme.bgColor;
-    }
-    return nightBg;
+    if (!dash.hasTheme)
+        return nightBg;
+    return s_isDayMode ? dash.dayFace.bgColor : dash.nightFace.bgColor;
 }
 
 static const CfgTheme *activeThemeWithPalette() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (s_isDayMode && dash.hasDayTheme && dash.dayTheme.hasPalette)
-        return &dash.dayTheme;
-    if (!s_isDayMode && dash.hasNightTheme && dash.nightTheme.hasPalette)
-        return &dash.nightTheme;
-    return nullptr;
+    if (!dash.hasTheme)
+        return nullptr;
+    const CfgTheme &face = s_isDayMode ? dash.dayFace : dash.nightFace;
+    return face.hasPalette ? &face : nullptr;
 }
 
 uint32_t ThemeManager::getEffectiveTextColor() {
