@@ -178,7 +178,7 @@ void startConfigRejected(uint32_t) {
 
 void startFailureSurface(uint32_t) {
     ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", "PAGE 4 EXCEEDS 240 PX");
-    ErrorStore::push(ERROR_SRC_CAN, "NO_FRAMES", "BUS SILENT 4 s - CHECK WIRING");
+    ErrorStore::push(ERROR_SRC_CAN, "NO_FRAMES", "BUS SILENT 4 s — CHECK WIRING");
 }
 
 lv_obj_t *makeFullScreenOverlay() {
