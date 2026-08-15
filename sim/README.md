@@ -15,11 +15,11 @@ pio run -e sim
 ```
 
 `program [dataRoot] [scenario] [pageId] [captureAfterMs]`. Scenarios are `cruise`,
-`rev`, `oil`, `oil-low`, `warn`, `stale` and `bus-lost` — the same modes as the
-keys below — plus `rev-release` (2 s at the limiter, then back to cruise, so the
-frame after the limiter clears is reproducible) and the overlay scenarios `ota`,
-`ota-complete`, `ota-failed`, `failure` (pushes two errors so the failure surface
-renders), `boot` (D01), `self-test` (D02, with the CAN BUS row failing),
+`rev`, `oil`, `oil-low`, `water`, `warn`, `stale` and `bus-lost` — the same modes
+as the keys below — plus `rev-release` (2 s at the limiter, then back to cruise,
+so the frame after the limiter clears is reproducible) and the overlay scenarios
+`ota`, `ota-complete`, `ota-failed`, `failure` (pushes two errors so the failure
+surface renders), `boot` (D01), `self-test` (D02, with the CAN BUS row failing),
 `no-config` (D07, the first-boot empty screen) and `config-rejected` (D06, a
 layout that does not fit 240 px). The last two replace the whole screen and hide
 the dash chrome, so the captured frame is what a device with no usable config
@@ -33,8 +33,9 @@ frame (e.g. both phases of the 6 Hz rev-limit blink) without touching the keyboa
 | --- | --- |
 | `C` | cruise scenario (default) — sweeping rpm/speed/boost |
 | `R` | rev limiter held at the limit |
-| `O` | oil pressure 0.4 bar — critical takeover after the 2 s hold |
+| `O` | oil pressure 0.4 bar at 5200 rpm — critical takeover after the 2 s hold |
 | `W` | coolant, oil temp and IAT in their warning bands |
+| — | `water` scenario only: coolant 118 °C at 4100 rpm — the high-side takeover |
 | `X` | stop feeding — everything goes stale (`- -` at 500 ms) |
 | `B` | D04: feed for 1 s, then drop the bus while battery keeps reading |
 | `F` | fake OTA progress overlay (toggle) |

@@ -1,9 +1,9 @@
 use crate::bus_silence::{bus_silence, stale_dash_groups, BusSilence};
 use crate::{
-    eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure, eval_oil_temp,
-    eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit, sensor_health_step,
-    severity_for_reading, warn_level_for, AlertLevel, LevelHold, SensorHealth, Severity,
-    SEVERITY_LEVEL_COUNT,
+    crossed_limit, eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure,
+    eval_oil_temp, eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit, sensor_health_step,
+    severity_for_reading, warn_level_for, AlertLevel, CrossedLimit, LevelHold, SensorHealth,
+    Severity, SEVERITY_LEVEL_COUNT,
 };
 
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
@@ -223,6 +223,22 @@ pub extern "C" fn alert_severity_for_reading_rs(
     severity_for_reading(value, warn_level, danger_level, danger_below) as u8
 }
 
+/// # Safety
+/// `out` must be a valid, aligned, writable `CrossedLimit`, or null.
+#[no_mangle]
+pub unsafe extern "C" fn alert_crossed_limit_rs(
+    out: *mut CrossedLimit,
+    value: f32,
+    primary: f32,
+    primary_below: bool,
+    high_crit: f32,
+) {
+    let Some(out) = out.as_mut() else {
+        return;
+    };
+    *out = crossed_limit(value, primary, primary_below, high_crit);
+}
+
 #[no_mangle]
 pub extern "C" fn alert_warn_level_for_rs(
     danger_level: f32,
@@ -244,6 +260,20 @@ mod tests {
             130.0
         );
         assert!(alert_warn_level_for_rs(240.0, false, 250.0, f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn ffi_crossed_limit_null_is_noop() {
+        unsafe { alert_crossed_limit_rs(core::ptr::null_mut(), 0.4, 1.0, true, f32::NAN) };
+    }
+
+    #[test]
+    fn ffi_crossed_limit_writes_the_low_side_threshold() {
+        let mut out = CrossedLimit::default();
+        unsafe { alert_crossed_limit_rs(&mut out, 0.4, 1.0, true, f32::NAN) };
+        assert!(out.valid);
+        assert!(out.below);
+        assert_eq!(out.limit, 1.0);
     }
 
     #[test]

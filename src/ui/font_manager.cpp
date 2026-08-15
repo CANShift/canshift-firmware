@@ -11,26 +11,44 @@
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_32_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_44_nk);
 LV_FONT_DECLARE(lv_font_jbmono_extrabold_48_nk);
+LV_FONT_DECLARE(lv_font_jbmono_extrabold_84_nk);
 LV_FONT_DECLARE(lv_font_jbmono_medium_10_nk);
+LV_FONT_DECLARE(lv_font_archivo_extrabold_13_nk);
 LV_FONT_DECLARE(lv_font_archivo_extrabold_14_nk);
+LV_FONT_DECLARE(lv_font_archivo_extrabold_15_nk);
 
 namespace {
 
-constexpr uint8_t kValueSizes[] = {17, 22, 32, 44, 48};
-constexpr uint8_t kSpiffsValueCount = 2;
-constexpr uint8_t kLabelSizes[] = {10, 12, 14, 16};
+struct Face {
+    uint8_t size;
+    const lv_font_t *inFlash;
+};
 
-constexpr size_t kValueCount = sizeof(kValueSizes) / sizeof(kValueSizes[0]);
-constexpr size_t kLabelCount = sizeof(kLabelSizes) / sizeof(kLabelSizes[0]);
+constexpr Face kValueFaces[] = {{17, nullptr},
+                                {22, nullptr},
+                                {32, &lv_font_jbmono_extrabold_32_nk},
+                                {44, &lv_font_jbmono_extrabold_44_nk},
+                                {48, &lv_font_jbmono_extrabold_48_nk},
+                                {84, &lv_font_jbmono_extrabold_84_nk}};
+
+constexpr Face kLabelFaces[] = {{10, nullptr},
+                                {12, nullptr},
+                                {13, &lv_font_archivo_extrabold_13_nk},
+                                {14, &lv_font_archivo_extrabold_14_nk},
+                                {15, &lv_font_archivo_extrabold_15_nk},
+                                {16, nullptr}};
+
+constexpr size_t kValueCount = sizeof(kValueFaces) / sizeof(kValueFaces[0]);
+constexpr size_t kLabelCount = sizeof(kLabelFaces) / sizeof(kLabelFaces[0]);
 
 const lv_font_t *s_value[kValueCount] = {nullptr};
 const lv_font_t *s_label[kLabelCount] = {nullptr};
 bool s_initialized = false;
 
-size_t snapIndex(const uint8_t *sizes, size_t count, uint8_t size) {
+size_t snapIndex(const Face *faces, size_t count, uint8_t size) {
     size_t idx = 0;
     for (size_t i = 0; i < count; ++i) {
-        if (sizes[i] <= size) {
+        if (faces[i].size <= size) {
             idx = i;
         } else {
             break;
@@ -106,11 +124,31 @@ void loadOne(const char *family, const char *weight, const char *intent, uint8_t
     slot = font;
 }
 
-const lv_font_t *resolve(const uint8_t *sizes, size_t count, const lv_font_t *const *cache,
+const lv_font_t *resolve(const Face *faces, size_t count, const lv_font_t *const *cache,
                          uint8_t size, const lv_font_t *fallback) {
-    const size_t idx = snapIndex(sizes, count, size);
+    const size_t idx = snapIndex(faces, count, size);
     const lv_font_t *const cached = cache[idx];
     return (cached != nullptr) ? cached : fallback;
+}
+
+void loadFamily(const char *family, const char *weight, const char *intent, const Face *faces,
+                size_t count, const lv_font_t **cache) {
+    for (size_t i = 0; i < count; ++i) {
+        if (faces[i].inFlash != nullptr) {
+            cache[i] = faces[i].inFlash;
+            continue;
+        }
+        loadOne(family, weight, intent, faces[i].size, cache[i]);
+    }
+}
+
+void freeLoaded(const Face *faces, size_t count, const lv_font_t **cache) {
+    for (size_t i = 0; i < count; ++i) {
+        if (cache[i] != nullptr && faces[i].inFlash == nullptr) {
+            lv_font_free(const_cast<lv_font_t *>(cache[i]));
+        }
+        cache[i] = nullptr;
+    }
 }
 
 } // namespace
@@ -121,45 +159,20 @@ void FontManager::init() {
     }
     LOG_INFO("FONT", "Loading font family 'jbmono' (device scale)");
 
-    for (uint8_t i = 0; i < kSpiffsValueCount; ++i) {
-        loadOne("jbmono", "extrabold", "value", kValueSizes[i], s_value[i]);
-    }
-    s_value[2] = &lv_font_jbmono_extrabold_32_nk;
-    s_value[3] = &lv_font_jbmono_extrabold_44_nk;
-    s_value[4] = &lv_font_jbmono_extrabold_48_nk;
-    LOG_INFO("FONT", "jbmono_extrabold_{32,44,48}: using in-flash copies");
-
-    loadOne("archivo", "extrabold", "label", kLabelSizes[0], s_label[0]);
-    loadOne("archivo", "extrabold", "label", kLabelSizes[1], s_label[1]);
-    s_label[2] = &lv_font_archivo_extrabold_14_nk;
-    LOG_INFO("FONT", "archivo_extrabold_14: using in-flash copy");
-    loadOne("archivo", "extrabold", "label", kLabelSizes[3], s_label[3]);
+    loadFamily("jbmono", "extrabold", "value", kValueFaces, kValueCount, s_value);
+    loadFamily("archivo", "extrabold", "label", kLabelFaces, kLabelCount, s_label);
 
     s_initialized = true;
 }
 
 void FontManager::shutdown() {
-    auto freeAll = [](const lv_font_t **slots, size_t count) {
-        for (size_t i = 0; i < count; ++i) {
-
-            const bool isInFlash = slots[i] == &lv_font_jbmono_medium_10_nk ||
-                                   slots[i] == &lv_font_archivo_extrabold_14_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_32_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_44_nk ||
-                                   slots[i] == &lv_font_jbmono_extrabold_48_nk;
-            if (slots[i] != nullptr && !isInFlash) {
-                lv_font_free(const_cast<lv_font_t *>(slots[i]));
-            }
-            slots[i] = nullptr;
-        }
-    };
-    freeAll(s_value, kValueCount);
-    freeAll(s_label, kLabelCount);
+    freeLoaded(kValueFaces, kValueCount, s_value);
+    freeLoaded(kLabelFaces, kLabelCount, s_label);
     s_initialized = false;
 }
 
 const lv_font_t *FontManager::value(uint8_t devicePx) {
-    return resolve(kValueSizes, kValueCount, s_value, devicePx, &lv_font_jbmono_medium_10_nk);
+    return resolve(kValueFaces, kValueCount, s_value, devicePx, &lv_font_jbmono_medium_10_nk);
 }
 
 const lv_font_t *FontManager::units() {
@@ -167,5 +180,5 @@ const lv_font_t *FontManager::units() {
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {
-    return resolve(kLabelSizes, kLabelCount, s_label, size, &lv_font_archivo_extrabold_14_nk);
+    return resolve(kLabelFaces, kLabelCount, s_label, size, &lv_font_archivo_extrabold_14_nk);
 }

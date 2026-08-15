@@ -116,6 +116,20 @@ AlertEngine::AlertLevel stepOilPressure(float pressBar, uint32_t now) {
         s_oilPressHighCritBar, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
 }
 
+struct CriticalLimitBinding {
+    SignalId id;
+    const float *primary;
+    bool primaryBelow;
+    const float *highCrit;
+};
+
+constexpr CriticalLimitBinding kCriticalLimits[] = {
+    {SignalIds::COOLANT_TEMP_C, &s_coolantCritC, false, &s_coolantHighCritC},
+    {SignalIds::OIL_TEMP_C, &s_oilTempCritC, false, &s_oilTempHighCritC},
+    {SignalIds::OIL_PRESS_BAR, &s_oilPressCritBar, true, &s_oilPressHighCritBar},
+    {SignalIds::BATTERY_VOLTS, &s_batteryLowCritV, true, &s_batteryHighCritV},
+};
+
 AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_battery_step_rs(
         &s_batteryHold, volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV,
@@ -229,6 +243,17 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
 
 AlertEngine::AlertState AlertEngine::getState() {
     return s_state;
+}
+
+AlertEngine::CriticalLimit AlertEngine::criticalLimitFor(SignalId id, float reading) {
+    for (const CriticalLimitBinding &b : kCriticalLimits) {
+        if (b.id != id)
+            continue;
+        AlertCrossedLimitRs out = {};
+        alert_crossed_limit_rs(&out, reading, *b.primary, b.primaryBelow, *b.highCrit);
+        return {out.limit, out.below, out.valid};
+    }
+    return {0.0f, false, false};
 }
 
 bool AlertEngine::isRevLimiterRowLit() {

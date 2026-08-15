@@ -37,14 +37,7 @@ uint8_t indexOf(Level level) {
 }
 
 lv_obj_t *makeColumn(lv_obj_t *parent) {
-    lv_obj_t *col = lv_obj_create(parent);
-    if (!col)
-        return nullptr;
-    WidgetHelpers::resetContainerStyle(col);
-    lv_obj_set_size(col, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_row(col, 0, LV_PART_MAIN);
+    lv_obj_t *col = WidgetHelpers::makeFlushColumn(parent);
     WidgetHelpers::disableInteract(col);
     return col;
 }

@@ -28,6 +28,7 @@ enum class Mode : uint8_t {
     RevRelease,
     OilCritical,
     OilLow,
+    WaterCritical,
     Warning,
     AllStale,
     BusLost
@@ -39,9 +40,9 @@ struct ScenarioName {
 };
 
 constexpr ScenarioName kScenarioNames[] = {
-    {"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},    {"rev-release", Mode::RevRelease},
-    {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow},  {"warn", Mode::Warning},
-    {"stale", Mode::AllStale},  {"bus-lost", Mode::BusLost}};
+    {"cruise", Mode::Cruise},   {"rev", Mode::RevLimit},   {"rev-release", Mode::RevRelease},
+    {"oil", Mode::OilCritical}, {"oil-low", Mode::OilLow}, {"water", Mode::WaterCritical},
+    {"warn", Mode::Warning},    {"stale", Mode::AllStale}, {"bus-lost", Mode::BusLost}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;
@@ -55,6 +56,10 @@ constexpr uint32_t kOtaDurationMs = 12000;
 constexpr uint32_t kOtaFailDetail = 0x1502;
 constexpr char kOtaTargetVersion[] = "0.1.1";
 constexpr float kOilLowBar = 1.2f;
+constexpr float kOilCriticalBar = 0.4f;
+constexpr float kOilCriticalRpm = 5200.0f;
+constexpr float kWaterCriticalC = 118.0f;
+constexpr float kWaterCriticalRpm = 4100.0f;
 constexpr float kWarnCoolantC = 105.0f;
 constexpr float kWarnOilTempC = 138.0f;
 constexpr float kWarnIatC = 58.0f;
@@ -66,7 +71,8 @@ constexpr int16_t kRejectedWidgetY = 208;
 constexpr int16_t kRejectedWidgetH = 52;
 constexpr int16_t kRejectedMaxY = 240;
 
-void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f) {
+void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1.0f,
+                float coolantC = 92.0f) {
     SimCanBus::markRx();
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
     const float sweep = 0.5f + 0.5f * sinf(t * 0.6f);
@@ -77,7 +83,7 @@ void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1
     SignalStore::update(SignalIds::THROTTLE_POS, sweep * 100.0f);
     SignalStore::update(SignalIds::BOOST_BAR, sweep * 1.4f);
     SignalStore::update(SignalIds::MAP_KPA, 100.0f + sweep * 120.0f);
-    SignalStore::update(SignalIds::COOLANT_TEMP_C, 92.0f);
+    SignalStore::update(SignalIds::COOLANT_TEMP_C, coolantC);
     SignalStore::update(SignalIds::OIL_TEMP_C, 104.0f);
     SignalStore::update(SignalIds::OIL_PRESS_BAR, oilPressBar);
     SignalStore::update(SignalIds::FUEL_PRESS_BAR, 3.0f);
@@ -109,11 +115,15 @@ void feedRevRelease(uint32_t nowMs) {
 }
 
 void feedOilCritical(uint32_t nowMs) {
-    feedCruise(nowMs, 0.4f);
+    feedCruise(nowMs, kOilCriticalBar, kOilCriticalRpm);
 }
 
 void feedOilLow(uint32_t nowMs) {
     feedCruise(nowMs, kOilLowBar);
+}
+
+void feedWaterCritical(uint32_t nowMs) {
+    feedCruise(nowMs, 4.1f, kWaterCriticalRpm, kWaterCriticalC);
 }
 
 void feedWarning(uint32_t nowMs) {
@@ -327,6 +337,9 @@ void tick(uint32_t nowMs) {
             break;
         case Mode::OilLow:
             feedOilLow(nowMs);
+            break;
+        case Mode::WaterCritical:
+            feedWaterCritical(nowMs);
             break;
         case Mode::Warning:
             feedWarning(nowMs);

@@ -24,11 +24,19 @@ struct AlertState {
     bool batterySensorLost;
 };
 
+struct CriticalLimit {
+    float limit;
+    bool below;
+    bool valid;
+};
+
 void init();
 
 void tick(const SignalStore::SignalValue *snap);
 
 AlertState getState();
+
+CriticalLimit criticalLimitFor(SignalId id, float reading);
 
 bool isRevLimiterRowLit();
 

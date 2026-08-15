@@ -175,8 +175,21 @@ lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb) {
     lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(rule, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(rule, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(rule, 0, LV_PART_MAIN);
     lv_obj_clear_flag(rule, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     return rule;
+}
+
+lv_obj_t *makeFlushColumn(lv_obj_t *parent) {
+    lv_obj_t *col = lv_obj_create(parent);
+    if (!col)
+        return nullptr;
+    resetContainerStyle(col);
+    lv_obj_set_size(col, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(col, 0, LV_PART_MAIN);
+    return col;
 }
 
 namespace {
