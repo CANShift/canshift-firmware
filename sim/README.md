@@ -26,7 +26,11 @@ the dash chrome, so the captured frame is what a device with no usable config
 shows. The control scenarios `controls`, `controls-armed`, `controls-active`,
 `controls-locked` and `controls-cruise` pin the signals behind the four button
 states and synthesise one tap per button 600 ms in, so armed and active can be
-captured without the keyboard. With `captureAfterMs`
+captured without the keyboard, and the splash scenarios `splash-s01` … `splash-s06`
+(S01 anti-lag engaged, S02 anti-lag off, S03 launch armed, S04 traction level,
+S05 ECU map, S06 refused) pin the signals of the reference frame and re-raise the
+splash every 300 ms so the takeover is on screen whenever the capture lands. With
+`captureAfterMs`
 the run writes `sim-screenshot.bmp` and exits, which is how a PR captures a given
 frame (e.g. both phases of the 6 Hz rev-limit blink) without touching the keyboard.
 

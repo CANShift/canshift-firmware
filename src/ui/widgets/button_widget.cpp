@@ -6,6 +6,7 @@
 #include "layout_scale.h"
 #include "runtime/action_dispatcher.h"
 #include "runtime/signal_store.h"
+#include "ui/control_splash.h"
 #include "ui/control_status.h"
 #include "ui/control_vocabulary.h"
 #include "ui/screen_profile.h"
@@ -116,10 +117,18 @@ void refreshTexts(const ButtonTag &tag, ControlState state) {
     ControlButton::setTexts(tag.surface, kicker, word);
 }
 
-void applyState(ButtonTag &tag) {
+ControlState applyState(ButtonTag &tag) {
     const ControlState state = resolveState(tag);
     refreshTexts(tag, state);
     ControlButton::paint(tag.surface, state, tag.stepper.level);
+    return state;
+}
+
+void applyStateWithReceipt(ButtonTag &tag) {
+    const ControlState state = applyState(tag);
+    if (!tag.control)
+        return;
+    ControlSplash::raiseFor(*tag.control, state, tag.stepper.level);
 }
 
 bool isStepper(const ButtonTag &tag) {
@@ -158,7 +167,7 @@ void stepperReleaseCb(lv_event_t *e) {
     LOG_DEBUG("BTN", "step id=%s level=%u", tag->cfg ? tag->cfg->id : "?",
               static_cast<unsigned>(tag->stepper.level));
     dispatchActions(*tag, tag->stepper.level > 0);
-    applyState(*tag);
+    applyStateWithReceipt(*tag);
 }
 
 void cycleClickCb(lv_event_t *e) {
@@ -167,7 +176,7 @@ void cycleClickCb(lv_event_t *e) {
         return;
     tag->cycleIndex = static_cast<uint8_t>((tag->cycleIndex + 1) % tag->params->statesCount);
     ActionDispatcher::dispatchAction(tag->params->states[tag->cycleIndex].action, true);
-    applyState(*tag);
+    (void)applyState(*tag);
 }
 
 void toggleClickCb(lv_event_t *e) {
@@ -180,7 +189,7 @@ void toggleClickCb(lv_event_t *e) {
     }
     LOG_DEBUG("BTN", "tap id=%s engaged=%d", tag->cfg ? tag->cfg->id : "?", tag->engaged ? 1 : 0);
     dispatchActions(*tag, tag->engaged);
-    applyState(*tag);
+    applyStateWithReceipt(*tag);
 }
 
 void applyTouchPadding(lv_obj_t *btn, int16_t scaledW, int16_t scaledH) {
@@ -246,6 +255,7 @@ void pollStepper(ButtonTag &tag) {
     LOG_DEBUG("BTN", "hold id=%s level=%u", tag.cfg ? tag.cfg->id : "?",
               static_cast<unsigned>(tag.stepper.level));
     dispatchActions(tag, tag.stepper.level > 0);
+    applyStateWithReceipt(tag);
 }
 
 } // namespace
@@ -273,7 +283,7 @@ lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t y
 
     lv_obj_set_user_data(btn, tag);
     attachEvents(btn, *tag);
-    applyState(*tag);
+    (void)applyState(*tag);
     WidgetHelpers::attachTagDeleter(btn, tagSlot.commit());
     return btn;
 }
@@ -284,5 +294,5 @@ void ButtonWidget::update(lv_obj_t *btn) {
         return;
     pollStepper(*tag);
     syncEngagedFromSignal(*tag);
-    applyState(*tag);
+    (void)applyState(*tag);
 }

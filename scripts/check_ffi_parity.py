@@ -70,6 +70,27 @@ PAIRS = (
         "CONTROL_LONG_PRESS_MS",
     ),
     (
+        "control splash change window",
+        "rust/control-state/src/splash.rs",
+        "CONTROL_SPLASH_CHANGE_MS",
+        "include/control_state_rs.h",
+        "CONTROL_SPLASH_CHANGE_MS",
+    ),
+    (
+        "control splash refusal window",
+        "rust/control-state/src/splash.rs",
+        "CONTROL_SPLASH_REFUSAL_MS",
+        "include/control_state_rs.h",
+        "CONTROL_SPLASH_REFUSAL_MS",
+    ),
+    (
+        "control splash kind count",
+        "rust/control-state/src/splash.rs",
+        "CONTROL_SPLASH_KIND_COUNT",
+        "include/control_state_rs.h",
+        "CONTROL_SPLASH_KIND_COUNT",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",

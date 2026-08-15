@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 48 px
  * Bpp: 4
- * Opts: --no-compress --no-prefilter --no-kerning --bpp 4 --size 48 --font /private/tmp/claude-501/-Users-thomas-Developer-TMBK-CANShift/9b852d6c-d5b0-423b-8b78-0b8aa014d016/scratchpad/ttf/JetBrainsMono-ExtraBold.ttf -r 0x20-0x7F,0xB0,0xB7,0x2014,0x2022,0x2192 --format lvgl -o /Users/thomas/Developer/TMBK/CANShift/.worktrees/fw-review-fixes/src/ui/fonts/lv_font_jbmono_extrabold_48_nk.c
+ * Opts: --no-compress --no-prefilter --no-kerning --bpp 4 --size 48 --font /private/tmp/claude-501/-Users-thomas-Developer-TMBK-CANShift/9b852d6c-d5b0-423b-8b78-0b8aa014d016/scratchpad/ttf/JetBrainsMono-ExtraBold.ttf -r 0x20-0x7F,0xB0,0xB7,0x2014,0x2022,0x2192 --format lvgl -o /Users/thomas/Developer/TMBK/CANShift/.worktrees/fw-control-splashes/src/ui/fonts/lv_font_jbmono_extrabold_48_nk.c
  ******************************************************************************/
 
 #include "lvgl.h"

@@ -18,4 +18,12 @@ int paramValue(ControlVocabulary::ControlParam param, uint8_t level);
 
 bool levelFromSignal(ControlVocabulary::ControlId id, uint8_t *outLevel);
 
+struct GuardReading {
+    float value;
+    float limit;
+    bool valid;
+};
+
+GuardReading guardReading(ControlVocabulary::ControlId id);
+
 } // namespace ControlStatus
