@@ -15,7 +15,7 @@ namespace BootScreens {
 namespace {
 
 constexpr uint32_t kWordmarkRgb = 0xF3F2F2;
-constexpr uint8_t kWordmarkPx = 12;
+constexpr uint8_t kWordmarkPx = 14;
 constexpr int16_t kWordmarkTrackingPx = 2;
 constexpr int16_t kMarkGapPx = 13;
 
