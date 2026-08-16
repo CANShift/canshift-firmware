@@ -13,14 +13,16 @@ constexpr Control kControls[] = {
     {ControlId::ANTI_LAG,
      "ANTI-LAG",
      ControlKind::TOGGLE,
+     ArmedState::NONE,
      0,
      {{"", "OFF", ControlParam::NONE},
-      {"", "ARMED", ControlParam::NONE},
+      {"", "", ControlParam::NONE},
       {"", "ON", ControlParam::NONE},
       {"EGT HIGH", "LOCKED", ControlParam::NONE}}},
     {ControlId::TRACTION,
      "TRACTION",
      ControlKind::STEPPER,
+     ArmedState::PHYSICAL,
      0,
      {{"", "OFF", ControlParam::NONE},
       {"", "LEVEL %d", ControlParam::LEVEL},
@@ -29,6 +31,7 @@ constexpr Control kControls[] = {
     {ControlId::LAUNCH,
      "LAUNCH",
      ControlKind::TOGGLE,
+     ArmedState::PHYSICAL,
      0,
      {{"", "OFF", ControlParam::NONE},
       {"%d rpm", "ARMED", ControlParam::RPM},
@@ -37,14 +40,16 @@ constexpr Control kControls[] = {
     {ControlId::PIT_LIMIT,
      "PIT LIMIT",
      ControlKind::TOGGLE,
+     ArmedState::NONE,
      0,
      {{"", "OFF", ControlParam::NONE},
-      {"%d km/h", "READY", ControlParam::SPEED_KPH},
+      {"", "", ControlParam::NONE},
       {"HOLDING", "%d", ControlParam::SPEED_KPH},
       {"GEAR %d", "LOCKED", ControlParam::GEAR}}},
     {ControlId::CRUISE,
      "CRUISE",
      ControlKind::TOGGLE,
+     ArmedState::PHYSICAL,
      0,
      {{"", "OFF", ControlParam::NONE},
       {"SET %d", "ARMED", ControlParam::SPEED_KPH},
@@ -53,9 +58,10 @@ constexpr Control kControls[] = {
     {ControlId::ECU_MAP,
      "ECU MAP",
      ControlKind::STEPPER,
+     ArmedState::NONE,
      1,
      {{"", "MAP %d", ControlParam::LEVEL},
-      {"", "MAP %d", ControlParam::LEVEL},
+      {"", "", ControlParam::NONE},
       {"", "MAP %d", ControlParam::LEVEL},
       {"NO ECU", "N/A", ControlParam::NONE}}},
 };
@@ -64,6 +70,19 @@ constexpr size_t kControlCount = sizeof(kControls) / sizeof(kControls[0]);
 
 static_assert(kControlCount == static_cast<size_t>(ControlId::COUNT),
               "every ControlId needs one vocabulary row");
+
+constexpr bool armedRowMatchesTheFlag(const Control &control) {
+    return (control.phrases[static_cast<uint8_t>(ControlState::ARMED)].stateWord[0] == '\0') ==
+           (control.armed == ArmedState::NONE);
+}
+
+constexpr bool armedRowsMatchTheFlag(size_t index = 0) {
+    return index >= kControlCount ||
+           (armedRowMatchesTheFlag(kControls[index]) && armedRowsMatchTheFlag(index + 1));
+}
+
+static_assert(armedRowsMatchTheFlag(),
+              "a control with ArmedState::NONE must carry an empty armed phrase, and vice versa");
 
 size_t appendLiteral(char *out, size_t outLen, size_t written, const char *text) {
     for (size_t i = 0; text[i] != '\0' && written + 1 < outLen; ++i)
@@ -95,6 +114,10 @@ const Control *find(const char *kicker) {
             return &control;
     }
     return nullptr;
+}
+
+bool hasArmedState(const Control &control) {
+    return control.armed == ArmedState::PHYSICAL;
 }
 
 const Phrase &phraseFor(const Control &control, ControlState state) {

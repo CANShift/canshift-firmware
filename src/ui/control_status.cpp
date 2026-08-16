@@ -66,13 +66,6 @@ bool guardTripped(ControlId id) {
     return valid && SignalStore::read(guard.signal, 0.0f) > guard.threshold;
 }
 
-bool signalOn(const char *signalId) {
-    if (!signalId || signalId[0] == '\0')
-        return false;
-    const SignalId sid = signalIdFromName(signalId);
-    return signalValid(sid) && SignalStore::read(sid, 0.0f) != 0.0f;
-}
-
 int readRounded(SignalId sid) {
     if (!signalValid(sid))
         return 0;
@@ -81,14 +74,22 @@ int readRounded(SignalId sid) {
 
 } // namespace
 
+bool isConfirming(const char *signalId) {
+    if (!signalId || signalId[0] == '\0')
+        return false;
+    const SignalId sid = signalIdFromName(signalId);
+    return signalValid(sid) && SignalStore::read(sid, 0.0f) != 0.0f;
+}
+
 ControlState evaluate(const ControlVocabulary::Control &control, const char *signalId,
                       const Request &request) {
     const bool blocked = guardTripped(control.id);
-    const bool acting = signalOn(signalId);
+    const bool acting = isConfirming(signalId);
     const bool requested = control.kind == ControlKind::TOGGLE
                                ? request.engaged
                                : (control.stepFloor == 0 && request.level > 0);
-    return ControlVocabulary::stateFromRaw(control_state_resolve_rs(blocked, acting, requested));
+    return ControlVocabulary::stateFromRaw(control_state_resolve_rs(
+        blocked, acting, requested, ControlVocabulary::hasArmedState(control)));
 }
 
 int paramValue(ControlParam param, uint8_t level) {

@@ -4,8 +4,13 @@ const _: () = assert!(core::mem::size_of::<Stepper>() == 8);
 const _: () = assert!(core::mem::size_of::<SplashTimer>() == 12);
 
 #[no_mangle]
-pub extern "C" fn control_state_resolve_rs(blocked: bool, acting: bool, requested: bool) -> u8 {
-    resolve(blocked, acting, requested).as_u8()
+pub extern "C" fn control_state_resolve_rs(
+    blocked: bool,
+    acting: bool,
+    requested: bool,
+    has_armed: bool,
+) -> u8 {
+    resolve(blocked, acting, requested, has_armed).as_u8()
 }
 
 #[no_mangle]
@@ -93,20 +98,24 @@ mod tests {
     #[test]
     fn ffi_resolve_matches_the_enum() {
         assert_eq!(
-            control_state_resolve_rs(true, false, false),
+            control_state_resolve_rs(true, false, false, true),
             ControlState::Unavailable.as_u8()
         );
         assert_eq!(
-            control_state_resolve_rs(false, true, false),
+            control_state_resolve_rs(false, true, false, true),
             ControlState::Active.as_u8()
         );
         assert_eq!(
-            control_state_resolve_rs(false, false, true),
+            control_state_resolve_rs(false, false, true, true),
             ControlState::Armed.as_u8()
         );
         assert_eq!(
-            control_state_resolve_rs(false, false, false),
+            control_state_resolve_rs(false, false, false, true),
             ControlState::Off.as_u8()
+        );
+        assert_eq!(
+            control_state_resolve_rs(false, false, true, false),
+            ControlState::Active.as_u8()
         );
     }
 

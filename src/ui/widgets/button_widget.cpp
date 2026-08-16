@@ -38,6 +38,7 @@ struct ButtonTag {
     bool engaged;
     uint8_t cycleIndex;
     uint32_t signalSyncIgnoreUntilMs;
+    uint32_t commandDeadlineMs;
     uint8_t syncedLevel;
     bool hasSyncedLevel;
     char signalId[CFG_MAX_SIGNAL_LEN];
@@ -186,6 +187,7 @@ void toggleClickCb(lv_event_t *e) {
     if (tag->params->isToggle || tag->control) {
         tag->engaged = !tag->engaged;
         tag->signalSyncIgnoreUntilMs = millis() + BUTTON_SIGNAL_SYNC_GRACE_MS;
+        tag->commandDeadlineMs = tag->engaged ? millis() + BUTTON_COMMAND_TIMEOUT_MS : 0;
     }
     LOG_DEBUG("BTN", "tap id=%s engaged=%d", tag->cfg ? tag->cfg->id : "?", tag->engaged ? 1 : 0);
     dispatchActions(*tag, tag->engaged);
@@ -209,6 +211,7 @@ void initTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &p) {
     tag->engaged = false;
     tag->cycleIndex = p.mode == CfgButtonMode::CYCLE ? p.initialActiveIndex : 0;
     tag->signalSyncIgnoreUntilMs = 0;
+    tag->commandDeadlineMs = 0;
     tag->syncedLevel = 0;
     tag->hasSyncedLevel = false;
     strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
@@ -238,6 +241,22 @@ void syncEngagedFromSignal(ButtonTag &tag) {
     const SignalId sid = signalIdFromName(tag.signalId);
     const bool valid = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid);
     tag.engaged = valid && SignalStore::read(sid, 0.0f) != 0.0f;
+}
+
+void pollCommandTimeout(ButtonTag &tag) {
+    if (!tag.control || ControlVocabulary::hasArmedState(*tag.control))
+        return;
+    if (!tag.engaged || tag.commandDeadlineMs == 0)
+        return;
+    if (ControlStatus::isConfirming(tag.signalId)) {
+        tag.commandDeadlineMs = 0;
+        return;
+    }
+    if (static_cast<int32_t>(millis() - tag.commandDeadlineMs) < 0)
+        return;
+    LOG_DEBUG("BTN", "timeout id=%s — no confirmation", tag.cfg ? tag.cfg->id : "?");
+    tag.engaged = false;
+    tag.commandDeadlineMs = 0;
 }
 
 void pollStepper(ButtonTag &tag) {
@@ -294,5 +313,6 @@ void ButtonWidget::update(lv_obj_t *btn) {
         return;
     pollStepper(*tag);
     syncEngagedFromSignal(*tag);
+    pollCommandTimeout(*tag);
     (void)applyState(*tag);
 }
