@@ -9,6 +9,7 @@ namespace ControlVocabulary {
 
 inline constexpr const char *kSeparator = " · ";
 inline constexpr const char *kDash = " — ";
+inline constexpr const char *kStack = "\n";
 
 enum class ControlState : uint8_t {
     OFF = CONTROL_STATE_OFF,

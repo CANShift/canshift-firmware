@@ -127,15 +127,7 @@ const Phrase &phraseFor(const Control &control, ControlState state) {
 
 void composeKicker(const Control &control, ControlState state, int param, char *out,
                    size_t outLen) {
-    if (!out || outLen == 0)
-        return;
-    const Phrase &phrase = phraseFor(control, state);
-    size_t written = appendLiteral(out, outLen, 0, control.kicker);
-    if (phrase.kickerSuffix[0] != '\0') {
-        written = appendLiteral(out, outLen, written, kSeparator);
-        written = appendExpanded(out, outLen, written, phrase.kickerSuffix, param);
-    }
-    out[written] = '\0';
+    joinPhrase(control.kicker, kStack, phraseFor(control, state).kickerSuffix, param, out, outLen);
 }
 
 void composeStateWord(const Control &control, ControlState state, int param, char *out,

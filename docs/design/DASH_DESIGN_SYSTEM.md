@@ -151,8 +151,14 @@ Four states, and every control reads the same four ways so the driver never lear
   active control never pulses. A control that is intervening says so in its kicker
   (`TRACTION · CUTTING`), it does not move.
 - **Unavailable**: border `CS_LOCK_LINE`, text `CS_LOCK_INK`, and **the kicker states why** — never a bare
-  grey-out: `ANTI-LAG · EGT HIGH`, `LAUNCH · MOVING`, `TRACTION · NO WHEEL SPEED`,
-  `PIT LIMIT · GEAR 4`, `CRUISE · BRAKE CUT`. State word `LOCKED`, `N/A` or `CANCELLED`.
+  grey-out: `ANTI-LAG` / `EGT HIGH`, `LAUNCH` / `MOVING`, `TRACTION` / `NO WHEEL SPEED`,
+  `PIT LIMIT` / `GEAR 4`, `CRUISE` / `BRAKE CUT`. State word `LOCKED`, `N/A` or `CANCELLED`.
+
+**A button kicker stacks: name on the first line, qualifier on the second** — never joined with ` · `.
+The separator is for the splash and the status row, which have a full screen width to spend; a button does
+not. A 4-column button is 79 px of usable width and the kicker face measures ~8 px per character, so 9
+characters is the whole budget — `PIT LIMIT` alone spends it. Any joined form therefore wraps mid-phrase
+(`ANTI-LAG · EGT` / `HIGH`), which is why the qualifier owns its own line and the button is sized for two.
 
 **Armed is declared per control, not carried by all four.** It exists only where the car really holds that
 state — launch armed at a target rpm, cruise set but not holding, traction set to a level but not cutting.
