@@ -31,6 +31,8 @@ enum class ControlId : uint8_t {
 
 enum class ControlKind : uint8_t { TOGGLE, STEPPER };
 
+enum class ArmedState : uint8_t { NONE, PHYSICAL };
+
 enum class ControlParam : uint8_t { NONE, LEVEL, RPM, SPEED_KPH, GEAR };
 
 struct Phrase {
@@ -43,11 +45,14 @@ struct Control {
     ControlId id;
     const char *kicker;
     ControlKind kind;
+    ArmedState armed;
     uint8_t stepFloor;
     Phrase phrases[kStateCount];
 };
 
 const Control *find(const char *kicker);
+
+bool hasArmedState(const Control &control);
 
 const Phrase &phraseFor(const Control &control, ControlState state);
 

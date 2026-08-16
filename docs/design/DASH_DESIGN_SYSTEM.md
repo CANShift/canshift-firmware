@@ -154,10 +154,22 @@ Four states, and every control reads the same four ways so the driver never lear
   grey-out: `ANTI-LAG · EGT HIGH`, `LAUNCH · MOVING`, `TRACTION · NO WHEEL SPEED`,
   `PIT LIMIT · GEAR 4`, `CRUISE · BRAKE CUT`. State word `LOCKED`, `N/A` or `CANCELLED`.
 
+**Armed is declared per control, not carried by all four.** It exists only where the car really holds that
+state — launch armed at a target rpm, cruise set but not holding, traction set to a level but not cutting.
+Anti-lag and pit limit are **binary**: they go straight from off to active, because there is no physical
+in-between for them and a pulse there would only be reporting bus latency, which is not the driver's
+problem. A control with no armed state that is tapped and never confirmed on the bus returns to off after
+15 s — silently, with no error word, because the dash cannot tell a lost frame from a slow ECU.
+
+| Control | Armed |
+| --- | --- |
+| Launch, cruise, traction | yes — a real state of the car |
+| Anti-lag, pit limit, ECU map | no — binary, off ⇄ active |
+
 **Two kinds of button**, legible from the state word alone:
 
 - **Toggle** — anti-lag, launch, pit limit, cruise. One tap engages, the next disengages; the state word
-  is a word (`ON`/`OFF`, `ARMED`, `READY`).
+  is a word (`ON`/`OFF`, `ARMED`).
 - **Stepper** — traction control and the ECU map. **Each tap raises the level by one** (1, 2, 3 … 6), and
   the tap past the top wraps back to `OFF`, so the whole range is reachable with one finger and no second
   button. A 600 ms long press returns to level 1. The segment row under the state word is the only
@@ -248,7 +260,8 @@ fit 320 × 240 is **rejected at config load**, and the Tuner flags it before wri
 - [ ] Status row has exactly three fields, bus rate on the left.
 - [ ] Shift light: 7 ink + 2 danger + 3 track, 12 cells.
 - [ ] Warning readings amber `#FF8800`; danger `#FF4444`; engaged buttons filled `#FF4747`; never swapped.
-- [ ] All four button states present, and every unavailable control states its reason in the kicker.
+- [ ] Every unavailable control states its reason in the kicker, and armed appears only on the controls
+      that declare it (§6).
 - [ ] Only armed pulses. No active control, no warning and no cut band moves.
 - [ ] Cut band: right severity colour, name from the profile, 1.5 s minimum, stacks to three.
 - [ ] No animation outside §9; page change is a cut.

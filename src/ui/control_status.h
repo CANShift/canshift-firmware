@@ -11,6 +11,8 @@ struct Request {
     uint8_t level;
 };
 
+bool isConfirming(const char *signalId);
+
 ControlVocabulary::ControlState evaluate(const ControlVocabulary::Control &control,
                                          const char *signalId, const Request &request);
 

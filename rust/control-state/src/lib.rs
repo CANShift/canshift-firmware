@@ -43,17 +43,20 @@ impl ControlState {
 }
 
 #[must_use]
-pub fn resolve(blocked: bool, acting: bool, requested: bool) -> ControlState {
+pub fn resolve(blocked: bool, acting: bool, requested: bool, has_armed: bool) -> ControlState {
     if blocked {
         return ControlState::Unavailable;
     }
     if acting {
         return ControlState::Active;
     }
-    if requested {
+    if !requested {
+        return ControlState::Off;
+    }
+    if has_armed {
         return ControlState::Armed;
     }
-    ControlState::Off
+    ControlState::Active
 }
 
 #[must_use]
@@ -134,10 +137,22 @@ mod tests {
 
     #[test]
     fn resolve_orders_blocked_over_acting_over_requested() {
-        assert_eq!(resolve(true, true, true), ControlState::Unavailable);
-        assert_eq!(resolve(false, true, true), ControlState::Active);
-        assert_eq!(resolve(false, false, true), ControlState::Armed);
-        assert_eq!(resolve(false, false, false), ControlState::Off);
+        assert_eq!(resolve(true, true, true, true), ControlState::Unavailable);
+        assert_eq!(resolve(false, true, true, true), ControlState::Active);
+        assert_eq!(resolve(false, false, true, true), ControlState::Armed);
+        assert_eq!(resolve(false, false, false, true), ControlState::Off);
+    }
+
+    #[test]
+    fn a_control_without_an_armed_state_goes_straight_to_active() {
+        assert_eq!(resolve(false, false, true, false), ControlState::Active);
+        assert_eq!(resolve(false, false, false, false), ControlState::Off);
+    }
+
+    #[test]
+    fn armed_never_outranks_blocked_or_acting() {
+        assert_eq!(resolve(true, false, true, false), ControlState::Unavailable);
+        assert_eq!(resolve(false, true, false, true), ControlState::Active);
     }
 
     #[test]

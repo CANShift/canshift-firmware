@@ -40,7 +40,7 @@ typedef struct {
     uint8_t _pad[3];
 } ControlSplashRs;
 
-uint8_t control_state_resolve_rs(bool blocked, bool acting, bool requested);
+uint8_t control_state_resolve_rs(bool blocked, bool acting, bool requested, bool has_armed);
 uint8_t control_step_tap_rs(uint8_t level);
 void control_stepper_init_rs(ControlStepperRs *stepper, uint8_t level);
 void control_stepper_press_rs(ControlStepperRs *stepper, uint32_t now_ms);

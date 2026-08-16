@@ -19,7 +19,6 @@ struct MatrixRow {
 
 constexpr MatrixRow kMatrix[] = {
     {"ANTI-LAG", ControlState::OFF, 0, "ANTI-LAG", "OFF"},
-    {"ANTI-LAG", ControlState::ARMED, 0, "ANTI-LAG", "ARMED"},
     {"ANTI-LAG", ControlState::ACTIVE, 0, "ANTI-LAG", "ON"},
     {"ANTI-LAG", ControlState::UNAVAILABLE, 0, "ANTI-LAG · EGT HIGH", "LOCKED"},
     {"TRACTION", ControlState::OFF, 0, "TRACTION", "OFF"},
@@ -31,7 +30,6 @@ constexpr MatrixRow kMatrix[] = {
     {"LAUNCH", ControlState::ACTIVE, 4200, "LAUNCH · HOLDING", "4200"},
     {"LAUNCH", ControlState::UNAVAILABLE, 0, "LAUNCH · MOVING", "LOCKED"},
     {"PIT LIMIT", ControlState::OFF, 0, "PIT LIMIT", "OFF"},
-    {"PIT LIMIT", ControlState::ARMED, 60, "PIT LIMIT · 60 km/h", "READY"},
     {"PIT LIMIT", ControlState::ACTIVE, 60, "PIT LIMIT · HOLDING", "60"},
     {"PIT LIMIT", ControlState::UNAVAILABLE, 4, "PIT LIMIT · GEAR 4", "LOCKED"},
     {"CRUISE", ControlState::OFF, 0, "CRUISE", "OFF"},
@@ -102,10 +100,29 @@ void test_stepperLongPressReturnsToLevelOne() {
 }
 
 void test_resolveOrdersTheFourStates() {
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_UNAVAILABLE, control_state_resolve_rs(true, true, true));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ACTIVE, control_state_resolve_rs(false, true, true));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ARMED, control_state_resolve_rs(false, false, true));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_OFF, control_state_resolve_rs(false, false, false));
+    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_UNAVAILABLE,
+                            control_state_resolve_rs(true, true, true, true));
+    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ACTIVE,
+                            control_state_resolve_rs(false, true, true, true));
+    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ARMED,
+                            control_state_resolve_rs(false, false, true, true));
+    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_OFF, control_state_resolve_rs(false, false, false, true));
+}
+
+void test_binaryControlSkipsArmed() {
+    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ACTIVE,
+                            control_state_resolve_rs(false, false, true, false));
+    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_OFF,
+                            control_state_resolve_rs(false, false, false, false));
+}
+
+void test_armedIsDeclaredPerControl() {
+    TEST_ASSERT_FALSE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("ANTI-LAG")));
+    TEST_ASSERT_FALSE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("PIT LIMIT")));
+    TEST_ASSERT_FALSE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("ECU MAP")));
+    TEST_ASSERT_TRUE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("LAUNCH")));
+    TEST_ASSERT_TRUE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("CRUISE")));
+    TEST_ASSERT_TRUE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("TRACTION")));
 }
 
 } // namespace
@@ -123,5 +140,7 @@ int main() {
     RUN_TEST(test_stepperTapClimbsThenWrapsToOff);
     RUN_TEST(test_stepperLongPressReturnsToLevelOne);
     RUN_TEST(test_resolveOrdersTheFourStates);
+    RUN_TEST(test_binaryControlSkipsArmed);
+    RUN_TEST(test_armedIsDeclaredPerControl);
     return UNITY_END();
 }
