@@ -189,6 +189,16 @@ Extra rules:
 - A level control (traction 1–6) shows a row of segment cells under the state word: 2 px device high,
   lit in Ink (white at 30 % over an engaged fill), unlit in `CS_TRACK`.
 
+**A value class sets a floor on its box.** A widget renders a top rule, a kicker line and the value line,
+so the box must hold all three or the value spills past the bottom edge and collides with the row below.
+Measured minimums, device pixels: **hero 48 → 93**, **heroTrack 44 → 71**, **primary 32 → 60**,
+**mid 22 → 40**, **secondary 17 → 40**. Check the floor before changing a `rowSpan` or a `big`.
+
+Track is the one page that cannot hold three tiers at spec sizes: the shift strip (13 px) and the alert
+line band (16 px) leave it 195 px, and `row + rowSpan <= 12` costs it another track because the strip
+takes raw row 0. Its SPEED and OIL PRESS therefore render at **mid**, not primary — a deliberate
+deviation, and the one to revisit first if the alert band ever stops being reserved on every page.
+
 ## 7. Shift light
 
 Only on a page that declares it (Track). One row across the full content width:
