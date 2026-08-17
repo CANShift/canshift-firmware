@@ -39,6 +39,7 @@ keys/
 # Claude (local only)
 .claude/
 sim-screenshot.bmp
+.worktrees/
 
 __pycache__/
 *.pyc
