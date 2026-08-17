@@ -46,9 +46,23 @@ constexpr size_t kValueCount = sizeof(kValueFaces) / sizeof(kValueFaces[0]);
 constexpr size_t kLabelCount = sizeof(kLabelFaces) / sizeof(kLabelFaces[0]);
 constexpr uint8_t kSmallestValuePx = kValueFaces[0].size;
 
-const lv_font_t *s_value[kValueCount] = {nullptr};
-const lv_font_t *s_label[kLabelCount] = {nullptr};
-bool s_initialized = false;
+struct FaceSlot {
+    const lv_font_t *font;
+    bool attempted;
+};
+
+struct Family {
+    const char *name;
+    const char *weight;
+    const char *intent;
+    const Face *faces;
+    size_t count;
+    FaceSlot *slots;
+    const lv_font_t *fallback;
+};
+
+FaceSlot s_valueSlots[kValueCount] = {};
+FaceSlot s_labelSlots[kLabelCount] = {};
 
 size_t snapIndex(const Face *faces, size_t count, uint8_t size) {
     size_t idx = 0;
@@ -99,8 +113,9 @@ bool poolHasRoomFor(const char *spiffsPath, const char *family, const char *weig
     return true;
 }
 
-void loadOne(const char *family, const char *weight, const char *intent, uint8_t size,
-             const lv_font_t *&slot) {
+void loadOne(const Family &fam, uint8_t size, FaceSlot &slot) {
+    const char *family = fam.name;
+    const char *weight = fam.weight;
     char path[64];
     snprintf(path, sizeof(path), "S:/fonts/%s_%s_%u.bin", family, weight, size);
 
@@ -124,62 +139,72 @@ void loadOne(const char *family, const char *weight, const char *intent, uint8_t
         snprintf(detail, sizeof(detail), "%s_%s_%u.bin missing", family, weight, size);
         ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_LOAD", detail);
     } else {
-        LOG_INFO("FONT", "Loaded %s_%s_%u.bin from SPIFFS (%s)", family, weight, size, intent);
+        LOG_INFO("FONT", "Loaded %s_%s_%u.bin from SPIFFS (%s)", family, weight, size, fam.intent);
     }
-    slot = font;
+    slot.font = font;
 }
 
-const lv_font_t *resolve(const Face *faces, size_t count, const lv_font_t *const *cache,
-                         uint8_t size, const lv_font_t *fallback) {
-    const size_t idx = snapIndex(faces, count, size);
-    const lv_font_t *const cached = cache[idx];
-    return (cached != nullptr) ? cached : fallback;
+const lv_font_t *faceAt(const Family &fam, size_t idx) {
+    FaceSlot &slot = fam.slots[idx];
+    if (slot.attempted)
+        return slot.font != nullptr ? slot.font : fam.fallback;
+
+    slot.attempted = true;
+    if (fam.faces[idx].inFlash != nullptr) {
+        slot.font = fam.faces[idx].inFlash;
+        return slot.font;
+    }
+
+    loadOne(fam, fam.faces[idx].size, slot);
+    return slot.font != nullptr ? slot.font : fam.fallback;
 }
 
-void loadFamily(const char *family, const char *weight, const char *intent, const Face *faces,
-                size_t count, const lv_font_t **cache) {
-    for (size_t i = 0; i < count; ++i) {
-        if (faces[i].inFlash != nullptr) {
-            cache[i] = faces[i].inFlash;
-            continue;
+const lv_font_t *resolve(const Family &fam, uint8_t size) {
+    return faceAt(fam, snapIndex(fam.faces, fam.count, size));
+}
+
+void releaseFamily(const Family &fam) {
+    for (size_t i = 0; i < fam.count; ++i) {
+        FaceSlot &slot = fam.slots[i];
+        if (slot.font != nullptr && fam.faces[i].inFlash == nullptr) {
+            lv_font_free(const_cast<lv_font_t *>(slot.font));
         }
-        loadOne(family, weight, intent, faces[i].size, cache[i]);
+        slot.font = nullptr;
+        slot.attempted = false;
     }
 }
 
-void freeLoaded(const Face *faces, size_t count, const lv_font_t **cache) {
-    for (size_t i = 0; i < count; ++i) {
-        if (cache[i] != nullptr && faces[i].inFlash == nullptr) {
-            lv_font_free(const_cast<lv_font_t *>(cache[i]));
-        }
-        cache[i] = nullptr;
-    }
-}
+const Family kValueFamily = {"jbmono",
+                             "extrabold",
+                             "value",
+                             kValueFaces,
+                             kValueCount,
+                             s_valueSlots,
+                             &lv_font_jbmono_medium_10_nk};
+
+const Family kLabelFamily = {"archivo",
+                             "extrabold",
+                             "label",
+                             kLabelFaces,
+                             kLabelCount,
+                             s_labelSlots,
+                             &lv_font_archivo_extrabold_14_nk};
 
 } // namespace
 
 void FontManager::init() {
-    if (s_initialized) {
-        return;
-    }
-    LOG_INFO("FONT", "Loading font family 'jbmono' (device scale)");
-
-    loadFamily("jbmono", "extrabold", "value", kValueFaces, kValueCount, s_value);
-    loadFamily("archivo", "extrabold", "label", kLabelFaces, kLabelCount, s_label);
-
-    s_initialized = true;
+    LOG_INFO("FONT", "Font faces load on first use");
 }
 
 void FontManager::shutdown() {
-    freeLoaded(kValueFaces, kValueCount, s_value);
-    freeLoaded(kLabelFaces, kLabelCount, s_label);
-    s_initialized = false;
+    releaseFamily(kValueFamily);
+    releaseFamily(kLabelFamily);
 }
 
 const lv_font_t *FontManager::value(uint8_t devicePx) {
     if (devicePx < kSmallestValuePx)
         return units();
-    return resolve(kValueFaces, kValueCount, s_value, devicePx, &lv_font_jbmono_medium_10_nk);
+    return resolve(kValueFamily, devicePx);
 }
 
 const lv_font_t *FontManager::units() {
@@ -187,5 +212,5 @@ const lv_font_t *FontManager::units() {
 }
 
 const lv_font_t *FontManager::label(uint8_t size) {
-    return resolve(kLabelFaces, kLabelCount, s_label, size, &lv_font_archivo_extrabold_14_nk);
+    return resolve(kLabelFamily, size);
 }
