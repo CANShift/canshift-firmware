@@ -6,7 +6,7 @@ The CrowPanel is powered and programmed over a single USB-C connector — there 
 
 ## In: USB-C
 
-USB-C brings in 5 V and, on the same cable, the host serial link. Data goes through the board's CH340 bridge on UART0 at 115200 baud (`USB_SERIAL_BAUD`); that link is what [canshift-tuner](https://tuner.canshift.app) speaks to over Web Serial.
+USB-C brings in 5 V and, on the same cable, the host serial link. Data goes through the board's CH340 bridge on UART0 at 115200 baud (`USB_SERIAL_BAUD`); that link is what [canshift-tuner](https://canshift.app) speaks to over Web Serial.
 
 ## Logic: 3.3 V
 
