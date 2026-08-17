@@ -15,7 +15,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 - `src/config/config_types.h` mirrors `@canshift/core` schemas; `core-schema-version.txt` pins `CURRENT_SCHEMA_VERSION` for standalone builds (a sibling `../canshift-core` checkout wins) — update the pin on every schema bump.
 - Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
 - `docs/design/DASH_DESIGN_SYSTEM.md` is the binding dash spec and `docs/design/DASH_PAGES.json` the six default pages as data — where the firmware differs, the firmware is wrong. Read both before touching a widget; open deviations live on #127.
-- Zero comments policy (rationale lives in canshift-docs); clang-format gates every PR.
+- Zero comments policy — prose belongs in `docs/`, not in the source; clang-format gates every PR.
 
 ## Code shape
 
@@ -35,4 +35,4 @@ Non-negotiable. Reviewed on every PR, ahead of feature count.
 
 - Branch `type/short-description`; Conventional Commits, subject only.
 - PR via `gh pr create`; required checks `lint` (clang-format), `ci-success` (aggregates `native tests` + the per-board `firmware` build matrix + `secure`); **rebase and merge only**.
-- Release: bump `package.json` version, merge — the workflow tags, builds and drafts the release with merged/firmware/spiffs artifacts. Write substantive release notes before publishing (the docs changelog renders them).
+- Release: bump `package.json` version, merge — the workflow tags, builds and drafts the release with merged/firmware/spiffs artifacts. Write substantive release notes before publishing — GitHub Releases is the public changelog.
