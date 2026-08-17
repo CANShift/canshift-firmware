@@ -12,6 +12,9 @@ ESP32 firmware for the CANShift configurable automotive dashboard.
 
 Library versions are pinned in [`platformio.ini`](platformio.ini).
 
+📖 **[Documentation](docs/README.md)** — using the dash, building one, firmware
+architecture, reference, and contributing guides.
+
 ---
 
 ## Hardware platform
