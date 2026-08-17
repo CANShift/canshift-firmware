@@ -28,7 +28,7 @@
     "release": true
   },
   {
-    "id": "esp32s3",
+    "id": "generic_esp32s3",
     "chip": "esp32s3",
     "display": "ST7789 240x320",
     "touch": "CST816S",
