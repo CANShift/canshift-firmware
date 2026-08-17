@@ -2,6 +2,7 @@
 #include "app_config.h"
 #include "hardware_profile.h"
 #include "config/rotation_config.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/perf_counters.h"
 #include "hal/memory/psram.h"
@@ -20,6 +21,25 @@ constexpr size_t computeLvglBufLines(uint16_t screenW, size_t budgetBytes) {
     return (budgetBytes / kLvglNumBuffers / kLvglBytesPerPixel / screenW) > kLvglFloorLines
                ? (budgetBytes / kLvglNumBuffers / kLvglBytesPerPixel / screenW)
                : kLvglFloorLines;
+}
+
+void reportUnbuiltDrivers(const LGFX::ConfigureResult &result) {
+    const canshift::boards::BoardProfile &board = canshift::boards::runtimeBoardProfile();
+    if (!result.panelSupported) {
+        LOG_ERROR("DISP",
+                  "board profile asks for LCD %s, which this build cannot drive — using "
+                  "ILI9341 and the panel may show nothing",
+                  canshift::boards::lcdDriverName(board.lcd.driver));
+        ErrorStore::push(ERROR_SRC_CONFIG, "LCD_DRV", "board profile names an unbuilt LCD driver");
+    }
+    if (!result.touchSupported) {
+        LOG_ERROR("DISP",
+                  "board profile asks for touch %s, which this build cannot drive — the "
+                  "screen will not respond",
+                  canshift::boards::touchDriverName(board.touch.driver));
+        ErrorStore::push(ERROR_SRC_CONFIG, "TOUCH_DRV",
+                         "board profile names an unbuilt touch driver");
+    }
 }
 
 } // namespace
@@ -105,7 +125,7 @@ void DisplayDriver::init() {
     }
 
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
-    s_lcd.configure();
+    reportUnbuiltDrivers(s_lcd.configure());
     s_lcd.init();
     s_lcd.setRotation(rotation);
     s_lcd.setBrightness(canshift::boards::runtimeBoardProfile().backlight.default_duty);

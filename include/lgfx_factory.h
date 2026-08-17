@@ -13,27 +13,39 @@ class LGFX : public lgfx::LGFX_Device {
     lgfx::Light_PWM _light;
     lgfx::Panel_ILI9341 _panelIli9341;
     lgfx::Panel_ST7789 _panelSt7789;
+    lgfx::Panel_ILI9488 _panelIli9488;
+    lgfx::Panel_GC9A01 _panelGc9a01;
     lgfx::Touch_XPT2046 _touchXpt2046;
     lgfx::Touch_GT911 _touchGt911;
     lgfx::Touch_CST816S _touchCst816s;
+    lgfx::Touch_FT5x06 _touchFt6336;
     canshift::touch::Touch_CST3530 _touchCst3530;
 
   public:
+    struct ConfigureResult {
+        bool panelSupported;
+        bool touchSupported;
+    };
+
     LGFX() = default;
 
-    void configure() {
+    [[nodiscard]] ConfigureResult configure() {
         const canshift::boards::BoardProfile &b = canshift::boards::runtimeBoardProfile();
         configureBus(b);
-        lgfx::Panel_Device *panel = configurePanel(b);
+        lgfx::Panel_Device *declared = selectPanel(b.lcd.driver);
+        lgfx::Panel_Device *panel = declared != nullptr ? declared : &_panelIli9341;
+        applyPanelConfig(*panel, b);
         configureBacklight(b, *panel);
-        configureTouch(b, *panel);
+        const bool touchSupported = configureTouch(b, *panel);
         setPanel(panel);
+        return {declared != nullptr, touchSupported};
     }
 
   private:
     static constexpr int16_t kGt911I2cAddr = 0x5D;
     static constexpr int16_t kCst816sI2cAddr = 0x15;
     static constexpr int16_t kCst3530I2cAddr = 0x58;
+    static constexpr int16_t kFt6336I2cAddr = 0x38;
 
     void configureBus(const canshift::boards::BoardProfile &b) {
         auto cfg = _spiBus.config();
@@ -53,18 +65,21 @@ class LGFX : public lgfx::LGFX_Device {
 
     lgfx::Panel_Device *selectPanel(canshift::boards::LcdDriver driver) {
         switch (driver) {
+            case canshift::boards::LcdDriver::ILI9341:
+                return &_panelIli9341;
             case canshift::boards::LcdDriver::ST7789:
                 return &_panelSt7789;
-            case canshift::boards::LcdDriver::ILI9341:
-            default:
-                return &_panelIli9341;
+            case canshift::boards::LcdDriver::ILI9488:
+                return &_panelIli9488;
+            case canshift::boards::LcdDriver::GC9A01:
+                return &_panelGc9a01;
         }
+        return nullptr;
     }
 
-    lgfx::Panel_Device *configurePanel(const canshift::boards::BoardProfile &b) {
-        lgfx::Panel_Device *panel = selectPanel(b.lcd.driver);
-        panel->setBus(&_spiBus);
-        auto cfg = panel->config();
+    void applyPanelConfig(lgfx::Panel_Device &panel, const canshift::boards::BoardProfile &b) {
+        panel.setBus(&_spiBus);
+        auto cfg = panel.config();
         cfg.pin_cs = b.lcd.pin_cs;
         cfg.pin_rst = b.lcd.pin_rst;
         cfg.pin_busy = -1;
@@ -82,8 +97,7 @@ class LGFX : public lgfx::LGFX_Device {
         cfg.rgb_order = b.lcd.rgb_order_bgr;
         cfg.dlen_16bit = false;
         cfg.bus_shared = b.lcd.bus_shared_with_touch;
-        panel->config(cfg);
-        return panel;
+        panel.config(cfg);
     }
 
     void configureBacklight(const canshift::boards::BoardProfile &b, lgfx::Panel_Device &panel) {
@@ -96,29 +110,32 @@ class LGFX : public lgfx::LGFX_Device {
         panel.setLight(&_light);
     }
 
-    void configureTouch(const canshift::boards::BoardProfile &b, lgfx::Panel_Device &panel) {
-        lgfx::ITouch *touch = nullptr;
+    lgfx::ITouch *selectTouch(const canshift::boards::BoardProfile &b) {
         switch (b.touch.driver) {
             case canshift::boards::TouchDriver::XPT2046:
-                touch = configureResistiveTouch(b);
-                break;
+                return configureResistiveTouch(b);
             case canshift::boards::TouchDriver::GT911:
-                touch = configureCapacitiveTouch(_touchGt911, b, kGt911I2cAddr);
-                break;
+                return configureCapacitiveTouch(_touchGt911, b, kGt911I2cAddr);
             case canshift::boards::TouchDriver::CST816S:
-                touch = configureCapacitiveTouch(_touchCst816s, b, kCst816sI2cAddr);
-                break;
+                return configureCapacitiveTouch(_touchCst816s, b, kCst816sI2cAddr);
             case canshift::boards::TouchDriver::CST3530:
-                touch = configureCapacitiveTouch(_touchCst3530, b, kCst3530I2cAddr);
-                break;
+                return configureCapacitiveTouch(_touchCst3530, b, kCst3530I2cAddr);
             case canshift::boards::TouchDriver::FT6336:
+                return configureCapacitiveTouch(_touchFt6336, b, kFt6336I2cAddr);
             case canshift::boards::TouchDriver::None:
-            default:
                 break;
         }
-        if (touch != nullptr) {
-            panel.setTouch(touch);
-        }
+        return nullptr;
+    }
+
+    bool configureTouch(const canshift::boards::BoardProfile &b, lgfx::Panel_Device &panel) {
+        if (b.touch.driver == canshift::boards::TouchDriver::None)
+            return true;
+        lgfx::ITouch *touch = selectTouch(b);
+        if (touch == nullptr)
+            return false;
+        panel.setTouch(touch);
+        return true;
     }
 
     lgfx::ITouch *configureResistiveTouch(const canshift::boards::BoardProfile &b) {

@@ -27,6 +27,7 @@ No C++ needed — this is the on-device UI as a driver sees it.
 | [Hardware & BOM](reference/hardware-bom.md)           | Every part needed for one dash, with prices and suppliers per region |
 | [Pinout](reference/pinout.md)                         | GPIO reference for the ESP32 board, ILI9341 display, XPT2046 touch   |
 | [Display bus](reference/pinout-display.md)            | Panel and touch controller on one shared SPI bus                     |
+| [Board drivers](reference/board-drivers.md)           | Which LCD and touch controllers a board profile may name             |
 | [CAN header](reference/pinout-can.md)                 | The two TWAI pins and the transceiver they need                      |
 | [Power rails](reference/pinout-power.md)              | Where the board takes power, and the rail the firmware modulates     |
 | [CAN integration notes](reference/can-integration.md) | TWAI configuration, bus speed, sample frame layouts                  |
