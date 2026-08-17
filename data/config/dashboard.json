@@ -477,7 +477,7 @@
       "minValue": -1,
       "maxValue": 3,
       "dangerLevel": 2.3,
-      "decimalPlaces": 2
+      "decimalPlaces": 1
      }
     },
     {
