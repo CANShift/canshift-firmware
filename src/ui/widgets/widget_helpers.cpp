@@ -7,6 +7,7 @@
 #include "ui/font_manager.h"
 #include "diag/logger.h"
 #include "ui/screen_profile.h"
+#include "ui/signal_presentation.h"
 #include "ui/widget_label.h"
 #include "util/format_float.h"
 
@@ -107,7 +108,7 @@ const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
     const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
     if (def && def->unit[0] != '\0')
         return def->unit;
-    return WidgetLabelOverlay::displayUnitForSignal(signalId);
+    return SignalPresentation::unitForSignal(signalId);
 }
 
 float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow) {
