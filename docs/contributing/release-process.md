@@ -99,6 +99,34 @@ tagging and building. You are not tagging by hand.
 
 6. **Smoke-test** by re-flashing a dash from the tuner using the new release.
 
+## What each artifact is, and where it goes
+
+Three binaries per released board, all listed in `manifest.json` with their SHA-256:
+
+| Artifact        | Contents                                         | Flashed at                                           |
+| --------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `-merged.bin`   | bootloader + partition table + app, in one image | `0x0`, always                                        |
+| `-firmware.bin` | the app partition alone                          | `0x10000` — this is what OTA consumes                |
+| `-spiffs.bin`   | the data partition (config, fonts, assets)       | the `spiffs` offset from the board's partition table |
+
+The merged image is always written at `0x0` whatever the chip, because
+`esptool merge_bin` emits from target offset 0 and pads. What changes per chip is
+the **bootloader's position inside** that image:
+
+| Chip                            | Bootloader offset |
+| ------------------------------- | ----------------- |
+| `esp32`                         | `0x1000`          |
+| `esp32s2`, `esp32s3`, `esp32c3` | `0x0`             |
+
+The workflow derives it from the board's `chip` field and **fails the release** on
+a chip it has no offset for, rather than defaulting. Getting this wrong is silent:
+esptool accepts the layout, and the board simply never boots — the ROM finds
+`0xFF` where it expects the image magic. A new chip family means teaching that
+`case` before its first release.
+
+The app partition sits at `0x10000` and the partition table at `0x8000` on every
+board we ship, in both `ota_4mb.csv` and `ota_16mb.csv`.
+
 ## Patch vs minor vs major
 
 - **Patch** (x.y.z → x.y.z+1): bug fix, no UX change, no schema change.

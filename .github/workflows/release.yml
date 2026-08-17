@@ -177,10 +177,16 @@ jobs:
           BOARD=${{ matrix.board }}
           CHIP=$(jq -r --arg id "$BOARD" '.[] | select(.id == $id) | .chip' .github/boards.json)
           pip install esptool
+          case "$CHIP" in
+            esp32)                   BOOTLOADER_ADDR=0x1000 ;;
+            esp32s2|esp32s3|esp32c3) BOOTLOADER_ADDR=0x0 ;;
+            *) echo "::error title=unknown chip::no bootloader offset known for '$CHIP'"; exit 1 ;;
+          esac
+          echo "Merging ${BOARD} (${CHIP}) with bootloader at ${BOOTLOADER_ADDR}"
           # Merged factory image — USB esptool flashing only (bootloader + partitions + firmware).
           python -m esptool --chip "$CHIP" merge_bin \
             -o "canshift-${BOARD}-${TAG}-merged.bin" \
-            0x1000 ".pio/build/${BOARD}/bootloader.bin" \
+            "$BOOTLOADER_ADDR" ".pio/build/${BOARD}/bootloader.bin" \
             0x8000 ".pio/build/${BOARD}/partitions.bin" \
             0x10000 ".pio/build/${BOARD}/firmware.bin"
           # Firmware-partition image — what mobile / studio OTA must consume.
