@@ -46,13 +46,10 @@ PageBand pageBandFor(const CfgPage &p, const CfgDashboard &dash,
     const uint16_t topBarHeight = p.showTopBar ? dash.topBar.height : 0;
     const bool hasStrip = declaresShiftStrip(p);
     const uint16_t stripBand = hasStrip ? DashMetrics::kShiftStripBandPx : 0;
-    const uint16_t alertBand = static_cast<uint16_t>(DashMetrics::kAlertLineBandPx);
     const uint16_t reserved = static_cast<uint16_t>(topBarHeight + stripBand);
-    const uint16_t taken = static_cast<uint16_t>(reserved + alertBand);
-    const uint16_t contentHeight = design.height > taken ? design.height - taken : 0;
-    const uint16_t contentBottom =
-        design.height > alertBand ? static_cast<uint16_t>(design.height - alertBand) : 0;
-    return {design.width, design.height, reserved, contentHeight, contentBottom, hasStrip};
+    const uint16_t contentHeight =
+        design.height > reserved ? static_cast<uint16_t>(design.height - reserved) : 0;
+    return {design.width, design.height, reserved, contentHeight, design.height, hasStrip};
 }
 
 bool isStrip(const CfgWidget &w, const PageBand &band) {
