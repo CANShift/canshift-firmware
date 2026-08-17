@@ -13,7 +13,6 @@ changing.
 | [`canshift-core`](https://github.com/CANShift/canshift-core)         | TypeScript / Zod                        | Shared contracts, published to npm as `@canshift/core` |
 | [`canshift-tuner`](https://github.com/CANShift/canshift-tuner)       | Vite + React                            | Browser configurator + flasher, deployed on Vercel     |
 | [`canshift-mobile`](https://github.com/CANShift/canshift-mobile)     | Expo / React Native                     | iPhone companion app — currently deferred              |
-| [`canshift-docs`](https://github.com/CANShift/canshift-docs)         | Astro + Starlight                       | This site                                              |
 
 The retired monorepo is archived at
 [`CANShift/CANShift`](https://github.com/CANShift/CANShift) for history only —
@@ -21,13 +20,18 @@ do not open new work against it.
 
 ## Which repository to contribute to
 
-| You want to change…                                    | Repository          |
-| ------------------------------------------------------ | ------------------- |
-| On-device UI, LVGL widgets, CAN decoding, boot, HAL    | `canshift-firmware` |
-| Config/signal schemas, migrations, ECU presets, tokens | `canshift-core`     |
-| Editor UI, live data, flasher, CLI, themes             | `canshift-tuner`    |
-| BLE telemetry or settings on the phone app             | `canshift-mobile`   |
-| These docs                                             | `canshift-docs`     |
+| You want to change…                                    | Repository                     |
+| ------------------------------------------------------ | ------------------------------ |
+| On-device UI, LVGL widgets, CAN decoding, boot, HAL    | `canshift-firmware`            |
+| Config/signal schemas, migrations, ECU presets, tokens | `canshift-core`                |
+| Editor UI, live data, flasher, CLI, themes             | `canshift-tuner`               |
+| BLE telemetry or settings on the phone app             | `canshift-mobile`              |
+| Documentation                                          | the repo that owns the surface |
+
+Documentation is plain markdown under each repository's `docs/`, rendered by
+GitHub — there is no docs site and no build step. `docs/README.md` is the index.
+A page describing on-device behaviour belongs to the firmware, one describing
+the flasher belongs to the tuner, and one describing a contract belongs to core.
 
 A single change often spans repositories — a new widget needs its schema in
 `canshift-core` (published to npm), its renderer in `canshift-firmware`, and
@@ -36,7 +40,7 @@ its editor surface in `canshift-tuner`. See
 
 ## Prerequisites
 
-- Node ≥ 20 — for `canshift-core`, `canshift-tuner`, `canshift-mobile`, and this site.
+- Node ≥ 20 — for `canshift-core`, `canshift-tuner`, and `canshift-mobile`.
 - PlatformIO Core — for `canshift-firmware`. `pip install platformio`.
 - Rust toolchain (xtensa) — optional, only if you touch the firmware's Rust modules.
 
@@ -109,14 +113,6 @@ npx expo prebuild --clean --platform ios
 npm run ios
 ```
 
-### `canshift-docs`
-
-```bash
-cd canshift-docs
-npm install        # arms the pre-commit hooks
-npm run dev        # http://localhost:4321
-```
-
 ## Branches, commits, PRs
 
 Every repository shares the same workflow:
@@ -145,7 +141,6 @@ Checks run in the repository you push to — there is no shared pipeline:
 | `canshift-firmware` | `lint` (clang-format), native build + tests |
 | `canshift-tuner`    | `lint`, `typecheck`, `test`, `build`        |
 | `canshift-mobile`   | `lint`, `typecheck`, `test`                 |
-| `canshift-docs`     | `lint`, `build`                             |
 
 `firmware-parity` checks out `canshift-firmware` alongside `canshift-core` and
 fails the PR if the schema the firmware pins in `core-schema-version.txt` has
