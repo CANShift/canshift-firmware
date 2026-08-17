@@ -211,14 +211,22 @@ bool parseSignalDef(JsonObjectConst sig, CfgSignalDef *s) {
 
 void parseSignalList(JsonArrayConst signals) {
     s_signals.signalCount = 0;
+    uint16_t overCap = 0;
     for (JsonObjectConst sig : signals) {
-        if (s_signals.signalCount >= CONFIG_MAX_SIGNALS)
-            break;
+        if (s_signals.signalCount >= CONFIG_MAX_SIGNALS) {
+            ++overCap;
+            continue;
+        }
         CfgSignalDef tmp{};
         if (!parseSignalDef(sig, &tmp))
             continue;
         s_signals.signals[s_signals.signalCount++] = tmp;
     }
+    if (overCap == 0)
+        return;
+    LOG_ERROR("CFG", "signals.json: %u signals past the %u cap were dropped",
+              static_cast<unsigned>(overCap), static_cast<unsigned>(CONFIG_MAX_SIGNALS));
+    ErrorStore::push(ERROR_SRC_CONFIG, "SIG_CAP", "signals.json exceeds the signal cap");
 }
 
 } // namespace
