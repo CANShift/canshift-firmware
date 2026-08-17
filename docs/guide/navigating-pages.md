@@ -43,8 +43,12 @@ Pages are released on the **next** navigation (not immediately when you leave),
 to keep the transition animation smooth. Details in
 [Page lifecycle](../architecture/page-lifecycle.md).
 
-## The cap is 5 pages
+## The cap is 8 pages
 
-The firmware ships with `CONFIG_MAX_PAGES = 5` (#1360). The tuner enforces the
-same cap at burn time. Bumping the cap requires a firmware build flag change
-and increases BSS by ~6.2 KB per added page — not user-configurable.
+The firmware ships with `CONFIG_MAX_PAGES = 8`, mirrored by core's
+`FIRMWARE_CAPS.MAX_PAGES`, so the tuner enforces the same cap at burn time. It
+is a compile-time constant, not a user setting.
+
+Per-page widget storage is heap-allocated within a cumulative budget, so a
+four-page dashboard does not pay for eight — but the page array itself is
+static at eight slots.

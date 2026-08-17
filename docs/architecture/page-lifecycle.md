@@ -76,21 +76,26 @@ visibility-toggled by `AlertEngine::isRevLimiterFlashOn()` from
 page transitions (the layer is shared across screens), so the alert flash
 keeps blinking through a swipe.
 
-## `MAX_PAGES = 5`
+## Page and widget budgets
 
-The cap evolved through several iterations and the current value is
-load-bearing:
+`CONFIG_MAX_PAGES` is 8 and `CONFIG_MAX_WIDGETS_PER_PAGE` is 12
+([`include/app_config.h`](../../include/app_config.h)). Core mirrors both in
+`FIRMWARE_CAPS`, so the tuner refuses to burn a dashboard that exceeds them.
 
-- **4 (pre-#1351)**: too tight for cruise_control + 4 free-form pages.
-- **8 (#1357)**: jumped +25 KB BSS, OOM'd CAN init + USB rxBuf at boot
-  (#1358 revert).
-- **5 (now, #1360)**: minimal bump that fits the demo seed (4 pages) +
-  1 cruise. Costs +6.2 KB BSS vs the 4-page baseline — well inside the
-  post-#1351 WiFi-removal headroom (~80 KB). The 25 KB jump from 4→8 was
-  what hit fragmentation; +6.2 KB is comfortably below the cliff.
+The `CfgPage` array itself is static — 8 slots, always resident. What is _not_
+static is the widget storage: each page's `widgets` array is heap-allocated at
+load time, sized to the page's actual widget count. That is what keeps a
+four-page dashboard from paying for twelve widgets on eight pages.
 
-Heap-allocating the page array (#1359) is the durable fix and would
-retire this static cap entirely.
+The allocation is bounded. `CONFIG_DASHBOARD_HEAP_BUDGET_BYTES` (48 KB) caps
+the cumulative widget allocation across all pages, checked page by page as the
+config is parsed. Crossing it pushes a `BUDGET` error and **refuses the
+payload** rather than allocating until something else fails — a config that is
+too large is rejected at load, not discovered as an OOM during CAN init or USB
+buffer reservation later in boot.
+
+A page whose widget count exceeds `CONFIG_MAX_WIDGETS_PER_PAGE` is clamped with
+a warning; the extras are ignored rather than rejecting the whole file.
 
 ## Widget tag pool
 

@@ -20,7 +20,7 @@ The panel and its touch controller sit on the same SPI bus (HSPI). They share th
 
 The two devices run the bus at different speeds:
 
-- **TFT** — 27 MHz by default (`lcd.freq_write_hz`), or 40 MHz when built with `-DHW_TFT_FAST_SPI=1`, which is off by default and worth validating on your own board first.
+- **TFT** — 27 MHz, set by `lcd.freq_write_hz` in the board profile. A faster clock is a per-board profile edit, and worth validating on your own hardware before trusting it.
 - **Touch** — 2.5 MHz (`touch.freq_hz`), the XPT2046's ceiling.
 
 ## Touch is polled, not interrupt-driven
