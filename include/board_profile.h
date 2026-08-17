@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace canshift::boards {
@@ -81,6 +82,22 @@ struct BoardProfile {
     StorageProfile storage;
     ConnectivityProfile conn;
 };
+
+inline constexpr const char *kLcdDriverNames[] = {"ILI9341", "ST7789", "ILI9488", "GC9A01"};
+inline constexpr const char *kTouchDriverNames[] = {"None",  "XPT2046", "FT6336",
+                                                    "GT911", "CST816S", "CST3530"};
+
+constexpr const char *lcdDriverName(LcdDriver driver) {
+    return static_cast<size_t>(driver) < (sizeof(kLcdDriverNames) / sizeof(kLcdDriverNames[0]))
+               ? kLcdDriverNames[static_cast<size_t>(driver)]
+               : "unknown";
+}
+
+constexpr const char *touchDriverName(TouchDriver driver) {
+    return static_cast<size_t>(driver) < (sizeof(kTouchDriverNames) / sizeof(kTouchDriverNames[0]))
+               ? kTouchDriverNames[static_cast<size_t>(driver)]
+               : "unknown";
+}
 
 constexpr bool lcdRotationSwapsAxes(uint8_t rotation) {
     return (rotation & 1u) != 0u;
