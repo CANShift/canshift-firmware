@@ -15,7 +15,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 - `src/config/config_types.h` mirrors `@canshift/core` schemas; `core-schema-version.txt` pins `CURRENT_SCHEMA_VERSION` for standalone builds (a sibling `../canshift-core` checkout wins) — update the pin on every schema bump.
 - Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
 - `docs/design/DASH_DESIGN_SYSTEM.md` is the binding dash spec and `docs/design/DASH_PAGES.json` the six default pages as data — where the firmware differs, the firmware is wrong. Read both before touching a widget; open deviations live on #127.
-- Zero comments policy — prose belongs in `docs/`, not in the source; clang-format gates every PR.
+- Zero comments policy — prose belongs in `docs/`, not in the source; clang-format gates every PR over `src`, `include`, `test` and `sim` (`.cpp`, `.h`, `.inc`). CI pins `clang-format==22.1.8`; run `pip install clang-format==22.1.8` to match it, since versions disagree on constructs like `struct stat st{};`.
 
 ## Code shape
 
