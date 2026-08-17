@@ -67,8 +67,34 @@ void test_real_six_page_dashboard_loads() {
     free(sigs);
 }
 
+static bool signalIsDeclared(const CfgSignalConfig &s, const char *name) {
+    for (uint8_t i = 0; i < s.signalCount; ++i) {
+        if (strcmp(s.signals[i].name, name) == 0)
+            return true;
+    }
+    return false;
+}
+
+void test_every_bound_signal_is_declared() {
+    const CfgDashboard &d = ConfigLoader::getDashboardConfig();
+    const CfgSignalConfig &s = ConfigLoader::getSignalConfig();
+    printf("signalCount=%u cap=%u\n", (unsigned)s.signalCount, (unsigned)CONFIG_MAX_SIGNALS);
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(CONFIG_MAX_SIGNALS, s.signalCount);
+
+    for (uint8_t p = 0; p < d.pageCount; ++p) {
+        for (uint8_t w = 0; w < d.pages[p].widgetCount; ++w) {
+            const char *signal = d.pages[p].widgets[w].signalId;
+            if (signal[0] == '\0')
+                continue;
+            printf("page[%u] widget[%u] signal=%s\n", (unsigned)p, (unsigned)w, signal);
+            TEST_ASSERT_TRUE_MESSAGE(signalIsDeclared(s, signal), signal);
+        }
+    }
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_real_six_page_dashboard_loads);
+    RUN_TEST(test_every_bound_signal_is_declared);
     return UNITY_END();
 }
