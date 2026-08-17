@@ -87,7 +87,6 @@ Each repository enforces its own required checks before merge:
 | `canshift-core`     | `lint` · `test` · `build`                                                   |
 | `canshift-tuner`    | `lint` · `typecheck` · `test` · `build`                                     |
 | `canshift-mobile`   | `lint` · `typecheck` · `test`                                               |
-| `canshift-docs`     | `lint` · `build`                                                            |
 
 All required checks must pass before merge; every repository merges via
 rebase and merge.
