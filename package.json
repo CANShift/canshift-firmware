@@ -10,7 +10,7 @@
     "lint-staged": "^17.2.0"
   },
   "lint-staged": {
-    "*.{cpp,h,hpp}": "scripts/hooks/clang-format-staged.sh",
+    "*.{cpp,h,hpp,inc}": "scripts/hooks/clang-format-staged.sh",
     "*.{md,yml,yaml,json}": "npx prettier --write --ignore-unknown"
   }
 }
