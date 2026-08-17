@@ -7,6 +7,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.12'
+  CLANG_FORMAT_VERSION: '22.1.8'
 
 jobs:
   lint:
@@ -14,14 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: clang-format
-        run: |
-          find src include test sim \( -name "*.cpp" -o -name "*.h" -o -name "*.inc" \) \
-            ! -name 'lv_conf.h' -print0 \
-            | xargs -0 clang-format --dry-run --Werror --style=file
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: clang-format
+        run: |
+          pip install "clang-format==${CLANG_FORMAT_VERSION}"
+          find src include test sim \( -name "*.cpp" -o -name "*.h" -o -name "*.inc" \) \
+            ! -name 'lv_conf.h' -print0 \
+            | xargs -0 clang-format --dry-run --Werror --style=file
       - name: FFI constant parity
         run: python3 scripts/check_ffi_parity.py
 
