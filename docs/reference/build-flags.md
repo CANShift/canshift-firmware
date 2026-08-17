@@ -94,39 +94,50 @@ All default to `0` and are bundled by `[env:debug-perf]`.
 
 ## Build envs
 
-| Env                                          | What it is                                                                           |
-| -------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `crowpanel_28`                               | Production build for the reference hardware. The base every other board env extends. |
-| `generic_ili9341`, `generic_ili9341_gt911`   | Portability legs — pinouts unverified on hardware.                                   |
-| `waveshare_s3_28`                            | ESP32-S3 board, verified on hardware.                                                |
-| `esp32s3`                                    | Chip-family compile target. Every LCD and touch pin in its profile is `-1`, so it drives nothing as flashed — it exists to prove the S3 target builds and to be the base of a runtime-provisioned image. |
-| `debug`                                               | `APP_DEBUG_BUILD=1`, framework logging at level 5, slow upload.                      |
-| `debug-perf`                                          | Production logging with the tracing bundle compiled in.                              |
-| `secure`                                              | Secure boot v2 + flash encryption, on the secure partition table.                    |
-| `native`                                              | Host build for `pio test -e native`.                                                 |
-| `sim`                                                 | Native SDL simulator — the UI without hardware.                                      |
+| Env                                        | What it is                                                                                                                                                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crowpanel_28`                             | Production build for the reference hardware. The base every other board env extends.                                                                                                                     |
+| `generic_ili9341`, `generic_ili9341_gt911` | Portability legs — pinouts unverified on hardware.                                                                                                                                                       |
+| `waveshare_s3_28`                          | ESP32-S3 board, verified on hardware.                                                                                                                                                                    |
+| `generic_esp32s3`                          | Chip-family compile target. Every LCD and touch pin in its profile is `-1`, so it drives nothing as flashed — it exists to prove the S3 target builds and to be the base of a runtime-provisioned image. |
+| `debug`                                    | `APP_DEBUG_BUILD=1`, framework logging at level 5, slow upload.                                                                                                                                          |
+| `debug-perf`                               | Production logging with the tracing bundle compiled in.                                                                                                                                                  |
+| `secure`                                   | Secure boot v2 + flash encryption, on the secure partition table.                                                                                                                                        |
+| `native`                                   | Host build for `pio test -e native`.                                                                                                                                                                     |
+| `sim`                                      | Native SDL simulator — the UI without hardware.                                                                                                                                                          |
 
 Override any flag per env with `build_flags = -DFOO=1`, but extend a board env
 rather than `base_flags` so the Rust flags come along.
 
-## Which boards CI builds, which ones ship
+## Which boards exist, which CI builds, which ones ship
 
-`.github/boards.json` is the single list behind both matrices. Every entry carries
-`id`, `chip`, `display`, `touch` and a `release` flag:
+Three lists describe board support. They are not the same list, and
+`scripts/check_board_lists.py` gates the relationship between them on every PR.
 
-| Consumer                        | Filter                          | Result                                   |
-| ------------------------------- | ------------------------------- | ---------------------------------------- |
-| `build.yml` — the `firmware` job | every entry                     | all five envs build on every PR          |
-| `release.yml` — artifacts        | `select(.release)`              | four boards get merged/firmware/spiffs bins |
-| `release.yml` — `manifest.json`  | `select(.release)`              | the board list the tuner flasher reads   |
+| List                              | Answers                                                | Today                    |
+| --------------------------------- | ------------------------------------------------------ | ------------------------ |
+| `include/boards/*.h`              | what the firmware can be built for                     | 5                        |
+| `.github/boards.json`             | what CI builds, and which of those a release publishes | 5, of which 4 releasable |
+| `@canshift/core` `BOARD_PROFILES` | what the tuner can offer                               | 4                        |
 
-`esp32s3` is the one entry with `release: false`. It compiles, so CI must cover it,
-but publishing a flashable artifact for a profile whose every pin is `-1` would give
-a user a dark screen. It becomes releasable once a board profile can be provisioned
-at flash time (#247).
+The invariants the gate enforces:
+
+- one board header per `boards.json` entry, **under the same id** — the header's
+  `.board_id`, its filename and the entry's `id` all match;
+- a `[env:<id>]` in `platformio.ini` for every entry, so the matrix can build it;
+- core's catalog holds **exactly** the releasable subset — nothing offered that
+  cannot be flashed, nothing published that the tuner cannot name.
+
+The core check is skipped when no sibling `canshift-core` checkout exists, the same
+way core's own firmware-parity suite skips without a firmware sibling.
+
+`generic_esp32s3` is the one entry with `release: false`. It compiles, so CI covers
+it, but publishing a flashable artifact for a profile whose every pin is `-1` would
+give a user a dark screen. It becomes releasable once a board profile can be
+provisioned at flash time (#247).
 
 **For the tuner:** `manifest.json` is the contract. A board appears there only if it
 is releasable, and each entry names its `chip`, which decides which binary the
-flasher writes. Do not infer the board list from `platformio.ini` or from
-`include/boards/` — those are build concerns and both are longer than the shipped
-list.
+flasher writes and where that binary's bootloader sits. Do not infer the board list
+from `platformio.ini` or from `include/boards/` — those are build concerns and both
+are longer than the shipped list.

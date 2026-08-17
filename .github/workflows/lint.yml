@@ -26,6 +26,8 @@ jobs:
             | xargs -0 clang-format --dry-run --Werror --style=file
       - name: FFI constant parity
         run: python3 scripts/check_ffi_parity.py
+      - name: Board lists agree
+        run: python3 scripts/check_board_lists.py
 
   rust:
     name: rust

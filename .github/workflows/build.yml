@@ -102,19 +102,6 @@ jobs:
       - name: build (secure)
         run: pio run -e secure
 
-  esp32s3:
-    name: esp32s3 build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - uses: ./.github/actions/pio-setup
-        with:
-          espup: 'true'
-          cache-suffix: esp32s3
-
-      - name: build (esp32s3)
-        run: pio run -e esp32s3 -e waveshare_s3_28
 
   diagnostic:
     name: diagnostic builds
@@ -136,17 +123,16 @@ jobs:
 
   ci-success:
     name: ci-success
-    needs: [native, firmware, secure, esp32s3, diagnostic]
+    needs: [native, firmware, secure, diagnostic]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: gate
         run: |
-          echo "native=${{ needs.native.result }} firmware=${{ needs.firmware.result }} secure=${{ needs.secure.result }} esp32s3=${{ needs.esp32s3.result }} diagnostic=${{ needs.diagnostic.result }}"
+          echo "native=${{ needs.native.result }} firmware=${{ needs.firmware.result }} secure=${{ needs.secure.result }} diagnostic=${{ needs.diagnostic.result }}"
           if [ "${{ needs.native.result }}" != "success" ] \
             || [ "${{ needs.firmware.result }}" != "success" ] \
             || [ "${{ needs.secure.result }}" != "success" ] \
-            || [ "${{ needs.esp32s3.result }}" != "success" ] \
             || [ "${{ needs.diagnostic.result }}" != "success" ]; then
             echo "::error::one or more required CI jobs failed — see the failing job above"
             exit 1
