@@ -10,6 +10,7 @@
 #include "ui/control_status.h"
 #include "ui/control_vocabulary.h"
 #include "ui/screen_profile.h"
+#include "ui/signal_presentation.h"
 #include "ui/widget_label.h"
 #include "ui/widgets/control_button.h"
 #include "ui/widgets/widget_helpers.h"
@@ -79,7 +80,7 @@ const char *kickerFromAction(const CfgButtonParams &p) {
 const char *fallbackKicker(const CfgWidget &cfg) {
     if (cfg.button && cfg.button->kicker[0] != '\0')
         return cfg.button->kicker;
-    const char *fromSignal = WidgetLabelOverlay::displayLabelForSignal(cfg.signalId);
+    const char *fromSignal = SignalPresentation::kickerForSignal(cfg.signalId);
     if (fromSignal)
         return fromSignal;
     return cfg.button ? kickerFromAction(*cfg.button) : "";

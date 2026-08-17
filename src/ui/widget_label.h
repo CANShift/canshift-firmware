@@ -18,8 +18,4 @@ constexpr uint32_t kLabelDimRgb = ThemeTokens::kDimNight;
 _lv_obj_t *applySignalHeader(_lv_obj_t *cont, const char *signalId,
                              HeaderPos pos = HeaderPos::TOP_LEFT);
 
-const char *displayLabelForSignal(const char *signalId);
-
-const char *displayUnitForSignal(const char *signalId);
-
 } // namespace WidgetLabelOverlay
