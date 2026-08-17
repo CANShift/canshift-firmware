@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - id: read
-        run: echo "boards=$(jq -c '[.[].id]' .github/boards.json)" >> "$GITHUB_OUTPUT"
+        run: echo "boards=$(jq -c '[.[] | select(.release) | .id]' .github/boards.json)" >> "$GITHUB_OUTPUT"
 
   create-release:
     name: Create draft release
@@ -272,7 +272,7 @@ jobs:
               version: $version,
               tag: $tag,
               boards: [
-                .[] | . as $b | {
+                .[] | select(.release) | . as $b | {
                   id, chip, display, touch,
                   artifacts: (
                     ["merged", "firmware", "spiffs"]
