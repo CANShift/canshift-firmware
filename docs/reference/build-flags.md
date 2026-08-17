@@ -2,77 +2,108 @@
 
 Source: [`platformio.ini`](../../platformio.ini)
 
-The firmware's compile-time behaviour is steered by macros set in
-`platformio.ini` build_flags. This page catalogs the flags users + contributors
-hit most often. All defaults live in `canshift-firmware/include/app_config.h`.
+Compile-time behaviour is steered by macros set in `platformio.ini` build_flags.
+This page catalogues the ones contributors hit most often. Defaults live in
+[`include/app_config.h`](../../include/app_config.h) — each is wrapped in
+`#ifndef`, so a `-D` on the command line or in an env wins.
+
+## Board selection
+
+The board is picked at compile time. [`include/board.h`](../../include/board.h)
+reads the flag and pulls in the matching profile from
+[`include/boards/`](../../include/boards/).
+
+| Flag                          | Board                     |
+| ----------------------------- | ------------------------- |
+| `BOARD_CROWPANEL_28`          | Elecrow CrowPanel 2.8"    |
+| `BOARD_GENERIC_ILI9341`       | Generic ILI9341 + XPT2046 |
+| `BOARD_GENERIC_ILI9341_GT911` | Generic ILI9341 + GT911   |
+| `BOARD_GENERIC_ESP32S3`       | Generic ESP32-S3          |
+| `BOARD_WAVESHARE_S3_28`       | Waveshare ESP32-S3 2.8"   |
+
+Exactly one is set per env. A board env unflags the base
+`-DBOARD_CROWPANEL_28=1` before setting its own — see
+[Adding a board](../../README.md#adding-a-board).
+
+`BOARD_HAS_PSRAM` enables the IDF PSRAM init so WROVER variants light up
+automatically. On a WROOM chip with no PSRAM the init fails silently and the
+runtime detect in `src/hal/memory/psram.cpp` handles it.
 
 ## Build profile
 
 | Flag                     | Default                     | Effect                                                                                                                                             |
 | ------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `APP_DEBUG_BUILD`        | `0`                         | Enables extra logging + assertions. Set by `[env:debug]`.                                                                                          |
+| `APP_DEBUG_BUILD`        | `0`                         | Extra logging and assertions. Set by `[env:debug]`.                                                                                                |
 | `APP_SECURE_BOOT_BUILD`  | `0`                         | Marks the image as a secure-boot + flash-encryption build. Set by `[env:secure]`. Fuse-burn is host-side via `scripts/secure_boot_first_flash.sh`. |
-| `APP_LOG_LEVEL`          | `1` (release) / `4` (debug) | `0=none 1=error 2=warn 3=info 4=debug 5=verbose`. Release stays at `error` — info leaks signal lifecycle (rpm, throttle, lambda) over UART (#899). |
-| `APP_VERBOSE_DEBUG_LOGS` | `0` (release) / `1` (debug) | Gates `LOG_VDEBUG` call sites — collapses to no-ops at preprocess time when disabled.                                                              |
+| `APP_LOG_LEVEL`          | `1` (release) / `4` (debug) | `0=none 1=error 2=warn 3=info 4=debug 5=verbose`. Release stays at `error` — info leaks signal lifecycle (rpm, throttle, lambda) over UART.        |
+| `APP_VERBOSE_DEBUG_LOGS` | `0` (release) / `1` (debug) | Gates `LOG_VDEBUG` call sites — they collapse to no-ops at preprocess time when disabled.                                                          |
+| `CORE_DEBUG_LEVEL`       | `1`                         | Framework logging (arduino-esp32, LovyanGFX, NimBLE). Held at errors-only to drop their format strings; app logs are unaffected.                   |
 
 ## Transport
 
-| Flag                   | Default | Effect                                                                                                       |
-| ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `APP_BLE_ENABLED`      | `1`     | `0` excludes NimBLE entirely (~30 KB DRAM saved).                                                            |
-| `BLE_DEFAULT_ENABLED`  | `1`     | Runtime BLE on/off when NimBLE is compiled in. Mutually exclusive with WiFi AP at boot.                      |
-| `APP_WIFI_OTA_ENABLED` | `0`     | Drops WiFi + WebServer + Update libs (~80 KB flash). Re-enable when phase 3 (BLE-driven OTA) needs it (#48). |
-| `APP_SPA_SERVE`        | `0`     | Embeds the studio SPA bundle for serving over WiFi. Requires `APP_WIFI_OTA_ENABLED=1`.                       |
+| Flag                  | Default | Effect                                                                                                                      |
+| --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `APP_BLE_ENABLED`     | `1`     | `0` excludes NimBLE entirely (~30 KB DRAM saved).                                                                           |
+| `BLE_DEFAULT_ENABLED` | `1`     | Whether BLE starts enabled at boot when NimBLE is compiled in. The user's Settings toggle overrides it and persists in NVS. |
 
-## Rust ports (opt-in)
+USB CDC is not behind a flag — it is the primary transport and always compiled
+in. See [Transports](../architecture/transports.md).
 
-Each Rust crate is opt-in via a `USE_RUST_*=1` build_flag so CI without the
-`espup` toolchain keeps passing on the default envs:
+## Rust modules
 
-| Flag                         | Crate                    | What moves to Rust                                |
-| ---------------------------- | ------------------------ | ------------------------------------------------- |
-| `USE_RUST_OTA_HMAC`          | `rust/ota-hmac`          | Streaming HMAC-SHA256 trailer verifier (#827)     |
-| `USE_RUST_SIGNAL_MAP`        | `rust/signal-map`        | Name → SignalId lookup (#1177 R-4)                |
-| `USE_RUST_CAN_PARSER`        | `rust/can-parser`        | `decodeBytes` byte-range → f32 (#1177 R-1)        |
-| `USE_RUST_USB_ENVELOPE`      | `rust/usb-envelope`      | PUT_CONFIG envelope brace walk (#1177 R-7)        |
-| `USE_RUST_CONFIG_LOADER`     | `rust/config-loader`     | `parseMajorVersion` (#1177 R-10)                  |
-| `USE_RUST_FORMAT_FLOAT`      | `rust/format-float`      | Newlib-free `%f`/`%g` formatters (#1177 R-2)      |
-| `USE_RUST_ERROR_STORE`       | `rust/error-store`       | Ring-buffer push / getAll / dismissAt (#1177 R-5) |
-| `USE_RUST_ALERT_ENGINE`      | `rust/alert-engine`      | Per-signal threshold evaluators (#1177 R-6)       |
-| `USE_RUST_SENSOR_COLOR_RAMP` | `rust/sensor-color-ramp` | Ramp sampling + sensor-kind heuristic (#1177 R-3) |
+Ten crates under [`rust/`](../../rust/) are compiled into every board build.
+They are **not opt-in**: the base env sets all ten flags and the C++ callers
+invoke the FFI unconditionally, so an env that rebuilds `build_flags` from
+`base_flags` alone will fail to link. Envs that extend a board env must inherit
+`${env:crowpanel_28.build_flags}` rather than reconstruct it.
+
+| Flag                     | Crate                | What lives in Rust                       |
+| ------------------------ | -------------------- | ---------------------------------------- |
+| `USE_RUST_SIGNAL_MAP`    | `rust/signal-map`    | Name → `SignalId` lookup                 |
+| `USE_RUST_CAN_PARSER`    | `rust/can-parser`    | `decodeBytes` byte-range → f32           |
+| `USE_RUST_USB_ENVELOPE`  | `rust/usb-envelope`  | `PUT_CONFIG` envelope brace walk         |
+| `USE_RUST_CONFIG_LOADER` | `rust/config-loader` | `parseMajorVersion`                      |
+| `USE_RUST_FORMAT_FLOAT`  | `rust/format-float`  | Newlib-free `%f` / `%g` formatters       |
+| `USE_RUST_ERROR_STORE`   | `rust/error-store`   | Ring-buffer push / getAll / dismissAt    |
+| `USE_RUST_ALERT_ENGINE`  | `rust/alert-engine`  | Per-signal threshold evaluators          |
+| `USE_RUST_TIMER_CORE`    | `rust/timer-core`    | Lap and stopwatch state                  |
+| `USE_RUST_LAYOUT_GRID`   | `rust/layout-grid`   | Grid cell → pixel rect resolution        |
+| `USE_RUST_CONTROL_STATE` | `rust/control-state` | Cruise and button control state machines |
+
+`-Wl,-z,muldefs` accompanies them: the Rust staticlib and newlib both define a
+handful of symbols, and the linker takes the first.
 
 ## Hardware
 
-| Flag                        | Default    | Effect                                                                                         |
-| --------------------------- | ---------- | ---------------------------------------------------------------------------------------------- |
-| `HW_TFT_FAST_SPI`           | `0`        | Switches the TFT SPI clock from 27 → 40 MHz. Opt-in after hardware validation (#95 F6).        |
-| `HW_LVGL_DRAW_BUDGET_BYTES` | `~12.8 KB` | RAM budget for both LVGL draw buffers combined. Drives line-count computation.                 |
-| `TASK_WDT_TIMEOUT_MS`       | `8000`     | Watchdog timeout for UI/CAN/USB tasks. Long enough to survive page rebuild + SPIFFS font load. |
-| `LVGL_FS_MIN_HEAP_BYTES`    | `256`      | Below this, the LVGL FS driver refuses opens to keep newlib `__sfp` out of abort() (#651).     |
+| Flag                        | Default | Effect                                                                                                                  |
+| --------------------------- | ------: | ----------------------------------------------------------------------------------------------------------------------- |
+| `HW_LVGL_DRAW_BUDGET_BYTES` |   25 KB | RAM budget for both LVGL draw buffers combined. Drives the line-count computation. Set in `include/hardware_profile.h`. |
+| `TASK_WDT_TIMEOUT_MS`       |    8000 | Watchdog timeout for the UI, CAN and USB tasks. Long enough to survive a page rebuild plus a SPIFFS font load.          |
+| `LVGL_FS_MIN_HEAP_BYTES`    |     256 | Below this the LVGL FS driver refuses opens, keeping newlib's `__sfp` out of `abort()`.                                 |
 
-## Tracing / instrumentation
+## Tracing
 
-| Flag                         | Default | Effect                                                                                                                |
-| ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
-| `APP_PROFILE_UI`             | `0`     | Emits per-frame UI perf line at 1 Hz: mutex wait, widget update, frame total, FPS, misses. Set by `[env:debug-perf]`. |
-| `APP_LV_TASK_LOG`            | `0`     | 1 Hz "lv_task: avg/max/n" line. Orthogonal to `APP_PROFILE_UI`.                                                       |
-| `APP_USB_TICK_TRACE`         | `0`     | Logs USB-tick interval + body duration above their thresholds. Repro tool for #976.                                   |
-| `APP_USB_CAN_SCAN_FAIL_LOUD` | `0`     | Aborts the firmware when CAN-scan queue alloc fails (#976 repro).                                                     |
+All default to `0` and are bundled by `[env:debug-perf]`.
+
+| Flag                         | Effect                                                                                               |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `APP_PROFILE_UI`             | 1 Hz UI perf line — mutex wait, widget update, frame total, FPS, misses — plus the LVGL FPS overlay. |
+| `APP_LV_TASK_LOG`            | 1 Hz `lv_task: avg/max/n` line. Orthogonal to `APP_PROFILE_UI`.                                      |
+| `APP_USB_TICK_TRACE`         | Logs USB-tick interval and body duration above their thresholds.                                     |
+| `APP_USB_CAN_SCAN_FAIL_LOUD` | Aborts the firmware when a CAN-scan queue allocation fails, instead of degrading quietly.            |
 
 ## Build envs
 
-Common PlatformIO envs and the flag bundles they enable:
+| Env                                                   | What it is                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `crowpanel_28`                                        | Production build for the reference hardware. The base every other board env extends. |
+| `generic_ili9341`, `generic_ili9341_gt911`, `esp32s3` | Portability legs — built in CI, pinouts unverified on hardware.                      |
+| `waveshare_s3_28`                                     | ESP32-S3 board, verified on hardware.                                                |
+| `debug`                                               | `APP_DEBUG_BUILD=1`, framework logging at level 5, slow upload.                      |
+| `debug-perf`                                          | Production logging with the tracing bundle compiled in.                              |
+| `secure`                                              | Secure boot v2 + flash encryption, on the secure partition table.                    |
+| `native`                                              | Host build for `pio test -e native`.                                                 |
+| `sim`                                                 | Native SDL simulator — the UI without hardware.                                      |
 
-```ini
-[env:crowpanel_28]          # production — APP_BLE_ENABLED=1, secure off
-[env:crowpanel_28_ota]      # OTA-capable variant
-[env:debug]                 # APP_DEBUG_BUILD=1 + APP_LOG_LEVEL=4
-[env:debug-perf]            # debug + APP_PROFILE_UI=1
-[env:secure]                # secure-boot v2 + flash encryption
-[env:crowpanel_28_rust]     # USE_RUST_OTA_HMAC=1
-[env:crowpanel_28_rust_*]   # one env per Rust port — see scripts/build_rust.py
-[env:sim]                   # native host build (no hardware)
-[env:native]                # unit-test target (Unity + cargo test)
-```
-
-Override any flag per env via `build_flags = -DFOO=1`.
+Override any flag per env with `build_flags = -DFOO=1`, but extend a board env
+rather than `base_flags` so the Rust flags come along.

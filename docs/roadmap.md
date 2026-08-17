@@ -1,154 +1,92 @@
 # Roadmap
 
-> 🚨 **Pre-#1351 snapshot.** The roadmap below was written before the WiFi+SPA removal and the `canshift-tuner` introduction ([`#1351`](https://github.com/CANShift/issues/1351)). Items referencing `canshift-studio-web` / dash-hosted Studio / WiFi are superseded by the tuner direction. The forward-looking sections still track the right product themes; the surface naming is stale.
+What exists today, and where to find what is planned.
 
-A living snapshot of where the project is and what's next. Each section
-points back at the GitHub issues that drive the actual work — when this
-file and the issue tracker disagree, the tracker wins.
+The previous version of this page ranked upcoming work by priority and went
+stale within months — it was still describing a WiFi-served configurator and a
+migration chain that stopped at 1.14. A hand-maintained ranking alongside four
+issue trackers is a second source of truth that always loses, so this page no
+longer keeps one. **The trackers are the roadmap:**
 
-Last refreshed: 2026-05-18 (see [#849](https://github.com/CANShift/issues/849)).
+| Repo     | Issues                                                                                    |
+| -------- | ----------------------------------------------------------------------------------------- |
+| Firmware | [CANShift/canshift-firmware/issues](https://github.com/CANShift/canshift-firmware/issues) |
+| Core     | [CANShift/canshift-core/issues](https://github.com/CANShift/canshift-core/issues)         |
+| Tuner    | [CANShift/canshift-tuner/issues](https://github.com/CANShift/canshift-tuner/issues)       |
+| Mobile   | [CANShift/canshift-mobile/issues](https://github.com/CANShift/canshift-mobile/issues)     |
 
----
+What stays here is the part a tracker answers badly: whether a given capability
+exists at all, right now.
 
-## Done — shipped today
+## What ships today
 
-Everything below is live on `main` and exercised by the CI gates.
+### Firmware
 
-### Firmware (canshift-firmware @ PlatformIO / ESP32)
+- LVGL 8.3 dashboard — up to 8 pages, 12 widgets each, lazy page build, swipe
+  navigation, day and night theme faces.
+- Seven widget types: gauge, warning, button, timer, gear, image, shift light.
+  Every one is editable from the tuner.
+- Schema-driven CAN decode — `signals.json` describes any passive-broadcast
+  ECU. A MaxxECU-style catalogue ships as the default; see
+  [ECU integration](reference/ecu-integration.md).
+- OBD-II polling for request/response ECUs, mode 01.
+- Five board profiles, selected at compile time, with UI authored against a
+  320×240 design space and scaled to the panel.
+- Settings drawer — brightness, sleep, rotation, BLE toggle, touch calibration,
+  persisted in NVS.
+- Error bar and diagnostics drawer — ECU flag bits, status grid, error ring.
+- Physical GPIO buttons — any input pin bound to a dashboard action.
+- Cruise control page template.
+- USB CDC transport — config push and pull, CAN scan, OBD DTC read and clear,
+  firmware OTA, all on one command table.
+- BLE GATT — binary telemetry notify, status, settings, commands.
+- Secure boot v2 and flash encryption on the `secure` env, with signed release
+  artifacts.
+- Ten Rust crates compiled into every build — parsers, formatters, state
+  machines. See [Build flags](reference/build-flags.md).
+- Native SDL simulator, so the UI can be exercised without hardware.
 
-- LVGL 8.3 dashboard, lazy page build, day/night theming.
-- Widgets: gauge (arc + bar + numeric), bar, button, gear, image, label,
-  timer, warning. Each editable from Studio.
-- CAN signal pipeline — `signals.json` schema-driven decode of any
-  passive-broadcast ECU. MaxxECU 0x370-0x375 group ships as the example
-  default; see [`docs/ecu-integration.md`](reference/ecu-integration.md).
-- Settings panel — drag-down gesture from the top edge, persisted
-  brightness / sleep / rotation / day-mode toggles.
-- Error bar — bottom overlay with swipe-up to expand, scrollable error
-  list ([#642](https://github.com/CANShift/issues/642)).
-- Diag drawer — ECU flag bits, status grid, firmware error log
-  ([#635](https://github.com/CANShift/issues/635)).
-- Physical GPIO buttons — wire any input pin to a dashboard action (page
-  nav, map switch, CAN raw, cruise op)
-  ([#833](https://github.com/CANShift/issues/833)).
-- Boot sequence — splash + progress bar, atomic SPIFFS writes with `.bak`
-  fallback, embedded default config provisioning on first boot.
-- USB JSON-line protocol — Studio config push / pull / scan.
-- BLE GATT — TELE notify, STATUS read+notify, SETTINGS read+write, CMD.
-- Wi-Fi softAP for future OTA — gated by `APP_WIFI_OTA_ENABLED`.
-- OTA HMAC bearer (signed firmware artifacts) — secrets in `secrets.ini`,
-  static mbedTLS context to avoid heap fragmentation in OTA path.
-- Defensive runtime — task watchdog on UI/CAN/USB, perf counters, alert
-  engine (rev limiter flash, warning thresholds).
+### Core
 
-### Studio (canshift-studio-web @ dash-hosted React SPA, #1077)
+- Strict Zod schemas for dashboard, signals, device, input bindings, ECU
+  profiles, and the BLE and USB wire frames.
+- A migration chain from 1.0.0 to the current schema version, with a validator
+  that proves the chain has no gap. See
+  [Config contract](https://github.com/CANShift/canshift-core/blob/main/docs/config-contract.md).
+- Design tokens, theme presets, widget metrics mirrored by the firmware
+  renderer, and the lap-detection engine shared with mobile.
+- Published to npm as `@canshift/core`.
 
-Originally shipped as `canshift-studio` (Electron + React); decommissioned
-post-cutover in favour of the dash-hosted Vite + React SPA served from the
-firmware over WiFi AP. Feature inventory below covers both incarnations —
-the dash-hosted Studio inherited the editor surface from the Electron app.
+### Tuner
 
-- Visual dashboard editor — drag-drop canvas, widget selection, property
-  panel split per widget type
-  ([#697](https://github.com/CANShift/issues/697)).
-- Signal config route — preset picker (Generic, MaxxECU, OBD-II)
-  ([#19](https://github.com/CANShift/issues/19)),
-  per-signal editor, CAN XML import.
-- Device config route — CAN speed, TWAI pin picker with chip-safe ∩
-  board-available validation
-  ([#831](https://github.com/CANShift/issues/831)).
-- Physical button bindings UI inside Device Config
-  ([#833](https://github.com/CANShift/issues/833)).
-- USB connect / push / scan flow, firmware version query, day-night
-  toggle, touch calibration trigger.
-- Firmware update route — GitHub release picker, download + flash via
-  esptool, manual local-bin flash.
-- Friendly Zod error messages — IPC validation summaries surface as
-  user-actionable strings
-  ([#832](https://github.com/CANShift/issues/832)).
-- CLI panel (logs / commands) with detachable window.
+- Dashboard editor — drag-to-bind from a live CAN scan, undo/redo, autosave,
+  multi-project switching, `.canshift` import and export.
+- Signal editor with the built-in ECU catalogue and CAN XML import.
+- Device config — CAN speed and TWAI pins with chip-safe validation, plus the
+  physical button bindings.
+- Live data, logs, and a CLI panel.
+- In-browser flasher over Web Serial — no separate app to install.
+- Opt-in analytics, off until the user turns it on.
 
-### Core (canshift-core @ TypeScript)
+### Mobile
 
-- Strict Zod schemas as the single source of truth for dashboard, signal,
-  device, input-bindings, track-telemetry. Wire (snake_case) ↔ domain
-  (camelCase) mappers at file/IPC boundaries.
-- Migration framework — 1.0.0 → 1.14.0 chain registered, automatic
-  upgrade on config import.
-- Design tokens (dark + placeholder light), hardware profile table for
-  per-board pin reserved sets, ECU preset registry.
+- Live BLE telemetry, pairing and automatic reconnect.
+- Lap detection from the shared core engine.
 
-### Mobile (canshift-mobile @ Expo / React Native)
+Deferred: the mobile app is verified in simulator only until hardware time
+frees up.
 
-- Live telemetry view over BLE.
-- Settings / device pairing screens.
-- USB / BLE transport abstractions.
-- Wired up to canshift-core schemas — same Zod contracts as Studio.
+## Multi-repo work
 
----
+Two umbrellas span repositories and are the place to look before starting
+anything large:
 
-## In flight — open umbrellas
+- **Track mode** — GPS lap timing, recorded circuits, on-firmware indicator:
+  [core#2](https://github.com/CANShift/canshift-core/issues/2) and
+  [mobile#12](https://github.com/CANShift/canshift-mobile/issues/12).
+- **Dash design deviations** — the binding spec versus what the firmware
+  currently renders: [firmware#127](https://github.com/CANShift/canshift-firmware/issues/127).
 
-Issues actively being decomposed into sub-issues; expect movement on
-these across the next few sprints.
-
-| Umbrella                                                                          | Status                                                                                                                                                                                                                                                                                                         |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [#556](https://github.com/CANShift/issues/556) — ECU-agnostic firmware            | Phase 1 (rename, [#840](https://github.com/CANShift/issues/840)) ✓ · Phase 2 (preset library, [#19](https://github.com/CANShift/issues/19)) ✓ · Phase 3 (OBD-II polling, [#841](https://github.com/CANShift/issues/841)) — open · Phase 4 (integration docs, [#842](https://github.com/CANShift/issues/842)) ✓ |
-| [#815](https://github.com/CANShift/issues/815) — Track mode                       | Core schema ([#843](https://github.com/CANShift/issues/843)) ✓ · Firmware indicator ([#844](https://github.com/CANShift/issues/844)) — open · Mobile timing engine ([#845](https://github.com/CANShift/issues/845)) — blocked · History screens ([#846](https://github.com/CANShift/issues/846)) — blocked     |
-| [#158](https://github.com/CANShift/issues/158) — Firmware refactor & optimization | Long-running tracking issue; PRs land continuously.                                                                                                                                                                                                                                                            |
-
----
-
-## Next — concrete near-term issues
-
-Tracked by individual issues, ranked by current priority:
-
-- [#451](https://github.com/CANShift/issues/451) — optional
-  cruise control screen with +/−/SET/OFF buttons. Schema + GPIO wiring
-  already ships via [#833](https://github.com/CANShift/issues/833)
-  - [#852](https://github.com/CANShift/issues/852) — this PR
-    adds the on-screen consumer.
-- [#21](https://github.com/CANShift/issues/21) — visual
-  theme editor: live palette + widget-style preview, exported to device.
-- [#548](https://github.com/CANShift/issues/548) — per-board
-  target screen profile selector with profile-specific dashboard layouts.
-- [#531](https://github.com/CANShift/issues/531) — ESP32
-  secure boot v2 + flash encryption. Audit-ready flash image for the
-  production env.
-- [#436](https://github.com/CANShift/issues/436) — Expo SDK
-  52 → 53 upgrade. Unblocks the remaining 4 `tar` Dependabot alerts and
-  the rest of the mobile feature backlog.
-- [#191](https://github.com/CANShift/issues/191) — optional
-  bespoke per-widget text colours in day mode.
-
----
-
-## Speculative — no tracking issue yet
-
-Ideas worth keeping in mind but explicitly not scheduled. If any of these
-shifts to "actively scoped", open a GitHub issue and lift it into the
-**Next** section.
-
-- Data logging (SPIFFS ring or SD card add-on) once persistent storage
-  budget is reviewed.
-- Shift light LEDs over external GPIO — natural extension of the GPIO
-  button work in [#833](https://github.com/CANShift/issues/833).
-- Predictive shift indicator from rolling RPM derivative.
-- Engine knock display when the ECU exposes a knock count on CAN.
-- Multi-config profiles switchable from the dash itself (not just
-  Studio).
-
----
-
-## How to use this document
-
-- If you're a contributor wondering what's safe to pick up, scan **Next**
-  first — those issues have tracker visibility and any blockers are
-  surfaced.
-- If you're a user wondering whether feature X exists, **Done** is
-  authoritative. If it's not listed there it's either in flight or not
-  scheduled.
-- Anything that looks stale here is a documentation bug — file under
-  `docs:` and either fix it directly or assign to the next person
-  touching docs.
+A change often spans repos: a new widget needs its schema in core (published to
+npm), its renderer in the firmware, and its editor surface in the tuner. See
+[Add a dashboard widget](contributing/add-widget.md).

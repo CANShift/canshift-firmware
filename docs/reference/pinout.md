@@ -18,8 +18,9 @@ Source: [`include/boards/crowpanel_28.h`](../../include/boards/crowpanel_28.h)
 
 ## SPI clocks
 
-- **TFT**: 27 MHz by default (official spec), 40 MHz opt-in via
-  `-DHW_TFT_FAST_SPI=1` after hardware validation.
+- **TFT**: 27 MHz, from `lcd.freq_write_hz` in the board profile
+  (`include/boards/crowpanel_28.h`). Change it there, per board — there is no
+  global build flag for it.
 - **Touch**: 2.5 MHz (XPT2046 max).
 
 ## Free pins

@@ -24,9 +24,8 @@ macros emit envelopes instead of plain `[I][TAG]` text.
 The send path is a single sink. `serialSink()` (`usb_comm.cpp`) writes to
 UART0: it takes `Logger::lockUart` with a 50 ms timeout, writes the bytes,
 appends a newline if the payload lacks one, then releases the lock.
-`UsbComm::sendLine()` calls `serialSink()` directly — there is no aux sink,
-no per-task dispatch sink, and no WebSocket / TCP / WiFi mirror (the WiFi
-stack was removed in CANShift/CANShift#1351).
+`UsbComm::sendLine()` calls `serialSink()` directly — there is no aux sink and
+no per-task dispatch sink. UART0 is the only place a reply is written.
 
 On a `Logger::lockUart` timeout the write still goes through, unprotected:
 the sink favours "degrade, don't drop", so a busy logger never loses a
