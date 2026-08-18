@@ -2,12 +2,14 @@
 """Gate the three lists that describe which boards CANShift supports.
 
     include/boards/*.h   what the firmware can be built for, and what catalog.h can select
-    .github/boards.json  what CI builds, and which of those a release publishes
+    .github/boards.json  what CI builds, which boards a release offers, and which env
+                         ships as its chip family's universal firmware
     core BOARD_PROFILES  what the tuner can offer   (checked when a sibling checkout exists)
 
 The invariants: every header has a boards.json entry under the same id and a
-PlatformIO env under that name, and core's catalog holds exactly the releasable
-subset. Run from the repository root.
+PlatformIO env under that name, core's catalog holds exactly the releasable
+subset, and every chip family with releasable boards has exactly one universal
+build to publish for them. Run from the repository root.
 """
 
 import json
@@ -84,6 +86,30 @@ def check_core_catalog(releasable: set[str], problems: list[str]) -> None:
         problems.append(f"'{extra}' is in core BOARD_PROFILES but not released by this repo")
 
 
+def universal_by_chip(boards: list[dict], problems: list[str]) -> dict[str, list[str]]:
+    by_chip: dict[str, list[str]] = {}
+    for board in boards:
+        if not board.get("universal"):
+            continue
+        if not board.get("release"):
+            problems.append(
+                f"'{board['id']}' is the universal build for {board['chip']} but is not releasable"
+            )
+        by_chip.setdefault(board["chip"], []).append(board["id"])
+    return by_chip
+
+
+def check_universal(boards: list[dict], problems: list[str]) -> dict[str, list[str]]:
+    by_chip = universal_by_chip(boards, problems)
+    for chip, chip_ids in sorted(by_chip.items()):
+        if len(chip_ids) > 1:
+            problems.append(f"'{chip}' has more than one universal build: {sorted(chip_ids)}")
+    released_chips = {b["chip"] for b in boards if b.get("release")}
+    for chip in sorted(released_chips - set(by_chip)):
+        problems.append(f"'{chip}' has releasable boards but no universal build to publish")
+    return by_chip
+
+
 def main() -> int:
     boards = json.loads(BOARDS_JSON.read_text())
     ids = {b["id"] for b in boards}
@@ -94,10 +120,14 @@ def main() -> int:
     check_catalog(problems)
     check_envs(ids, problems)
     check_core_catalog(releasable, problems)
+    universal = check_universal(boards, problems)
 
     if problems:
         return report(problems)
-    print(f"[boards] {len(ids)} boards agree across every list ({len(releasable)} releasable)")
+    print(
+        f"[boards] {len(ids)} boards agree across every list "
+        f"({len(releasable)} releasable, {len(universal)} universal builds)"
+    )
     return 0
 
 
