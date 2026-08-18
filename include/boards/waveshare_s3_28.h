@@ -5,7 +5,7 @@
 
 namespace canshift::boards {
 
-constexpr BoardProfile kWaveshareS328 = {
+inline constexpr BoardProfile kWaveshareS328 = {
     .board_id = "waveshare_s3_28",
     .board_name = "Waveshare ESP32-S3-Touch-LCD-2.8 (ST7789T3 + CST3530)",
     .chip_family = ChipFamily::Esp32s3,
