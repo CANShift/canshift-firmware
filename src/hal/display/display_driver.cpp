@@ -80,7 +80,7 @@ void DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing LovyanGFX...");
 
     const uint16_t screenW = canshift::display::width();
-    s_bufLines = computeLvglBufLines(screenW, HW_LVGL_DRAW_BUDGET_BYTES);
+    s_bufLines = computeLvglBufLines(screenW, HardwareProfile::kLvglDrawBudgetBytes);
     const size_t bufBytes = static_cast<size_t>(screenW) * s_bufLines * sizeof(lv_color_t);
 
     const bool offloadToPsram = canshift::hal::memory::isPsramAvailable();

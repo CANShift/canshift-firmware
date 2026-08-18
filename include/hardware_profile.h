@@ -1,26 +1,12 @@
 #pragma once
 
-#define HW_DISPLAY_ROTATION 3
-
 #define HW_PANEL_NATIVE_WIDTH 240
 #define HW_PANEL_NATIVE_HEIGHT 320
 
-#define HW_TOUCH_RAW_X_MAX (HW_PANEL_NATIVE_WIDTH - 1)
-#define HW_TOUCH_RAW_Y_MAX (HW_PANEL_NATIVE_HEIGHT - 1)
+#ifdef __cplusplus
+namespace HardwareProfile {
 
-#define HW_LVGL_DRAW_BUDGET_BYTES (25U * 1024U)
+inline constexpr unsigned kLvglDrawBudgetBytes = 25U * 1024U;
 
-#define HW_DISPLAY_HAS_BACKLIGHT 1
-#define HW_DISPLAY_HAS_DMA 1
-
-#define HW_TOUCH_PRESENT 1
-#define HW_TOUCH_TYPE_RESISTIVE 1
-
-#define HW_CAN_PRESENT 1
-#define HW_CAN_CONTROLLER TWAI
-
-#define HW_SPIFFS_PRESENT 1
-#define HW_SPIFFS_SIZE_KB 1024
-
-#define HW_WIFI_PRESENT 1
-#define HW_BLE_PRESENT 1
+} // namespace HardwareProfile
+#endif
