@@ -16,6 +16,7 @@ constexpr Entry kEntries[] = {
     {"fuel_level_pct", "FUEL", "%"},
     {"map_kpa", "MAP", "kPa"},
     {"boost_bar", "BOOST", "bar"},
+    {"boost_target_bar", "TARGET", "bar"},
     {"throttle_pos", "TPS", "%"},
     {"gear", "GEAR", ""},
     {"afr_1", "AFR", ""},
