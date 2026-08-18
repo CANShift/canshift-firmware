@@ -82,6 +82,15 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
             }
             break;
         }
+        case CfgButtonActionType::TIMER_CONTROL: {
+            const char *opStr = src["op"] | "";
+            out->timerOp = parseTimerOp(opStr);
+            if (out->timerOp == CfgTimerOp::UNKNOWN) {
+                LOG_WARN("CFG", "timer_control: unknown op='%s' — action dropped", opStr);
+                out->type = CfgButtonActionType::UNKNOWN;
+            }
+            break;
+        }
         case CfgButtonActionType::CRUISE_CONTROL: {
             const char *opStr = src["op"] | "";
             out->cruiseOp = parseCruiseOp(opStr);
@@ -317,6 +326,7 @@ void parseTimerWidget(JsonObjectConst cfg, CfgTimerParams *out) {
     out->big = cfg["big"] | 0;
     out->autoStart = cfg["autoStart"] | false;
     out->formatMsec = strcmp(cfg["format"] | "mm:ss", "ss.mmm") == 0;
+    out->source = parseTimerSource(cfg["source"] | "elapsed");
 }
 
 void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {

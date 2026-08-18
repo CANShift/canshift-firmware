@@ -44,6 +44,8 @@ void checkSchemaVersion(const char *fileLabel, const char *fileVersion);
 [[nodiscard]] TopBarItemPos parseTopBarItemPos(const char *str);
 [[nodiscard]] CfgButtonActionType parseButtonActionType(const char *category, const char *type);
 [[nodiscard]] CfgCruiseOp parseCruiseOp(const char *op);
+[[nodiscard]] CfgTimerOp parseTimerOp(const char *op);
+[[nodiscard]] CfgTimerSource parseTimerSource(const char *source);
 [[nodiscard]] WidgetType parseWidgetType(const char *str);
 [[nodiscard]] CfgInputActive parseInputActive(const char *str);
 [[nodiscard]] CfgInputPressKind parseInputPressKind(const char *str);

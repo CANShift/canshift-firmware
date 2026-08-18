@@ -76,8 +76,51 @@ CfgButtonActionType parseButtonActionType(const char *category, const char *type
         return CfgButtonActionType::CAN_RAW;
     if (strcmp(type, "cruise_control") == 0)
         return CfgButtonActionType::CRUISE_CONTROL;
+    if (strcmp(type, "timer_control") == 0)
+        return CfgButtonActionType::TIMER_CONTROL;
     (void)category;
     return CfgButtonActionType::UNKNOWN;
+}
+
+struct TimerOpSlug {
+    const char *slug;
+    CfgTimerOp op;
+};
+
+constexpr TimerOpSlug kTimerOpSlugs[] = {
+    {"start", CfgTimerOp::START}, {"pause", CfgTimerOp::PAUSE}, {"resume", CfgTimerOp::RESUME},
+    {"toggle", CfgTimerOp::TOGGLE}, {"reset", CfgTimerOp::RESET}, {"lap", CfgTimerOp::LAP},
+};
+
+struct TimerSourceSlug {
+    const char *slug;
+    CfgTimerSource source;
+};
+
+constexpr TimerSourceSlug kTimerSourceSlugs[] = {
+    {"elapsed", CfgTimerSource::Elapsed}, {"lap", CfgTimerSource::Lap},
+    {"best", CfgTimerSource::Best},       {"last", CfgTimerSource::Last},
+    {"lapCount", CfgTimerSource::LapCount}, {"delta", CfgTimerSource::Delta},
+};
+
+CfgTimerOp parseTimerOp(const char *op) {
+    if (!op)
+        return CfgTimerOp::UNKNOWN;
+    for (const TimerOpSlug &entry : kTimerOpSlugs) {
+        if (strcmp(op, entry.slug) == 0)
+            return entry.op;
+    }
+    return CfgTimerOp::UNKNOWN;
+}
+
+CfgTimerSource parseTimerSource(const char *source) {
+    if (!source)
+        return CfgTimerSource::Elapsed;
+    for (const TimerSourceSlug &entry : kTimerSourceSlugs) {
+        if (strcmp(source, entry.slug) == 0)
+            return entry.source;
+    }
+    return CfgTimerSource::Elapsed;
 }
 
 CfgCruiseOp parseCruiseOp(const char *op) {

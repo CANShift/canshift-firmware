@@ -174,8 +174,6 @@ static void updateModeFlag(DynItem &d) {
     applyDynTextColor(d, active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE);
 }
 
-static constexpr uint32_t TRACK_BADGE_TIMEOUT_MS = 5000;
-
 static uint32_t busFieldColor(bool silent) {
     return silent ? ThemeManager::warnColor() : labelColor();
 }
@@ -201,7 +199,7 @@ static void updateCanRate(DynItem &d, bool silent) {
 }
 
 static void updateTrackBadge(DynItem &d) {
-    const bool active = TrackStore::isActiveWithin(TRACK_BADGE_TIMEOUT_MS);
+    const bool active = TrackStore::isActiveWithin(TRACK_TELEMETRY_TIMEOUT_MS);
     const bool wantHidden = !active;
     if (wantHidden != d.hidden) {
         WidgetHelpers::setVisible(d.obj, active);
