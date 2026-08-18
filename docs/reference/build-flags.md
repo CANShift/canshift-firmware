@@ -9,9 +9,11 @@ This page catalogues the ones contributors hit most often. Defaults live in
 
 ## Board selection
 
-The board is picked at compile time. [`include/board.h`](../../include/board.h)
-reads the flag and pulls in the matching profile from
-[`include/boards/`](../../include/boards/).
+The flag picks the board the image falls back to when NVS holds no profile — not
+the only board it can run. [`include/board.h`](../../include/board.h) reads it and
+pulls in the matching profile from [`include/boards/`](../../include/boards/); the
+whole chip family's catalog is compiled in either way, and a provisioned board wins
+at boot. See [Board profile](../architecture/board-profile.md).
 
 | Flag                          | Board                     |
 | ----------------------------- | ------------------------- |
@@ -114,11 +116,11 @@ rather than `base_flags` so the Rust flags come along.
 Three lists describe board support. They are not the same list, and
 `scripts/check_board_lists.py` gates the relationship between them on every PR.
 
-| List                              | Answers                                                | Today                    |
-| --------------------------------- | ------------------------------------------------------ | ------------------------ |
-| `include/boards/*.h`              | what the firmware can be built for                     | 5                        |
-| `.github/boards.json`             | what CI builds, and which of those a release publishes | 5, of which 4 releasable |
-| `@canshift/core` `BOARD_PROFILES` | what the tuner can offer                               | 4                        |
+| List                              | Answers                                             | Today                    |
+| --------------------------------- | --------------------------------------------------- | ------------------------ |
+| `include/boards/*.h`              | what the firmware can be built for                  | 5                        |
+| `.github/boards.json`             | what CI builds, and which of those a release offers | 5, of which 4 releasable |
+| `@canshift/core` `BOARD_PROFILES` | what the tuner can offer                            | 4                        |
 
 The invariants the gate enforces:
 
@@ -126,18 +128,19 @@ The invariants the gate enforces:
   `.board_id`, its filename and the entry's `id` all match;
 - a `[env:<id>]` in `platformio.ini` for every entry, so the matrix can build it;
 - core's catalog holds **exactly** the releasable subset — nothing offered that
-  cannot be flashed, nothing published that the tuner cannot name.
+  cannot be flashed, nothing published that the tuner cannot name;
+- every chip family with releasable boards has **exactly one** `universal: true`
+  entry — the env its published firmware is built from, and itself releasable.
 
 The core check is skipped when no sibling `canshift-core` checkout exists, the same
 way core's own firmware-parity suite skips without a firmware sibling.
 
 `generic_esp32s3` is the one entry with `release: false`. It compiles, so CI covers
-it, but publishing a flashable artifact for a profile whose every pin is `-1` would
-give a user a dark screen. It becomes releasable once a board profile can be
-provisioned at flash time (#247).
+it, but offering a profile whose every pin is `-1` would give a user a dark screen.
 
 **For the tuner:** `manifest.json` is the contract. A board appears there only if it
-is releasable, and each entry names its `chip`, which decides which binary the
-flasher writes and where that binary's bootloader sits. Do not infer the board list
-from `platformio.ini` or from `include/boards/` — those are build concerns and both
-are longer than the shipped list.
+is releasable, and each entry names its `chip`, which is what resolves the binary the
+flasher writes and where that binary's bootloader sits — the artifacts themselves are
+published per chip family, not per board. Do not infer the board list from
+`platformio.ini` or from `include/boards/` — those are build concerns and both are
+longer than the shipped list.

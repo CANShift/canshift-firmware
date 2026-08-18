@@ -64,11 +64,18 @@ merge.
 
 5. **Board list** — add an entry to
    [`.github/boards.json`](../../.github/boards.json) with `id`, `chip`, `display`,
-   `touch` and `release`. CI builds every entry; only `release: true` entries get
-   published artifacts and appear in `manifest.json`.
+   `touch` and `release`. CI builds every entry; `release: true` entries appear in
+   the release `manifest.json`, which is what makes the tuner offer the board.
 
    Set `release: false` if the profile is a compile target rather than real hardware
    — `generic_esp32s3` has every pin at `-1` and would hand a user a dark screen.
+
+   A new board needs **no new artifact**: a release publishes one universal firmware
+   per chip family, and the board is provisioned into it. The `universal: true` entry
+   of your chip family names the env that firmware is built from — leave it alone
+   unless you are adding a chip family, in which case exactly one of its releasable
+   boards carries the flag. `scripts/check_board_lists.py` fails the PR if a chip
+   family has releasable boards and no universal build, or more than one.
 
 6. **Core catalog** — a releasable board must also exist in `@canshift/core`'s
    `BOARD_PROFILES`, or the tuner cannot offer it. Core's own test enforces the
