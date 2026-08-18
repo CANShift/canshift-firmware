@@ -34,12 +34,12 @@ The firmware targets a single board per build, selected at compile time. There i
 no runtime driver configuration — the unused LCD/touch drivers are stripped by
 the linker, so each binary carries only the code its board needs.
 
-| `board_id`               | Display          | Touch             | Status              |
-| ------------------------ | ---------------- | ----------------- | ------------------- |
-| `crowpanel_28`           | ILI9341 320×240  | XPT2046 resistive | Hardware target     |
-| `generic_ili9341`        | ILI9341 320×240  | XPT2046 resistive | CI-built only       |
-| `generic_ili9341_gt911`  | ILI9341 320×240  | GT911 capacitive  | CI-built only       |
-| `waveshare_s3_28`        | ST7789 240×320   | CST3530 capacitive| Hardware target     |
+| `board_id`              | Display         | Touch              | Status          |
+| ----------------------- | --------------- | ------------------ | --------------- |
+| `crowpanel_28`          | ILI9341 320×240 | XPT2046 resistive  | Hardware target |
+| `generic_ili9341`       | ILI9341 320×240 | XPT2046 resistive  | CI-built only   |
+| `generic_ili9341_gt911` | ILI9341 320×240 | GT911 capacitive   | CI-built only   |
+| `waveshare_s3_28`       | ST7789 240×320  | CST3530 capacitive | Hardware target |
 
 `crowpanel_28` is the reference hardware — the [Elecrow CrowPanel 2.8"](#hardware-platform)
 the dashboard ships on. The two `generic_*` profiles are portability seams: they
@@ -68,27 +68,12 @@ BLE and CAN all verified on the board itself.
 
 ### Adding a board
 
-Using `generic_ili9341` as the worked example:
+Two paths, and the first needs no firmware change: the board profile is resolved at
+run time, so an unknown board can be provisioned over USB from the tuner. Adding one
+to the catalog so it ships for everyone is five steps plus a gate that checks you
+did all five.
 
-1. **Profile header** — copy [`include/boards/generic_ili9341.h`](include/boards/generic_ili9341.h)
-   to `include/boards/<your_board>.h` and edit the `kActiveBoard` fields:
-   `board_id`, `board_name`, the LCD/touch/CAN pins, the driver enums, and the
-   capability flags.
-2. **Selector arm** — add an `#elif defined(BOARD_<YOUR_BOARD>)` branch in
-   [`include/board.h`](include/board.h) that includes your header.
-3. **Drivers** — no display code is needed if your LCD and touch drivers are
-   already compiled into the runtime factory
-   ([`include/lgfx_factory.h`](include/lgfx_factory.h)); it selects them from the
-   profile's `lcd.driver`/`touch.driver` enums at boot. Add a new `Panel_*` or
-   `Touch_*` to the factory only for a driver it does not yet carry.
-4. **Build env** — add `[env:<your_board>]` in [`platformio.ini`](platformio.ini),
-   extending `env:crowpanel_28`, unflagging `-DBOARD_CROWPANEL_28=1`, and flagging
-   `-DBOARD_<YOUR_BOARD>=1`.
-5. **CI leg** — append `<your_board>` to the `strategy.matrix.board` list in
-   [`.github/workflows/build.yml`](.github/workflows/build.yml). The build is
-   data-driven: a failing leg is named after the board, and `ci-success`
-   aggregates every leg.
-6. Build it: `pio run -e <your_board>`.
+Both are in [Adding a board](docs/reference/add-a-board.md).
 
 ### Responsive UI (LayoutScale)
 
@@ -242,13 +227,13 @@ esptool.py --chip esp32 -p "$PORT" -b 460800 \
 `crowpanel_28` uses `ota_4mb.csv` — dual OTA app slots plus SPIFFS on a 4 MB
 flash:
 
-| Region                 | Size    | Offset               |
-| ---------------------- | ------- | -------------------- |
-| `nvs`                  | 20 KB   | `0x9000`             |
-| `otadata`              | 8 KB    | `0xe000`             |
+| Region                 | Size    | Offset                 |
+| ---------------------- | ------- | ---------------------- |
+| `nvs`                  | 20 KB   | `0x9000`               |
+| `otadata`              | 8 KB    | `0xe000`               |
 | `app0` / `app1` (each) | 1536 KB | `0x10000` / `0x190000` |
-| `spiffs`               | 832 KB  | `0x310000`           |
-| `coredump`             | 128 KB  | `0x3E0000`           |
+| `spiffs`               | 832 KB  | `0x310000`             |
+| `coredump`             | 128 KB  | `0x3E0000`             |
 
 Two app slots are what makes USB OTA possible: firmware is written to the
 inactive slot while the device runs from the active one, then the bootloader
@@ -379,13 +364,13 @@ canshift-firmware/
 
 ## FreeRTOS task layout
 
-| Task                                            | Core | Priority | Stack  | Period                                       | Source                                        |
-| ----------------------------------------------- | ---- | -------- | ------ | -------------------------------------------- | --------------------------------------------- |
-| UI                                              | 1    | 10       | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`)             | `taskUI` — `src/main.cpp`                     |
-| CAN                                             | 0    | 15       | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp`                    |
-| USB                                             | 1    | 8        | 4096 B | 20 ms                                        | `taskUSBComm` — `src/main.cpp`                |
-| Input                                           | 0    | 7        | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS`              | `taskInput` — `src/runtime/input_buttons.cpp` |
-| BLE                                             | 1    | 6        | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz)      | `taskBLE` — `src/main.cpp`                    |
+| Task  | Core | Priority | Stack  | Period                                       | Source                                        |
+| ----- | ---- | -------- | ------ | -------------------------------------------- | --------------------------------------------- |
+| UI    | 1    | 10       | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`)             | `taskUI` — `src/main.cpp`                     |
+| CAN   | 0    | 15       | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp`                    |
+| USB   | 1    | 8        | 4096 B | 20 ms                                        | `taskUSBComm` — `src/main.cpp`                |
+| Input | 0    | 7        | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS`              | `taskInput` — `src/runtime/input_buttons.cpp` |
+| BLE   | 1    | 6        | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz)      | `taskBLE` — `src/main.cpp`                    |
 
 Priorities and stack sizes are defined in `include/app_config.h`
 (`TASK_PRIO_*` / `TASK_STACK_*` / `TASK_CORE_*` macros — that file is the
@@ -414,26 +399,26 @@ shared UART mutex with command acks.
 
 Opcodes are defined in `src/hal/usb/usb_comm.h` as `CMD_*` constants.
 
-| Cmd    | Name                     | Payload                                                                | Behaviour                                                                                                                                                                                                                                                                                   |
-| ------ | ------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0x01` | `CMD_GET_CONFIG`         | `{"cmd":1}`                                                            | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped).                                                                                                                                                                                                  |
-| `0x02` | `CMD_PUT_CONFIG`         | `{"cmd":2,"payload":{...}}`                                            | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state.                                                                                                                                    |
-| `0x05` | `CMD_SCREEN_SETTINGS`    | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}`                     | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot.                                                                                                                                                        |
-| `0x06` | `CMD_PUT_FILE`           | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write to an allowlisted path prefix (see `kAllowedPutFilePrefixes` in `usb_comm.cpp`). `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts.                                             |
-| `0x07` | `CMD_TOGGLE_DAY_NIGHT`   | `{"cmd":7}`                                                            | Flip the day/night theme on the next UI tick.                                                                                                                                                                                                                                               |
-| `0x08` | `CMD_CALIBRATE_TOUCH`    | `{"cmd":8}`                                                            | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input).                                                                                                                                                           |
-| `0x09` | `CMD_SET_DAY_NIGHT`      | `{"cmd":9,"day":true\|false}`                                          | Idempotent variant of `0x07` (issue #225).                                                                                                                                                                                                                                                  |
-| `0x0A` | `CMD_RESET_TOUCH_CAL`    | `{"cmd":10}`                                                           | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot.                                                                                                                                                                              |
-| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                                           | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1,"board_id":"crowpanel_28"}`.                                                                                                                                                                                                                      |
-| `0x20` | `CMD_CAN_SCAN_START`     | `{"cmd":32}`                                                           | Begin forwarding raw CAN frames; resets the drop counter.                                                                                                                                                                                                                                   |
-| `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                                           | Stop forwarding; ack includes `drops`.                                                                                                                                                                                                                                                      |
-| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                                            | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`, or `config_not_found` when the file is absent. |
-| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{...}}`                                            | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`.                                                                                                                                                                       |
-| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}`                                                           | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`.                                                                                                                                                                                          |
-| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}`                                           | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`.                                                                                                                                                                                                                           |
-| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`                                | Open the inactive OTA app slot for a `total`-byte image with the expected SHA-256. Ack `{"status":"ok"}` or `{"status":"error","message":"..."}`. See [Firmware OTA](#firmware-ota-over-usb).                                                                                                 |
-| `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<base64>"}`                             | Stream one chunk to `offset`; ack `{"status":"ok","written":N}` (or `{"status":"error","message":"...","written":N}`).                                                                                                                                                                       |
-| `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"\|"abort"}`                               | `commit` verifies the image SHA-256, then acks `{"status":"ok","restart":true}` and reboots into the new slot; `abort` (default) discards the transfer.                                                                                                                             |
+| Cmd    | Name                     | Payload                                                                | Behaviour                                                                                                                                                                                                                                       |
+| ------ | ------------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0x01` | `CMD_GET_CONFIG`         | `{"cmd":1}`                                                            | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped).                                                                                                                                                      |
+| `0x02` | `CMD_PUT_CONFIG`         | `{"cmd":2,"payload":{...}}`                                            | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state.                                                                                        |
+| `0x05` | `CMD_SCREEN_SETTINGS`    | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}`                     | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot.                                                                                                            |
+| `0x06` | `CMD_PUT_FILE`           | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write to an allowlisted path prefix (see `kAllowedPutFilePrefixes` in `usb_comm.cpp`). `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. |
+| `0x07` | `CMD_TOGGLE_DAY_NIGHT`   | `{"cmd":7}`                                                            | Flip the day/night theme on the next UI tick.                                                                                                                                                                                                   |
+| `0x08` | `CMD_CALIBRATE_TOUCH`    | `{"cmd":8}`                                                            | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input).                                                                                                               |
+| `0x09` | `CMD_SET_DAY_NIGHT`      | `{"cmd":9,"day":true\|false}`                                          | Idempotent variant of `0x07` (issue #225).                                                                                                                                                                                                      |
+| `0x0A` | `CMD_RESET_TOUCH_CAL`    | `{"cmd":10}`                                                           | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot.                                                                                                                                  |
+| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                                           | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1,"board_id":"crowpanel_28"}`.                                                                                                                                                |
+| `0x20` | `CMD_CAN_SCAN_START`     | `{"cmd":32}`                                                           | Begin forwarding raw CAN frames; resets the drop counter.                                                                                                                                                                                       |
+| `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                                           | Stop forwarding; ack includes `drops`.                                                                                                                                                                                                          |
+| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                                            | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`, or `config_not_found` when the file is absent.                                                                                                      |
+| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{...}}`                                            | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`.                                                                                                                           |
+| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}`                                                           | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`.                                                                                                                                              |
+| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}`                                           | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`.                                                                                                                                                                               |
+| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`                                | Open the inactive OTA app slot for a `total`-byte image with the expected SHA-256. Ack `{"status":"ok"}` or `{"status":"error","message":"..."}`. See [Firmware OTA](#firmware-ota-over-usb).                                                   |
+| `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<base64>"}`                              | Stream one chunk to `offset`; ack `{"status":"ok","written":N}` (or `{"status":"error","message":"...","written":N}`).                                                                                                                          |
+| `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"\|"abort"}`                                | `commit` verifies the image SHA-256, then acks `{"status":"ok","restart":true}` and reboots into the new slot; `abort` (default) discards the transfer.                                                                                         |
 
 There is no `CMD_REBOOT`, `CMD_PUT_SIGNALS`, or `CMD_PUT_THEME` — older drafts
 of this doc listed them. Theme is folded into `dashboard.json` (#901), signals
@@ -517,12 +502,12 @@ because applying it triggers a reboot.
 
 ### CMD payload
 
-| `cmd` value         | Extra fields         | Behaviour                                           |
-| ------------------- | -------------------- | --------------------------------------------------- |
-| `toggle_day_night`  | —                    | Flip theme on next UI tick                          |
-| `set_day_night`     | `"day": true\|false` | Idempotent set                                      |
-| `start_calibration` | —                    | Run on-device touch calibration                     |
-| `reboot`            | —                    | `esp_restart()` after 100 ms                        |
+| `cmd` value         | Extra fields         | Behaviour                       |
+| ------------------- | -------------------- | ------------------------------- |
+| `toggle_day_night`  | —                    | Flip theme on next UI tick      |
+| `set_day_night`     | `"day": true\|false` | Idempotent set                  |
+| `start_calibration` | —                    | Run on-device touch calibration |
+| `reboot`            | —                    | `esp_restart()` after 100 ms    |
 
 BLE is compiled in for the production build (`APP_BLE_ENABLED=1`) but stays
 **off at runtime by default** — `BLE_DEFAULT_ENABLED=0` since #873 so a
