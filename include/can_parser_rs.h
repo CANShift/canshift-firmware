@@ -6,8 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CANSHIFT_EXPR_MAX_TOKENS 64
-#define CANSHIFT_EXPR_MAX_REFS 8
+inline constexpr int CANSHIFT_EXPR_MAX_TOKENS = 64;
+inline constexpr int CANSHIFT_EXPR_MAX_REFS = 8;
 
 #ifdef __cplusplus
 extern "C" {
