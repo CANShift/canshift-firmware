@@ -2,6 +2,8 @@
 
 #if APP_PROFILE_UI
 
+    #include "runtime/task_spawn.h"
+
     #include <Arduino.h>
     #include <esp_timer.h>
     #include <algorithm>
@@ -198,6 +200,7 @@ void tick() {
     }
     LOG_INFO("PERF", "%sfps=%u miss=%u", buf, static_cast<unsigned>(fps),
              static_cast<unsigned>(s_frameMissCount));
+    TaskSpawn::logStackHighWater();
     s_frameMissCount = 0;
     s_flushFrameCount = 0;
     s_mutexWarnEmittedThisWindow = false;
