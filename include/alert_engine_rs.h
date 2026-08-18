@@ -30,9 +30,9 @@ uint8_t alert_coolant_temp_step_rs(AlertLevelHoldRs *hold, float temp_c, float w
                                    float high_warn_c, float high_crit_c, uint32_t now_ms,
                                    float hysteresis_pct, uint32_t min_active_ms);
 
-uint8_t alert_oil_temp_step_rs(AlertLevelHoldRs *hold, float temp_c, float warn_c, float crit_c,
-                               float high_warn_c, float high_crit_c, uint32_t now_ms,
-                               float hysteresis_pct, uint32_t min_active_ms);
+uint8_t alert_high_side_temp_step_rs(AlertLevelHoldRs *hold, float temp_c, float warn_c,
+                                     float crit_c, float high_warn_c, float high_crit_c,
+                                     uint32_t now_ms, float hysteresis_pct, uint32_t min_active_ms);
 
 uint8_t alert_oil_pressure_step_rs(AlertLevelHoldRs *hold, float press_bar, float warn_bar,
                                    float crit_bar, float high_warn_bar, float high_crit_bar,

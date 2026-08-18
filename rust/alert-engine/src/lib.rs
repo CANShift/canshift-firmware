@@ -177,7 +177,7 @@ pub fn eval_coolant_temp(
 }
 
 #[must_use]
-pub fn eval_oil_temp(
+pub fn eval_high_side_temp(
     temp_c: f32,
     warn_c: f32,
     crit_c: f32,
@@ -591,18 +591,18 @@ mod tests {
         );
     }
 
-    // --- eval_oil_temp -------------------------------------------------------
+    // --- eval_high_side_temp -------------------------------------------------------
 
     #[test]
     fn oil_temp_no_caution_band() {
         // Unlike coolant, oil temp jumps from NORMAL to WARNING with no
         // CAUTION pre-band. 119 < 120 → NORMAL.
         assert_eq!(
-            eval_oil_temp(119.0, 120.0, 135.0, f32::NAN, f32::NAN),
+            eval_high_side_temp(119.0, 120.0, 135.0, f32::NAN, f32::NAN),
             AlertLevel::Normal
         );
         assert_eq!(
-            eval_oil_temp(120.0, 120.0, 135.0, f32::NAN, f32::NAN),
+            eval_high_side_temp(120.0, 120.0, 135.0, f32::NAN, f32::NAN),
             AlertLevel::Warning
         );
     }

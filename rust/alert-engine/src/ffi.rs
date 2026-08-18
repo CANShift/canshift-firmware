@@ -1,9 +1,9 @@
 use crate::bus_silence::{bus_silence, stale_dash_groups, BusSilence};
 use crate::{
-    crossed_limit, eval_battery, eval_coolant_temp, eval_high_side, eval_oil_pressure,
-    eval_oil_temp, eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit, sensor_health_step,
-    severity_for_reading, warn_level_for, AlertLevel, CrossedLimit, LevelHold, SensorHealth,
-    Severity, SEVERITY_LEVEL_COUNT,
+    crossed_limit, eval_battery, eval_coolant_temp, eval_high_side, eval_high_side_temp,
+    eval_oil_pressure, eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit,
+    sensor_health_step, severity_for_reading, warn_level_for, AlertLevel, CrossedLimit, LevelHold,
+    SensorHealth, Severity, SEVERITY_LEVEL_COUNT,
 };
 
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
@@ -72,7 +72,7 @@ pub extern "C" fn alert_eval_oil_temp_rs(
     high_warn_c: f32,
     high_crit_c: f32,
 ) -> u8 {
-    eval_oil_temp(temp_c, warn_c, crit_c, high_warn_c, high_crit_c) as u8
+    eval_high_side_temp(temp_c, warn_c, crit_c, high_warn_c, high_crit_c) as u8
 }
 
 #[no_mangle]
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn alert_coolant_temp_step_rs(
 /// # Safety
 /// See `step_hold`.
 #[no_mangle]
-pub unsafe extern "C" fn alert_oil_temp_step_rs(
+pub unsafe extern "C" fn alert_high_side_temp_step_rs(
     hold: *mut LevelHold,
     temp_c: f32,
     warn_c: f32,
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn alert_oil_temp_step_rs(
     min_active_ms: u32,
 ) -> u8 {
     step_hold(hold, temp_c, now_ms, hysteresis_pct, min_active_ms, |v| {
-        eval_oil_temp(v, warn_c, crit_c, high_warn_c, high_crit_c)
+        eval_high_side_temp(v, warn_c, crit_c, high_warn_c, high_crit_c)
     })
 }
 

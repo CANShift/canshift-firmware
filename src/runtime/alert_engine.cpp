@@ -64,6 +64,48 @@ SensorHealthSlot s_sensorHealth[] = {
     {"battery", SignalIds::BATTERY_VOLTS, &AlertEngine::AlertState::batterySensorLost, {}},
 };
 
+struct DeclaredTempSource {
+    const char *name;
+    SignalId id;
+    AlertEngine::AlertLevel AlertEngine::AlertState::*level;
+    bool AlertEngine::AlertState::*lost;
+    float warnC;
+    float critC;
+    AlertLevelHoldRs hold;
+    AlertSensorHealthRs health;
+    bool declared;
+};
+
+DeclaredTempSource s_declaredTemps[] = {
+    {"gearbox temp",
+     SignalIds::GEARBOX_TEMP_C,
+     &AlertEngine::AlertState::gearboxTemp,
+     &AlertEngine::AlertState::gearboxSensorLost,
+     120.0f,
+     140.0f,
+     {},
+     {},
+     false},
+    {"diff temp",
+     SignalIds::DIFF_TEMP_C,
+     &AlertEngine::AlertState::diffTemp,
+     &AlertEngine::AlertState::diffSensorLost,
+     120.0f,
+     140.0f,
+     {},
+     {},
+     false},
+    {"exhaust temp",
+     SignalIds::EGT_C,
+     &AlertEngine::AlertState::exhaustTemp,
+     &AlertEngine::AlertState::exhaustSensorLost,
+     950.0f,
+     1000.0f,
+     {},
+     {},
+     false},
+};
+
 AlertLevelHoldRs s_coolantHold = {};
 AlertLevelHoldRs s_oilTempHold = {};
 AlertLevelHoldRs s_oilPressureHold = {};
@@ -105,7 +147,7 @@ AlertEngine::AlertLevel stepCoolantTemp(float tempC, uint32_t now) {
 }
 
 AlertEngine::AlertLevel stepOilTemp(float tempC, uint32_t now) {
-    return static_cast<AlertEngine::AlertLevel>(alert_oil_temp_step_rs(
+    return static_cast<AlertEngine::AlertLevel>(alert_high_side_temp_step_rs(
         &s_oilTempHold, tempC, s_oilTempWarnC, s_oilTempCritC, s_oilTempHighWarnC,
         s_oilTempHighCritC, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
 }
@@ -129,6 +171,34 @@ constexpr CriticalLimitBinding kCriticalLimits[] = {
     {SignalIds::OIL_PRESS_BAR, &s_oilPressCritBar, true, &s_oilPressHighCritBar},
     {SignalIds::BATTERY_VOLTS, &s_batteryLowCritV, true, &s_batteryHighCritV},
 };
+
+void bindDeclaredTemp(const CfgSignalDef &def) {
+    for (DeclaredTempSource &src : s_declaredTemps) {
+        if (signalIdFromName(def.name) != src.id)
+            continue;
+        src.declared = true;
+        if (!isnan(def.warningLevel))
+            src.warnC = def.warningLevel;
+        if (!isnan(def.dangerLevel))
+            src.critC = def.dangerLevel;
+        return;
+    }
+}
+
+void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
+    for (DeclaredTempSource &src : s_declaredTemps) {
+        if (!src.declared)
+            continue;
+        alert_sensor_health_step_rs(&src.health, snap[src.id].valid, now,
+                                    ALERT_SENSOR_LOST_CLEAR_HOLD_MS);
+        s_state.*(src.lost) = src.health.lost;
+        const float value = snap[src.id].valid ? snap[src.id].smoothed : 0.0f;
+        const auto level = static_cast<AlertEngine::AlertLevel>(
+            alert_high_side_temp_step_rs(&src.hold, value, src.warnC, src.critC, NAN, NAN, now,
+                                         ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
+        s_state.*(src.level) = withSensorLost(level, src.health.lost);
+    }
+}
 
 AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_battery_step_rs(
@@ -171,8 +241,14 @@ void AlertEngine::init() {
     };
 
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
+    for (DeclaredTempSource &src : s_declaredTemps) {
+        src.declared = false;
+        src.hold = {};
+        src.health = {};
+    }
     for (uint8_t i = 0; i < sigCfg.signalCount; i++) {
         const CfgSignalDef &def = sigCfg.signals[i];
+        bindDeclaredTemp(def);
         for (const ThresholdBinding &b : kBindings) {
             if (strcmp(def.name, b.name) != 0)
                 continue;
@@ -208,6 +284,14 @@ void AlertEngine::init() {
              oilPressWarn100 % 100, oilPressCrit100 / 100, oilPressCrit100 % 100, battLow100 / 100,
              battLow100 % 100, battLowCrit100 / 100, battLowCrit100 % 100, battHigh100 / 100,
              battHigh100 % 100, battHighCrit100 / 100, battHighCrit100 % 100);
+    for (const DeclaredTempSource &src : s_declaredTemps) {
+        if (!src.declared) {
+            LOG_INFO("ALERT", "%s not in the signal catalogue — no alert armed", src.name);
+            continue;
+        }
+        LOG_INFO("ALERT", "%s armed (warn=%d crit=%d)", src.name,
+                 static_cast<int>(lroundf(src.warnC)), static_cast<int>(lroundf(src.critC)));
+    }
 }
 
 void AlertEngine::tick(const SignalStore::SignalValue *snap) {
@@ -231,12 +315,15 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
         withSensorLost(stepOilPressure(oilPres, now), s_state.oilPressureSensorLost);
     s_state.milActive = (mil > 0.5f);
     s_state.batteryVoltage = withSensorLost(stepBattery(volts, now), s_state.batterySensorLost);
+    stepDeclaredTemps(snap, now);
 
     s_state.global = s_state.revLimiter;
     s_state.global = maxLevel(s_state.global, s_state.coolantTemp);
     s_state.global = maxLevel(s_state.global, s_state.oilTemp);
     s_state.global = maxLevel(s_state.global, s_state.oilPressure);
     s_state.global = maxLevel(s_state.global, s_state.batteryVoltage);
+    for (const DeclaredTempSource &src : s_declaredTemps)
+        s_state.global = maxLevel(s_state.global, s_state.*(src.level));
 
     stepRevLimitBlink(s_state.revLimiter == AlertLevel::CRITICAL, now);
 }
@@ -246,6 +333,13 @@ AlertEngine::AlertState AlertEngine::getState() {
 }
 
 AlertEngine::CriticalLimit AlertEngine::criticalLimitFor(SignalId id, float reading) {
+    for (const DeclaredTempSource &src : s_declaredTemps) {
+        if (src.id != id || !src.declared)
+            continue;
+        AlertCrossedLimitRs out = {};
+        alert_crossed_limit_rs(&out, reading, src.critC, false, NAN);
+        return {out.limit, out.below, out.valid};
+    }
     for (const CriticalLimitBinding &b : kCriticalLimits) {
         if (b.id != id)
             continue;

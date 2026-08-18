@@ -17,11 +17,17 @@ struct AlertState {
     AlertLevel oilPressure;
     bool milActive;
     AlertLevel batteryVoltage;
+    AlertLevel gearboxTemp;
+    AlertLevel diffTemp;
+    AlertLevel exhaustTemp;
     AlertLevel global;
     bool coolantSensorLost;
     bool oilTempSensorLost;
     bool oilPressureSensorLost;
     bool batterySensorLost;
+    bool gearboxSensorLost;
+    bool diffSensorLost;
+    bool exhaustSensorLost;
 };
 
 struct CriticalLimit {
