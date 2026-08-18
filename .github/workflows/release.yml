@@ -44,16 +44,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   set-matrix:
-    name: Resolve board matrix
+    name: Resolve chip matrix
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     outputs:
-      boards: ${{ steps.read.outputs.boards }}
+      chips: ${{ steps.read.outputs.chips }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - id: read
-        run: echo "boards=$(jq -c '[.[] | select(.release) | .id]' .github/boards.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "chips=$(jq -c '[.[] | select(.universal) | {chip, pio_env: .id}]' .github/boards.json)" >> "$GITHUB_OUTPUT"
 
   create-release:
     name: Create draft release
@@ -95,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: ${{ fromJSON(needs.set-matrix.outputs.boards) }}
+        include: ${{ fromJSON(needs.set-matrix.outputs.chips) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -109,7 +110,7 @@ jobs:
           path: |
             ~/.platformio/.packages
             ~/.platformio/.cache
-          key: platformio-${{ runner.os }}-${{ matrix.board }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ runner.os }}-${{ matrix.chip }}-${{ hashFiles('platformio.ini') }}
           restore-keys: |
             platformio-${{ runner.os }}-
 
@@ -125,14 +126,14 @@ jobs:
           key: rust-release-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
           restore-keys: rust-release-${{ runner.os }}-
 
-      - name: Install espup + esp32 Rust toolchain
+      - name: Install espup + ${{ matrix.chip }} Rust toolchain
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           if ! command -v espup >/dev/null; then
             cargo install espup --locked
           fi
-          espup install --targets esp32
+          espup install --targets "${{ matrix.chip }}"
           . ~/export-esp.sh
           echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
           for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do
@@ -142,13 +143,13 @@ jobs:
       - name: Install PlatformIO CLI
         run: pip install platformio
 
-      - name: Build production firmware (${{ matrix.board }})
-        run: platformio run -e "${{ matrix.board }}"
+      - name: Build universal firmware for ${{ matrix.chip }} (env ${{ matrix.pio_env }})
+        run: platformio run -e "${{ matrix.pio_env }}"
 
       - name: Assert APP_VERSION_STR was injected into firmware binary
         run: |
           VERSION=${{ needs.check-version.outputs.version }}
-          ELF=.pio/build/${{ matrix.board }}/firmware.elf
+          ELF=.pio/build/${{ matrix.pio_env }}/firmware.elf
           # The boot banner LOG_INFO is compiled out in prod (APP_LOG_LEVEL=1)
           # so we can't rely on its string. The splash label literal
           # `"v" APP_VERSION_STR` in boot_sequence.cpp survives because it's a
@@ -169,30 +170,30 @@ jobs:
           echo "APP_VERSION_STR=v${VERSION} confirmed in firmware ELF."
 
       - name: Build SPIFFS image
-        run: platformio run --target buildfs -e "${{ matrix.board }}"
+        run: platformio run --target buildfs -e "${{ matrix.pio_env }}"
 
       - name: Stage release assets (firmware partition, merged image, SPIFFS)
         run: |
           TAG=${{ needs.check-version.outputs.tag }}
-          BOARD=${{ matrix.board }}
-          CHIP=$(jq -r --arg id "$BOARD" '.[] | select(.id == $id) | .chip' .github/boards.json)
+          CHIP=${{ matrix.chip }}
+          PIO_ENV=${{ matrix.pio_env }}
           pip install esptool
           case "$CHIP" in
             esp32)                   BOOTLOADER_ADDR=0x1000 ;;
             esp32s2|esp32s3|esp32c3) BOOTLOADER_ADDR=0x0 ;;
             *) echo "::error title=unknown chip::no bootloader offset known for '$CHIP'"; exit 1 ;;
           esac
-          echo "Merging ${BOARD} (${CHIP}) with bootloader at ${BOOTLOADER_ADDR}"
+          echo "Merging ${CHIP} (built from ${PIO_ENV}) with bootloader at ${BOOTLOADER_ADDR}"
           # Merged factory image — USB esptool flashing only (bootloader + partitions + firmware).
           python -m esptool --chip "$CHIP" merge_bin \
-            -o "canshift-${BOARD}-${TAG}-merged.bin" \
-            "$BOOTLOADER_ADDR" ".pio/build/${BOARD}/bootloader.bin" \
-            0x8000 ".pio/build/${BOARD}/partitions.bin" \
-            0x10000 ".pio/build/${BOARD}/firmware.bin"
+            -o "canshift-${CHIP}-${TAG}-merged.bin" \
+            "$BOOTLOADER_ADDR" ".pio/build/${PIO_ENV}/bootloader.bin" \
+            0x8000 ".pio/build/${PIO_ENV}/partitions.bin" \
+            0x10000 ".pio/build/${PIO_ENV}/firmware.bin"
           # Firmware-partition image — what mobile / studio OTA must consume.
-          cp ".pio/build/${BOARD}/firmware.bin" "canshift-${BOARD}-${TAG}-firmware.bin"
+          cp ".pio/build/${PIO_ENV}/firmware.bin" "canshift-${CHIP}-${TAG}-firmware.bin"
           # SPIFFS image — flashed to the data partition.
-          cp ".pio/build/${BOARD}/spiffs.bin" "canshift-${BOARD}-${TAG}-spiffs.bin"
+          cp ".pio/build/${PIO_ENV}/spiffs.bin" "canshift-${CHIP}-${TAG}-spiffs.bin"
 
       - name: Sign firmware artifacts with Ed25519
         run: |
@@ -203,22 +204,22 @@ jobs:
             exit 0
           fi
           TAG=${{ needs.check-version.outputs.tag }}
-          BOARD=${{ matrix.board }}
+          CHIP=${{ matrix.chip }}
           pip install --quiet cryptography
           python3 scripts/sign_release_artifacts.py \
-            "canshift-${BOARD}-${TAG}-merged.bin" \
-            "canshift-${BOARD}-${TAG}-firmware.bin" \
-            "canshift-${BOARD}-${TAG}-spiffs.bin"
+            "canshift-${CHIP}-${TAG}-merged.bin" \
+            "canshift-${CHIP}-${TAG}-firmware.bin" \
+            "canshift-${CHIP}-${TAG}-spiffs.bin"
         env:
           FIRMWARE_SIGNING_PRIVATE_KEY: ${{ secrets.FIRMWARE_SIGNING_PRIVATE_KEY }}
 
       - name: Attach firmware, OTA partition image and SPIFFS to GitHub Release
         run: |
           TAG=${{ needs.check-version.outputs.tag }}
-          BOARD=${{ matrix.board }}
-          MERGED="canshift-${BOARD}-${TAG}-merged.bin"
-          OTA="canshift-${BOARD}-${TAG}-firmware.bin"
-          FS="canshift-${BOARD}-${TAG}-spiffs.bin"
+          CHIP=${{ matrix.chip }}
+          MERGED="canshift-${CHIP}-${TAG}-merged.bin"
+          OTA="canshift-${CHIP}-${TAG}-firmware.bin"
+          FS="canshift-${CHIP}-${TAG}-spiffs.bin"
           # Ed25519 signatures land alongside their .bin when the signing key
           # is configured (#1259). They are append-only assets so we glob
           # rather than name them explicitly — the workflow stays compatible
@@ -238,7 +239,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
 
   manifest:
-    name: Publish board manifest
+    name: Publish firmware + board manifest
     needs: [check-version, firmware-release]
     if: needs.check-version.outputs.should_release == 'true'
     permissions:
@@ -266,30 +267,7 @@ jobs:
         run: |
           TAG=${{ needs.check-version.outputs.tag }}
           VERSION=${{ needs.check-version.outputs.version }}
-          ( cd dist && sha256sum *.bin ) \
-            | jq -R -s 'split("\n")
-                        | map(select(length > 0) | split("  "))
-                        | map({ key: .[1], value: .[0] })
-                        | from_entries' > sums.json
-          jq --arg tag "$TAG" --arg version "$VERSION" --slurpfile sums sums.json '
-            ($sums[0]) as $s |
-            {
-              schema: 2,
-              version: $version,
-              tag: $tag,
-              boards: [
-                .[] | select(.release) | . as $b | {
-                  id, chip, display, touch,
-                  artifacts: (
-                    ["merged", "firmware", "spiffs"]
-                    | map(. as $kind
-                        | ("canshift-\($b.id)-\($tag)-\($kind).bin") as $file
-                        | { key: $kind, value: { file: $file, sha256: ($s[$file] // null) } })
-                    | from_entries
-                  )
-                }
-              ]
-            }' .github/boards.json > manifest.json
+          python3 scripts/build_manifest.py "$TAG" "$VERSION" dist > manifest.json
           cat manifest.json
 
       - name: Attach manifest.json to GitHub Release

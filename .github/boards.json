@@ -4,7 +4,8 @@
     "chip": "esp32",
     "display": "ILI9341 320x240",
     "touch": "XPT2046",
-    "release": true
+    "release": true,
+    "universal": true
   },
   {
     "id": "generic_ili9341",
@@ -25,7 +26,8 @@
     "chip": "esp32s3",
     "display": "ST7789 240x320",
     "touch": "CST3530",
-    "release": true
+    "release": true,
+    "universal": true
   },
   {
     "id": "generic_esp32s3",
