@@ -135,6 +135,15 @@ unsafe fn step_hold(
 /// # Safety
 /// See `step_hold`.
 #[no_mangle]
+pub extern "C" fn alert_display_idle_state_rs(
+    idle_ms: u32,
+    dim_after_ms: u32,
+    off_after_ms: u32,
+) -> u8 {
+    crate::display_idle_state(idle_ms, dim_after_ms, off_after_ms)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn alert_coolant_temp_step_rs(
     hold: *mut LevelHold,
     temp_c: f32,

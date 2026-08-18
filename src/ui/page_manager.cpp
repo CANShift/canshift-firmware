@@ -11,6 +11,7 @@
 #include "ota_overlay.h"
 #include "rev_limit_flash.h"
 #include "error_bar.h"
+#include "ui/display_idle.h"
 #include "gesture_controller.h"
 #include "config_rejected_screen.h"
 #include "no_config_screen.h"
@@ -78,6 +79,7 @@ void PageManager::init() {
     DayNightAuto::init();
     TopBar::init();
     BusSilentLine::init();
+    DisplayIdle::init();
 
     buildPageList();
 
@@ -185,6 +187,7 @@ void PageManager::updateWidgets() {
     AlertBanner::update();
     AlertTakeover::update();
     BusSilentLine::update();
+    DisplayIdle::update();
     ControlSplash::update();
 
     ErrorBar::update();

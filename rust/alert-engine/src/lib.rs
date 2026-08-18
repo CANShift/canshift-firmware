@@ -288,6 +288,21 @@ pub fn warn_level_for(
     f32::NAN
 }
 
+pub const DISPLAY_IDLE_LIVE: u8 = 0;
+pub const DISPLAY_IDLE_DIM: u8 = 1;
+pub const DISPLAY_IDLE_OFF: u8 = 2;
+
+#[must_use]
+pub fn display_idle_state(idle_ms: u32, dim_after_ms: u32, off_after_ms: u32) -> u8 {
+    if off_after_ms > 0 && idle_ms >= off_after_ms {
+        return DISPLAY_IDLE_OFF;
+    }
+    if dim_after_ms > 0 && idle_ms >= dim_after_ms {
+        return DISPLAY_IDLE_DIM;
+    }
+    DISPLAY_IDLE_LIVE
+}
+
 #[must_use]
 pub fn severity_for_reading(
     value: f32,
@@ -898,6 +913,39 @@ mod tests {
     #[test]
     fn crossed_limit_is_invalid_when_nothing_is_crossed() {
         assert!(!crossed_limit(4.1, 1.0, true, f32::NAN).valid);
+    }
+
+    #[test]
+    fn display_idle_walks_live_dim_off() {
+        assert_eq!(display_idle_state(0, 60_000, 600_000), DISPLAY_IDLE_LIVE);
+        assert_eq!(
+            display_idle_state(59_999, 60_000, 600_000),
+            DISPLAY_IDLE_LIVE
+        );
+        assert_eq!(
+            display_idle_state(60_000, 60_000, 600_000),
+            DISPLAY_IDLE_DIM
+        );
+        assert_eq!(
+            display_idle_state(599_999, 60_000, 600_000),
+            DISPLAY_IDLE_DIM
+        );
+        assert_eq!(
+            display_idle_state(600_000, 60_000, 600_000),
+            DISPLAY_IDLE_OFF
+        );
+    }
+
+    #[test]
+    fn display_idle_zero_threshold_disables_that_step() {
+        assert_eq!(display_idle_state(u32::MAX, 0, 600_000), DISPLAY_IDLE_OFF);
+        assert_eq!(display_idle_state(u32::MAX, 60_000, 0), DISPLAY_IDLE_DIM);
+        assert_eq!(display_idle_state(u32::MAX, 0, 0), DISPLAY_IDLE_LIVE);
+    }
+
+    #[test]
+    fn display_idle_off_wins_when_thresholds_are_inverted() {
+        assert_eq!(display_idle_state(10_000, 600_000, 5_000), DISPLAY_IDLE_OFF);
     }
 
     #[test]

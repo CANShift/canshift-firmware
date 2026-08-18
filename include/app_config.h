@@ -109,6 +109,10 @@ inline constexpr int OBD2_MAX_POLL_SLOTS = CONFIG_MAX_SIGNALS;
 
 inline constexpr unsigned TRACK_TELEMETRY_TIMEOUT_MS = 5000U;
 
+inline constexpr unsigned DISPLAY_DIM_AFTER_IDLE_MS = 60000U;
+inline constexpr unsigned DISPLAY_OFF_AFTER_IDLE_MS = 600000U;
+inline constexpr unsigned DISPLAY_DIM_PERCENT = 20U;
+
 inline constexpr unsigned ERROR_STORE_RING_SIZE = 6U;
 
 inline constexpr int ALERT_REVLIMIT_WARN_PCT = 95;

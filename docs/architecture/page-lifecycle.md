@@ -138,3 +138,42 @@ Timer widgets update on every UI tick regardless of signal binding. `updateWidge
 returns early for a widget with no bound signal, which is right for a gauge and
 wrong for a timer: before this branch existed the stopwatch label never refreshed
 after its initial `00:00`.
+
+## Display idle
+
+A dash wired to switched ignition stays powered when the ECU is not. Rather than
+hold full brightness on an empty bus, the panel steps down:
+
+| State | After       | Backlight                     |
+| ----- | ----------- | ----------------------------- |
+| live  | —           | the user's brightness setting |
+| dim   | 60 s idle   | 20 % of it                    |
+| off   | 10 min idle | 0                             |
+
+**Idle is the time since the more recent of a CAN frame and a touch** —
+`min(CanManager::msSinceLastRx(), lv_disp_get_inactive_time())`. So a live bus keeps
+the dash lit with nobody touching it, and a hand keeps it lit on a dead bus. The
+first frame or the first touch restores brightness in one tick.
+
+The state machine is `display_idle_state` in `rust/alert-engine`, next to the
+bus-silence logic it belongs with. A zero threshold disables that step, so a
+configuration can dim without ever blanking.
+
+Only the panel dims. USB and BLE keep answering, the CAN task keeps parsing, and
+alerts keep evaluating — a takeover raised while the screen is off still fires, and
+the wake restores a dash that is already showing it.
+
+The touch that wakes a blanked panel is swallowed rather than delivered, so waking
+the dash cannot also press the button under your finger.
+
+### Not the same as stale values
+
+Three different things, deliberately distinct:
+
+- a **signal** going quiet renders `- -` in Dim after its `timeoutMs`;
+- the **bus** going quiet raises the bus-silent line;
+- the **dash** going idle dims and eventually blanks.
+
+A dash showing `- -` everywhere is saying "I am here, the data is not". A blank dash
+is saying "nothing has happened for ten minutes". They should not be confused, which
+is why the idle path drives the backlight and never the content.

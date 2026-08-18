@@ -14,6 +14,27 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # (label, rust file, rust const, c++ file, c++ symbol)
 PAIRS = (
     (
+        "display idle live",
+        "rust/alert-engine/src/lib.rs",
+        "DISPLAY_IDLE_LIVE",
+        "include/alert_engine_rs.h",
+        "ALERT_DISPLAY_IDLE_LIVE",
+    ),
+    (
+        "display idle dim",
+        "rust/alert-engine/src/lib.rs",
+        "DISPLAY_IDLE_DIM",
+        "include/alert_engine_rs.h",
+        "ALERT_DISPLAY_IDLE_DIM",
+    ),
+    (
+        "display idle off",
+        "rust/alert-engine/src/lib.rs",
+        "DISPLAY_IDLE_OFF",
+        "include/alert_engine_rs.h",
+        "ALERT_DISPLAY_IDLE_OFF",
+    ),
+    (
         "timer lap capacity",
         "rust/timer-core/src/lib.rs",
         "LAP_CAPACITY",
