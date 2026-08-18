@@ -94,7 +94,6 @@ inline constexpr unsigned OBD2_RESPONSE_FRAME_ID = 0x7E8U;
 inline constexpr unsigned OBD2_MIN_INTERVAL_MS_FW = 100U;
 inline constexpr unsigned OBD2_MAX_INTERVAL_MS_FW = 60000U;
 
-
 inline constexpr int CONFIG_JSON_DOC_DASHBOARD = 16384;
 
 inline constexpr int CONFIG_MAX_PAGES = 8;
