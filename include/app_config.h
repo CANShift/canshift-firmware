@@ -115,6 +115,8 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
     #define DEFAULT_CONFIG_PROVISION_ENABLED 1
 #endif
 
+#define TRACK_TELEMETRY_TIMEOUT_MS 5000U
+
 #define ERROR_STORE_RING_SIZE 6U
 
 #define ALERT_REVLIMIT_WARN_PCT 95

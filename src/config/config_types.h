@@ -102,6 +102,26 @@ enum class CfgButtonActionType : uint8_t {
     MAP_SWITCH,
     CAN_RAW,
     CRUISE_CONTROL,
+    TIMER_CONTROL,
+};
+
+enum class CfgTimerOp : uint8_t {
+    UNKNOWN = 0,
+    START,
+    PAUSE,
+    RESUME,
+    TOGGLE,
+    RESET,
+    LAP,
+};
+
+enum class CfgTimerSource : uint8_t {
+    Elapsed = 0,
+    Lap,
+    Best,
+    Last,
+    LapCount,
+    Delta,
 };
 
 enum class CfgCruiseOp : uint8_t {
@@ -127,6 +147,7 @@ struct CfgButtonAction {
     bool canExtended;
     CfgCruiseOp cruiseOp;
     uint8_t cruiseStepKmh;
+    CfgTimerOp timerOp;
 };
 
 enum class CfgButtonMode : uint8_t {
@@ -162,6 +183,7 @@ struct CfgTimerParams {
     uint8_t big;
     bool autoStart;
     bool formatMsec;
+    CfgTimerSource source;
 };
 
 struct CfgShiftLightParams {

@@ -1,5 +1,8 @@
 #include "timer_widget.h"
 #include "runtime/timer_service.h"
+#include "app_config.h"
+#include "runtime/track_store.h"
+#include "ui/widgets/timer_sources.h"
 #include "ui/font_manager.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
@@ -22,6 +25,7 @@ struct TimerTag {
     lv_obj_t *timeLabel;
     lv_obj_t *lapLabel;
     bool formatMsec;
+    CfgTimerSource source;
     uint32_t pressStartMs;
     bool longPressFired;
     TimerService::State lastState;
@@ -173,6 +177,7 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->timeLabel = label;
     tag->lapLabel = lapLabel;
     tag->formatMsec = cfg.timer.formatMsec;
+    tag->source = cfg.timer.source;
     tag->pressStartMs = 0;
     tag->longPressFired = false;
     tag->lastState = TimerService::State::Reset;
@@ -191,14 +196,77 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
 
-    lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
-    lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
-    lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
+    if (TimerSources::isInteractive(cfg.timer.source)) {
+        lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
+        lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
+        lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
+    }
 
-    WidgetLabelOverlay::applySignalHeader(cont, "timer");
+    WidgetLabelOverlay::applySignalHeader(cont, TimerSources::kicker(cfg.timer.source));
 
     return cont;
 }
+
+namespace {
+
+TimerSources::Inputs gatherInputs(const TimerService::Snapshot &snap) {
+    TrackStore::State track;
+    TrackStore::snapshot(&track);
+    return {snap.elapsedMs,     snap.lapCount,
+            track.currentLapMs, track.lastLapMs,
+            track.bestLapMs,    track.lapNumber,
+            track.deltaMs,      TrackStore::isActiveWithin(TRACK_TELEMETRY_TIMEOUT_MS)};
+}
+
+void updateReadout(TimerTag *tag, const TimerService::Snapshot &snap) {
+    char buf[TimerSources::kTextCapacity];
+    TimerSources::render(tag->source, gatherInputs(snap), buf, sizeof(buf));
+    if (strcmp(tag->lastText, buf) == 0)
+        return;
+    lv_label_set_text(tag->timeLabel, buf);
+    strlcpy(tag->lastText, buf, sizeof(tag->lastText));
+}
+
+void updateLapBadge(TimerTag *tag, uint16_t lapCount) {
+    if (lapCount == tag->lastLapCount)
+        return;
+    tag->lastLapCount = lapCount;
+    if (lapCount == 0) {
+        lv_obj_add_flag(tag->lapLabel, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    char lapBuf[8];
+    snprintf(lapBuf, sizeof(lapBuf), "L%u", static_cast<unsigned>(lapCount));
+    lv_label_set_text(tag->lapLabel, lapBuf);
+    lv_obj_clear_flag(tag->lapLabel, LV_OBJ_FLAG_HIDDEN);
+}
+
+bool stopwatchBlinkOn(const TimerTag *tag, TimerService::State state) {
+    if (state != TimerService::State::Paused || tag->formatMsec)
+        return true;
+    const uint32_t phase =
+        static_cast<uint32_t>(static_cast<uint64_t>(esp_timer_get_time() / 1000) % kBlinkPeriodMs);
+    return phase < (kBlinkPeriodMs / 2);
+}
+
+void updateStopwatch(TimerTag *tag, const TimerService::Snapshot &snap) {
+    if (snap.state != tag->lastState) {
+        applyStateStyle(tag, snap.state);
+        tag->lastText[0] = '\0';
+        tag->lastState = snap.state;
+    }
+    updateLapBadge(tag, snap.lapCount);
+
+    char buf[12];
+    formatTime(buf, sizeof(buf), snap.elapsedMs, tag->formatMsec,
+               stopwatchBlinkOn(tag, snap.state));
+    if (strcmp(tag->lastText, buf) == 0)
+        return;
+    lv_label_set_text(tag->timeLabel, buf);
+    strlcpy(tag->lastText, buf, sizeof(tag->lastText));
+}
+
+} // namespace
 
 void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
     if (!obj)
@@ -208,39 +276,11 @@ void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
         return;
 
     const TimerService::Snapshot snap = TimerService::snapshot();
-
-    if (snap.state != tag->lastState) {
-        applyStateStyle(tag, snap.state);
-
-        tag->lastText[0] = '\0';
-        tag->lastState = snap.state;
+    if (TimerSources::isInteractive(tag->source)) {
+        updateStopwatch(tag, snap);
+        (void)cfg;
+        return;
     }
-
-    if (snap.lapCount != tag->lastLapCount) {
-        tag->lastLapCount = snap.lapCount;
-        if (snap.lapCount == 0) {
-            lv_obj_add_flag(tag->lapLabel, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            char lapBuf[8];
-            snprintf(lapBuf, sizeof(lapBuf), "L%u", static_cast<unsigned>(snap.lapCount));
-            lv_label_set_text(tag->lapLabel, lapBuf);
-            lv_obj_clear_flag(tag->lapLabel, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-
-    bool blinkOn = true;
-    if (snap.state == TimerService::State::Paused && !tag->formatMsec) {
-        const uint32_t phase = static_cast<uint32_t>(
-            static_cast<uint64_t>(esp_timer_get_time() / 1000) % kBlinkPeriodMs);
-        blinkOn = (phase < (kBlinkPeriodMs / 2));
-    }
-
-    char buf[12];
-    formatTime(buf, sizeof(buf), snap.elapsedMs, tag->formatMsec, blinkOn);
-
-    if (strcmp(tag->lastText, buf) != 0) {
-        lv_label_set_text(tag->timeLabel, buf);
-        strlcpy(tag->lastText, buf, sizeof(tag->lastText));
-    }
+    updateReadout(tag, snap);
     (void)cfg;
 }

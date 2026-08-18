@@ -7,12 +7,45 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "runtime/pending_actions.h"
+#include "runtime/timer_service.h"
 
 #include <stdio.h>
 
 namespace ActionDispatcher {
 
 namespace {
+
+using TimerOpFn = bool (*)();
+
+bool timerNoop() {
+    return false;
+}
+
+struct TimerOpBinding {
+    CfgTimerOp op;
+    TimerOpFn run;
+};
+
+constexpr TimerOpBinding kTimerOps[] = {
+    {CfgTimerOp::START, &TimerService::start},   {CfgTimerOp::PAUSE, &TimerService::pause},
+    {CfgTimerOp::RESUME, &TimerService::resume}, {CfgTimerOp::RESET, &TimerService::reset},
+    {CfgTimerOp::LAP, &TimerService::lap},
+};
+
+bool timerToggle() {
+    return TimerService::getState() == TimerService::State::Running ? TimerService::pause()
+                                                                    : TimerService::start();
+}
+
+TimerOpFn timerOpRunner(CfgTimerOp op) {
+    if (op == CfgTimerOp::TOGGLE)
+        return &timerToggle;
+    for (const TimerOpBinding &entry : kTimerOps) {
+        if (entry.op == op)
+            return entry.run;
+    }
+    return &timerNoop;
+}
 
 void sendControlFrame(uint32_t frameId, const uint8_t *data, uint8_t len, bool extended,
                       const char *what) {
@@ -92,6 +125,12 @@ void dispatchCruiseControl(const CfgButtonAction &a) {
 
 } // namespace
 
+void dispatchTimerControl(const CfgButtonAction &a) {
+    const bool ok = timerOpRunner(a.timerOp)();
+    if (!ok)
+        LOG_WARN("ACT", "timer_control op rejected by the timer service");
+}
+
 void dispatchAction(const CfgButtonAction &a, bool isActive) {
     switch (a.type) {
         case CfgButtonActionType::NAV_PAGE:
@@ -105,6 +144,9 @@ void dispatchAction(const CfgButtonAction &a, bool isActive) {
             break;
         case CfgButtonActionType::CRUISE_CONTROL:
             dispatchCruiseControl(a);
+            break;
+        case CfgButtonActionType::TIMER_CONTROL:
+            dispatchTimerControl(a);
             break;
         case CfgButtonActionType::UNKNOWN:
         default:

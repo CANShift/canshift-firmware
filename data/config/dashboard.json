@@ -1,6 +1,6 @@
 {
  "_comment": "CANShift default dashboard \u2014 the six restyle pages: street, track, engine, tuning, timing, controls (#1823). Shift-light strip pending its own widget type.",
- "version": "1.37.0",
+ "version": "1.38.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
  "defaultPageId": "street",
@@ -963,9 +963,9 @@
      "signal": "",
      "layout": {
       "col": 0,
-      "colSpan": 12,
+      "colSpan": 7,
       "row": 0,
-      "rowSpan": 5,
+      "rowSpan": 6,
       "zOrder": 0
      },
      "style": {
@@ -978,18 +978,43 @@
      },
      "config": {
       "type": "timer",
-      "format": "mm:ss",
-      "big": 96
+      "source": "lap",
+      "big": 64
      }
     },
     {
-     "id": "timing_msec",
+     "id": "timing_delta",
+     "type": "timer",
+     "signal": "",
+     "layout": {
+      "col": 7,
+      "colSpan": 5,
+      "row": 0,
+      "rowSpan": 6,
+      "zOrder": 0
+     },
+     "style": {
+      "primaryColor": "#FFFFFF",
+      "secondaryColor": "#222222",
+      "warningColor": "#FF8800",
+      "criticalColor": "#FF4444",
+      "textColor": "#FFFFFF",
+      "fontSize": 48
+     },
+     "config": {
+      "type": "timer",
+      "source": "delta",
+      "big": 64
+     }
+    },
+    {
+     "id": "timing_best",
      "type": "timer",
      "signal": "",
      "layout": {
       "col": 0,
-      "colSpan": 7,
-      "row": 5,
+      "colSpan": 6,
+      "row": 6,
       "rowSpan": 3,
       "zOrder": 0
      },
@@ -1003,19 +1028,19 @@
      },
      "config": {
       "type": "timer",
-      "format": "ss.mmm",
+      "source": "best",
       "big": 44
      }
     },
     {
-     "id": "timing_speed",
-     "type": "gauge",
-     "signal": "speed_kph",
+     "id": "timing_last",
+     "type": "timer",
+     "signal": "",
      "layout": {
-      "col": 7,
-      "colSpan": 5,
-      "row": 8,
-      "rowSpan": 4,
+      "col": 6,
+      "colSpan": 4,
+      "row": 6,
+      "rowSpan": 3,
       "zOrder": 0
      },
      "style": {
@@ -1027,13 +1052,104 @@
       "fontSize": 48
      },
      "config": {
-      "type": "gauge",
-      "displayStyle": "numeric",
-      "minValue": 0,
-      "maxValue": 300,
-      "dangerLevel": 280,
-      "decimalPlaces": 0,
-      "big": 64
+      "type": "timer",
+      "source": "last",
+      "big": 44
+     }
+    },
+    {
+     "id": "timing_laps",
+     "type": "timer",
+     "signal": "",
+     "layout": {
+      "col": 10,
+      "colSpan": 2,
+      "row": 6,
+      "rowSpan": 3,
+      "zOrder": 0
+     },
+     "style": {
+      "primaryColor": "#FFFFFF",
+      "secondaryColor": "#222222",
+      "warningColor": "#FF8800",
+      "criticalColor": "#FF4444",
+      "textColor": "#FFFFFF",
+      "fontSize": 48
+     },
+     "config": {
+      "type": "timer",
+      "source": "lapCount",
+      "big": 44
+     }
+    },
+    {
+     "id": "timing_timer",
+     "type": "button",
+     "signal": "",
+     "layout": {
+      "col": 0,
+      "colSpan": 6,
+      "row": 9,
+      "rowSpan": 3,
+      "zOrder": 0
+     },
+     "style": {
+      "primaryColor": "#FFFFFF",
+      "secondaryColor": "#222222",
+      "warningColor": "#FF8800",
+      "criticalColor": "#FF4444",
+      "textColor": "#FFFFFF",
+      "fontSize": 48
+     },
+     "config": {
+      "type": "button",
+      "mode": "single",
+      "label": "START",
+      "kicker": "TIMER",
+      "showLabel": true,
+      "isToggle": true,
+      "actions": [
+       {
+        "category": "device",
+        "type": "timer_control",
+        "op": "toggle"
+       }
+      ]
+     }
+    },
+    {
+     "id": "timing_reset",
+     "type": "button",
+     "signal": "",
+     "layout": {
+      "col": 6,
+      "colSpan": 6,
+      "row": 9,
+      "rowSpan": 3,
+      "zOrder": 0
+     },
+     "style": {
+      "primaryColor": "#FFFFFF",
+      "secondaryColor": "#222222",
+      "warningColor": "#FF8800",
+      "criticalColor": "#FF4444",
+      "textColor": "#FFFFFF",
+      "fontSize": 48
+     },
+     "config": {
+      "type": "button",
+      "mode": "single",
+      "label": "RESET",
+      "kicker": "RESET LAP",
+      "showLabel": true,
+      "isToggle": false,
+      "actions": [
+       {
+        "category": "device",
+        "type": "timer_control",
+        "op": "reset"
+       }
+      ]
      }
     }
    ]

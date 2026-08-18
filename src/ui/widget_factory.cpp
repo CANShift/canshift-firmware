@@ -38,6 +38,11 @@ void updateWidget(WidgetEntry &entry,
         return;
     }
 
+    if (entry.type == WidgetType::TIMER) {
+        TimerWidget::update(entry.obj, 0.0f, false, *entry.cfg);
+        return;
+    }
+
     if (entry.signalId >= SignalIds::SIGNAL_COUNT)
         return;
     if (entry.signalId >= SIGNAL_STORE_MAX_SIGNALS)
