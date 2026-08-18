@@ -88,7 +88,7 @@ struct TimerOpSlug {
 };
 
 constexpr TimerOpSlug kTimerOpSlugs[] = {
-    {"start", CfgTimerOp::START}, {"pause", CfgTimerOp::PAUSE}, {"resume", CfgTimerOp::RESUME},
+    {"start", CfgTimerOp::START},   {"pause", CfgTimerOp::PAUSE}, {"resume", CfgTimerOp::RESUME},
     {"toggle", CfgTimerOp::TOGGLE}, {"reset", CfgTimerOp::RESET}, {"lap", CfgTimerOp::LAP},
 };
 
@@ -98,8 +98,8 @@ struct TimerSourceSlug {
 };
 
 constexpr TimerSourceSlug kTimerSourceSlugs[] = {
-    {"elapsed", CfgTimerSource::Elapsed}, {"lap", CfgTimerSource::Lap},
-    {"best", CfgTimerSource::Best},       {"last", CfgTimerSource::Last},
+    {"elapsed", CfgTimerSource::Elapsed},   {"lap", CfgTimerSource::Lap},
+    {"best", CfgTimerSource::Best},         {"last", CfgTimerSource::Last},
     {"lapCount", CfgTimerSource::LapCount}, {"delta", CfgTimerSource::Delta},
 };
 
