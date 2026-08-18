@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TIMER_CORE_LAP_CAPACITY 32
+inline constexpr int TIMER_CORE_LAP_CAPACITY = 32;
 
 #ifdef __cplusplus
 extern "C" {
