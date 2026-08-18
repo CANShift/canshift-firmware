@@ -28,6 +28,7 @@ No C++ needed — this is the on-device UI as a driver sees it.
 | [Pinout](reference/pinout.md)                         | GPIO reference for the ESP32 board, ILI9341 display, XPT2046 touch   |
 | [Display bus](reference/pinout-display.md)            | Panel and touch controller on one shared SPI bus                     |
 | [Board drivers](reference/board-drivers.md)           | Which LCD and touch controllers a board profile may name             |
+| [Adding a board](reference/add-a-board.md)            | Provision a profile over USB, or add one to the shipped catalog      |
 | [CAN header](reference/pinout-can.md)                 | The two TWAI pins and the transceiver they need                      |
 | [Power rails](reference/pinout-power.md)              | Where the board takes power, and the rail the firmware modulates     |
 | [CAN integration notes](reference/can-integration.md) | TWAI configuration, bus speed, sample frame layouts                  |
