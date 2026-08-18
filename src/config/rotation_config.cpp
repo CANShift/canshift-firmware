@@ -1,6 +1,7 @@
 #include "rotation_config.h"
 #include "app_config.h"
-#include "hardware_profile.h"
+#include "board.h"
+#include "config/board_profile_loader.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "hal/storage/nvs_store.h"
@@ -28,7 +29,8 @@ uint16_t getOffsetDeg() {
 uint8_t computeLgfxRotation() {
     const uint16_t off = getOffsetDeg();
     const uint8_t step = (off == 180) ? 2 : 0;
-    return static_cast<uint8_t>((HW_DISPLAY_ROTATION + step) % 4);
+    const uint8_t boardRotation = canshift::boards::runtimeBoardProfile().lcd.default_rotation;
+    return static_cast<uint8_t>((boardRotation + step) % 4);
 }
 
 void applyAndReboot(uint16_t offsetDeg) {
