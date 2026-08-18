@@ -13,8 +13,7 @@ TimerSources::Inputs stopwatchOnly() {
     return {65432, 3, 0, 0, 0, 0, 0, false};
 }
 
-const char *rendered(CfgTimerSource source, const TimerSources::Inputs &in, char *buf,
-                     size_t cap) {
+const char *rendered(CfgTimerSource source, const TimerSources::Inputs &in, char *buf, size_t cap) {
     TimerSources::render(source, in, buf, cap);
     return buf;
 }
@@ -66,8 +65,8 @@ void test_lapCountPrefersTrackTelemetry() {
     char buf[TimerSources::kTextCapacity];
     TEST_ASSERT_EQUAL_STRING("4",
                              rendered(CfgTimerSource::LapCount, trackRunning(), buf, sizeof(buf)));
-    TEST_ASSERT_EQUAL_STRING(
-        "3", rendered(CfgTimerSource::LapCount, stopwatchOnly(), buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("3",
+                             rendered(CfgTimerSource::LapCount, stopwatchOnly(), buf, sizeof(buf)));
 }
 
 void test_deltaClampsRatherThanOverflowingItsBuffer() {
