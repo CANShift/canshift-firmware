@@ -2,6 +2,7 @@
 
 #include "app_config.h"
 #include "diag/logger.h"
+#include "ui/gesture_intent.h"
 #include "ui/settings_page.h"
 #include "ui/top_bar.h"
 
@@ -15,9 +16,6 @@ namespace {
 constexpr int16_t DRAG_HOTZONE_MAX_PX = 40;
 
 constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
-
-constexpr int16_t SWIPE_THROUGH_TRAVEL_PX = 32;
-constexpr int16_t SWIPE_THROUGH_AXIS_RATIO = 2;
 
 SwipeHandler s_swipeHandler = nullptr;
 VerticalSwipeHandler s_verticalSwipeHandler = nullptr;
@@ -158,11 +156,11 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     static int16_t s_pressStartX = 0;
     static int16_t s_pressStartY = 0;
     static bool s_pressActive = false;
-    static bool s_pressCancelled = false;
+    static bool s_clickCancelled = false;
 
     if (state == LV_INDEV_STATE_RELEASED) {
         s_pressActive = false;
-        s_pressCancelled = false;
+        s_clickCancelled = false;
         s_swipeFiredThisPress = false;
         s_gesturePressStartedOnClickable = false;
         return;
@@ -173,7 +171,7 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
 
     if (!s_pressActive) {
         s_pressActive = true;
-        s_pressCancelled = false;
+        s_clickCancelled = false;
         s_swipeFiredThisPress = false;
         s_pressStartX = p.x;
         s_pressStartY = p.y;
@@ -183,37 +181,33 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
         return;
     }
 
-    if (s_pressCancelled)
+    if (s_clickCancelled && s_swipeFiredThisPress)
         return;
 
     if (SettingsPage::isOpen() || SettingsPage::isDragging())
         return;
 
     const int16_t signedTravelX = static_cast<int16_t>(p.x - s_pressStartX);
-    const int16_t travelX = static_cast<int16_t>(abs(signedTravelX));
-    if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
+    const int16_t travelY = static_cast<int16_t>(abs(p.y - s_pressStartY));
+    const GestureIntent::Decision decision =
+        GestureIntent::decide(signedTravelX, travelY, s_gesturePressStartedOnClickable);
+
+    if (decision.cancelClick && !s_clickCancelled) {
+        if (s_gesturePressStartedOnClickable) {
+            lv_indev_wait_release(indev);
+        } else {
+            lv_indev_reset_long_press(indev);
+            lv_indev_reset(indev, nullptr);
+        }
+        s_clickCancelled = true;
+        LOG_VDEBUG("UI", "press dropped, travel=%d,%d", static_cast<int>(signedTravelX),
+                   static_cast<int>(travelY));
+    }
+
+    if (!decision.fireSwipe || s_swipeFiredThisPress || s_swipeHandler == nullptr)
         return;
-
-    if (s_gesturePressStartedOnClickable) {
-        const int16_t travelY = static_cast<int16_t>(abs(p.y - s_pressStartY));
-        const bool horizontalDominates =
-            travelX >= SWIPE_THROUGH_TRAVEL_PX && travelX > SWIPE_THROUGH_AXIS_RATIO * travelY;
-        if (!horizontalDominates)
-            return;
-        /* wait_release emits PRESS_LOST so the button drops its pressed state without CLICKED */
-        lv_indev_wait_release(indev);
-    } else {
-        lv_indev_reset_long_press(indev);
-        lv_indev_reset(indev, nullptr);
-    }
-    s_pressCancelled = true;
-
-    if (!s_swipeFiredThisPress && s_swipeHandler) {
-        const lv_dir_t dir = signedTravelX < 0 ? LV_DIR_LEFT : LV_DIR_RIGHT;
-        s_swipeFiredThisPress = true;
-        s_swipeHandler(dir);
-    }
-    LOG_VDEBUG("UI", "Swipe cancelled pending click (travelX=%d)", travelX);
+    s_swipeFiredThisPress = true;
+    s_swipeHandler(decision.swipeLeft ? LV_DIR_LEFT : LV_DIR_RIGHT);
 }
 
 } // namespace
