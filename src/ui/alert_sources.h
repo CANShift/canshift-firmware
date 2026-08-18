@@ -24,6 +24,12 @@ constexpr CriticalSource kSources[] = {
      &AlertEngine::AlertState::oilTempSensorLost},
     {"BATT", "BATTERY", SignalIds::BATTERY_VOLTS, "V", 1, &AlertEngine::AlertState::batteryVoltage,
      &AlertEngine::AlertState::batterySensorLost},
+    {"EGT", "EXHAUST TEMP", SignalIds::EGT_C, "°C", 0, &AlertEngine::AlertState::exhaustTemp,
+     &AlertEngine::AlertState::exhaustSensorLost},
+    {"GEARBOX", "GEARBOX TEMP", SignalIds::GEARBOX_TEMP_C, "°C", 0,
+     &AlertEngine::AlertState::gearboxTemp, &AlertEngine::AlertState::gearboxSensorLost},
+    {"DIFF", "DIFF TEMP", SignalIds::DIFF_TEMP_C, "°C", 0, &AlertEngine::AlertState::diffTemp,
+     &AlertEngine::AlertState::diffSensorLost},
 };
 
 constexpr size_t kSourceCount = sizeof(kSources) / sizeof(kSources[0]);
