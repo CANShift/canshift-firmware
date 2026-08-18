@@ -35,8 +35,8 @@ static constexpr int32_t kArcContainerPadding = 4;
 static constexpr int16_t kArcYShift = 2;
 
 static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
-    const float r = std::min(static_cast<float>(cfg.layout.w) * 0.48f,
-                             static_cast<float>(cfg.layout.h) * 0.49f);
+    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+    const float r = std::min(static_cast<float>(box.w) * 0.48f, static_cast<float>(box.h) * 0.49f);
     const float w = r * 0.30f;
     return static_cast<uint8_t>(w < 5.0f ? 5.0f : w);
 }
@@ -147,8 +147,7 @@ static Severity::Level gaugeLevelFor(const GaugeTag *tag, float value, bool dang
 }
 
 static int32_t computeArcDiameter(const CfgWidget &cfg) {
-    int32_t diam =
-        (cfg.layout.w < cfg.layout.h ? cfg.layout.w : cfg.layout.h) - kArcContainerPadding;
+    int32_t diam = WidgetHelpers::scaledSquare(cfg) - kArcContainerPadding;
     if (diam < kMinArcDiam)
         diam = kMinArcDiam;
     return diam;
@@ -170,7 +169,7 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
         intFontSizeOut = WidgetHelpers::deviceFontPxForBig(cfg.gauge.big);
         return FontManager::value(intFontSizeOut);
     }
-    const int16_t h = cfg.layout.h;
+    const int16_t h = WidgetHelpers::scaledBox(cfg).h;
     if (h >= kValueFontHeightPrimary) {
         intFontSizeOut = kValueFontSizePrimary;
         return FontManager::value(kValueFontSizePrimary);
@@ -296,7 +295,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         cfg, valueFont, WidgetHelpers::valueTrackingPx(valueFontPx),
         WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix));
 
-    const bool primaryTier = cfg.layout.h >= kValueFontHeightPrimary;
+    const bool primaryTier = WidgetHelpers::scaledBox(cfg).h >= kValueFontHeightPrimary;
     const uint8_t rulePx = primaryTier ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx;
     lv_obj_t *topRule =
         WidgetHelpers::makeTopRule(cont, rulePx, Severity::baseRuleRgbFor(rulePx, textRgb));

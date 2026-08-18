@@ -13,6 +13,15 @@
 
 namespace WidgetHelpers {
 
+struct ScaledBox {
+    int16_t w;
+    int16_t h;
+};
+
+[[nodiscard]] ScaledBox scaledBox(const CfgWidget &cfg);
+
+[[nodiscard]] int16_t scaledSquare(const CfgWidget &cfg);
+
 constexpr uint32_t kZoneDangerRgb = ThemeTokens::kDanger;
 constexpr uint32_t kAccentRgb = ThemeTokens::kEngaged;
 constexpr uint32_t kMutedRgb = ThemeTokens::kDimNight;

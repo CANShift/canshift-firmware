@@ -118,7 +118,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
 
     lv_obj_t *signalLabel = nullptr;
     const uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
-    if (cfg.layout.h >= 28) {
+    if (WidgetHelpers::scaledBox(cfg).h >= 28) {
         char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
         WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
         signalLabel = lv_label_create(root);

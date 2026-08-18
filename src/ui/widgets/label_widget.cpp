@@ -25,8 +25,9 @@ constexpr int16_t kValueRowYOffsetPx = 8;
 uint8_t pickValueFontSize(const CfgWidget &cfg) {
     if (cfg.label.big > 0)
         return WidgetHelpers::deviceFontPxForBig(cfg.label.big);
-    const int byHeight = (cfg.layout.h * 65) / 100;
-    const int byWidth = (cfg.layout.w * 52) / 100;
+    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+    const int byHeight = (box.h * 65) / 100;
+    const int byWidth = (box.w * 52) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
     if (s < 10)
         s = 10;
@@ -134,7 +135,8 @@ lv_obj_t *makeProgressBar(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb
     *barMaxW = 0;
     if (!cfg.label.showBar || cfg.label.maxValue <= cfg.label.minValue)
         return nullptr;
-    const int16_t maxW = static_cast<int16_t>(cfg.layout.w - 2 * kBarSideMarginPx);
+    const int16_t maxW =
+        static_cast<int16_t>(WidgetHelpers::scaledBox(cfg).w - 2 * kBarSideMarginPx);
     if (maxW <= 0)
         return nullptr;
     makeBarRect(cont, maxW, ThemeManager::trackColor());

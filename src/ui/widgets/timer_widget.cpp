@@ -152,9 +152,10 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     if (cfg.timer.big > 0) {
         font = FontManager::value(WidgetHelpers::deviceFontPxForBig(cfg.timer.big));
     } else {
-        if (cfg.layout.h >= 28)
+        const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+        if (box.h >= 28)
             font = FontManager::value(22);
-        if (cfg.layout.h >= 55 && cfg.layout.w >= 150)
+        if (box.h >= 55 && box.w >= 150)
             font = FontManager::value(40);
     }
     lv_obj_set_style_text_font(label, font, 0);

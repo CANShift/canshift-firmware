@@ -26,8 +26,9 @@ const lv_font_t *selectFont(const CfgWidget &cfg, uint8_t &sizeOut) {
         sizeOut = WidgetHelpers::deviceFontPxForBig(cfg.label.big);
         return FontManager::value(sizeOut);
     }
-    const int byHeight = (cfg.layout.h * 85) / 100;
-    const int byWidth = (cfg.layout.w * 72) / 100;
+    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+    const int byHeight = (box.h * 85) / 100;
+    const int byWidth = (box.w * 72) / 100;
     int s = byHeight < byWidth ? byHeight : byWidth;
     if (s < 10)
         s = 10;

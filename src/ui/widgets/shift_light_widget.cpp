@@ -66,8 +66,9 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
     if (!tag)
         return nullptr;
 
-    const int16_t w = cfg.layout.w;
-    const int16_t h = cfg.layout.h < kSegmentHeightPx ? cfg.layout.h : kSegmentHeightPx;
+    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+    const int16_t w = box.w;
+    const int16_t h = box.h < kSegmentHeightPx ? box.h : kSegmentHeightPx;
     const int16_t segW =
         static_cast<int16_t>((w - kSegmentGapPx * (kSegmentCount - 1)) / kSegmentCount);
     constexpr int16_t x0 = 0;

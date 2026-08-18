@@ -17,6 +17,15 @@
 
 namespace WidgetHelpers {
 
+ScaledBox scaledBox(const CfgWidget &cfg) {
+    return {ScreenProfile::scaleXVal(cfg.layout.w), ScreenProfile::scaleYVal(cfg.layout.h)};
+}
+
+int16_t scaledSquare(const CfgWidget &cfg) {
+    const ScaledBox box = scaledBox(cfg);
+    return box.w < box.h ? box.w : box.h;
+}
+
 float clampPct(float value, float minValue, float maxValue) {
     if (maxValue <= minValue)
         return 0.0f;
@@ -221,7 +230,7 @@ void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t tr
     int16_t needed = textWidthPx(widest, font, trackingPx);
     if (unit && unit[0] != '\0')
         needed = static_cast<int16_t>(needed + textWidthPx(unit, FontManager::units(), 0));
-    const int16_t available = static_cast<int16_t>(cfg.layout.w - kValueRightInsetPx);
+    const int16_t available = static_cast<int16_t>(scaledBox(cfg).w - kValueRightInsetPx);
     if (needed <= available)
         return;
     LOG_ERROR("WF", "Widget '%s': '%s%s' needs %d px, column gives %d — layout does not fit",
