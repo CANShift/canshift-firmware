@@ -6,7 +6,6 @@
 
         #include <stdint.h>
         #include "hardware_profile.h"
-        #include "app_config.h"
 
         #define LV_COLOR_DEPTH 16
 

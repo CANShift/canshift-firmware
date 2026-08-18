@@ -24,117 +24,110 @@
 #ifndef TASK_STACK_USB
     #define TASK_STACK_USB 4096
 #endif
-#define TASK_PRIO_UI 10
-#define TASK_PRIO_CAN 15
-#define TASK_PRIO_USB 8
-#define TASK_PRIO_INPUT 7
+inline constexpr int TASK_PRIO_UI = 10;
+inline constexpr int TASK_PRIO_CAN = 15;
+inline constexpr int TASK_PRIO_USB = 8;
+inline constexpr int TASK_PRIO_INPUT = 7;
 
-#define TASK_CORE_UI 1
-#define TASK_CORE_CAN 0
-#define TASK_CORE_USB 1
+inline constexpr int TASK_CORE_UI = 1;
+inline constexpr int TASK_CORE_CAN = 0;
+inline constexpr int TASK_CORE_USB = 1;
 
-#define TASK_CORE_INPUT 0
+inline constexpr int TASK_CORE_INPUT = 0;
 
 #ifndef TASK_STACK_INPUT
     #define TASK_STACK_INPUT 2048
 #endif
 
-#define TASK_WDT_TIMEOUT_MS 8000U
+inline constexpr unsigned TASK_WDT_TIMEOUT_MS = 8000U;
 
-#define PRE_RESTART_FLUSH_DELAY_MS 200U
+inline constexpr unsigned PRE_RESTART_FLUSH_DELAY_MS = 200U;
 
 #ifndef APP_USB_TICK_TRACE
     #define APP_USB_TICK_TRACE 0
 #endif
 
-#define USB_TICK_DURATION_WARN_US 1000000UL
+inline constexpr int USB_TICK_DURATION_WARN_US = 1000000UL;
 
-#define USB_TICK_INTERVAL_WARN_US 200000UL
+inline constexpr int USB_TICK_INTERVAL_WARN_US = 200000UL;
 
 #ifndef APP_USB_CAN_SCAN_FAIL_LOUD
     #define APP_USB_CAN_SCAN_FAIL_LOUD 0
 #endif
 
-#define LVGL_TICK_MS 5
+inline constexpr int LVGL_TICK_MS = 5;
 
-#define LVGL_HANDLER_PERIOD_MS 10
+inline constexpr int LVGL_HANDLER_PERIOD_MS = 10;
 
-#define SWIPE_CANCEL_THRESHOLD_PX 8
+inline constexpr int SWIPE_CANCEL_THRESHOLD_PX = 8;
 
-#define BUTTON_SIGNAL_SYNC_GRACE_MS 500
+inline constexpr int BUTTON_SIGNAL_SYNC_GRACE_MS = 500;
 
-#define BUTTON_COMMAND_TIMEOUT_MS 15000
+inline constexpr int BUTTON_COMMAND_TIMEOUT_MS = 15000;
 
 #ifndef APP_TOUCH_LATENCY_WARN_US
     #define APP_TOUCH_LATENCY_WARN_US 80000U
 #endif
 
-#define SETTINGS_OPEN_TAP_GUARD_MS 300
+inline constexpr int SETTINGS_OPEN_TAP_GUARD_MS = 300;
 
-#ifdef __cplusplus
-static constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 256;
-#else
-    #define LVGL_FS_MIN_HEAP_BYTES 256
-#endif
+inline constexpr size_t LVGL_FS_MIN_HEAP_BYTES = 256;
 
-#define SIGNAL_STORE_MAX_SIGNALS 64
+inline constexpr int SIGNAL_STORE_MAX_SIGNALS = 64;
 
-#define SIGNAL_DEFAULT_TIMEOUT_MS 500
+inline constexpr int SIGNAL_DEFAULT_TIMEOUT_MS = 500;
 
-#define SIGNAL_EMA_ALPHA 0.2f
+inline constexpr float SIGNAL_EMA_ALPHA = 0.2f;
 
-#ifdef __cplusplus
-static constexpr uint8_t kCanFrameMaxBytes = 8;
-#else
-    #define CAN_FRAME_MAX_BYTES 8U
-#endif
+inline constexpr uint8_t kCanFrameMaxBytes = 8;
 
-#define CAN_RX_QUEUE_DEPTH 32
+inline constexpr int CAN_RX_QUEUE_DEPTH = 32;
 
-#define CAN_TASK_YIELD_TICKS 1
+inline constexpr int CAN_TASK_YIELD_TICKS = 1;
 
-#define TWAI_INIT_RETRY_MS 5000U
-#define TWAI_INIT_MAX_RETRIES 6U
+inline constexpr unsigned TWAI_INIT_RETRY_MS = 5000U;
+inline constexpr unsigned TWAI_INIT_MAX_RETRIES = 6U;
 
-#define OBD2_REQUEST_FRAME_ID 0x7DFU
-#define OBD2_RESPONSE_FRAME_ID 0x7E8U
+inline constexpr unsigned OBD2_REQUEST_FRAME_ID = 0x7DFU;
+inline constexpr unsigned OBD2_RESPONSE_FRAME_ID = 0x7E8U;
 
-#define OBD2_MIN_INTERVAL_MS_FW 100U
-#define OBD2_MAX_INTERVAL_MS_FW 60000U
+inline constexpr unsigned OBD2_MIN_INTERVAL_MS_FW = 100U;
+inline constexpr unsigned OBD2_MAX_INTERVAL_MS_FW = 60000U;
 
-#define OBD2_MAX_POLL_SLOTS CONFIG_MAX_SIGNALS
 
-#define CONFIG_JSON_DOC_DASHBOARD 16384
+inline constexpr int CONFIG_JSON_DOC_DASHBOARD = 16384;
 
-#define CONFIG_MAX_PAGES 8
-#define CONFIG_MAX_WIDGETS_PER_PAGE 12
-#define CONFIG_DASHBOARD_HEAP_BUDGET_BYTES (48u * 1024u)
-#define CONFIG_MAX_SIGNALS 48
+inline constexpr int CONFIG_MAX_PAGES = 8;
+inline constexpr int CONFIG_MAX_WIDGETS_PER_PAGE = 12;
+inline constexpr unsigned CONFIG_DASHBOARD_HEAP_BUDGET_BYTES = (48u * 1024u);
+inline constexpr int CONFIG_MAX_SIGNALS = 48;
+
+inline constexpr int OBD2_MAX_POLL_SLOTS = CONFIG_MAX_SIGNALS;
 
 #ifndef DEFAULT_CONFIG_PROVISION_ENABLED
     #define DEFAULT_CONFIG_PROVISION_ENABLED 1
 #endif
 
-#define TRACK_TELEMETRY_TIMEOUT_MS 5000U
+inline constexpr unsigned TRACK_TELEMETRY_TIMEOUT_MS = 5000U;
 
-#define ERROR_STORE_RING_SIZE 6U
+inline constexpr unsigned ERROR_STORE_RING_SIZE = 6U;
 
-#define ALERT_REVLIMIT_WARN_PCT 95
-#define ALERT_REVLIMIT_FLASH_PCT 100
+inline constexpr int ALERT_REVLIMIT_WARN_PCT = 95;
+inline constexpr int ALERT_REVLIMIT_FLASH_PCT = 100;
 /* 6 Hz is the design spec. It exceeds WCAG 2.3.1's 3-flash limit, which guarded the
    full-screen border this replaced; the strip and one numeral are far under the
    25%-of-viewport area the threshold applies to. Drop to 3 to restore the old margin. */
-#define ALERT_REVLIMIT_FLASH_HZ 6
+inline constexpr int ALERT_REVLIMIT_FLASH_HZ = 6;
 
-#define ALERT_HYSTERESIS_PCT 2.0f
-#define ALERT_MIN_ACTIVE_MS 2000U
+inline constexpr float ALERT_HYSTERESIS_PCT = 2.0f;
+inline constexpr unsigned ALERT_MIN_ACTIVE_MS = 2000U;
 
-#define ALERT_SENSOR_LOST_CLEAR_HOLD_MS 3000U
+inline constexpr unsigned ALERT_SENSOR_LOST_CLEAR_HOLD_MS = 3000U;
 
-#define BATTERY_DEFAULT_LOW_WARN_V 12.0f
-#define BATTERY_DEFAULT_LOW_CRIT_V 11.5f
-#define BATTERY_DEFAULT_HIGH_WARN_V 15.0f
-#define BATTERY_DEFAULT_HIGH_CRIT_V 16.0f
+inline constexpr float BATTERY_DEFAULT_LOW_WARN_V = 12.0f;
+inline constexpr float BATTERY_DEFAULT_LOW_CRIT_V = 11.5f;
+inline constexpr float BATTERY_DEFAULT_HIGH_WARN_V = 15.0f;
+inline constexpr float BATTERY_DEFAULT_HIGH_CRIT_V = 16.0f;
 
 #ifndef APP_BLE_ENABLED
     #define APP_BLE_ENABLED 1
@@ -147,35 +140,35 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120
 #endif
-#define TASK_PRIO_BLE 6
-#define TASK_CORE_BLE 1
+inline constexpr int TASK_PRIO_BLE = 6;
+inline constexpr int TASK_CORE_BLE = 1;
 
-#define BLE_TELE_INTERVAL_MS 100
+inline constexpr int BLE_TELE_INTERVAL_MS = 100;
 
-#define BLE_MIN_HEAP_BYTES (50U * 1024U)
-#define BLE_GATT_MIN_HEAP_BYTES (24U * 1024U)
+inline constexpr unsigned BLE_MIN_HEAP_BYTES = (50U * 1024U);
+inline constexpr unsigned BLE_GATT_MIN_HEAP_BYTES = (24U * 1024U);
 
-#define USB_RX_BUF_SIZE (CONFIG_JSON_DOC_DASHBOARD + 256)
+inline constexpr int USB_RX_BUF_SIZE = (CONFIG_JSON_DOC_DASHBOARD + 256);
 
-#define USB_PROTOCOL_VERSION 2
+inline constexpr int USB_PROTOCOL_VERSION = 2;
 
-#define USB_SCREEN_SETTINGS_MUTEX_TIMEOUT_MS 50
-#define USB_PUT_CONFIG_MUTEX_TIMEOUT_MS 100
-#define USB_PRE_RESTART_FLUSH_DELAY_MS 250
+inline constexpr int USB_SCREEN_SETTINGS_MUTEX_TIMEOUT_MS = 50;
+inline constexpr int USB_PUT_CONFIG_MUTEX_TIMEOUT_MS = 100;
+inline constexpr int USB_PRE_RESTART_FLUSH_DELAY_MS = 250;
 
-#define USB_TX_LOCK_TIMEOUT_MS 1000
+inline constexpr int USB_TX_LOCK_TIMEOUT_MS = 1000;
 
-#define USB_TX_WRITE_TIMEOUT_MS 2000
+inline constexpr int USB_TX_WRITE_TIMEOUT_MS = 2000;
 
-#define USB_TX_BUFFER_BYTES 4096
+inline constexpr int USB_TX_BUFFER_BYTES = 4096;
 
-#define USB_TX_PIECE_BYTES 64
+inline constexpr int USB_TX_PIECE_BYTES = 64;
 
-#define USB_RX_LINE_TIMEOUT_MS 2000
-#define OTA_COMPLETE_SCREEN_HOLD_MS 1200
-#define USB_TASK_TICK_INTERVAL_MS 20
+inline constexpr int USB_RX_LINE_TIMEOUT_MS = 2000;
+inline constexpr int OTA_COMPLETE_SCREEN_HOLD_MS = 1200;
+inline constexpr int USB_TASK_TICK_INTERVAL_MS = 20;
 
-#define BURN_OVERLAY_ERROR_HOLD_MS 3000
+inline constexpr int BURN_OVERLAY_ERROR_HOLD_MS = 3000;
 
 #ifndef APP_LOG_LEVEL
     #if APP_DEBUG_BUILD
@@ -185,7 +178,7 @@ static constexpr uint8_t kCanFrameMaxBytes = 8;
     #endif
 #endif
 
-#define LOG_TAG_MAX_LEN 16
+inline constexpr int LOG_TAG_MAX_LEN = 16;
 
 #ifndef APP_LV_TASK_LOG
     #define APP_LV_TASK_LOG 0
