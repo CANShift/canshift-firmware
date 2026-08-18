@@ -3,20 +3,26 @@
 #include "board_profile.h"
 #include "config/board_profile_loader.h"
 
+#include "boards/catalog.h"
+
+namespace canshift::boards {
+
 #if defined(BOARD_CROWPANEL_28)
-    #include "boards/crowpanel_28.h"
+inline constexpr const BoardProfile &kActiveBoard = kCrowpanel28;
 #elif defined(BOARD_GENERIC_ILI9341)
-    #include "boards/generic_ili9341.h"
+inline constexpr const BoardProfile &kActiveBoard = kGenericIli9341;
 #elif defined(BOARD_GENERIC_ILI9341_GT911)
-    #include "boards/generic_ili9341_gt911.h"
+inline constexpr const BoardProfile &kActiveBoard = kGenericIli9341Gt911;
 #elif defined(BOARD_GENERIC_ESP32S3)
-    #include "boards/generic_esp32s3.h"
+inline constexpr const BoardProfile &kActiveBoard = kGenericEsp32s3;
 #elif defined(BOARD_WAVESHARE_S3_28)
-    #include "boards/waveshare_s3_28.h"
+inline constexpr const BoardProfile &kActiveBoard = kWaveshareS328;
 #else
     #error                                                                                         \
-        "No board profile selected. Define BOARD_CROWPANEL_28, BOARD_GENERIC_ILI9341, BOARD_GENERIC_ILI9341_GT911, BOARD_GENERIC_ESP32S3, or BOARD_WAVESHARE_S3_28 (or another supported BOARD_*) via platformio.ini build_flags."
+        "No default board selected. Define BOARD_CROWPANEL_28, BOARD_GENERIC_ILI9341, BOARD_GENERIC_ILI9341_GT911, BOARD_GENERIC_ESP32S3, or BOARD_WAVESHARE_S3_28 (or another supported BOARD_*) via platformio.ini build_flags."
 #endif
+
+} // namespace canshift::boards
 
 inline constexpr const canshift::boards::BoardProfile &kBoard = canshift::boards::kActiveBoard;
 

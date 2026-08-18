@@ -26,6 +26,7 @@ BoardProfileParse parseBoardProfileBlob(const char *json, size_t len, BoardProfi
 
 const BoardProfile &runtimeBoardProfile();
 bool applyBoardProfileBlob(const char *json, size_t len);
+bool applyCatalogBoard(const char *boardId);
 void resetRuntimeBoardProfile();
 
 } // namespace canshift::boards

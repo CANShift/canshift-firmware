@@ -22,7 +22,7 @@ void updateStatus() {
         return;
     JsonDocument doc;
     doc["ver"] = APP_VERSION_STR;
-    doc["board_id"] = kBoard.board_id;
+    doc["board_id"] = canshift::boards::runtimeBoardProfile().board_id;
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     char buf[128];

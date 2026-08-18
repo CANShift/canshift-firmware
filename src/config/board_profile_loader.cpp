@@ -289,6 +289,14 @@ bool applyBoardProfileBlob(const char *json, size_t len) {
     return true;
 }
 
+bool applyCatalogBoard(const char *boardId) {
+    const BoardProfile *found = catalogBoard(boardId, kActiveBoard.chip_family);
+    if (found == nullptr)
+        return false;
+    s_runtime = *found;
+    return true;
+}
+
 void resetRuntimeBoardProfile() {
     s_runtime = kActiveBoard;
 }

@@ -5,7 +5,7 @@
 
 namespace canshift::boards {
 
-constexpr BoardProfile kActiveBoard = {
+constexpr BoardProfile kGenericEsp32s3 = {
     .board_id = "generic_esp32s3",
     .board_name = "Generic ESP32-S3 + ST7789 240x320 + CST816S",
     .chip_family = ChipFamily::Esp32s3,
