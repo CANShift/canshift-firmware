@@ -2,10 +2,9 @@
 
 Firmware releases ship from
 [`CANShift/canshift-firmware`](https://github.com/CANShift/canshift-firmware).
-This docs site pulls those GitHub Releases at build time and renders the
-public [changelog](https://github.com/CANShift/canshift-firmware/releases), so release descriptions need to be
-substantive. The other repositories version and ship independently — there is
-no global lockstep.
+Those [GitHub Releases](https://github.com/CANShift/canshift-firmware/releases)
+are the public changelog, so release descriptions need to be substantive. The
+other repositories version and ship independently — there is no global lockstep.
 
 ## What ships from where
 
@@ -101,7 +100,24 @@ tagging and building. You are not tagging by hand.
 
 ## What each artifact is, and where it goes
 
-Three binaries per released board, all listed in `manifest.json` with their SHA-256:
+Three binaries per **chip family**, not per board. The firmware carries every
+display and touch driver plus the whole board catalog, and resolves which board it
+is at boot from the profile blob the tuner writes — so `esp32` and `esp32s3` are the
+whole artifact set, whatever the board count:
+
+```
+canshift-esp32-v1.2.3-merged.bin      canshift-esp32s3-v1.2.3-merged.bin
+canshift-esp32-v1.2.3-firmware.bin    canshift-esp32s3-v1.2.3-firmware.bin
+canshift-esp32-v1.2.3-spiffs.bin      canshift-esp32s3-v1.2.3-spiffs.bin
+```
+
+Each is built from the env flagged `universal: true` for that chip in
+`.github/boards.json` — `crowpanel_28` for `esp32`, `waveshare_s3_28` for `esp32s3`.
+That env's board is only the profile the image falls back to when NVS holds no blob;
+the tuner writes the picked board's profile in the same flash session, so the
+fallback never shows on a board flashed from the tuner.
+
+All three are listed in `manifest.json` with their SHA-256:
 
 | Artifact        | Contents                                         | Flashed at                                           |
 | --------------- | ------------------------------------------------ | ---------------------------------------------------- |
@@ -118,7 +134,7 @@ the **bootloader's position inside** that image:
 | `esp32`                         | `0x1000`          |
 | `esp32s2`, `esp32s3`, `esp32c3` | `0x0`             |
 
-The workflow derives it from the board's `chip` field and **fails the release** on
+The workflow derives it from the matrix leg's `chip` and **fails the release** on
 a chip it has no offset for, rather than defaulting. Getting this wrong is silent:
 esptool accepts the layout, and the board simply never boots — the ROM finds
 `0xFF` where it expects the image magic. A new chip family means teaching that
@@ -126,6 +142,27 @@ esptool accepts the layout, and the board simply never boots — the ROM finds
 
 The app partition sits at `0x10000` and the partition table at `0x8000` on every
 board we ship, in both `ota_4mb.csv` and `ota_16mb.csv`.
+
+The merged image is the one artifact a chip family cannot share across flash sizes,
+because it carries the partition table: the `esp32s3` image is built on the 16 MB
+layout the Waveshare board has. A 4 MB S3 board would need its own universal leg,
+which is why `generic_esp32s3` stays a compile target rather than a released board.
+
+## What `manifest.json` says
+
+The tuner reads it to map the board a user picked to the firmware it must flash:
+
+```jsonc
+{ "schema": 3, "version": "1.2.3", "tag": "v1.2.3",
+  "firmwares": { "esp32":   { "merged": { "file": "…", "sha256": "…" }, "firmware": {…}, "spiffs": {…} },
+                 "esp32s3": { … } },
+  "boards": [ { "id": "crowpanel_28", "chip": "esp32", "display": "ILI9341 320x240", "touch": "XPT2046" } ] }
+```
+
+`boards` is the catalog the picker offers — every `release: true` entry of
+`.github/boards.json` — and each one resolves its binaries through its `chip`.
+Releases up to schema 2 carried the artifacts on each board instead; the tuner still
+reads that shape, so older releases stay flashable.
 
 ## Patch vs minor vs major
 
