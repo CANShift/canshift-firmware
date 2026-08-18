@@ -5,7 +5,7 @@
 
 namespace canshift::boards {
 
-constexpr BoardProfile kActiveBoard = {
+constexpr BoardProfile kCrowpanel28 = {
     .board_id = "crowpanel_28",
     .board_name = "Elecrow CrowPanel 2.8\" ESP32",
     .chip_family = ChipFamily::Esp32,

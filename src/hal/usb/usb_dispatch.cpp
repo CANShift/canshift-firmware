@@ -31,12 +31,7 @@
 
 namespace {
 
-void handleSetBoardProfile(const JsonObjectConst &doc) {
-    JsonVariantConst payload = doc["payload"];
-    if (!payload.is<JsonObjectConst>()) {
-        UsbComm::sendError("missing_payload");
-        return;
-    }
+void storeBoardProfileBlob(const JsonVariantConst &payload) {
     char blob[1536];
     const size_t n = serializeJson(payload, blob, sizeof blob);
     if (n == 0 || n >= sizeof blob) {
@@ -52,13 +47,37 @@ void handleSetBoardProfile(const JsonObjectConst &doc) {
     UsbComm::flushAndRestart();
 }
 
+void storeCatalogBoard(const char *boardId) {
+    if (!BoardProfileStore::saveBoardId(boardId)) {
+        UsbComm::sendError("unknown_board_id");
+        return;
+    }
+    LOG_INFO("USB", "CMD_SET_BOARD_PROFILE — catalog board '%s' selected, restarting", boardId);
+    UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
+    UsbComm::flushAndRestart();
+}
+
+void handleSetBoardProfile(const JsonObjectConst &doc) {
+    JsonVariantConst payload = doc["payload"];
+    if (!payload.is<JsonObjectConst>()) {
+        UsbComm::sendError("missing_payload");
+        return;
+    }
+    if (payload["magic"].is<const char *>()) {
+        storeBoardProfileBlob(payload);
+        return;
+    }
+    storeCatalogBoard(payload["board_id"] | "");
+}
+
 void sendStatusResponse() {
     char resp[160];
     const int n = snprintf(resp, sizeof(resp),
                            "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
                            "\"board_id\":\"%s\"}",
                            APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                           ThemeManager::isDayMode() ? 1 : 0, kBoard.board_id);
+                           ThemeManager::isDayMode() ? 1 : 0,
+                           canshift::boards::runtimeBoardProfile().board_id);
     if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
         LOG_WARN("USB", "GET_STATUS payload truncated (n=%d, cap=%u)", n,
                  static_cast<unsigned>(sizeof(resp)));

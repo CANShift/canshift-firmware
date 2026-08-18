@@ -40,6 +40,7 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 | -------------------------------------------------- | --------------------------------------------------------------------------- |
 | [Overview](architecture/overview.md)               | What runs in which task, against which heap budget                          |
 | [Boot sequence](architecture/boot-sequence.md)     | Heap reservation ordering that makes the boot path work on a no-PSRAM WROOM |
+| [Board profile](architecture/board-profile.md)     | How the firmware resolves which board it is running on, at run time         |
 | [SignalStore](architecture/signal-store.md)        | Runtime signal table — taskCAN writes, taskUI reads                         |
 | [Page lifecycle](architecture/page-lifecycle.md)   | Build, lazy build, release — the dashboard page state machine               |
 | [LVGL ownership](architecture/lvgl-ownership.md)   | Mutex and thread rules for every `lv_*` call                                |

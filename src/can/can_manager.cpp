@@ -58,7 +58,7 @@ twai_timing_config_t getTimingConfig(uint16_t kbps) {
             return TWAI_TIMING_CONFIG_250KBITS();
         default:
             LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
-                     kBoard.can.default_speed_kbps);
+                     canshift::boards::runtimeBoardProfile().can.default_speed_kbps);
             return TWAI_TIMING_CONFIG_500KBITS();
     }
 }
@@ -71,8 +71,12 @@ twai_filter_config_t getFilterConfig() {
 esp_err_t installAndStartOnThisCore() {
     const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
 
-    const int txPin = (dev.loaded && dev.twaiTxPin >= 0) ? dev.twaiTxPin : kBoard.can.pin_tx;
-    const int rxPin = (dev.loaded && dev.twaiRxPin >= 0) ? dev.twaiRxPin : kBoard.can.pin_rx;
+    const int txPin = (dev.loaded && dev.twaiTxPin >= 0)
+                          ? dev.twaiTxPin
+                          : canshift::boards::runtimeBoardProfile().can.pin_tx;
+    const int rxPin = (dev.loaded && dev.twaiRxPin >= 0)
+                          ? dev.twaiRxPin
+                          : canshift::boards::runtimeBoardProfile().can.pin_rx;
     const uint16_t speedKbps =
         (dev.loaded && dev.canSpeedKbps > 0)
             ? static_cast<uint16_t>(dev.canSpeedKbps)

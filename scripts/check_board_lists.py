@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate the three lists that describe which boards CANShift supports.
 
-    include/boards/*.h   what the firmware can be built for
+    include/boards/*.h   what the firmware can be built for, and what catalog.h can select
     .github/boards.json  what CI builds, and which of those a release publishes
     core BOARD_PROFILES  what the tuner can offer   (checked when a sibling checkout exists)
 
@@ -18,6 +18,7 @@ from pathlib import Path
 BOARDS_JSON = Path(".github/boards.json")
 HEADERS_DIR = Path("include/boards")
 PLATFORMIO = Path("platformio.ini")
+CATALOG = HEADERS_DIR / "catalog.h"
 CORE_CATALOG = Path("../canshift-core/src/board-profile/catalog.ts")
 
 
@@ -34,9 +35,13 @@ def report(problems: list[str]) -> int:
     return 1
 
 
+def board_headers() -> list[Path]:
+    return [h for h in sorted(HEADERS_DIR.glob("*.h")) if h.name != "catalog.h"]
+
+
 def check_headers(ids: set[str], problems: list[str]) -> set[str]:
     header_ids = set()
-    for header in sorted(HEADERS_DIR.glob("*.h")):
+    for header in board_headers():
         board_id = board_id_of(header)
         if board_id is None:
             problems.append(f"{header}: no .board_id field")
@@ -49,6 +54,17 @@ def check_headers(ids: set[str], problems: list[str]) -> set[str]:
     for missing in sorted(ids - header_ids):
         problems.append(f"'{missing}' is in boards.json but has no board header")
     return header_ids
+
+
+def check_catalog(problems: list[str]) -> None:
+    listed = set(re.findall(r"&(k[A-Za-z0-9]+)", CATALOG.read_text()))
+    for header in board_headers():
+        match = re.search(r"constexpr BoardProfile (k\w+)", header.read_text())
+        if match is None:
+            problems.append(f"{header}: no profile symbol")
+            continue
+        if match.group(1) not in listed:
+            problems.append(f"{header}: '{match.group(1)}' is missing from catalog.h")
 
 
 def check_envs(ids: set[str], problems: list[str]) -> None:
@@ -75,6 +91,7 @@ def main() -> int:
 
     problems: list[str] = []
     check_headers(ids, problems)
+    check_catalog(problems)
     check_envs(ids, problems)
     check_core_catalog(releasable, problems)
 

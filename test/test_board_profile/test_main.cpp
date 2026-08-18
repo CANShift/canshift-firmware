@@ -1,5 +1,7 @@
 #include "config/board_profile_loader.h"
 
+#include "boards/catalog.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <unity.h>
@@ -189,6 +191,45 @@ void test_applyInvalidLaterField_afterValid_keepsPriorIdentifiers() {
     TEST_ASSERT_EQUAL_STRING("Test Board", runtimeBoardProfile().board_name);
 }
 
+void test_catalogHoldsEveryBoardHeader() {
+    TEST_ASSERT_EQUAL_UINT32(5, static_cast<uint32_t>(kCatalogCount));
+    for (const BoardProfile *profile : kCatalog) {
+        TEST_ASSERT_NOT_NULL(profile);
+        TEST_ASSERT_TRUE(profile->board_id[0] != '\0');
+    }
+}
+
+void test_catalogLookupIsScopedToTheChipFamily() {
+    TEST_ASSERT_NOT_NULL(catalogBoard("crowpanel_28", ChipFamily::Esp32));
+    TEST_ASSERT_NOT_NULL(catalogBoard("waveshare_s3_28", ChipFamily::Esp32s3));
+    TEST_ASSERT_NULL(catalogBoard("waveshare_s3_28", ChipFamily::Esp32));
+    TEST_ASSERT_NULL(catalogBoard("crowpanel_28", ChipFamily::Esp32s3));
+    TEST_ASSERT_NULL(catalogBoard("nope", ChipFamily::Esp32));
+    TEST_ASSERT_NULL(catalogBoard("", ChipFamily::Esp32));
+    TEST_ASSERT_NULL(catalogBoard(nullptr, ChipFamily::Esp32));
+}
+
+void test_applyCatalogBoard_switchesTheRuntimeProfile() {
+    resetRuntimeBoardProfile();
+    TEST_ASSERT_TRUE(applyCatalogBoard("generic_ili9341_gt911"));
+    TEST_ASSERT_EQUAL_STRING("generic_ili9341_gt911", runtimeBoardProfile().board_id);
+    TEST_ASSERT_EQUAL(static_cast<int>(TouchDriver::GT911),
+                      static_cast<int>(runtimeBoardProfile().touch.driver));
+}
+
+void test_applyCatalogBoard_refusesAnotherChipFamily() {
+    resetRuntimeBoardProfile();
+    TEST_ASSERT_FALSE(applyCatalogBoard("waveshare_s3_28"));
+    TEST_ASSERT_EQUAL_STRING("crowpanel_28", runtimeBoardProfile().board_id);
+}
+
+void test_applyCatalogBoard_refusesAnUnknownIdAndKeepsTheProfile() {
+    resetRuntimeBoardProfile();
+    TEST_ASSERT_TRUE(applyCatalogBoard("generic_ili9341"));
+    TEST_ASSERT_FALSE(applyCatalogBoard("not_a_board"));
+    TEST_ASSERT_EQUAL_STRING("generic_ili9341", runtimeBoardProfile().board_id);
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_validBlob_parsesAllFields);
@@ -206,5 +247,10 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_applyEmptyBlob_keepsDefault);
     RUN_TEST(test_applyInvalidLaterField_fromDefault_keepsDefault);
     RUN_TEST(test_applyInvalidLaterField_afterValid_keepsPriorIdentifiers);
+    RUN_TEST(test_catalogHoldsEveryBoardHeader);
+    RUN_TEST(test_catalogLookupIsScopedToTheChipFamily);
+    RUN_TEST(test_applyCatalogBoard_switchesTheRuntimeProfile);
+    RUN_TEST(test_applyCatalogBoard_refusesAnotherChipFamily);
+    RUN_TEST(test_applyCatalogBoard_refusesAnUnknownIdAndKeepsTheProfile);
     return UNITY_END();
 }
