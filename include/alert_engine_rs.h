@@ -30,6 +30,12 @@ uint8_t alert_coolant_temp_step_rs(AlertLevelHoldRs *hold, float temp_c, float w
                                    float high_warn_c, float high_crit_c, uint32_t now_ms,
                                    float hysteresis_pct, uint32_t min_active_ms);
 
+inline constexpr uint8_t ALERT_DISPLAY_IDLE_LIVE = 0;
+inline constexpr uint8_t ALERT_DISPLAY_IDLE_DIM = 1;
+inline constexpr uint8_t ALERT_DISPLAY_IDLE_OFF = 2;
+
+uint8_t alert_display_idle_state_rs(uint32_t idle_ms, uint32_t dim_after_ms, uint32_t off_after_ms);
+
 uint8_t alert_high_side_temp_step_rs(AlertLevelHoldRs *hold, float temp_c, float warn_c,
                                      float crit_c, float high_warn_c, float high_crit_c,
                                      uint32_t now_ms, float hysteresis_pct, uint32_t min_active_ms);
