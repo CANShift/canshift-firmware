@@ -111,3 +111,30 @@ When a widget is destroyed, `LV_EVENT_DELETE` fires
 if the create() function returns early before `lv_obj_add_event_cb`
 attaches `deleteHandler`, the guard's destructor releases the slot
 deterministically. After `tagSlot.commit()` LVGL owns destruction.
+
+## Timer widgets
+
+A `timer` widget carries a `source` that decides what it reads and whether it is
+interactive:
+
+| Source              | Reads                                                             | Renders                                                                |
+| ------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `elapsed` (default) | `TimerService`                                                    | the stopwatch, `MM:SS` or `SS.mmm` — the only touch-interactive source |
+| `lap`               | `TrackStore.currentLapMs`, falling back to the stopwatch          | `M:SS.hh`                                                              |
+| `best` / `last`     | `TrackStore`                                                      | `M:SS.hh`, or `--:--` when unset                                       |
+| `lapCount`          | `TrackStore.lapNumber`, falling back to the stopwatch's lap count | an integer                                                             |
+| `delta`             | `TrackStore.deltaMs`                                              | `-0.42` / `+0.31`, or `--` without track telemetry                     |
+
+**Track telemetry is not on the bus.** `TrackStore` is fed by the companion app
+through `applyTrackState`, so on a bench with no phone the track sources show their
+placeholders. `TRACK_TELEMETRY_TIMEOUT_MS` decides when that data has gone stale;
+past it, `lap` and `lapCount` fall back to the on-device stopwatch and `delta`
+blanks out, because a delta against a stale reference is worse than no delta.
+
+Only `elapsed` binds touch handlers. The other sources are readouts — they carry no
+state border and no lap badge, and the timer is driven from buttons instead.
+
+Timer widgets update on every UI tick regardless of signal binding. `updateWidget`
+returns early for a widget with no bound signal, which is right for a gauge and
+wrong for a timer: before this branch existed the stopwatch label never refreshed
+after its initial `00:00`.
