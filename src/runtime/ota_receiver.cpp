@@ -11,6 +11,11 @@ namespace OtaReceiver {
 
 namespace {
 
+constexpr uint8_t ESP_IMAGE_MAGIC = 0xe9;
+constexpr uint32_t APP_DESC_MAGIC = 0xabcd5432;
+constexpr size_t APP_DESC_OFFSET = 0x20;
+constexpr size_t APP_HEADER_PROBE_BYTES = APP_DESC_OFFSET + sizeof(uint32_t);
+
 State s_state = State::Idle;
 const esp_partition_t *s_targetPartition = nullptr;
 esp_ota_handle_t s_otaHandle = 0;
@@ -18,6 +23,27 @@ size_t s_expectedSize = 0;
 size_t s_writtenSize = 0;
 mbedtls_sha256_context s_shaCtx;
 uint8_t s_expectedSha[32] = {0};
+uint8_t s_headerProbe[APP_HEADER_PROBE_BYTES] = {0};
+size_t s_headerProbeLen = 0;
+
+void captureHeaderProbe(const uint8_t *data, size_t len) {
+    if (s_headerProbeLen >= APP_HEADER_PROBE_BYTES)
+        return;
+    const size_t room = APP_HEADER_PROBE_BYTES - s_headerProbeLen;
+    const size_t take = len < room ? len : room;
+    memcpy(s_headerProbe + s_headerProbeLen, data, take);
+    s_headerProbeLen += take;
+}
+
+bool headerProbeRejects() {
+    if (s_headerProbeLen < APP_HEADER_PROBE_BYTES)
+        return false;
+    if (s_headerProbe[0] != ESP_IMAGE_MAGIC)
+        return true;
+    uint32_t descMagic = 0;
+    memcpy(&descMagic, s_headerProbe + APP_DESC_OFFSET, sizeof(descMagic));
+    return descMagic != APP_DESC_MAGIC;
+}
 
 bool startShaContext() {
     mbedtls_sha256_free(&s_shaCtx);
@@ -34,6 +60,17 @@ void teardownOtaHandle() {
     mbedtls_sha256_free(&s_shaCtx);
     s_expectedSize = 0;
     s_writtenSize = 0;
+    s_headerProbeLen = 0;
+}
+
+WriteResult refuseChunk(const char *reason) {
+    return {false, reason, s_writtenSize};
+}
+
+WriteResult abortWrite(const char *reason) {
+    teardownOtaHandle();
+    s_state = State::Failed;
+    return {false, reason, s_writtenSize};
 }
 
 } // namespace
@@ -61,7 +98,7 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
         s_state = State::Failed;
         return {false, "no_ota_partition"};
     }
-    if (totalSize == 0 || totalSize > target->size) {
+    if (totalSize < APP_HEADER_PROBE_BYTES || totalSize > target->size) {
         s_state = State::Failed;
         return {false, "size_out_of_range"};
     }
@@ -78,6 +115,7 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
     s_otaHandle = handle;
     s_expectedSize = totalSize;
     s_writtenSize = 0;
+    s_headerProbeLen = 0;
     memcpy(s_expectedSha, expectedSha256, 32);
     if (!startShaContext()) {
         LOG_ERROR("OTA", "sha256 engine start failed");
@@ -93,28 +131,31 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
 
 WriteResult writeChunk(uint32_t offset, const uint8_t *data, size_t len) {
     if (s_state != State::Receiving)
-        return {false, "not_receiving", s_writtenSize};
+        return refuseChunk("not_receiving");
     if (data == nullptr || len == 0)
-        return {false, "empty_chunk", s_writtenSize};
+        return refuseChunk("empty_chunk");
     if (offset != s_writtenSize)
-        return {false, "offset_mismatch", s_writtenSize};
+        return refuseChunk("offset_mismatch");
     if (s_writtenSize + len > s_expectedSize)
-        return {false, "overrun", s_writtenSize};
+        return refuseChunk("overrun");
+
+    captureHeaderProbe(data, len);
+    if (headerProbeRejects()) {
+        LOG_ERROR("OTA", "not an app image — rejecting at offset=%u",
+                  static_cast<unsigned>(offset));
+        return abortWrite("not_app_image");
+    }
 
     const esp_err_t err = esp_ota_write(s_otaHandle, data, len);
     if (err != ESP_OK) {
         LOG_ERROR("OTA", "esp_ota_write failed at offset=%u: %s", static_cast<unsigned>(offset),
                   esp_err_to_name(err));
-        teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "ota_write_failed", s_writtenSize};
+        return abortWrite("ota_write_failed");
     }
 
     if (mbedtls_sha256_update_ret(&s_shaCtx, data, len) != 0) {
         LOG_ERROR("OTA", "sha256 update failed at offset=%u", static_cast<unsigned>(offset));
-        teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "sha_engine_failed", s_writtenSize};
+        return abortWrite("sha_engine_failed");
     }
     s_writtenSize += len;
     return {true, nullptr, s_writtenSize};
