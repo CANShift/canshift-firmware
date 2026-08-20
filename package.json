@@ -1,6 +1,6 @@
 {
   "name": "canshift-firmware",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "scripts": {
     "prepare": "husky",
     "lint:pre-commit": "lint-staged"
