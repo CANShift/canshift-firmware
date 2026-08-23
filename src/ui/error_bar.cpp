@@ -2,6 +2,7 @@
 #include "app_config.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
+#include "diag/lvgl_pool.h"
 #include "layout_scale.h"
 #include "ui/font_manager.h"
 #include "ui/severity.h"
@@ -194,16 +195,22 @@ void renderRows(const FwError *errors, uint8_t fetched) {
     }
 }
 
-} // namespace
-
-void ErrorBar::init() {
+void buildBar() {
+    if (s_container)
+        return;
+    if (!LvglPool::hasHeadroomFor(LvglPool::kDeferredSurfaceBytes, "ErrorBar"))
+        return;
     s_container = createContainer();
+    if (!s_container)
+        return;
     buildHeader(s_container);
     s_detailPanel = createDetailPanel(s_container);
     for (uint8_t i = 0; i < kMaxRows; ++i) {
         buildDetailRow(s_detailPanel, i);
     }
 }
+
+} // namespace
 
 void ErrorBar::reapplyTheme() {
     if (!s_container)
@@ -212,26 +219,30 @@ void ErrorBar::reapplyTheme() {
     s_container = nullptr;
     s_expanded = false;
     s_lastVersion = UINT32_MAX;
-    init();
+    buildBar();
 }
 
 void ErrorBar::update() {
-    if (!s_container)
-        return;
-
     const uint32_t version = ErrorStore::getVersion();
     if (version == s_lastVersion)
         return;
     if (!heapHealthyForLvglUpdate())
         return;
-    s_lastVersion = version;
 
     const uint8_t count = ErrorStore::getCount();
     if (count == 0) {
+        s_lastVersion = version;
+        if (!s_container)
+            return;
         WidgetHelpers::setVisible(s_container, false);
         s_expanded = false;
         return;
     }
+
+    buildBar();
+    if (!s_container)
+        return;
+    s_lastVersion = version;
 
     FwError errors[kMaxRows];
     uint8_t fetched = 0;

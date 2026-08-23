@@ -4,7 +4,6 @@
 
 namespace ErrorBar {
 
-void init();
 void update();
 void reapplyTheme();
 

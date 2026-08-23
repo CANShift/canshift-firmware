@@ -6,8 +6,6 @@
 
 namespace ControlSplash {
 
-void init();
-
 void raiseFor(const ControlVocabulary::Control &control, ControlVocabulary::ControlState state,
               uint8_t level);
 
