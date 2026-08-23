@@ -2,6 +2,7 @@
 
 #include "can/can_manager.h"
 #include "hal/ble/ble_server.h"
+#include "hal/memory/psram.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/usb/usb_comm.h"
 
@@ -47,6 +48,18 @@ namespace TouchDriver {
 void resetCalibration() {}
 
 } // namespace TouchDriver
+
+namespace canshift::hal::memory {
+
+bool isPsramAvailable() {
+#ifdef BOARD_HAS_PSRAM
+    return true;
+#else
+    return false;
+#endif
+}
+
+} // namespace canshift::hal::memory
 
 namespace UsbComm {
 
