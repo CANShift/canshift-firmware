@@ -7,7 +7,7 @@
 #include "ui/font_manager.h"
 #include "diag/logger.h"
 #include "ui/screen_profile.h"
-#include "ui/signal_presentation.h"
+#include "ui/unit_display.h"
 #include "ui/widget_label.h"
 #include "util/format_float.h"
 
@@ -108,18 +108,6 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text) {
     return true;
 }
 
-const char *resolveDisplayUnit(const char *signalId, const char *configSuffix) {
-
-    if (configSuffix && configSuffix[0] != '\0')
-        return configSuffix;
-    if (!signalId || signalId[0] == '\0')
-        return "";
-    const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
-    if (def && def->unit[0] != '\0')
-        return def->unit;
-    return SignalPresentation::unitForSignal(signalId);
-}
-
 float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow) {
     if (!signalId || signalId[0] == '\0')
         return NAN;
@@ -216,17 +204,25 @@ float widestConfiguredValue(const CfgWidget &cfg) {
     return -minValue > maxValue ? minValue : maxValue;
 }
 
+const char *configuredSuffix(const CfgWidget &cfg) {
+    return cfg.type == WidgetType::GAUGE ? cfg.gauge.suffix : cfg.label.suffix;
+}
+
 } // namespace
 
-void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
-                         const char *unit) {
+void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx) {
     if (!font || cfg.layout.w <= 0)
         return;
     const uint8_t decimals =
         cfg.type == WidgetType::GAUGE ? cfg.gauge.decimalPlaces : cfg.label.decimalPlaces;
     const char *prefix = cfg.type == WidgetType::GAUGE ? cfg.gauge.prefix : cfg.label.prefix;
+    const char *suffix = configuredSuffix(cfg);
+    const char *unit = UnitDisplay::displayUnitFor(cfg.signalId, suffix);
     char widest[40];
-    formatValue(widest, sizeof(widest), prefix, decimals, widestConfiguredValue(cfg), nullptr);
+    formatValue(widest, sizeof(widest), prefix, decimals,
+                UnitDisplay::valueFor(widestConfiguredValue(cfg),
+                                      UnitDisplay::convertibleUnitFor(cfg.signalId, suffix)),
+                nullptr);
     int16_t needed = textWidthPx(widest, font, trackingPx);
     if (unit && unit[0] != '\0')
         needed = static_cast<int16_t>(needed + textWidthPx(unit, FontManager::units(), 0));

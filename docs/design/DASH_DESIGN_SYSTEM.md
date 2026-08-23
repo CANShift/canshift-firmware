@@ -130,6 +130,11 @@ Device metrics:
 - **Bar gauge** (only where `DASH_PAGES.json` gives a `bar`): 2 px tall device, ground `CS_TRACK`, fill
   `CS_INK` (or `CS_DANGER` in a danger widget), 4 px above it, right margin matching the widget, square
   ends, no border, no label.
+- **Unit system.** `units` on the dashboard config is `metric` (default) or `imperial`, and it switches
+  both the number and the symbol: `km/h ↔ mph`, `km ↔ mi`, `kPa`/`bar ↔ psi`, `°C ↔ °F`. A unit with no
+  imperial pair — `%`, `V`, `rpm`, `λ` — is untouched. The switch is a presentation step and nothing
+  more: the decoded signal, the thresholds it is compared against, the bar fill and the arc angle all
+  stay in the unit the signal declares, so an alert fires at the same physical value in either system.
 
 ## 6. Button widget
 

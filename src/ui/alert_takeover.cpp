@@ -5,6 +5,7 @@
 #include "ui/alert_sources.h"
 #include "ui/alert_takeover_view.h"
 #include "ui/ota_overlay.h"
+#include "ui/unit_display.h"
 #include "util/format_float.h"
 #include "util/text_join.h"
 
@@ -64,7 +65,9 @@ void hideLayer() {
 
 void refreshValue(const AlertSources::CriticalSource &src) {
     char text[16];
-    FloatFormat::formatFixed(text, sizeof(text), SignalStore::read(src.id), src.decimals);
+    FloatFormat::formatFixed(text, sizeof(text),
+                             UnitDisplay::valueFor(SignalStore::read(src.id), src.unit),
+                             src.decimals);
     if (strcmp(text, s_lastValueText) == 0)
         return;
     strlcpy(s_lastValueText, text, sizeof(s_lastValueText));
@@ -80,9 +83,10 @@ void formatContext(char *out, size_t outLen, const AlertSources::CriticalSource 
         return;
     }
     char limitText[12];
-    FloatFormat::formatFixed(limitText, sizeof(limitText), limit.limit, src.decimals);
+    FloatFormat::formatFixed(limitText, sizeof(limitText),
+                             UnitDisplay::valueFor(limit.limit, src.unit), src.decimals);
     snprintf(out, outLen, "%s %s %s%sAT %d rpm", kLimitWord[limit.below ? 1 : 0], limitText,
-             src.unit, TextJoin::kSeparator, rpm);
+             UnitDisplay::symbolFor(src.unit), TextJoin::kSeparator, rpm);
 }
 
 void refreshContext(const AlertSources::CriticalSource &src) {

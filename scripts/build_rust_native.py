@@ -19,6 +19,7 @@ CRATES = (
     ("timer-core", "libtimer_core.a"),
     ("layout-grid", "liblayout_grid.a"),
     ("control-state", "libcontrol_state.a"),
+    ("unit-convert", "libunit_convert.a"),
 )
 
 
