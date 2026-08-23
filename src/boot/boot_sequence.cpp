@@ -7,6 +7,7 @@
 #include "config/config_loader.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
+#include "diag/lvgl_pool.h"
 #include "hal/usb/usb_comm.h"
 #include "runtime/alert_engine.h"
 #include "runtime/lvgl_lock.h"
@@ -87,11 +88,7 @@ void buildUI() {
     LOG_INFO("BOOT", "Navigating to default page...");
     PageManager::navigateTo(PageManager::getDefaultPageId());
 
-    lv_mem_monitor_t mon;
-    lv_mem_monitor(&mon);
-    LOG_INFO("LVGL", "pool: total=%u free=%u frag=%u%% largest=%u",
-             static_cast<unsigned>(mon.total_size), static_cast<unsigned>(mon.free_size),
-             static_cast<unsigned>(mon.frag_pct), static_cast<unsigned>(mon.free_biggest_size));
+    LvglPool::report("first page build");
 
     for (uint8_t i = 0; i < 8; i++) {
         lv_tick_inc(20);

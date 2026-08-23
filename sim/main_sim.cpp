@@ -4,6 +4,7 @@
 #include "can/signal_map.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
+#include "diag/lvgl_pool.h"
 #include "runtime/alert_engine.h"
 #include "runtime/signal_store.h"
 #include "ui/font_manager.h"
@@ -48,6 +49,7 @@ int main(int argc, char **argv) {
 
     ScreenProfile::initFromDashboard();
     FontManager::init();
+    LvglPool::report("fonts");
     SignalStore::init();
     AlertEngine::init();
     PageManager::init();
@@ -55,6 +57,8 @@ int main(int argc, char **argv) {
         printf("page '%s' not found\n", pageId);
         return 1;
     }
+
+    LvglPool::report("first page build");
 
     SimInjector::init(scenario);
 

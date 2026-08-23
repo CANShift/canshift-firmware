@@ -8,6 +8,7 @@
 #include "config/default_config.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
+#include "diag/lvgl_pool.h"
 #include "hal/display/display_driver.h"
 #include "hal/memory/psram.h"
 #include "hal/storage/lvgl_fs_driver.h"
@@ -177,6 +178,7 @@ void initFontManagerWithHeapLog() {
     FontManager::init();
     LOG_INFO("BOOT", "FontManager ready");
     logHeap("after FontManager");
+    LvglPool::report("fonts");
 }
 
 void preloadIconsWithHeapLog() {
