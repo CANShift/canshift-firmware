@@ -193,12 +193,11 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
         GestureIntent::decide(signedTravelX, travelY, s_gesturePressStartedOnClickable);
 
     if (decision.cancelClick && !s_clickCancelled) {
-        if (s_gesturePressStartedOnClickable) {
-            lv_indev_wait_release(indev);
-        } else {
-            lv_indev_reset_long_press(indev);
-            lv_indev_reset(indev, nullptr);
-        }
+        // wait_until_release is the only sticky cancel: lv_indev_reset clears
+        // act_obj but leaves the next poll free to re-press. With the finger
+        // still down and the page swapped underneath it, that re-press lands a
+        // click on whatever the new page put under the finger.
+        lv_indev_wait_release(indev);
         s_clickCancelled = true;
         LOG_VDEBUG("UI", "press dropped, travel=%d,%d", static_cast<int>(signedTravelX),
                    static_cast<int>(travelY));
