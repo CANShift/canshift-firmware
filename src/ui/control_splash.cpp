@@ -1,7 +1,6 @@
 #include "control_splash.h"
 #include "control_splash_internal.h"
 
-#include "diag/lvgl_pool.h"
 #include "layout_scale.h"
 #include "ui/alert_takeover.h"
 #include "ui/font_manager.h"
@@ -152,8 +151,6 @@ void show(bool visible) {
 bool ensureBuilt() {
     if (s_layer.root)
         return true;
-    if (!LvglPool::hasHeadroomFor(LvglPool::kDeferredSurfaceBytes, "ControlSplash"))
-        return false;
     if (!ControlSplashInternal::build(s_layer)) {
         s_layer = {};
         return false;

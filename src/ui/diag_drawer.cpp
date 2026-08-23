@@ -4,7 +4,6 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
-#include "diag/lvgl_pool.h"
 #include "runtime/signal_store.h"
 #include "layout_scale.h"
 #include "ui/font_manager.h"
@@ -261,8 +260,6 @@ void onHandleGesture(lv_event_t *) {
 
 static void buildPanel() {
     if (s_panel)
-        return;
-    if (!LvglPool::hasHeadroomFor(LvglPool::kDeferredSurfaceBytes, "DiagDrawer"))
         return;
 
     s_panel = lv_obj_create(lv_layer_top());

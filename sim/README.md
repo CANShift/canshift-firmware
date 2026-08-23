@@ -60,36 +60,26 @@ Mouse clicks are the touch input.
 
 ## The LVGL pool is the board's
 
-`env:sim` takes `LV_MEM_SIZE` from the board profile through the same
-`BOARD_HAS_PSRAM` switch in `include/lv_conf.h` that the hardware builds use.
-It stands for the CrowPanel 2.8″, which has no PSRAM, so it gets **80 KB** —
-the same 80 KB the panel gets. It used to hardcode 512 KB, which meant a page
-could build cleanly here and abort on the board (#213, #214). A green sim now
-means something.
+`env:sim` declares `BOARD_HAS_PSRAM` exactly as every board env does, so
+`LV_MEM_SIZE` resolves to the same **512 KB** through the same switch in
+`include/lv_conf.h` — not a number written into `platformio.ini`. `SIM_BUILD`
+keeps the allocator on plain `malloc`: the size follows the board, the
+allocator follows the platform.
 
 Both builds print pool usage at two points, so a capture session shows the
 numbers:
 
 ```
 LVGL  pool after fonts: used=8376/524288 B (1%) frag=0% largest=...
-LVGL  pool after first page build: used=122304/524288 B (23%) frag=1% largest=...
+LVGL  pool after first page build: used=69696/524288 B (13%) frag=1% largest=...
 ```
 
-Today the default config **does not fit the 80 KB build** — `pio run -e sim`
-aborts partway through the first page with `lv_mem_realloc: couldn't allocate
-memory`, which is #259 reproducing exactly as it does on hardware. Measured in
-`sim_psram`, one page plus the shared chrome costs ~122 KB, and that figure is
-the same for all six pages, so the overshoot is not about how many pages there
-are.
+Every shipped board env inherits `BOARD_HAS_PSRAM` from `crowpanel_28`, so
+there is currently no build — simulator or hardware — that runs LVGL on the
+80 KB branch of `lv_conf.h`. If a board without PSRAM is ever added, it needs
+its own env that does *not* inherit that flag, and this sim needs a sibling
+that matches it.
 
-`env:sim_psram` is the opt-in for design work on a page that has not been
-trimmed yet. It stands for the S3 boards, which really do have PSRAM, and it
-reaches 512 KB through the board switch rather than a number written into
-`platformio.ini`. **A green run there proves nothing about a no-PSRAM board.**
-
-```
-pio run -e sim_psram && .pio/build/sim_psram/program data rev street 1500
-```
 
 ## How it works
 

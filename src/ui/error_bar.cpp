@@ -2,7 +2,6 @@
 #include "app_config.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
-#include "diag/lvgl_pool.h"
 #include "layout_scale.h"
 #include "ui/font_manager.h"
 #include "ui/severity.h"
@@ -197,8 +196,6 @@ void renderRows(const FwError *errors, uint8_t fetched) {
 
 void buildBar() {
     if (s_container)
-        return;
-    if (!LvglPool::hasHeadroomFor(LvglPool::kDeferredSurfaceBytes, "ErrorBar"))
         return;
     s_container = createContainer();
     if (!s_container)
