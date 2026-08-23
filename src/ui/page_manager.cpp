@@ -66,8 +66,6 @@ void PageManager::init() {
 
     lv_obj_clean(lv_scr_act());
 
-    ErrorBar::init();
-
     DiagDrawer::init();
 
     if (!dash.loaded) {
@@ -85,7 +83,6 @@ void PageManager::init() {
 
     CutBand::init();
     AlertBanner::init();
-    ControlSplash::init();
     AlertTakeover::init();
 
     LOG_INFO("UI", "PageManager initialized: %d pages", s_pageCount);

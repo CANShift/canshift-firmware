@@ -4,6 +4,7 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
+#include "diag/lvgl_pool.h"
 #include "runtime/signal_store.h"
 #include "layout_scale.h"
 #include "ui/font_manager.h"
@@ -258,11 +259,11 @@ void onHandleGesture(lv_event_t *) {
 
 } // namespace
 
-void init() {
-    if (s_initDone)
+static void buildPanel() {
+    if (s_panel)
         return;
-
-    GestureController::setVerticalSwipeHandler(onVerticalSwipe);
+    if (!LvglPool::hasHeadroomFor(LvglPool::kDeferredSurfaceBytes, "DiagDrawer"))
+        return;
 
     s_panel = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_panel, LV_HOR_RES, LayoutScale::y(PANEL_H));
@@ -323,6 +324,15 @@ void init() {
     lv_obj_add_event_cb(s_tapOutsideZone, onTapOutside, LV_EVENT_CLICKED, nullptr);
     lv_obj_add_flag(s_tapOutsideZone, LV_OBJ_FLAG_HIDDEN);
 
+    LOG_INFO("DIAG_DRAWER", "panel built on first open");
+}
+
+void init() {
+    if (s_initDone)
+        return;
+
+    GestureController::setVerticalSwipeHandler(onVerticalSwipe);
+
     s_handle = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_handle, LayoutScale::x(HANDLE_W), LayoutScale::y(HANDLE_H));
     lv_obj_align(s_handle, LV_ALIGN_BOTTOM_MID, 0, -LayoutScale::y(HANDLE_BOTTOM_MARGIN));
@@ -338,10 +348,11 @@ void init() {
     lv_obj_add_event_cb(s_handle, onHandleGesture, LV_EVENT_GESTURE, nullptr);
 
     s_initDone = true;
-    LOG_INFO("DIAG_DRAWER", "init done — handle + tap-outside + swipe + X");
+    LOG_INFO("DIAG_DRAWER", "init done — handle + swipe");
 }
 
 void open() {
+    buildPanel();
     if (!s_panel)
         return;
     lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -373,11 +384,15 @@ void close() {
 void reapplyTheme() {
     if (!s_initDone)
         return;
-    /* colors are baked in at build time, so rebuild with the current palette */
+    /* colors are baked in at build time, so drop the surfaces and let the next
+       open() rebuild the panel against the current palette */
     close();
-    lv_obj_del(s_panel);
-    lv_obj_del(s_tapOutsideZone);
-    lv_obj_del(s_handle);
+    if (s_panel)
+        lv_obj_del(s_panel);
+    if (s_tapOutsideZone)
+        lv_obj_del(s_tapOutsideZone);
+    if (s_handle)
+        lv_obj_del(s_handle);
     s_panel = nullptr;
     s_closeBtn = nullptr;
     s_tapOutsideZone = nullptr;

@@ -1,6 +1,7 @@
 #include "control_splash.h"
 #include "control_splash_internal.h"
 
+#include "diag/lvgl_pool.h"
 #include "layout_scale.h"
 #include "ui/alert_takeover.h"
 #include "ui/font_manager.h"
@@ -148,22 +149,27 @@ void show(bool visible) {
     WidgetHelpers::setVisible(s_layer.root, visible);
 }
 
-} // namespace
-
-void ControlSplash::init() {
+bool ensureBuilt() {
     if (s_layer.root)
-        return;
+        return true;
+    if (!LvglPool::hasHeadroomFor(LvglPool::kDeferredSurfaceBytes, "ControlSplash"))
+        return false;
     if (!ControlSplashInternal::build(s_layer)) {
         s_layer = {};
-        return;
+        return false;
     }
     s_visible = true;
     show(false);
+    return true;
 }
+
+} // namespace
 
 void ControlSplash::raiseFor(const ControlVocabulary::Control &control,
                              ControlVocabulary::ControlState state, uint8_t level) {
-    if (!s_layer.root || AlertTakeover::isActive())
+    if (AlertTakeover::isActive())
+        return;
+    if (!ensureBuilt())
         return;
     Content content;
     ControlSplashContent::compose(control, state, level, content);
