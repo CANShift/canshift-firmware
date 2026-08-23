@@ -1,0 +1,15 @@
+[package]
+name = "unit-convert"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust port of @canshift/core src/units/convert.ts — the metric/imperial pairs the dash renders in (issue #270). Presentation only; decoded values and thresholds stay in the signal's declared unit."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []

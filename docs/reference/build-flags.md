@@ -71,6 +71,7 @@ invoke the FFI unconditionally, so an env that rebuilds `build_flags` from
 | `USE_RUST_TIMER_CORE`    | `rust/timer-core`    | Lap and stopwatch state                  |
 | `USE_RUST_LAYOUT_GRID`   | `rust/layout-grid`   | Grid cell → pixel rect resolution        |
 | `USE_RUST_CONTROL_STATE` | `rust/control-state` | Cruise and button control state machines |
+| `USE_RUST_UNIT_CONVERT`  | `rust/unit-convert`  | Metric ↔ imperial pairs for the rendered value |
 
 `-Wl,-z,muldefs` accompanies them: the Rust staticlib and newlib both define a
 handful of symbols, and the linker takes the first.

@@ -68,8 +68,6 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
 
 void formatStalePlaceholder(char *out, size_t outLen, float maxValue);
 
-const char *resolveDisplayUnit(const char *signalId, const char *configSuffix);
-
 float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow);
 
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
@@ -85,8 +83,7 @@ lv_obj_t *makeTopRule(lv_obj_t *cont, uint8_t heightPx, uint32_t rgb);
 
 lv_obj_t *makeFlushColumn(lv_obj_t *parent);
 
-void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx,
-                         const char *unit);
+void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx);
 
 void animateFill(lv_obj_t *obj, lv_anim_exec_xcb_t setter, int32_t from, int32_t to);
 

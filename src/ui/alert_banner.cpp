@@ -6,6 +6,7 @@
 #include "top_bar.h"
 #include "ui/alert_sources.h"
 #include "ui/severity.h"
+#include "ui/unit_display.h"
 #include "ui/widgets/widget_helpers.h"
 #include "util/format_float.h"
 #include "util/text_join.h"
@@ -30,9 +31,12 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
         if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
             continue;
         char valBuf[16];
-        FloatFormat::formatFixed(valBuf, sizeof(valBuf), SignalStore::read(src.id), src.decimals);
+        FloatFormat::formatFixed(valBuf, sizeof(valBuf),
+                                 UnitDisplay::valueFor(SignalStore::read(src.id), src.unit),
+                                 src.decimals);
         char part[32];
-        snprintf(part, sizeof(part), "%s %s%s", src.chipLabel, valBuf, src.unit);
+        snprintf(part, sizeof(part), "%s %s%s", src.chipLabel, valBuf,
+                 UnitDisplay::symbolFor(src.unit));
         if (!TextJoin::append(buf, len, used, part))
             return;
     }

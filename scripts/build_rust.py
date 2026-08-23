@@ -84,6 +84,12 @@ CRATES = (
         "libfile": "libcontrol_state.a",
         "include": None,
     },
+    {
+        "flag": "USE_RUST_UNIT_CONVERT=1",
+        "manifest": os.path.join(RUST_DIR, "unit-convert", "Cargo.toml"),
+        "libfile": "libunit_convert.a",
+        "include": None,
+    },
 )
 
 

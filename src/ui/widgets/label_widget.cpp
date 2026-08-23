@@ -5,6 +5,7 @@
 #include "ui/rev_limit_flash.h"
 #include "ui/severity.h"
 #include "ui/theme_manager.h"
+#include "ui/unit_display.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
@@ -54,6 +55,7 @@ struct LabelTag {
     uint32_t lastBarRgb;
     char stalePlaceholder[WidgetHelpers::kStalePlaceholderCap];
     SignalId signal;
+    const char *convertibleUnit;
 };
 
 uint32_t valueRgbFor(const LabelTag *tag, Severity::Level level) {
@@ -104,7 +106,7 @@ lv_obj_t *makeValueLabel(lv_obj_t *valueRow, uint8_t valueSize) {
 }
 
 lv_obj_t *makeUnitLabel(lv_obj_t *valueRow, const CfgWidget &cfg) {
-    const char *unit = WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix);
+    const char *unit = UnitDisplay::displayUnitFor(cfg.signalId, cfg.label.suffix);
     if (unit[0] == '\0')
         return nullptr;
     lv_obj_t *unitLabel = lv_label_create(valueRow);
@@ -168,9 +170,8 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     parts->topRule = WidgetHelpers::makeTopRule(
         cont, parts->rulePx, Severity::baseRuleRgbFor(parts->rulePx, parts->textRgb));
     parts->barFill = makeProgressBar(cont, cfg, parts->textRgb, &parts->barMaxW);
-    WidgetHelpers::reportValueOverflow(
-        cfg, FontManager::value(valueSize), WidgetHelpers::valueTrackingPx(valueSize),
-        WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.label.suffix));
+    WidgetHelpers::reportValueOverflow(cfg, FontManager::value(valueSize),
+                                       WidgetHelpers::valueTrackingPx(valueSize));
     return true;
 }
 
@@ -232,8 +233,10 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->baseTextRgb = parts.textRgb;
     tag->lastTintRgb = 0xFFFFFFFFu;
     tag->lastBarRgb = parts.textRgb;
-    WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
-                                          cfg.label.maxValue);
+    tag->convertibleUnit = UnitDisplay::convertibleUnitFor(cfg.signalId, cfg.label.suffix);
+    WidgetHelpers::formatStalePlaceholder(
+        tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
+        UnitDisplay::valueFor(cfg.label.maxValue, tag->convertibleUnit));
     WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
     tag->signal = signalIdFromName(cfg.signalId);
 }
@@ -284,7 +287,7 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     if (!unchanged) {
         char buf[40];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
-                                   value, nullptr);
+                                   UnitDisplay::valueFor(value, tag->convertibleUnit), nullptr);
         WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastValue = value;
         tag->lastValid = true;

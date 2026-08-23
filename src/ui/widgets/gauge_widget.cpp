@@ -4,6 +4,7 @@
 #include "ui/rev_limit_flash.h"
 #include "ui/severity.h"
 #include "ui/theme_manager.h"
+#include "ui/unit_display.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
@@ -125,6 +126,7 @@ struct GaugeTag {
     char stalePlaceholder[WidgetHelpers::kStalePlaceholderCap];
     SignalId signal;
     Severity::Level cutLevel;
+    const char *convertibleUnit;
 };
 
 static uint32_t gaugeInkFor(const GaugeTag *tag, Severity::Level level) {
@@ -262,8 +264,10 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->revFlash = cfg.gauge.revFlash;
     tag->lastLimiting = false;
-    WidgetHelpers::formatStalePlaceholder(tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
-                                          cfg.gauge.maxValue);
+    tag->convertibleUnit = UnitDisplay::convertibleUnitFor(cfg.signalId, cfg.gauge.suffix);
+    WidgetHelpers::formatStalePlaceholder(
+        tag->stalePlaceholder, sizeof(tag->stalePlaceholder),
+        UnitDisplay::valueFor(cfg.gauge.maxValue, tag->convertibleUnit));
     WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, tag->stalePlaceholder);
     tag->signal = signalIdFromName(cfg.signalId);
     tag->cutLevel = Severity::Level::INFORMATION;
@@ -291,9 +295,7 @@ lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
 
     uint8_t valueFontPx = kValueFontSizeUnits;
     const lv_font_t *valueFont = resolveValueFont(cfg, valueFontPx);
-    WidgetHelpers::reportValueOverflow(
-        cfg, valueFont, WidgetHelpers::valueTrackingPx(valueFontPx),
-        WidgetHelpers::resolveDisplayUnit(cfg.signalId, cfg.gauge.suffix));
+    WidgetHelpers::reportValueOverflow(cfg, valueFont, WidgetHelpers::valueTrackingPx(valueFontPx));
 
     const bool primaryTier = WidgetHelpers::scaledBox(cfg).h >= kValueFontHeightPrimary;
     const uint8_t rulePx = primaryTier ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx;
@@ -373,11 +375,12 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
 
     Severity::repaint(tag->severity, level);
 
-    const int32_t displayScaled = scaleForDisplay(value, cfg.gauge.decimalPlaces);
+    const float shown = UnitDisplay::valueFor(value, tag->convertibleUnit);
+    const int32_t displayScaled = scaleForDisplay(shown, cfg.gauge.decimalPlaces);
     if (displayScaled != tag->lastDisplayScaled) {
         char buf[24];
         WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
-                                   value, nullptr);
+                                   shown, nullptr);
         WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastDisplayScaled = displayScaled;
     }

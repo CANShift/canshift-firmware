@@ -19,12 +19,32 @@ namespace ConfigLoaderInternal {
 
 namespace {
 
+struct UnitSystemName {
+    const char *name;
+    CfgUnitSystem system;
+};
+
+constexpr UnitSystemName kUnitSystems[] = {
+    {"metric", CfgUnitSystem::METRIC},
+    {"imperial", CfgUnitSystem::IMPERIAL},
+};
+
+CfgUnitSystem parseUnitSystem(const char *raw) {
+    for (const UnitSystemName &entry : kUnitSystems) {
+        if (strcmp(raw, entry.name) == 0)
+            return entry.system;
+    }
+    LOG_WARN("CFG", "dashboard.json: units '%s' unknown — rendering metric", raw);
+    return CfgUnitSystem::METRIC;
+}
+
 void parseDashboardHeader(const JsonDocument &doc, CfgDashboard *out) {
     strlcpy(out->version, doc["version"] | "", sizeof(out->version));
     checkSchemaVersion("dashboard.json", out->version);
     strlcpy(out->name, doc["name"] | "", sizeof(out->name));
     strlcpy(out->defaultPageId, doc["defaultPageId"] | "", sizeof(out->defaultPageId));
     out->revLimitRpm = doc["revLimitRpm"] | 7200.0f;
+    out->units = parseUnitSystem(doc["units"] | "metric");
     strlcpy(out->targetProfile, doc["targetProfile"] | "crowpanel-28", sizeof(out->targetProfile));
     const char *rawDayNightSignal = doc["dayNightSignal"] | "";
     if (strlcpy(out->dayNightSignal, rawDayNightSignal, sizeof(out->dayNightSignal)) >=

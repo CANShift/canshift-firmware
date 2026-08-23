@@ -283,11 +283,17 @@ struct CfgTheme {
     CfgColor textDim;
 };
 
+enum class CfgUnitSystem : uint8_t {
+    METRIC = 0,
+    IMPERIAL = 1,
+};
+
 struct CfgDashboard {
     char version[16];
     char name[CFG_MAX_NAME_LEN];
     char defaultPageId[CFG_MAX_ID_LEN];
     float revLimitRpm;
+    CfgUnitSystem units = CfgUnitSystem::METRIC;
     char targetProfile[CFG_MAX_PROFILE_ID_LEN];
     CfgTopBar topBar;
     bool hasTheme;
