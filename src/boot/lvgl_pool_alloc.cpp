@@ -3,6 +3,7 @@
 #include "diag/logger.h"
 
 #include <Arduino.h>
+#include <esp_system.h>
 
 #ifndef SIM_BUILD
     #include <esp_heap_caps.h>
@@ -11,8 +12,6 @@
 #endif
 
 namespace {
-
-constexpr uint32_t kFatalRelogMs = 5000;
 
 // The real trigger is a module whose PSRAM is absent or refuses the pool, which
 // no board on the bench does. Build with -DLVGL_POOL_FORCE_FAIL=<n> to make the
@@ -39,16 +38,21 @@ void *allocTier(size_t size, Tier tier) {
 
 // Returning NULL is not an option: lv_tlsf_create() only rejects a misaligned
 // pointer, and NULL is aligned, so it would run control_constructor() straight
-// through address 0. Halting keeps the reason on the wire instead of trading it
-// for a reset loop.
-[[noreturn]] void haltUnpooled(size_t size) {
-    for (;;) {
-        LOG_ERROR("LVGL",
-                  "no pool: %u B unavailable from PSRAM and internal RAM. The UI cannot start. "
-                  "This build asserts BOARD_HAS_PSRAM — check the module actually carries it.",
-                  static_cast<unsigned>(size));
-        delay(kFatalRelogMs);
-    }
+// through address 0.
+//
+// Restarting rather than halting is what arms the recovery this project already
+// has: a freshly flashed image stays PENDING_VERIFY until the UI loop marks it
+// valid, so an image that dies here gets rolled back to the last known-good one.
+// A halt never reboots, so the rollback never fires and the board stays on the
+// bad image. Same shape as canshift_lvgl_assert_handler.
+[[noreturn]] void restartUnpooled(size_t size) {
+    LOG_ERROR("LVGL",
+              "no pool: %u B unavailable from PSRAM and internal RAM — restarting. This build "
+              "asserts BOARD_HAS_PSRAM; check the module actually carries it.",
+              static_cast<unsigned>(size));
+    delay(50);
+    esp_restart();
+    for (;;) {}
 }
 
 } // namespace
@@ -65,5 +69,5 @@ extern "C" void *canshift_lvgl_pool_alloc(size_t size) {
         return pool;
     }
 
-    haltUnpooled(size);
+    restartUnpooled(size);
 }
