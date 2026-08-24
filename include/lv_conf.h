@@ -27,8 +27,8 @@
 
         #if LV_MEM_ADR == 0U
             #if defined(BOARD_HAS_PSRAM) && !defined(SIM_BUILD)
-                #define LV_MEM_POOL_INCLUDE "esp_heap_caps.h"
-                #define LV_MEM_POOL_ALLOC(size) heap_caps_malloc((size), MALLOC_CAP_SPIRAM)
+                #define LV_MEM_POOL_INCLUDE "lvgl_pool_alloc.h"
+                #define LV_MEM_POOL_ALLOC(size) canshift_lvgl_pool_alloc((size))
             #else
                 #define LV_MEM_POOL_INCLUDE <stdlib.h>
                 #define LV_MEM_POOL_ALLOC malloc
