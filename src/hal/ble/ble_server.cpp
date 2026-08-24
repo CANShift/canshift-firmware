@@ -54,7 +54,7 @@ bool s_connected = false;
 
 static bool s_enabled = false;
 
-static std::atomic<int8_t> s_pendingEnabled{-1};
+static std::atomic<bool> s_stopRequested{false};
 
 namespace {
 
@@ -365,19 +365,12 @@ bool startStack() {
 void reportStartFailure() {
     LOG_ERROR("BLE", "BLE stack start failed");
     ErrorStore::push(ERROR_SRC_SYSTEM, "ble_start", "BLE stack start failed");
-    BleServer::setPendingEnabled(false);
+    BleServer::requestStop();
 }
 
 } // namespace
 
 void BleServer::earlyInit() {
-    const bool enabled = NvsStore::getUChar("screen_cfg", "ble_en", BLE_DEFAULT_ENABLED) != 0;
-
-    if (!enabled) {
-        LOG_INFO("BLE", "BLE disabled in NVS — skipping early init");
-        return;
-    }
-
     const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
     if (avail < BLE_MIN_HEAP) {
         LOG_WARN("BLE", "Insufficient contiguous DRAM for BLE early init (%u B < %u B)",
@@ -400,10 +393,6 @@ void BleServer::earlyInit() {
 }
 
 void BleServer::init() {
-    if (!SettingsPage::getBleEnabled()) {
-        LOG_INFO("BLE", "BLE disabled by user setting — skipping init");
-        return;
-    }
     if (!startStack()) {
         reportStartFailure();
         return;
@@ -448,12 +437,12 @@ bool BleServer::isEnabled() {
     return s_enabled;
 }
 
-void BleServer::setPendingEnabled(bool enabled) {
-    s_pendingEnabled.store(enabled ? 1 : 0, std::memory_order_relaxed);
+void BleServer::requestStop() {
+    s_stopRequested.store(true, std::memory_order_relaxed);
 }
 
-int8_t BleServer::takePendingEnabled() {
-    return s_pendingEnabled.exchange(-1, std::memory_order_relaxed);
+bool BleServer::takeStopRequest() {
+    return s_stopRequested.exchange(false, std::memory_order_relaxed);
 }
 
 void BleServer::tick() {

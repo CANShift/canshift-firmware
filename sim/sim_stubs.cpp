@@ -75,7 +75,7 @@ bool isEnabled() {
     return true;
 }
 
-void setPendingEnabled(bool) {}
+void requestStop() {}
 
 bool isConnected() {
     return false;

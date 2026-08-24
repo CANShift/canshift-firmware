@@ -510,11 +510,8 @@ void taskBLE(void *pvParameters) {
 
     TickType_t lastWake = xTaskGetTickCount();
     while (true) {
-        const int8_t pending = BleServer::takePendingEnabled();
-        if (pending == 0) {
+        if (BleServer::takeStopRequest()) {
             BleServer::stop();
-        } else if (pending == 1) {
-            BleServer::start();
         }
         BleServer::tick();
 

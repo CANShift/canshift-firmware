@@ -27,12 +27,6 @@ end of a swipe was ambiguous before).
 0–100 %. Persisted to NVS under namespace `screen_cfg`. Applied to the TFT
 backlight PWM in real time as you drag.
 
-### BLE toggle
-
-ON / OFF. Persisted to NVS. Changes apply at next boot — toggling at runtime
-shows a "Reboot to apply" hint. Turn off if you don't pair with the mobile app
-and want to free the ~50 KB DRAM NimBLE reserves.
-
 ### Calibrate touch
 
 Runs an interactive 3-point calibration. Settings closes itself first so the
@@ -47,7 +41,7 @@ navigate to reboot.
 ### Save / Reset buttons
 
 **Save** writes all current values to NVS and closes the panel. **Reset**
-restores brightness + BLE to their compile-time defaults — does not touch
+restores brightness to its compile-time default — does not touch
 touch calibration.
 
 ## What's not in Settings

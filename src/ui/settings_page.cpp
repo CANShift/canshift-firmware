@@ -30,7 +30,6 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     y += LayoutScale::y(GAP_ROW);
     buildDayModeRow(y, rowW);
     y += LayoutScale::y(GAP_ROW);
-    buildBleRow(y, rowW);
     y += LayoutScale::y(GAP_ROW);
     if (canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
         buildCalibrateTouchRow(y, rowW);
@@ -86,10 +85,6 @@ bool SettingsPage::isOpen() {
 
 uint8_t SettingsPage::getBrightness() {
     return s_brightness;
-}
-
-bool SettingsPage::getBleEnabled() {
-    return s_bleEnabled;
 }
 
 int16_t SettingsPage::getOpenY() {

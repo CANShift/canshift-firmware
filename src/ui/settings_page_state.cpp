@@ -2,7 +2,6 @@
 
 #include "settings_page.h"
 #include "app_config.h"
-#include "hal/ble/ble_server.h"
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "runtime/pending_actions.h"
@@ -22,17 +21,12 @@ namespace SettingsPageInternal {
 
 static constexpr char NVS_NS[] = "screen_cfg";
 static constexpr char KEY_BRIGHTNESS[] = "brightness";
-static constexpr char KEY_BLE_ENABLED[] = "ble_en";
-
-static constexpr bool DEFAULT_BLE_ENABLED = (BLE_DEFAULT_ENABLED != 0);
 
 uint8_t s_brightness = DEFAULT_BRIGHTNESS;
-bool s_bleEnabled = DEFAULT_BLE_ENABLED;
 
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_brSlider = nullptr;
 lv_obj_t *s_brValue = nullptr;
-lv_obj_t *s_bleBtns[2] = {};
 lv_obj_t *s_dayBtns[2] = {};
 lv_obj_t *s_resetTouchCalBtn = nullptr;
 lv_obj_t *s_resetTouchCalLabel = nullptr;
@@ -50,7 +44,6 @@ void nvsLoad() {
     Preferences p;
     p.begin(NVS_NS, true);
     s_brightness = p.getUChar(KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
-    s_bleEnabled = p.getUChar(KEY_BLE_ENABLED, DEFAULT_BLE_ENABLED ? 1 : 0) != 0;
     p.end();
 
     if (s_brightness < 10 || s_brightness > 100)
@@ -58,14 +51,13 @@ void nvsLoad() {
 }
 
 void nvsSave() {
-    const bool saved = NvsStore::putUChar(NVS_NS, KEY_BRIGHTNESS, s_brightness) &&
-                       NvsStore::putUChar(NVS_NS, KEY_BLE_ENABLED, s_bleEnabled ? 1 : 0);
+    const bool saved = NvsStore::putUChar(NVS_NS, KEY_BRIGHTNESS, s_brightness);
     if (!saved) {
         LOG_ERROR("Settings", "NVS write failed — settings not persisted");
         ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "settings not persisted");
         return;
     }
-    LOG_INFO("Settings", "Saved — brightness=%d%% ble=%d", s_brightness, s_bleEnabled ? 1 : 0);
+    LOG_INFO("Settings", "Saved — brightness=%d%%", s_brightness);
 }
 
 static inline uint8_t brightnessToBacklight(uint8_t pct) {
@@ -82,21 +74,6 @@ void updateBrValue() {
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", s_brightness);
     lv_label_set_text(s_brValue, buf);
-}
-
-void updateBleButtons() {
-    const bool active[2] = {s_bleEnabled, !s_bleEnabled};
-    for (uint8_t i = 0; i < 2; ++i) {
-        if (!s_bleBtns[i])
-            continue;
-        lv_obj_set_style_bg_color(s_bleBtns[i], lv_color_hex(active[i] ? CLR_BTN_ACT : CLR_BTN_BG),
-                                  LV_PART_MAIN);
-        lv_obj_set_style_border_color(
-            s_bleBtns[i], lv_color_hex(active[i] ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
-        lv_obj_t *lbl = lv_obj_get_child(s_bleBtns[i], 0);
-        if (lbl)
-            lv_obj_set_style_text_color(lbl, lv_color_hex(active[i] ? CLR_ACCENT : CLR_MUTED), 0);
-    }
 }
 
 void updateDayModeButtons() {
@@ -120,20 +97,6 @@ void onBrightnessChanged(lv_event_t *e) {
     s_brightness = static_cast<uint8_t>(lv_slider_get_value(slider));
     updateBrValue();
     applyBrightness();
-}
-
-void onBleBtn(lv_event_t *e) {
-    uint32_t idx = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-    const bool wantEnabled = (idx == 0);
-    if (wantEnabled == s_bleEnabled)
-        return;
-    s_bleEnabled = wantEnabled;
-    updateBleButtons();
-    nvsSave();
-#if APP_BLE_ENABLED
-    BleServer::setPendingEnabled(s_bleEnabled);
-#endif
-    LOG_INFO("Settings", "BLE %s — reboot to apply", s_bleEnabled ? "enabled" : "disabled");
 }
 
 void onCalibrateTouch(lv_event_t *) {
@@ -254,15 +217,10 @@ void onSave(lv_event_t *) {
 
 void onReset(lv_event_t *) {
     s_brightness = DEFAULT_BRIGHTNESS;
-    s_bleEnabled = DEFAULT_BLE_ENABLED;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();
-    updateBleButtons();
     applyBrightness();
-#if APP_BLE_ENABLED
-    BleServer::setPendingEnabled(s_bleEnabled);
-#endif
 }
 
 } // namespace SettingsPageInternal
