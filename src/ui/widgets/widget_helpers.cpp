@@ -143,18 +143,11 @@ void resetContainerStyle(lv_obj_t *obj) {
 }
 
 lv_obj_t *makeSquareBadge(lv_obj_t *parent, int16_t side, uint32_t rgb) {
-    lv_obj_t *badge = makeCircleBadge(parent, side, rgb);
-    if (badge)
-        lv_obj_set_style_radius(badge, 0, LV_PART_MAIN);
-    return badge;
-}
-
-lv_obj_t *makeCircleBadge(lv_obj_t *parent, int16_t diameter, uint32_t rgb) {
     lv_obj_t *badge = lv_obj_create(parent);
     if (!badge)
         return nullptr;
-    lv_obj_set_size(badge, diameter, diameter);
-    lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_size(badge, side, side);
+    lv_obj_set_style_radius(badge, 0, LV_PART_MAIN);
     lv_obj_set_style_bg_color(badge, lv_color_hex(rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(badge, 0, LV_PART_MAIN);

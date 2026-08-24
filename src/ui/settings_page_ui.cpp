@@ -105,15 +105,6 @@ lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height) {
     return panel;
 }
 
-void buildHeader(int16_t &y) {
-    lv_obj_t *title = lv_label_create(s_panel);
-    lv_label_set_text(title, "SCREEN SETTINGS");
-    lv_obj_set_style_text_font(title, FONT_LG(), 0);
-    lv_obj_set_style_text_color(title, lv_color_hex(CLR_TEXT), 0);
-    lv_obj_set_pos(title, LayoutScale::x(PAD_H), y);
-    y += HEADER_H;
-}
-
 void buildBrightnessRow(int16_t &y, int16_t rowW) {
     lv_obj_t *row = lv_obj_create(s_panel);
     lv_obj_set_pos(row, LayoutScale::x(PAD_H), y);

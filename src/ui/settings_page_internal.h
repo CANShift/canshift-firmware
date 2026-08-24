@@ -20,10 +20,11 @@ static constexpr int16_t PAD_H = 8;
 static constexpr int16_t SLIDER_H = 16;
 static constexpr int16_t LABEL_H = 14;
 
-static constexpr int16_t BTN_H = 56;
+// DASH_DESIGN_SYSTEM.md §6 puts the floor for a button at 48; the panel
+// fits one screen at that height and scrolls at anything taller.
+static constexpr int16_t BTN_H = 48;
 static constexpr int16_t GAP_ROW = 10;
 static constexpr int16_t GAP_INNER = 6;
-static constexpr int16_t HEADER_H = 18;
 
 static constexpr uint32_t SNAP_ANIM_MS = 180;
 
@@ -70,7 +71,6 @@ void updateDayModeButtons();
 void computePanelGeometry(int16_t yOffset, int16_t height);
 lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height);
 
-void buildHeader(int16_t &y);
 void buildBrightnessRow(int16_t &y, int16_t rowW);
 
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW);

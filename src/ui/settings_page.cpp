@@ -24,12 +24,9 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     s_panel = createPanel(yOffset, panelW, height);
 
     int16_t y = 6;
-    buildHeader(y);
-    y += LayoutScale::y(GAP_ROW);
     buildBrightnessRow(y, rowW);
     y += LayoutScale::y(GAP_ROW);
     buildDayModeRow(y, rowW);
-    y += LayoutScale::y(GAP_ROW);
     y += LayoutScale::y(GAP_ROW);
     if (canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
         buildCalibrateTouchRow(y, rowW);
