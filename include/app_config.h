@@ -136,10 +136,6 @@ inline constexpr float BATTERY_DEFAULT_HIGH_CRIT_V = 16.0f;
     #define APP_BLE_ENABLED 1
 #endif
 
-#ifndef BLE_DEFAULT_ENABLED
-    #define BLE_DEFAULT_ENABLED 1
-#endif
-
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120
 #endif

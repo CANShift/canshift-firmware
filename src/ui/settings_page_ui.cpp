@@ -143,27 +143,6 @@ void buildBrightnessRow(int16_t &y, int16_t rowW) {
     y += SLIDER_H;
 }
 
-void buildBleRow(int16_t &y, int16_t rowW) {
-    lv_obj_t *lbl = lv_label_create(s_panel);
-    lv_label_set_text(lbl, "MOBILE PAIRING");
-    lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_set_pos(lbl, LayoutScale::x(PAD_H), y);
-    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
-
-    const int16_t gap = 4;
-    const int16_t btnW = (rowW - gap) / 2;
-    const char *const bleLabels[2] = {"ON", "OFF"};
-    for (uint8_t i = 0; i < 2; ++i) {
-        bool active = (i == 0) ? s_bleEnabled : !s_bleEnabled;
-        s_bleBtns[i] = makeSegButton(s_panel, bleLabels[i], active, onBleBtn,
-                                     reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-        lv_obj_set_pos(s_bleBtns[i], LayoutScale::x(PAD_H) + i * (btnW + gap), y);
-        lv_obj_set_size(s_bleBtns[i], btnW, BTN_H);
-    }
-    y += BTN_H;
-}
-
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW) {
     lv_obj_t *btn = makeFullButton(s_panel, "CALIBRATE TOUCH", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
                                    onCalibrateTouch);

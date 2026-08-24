@@ -33,12 +33,10 @@ static constexpr uint32_t REBOOT_LONG_PRESS_MS = 3000;
 static constexpr uint32_t RESET_FEEDBACK_MS = 3000;
 
 extern uint8_t s_brightness;
-extern bool s_bleEnabled;
 
 extern lv_obj_t *s_panel;
 extern lv_obj_t *s_brSlider;
 extern lv_obj_t *s_brValue;
-extern lv_obj_t *s_bleBtns[2];
 extern lv_obj_t *s_dayBtns[2];
 extern lv_obj_t *s_resetTouchCalBtn;
 extern lv_obj_t *s_resetTouchCalLabel;
@@ -58,10 +56,8 @@ void nvsSave();
 void applyBrightness();
 
 void updateBrValue();
-void updateBleButtons();
 
 void onBrightnessChanged(lv_event_t *e);
-void onBleBtn(lv_event_t *e);
 void onCalibrateTouch(lv_event_t *e);
 void onResetTouchCal(lv_event_t *e);
 void onDayModeBtn(lv_event_t *e);
@@ -77,7 +73,6 @@ lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height);
 void buildHeader(int16_t &y);
 void buildBrightnessRow(int16_t &y, int16_t rowW);
 
-void buildBleRow(int16_t &y, int16_t rowW);
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW);
 void buildResetTouchCalRow(int16_t &y, int16_t rowW);
 void buildDayModeRow(int16_t &y, int16_t rowW);

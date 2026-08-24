@@ -45,8 +45,7 @@ runtime detect in `src/hal/memory/psram.cpp` handles it.
 
 | Flag                  | Default | Effect                                                                                                                      |
 | --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `APP_BLE_ENABLED`     | `1`     | `0` excludes NimBLE entirely (~30 KB DRAM saved).                                                                           |
-| `BLE_DEFAULT_ENABLED` | `1`     | Whether BLE starts enabled at boot when NimBLE is compiled in. The user's Settings toggle overrides it and persists in NVS. |
+| `APP_BLE_ENABLED` | `1`     | `0` excludes NimBLE entirely (~30 KB DRAM saved). This is the only switch — there is no runtime toggle. |
 
 USB CDC is not behind a flag — it is the primary transport and always compiled
 in. See [Transports](../architecture/transports.md).

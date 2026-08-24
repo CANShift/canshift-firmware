@@ -82,8 +82,8 @@ frame. The deduper is reset when the subscriber count rises.
 `BleServer::earlyInit()` runs from `boot_sequence.cpp::initBleEarlyIfEnabled`,
 **before** `initDisplayHardware()` — NimBLE needs a large contiguous DRAM
 block, and the display driver shrinks the largest free block once it comes
-up. Early init reads the `ble_en` flag from the `screen_cfg` NVS namespace
-(default `BLE_DEFAULT_ENABLED`) and skips entirely when disabled.
+up. There is no runtime enable: BLE comes up whenever `APP_BLE_ENABLED` is
+compiled in and the heap gates below allow it.
 
 Two heap gates guard the stack:
 
