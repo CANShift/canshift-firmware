@@ -20,19 +20,9 @@ constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 SwipeHandler s_swipeHandler = nullptr;
 bool s_gesturePressStartedOnClickable = false;
 
-void onGesture(lv_indev_t *indev, lv_dir_t dir) {
-    if (SettingsPage::isDragging())
+void onGesture(lv_dir_t dir) {
+    if (SettingsPage::isOpen() || SettingsPage::isDragging())
         return;
-
-    if (SettingsPage::isOpen()) {
-        if (dir != LV_DIR_TOP)
-            return;
-        SettingsPage::close();
-        // The finger is still down and the page underneath is now exposed —
-        // without this the release lands a click on it (#288).
-        lv_indev_wait_release(indev);
-        return;
-    }
 
     if (s_gesturePressStartedOnClickable)
         return;
@@ -187,11 +177,26 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
     if (s_clickCancelled && s_swipeFiredThisPress)
         return;
 
-    if (SettingsPage::isOpen() || SettingsPage::isDragging())
+    if (SettingsPage::isDragging())
         return;
 
     const int16_t signedTravelX = static_cast<int16_t>(p.x - s_pressStartX);
-    const int16_t travelY = static_cast<int16_t>(abs(p.y - s_pressStartY));
+    const int16_t signedTravelY = static_cast<int16_t>(p.y - s_pressStartY);
+    const int16_t travelY = static_cast<int16_t>(abs(signedTravelY));
+
+    if (SettingsPage::isOpen()) {
+        if (s_clickCancelled || !GestureIntent::closesSettings(signedTravelY, signedTravelX))
+            return;
+        // snapClosed, not close: the drag path already slides the panel out and
+        // the swipe is the same gesture family, so it uses the same motion
+        // rather than a second, instant one.
+        SettingsPage::snapClosed();
+        // The finger is still down and the page underneath is now exposed —
+        // without this the release lands a click on it (#288).
+        lv_indev_wait_release(indev);
+        s_clickCancelled = true;
+        return;
+    }
     const GestureIntent::Decision decision =
         GestureIntent::decide(signedTravelX, travelY, s_gesturePressStartedOnClickable);
 
@@ -244,7 +249,7 @@ void checkGestures() {
             } else {
                 lv_dir_t dir = lv_indev_get_gesture_dir(indev);
                 if (dir != LV_DIR_NONE && dir != lastDir) {
-                    onGesture(indev, dir);
+                    onGesture(dir);
                     lastDir = dir;
                 }
             }

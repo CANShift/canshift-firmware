@@ -31,4 +31,11 @@ Decision decide(int16_t travelXSigned, int16_t travelY, bool startedOnClickable)
     return {travel >= kTapTravelLimitPx || horizontalDominates, horizontalDominates, swipeLeft};
 }
 
+bool closesSettings(int16_t travelYSigned, int16_t travelX) {
+    if (travelYSigned > -kSettingsCloseTravelPx)
+        return false;
+    const int16_t travelY = magnitude(travelYSigned);
+    return travelY > kSwipeThroughAxisRatio * magnitude(travelX);
+}
+
 } // namespace GestureIntent

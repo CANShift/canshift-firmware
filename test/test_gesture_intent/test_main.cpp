@@ -2,6 +2,7 @@
 
 #include <unity.h>
 
+using GestureIntent::closesSettings;
 using GestureIntent::decide;
 using GestureIntent::Decision;
 
@@ -51,6 +52,27 @@ void test_directionFollowsTheSignOfTravel() {
     TEST_ASSERT_FALSE(decide(60, 0, true).swipeLeft);
 }
 
+void test_closesSettings_upwardSwipePastThreshold() {
+    TEST_ASSERT_TRUE(closesSettings(-40, 0));
+    TEST_ASSERT_TRUE(closesSettings(-32, 5));
+}
+
+void test_closesSettings_downwardTravelNeverCloses() {
+    TEST_ASSERT_FALSE(closesSettings(40, 0));
+    TEST_ASSERT_FALSE(closesSettings(100, 0));
+}
+
+void test_closesSettings_shortTravelIsNotASwipe() {
+    TEST_ASSERT_FALSE(closesSettings(-31, 0));
+    TEST_ASSERT_FALSE(closesSettings(-5, 0));
+}
+
+void test_closesSettings_horizontalDominatedTravelIsNotAClose() {
+    TEST_ASSERT_FALSE(closesSettings(-40, 40));
+    TEST_ASSERT_FALSE(closesSettings(-40, -40));
+    TEST_ASSERT_FALSE(closesSettings(-40, 20));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_aTapIsNeitherCancelledNorASwipe);
@@ -60,5 +82,9 @@ int main(int, char **) {
     RUN_TEST(test_aShortWobbleStaysAClick);
     RUN_TEST(test_offAClickableAnyHorizontalTravelSwipes);
     RUN_TEST(test_directionFollowsTheSignOfTravel);
+    RUN_TEST(test_closesSettings_upwardSwipePastThreshold);
+    RUN_TEST(test_closesSettings_downwardTravelNeverCloses);
+    RUN_TEST(test_closesSettings_shortTravelIsNotASwipe);
+    RUN_TEST(test_closesSettings_horizontalDominatedTravelIsNotAClose);
     return UNITY_END();
 }
