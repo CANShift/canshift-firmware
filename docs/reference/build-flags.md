@@ -87,9 +87,15 @@ handful of symbols, and the linker takes the first.
 
 ### Exercising the pool allocator's failure path
 
-`canshift_lvgl_pool_alloc()` tries PSRAM, then internal RAM, then halts —
+`canshift_lvgl_pool_alloc()` tries PSRAM, then internal RAM, then restarts —
 returning `NULL` would make `lv_tlsf_create()` write through address 0, since it
 only checks alignment and `NULL` is aligned (#290).
+
+It restarts rather than halting because that is what arms the recovery already in
+the tree: `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` leaves a freshly flashed image
+`PENDING_VERIFY` until the UI loop has rendered `UI_OTA_VALID_FRAMES`, so an
+image that dies here is rolled back to the last known-good one. A halt never
+reboots, so the rollback never fires and the board stays on the bad image.
 
 The real trigger is a module whose PSRAM is absent or refuses the pool, which no
 board here has. `LVGL_POOL_FORCE_FAIL` stands in for it:
@@ -98,7 +104,7 @@ board here has. `LVGL_POOL_FORCE_FAIL` stands in for it:
 | ----: | --- | --- |
 | `0` | nothing | normal boot, pool from PSRAM |
 | `1` | PSRAM | `pool of N B came from internal RAM — PSRAM refused it`, then a boot that dies for want of 512 KB of DRAM |
-| `2` | PSRAM and internal RAM | the halt: `no pool: N B unavailable…` every 5 s, no reset loop, no panic at address 0 |
+| `2` | PSRAM and internal RAM | `no pool: N B unavailable… — restarting`, then a reboot, and on hardware a rollback rather than a panic at address 0 |
 
 ```
 pio run -e waveshare_s3_28 -t upload --build-flag="-DLVGL_POOL_FORCE_FAIL=2"
