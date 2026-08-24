@@ -151,9 +151,8 @@ each flag as its own entry with `byteLength: 1` + `bitMask`:
 }
 ```
 
-The firmware's diag drawer ([`src/ui/diag_drawer.cpp`](../../src/ui/diag_drawer.cpp))
-surfaces these as labelled dots automatically — the names match the
-`SignalIds::FLAG_*` constants.
+Bind them to warning widgets or to a top-bar `modeFlag` item to see them on
+the dash — the names match the `SignalIds::FLAG_*` constants.
 
 ### Outbound frames
 
@@ -235,13 +234,11 @@ running a frame injector sketch), feed the device known frames and watch
 the dashboard react. The setup screen → dashboard transition will happen
 the moment a valid `signals.json` is pushed, even with no live bus.
 
-The diag drawer is your friend here. Swipe-up from the bottom (or tap the
-`▴ DIAG` strip) to see:
-
-- ECU flag bits, lit when active.
-- The 2×2 status grid (RPM, TPS, coolant, battery).
-- Any firmware-level errors (CAN bus off, parse errors, config reload
-  failures) accumulated since boot.
+Put the signals you are bringing up on a page and watch them directly — a
+warning widget per flag bit, value widgets for RPM, TPS, coolant and battery.
+Firmware-level problems (CAN bus off, parse errors, config reload failures)
+raise the error bar over whatever page you are on, and the tuner's live data
+panel shows the same decode without touching the dash at all.
 
 ### On car
 

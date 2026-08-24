@@ -8,7 +8,7 @@ CANShift is a small ESP32 touch screen wired to your car's CAN bus. It listens f
 - A **tuner** open in a Chromium tab on a laptop — drag-and-drop pages, ECU profile picker, live preview, CAN scan.
 - A **mobile companion** (optional) that mirrors telemetry over BLE when the laptop isn't in the car.
 
-The dash boots in ~2 seconds, holds a 2-second splash so you can read the version, then drops you onto the page you marked as default. Swipe sideways for other pages, swipe down for Settings, swipe up for the diag drawer.
+The dash boots in ~2 seconds, holds a 2-second splash so you can read the version, then drops you onto the page you marked as default. Swipe sideways for other pages, swipe down for Settings.
 
 ## What runs where
 

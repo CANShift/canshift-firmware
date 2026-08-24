@@ -4,7 +4,6 @@
 #include "bus_silent_line.h"
 #include "burn_overlay.h"
 #include "cut_band.h"
-#include "diag_drawer.h"
 #include "error_bar.h"
 #include "icon_assets.h"
 #include "dash_metrics.h"
@@ -207,7 +206,6 @@ void reapplyThemeAllPages() {
     ErrorBar::reapplyTheme();
     BusSilentLine::reapplyTheme();
     CutBand::reapplyTheme();
-    DiagDrawer::reapplyTheme();
 }
 
 } // namespace PageManagerInternal

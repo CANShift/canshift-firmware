@@ -66,7 +66,7 @@ same value without EMA blending. Used by:
 - The button widget's optimistic-write path. A toggle button binds to a
   flag signal; on click the button updates the local visual AND writes
   the new value to SignalStore so any other widget watching that signal
-  (DiagDrawer ECU flags, top bar mode badge) reflects the press
+  (top bar mode badge) reflects the press
   immediately instead of waiting for the ECU echo (#1285).
 - Input bindings that target a signal directly (#833).
 

@@ -18,7 +18,6 @@ constexpr int16_t DRAG_HOTZONE_MAX_PX = 40;
 constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 
 SwipeHandler s_swipeHandler = nullptr;
-VerticalSwipeHandler s_verticalSwipeHandler = nullptr;
 bool s_gesturePressStartedOnClickable = false;
 
 void onGesture(lv_dir_t dir) {
@@ -33,12 +32,6 @@ void onGesture(lv_dir_t dir) {
         case LV_DIR_RIGHT:
             if (s_swipeHandler) {
                 s_swipeHandler(dir);
-            }
-            break;
-        case LV_DIR_TOP:
-        case LV_DIR_BOTTOM:
-            if (s_verticalSwipeHandler) {
-                s_verticalSwipeHandler(dir);
             }
             break;
         default:
@@ -213,10 +206,6 @@ void cancelClickIfSwiping(lv_indev_t *indev, lv_indev_state_t state) {
 
 void setSwipeHandler(SwipeHandler handler) {
     s_swipeHandler = handler;
-}
-
-void setVerticalSwipeHandler(VerticalSwipeHandler handler) {
-    s_verticalSwipeHandler = handler;
 }
 
 void checkGestures() {
