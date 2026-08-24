@@ -23,8 +23,11 @@ Decision decide(int16_t travelXSigned, int16_t travelY, bool startedOnClickable)
     if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
         return {travel >= kTapTravelLimitPx, false, swipeLeft};
 
+    // Both branches require the travel to be horizontally dominated before a
+    // page turns. Off a clickable it also has to clear kSwipeThroughTravelPx,
+    // because there the swipe has to outrank a tap the finger already started.
     if (!startedOnClickable)
-        return {true, true, swipeLeft};
+        return {true, travelX > kSwipeThroughAxisRatio * travelY, swipeLeft};
 
     const bool horizontalDominates =
         travelX >= kSwipeThroughTravelPx && travelX > kSwipeThroughAxisRatio * travelY;
