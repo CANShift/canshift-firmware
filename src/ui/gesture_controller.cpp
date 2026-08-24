@@ -20,9 +20,19 @@ constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
 SwipeHandler s_swipeHandler = nullptr;
 bool s_gesturePressStartedOnClickable = false;
 
-void onGesture(lv_dir_t dir) {
-    if (SettingsPage::isOpen() || SettingsPage::isDragging())
+void onGesture(lv_indev_t *indev, lv_dir_t dir) {
+    if (SettingsPage::isDragging())
         return;
+
+    if (SettingsPage::isOpen()) {
+        if (dir != LV_DIR_TOP)
+            return;
+        SettingsPage::close();
+        // The finger is still down and the page underneath is now exposed —
+        // without this the release lands a click on it (#288).
+        lv_indev_wait_release(indev);
+        return;
+    }
 
     if (s_gesturePressStartedOnClickable)
         return;
@@ -234,7 +244,7 @@ void checkGestures() {
             } else {
                 lv_dir_t dir = lv_indev_get_gesture_dir(indev);
                 if (dir != LV_DIR_NONE && dir != lastDir) {
-                    onGesture(dir);
+                    onGesture(indev, dir);
                     lastDir = dir;
                 }
             }
