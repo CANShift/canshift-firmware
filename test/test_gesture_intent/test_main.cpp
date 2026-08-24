@@ -40,11 +40,17 @@ void test_aShortWobbleStaysAClick() {
     TEST_ASSERT_FALSE(d.fireSwipe);
 }
 
-void test_offAClickableAnyHorizontalTravelSwipes() {
-    const Decision right = decide(20, 40, false);
+void test_offAClickableHorizontallyDominatedTravelSwipes() {
+    // Was decide(20, 40, ...) asserting fireSwipe — twice as vertical as
+    // horizontal, yet turning the page. That assertion described the bug.
+    const Decision right = decide(20, 5, false);
     TEST_ASSERT_TRUE(right.cancelClick);
     TEST_ASSERT_TRUE(right.fireSwipe);
     TEST_ASSERT_FALSE(right.swipeLeft);
+
+    const Decision vertical = decide(20, 40, false);
+    TEST_ASSERT_TRUE(vertical.cancelClick);
+    TEST_ASSERT_FALSE(vertical.fireSwipe);
 }
 
 void test_directionFollowsTheSignOfTravel() {
@@ -73,6 +79,23 @@ void test_closesSettings_horizontalDominatedTravelIsNotAClose() {
     TEST_ASSERT_FALSE(closesSettings(-40, 20));
 }
 
+void test_decide_verticalSwipeOffClickableDoesNotTurnThePage() {
+    // 8 px of sideways wobble on a long upward swipe used to be enough.
+    TEST_ASSERT_FALSE(decide(8, 100, false).fireSwipe);
+    TEST_ASSERT_FALSE(decide(-8, 100, false).fireSwipe);
+    TEST_ASSERT_FALSE(decide(30, 60, false).fireSwipe);
+}
+
+void test_decide_verticalSwipeOffClickableStillCancelsTheClick() {
+    TEST_ASSERT_TRUE(decide(8, 100, false).cancelClick);
+}
+
+void test_decide_horizontalSwipeOffClickableStillTurnsThePage() {
+    TEST_ASSERT_TRUE(decide(60, 10, false).fireSwipe);
+    TEST_ASSERT_TRUE(decide(-60, 10, false).fireSwipe);
+    TEST_ASSERT_TRUE(decide(20, 5, false).fireSwipe);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_aTapIsNeitherCancelledNorASwipe);
@@ -80,11 +103,14 @@ int main(int, char **) {
     RUN_TEST(test_aDiagonalSwipeOffAButtonCancelsTheClickWithoutChangingPage);
     RUN_TEST(test_aVerticalDragOffAButtonCancelsTheClick);
     RUN_TEST(test_aShortWobbleStaysAClick);
-    RUN_TEST(test_offAClickableAnyHorizontalTravelSwipes);
+    RUN_TEST(test_offAClickableHorizontallyDominatedTravelSwipes);
     RUN_TEST(test_directionFollowsTheSignOfTravel);
     RUN_TEST(test_closesSettings_upwardSwipePastThreshold);
     RUN_TEST(test_closesSettings_downwardTravelNeverCloses);
     RUN_TEST(test_closesSettings_shortTravelIsNotASwipe);
     RUN_TEST(test_closesSettings_horizontalDominatedTravelIsNotAClose);
+    RUN_TEST(test_decide_verticalSwipeOffClickableDoesNotTurnThePage);
+    RUN_TEST(test_decide_verticalSwipeOffClickableStillCancelsTheClick);
+    RUN_TEST(test_decide_horizontalSwipeOffClickableStillTurnsThePage);
     return UNITY_END();
 }
