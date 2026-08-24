@@ -13,7 +13,6 @@ useful to verify a page reads the right signals before you burn.
 | Swipe **left** anywhere on a page  | Next page              |
 | Swipe **right** anywhere on a page | Previous page          |
 | Swipe **down** from the top edge   | Open Settings panel    |
-| Swipe **up** from the bottom edge  | Expand the Diag drawer |
 
 Swipes that start on a button widget are filtered — a finger drift across a
 button does not navigate. This avoids the "I tried to tap and ended up on the

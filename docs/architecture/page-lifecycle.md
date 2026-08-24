@@ -70,7 +70,7 @@ fired — the page sat still and the user thought the swipe was lost
 ## Rev-limiter overlay layer
 
 `s_revOverlay` is a red translucent rectangle on `lv_layer_top()` that
-sits above pages but below ErrorBar / DiagDrawer / Settings. It is
+sits above pages but below ErrorBar / Settings. It is
 visibility-toggled by `AlertEngine::isRevLimiterFlashOn()` from
 `updateWidgets()`. Mounting on `lv_layer_top` means it survives
 page transitions (the layer is shared across screens), so the alert flash

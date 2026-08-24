@@ -7,7 +7,6 @@
 #include "control_splash.h"
 #include "cut_band.h"
 #include "day_night_auto.h"
-#include "diag_drawer.h"
 #include "ota_overlay.h"
 #include "rev_limit_flash.h"
 #include "error_bar.h"
@@ -65,8 +64,6 @@ void PageManager::init() {
     s_currentIdx = 0;
 
     lv_obj_clean(lv_scr_act());
-
-    DiagDrawer::init();
 
     if (!dash.loaded) {
         showConfigFailure();
@@ -188,5 +185,4 @@ void PageManager::updateWidgets() {
     ControlSplash::update();
 
     ErrorBar::update();
-    DiagDrawer::update();
 }

@@ -4,7 +4,7 @@ Source: [`src/diag/error_store.cpp`](../../src/diag/error_store.cpp)
 
 ErrorStore is the firmware's single source of truth for "what went wrong"
 across boot, CAN, USB, BLE, config, and the UI alert chain. It's read by
-the ErrorBar overlay, the diag drawer, and the BLE STATUS characteristic.
+the ErrorBar overlay and the BLE STATUS characteristic.
 Sources: `src/diag/error_store.cpp`, `src/diag/error_store.h`,
 `include/error_store_rs.h`.
 

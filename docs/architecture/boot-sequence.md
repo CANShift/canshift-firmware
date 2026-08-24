@@ -132,7 +132,7 @@ inside taskUI so a flaky build self-rolls-back. Source: `main.cpp`
 on failure so the UI and USB remain usable for config edits; the
 in-driver retry loop in `can_manager.cpp::tick()` keeps re-attempting
 installation. The failure is surfaced through `ErrorStore` so the top bar
-/ diag drawer can show it instead of silently reading 0 fps forever (#1224).
+and error bar can show it instead of silently reading 0 fps forever (#1224).
 
 ## "[BOOT] Ready" marker
 

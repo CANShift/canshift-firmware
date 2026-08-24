@@ -58,9 +58,9 @@ the only reliable cross-button gesture source.
 `GestureController::updateDrag` polls the indev state. After release
 (`LV_INDEV_STATE_RELEASED`) when drag was tracking, the controller calls
 `lv_indev_reset_long_press` + `lv_indev_reset` to clear LVGL's velocity-
-based gesture latch. Without this, a swipe-up that closes settings also
-opens the diag drawer because both react to `LV_DIR_TOP` on the same
-finger motion.
+based gesture latch, so the motion that closes Settings is not also read
+as a fresh gesture. Nothing consumes vertical swipes since the diag
+drawer was removed; the settings drag is a pointer drag, not a gesture.
 
 ## `lv_refr_now` and task coupling
 
