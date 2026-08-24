@@ -83,6 +83,30 @@ handful of symbols, and the linker takes the first.
 | `HW_LVGL_DRAW_BUDGET_BYTES` |   25 KB | RAM budget for both LVGL draw buffers combined. Drives the line-count computation. Set in `include/hardware_profile.h`. |
 | `TASK_WDT_TIMEOUT_MS`       |    8000 | Watchdog timeout for the UI, CAN and USB tasks. Long enough to survive a page rebuild plus a SPIFFS font load.          |
 | `LVGL_FS_MIN_HEAP_BYTES`    |     256 | Below this the LVGL FS driver refuses opens, keeping newlib's `__sfp` out of `abort()`.                                 |
+| `LVGL_POOL_FORCE_FAIL`      |       0 | Fault injection for the LVGL pool allocator. Makes the first _n_ capability tiers refuse. Never set in a shipped env.   |
+
+### Exercising the pool allocator's failure path
+
+`canshift_lvgl_pool_alloc()` tries PSRAM, then internal RAM, then halts —
+returning `NULL` would make `lv_tlsf_create()` write through address 0, since it
+only checks alignment and `NULL` is aligned (#290).
+
+The real trigger is a module whose PSRAM is absent or refuses the pool, which no
+board here has. `LVGL_POOL_FORCE_FAIL` stands in for it:
+
+| Value | What refuses | What you should see |
+| ----: | --- | --- |
+| `0` | nothing | normal boot, pool from PSRAM |
+| `1` | PSRAM | `pool of N B came from internal RAM — PSRAM refused it`, then a boot that dies for want of 512 KB of DRAM |
+| `2` | PSRAM and internal RAM | the halt: `no pool: N B unavailable…` every 5 s, no reset loop, no panic at address 0 |
+
+```
+pio run -e waveshare_s3_28 -t upload --build-flag="-DLVGL_POOL_FORCE_FAIL=2"
+```
+
+Tier 1 is expected to fail on every current target — 512 KB of internal RAM does
+not exist on an ESP32 and will not survive the framework's share on an S3. It is
+there so the ladder is real if the pool size is ever made per-board.
 
 ## Tracing
 
