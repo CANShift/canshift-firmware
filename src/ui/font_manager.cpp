@@ -1,6 +1,7 @@
 #include "font_manager.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
+#include "display_tiers.h"
 
 #include <Arduino.h>
 #include <SPIFFS.h>
@@ -45,6 +46,24 @@ constexpr Face kLabelFaces[] = {{10, nullptr},
 constexpr size_t kValueCount = sizeof(kValueFaces) / sizeof(kValueFaces[0]);
 constexpr size_t kLabelCount = sizeof(kLabelFaces) / sizeof(kLabelFaces[0]);
 constexpr uint8_t kSmallestValuePx = kValueFaces[0].size;
+
+constexpr bool ladderMatchesFrom(const Face *faces, size_t count,
+                                 const canshift::display::FaceLadder &ladder, size_t index) {
+    return index == count ? true
+                          : faces[index].size == ladder.sizes[index] &&
+                                ladderMatchesFrom(faces, count, ladder, index + 1);
+}
+
+constexpr bool ladderMatches(const Face *faces, size_t count,
+                             const canshift::display::FaceLadder &ladder) {
+    return count == ladder.count && ladderMatchesFrom(faces, count, ladder, 0);
+}
+
+static_assert(ladderMatches(kValueFaces, kValueCount, canshift::display::kBaseTier.valueFaces),
+              "value faces must be the base tier's ladder — a larger tier needs its own faces "
+              "generated before its ladder can be offered");
+static_assert(ladderMatches(kLabelFaces, kLabelCount, canshift::display::kBaseTier.labelFaces),
+              "label faces must be the base tier's ladder");
 
 struct FaceSlot {
     const lv_font_t *font;

@@ -1,10 +1,13 @@
 #include "sim_display.h"
 #include "sim_injector.h"
 
+#include "board.h"
 #include "can/signal_map.h"
+#include "config/board_profile_loader.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
 #include "diag/lvgl_pool.h"
+#include "display_tiers.h"
 #include "runtime/alert_engine.h"
 #include "runtime/signal_store.h"
 #include "ui/font_manager.h"
@@ -15,16 +18,38 @@
 #include <lvgl.h>
 
 #include <cstdio>
+#include <cstdlib>
 
 extern void simRegisterLvglFs(const char *rootDir);
 extern void simStorageSetRoot(const char *rootDir);
 
 namespace {
 
-constexpr int kPanelW = 320;
-constexpr int kPanelH = 240;
-constexpr int kZoom = 2;
+constexpr int kWidePanelPx = 640;
+constexpr size_t kBoardBlobCapacity = 4096;
 constexpr uint32_t kFrameMs = 16;
+
+int zoomForPanel(int width) {
+    return width >= kWidePanelPx ? 1 : 2;
+}
+
+bool applyBoardProfileFile(const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (file == nullptr) {
+        printf("board profile '%s' is not readable\n", path);
+        return false;
+    }
+    char blob[kBoardBlobCapacity];
+    const size_t len = fread(blob, 1, sizeof blob - 1, file);
+    fclose(file);
+    blob[len] = '\0';
+
+    if (!canshift::boards::applyBoardProfileBlob(blob, len)) {
+        printf("board profile '%s' was rejected\n", path);
+        return false;
+    }
+    return true;
+}
 
 } // namespace
 
@@ -35,9 +60,20 @@ int main(int argc, char **argv) {
     const char *pageId = argc > 3 ? argv[3] : nullptr;
     const uint32_t captureAfterMs = argc > 4 ? strtoul(argv[4], nullptr, 10) : 0;
 
+    const char *boardPath = getenv("CANSHIFT_SIM_BOARD");
+    if (boardPath != nullptr && !applyBoardProfileFile(boardPath))
+        return 1;
+
+    const int panelW = canshift::display::width();
+    const int panelH = canshift::display::height();
+    printf("panel %dx%d tier=%s\n", panelW, panelH,
+           canshift::display::tierForPanel(static_cast<uint16_t>(panelW),
+                                           static_cast<uint16_t>(panelH))
+               .id);
+
     Logger::init();
     lv_init();
-    if (!SimDisplay::init(kPanelW, kPanelH, kZoom))
+    if (!SimDisplay::init(panelW, panelH, zoomForPanel(panelW)))
         return 1;
 
     simStorageSetRoot(dataRoot);

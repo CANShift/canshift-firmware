@@ -3,12 +3,13 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "display_tiers.h"
 #include "layout_grid_rs.h"
 
 namespace LayoutScale {
 
-inline constexpr uint16_t kDesignWidth = 320;
-inline constexpr uint16_t kDesignHeight = 240;
+inline constexpr uint16_t kDesignWidth = canshift::display::kBaseTier.designWidth;
+inline constexpr uint16_t kDesignHeight = canshift::display::kBaseTier.designHeight;
 
 inline int16_t x(int16_t designValue) {
     return static_cast<int16_t>(
