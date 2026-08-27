@@ -3,6 +3,7 @@
 #include "board.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
+#include "display_tiers.h"
 #include "hardware_profile.h"
 
 #include <string.h>
@@ -18,7 +19,8 @@ struct ProfileEntry {
 };
 
 constexpr ProfileEntry kProfiles[] = {
-    {"crowpanel-28", 320, 240},
+    {"crowpanel-28", canshift::display::kBaseTier.designWidth,
+     canshift::display::kBaseTier.designHeight},
 };
 constexpr const char *kDefaultProfileId = "crowpanel-28";
 

@@ -1,0 +1,64 @@
+{
+  "magic": "CANSHIFT_BOARD",
+  "schema": "board-profile",
+  "formatVersion": 1,
+  "profile": {
+    "board_id": "sim_large_800x480",
+    "board_name": "Sim Large 800x480",
+    "chip_family": "esp32s3",
+    "lcd": {
+      "driver": "st7789",
+      "pin_mosi": 13,
+      "pin_miso": 12,
+      "pin_sclk": 14,
+      "pin_cs": 15,
+      "pin_dc": 2,
+      "pin_rst": -1,
+      "pin_bl": 27,
+      "freq_write_hz": 40000000,
+      "panel_width": 800,
+      "panel_height": 480,
+      "memory_width": 800,
+      "memory_height": 480,
+      "default_rotation": 0,
+      "rgb_order_bgr": false,
+      "invert": true,
+      "bus_shared_with_touch": true,
+      "readable": false,
+      "color_depth": 16
+    },
+    "backlight": {
+      "present": true,
+      "pwm_channel": 0,
+      "pwm_freq_hz": 5000,
+      "default_duty": 200,
+      "invert": false
+    },
+    "touch": {
+      "driver": "gt911",
+      "pin_cs": -1,
+      "pin_irq": -1,
+      "freq_hz": 400000,
+      "needs_calibration": false,
+      "pin_sda": 21,
+      "pin_scl": 22
+    },
+    "can": {
+      "controller": "esp_twai",
+      "pin_tx": 25,
+      "pin_rx": 32,
+      "default_speed_kbps": 500
+    },
+    "storage": {
+      "spiffs_present": true,
+      "spiffs_size_kb": 1024,
+      "sd_present": false,
+      "sd_pin_cs": -1
+    },
+    "conn": {
+      "wifi_supported": true,
+      "ble_supported": true,
+      "psram_present": true
+    }
+  }
+}

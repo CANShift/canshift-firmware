@@ -14,6 +14,27 @@ pio run -e sim
 .pio/build/sim/program data ota engine 8160     # D03 at 68 % — the planche frame
 ```
 
+## Panel size
+
+The window follows the runtime board profile, which defaults to the compile-time
+board — 320×240, the `base` display tier. `CANSHIFT_SIM_BOARD` points at a board
+profile JSON and overrides it, so the tiers no shipped board reaches yet can be
+rendered and captured:
+
+```
+CANSHIFT_SIM_BOARD=sim/boards/sim_medium_480x320.json .pio/build/sim/program data cruise street 1500
+CANSHIFT_SIM_BOARD=sim/boards/sim_large_800x480.json  .pio/build/sim/program data cruise street 1500
+```
+
+The first line of output names the resolved tier. Zoom drops to 1 past 640 px so
+the window still fits on a laptop. These profiles are simulator fixtures, not
+supported boards — they are deliberately absent from `include/boards/` and
+`.github/boards.json`.
+
+A page authored for `base` is scaled onto the larger panel, and the value faces
+stop at 84 px, so a large capture shows boxes that grew and type that did not —
+that ceiling is the font ladder in #64.
+
 `program [dataRoot] [scenario] [pageId] [captureAfterMs]`. Scenarios are `cruise`,
 `rev`, `oil`, `oil-low`, `water`, `warn`, `stale`, `bus-lost`, `cut-boost`,
 `cut-knock`, `cut-fuel` and `cut-limp` — the same modes as the keys below — plus

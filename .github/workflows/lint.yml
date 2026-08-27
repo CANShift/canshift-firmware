@@ -28,6 +28,8 @@ jobs:
         run: python3 scripts/check_ffi_parity.py
       - name: Board lists agree
         run: python3 scripts/check_board_lists.py
+      - name: Display tiers agree
+        run: python3 scripts/check_display_tiers.py
       - name: Release manifest builds
         run: python3 scripts/build_manifest.py v0.0.0-lint 0.0.0-lint > /dev/null
 

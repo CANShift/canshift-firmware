@@ -11,6 +11,7 @@
 #include "can/signal_map.h"
 #include "diag/logger.h"
 #include "diag/lvgl_assert_lock.h"
+#include "display_tiers.h"
 
 #include <lvgl.h>
 #include <stdint.h>
@@ -18,6 +19,10 @@
 namespace {
 
 static constexpr uint8_t MAX_TRACKED_WIDGETS = CONFIG_MAX_PAGES * CONFIG_MAX_WIDGETS_PER_PAGE;
+
+static_assert(CONFIG_MAX_WIDGETS_PER_PAGE == canshift::display::kBaseTier.maxWidgetsPerPage,
+              "the per-page cap is the base tier's — a larger tier raises it through its own "
+              "entry, not by moving this number");
 
 struct WidgetEntry {
     lv_obj_t *parent;
