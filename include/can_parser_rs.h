@@ -7,7 +7,13 @@
 #include <stdint.h>
 
 inline constexpr int CANSHIFT_EXPR_MAX_TOKENS = 64;
+inline constexpr int CANSHIFT_EXPR_MAX_STACK_DEPTH = 16;
 inline constexpr int CANSHIFT_EXPR_MAX_REFS = 8;
+
+inline constexpr int32_t CANSHIFT_EXPR_ERR_LEX = -1;
+inline constexpr int32_t CANSHIFT_EXPR_ERR_TOO_LONG = -2;
+inline constexpr int32_t CANSHIFT_EXPR_ERR_SYNTAX = -3;
+inline constexpr int32_t CANSHIFT_EXPR_ERR_TOO_DEEP = -4;
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +33,7 @@ typedef struct {
 float decode_bytes_rs(const uint8_t *data, uint8_t start_byte, uint8_t byte_len, bool big_endian,
                       bool is_signed, uint8_t bit_mask, float scale, float offset, size_t data_len);
 
-int32_t lex_expr_rs(const uint8_t *expr, size_t expr_len, FfiTok *out, size_t out_cap);
+int32_t compile_expr_rs(const uint8_t *expr, size_t expr_len, FfiTok *out, size_t out_cap);
 
 float eval_tokens_rs(const uint8_t *data, uint8_t start_byte, uint8_t byte_len, bool big_endian,
                      bool is_signed, uint8_t bit_mask, float scale, float offset, size_t data_len,

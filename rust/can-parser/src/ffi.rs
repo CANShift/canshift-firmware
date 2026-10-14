@@ -1,9 +1,11 @@
 use crate::expr::{EvalContext, RefValue};
-use crate::expr_ffi::{eval_ffi, eval_ffi_checked, lex_to_ffi, FfiTok};
+use crate::expr_compile::CompileError;
+use crate::expr_ffi::{compile_error_code, compile_to_ffi, eval_ffi, eval_ffi_checked, FfiTok};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
-/// # Safety: `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES; null → 0).
+/// # Safety
+/// `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES; null → 0).
 #[no_mangle]
 pub unsafe extern "C" fn decode_bytes_rs(
     data: *const u8,
@@ -26,28 +28,30 @@ pub unsafe extern "C" fn decode_bytes_rs(
     )
 }
 
-/// # Safety: `expr` readable for `expr_len` bytes; `out` writable for `out_cap` `FfiTok`.
-/// Returns the token count on success, or -1 on lex error / insufficient capacity.
+/// # Safety
+/// `expr` readable for `expr_len` bytes; `out` writable for `out_cap` `FfiTok`.
 #[no_mangle]
-pub unsafe extern "C" fn lex_expr_rs(
+#[must_use]
+pub unsafe extern "C" fn compile_expr_rs(
     expr: *const u8,
     expr_len: usize,
     out: *mut FfiTok,
     out_cap: usize,
 ) -> i32 {
     if expr.is_null() || out.is_null() || expr_len == 0 {
-        return 0;
+        return compile_error_code(CompileError::Syntax);
     }
     let expr_slice = unsafe { slice::from_raw_parts(expr, expr_len) };
     let out_slice = unsafe { slice::from_raw_parts_mut(out, out_cap) };
-    match lex_to_ffi(expr_slice, out_slice) {
-        Some(n) => n as i32,
-        None => -1,
+    match compile_to_ffi(expr_slice, out_slice) {
+        Ok(n) => n as i32,
+        Err(error) => compile_error_code(error),
     }
 }
 
-/// # Safety: `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES);
-/// `tokens` readable for `n_tokens` `FfiTok` produced by `lex_expr_rs`.
+/// # Safety
+/// `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES);
+/// `tokens` readable for `n_tokens` `FfiTok` produced by `compile_expr_rs`.
 #[no_mangle]
 pub unsafe extern "C" fn eval_tokens_rs(
     data: *const u8,

@@ -1,8 +1,14 @@
+#include "board_config.h"
 #include "can/can_parser.h"
 #include "can_parser_rs.h"
+#include "config/config_loader.h"
+#include "diag/error_store.h"
+#include "hal/storage/storage_driver.h"
+#include "runtime/signal_store.h"
 
 #include <unity.h>
 #include <cmath>
+#include <string.h>
 
 namespace {
 
@@ -19,13 +25,61 @@ constexpr uint8_t kMaskBit0 = 0x01;
 
 constexpr float kEpsilon = 1e-4f;
 
+constexpr uint32_t kExprFrameId = 0x370;
+constexpr uint8_t kExprFrame[] = {0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+constexpr const char *kSignalsWithDeepExpr = R"json({
+  "version": "1.0.0",
+  "signals": [
+    {"name": "rpm", "canFrameId": "0x370", "startByte": 0, "byteLength": 2,
+     "expr": "((((((((((((((((((((((((((((((V))))))))))))))))))))))))))))))*2"},
+    {"name": "coolant_temp_c", "canFrameId": "0x370", "startByte": 0, "byteLength": 2,
+     "expr": "1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+V)))))))))))))))"}
+  ]
+})json";
+
+bool errorStoreHolds(const char *code) {
+    FwError errors[8];
+    uint8_t count = 0;
+    ErrorStore::getAll(errors, &count, 8);
+    for (uint8_t i = 0; i < count; ++i) {
+        if (strcmp(errors[i].code, code) == 0)
+            return true;
+    }
+    return false;
+}
+
 } // namespace
+
+void test_compileExpr_rejectsOperandStackPastTheCap() {
+    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
+    const char expr[] = "1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+V)))))))))))))))";
+    const int32_t status = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr),
+                                           sizeof(expr) - 1, tokens, CANSHIFT_EXPR_MAX_TOKENS);
+    TEST_ASSERT_EQUAL_INT32(CANSHIFT_EXPR_ERR_TOO_DEEP, status);
+}
+
+void test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, kSignalsWithDeepExpr,
+                             strlen(kSignalsWithDeepExpr));
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+    SignalStore::init();
+    ErrorStore::clear();
+
+    CanParser::loadSignalDefinitions();
+    CanParser::parseFrame(kExprFrameId, kExprFrame, sizeof(kExprFrame));
+
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::RPM));
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::COOLANT_TEMP_C));
+    TEST_ASSERT_TRUE(errorStoreHolds("EXPR_DEPTH"));
+}
 
 void test_evalTokensRefs_resolvesReference() {
     FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
     const char expr[] = "ID37+1";
-    const int32_t n = lex_expr_rs(reinterpret_cast<const uint8_t *>(expr), sizeof(expr) - 1, tokens,
-                                  CANSHIFT_EXPR_MAX_TOKENS);
+    const int32_t n = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr), sizeof(expr) - 1,
+                                      tokens, CANSHIFT_EXPR_MAX_TOKENS);
     TEST_ASSERT_GREATER_THAN_INT32(0, n);
 
     const RefValueRs refs[] = {{37, 41.0f}};
@@ -43,8 +97,8 @@ void test_evalTokensRefs_resolvesReference() {
 void test_evalTokensRefs_missingRefDoesNotReadAsZero() {
     FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
     const char expr[] = "ID481|ID482";
-    const int32_t n = lex_expr_rs(reinterpret_cast<const uint8_t *>(expr), sizeof(expr) - 1, tokens,
-                                  CANSHIFT_EXPR_MAX_TOKENS);
+    const int32_t n = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr), sizeof(expr) - 1,
+                                      tokens, CANSHIFT_EXPR_MAX_TOKENS);
     TEST_ASSERT_GREATER_THAN_INT32(0, n);
 
     const RefValueRs onlyOne[] = {{481, 1.0f}};
@@ -98,5 +152,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_decodeBytes_bitMask_extractsFlag);
     RUN_TEST(test_evalTokensRefs_resolvesReference);
     RUN_TEST(test_evalTokensRefs_missingRefDoesNotReadAsZero);
+    RUN_TEST(test_compileExpr_rejectsOperandStackPastTheCap);
+    RUN_TEST(test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError);
     return UNITY_END();
 }

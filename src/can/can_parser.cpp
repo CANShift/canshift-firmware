@@ -3,11 +3,14 @@
 #include "signal_map.h"
 #include "runtime/signal_store.h"
 #include "config/config_loader.h"
+#include "diag/error_store.h"
 #include "diag/logger.h"
 #include "can_parser_rs.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <iterator>
 #include <string.h>
 
 namespace {
@@ -71,6 +74,91 @@ void evalCrossSignal(const RuntimeSignal &sig, const uint8_t *data, uint8_t leng
     SignalStore::update(sig.signalId, val);
 }
 
+struct ExprRejection {
+    int32_t status;
+    const char *errorCode;
+    const char *reason;
+};
+
+constexpr ExprRejection kExprRejections[] = {
+    {CANSHIFT_EXPR_ERR_LEX, "EXPR_LEX", "unknown symbol"},
+    {CANSHIFT_EXPR_ERR_TOO_LONG, "EXPR_LONG", "too many tokens"},
+    {CANSHIFT_EXPR_ERR_SYNTAX, "EXPR_SYNTAX", "syntax error"},
+    {CANSHIFT_EXPR_ERR_TOO_DEEP, "EXPR_DEPTH", "nested too deep"},
+};
+
+constexpr ExprRejection kUnknownExprRejection = {0, "EXPR_FAIL", "rejected"};
+
+const ExprRejection &exprRejection(int32_t status) {
+    const auto *end = std::end(kExprRejections);
+    const auto *it = std::find_if(std::begin(kExprRejections), end,
+                                  [status](const ExprRejection &r) { return r.status == status; });
+    return it == end ? kUnknownExprRejection : *it;
+}
+
+void reportExprRejected(const CfgSignalDef &def, int32_t status) {
+    const ExprRejection &rejection = exprRejection(status);
+    LOG_ERROR("CAN", "signals.json: dropping '%s' — expression %s: %s", def.name, rejection.reason,
+              def.expr);
+    char msg[52];
+    snprintf(msg, sizeof(msg), "%s: %s", def.name, rejection.reason);
+    ErrorStore::push(ERROR_SRC_CONFIG, rejection.errorCode, msg);
+}
+
+bool compileExpression(const CfgSignalDef &def, RuntimeSignal &r) {
+    r.tokenCount = 0;
+    const size_t exprLen = strnlen(def.expr, sizeof(def.expr));
+    r.hasExpr = exprLen > 0;
+    if (!r.hasExpr)
+        return true;
+    const int32_t status = compile_expr_rs(reinterpret_cast<const uint8_t *>(def.expr), exprLen,
+                                           r.tokens, CANSHIFT_EXPR_MAX_TOKENS);
+    if (status <= 0) {
+        reportExprRejected(def, status);
+        return false;
+    }
+    r.tokenCount = static_cast<uint8_t>(status);
+    return true;
+}
+
+void fillRuntimeSignal(const CfgSignalDef &def, SignalId sid, RuntimeSignal &r) {
+    r.canFrameId = def.canFrameId;
+    r.startByte = def.startByte;
+    r.byteLength = def.byteLength;
+    r.bigEndian = def.bigEndian;
+    r.isSigned = def.isSigned;
+    r.scale = def.scale;
+    r.offset = def.offset;
+    r.bitMask = def.bitMask;
+    r.signalId = sid;
+    r.refCount = def.exprRefCount;
+    for (uint8_t i = 0; i < def.exprRefCount; ++i)
+        r.refTargetIds[i] = def.exprRefs[i];
+}
+
+void bindTarget(const CfgSignalDef &def, SignalId sid) {
+    if (!def.hasTargetId || s_targetCount >= CONFIG_MAX_SIGNALS)
+        return;
+    s_targets[s_targetCount].targetId = def.targetId;
+    s_targets[s_targetCount].signalId = sid;
+    ++s_targetCount;
+}
+
+void addRuntimeSignal(const CfgSignalDef &def) {
+    const SignalId sid = signalIdFromName(def.name);
+    if (sid == SignalIds::SIGNAL_COUNT) {
+        LOG_WARN("CAN", "Unknown signal name '%s' in signals.json — skipping", def.name);
+        return;
+    }
+    RuntimeSignal &r = s_runtime[s_runtimeCount];
+    fillRuntimeSignal(def, sid, r);
+    if (!compileExpression(def, r))
+        return;
+    ++s_runtimeCount;
+    bindTarget(def, sid);
+    SignalStore::setTimeout(sid, def.timeoutMs);
+}
+
 } // namespace
 
 float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
@@ -124,46 +212,8 @@ void CanParser::loadSignalDefinitions() {
     s_targetCount = 0;
     s_runtimeLoaded = false;
 
-    for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < CONFIG_MAX_SIGNALS; ++i) {
-        const CfgSignalDef &def = cfg.signals[i];
-
-        const SignalId sid = signalIdFromName(def.name);
-        if (sid == SignalIds::SIGNAL_COUNT) {
-            LOG_WARN("CAN", "Unknown signal name '%s' in signals.json — skipping", def.name);
-            continue;
-        }
-
-        if (def.hasTargetId && s_targetCount < CONFIG_MAX_SIGNALS) {
-            s_targets[s_targetCount].targetId = def.targetId;
-            s_targets[s_targetCount].signalId = sid;
-            ++s_targetCount;
-        }
-
-        RuntimeSignal &r = s_runtime[s_runtimeCount++];
-        r.canFrameId = def.canFrameId;
-        r.startByte = def.startByte;
-        r.byteLength = def.byteLength;
-        r.bigEndian = def.bigEndian;
-        r.isSigned = def.isSigned;
-        r.scale = def.scale;
-        r.offset = def.offset;
-        r.bitMask = def.bitMask;
-        r.signalId = sid;
-        const size_t exprLen = strnlen(def.expr, sizeof(def.expr));
-        r.hasExpr = exprLen > 0;
-        r.tokenCount = 0;
-        r.refCount = def.exprRefCount;
-        for (uint8_t i = 0; i < def.exprRefCount; ++i)
-            r.refTargetIds[i] = def.exprRefs[i];
-        if (r.hasExpr) {
-            const int32_t n = lex_expr_rs(reinterpret_cast<const uint8_t *>(def.expr), exprLen,
-                                          r.tokens, CANSHIFT_EXPR_MAX_TOKENS);
-            if (n > 0)
-                r.tokenCount = static_cast<uint8_t>(n);
-        }
-
-        SignalStore::setTimeout(sid, def.timeoutMs);
-    }
+    for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < CONFIG_MAX_SIGNALS; ++i)
+        addRuntimeSignal(cfg.signals[i]);
 
     std::sort(
         s_runtime, s_runtime + s_runtimeCount,
