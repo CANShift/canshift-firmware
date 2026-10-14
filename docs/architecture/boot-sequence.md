@@ -136,7 +136,7 @@ and error bar can show it instead of silently reading 0 fps forever (#1224).
 
 ## "[BOOT] Ready" marker
 
-The CI smoke test
-(`.github/workflows/firmware-boot-smoke.yml`, #486) asserts that
-`[BOOT] Ready` appears exactly once at the end of a successful boot. Do
-not move, duplicate, or reword the line without updating the workflow.
+`[BOOT] Ready` is logged exactly once, at the end of a successful boot, in builds
+that log at `info` or above (release builds log errors only). It is
+the line to look for in a boot log. No CI job asserts it any more: the QEMU boot
+smoke test of the monorepo did not move to this repository.

@@ -2,8 +2,8 @@
 
 Everything about the code that runs on the dash. If you have never flashed a
 CANShift board before, read [What is CANShift?](guide/overview.md) first, then
-follow [First flash](https://github.com/CANShift/canshift-tuner/blob/main/docs/install/first-flash.md)
-in the tuner repo — the flasher lives there.
+follow [First flash](guide/first-flash.md): a blank board is flashed once from a
+terminal with `esptool`, and updated without a cable after that.
 
 Docs for the other repos: [tuner](https://github.com/CANShift/canshift-tuner/tree/main/docs) ·
 [core](https://github.com/CANShift/canshift-core/tree/main/docs) ·
@@ -16,6 +16,7 @@ No C++ needed — this is the on-device UI as a driver sees it.
 | Doc                                           | What it covers                                               |
 | --------------------------------------------- | ------------------------------------------------------------ |
 | [What is CANShift?](guide/overview.md)        | What the dash does, what it talks to, and what you will need |
+| [First flash](guide/first-flash.md)           | Flash a blank board from a terminal with `esptool`, per chip |
 | [Navigating pages](guide/navigating-pages.md) | Swipe gestures, page reordering, default page on boot        |
 | [Settings panel](guide/settings-panel.md)     | Brightness, BLE toggle, touch calibration                    |
 | [Cruise control](guide/cruise-control.md)     | Using the cruise page on the dash                            |
@@ -32,6 +33,7 @@ No C++ needed — this is the on-device UI as a driver sees it.
 | [CAN header](reference/pinout-can.md)                 | The two TWAI pins and the transceiver they need                      |
 | [Power rails](reference/pinout-power.md)              | Where the board takes power, and the rail the firmware modulates     |
 | [CAN integration notes](reference/can-integration.md) | TWAI configuration, bus speed, sample frame layouts                  |
+| [Physical buttons](reference/physical-buttons.md)     | GPIO buttons bound to dashboard actions in `input_bindings.json`     |
 
 ## Architecture
 
@@ -42,11 +44,12 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 | [Overview](architecture/overview.md)               | What runs in which task, against which heap budget                          |
 | [Boot sequence](architecture/boot-sequence.md)     | Heap reservation ordering that makes the boot path work on a no-PSRAM WROOM |
 | [Board profile](architecture/board-profile.md)     | How the firmware resolves which board it is running on, at run time         |
+| [Layout scale](architecture/layout-scale.md)       | One 320×240 design space scaled to every panel, and the display tiers       |
 | [SignalStore](architecture/signal-store.md)        | Runtime signal table — taskCAN writes, taskUI reads                         |
 | [Page lifecycle](architecture/page-lifecycle.md)   | Build, lazy build, release — the dashboard page state machine               |
 | [LVGL ownership](architecture/lvgl-ownership.md)   | Mutex and thread rules for every `lv_*` call                                |
-| [Transports](architecture/transports.md)           | The two host links — USB CDC always, BLE GATT when compiled in              |
-| [USB transport](architecture/usb-transport.md)     | The serial sink, the command table, the `PUT_CONFIG` burn flow              |
+| [Transports](architecture/transports.md)           | The two host links — USB always, BLE GATT when compiled in                  |
+| [USB transport](architecture/usb-transport.md)     | The command table, the `PUT_CONFIG` burn flow, firmware OTA                 |
 | [BLE transport](architecture/ble-transport.md)     | NimBLE topology, encrypted GATT layout, binary telemetry frame              |
 | [Workshop mode](architecture/workshop-mode.md)     | Planned: the dash serves the tuner over Wi-Fi, with BLE off                 |
 | [ErrorStore](architecture/error-store.md)          | Error ring buffer and its critical-section invariant                        |
@@ -54,13 +57,14 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 
 ## Reference
 
-| Doc                                                 | What it covers                                           |
-| --------------------------------------------------- | -------------------------------------------------------- |
-| [Signal map](reference/signals.md)                  | Known signals — ids, units, and where they come from     |
-| [Build flags](reference/build-flags.md)             | PlatformIO `build_flags` that change firmware behaviour  |
-| [ECU integration](reference/ecu-integration.md)     | Catalogue format, frame parser, CAN XML import           |
-| [Firmware signing](reference/firmware-signing.md)   | Ed25519 signature workflow for shipped binaries          |
-| [Secure boot setup](reference/secure-boot-setup.md) | Secure boot v2 and flash encryption on production builds |
+| Doc                                                 | What it covers                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| [Signal map](reference/signals.md)                  | Known signals — ids, units, and where they come from                  |
+| [Build flags](reference/build-flags.md)             | PlatformIO `build_flags` that change firmware behaviour               |
+| [Flash layout](reference/flash-layout.md)           | Partition tables, what lives in SPIFFS, why workshop mode needs 16 MB |
+| [ECU integration](reference/ecu-integration.md)     | Catalogue format, frame parser, CAN XML import                        |
+| [Firmware signing](reference/firmware-signing.md)   | Ed25519 signature workflow for shipped binaries                       |
+| [Secure boot setup](reference/secure-boot-setup.md) | Secure boot v2 and flash encryption on production builds              |
 
 The JSON contract shared with the tuner and the mobile app lives in core:
 [config contract](https://github.com/CANShift/canshift-core/blob/main/docs/config-contract.md) ·

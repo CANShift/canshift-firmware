@@ -29,8 +29,9 @@ backlight PWM in real time as you drag.
 
 ### Calibrate touch
 
-Runs an interactive 3-point calibration. Settings closes itself first so the
-crosshairs are unobstructed, then re-opens at the end.
+Runs the interactive calibration: tap the crosshair in each of the four corners.
+The row only appears on resistive-touch boards; capacitive panels need no
+calibration. Details in [Board drivers](../reference/board-drivers.md#touch-calibration).
 
 ### Reset touch calibration
 

@@ -32,6 +32,26 @@ bus, sync lines or porch timings. That tier is tracked on #51.
 | `CST3530`     | `canshift::touch::Touch_CST3530` | I2C                        | `0x58`  | Built. In-tree driver — 4-byte commands, verified on Waveshare hardware (#81). |
 | `FT6336`      | `Touch_FT5x06`                   | I2C                        | `0x38`  | Built, untested on hardware. FT6336 is FT5x06 protocol-compatible.             |
 
+## Touch calibration
+
+Only a controller whose profile sets `touch.needs_calibration` is calibrated; today
+that is the resistive `XPT2046`. Capacitive controllers report screen coordinates
+and skip every step below.
+
+- **First boot.** With no calibration in NVS, `TouchDriver::init()` runs
+  LovyanGFX's `calibrateTouch()`: the user taps a crosshair in each corner.
+- **Storage.** The result is 8 × `uint16_t` in NVS, namespace `touch`, key `cal`,
+  loaded on every later boot. A failed write logs and pushes an `nvs_write`
+  error rather than reporting success.
+- **Again, on demand.** The Settings panel's _Calibrate touch_ row (shown only on
+  boards that need it), `CMD_CALIBRATE_TOUCH` (`0x08`) over USB, or
+  `start_calibration` over BLE. `CMD_RESET_TOUCH_CAL` (`0x0A`) / `reset_calibration`
+  clears the NVS entry, so the next boot calibrates afresh.
+
+`calibrateTouch()` draws through LovyanGFX, not LVGL, and blocks until the last
+tap. The UI task runs it from its pending-action queue without holding
+`g_lvglMutex`, and unsubscribes from the task watchdog for the duration.
+
 ## When a profile names an unbuilt driver
 
 It used to fall through to `Panel_ILI9341` silently, so a profile asking for

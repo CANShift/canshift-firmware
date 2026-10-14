@@ -13,11 +13,12 @@ Flasher-side verification is not wired up yet. See issue
 
 ## Released assets
 
-For every release `v<x.y.z>`, the workflow uploads:
+For every release `v<x.y.z>`, the workflow uploads three images per chip family
+(`esp32`, `esp32s3`):
 
-- `canshift-firmware-v<x.y.z>-crowpanel_28-merged.bin` (USB factory image)
-- `canshift-firmware-v<x.y.z>-crowpanel_28-firmware.bin` (OTA payload)
-- `canshift-spiffs-v<x.y.z>-crowpanel_28.bin` (SPIFFS data partition)
+- `canshift-<chip>-v<x.y.z>-merged.bin` (USB factory image, see [First flash](../guide/first-flash.md))
+- `canshift-<chip>-v<x.y.z>-firmware.bin` (OTA payload)
+- `canshift-<chip>-v<x.y.z>-spiffs.bin` (SPIFFS data partition)
 
 Each of the three ships alongside a `.sig` sidecar (binary, 64 bytes) when
 the signing key is configured.
