@@ -1,29 +1,20 @@
-use crate::{signal_id_from_name, SignalId, SIGNAL_COUNT};
+use crate::{signal_id_from_name, terminated_name_len, SignalId, SIGNAL_COUNT};
 use core::slice;
 
-// Bounds the read so a missing NUL can't run off into adjacent memory.
-const MAX_NAME_LEN: usize = 32;
-
 /// # Safety
-/// Caller guarantees `name` is null OR points to readable memory; we cap the
-/// scan at MAX_NAME_LEN. Returns SIGNAL_COUNT on null/empty/unknown/too-long.
+/// `name` is null or points to a NUL-terminated string. Bytes are read one at a
+/// time up to the NUL, never past it, and never past MAX_NAME_LEN.
 #[no_mangle]
 pub unsafe extern "C" fn signal_id_from_name_rs(name: *const core::ffi::c_char) -> SignalId {
     if name.is_null() {
         return SIGNAL_COUNT;
     }
-    let bytes = unsafe { slice::from_raw_parts(name.cast::<u8>(), MAX_NAME_LEN) };
-    let len = match bytes.iter().position(|&b| b == 0) {
-        Some(n) => n,
-        None => return SIGNAL_COUNT,
-    };
-    if len == 0 {
+    let bytes = name.cast::<u8>();
+    let Some(len) = terminated_name_len(|i| unsafe { *bytes.add(i) }) else {
         return SIGNAL_COUNT;
-    }
-    match core::str::from_utf8(&bytes[..len]) {
-        Ok(s) => signal_id_from_name(s),
-        Err(_) => SIGNAL_COUNT,
-    }
+    };
+    let name = unsafe { slice::from_raw_parts(bytes, len) };
+    core::str::from_utf8(name).map_or(SIGNAL_COUNT, signal_id_from_name)
 }
 
 #[cfg(test)]
@@ -38,7 +29,7 @@ mod tests {
 
     #[test]
     fn known_name_resolves() {
-        let s = CStr::from_bytes_with_nul(b"rpm\0").unwrap();
+        let s = c"rpm";
         assert_eq!(lookup_cstr(s), ids::RPM);
     }
 
@@ -50,13 +41,27 @@ mod tests {
 
     #[test]
     fn empty_returns_sentinel() {
-        let s = CStr::from_bytes_with_nul(b"\0").unwrap();
+        let s = c"";
         assert_eq!(lookup_cstr(s), SIGNAL_COUNT);
     }
 
     #[test]
+    fn short_name_in_an_exact_allocation_resolves() {
+        let exact: Box<[u8]> = Box::new(*b"rpm\0");
+        let id = unsafe { signal_id_from_name_rs(exact.as_ptr().cast()) };
+        assert_eq!(id, ids::RPM);
+    }
+
+    #[test]
+    fn unterminated_name_is_rejected_at_the_cap() {
+        let long = [b'a'; crate::MAX_NAME_LEN + 1];
+        let id = unsafe { signal_id_from_name_rs(long.as_ptr().cast()) };
+        assert_eq!(id, SIGNAL_COUNT);
+    }
+
+    #[test]
     fn unknown_returns_sentinel() {
-        let s = CStr::from_bytes_with_nul(b"not_a_signal\0").unwrap();
+        let s = c"not_a_signal";
         assert_eq!(lookup_cstr(s), SIGNAL_COUNT);
     }
 }
