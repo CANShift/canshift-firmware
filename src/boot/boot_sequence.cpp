@@ -141,6 +141,10 @@ void logBootCompleteAndReady(uint32_t bootStartMs) {
 
 } // namespace
 
+extern "C" bool verifyRollbackLater() {
+    return true;
+}
+
 void BootSequence::markOtaSlotValidIfPending() {
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
