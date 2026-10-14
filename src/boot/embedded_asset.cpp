@@ -124,7 +124,19 @@ EmbeddedAsset::Outcome inflateStream(tinfl_decompressor &decompressor, DeflatedI
     return kStepOutcomes[static_cast<size_t>(step)];
 }
 
+constexpr size_t kZlibTrailerBytes = sizeof(uint32_t);
+
 } // namespace
+
+bool EmbeddedAsset::contentStamp(const uint8_t *start, const uint8_t *end, uint32_t &stamp) {
+    const size_t blobLength = static_cast<size_t>(end - start);
+    if (blobLength <= kLengthHeaderBytes + kZlibTrailerBytes)
+        return false;
+    const uint8_t *trailer = end - kZlibTrailerBytes;
+    stamp = (static_cast<uint32_t>(trailer[0]) << 24) | (static_cast<uint32_t>(trailer[1]) << 16) |
+            (static_cast<uint32_t>(trailer[2]) << 8) | static_cast<uint32_t>(trailer[3]);
+    return true;
+}
 
 EmbeddedAsset::Outcome EmbeddedAsset::inflateToFile(const char *path, const uint8_t *start,
                                                     const uint8_t *end, size_t &inflatedLength) {

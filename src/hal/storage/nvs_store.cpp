@@ -57,4 +57,22 @@ uint8_t getUChar(const char *ns, const char *key, uint8_t fallback) {
     return value;
 }
 
+bool putULong(const char *ns, const char *key, uint32_t value) {
+    return withWritableNamespace(
+        ns, [&](Preferences &p) { return p.putULong(key, value) == sizeof(uint32_t); });
+}
+
+bool getULong(const char *ns, const char *key, uint32_t &value) {
+    Preferences prefs;
+    if (!prefs.begin(ns, true)) {
+        return false;
+    }
+    const bool present = prefs.isKey(key);
+    if (present) {
+        value = prefs.getULong(key, 0);
+    }
+    prefs.end();
+    return present;
+}
+
 } // namespace NvsStore
