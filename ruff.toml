@@ -1,0 +1,4 @@
+builtins = ["Import", "env", "projenv", "DefaultEnvironment"]
+
+[lint]
+select = ["E9", "F"]
