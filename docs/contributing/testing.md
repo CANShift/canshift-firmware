@@ -76,7 +76,13 @@ python3 scripts/bench_size.py check --measured sizes
 
 The check needs a report for every board, so measure all five first. Local
 numbers drift from CI's by a few bytes (paths baked into assert strings), which
-the tolerance absorbs; take budget numbers from the CI job summary.
+the tolerance absorbs; take budget numbers from CI instead. Download the
+`size-*` artifacts of the PR's run and write them into the budget:
+
+```bash
+gh run download <run-id> --pattern 'size-*' --dir sizes
+python3 scripts/bench_size.py update --measured sizes
+```
 
 ## Rust crates — cargo test (`canshift-firmware`)
 

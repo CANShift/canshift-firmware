@@ -111,6 +111,17 @@ def check(budget_path: Path, measured_dir: Path, summary: Path | None) -> int:
     return 1 if failed else 0
 
 
+def update(budget_path: Path, measured_dir: Path) -> int:
+    budget = json.loads(budget_path.read_text())
+    measured = load_measurements(measured_dir)
+    if not measured:
+        raise SizeError(f"no size-*.json reports under {measured_dir}")
+    budget["boards"] = dict(sorted(measured.items()))
+    budget_path.write_text(json.dumps(budget, indent=2) + "\n")
+    print(f"[size] {budget_path} now holds the sizes of {len(measured)} boards")
+    return 0
+
+
 def run_measure(args: argparse.Namespace) -> int:
     report = measure(args.board, args.elf, args.bin)
     args.out.write_text(json.dumps(report, indent=2) + "\n")
@@ -120,6 +131,10 @@ def run_measure(args: argparse.Namespace) -> int:
 
 def run_check(args: argparse.Namespace) -> int:
     return check(args.budget, args.measured, args.summary)
+
+
+def run_update(args: argparse.Namespace) -> int:
+    return update(args.budget, args.measured)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -136,6 +151,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     check_cmd.add_argument("--measured", type=Path, required=True)
     check_cmd.add_argument("--summary", type=Path)
     check_cmd.set_defaults(handler=run_check)
+    update_cmd = commands.add_parser("update")
+    update_cmd.add_argument("--budget", type=Path, default=Path("bench/size-budget.json"))
+    update_cmd.add_argument("--measured", type=Path, required=True)
+    update_cmd.set_defaults(handler=run_update)
     return parser.parse_args(argv)
 
 
