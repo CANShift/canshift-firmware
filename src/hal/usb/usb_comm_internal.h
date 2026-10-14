@@ -2,6 +2,8 @@
 
 #include "usb_comm.h"
 
+#include "config/typed_config_body.h"
+
 #include <ArduinoJson.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -27,7 +29,7 @@ void sendToSocket(const char *line, size_t len);
 
 void dispatchFromSerial(char *jsonLine);
 
-void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey);
+void sendTypedConfigGet(const char *path, const char *fieldKey, TypedConfigBody::BodyOf bodyOf);
 void handlePutDeviceConfig(const JsonObjectConst &obj);
 void handlePutInputBindings(const JsonObjectConst &obj);
 

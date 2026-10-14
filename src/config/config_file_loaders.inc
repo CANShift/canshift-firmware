@@ -4,6 +4,7 @@
 #include "app_config.h"
 #include "board_config.h"
 #include "config/parse_utils.h"
+#include "config/typed_config_body.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
@@ -33,10 +34,11 @@ bool loadDevice() {
         return false;
     }
 
+    const JsonVariantConst body = TypedConfigBody::device(doc);
     CfgDeviceConfig parsed{};
-    parsed.canSpeedKbps = doc["can_speed_kbps"] | 0;
-    parsed.twaiTxPin = doc["twai_tx_pin"] | -1;
-    parsed.twaiRxPin = doc["twai_rx_pin"] | -1;
+    parsed.canSpeedKbps = body["can_speed_kbps"] | 0;
+    parsed.twaiTxPin = body["twai_tx_pin"] | -1;
+    parsed.twaiRxPin = body["twai_rx_pin"] | -1;
     parsed.loaded = true;
     s_device = parsed;
     LOG_INFO("CFG", "device.json loaded: CAN=%ukbps TX=GPIO%d RX=GPIO%d", s_device.canSpeedKbps,
@@ -61,7 +63,7 @@ bool loadInputBindings() {
         return false;
     }
 
-    JsonArrayConst arr = doc["input_bindings"].as<JsonArrayConst>();
+    JsonArrayConst arr = TypedConfigBody::inputBindings(doc).as<JsonArrayConst>();
     if (arr.isNull()) {
         LOG_WARN("CFG", "input_bindings.json missing 'input_bindings' array — ignoring file");
         return false;

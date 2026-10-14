@@ -218,10 +218,12 @@ void runGetConfig(const JsonObjectConst &) {
     handleGetConfig();
 }
 void runGetDeviceConfig(const JsonObjectConst &) {
-    sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", nullptr);
+    sendTypedConfigGet(CONFIG_PATH_DEVICE, TypedConfigBody::kDeviceConfigKey,
+                       TypedConfigBody::device);
 }
 void runGetInputBindings(const JsonObjectConst &) {
-    sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", "input_bindings");
+    sendTypedConfigGet(CONFIG_PATH_INPUTS, TypedConfigBody::kInputBindingsKey,
+                       TypedConfigBody::inputBindings);
 }
 void runCanScanStart(const JsonObjectConst &) {
     handleCanScanStart();
