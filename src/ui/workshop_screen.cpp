@@ -1,20 +1,23 @@
-#include "workshop_screen.h"
-
 #include "app_config.h"
-#include "diag/error_store.h"
-#include "diag/logger.h"
-#include "runtime/workshop_credentials.h"
-#include "ui/page_manager.h"
-#include "ui/severity.h"
-#include "ui/system_screen.h"
-#include "ui/theme_manager.h"
-#include "ui/widgets/control_button.h"
-#include "ui/widgets/widget_helpers.h"
-#include "workshop_mode_rs.h"
+#if APP_WORKSHOP_ENABLED
 
-#include <Arduino.h>
-#include <esp_system.h>
-#include <lvgl.h>
+    #include "workshop_screen.h"
+
+    #include "app_config.h"
+    #include "diag/error_store.h"
+    #include "diag/logger.h"
+    #include "runtime/workshop_credentials.h"
+    #include "ui/page_manager.h"
+    #include "ui/severity.h"
+    #include "ui/system_screen.h"
+    #include "ui/theme_manager.h"
+    #include "ui/widgets/control_button.h"
+    #include "ui/widgets/widget_helpers.h"
+    #include "workshop_mode_rs.h"
+
+    #include <Arduino.h>
+    #include <esp_system.h>
+    #include <lvgl.h>
 
 namespace WorkshopScreen {
 
@@ -130,3 +133,5 @@ bool enter() {
 }
 
 } // namespace WorkshopScreen
+
+#endif
