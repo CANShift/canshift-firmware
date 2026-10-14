@@ -1,6 +1,7 @@
 
 #include "default_fonts.h"
 
+#include "boot/embedded_asset.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
@@ -8,20 +9,30 @@
 #include <Arduino.h>
 
 extern "C" {
-extern const uint8_t kFontValue17Start[] asm("_binary_data_fonts_jbmono_extrabold_17_bin_start");
-extern const uint8_t kFontValue17End[] asm("_binary_data_fonts_jbmono_extrabold_17_bin_end");
+extern const uint8_t
+    kFontValue17Start[] asm("_binary__pio_deflated_data_fonts_jbmono_extrabold_17_bin_start");
+extern const uint8_t
+    kFontValue17End[] asm("_binary__pio_deflated_data_fonts_jbmono_extrabold_17_bin_end");
 
-extern const uint8_t kFontValue22Start[] asm("_binary_data_fonts_jbmono_extrabold_22_bin_start");
-extern const uint8_t kFontValue22End[] asm("_binary_data_fonts_jbmono_extrabold_22_bin_end");
+extern const uint8_t
+    kFontValue22Start[] asm("_binary__pio_deflated_data_fonts_jbmono_extrabold_22_bin_start");
+extern const uint8_t
+    kFontValue22End[] asm("_binary__pio_deflated_data_fonts_jbmono_extrabold_22_bin_end");
 
-extern const uint8_t kFontLabel10Start[] asm("_binary_data_fonts_archivo_extrabold_10_bin_start");
-extern const uint8_t kFontLabel10End[] asm("_binary_data_fonts_archivo_extrabold_10_bin_end");
+extern const uint8_t
+    kFontLabel10Start[] asm("_binary__pio_deflated_data_fonts_archivo_extrabold_10_bin_start");
+extern const uint8_t
+    kFontLabel10End[] asm("_binary__pio_deflated_data_fonts_archivo_extrabold_10_bin_end");
 
-extern const uint8_t kFontLabel12Start[] asm("_binary_data_fonts_archivo_extrabold_12_bin_start");
-extern const uint8_t kFontLabel12End[] asm("_binary_data_fonts_archivo_extrabold_12_bin_end");
+extern const uint8_t
+    kFontLabel12Start[] asm("_binary__pio_deflated_data_fonts_archivo_extrabold_12_bin_start");
+extern const uint8_t
+    kFontLabel12End[] asm("_binary__pio_deflated_data_fonts_archivo_extrabold_12_bin_end");
 
-extern const uint8_t kFontLabel16Start[] asm("_binary_data_fonts_archivo_extrabold_16_bin_start");
-extern const uint8_t kFontLabel16End[] asm("_binary_data_fonts_archivo_extrabold_16_bin_end");
+extern const uint8_t
+    kFontLabel16Start[] asm("_binary__pio_deflated_data_fonts_archivo_extrabold_16_bin_start");
+extern const uint8_t
+    kFontLabel16End[] asm("_binary__pio_deflated_data_fonts_archivo_extrabold_16_bin_end");
 }
 
 namespace {
@@ -41,17 +52,22 @@ const EmbeddedFont kEmbeddedFonts[] = {
     {"/fonts/archivo_extrabold_16.bin", kFontLabel16Start, kFontLabel16End, "archivo_extrabold_16"},
 };
 
+constexpr const char *kFailureCodes[EmbeddedAsset::kOutcomeCount] = {
+    nullptr,
+    "FONT_EMBED_EMPTY",
+    "FONT_EMBED_NO_MEMORY",
+    "FONT_EMBED_CORRUPT",
+    "FONT_PROVISION_FAIL",
+};
+
 bool writeOne(const EmbeddedFont &font) {
-    const size_t length = static_cast<size_t>(font.end - font.start);
-    if (length == 0) {
-        LOG_ERROR("FONT", "Embedded default %s is empty — build misconfigured", font.label);
-        ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_EMBED_EMPTY", font.label);
-        return false;
-    }
-    const bool ok = StorageDriver::writeFileAtomic(font.path, font.start, length);
-    if (!ok) {
-        LOG_ERROR("FONT", "Default-font provision write failed: %s", font.path);
-        ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_PROVISION_FAIL", font.label);
+    size_t length = 0;
+    const EmbeddedAsset::Outcome outcome =
+        EmbeddedAsset::inflateToFile(font.path, font.start, font.end, length);
+    if (outcome != EmbeddedAsset::Outcome::Written) {
+        const char *code = kFailureCodes[static_cast<size_t>(outcome)];
+        LOG_ERROR("FONT", "Default-font provision of %s failed: %s", font.label, code);
+        ErrorStore::push(ERROR_SRC_SYSTEM, code, font.label);
         return false;
     }
     LOG_INFO("FONT", "Provisioned default %s (%u bytes)", font.label,

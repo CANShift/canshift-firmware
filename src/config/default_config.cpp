@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "board_config.h"
+#include "boot/embedded_asset.h"
 #include "config/config_types.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
@@ -15,8 +16,10 @@ static constexpr const char *kBakSuffix = ".bak";
 static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
 
 extern "C" {
-extern const uint8_t kDefaultDashboardStart[] asm("_binary_data_config_dashboard_json_start");
-extern const uint8_t kDefaultDashboardEnd[] asm("_binary_data_config_dashboard_json_end");
+extern const uint8_t
+    kDefaultDashboardStart[] asm("_binary__pio_deflated_data_config_dashboard_json_start");
+extern const uint8_t
+    kDefaultDashboardEnd[] asm("_binary__pio_deflated_data_config_dashboard_json_end");
 }
 
 namespace {
@@ -58,17 +61,18 @@ bool needsProvision(const char *path) {
     return StorageDriver::fileSize(path) == 0;
 }
 
+constexpr const char *kFailureCodes[EmbeddedAsset::kOutcomeCount] = {
+    nullptr, "EMBED_EMPTY", "EMBED_NO_MEMORY", "EMBED_CORRUPT", "PROVISION_FAIL",
+};
+
 bool writeOne(const EmbeddedBlob &blob) {
-    const size_t length = static_cast<size_t>(blob.end - blob.start);
-    if (length == 0) {
-        LOG_ERROR("CFG", "Embedded default %s is empty — build misconfigured", blob.label);
-        ErrorStore::push(ERROR_SRC_CONFIG, "EMBED_EMPTY", blob.label);
-        return false;
-    }
-    const bool ok = StorageDriver::writeFileAtomic(blob.path, blob.start, length);
-    if (!ok) {
-        LOG_ERROR("CFG", "Default-provision write failed: %s", blob.path);
-        ErrorStore::push(ERROR_SRC_CONFIG, "PROVISION_FAIL", blob.label);
+    size_t length = 0;
+    const EmbeddedAsset::Outcome outcome =
+        EmbeddedAsset::inflateToFile(blob.path, blob.start, blob.end, length);
+    if (outcome != EmbeddedAsset::Outcome::Written) {
+        const char *code = kFailureCodes[static_cast<size_t>(outcome)];
+        LOG_ERROR("CFG", "Default-provision of %s failed: %s", blob.label, code);
+        ErrorStore::push(ERROR_SRC_CONFIG, code, blob.label);
         return false;
     }
     LOG_INFO("CFG", "Provisioned default %s (%u bytes)", blob.label, static_cast<unsigned>(length));

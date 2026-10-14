@@ -22,7 +22,7 @@ jobs:
         run: |
           pip install "clang-format==${CLANG_FORMAT_VERSION}"
           find src include test sim \( -name "*.cpp" -o -name "*.h" -o -name "*.inc" \) \
-            ! -name 'lv_conf.h' -print0 \
+            ! -name 'lv_conf.h' ! -path 'test/native/vendor/*' -print0 \
             | xargs -0 clang-format --dry-run --Werror --style=file
       - name: FFI constant parity
         run: python3 scripts/check_ffi_parity.py
