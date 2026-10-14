@@ -9,15 +9,18 @@
 
     #include <NimBLEDevice.h>
     #include <atomic>
-    #include <esp_bt.h>
+    #if APP_WORKSHOP_ENABLED
+        #include <esp_bt.h>
+    #endif
 
 using BleServerInternal::s_enabled;
 using BleServerInternal::s_gattInited;
-using BleServerInternal::s_released;
 using BleServerInternal::s_stackInited;
 
 static std::atomic<bool> s_stopRequested{false};
+    #if APP_WORKSHOP_ENABLED
 static std::atomic<bool> s_releaseRequested{false};
+    #endif
 
 namespace {
 
@@ -51,12 +54,14 @@ void BleServer::stop() {
     LOG_INFO("BLE", "BLE advertising stopped (GATT preserved)");
 }
 
+    #if APP_WORKSHOP_ENABLED
+
 void BleServer::release() {
-    if (s_released)
+    if (BleServerInternal::s_released)
         return;
     if (s_stackInited)
         teardownStack();
-    s_released = true;
+    BleServerInternal::s_released = true;
     const esp_err_t err = esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
     if (err != ESP_OK) {
         LOG_ERROR("BLE", "Controller memory release failed: %s", esp_err_to_name(err));
@@ -65,6 +70,8 @@ void BleServer::release() {
     }
     LOG_INFO("BLE", "BLE stopped for workshop mode — controller memory released");
 }
+
+    #endif
 
 bool BleServer::isEnabled() {
     return s_enabled;
@@ -78,6 +85,8 @@ bool BleServer::takeStopRequest() {
     return s_stopRequested.exchange(false, std::memory_order_relaxed);
 }
 
+    #if APP_WORKSHOP_ENABLED
+
 void BleServer::requestRelease() {
     s_releaseRequested.store(true, std::memory_order_relaxed);
 }
@@ -85,5 +94,7 @@ void BleServer::requestRelease() {
 bool BleServer::takeReleaseRequest() {
     return s_releaseRequested.exchange(false, std::memory_order_relaxed);
 }
+
+    #endif
 
 #endif

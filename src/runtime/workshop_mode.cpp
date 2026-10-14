@@ -1,15 +1,18 @@
-#include "workshop_mode.h"
+#include "app_config.h"
+#if APP_WORKSHOP_ENABLED
 
-#include "can/signal_map.h"
-#include "config/config_loader.h"
-#include "diag/logger.h"
-#include "hal/storage/storage_driver.h"
-#include "runtime/signal_store.h"
-#include "workshop_mode_rs.h"
+    #include "workshop_mode.h"
 
-#include <atomic>
-#include <stddef.h>
-#include <stdint.h>
+    #include "can/signal_map.h"
+    #include "config/config_loader.h"
+    #include "diag/logger.h"
+    #include "hal/storage/storage_driver.h"
+    #include "runtime/signal_store.h"
+    #include "workshop_mode_rs.h"
+
+    #include <atomic>
+    #include <stddef.h>
+    #include <stdint.h>
 
 namespace WorkshopMode {
 
@@ -70,3 +73,5 @@ void settleEntry(bool entered) {
 }
 
 } // namespace WorkshopMode
+
+#endif

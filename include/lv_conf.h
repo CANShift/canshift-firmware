@@ -7,6 +7,12 @@
         #include <stdint.h>
         #include "hardware_profile.h"
 
+        #if defined(APP_WORKSHOP_ENABLED) && APP_WORKSHOP_ENABLED
+            #define CANSHIFT_LV_WORKSHOP 1
+        #else
+            #define CANSHIFT_LV_WORKSHOP 0
+        #endif
+
         #define LV_COLOR_DEPTH 16
 
         #define LV_COLOR_16_SWAP 0
@@ -125,7 +131,7 @@
         #define LV_USE_BAR 1 
         #define LV_USE_BTN 1 
         #define LV_USE_BTNMATRIX 0
-        #define LV_USE_CANVAS 1
+        #define LV_USE_CANVAS CANSHIFT_LV_WORKSHOP
         #define LV_USE_CHECKBOX 0
         #define LV_USE_DROPDOWN 0 
         #define LV_USE_IMG 1      
@@ -176,7 +182,7 @@
 #define LV_USE_BMP     1    
 #define LV_USE_SJPG    0    
 #define LV_USE_GIF     0    
-#define LV_USE_QRCODE  1
+#define LV_USE_QRCODE  CANSHIFT_LV_WORKSHOP
 
         #define LV_USE_GESTURE_RECOGNITION 0
 

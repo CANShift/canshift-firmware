@@ -46,7 +46,7 @@ The button sits at the bottom of the panel and only appears when both hold:
 
 | Condition | Why |
 | --- | --- |
-| The board runs the 16 MB layout (a filesystem of 4 MB or more) | The studio ships in flash; the 4 MB boards keep USB configuration |
+| The firmware is built with `APP_WORKSHOP_ENABLED` (only `waveshare_s3_28`) and runs the 16 MB layout (a filesystem of 4 MB or more) | The tuner ships in flash; the 4 MB boards keep USB configuration and carry none of this code |
 | The car is stationary: `speed_kph` reads 0, or no speed signal is mapped, or the speed signal has gone stale | Workshop mode switches the dash off |
 
 Whether it is offered is decided each time the panel opens, and checked again on

@@ -1,13 +1,16 @@
-#include "workshop_credentials.h"
+#include "app_config.h"
+#if APP_WORKSHOP_ENABLED
 
-#include "diag/error_store.h"
-#include "diag/logger.h"
-#include "hal/storage/nvs_store.h"
+    #include "workshop_credentials.h"
 
-#include <Preferences.h>
-#include <esp_system.h>
-#include <stdint.h>
-#include <string.h>
+    #include "diag/error_store.h"
+    #include "diag/logger.h"
+    #include "hal/storage/nvs_store.h"
+
+    #include <Preferences.h>
+    #include <esp_system.h>
+    #include <stdint.h>
+    #include <string.h>
 
 namespace WorkshopCredentialStore {
 
@@ -73,3 +76,5 @@ bool loadOrCreate(WorkshopCredentials &out) {
 }
 
 } // namespace WorkshopCredentialStore
+
+#endif

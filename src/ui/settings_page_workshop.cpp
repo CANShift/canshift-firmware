@@ -1,12 +1,15 @@
-#include "settings_page_internal.h"
+#include "app_config.h"
+#if APP_WORKSHOP_ENABLED
 
-#include "settings_page.h"
-#include "layout_scale.h"
-#include "runtime/workshop_mode.h"
-#include "ui/widgets/widget_helpers.h"
+    #include "settings_page_internal.h"
 
-#include <lvgl.h>
-#include <stdint.h>
+    #include "settings_page.h"
+    #include "layout_scale.h"
+    #include "runtime/workshop_mode.h"
+    #include "ui/widgets/widget_helpers.h"
+
+    #include <lvgl.h>
+    #include <stdint.h>
 
 namespace SettingsPageInternal {
 
@@ -43,3 +46,5 @@ void refreshWorkshopRow() {
 }
 
 } // namespace SettingsPageInternal
+
+#endif

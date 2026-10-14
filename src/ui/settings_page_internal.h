@@ -1,5 +1,7 @@
 #pragma once
 
+#include "app_config.h"
+
 #include <lvgl.h>
 #include <stdint.h>
 
@@ -81,8 +83,13 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW);
 void buildDayModeRow(int16_t &y, int16_t rowW);
 void buildAboutRow(int16_t &y, int16_t rowW);
 void buildRebootRow(int16_t &y, int16_t rowW);
+#if APP_WORKSHOP_ENABLED
 void buildWorkshopRow(int16_t &y, int16_t rowW);
 void refreshWorkshopRow();
+#else
+inline void buildWorkshopRow(int16_t &, int16_t) {}
+inline void refreshWorkshopRow() {}
+#endif
 
 void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb);
 void onSnapOpenDone(lv_anim_t *a);

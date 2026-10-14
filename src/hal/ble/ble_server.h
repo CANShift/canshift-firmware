@@ -25,11 +25,25 @@ void requestStop();
 
 bool takeStopRequest();
 
+    #if APP_WORKSHOP_ENABLED
+
 void requestRelease();
 
 bool takeReleaseRequest();
 
 void release();
+
+    #else
+
+inline void requestRelease() {}
+
+inline bool takeReleaseRequest() {
+    return false;
+}
+
+inline void release() {}
+
+    #endif
 
 void tick();
 
