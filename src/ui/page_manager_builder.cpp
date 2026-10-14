@@ -61,59 +61,69 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &e
 
 } // namespace
 
-void buildPage(uint8_t idx, const CfgPage &cfg) {
-    LOG_INFO("UI", "buildPage(%s) entry: heap.largest=%u heap.free=%u stack.hwm=%u", cfg.id,
+namespace {
+
+void logBuildHeap(const char *stage, const char *pageId) {
+    LOG_INFO("UI", "buildPage(%s) %s: heap.largest=%u heap.free=%u stack.hwm=%u", pageId, stage,
              static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
              static_cast<unsigned>(ESP.getFreeHeap()),
              static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+}
+
+uint8_t buildWidgets(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
+    const int16_t topBarBand = cfg.showTopBar ? TopBar::getHeight() : 0;
+    uint8_t created = 0;
+    for (uint8_t w = 0; w < cfg.widgetCount; ++w) {
+        const CfgWidget &wCfg = cfg.widgets[w];
+        const int16_t yOffset = wCfg.type == WidgetType::SHIFT_LIGHT ? topBarBand : contentY;
+        if (WidgetFactory::create(screen, wCfg, yOffset) != nullptr)
+            ++created;
+    }
+    return created;
+}
+
+bool buildPageContent(lv_obj_t *screen, const CfgPage &cfg) {
+    const int16_t contentY = contentTopY(cfg);
+    if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
+        CruiseControlWidget::build(screen, cfg, contentY);
+        if (cfg.widgetCount > 0) {
+            LOG_INFO("UI", "Page '%s': cruise_control template — ignoring %u user widget(s)",
+                     cfg.id, static_cast<unsigned>(cfg.widgetCount));
+        }
+        return true;
+    }
+    const uint8_t created = buildWidgets(screen, cfg, contentY);
+    if (created < cfg.widgetCount) {
+        LOG_WARN("UI", "Page '%s': only %u/%u widgets built — see prior WF errors", cfg.id,
+                 static_cast<unsigned>(created), static_cast<unsigned>(cfg.widgetCount));
+        return false;
+    }
+    LOG_INFO("UI", "Built page '%s' with %u widgets", cfg.id,
+             static_cast<unsigned>(cfg.widgetCount));
+    return true;
+}
+
+} // namespace
+
+bool buildPage(uint8_t idx, const CfgPage &cfg) {
+    logBuildHeap("entry", cfg.id);
 
     Page &p = s_pages[idx];
     strlcpy(p.id, cfg.id, CFG_MAX_ID_LEN);
 
     p.screen = lv_obj_create(nullptr);
+    if (!p.screen) {
+        LOG_ERROR("UI", "Page '%s': screen allocation failed", cfg.id);
+        return false;
+    }
     lv_obj_set_size(p.screen, LV_HOR_RES, LV_VER_RES);
     lv_obj_clear_flag(p.screen, LV_OBJ_FLAG_SCROLLABLE);
-
     applyPageBackground(p.screen, cfg, ThemeManager::getEffectiveBgColor(cfg.bgColor));
 
-    const int16_t topBarBand = cfg.showTopBar ? TopBar::getHeight() : 0;
-    const int16_t contentY = contentTopY(cfg);
-
-    if (cfg.templateKind == CfgPageTemplate::CRUISE_CONTROL) {
-        CruiseControlWidget::build(p.screen, cfg, contentY);
-        p.built = true;
-        if (cfg.widgetCount > 0) {
-            LOG_INFO("UI", "Page '%s': cruise_control template — ignoring %u user widget(s)",
-                     cfg.id, static_cast<unsigned>(cfg.widgetCount));
-        }
-        LOG_INFO("UI", "buildPage(%s) exit:  heap.largest=%u heap.free=%u stack.hwm=%u", cfg.id,
-                 static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
-                 static_cast<unsigned>(ESP.getFreeHeap()),
-                 static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
-        return;
-    }
-
-    uint8_t created = 0;
-    for (uint8_t w = 0; w < cfg.widgetCount; ++w) {
-        const CfgWidget &wCfg = cfg.widgets[w];
-        const int16_t yOffset = wCfg.type == WidgetType::SHIFT_LIGHT ? topBarBand : contentY;
-        if (WidgetFactory::create(p.screen, wCfg, yOffset) != nullptr)
-            ++created;
-    }
-
+    const bool complete = buildPageContent(p.screen, cfg);
     p.built = true;
-    if (created < cfg.widgetCount) {
-        LOG_WARN("UI", "Page '%s': only %u/%u widgets built — see prior WF errors", cfg.id,
-                 static_cast<unsigned>(created), static_cast<unsigned>(cfg.widgetCount));
-    } else {
-        LOG_INFO("UI", "Built page '%s' with %u widgets", cfg.id,
-                 static_cast<unsigned>(cfg.widgetCount));
-    }
-
-    LOG_INFO("UI", "buildPage(%s) exit:  heap.largest=%u heap.free=%u stack.hwm=%u", cfg.id,
-             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
-             static_cast<unsigned>(ESP.getFreeHeap()),
-             static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+    logBuildHeap("exit", cfg.id);
+    return complete;
 }
 
 void releasePage(Page &p) {
@@ -132,6 +142,7 @@ void releaseAllPages() {
     s_pageCount = 0;
     s_pendingFreeIdx = 0xFF;
     s_pendingLazyBuildIdx = 0xFF;
+    s_keepAllPages = false;
 }
 
 uint8_t defaultPageIndex() {
@@ -144,39 +155,32 @@ uint8_t defaultPageIndex() {
     return 0;
 }
 
-void buildPageList() {
-    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    const char *defaultId = dash.defaultPageId;
+namespace {
 
+void listVisiblePages() {
+    const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     s_pageCount = 0;
     s_currentIdx = 0;
-
     for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
         if (!dash.pages[i].visible) {
             LOG_INFO("UI", "Skipping hidden page '%s' (visible=false)", dash.pages[i].id);
             continue;
         }
-        Page &p = s_pages[s_pageCount];
+        Page &p = s_pages[s_pageCount++];
         strlcpy(p.id, dash.pages[i].id, CFG_MAX_ID_LEN);
         p.screen = nullptr;
         p.built = false;
         p.cfgIdx = i;
-
-        if (strcmp(p.id, defaultId) == 0) {
-            buildPage(s_pageCount, dash.pages[i]);
-        }
-        s_pageCount++;
     }
+}
 
-    if (s_pageCount == 0 || s_pages[0].screen) {
+} // namespace
+
+void buildPageList() {
+    listVisiblePages();
+    if (s_pageCount == 0)
         return;
-    }
-    for (uint8_t i = 0; i < s_pageCount; ++i) {
-        if (!s_pages[i].screen) {
-            buildPage(i, dash.pages[s_pages[i].cfgIdx]);
-            return;
-        }
-    }
+    buildPagesAtBoot(defaultPageIndex());
 }
 
 void reapplyThemeAllPages() {
@@ -203,7 +207,7 @@ void reapplyThemeAllPages() {
     s_pendingFreeIdx = 0xFF;
     s_pendingLazyBuildIdx = 0xFF;
 
-    buildPage(target, dash.pages[s_pages[target].cfgIdx]);
+    rebuildPagesForTheme(target);
     if (!s_pages[target].screen) {
         LOG_ERROR("UI", "Theme rebuild: page '%s' failed to build", s_pages[target].id);
         return;

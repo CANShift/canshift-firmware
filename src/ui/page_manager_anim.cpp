@@ -47,7 +47,8 @@ void asyncDoLazyBuild(void *) {
     }
 
     LOG_INFO("UI", "Lazy-building page '%s' on first visit", s_pages[idx].id);
-    buildPage(idx, dash.pages[s_pages[idx].cfgIdx]);
+    if (!buildPage(idx, dash.pages[s_pages[idx].cfgIdx]))
+        LOG_WARN("UI", "Page '%s' built incompletely on swipe", s_pages[idx].id);
     if (!s_pages[idx].screen) {
         LOG_ERROR("UI", "asyncDoLazyBuild: build failed for page '%s'", s_pages[idx].id);
         return;
@@ -102,7 +103,7 @@ void showPage(uint8_t idx) {
     PERF_RECORD_PAGE_XEND();
 #endif
 
-    if (s_currentIdx != idx) {
+    if (s_currentIdx != idx && !s_keepAllPages) {
         s_pendingFreeIdx = s_currentIdx;
     }
 

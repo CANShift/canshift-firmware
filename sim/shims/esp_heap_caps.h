@@ -29,6 +29,14 @@ inline void *heap_caps_realloc(void *ptr, size_t size, uint32_t) {
     return realloc(ptr, size);
 }
 
+inline void *heap_caps_calloc(size_t count, size_t size, uint32_t) {
+    return calloc(count, size);
+}
+
+inline void *heap_caps_aligned_alloc(size_t alignment, size_t size, uint32_t) {
+    return aligned_alloc(alignment, (size + alignment - 1) / alignment * alignment);
+}
+
 inline void heap_caps_free(void *ptr) {
     free(ptr);
 }
