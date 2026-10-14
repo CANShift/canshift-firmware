@@ -33,7 +33,7 @@ void serialSink(const char *, size_t) {}
 
 #if APP_WORKSHOP_ENABLED
 
-enum class ReplyRoute : uint8_t { Broadcast, Serial, Socket };
+enum class ReplyRoute : uint8_t { Broadcast, Uart, Socket };
 
 struct RouteSinks {
     bool serial;
@@ -80,15 +80,26 @@ void socketSink(const char *line, size_t len) {
 #if APP_WORKSHOP_ENABLED
 
 void UsbCommInternal::routeLine(const char *line, size_t len) {
-    const RouteSinks &sinks = kRouteSinks[static_cast<uint8_t>(currentRoute())];
-    if (sinks.serial)
+    if (replyReachesSerial())
         serialSink(line, len);
-    if (sinks.socket)
+    if (replyReachesSocket())
         socketSink(line, len);
 }
 
+bool UsbCommInternal::replyReachesSerial() {
+    return kRouteSinks[static_cast<uint8_t>(currentRoute())].serial;
+}
+
+bool UsbCommInternal::replyReachesSocket() {
+    return kRouteSinks[static_cast<uint8_t>(currentRoute())].socket;
+}
+
+void UsbCommInternal::sendToSocket(const char *line, size_t len) {
+    socketSink(line, len);
+}
+
 void UsbCommInternal::dispatchFromSerial(char *jsonLine) {
-    const RouteScope scope(ReplyRoute::Serial);
+    const RouteScope scope(ReplyRoute::Uart);
     handleCommand(jsonLine);
 }
 
@@ -106,6 +117,16 @@ void UsbComm::setSocketSink(LineSink sink) {
 void UsbCommInternal::routeLine(const char *line, size_t len) {
     serialSink(line, len);
 }
+
+bool UsbCommInternal::replyReachesSerial() {
+    return true;
+}
+
+bool UsbCommInternal::replyReachesSocket() {
+    return false;
+}
+
+void UsbCommInternal::sendToSocket(const char *, size_t) {}
 
 void UsbCommInternal::dispatchFromSerial(char *jsonLine) {
     handleCommand(jsonLine);

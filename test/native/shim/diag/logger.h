@@ -20,6 +20,7 @@
 namespace Logger {
 inline void init() {}
 inline void emit(char /*level*/, const char * /*tag*/, const char * /*fmt*/, ...) {}
+bool writeAll(const uint8_t *bytes, size_t len);
 inline bool lockUart(TickType_t /*timeout*/) {
     return true;
 }

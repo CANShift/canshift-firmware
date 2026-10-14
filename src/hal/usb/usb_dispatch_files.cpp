@@ -44,42 +44,6 @@ void resetChunkState() {
     s_chunk.total = 0;
 }
 
-class SerialPrint : public Print {
-  public:
-    size_t write(uint8_t b) override {
-        return Logger::writeAll(&b, 1) ? 1 : 0;
-    }
-    size_t write(const uint8_t *data, size_t len) override {
-        return Logger::writeAll(data, len) ? len : 0;
-    }
-};
-
-class BufferPrint : public Print {
-  public:
-    BufferPrint(char *dst, size_t cap) : dst_(dst), cap_(cap), used_(0) {}
-    size_t write(uint8_t b) override {
-        if (used_ >= cap_)
-            return 0;
-        dst_[used_++] = static_cast<char>(b);
-        return 1;
-    }
-    size_t write(const uint8_t *data, size_t len) override {
-        const size_t room = cap_ - used_;
-        const size_t n = len < room ? len : room;
-        memcpy(dst_ + used_, data, n);
-        used_ += n;
-        return n;
-    }
-    size_t used() const {
-        return used_;
-    }
-
-  private:
-    char *dst_;
-    size_t cap_;
-    size_t used_;
-};
-
 } // namespace
 
 namespace UsbCommInternal {
@@ -320,45 +284,6 @@ void handlePutConfig(const char *jsonLine) {
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading live", written);
     PendingActions::configReload.store(true, std::memory_order_relaxed);
     UsbComm::sendOk();
-}
-
-void handleGetConfig() {
-    if (!StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)) {
-        UsbComm::sendError("config_not_found");
-        return;
-    }
-    const size_t fileBytes = StorageDriver::fileSize(CONFIG_PATH_DASHBOARD);
-    if (fileBytes == 0) {
-        LOG_WARN("USB", "GET_CONFIG: empty / unreadable %s", CONFIG_PATH_DASHBOARD);
-        UsbComm::sendError("config_not_found");
-        return;
-    }
-    static const char kPrefix[] = "{\"status\":\"ok\",\"config\":";
-    static const char kSuffix[] = "}\n";
-
-    if (!Logger::lockUart(pdMS_TO_TICKS(USB_TX_LOCK_TIMEOUT_MS))) {
-        LOG_WARN("USB", "GET_CONFIG: serial busy");
-        UsbComm::sendError("busy");
-        return;
-    }
-
-    SerialPrint sink;
-    const bool prefixOk =
-        Logger::writeAll(reinterpret_cast<const uint8_t *>(kPrefix), sizeof(kPrefix) - 1);
-    const size_t streamed =
-        prefixOk ? StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, sink, true) : 0;
-    const bool suffixOk =
-        streamed > 0 &&
-        Logger::writeAll(reinterpret_cast<const uint8_t *>(kSuffix), sizeof(kSuffix) - 1);
-    Logger::unlockUart();
-
-    if (!suffixOk) {
-        LOG_ERROR("USB", "GET_CONFIG: stream to host failed after %u B",
-                  static_cast<unsigned>(streamed));
-        return;
-    }
-
-    LOG_INFO("USB", "GET_CONFIG: sent %u bytes", static_cast<unsigned>(streamed));
 }
 
 void tickChunkTransferTimeout() {

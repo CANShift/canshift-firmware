@@ -19,6 +19,12 @@ void handleCommand(char *jsonLine);
 
 void routeLine(const char *line, size_t len);
 
+[[nodiscard]] bool replyReachesSerial();
+
+[[nodiscard]] bool replyReachesSocket();
+
+void sendToSocket(const char *line, size_t len);
+
 void dispatchFromSerial(char *jsonLine);
 
 void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey);
