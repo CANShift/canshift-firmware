@@ -195,6 +195,40 @@ CI never passes `--update-goldens`. On a mismatch the job prints a unified diff
 and uploads the actual output as the `goldens-report` artifact. A golden that
 changes in a PR is a behaviour change: the diff is part of the review.
 
+### Visual goldens
+
+`scripts/bench_visual.py` runs the SDL simulator (`pio run -e sim`) once per
+frame and tier, and compares the framebuffer, pixel for pixel, with the PNGs
+under `bench/goldens/visual/<tier>/`:
+
+| Frame            | Scenario, page, capture                                                        |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `page-<id>`      | the six default pages (`cruise`, or `controls` for the controls page) at 1.5 s |
+| `alert-takeover` | `oil` on `street` at 3 s, after the 2 s hold                                   |
+| `workshop-card`  | `workshop`, the card entered through the real path                             |
+| `self-test`      | `self-test` (D02)                                                              |
+| `day-street`     | `cruise` on `street` with `CANSHIFT_SIM_THEME=day`                             |
+
+Each frame is taken at the `base` (320×240), `medium` (480×320) and `large`
+(800×480) tiers, the last two through `sim/boards/`.
+
+Headless rendering uses SDL's `dummy` video driver (`SDL_VIDEODRIVER=dummy`)
+with the software renderer, so CI needs `libsdl2-dev` and no X server or
+virtual framebuffer: the sim draws into its own framebuffer either way, and the
+capture reads that buffer, not the window. `esp_random()` and `random()` come
+from a fixed-seed xorshift in `sim/shims/sim_random.h`, so the workshop
+password is the same everywhere. When the sim gets a capture time it
+switches to a virtual clock that advances 16 ms per frame, so a capture at
+1500 ms is always the same frame however fast the machine renders.
+
+The goldens are the frames CI's Linux x86-64 runner renders. Another platform
+can differ in a few anti-aliased pixels, so update them from CI rather than from a laptop: a
+failing `visual goldens` job uploads `visual-report` with
+`<tier>__<frame>.actual.png` and a `.diff.png` (unchanged pixels dimmed, changed
+ones red). Copy the actual PNGs over the goldens once the diff is the change you
+meant. On Linux x86-64, `python3 scripts/bench_visual.py --update-goldens`
+writes them directly.
+
 ## Rust crates — cargo test (`canshift-firmware`)
 
 Each crate under `canshift-firmware/rust/` carries its own tests.

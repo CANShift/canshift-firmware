@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sim_random.h"
+
 #include <cstdint>
 #include <cstdlib>
 
@@ -21,5 +23,5 @@ inline void esp_restart() {
 }
 
 inline uint32_t esp_random() {
-    return static_cast<uint32_t>(rand());
+    return SimRandom::next();
 }

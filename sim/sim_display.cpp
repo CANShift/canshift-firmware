@@ -70,6 +70,8 @@ bool init(int width, int height, int zoom) {
         return false;
     s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_ACCELERATED);
     if (!s_renderer)
+        s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_SOFTWARE);
+    if (!s_renderer)
         return false;
     SDL_RenderSetLogicalSize(s_renderer, width, height);
     s_texture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,

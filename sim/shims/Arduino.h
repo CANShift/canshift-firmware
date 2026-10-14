@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sim_clock.h"
+#include "sim_random.h"
 
 #include <cstdarg>
 #include <cstdint>
@@ -26,7 +27,7 @@ inline void delay(uint32_t ms) {
 inline long random(long minVal, long maxVal) {
     if (maxVal <= minVal)
         return minVal;
-    return minVal + (rand() % (maxVal - minVal));
+    return minVal + static_cast<long>(SimRandom::next() % static_cast<uint32_t>(maxVal - minVal));
 }
 
 #ifndef LOW
