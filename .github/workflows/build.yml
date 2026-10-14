@@ -298,10 +298,20 @@ jobs:
     # test and lint pass needs neither, so it runs on stable without espup.
     env:
       RUSTUP_TOOLCHAIN: stable
+      CARGO_NET_RETRY: 10
+      CARGO_HTTP_TIMEOUT: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-host-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
+          restore-keys: rust-host-${{ runner.os }}-
       - name: cargo test
         run: cargo test --workspace --all-features
         working-directory: rust
