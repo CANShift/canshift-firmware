@@ -182,7 +182,7 @@ bool parseOrFail(const char *jsonLine, size_t jsonLen, JsonDocument &doc, const 
 
 // PUT_CONFIG and OTA_WRITE read their payload straight off the raw line; PUT_FILE
 // parses first but must abort an open chunk transfer when that fails.
-bool consumeRawPayloadCommand(uint8_t cmd, const char *jsonLine, size_t jsonLen) {
+bool consumeRawPayloadCommand(uint8_t cmd, char *jsonLine, size_t jsonLen) {
     if (cmd == UsbComm::CMD_PUT_CONFIG) {
         handlePutConfig(jsonLine);
         return true;
@@ -196,7 +196,7 @@ bool consumeRawPayloadCommand(uint8_t cmd, const char *jsonLine, size_t jsonLen)
     }
     JsonDocument doc;
     if (parseOrFail(jsonLine, jsonLen, doc, "parse_error")) {
-        handlePutFile(doc.as<JsonObjectConst>());
+        handlePutFile(doc.as<JsonObjectConst>(), {jsonLine, jsonLen + 1});
     }
     return true;
 }
@@ -263,7 +263,7 @@ const UsbCommand *findUsbCommand(uint8_t code) {
     return nullptr;
 }
 
-void handleCommand(const char *jsonLine) {
+void handleCommand(char *jsonLine) {
     s_lastHostCmdMs = millis();
     LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
 

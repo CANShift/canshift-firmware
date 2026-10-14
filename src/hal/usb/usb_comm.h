@@ -78,7 +78,7 @@ using LineSink = void (*)(const char *line, size_t len);
 
 void setSocketSink(LineSink sink);
 
-void dispatchFromSocket(const char *jsonLine);
+void dispatchFromSocket(char *jsonLine);
 
 #endif
 

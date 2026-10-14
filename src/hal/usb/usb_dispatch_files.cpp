@@ -97,7 +97,7 @@ void failChunk(const char *reason) {
     abortChunkTransfer(reason);
 }
 
-void handlePutFile(const JsonObjectConst &obj) {
+void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
     const char *path = obj["path"];
     const uint32_t total = obj["total"] | 0u;
     const uint32_t idx = obj["idx"] | 0u;
@@ -125,16 +125,15 @@ void handlePutFile(const JsonObjectConst &obj) {
     }
 
     size_t decoded = 0;
-    const int rc = mbedtls_base64_decode(
-        reinterpret_cast<unsigned char *>(UsbCommInternal::s_rxBuf), USB_RX_BUF_SIZE, &decoded,
-        reinterpret_cast<const unsigned char *>(b64), strlen(b64));
+    const int rc =
+        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(scratch.buf), scratch.cap, &decoded,
+                              reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     if (rc != 0) {
         failChunk("b64_decode");
         return;
     }
 
-    if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(UsbCommInternal::s_rxBuf),
-                                    decoded)) {
+    if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(scratch.buf), decoded)) {
         failChunk("write_failed");
         return;
     }

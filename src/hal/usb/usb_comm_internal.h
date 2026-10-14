@@ -15,21 +15,26 @@ extern char *s_rxBuf;
 
 extern volatile uint32_t s_lastHostCmdMs;
 
-void handleCommand(const char *jsonLine);
+void handleCommand(char *jsonLine);
 
 void routeLine(const char *line, size_t len);
 
-void dispatchFromSerial(const char *jsonLine);
+void dispatchFromSerial(char *jsonLine);
 
 void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey);
 void handlePutDeviceConfig(const JsonObjectConst &obj);
 void handlePutInputBindings(const JsonObjectConst &obj);
 
 void handleOtaBegin(const JsonObjectConst &obj);
-void handleOtaWriteRaw(const char *jsonLine);
+void handleOtaWriteRaw(char *jsonLine);
 void handleOtaEnd(const JsonObjectConst &obj);
 
-void handlePutFile(const JsonObjectConst &obj);
+struct DecodeScratch {
+    char *buf;
+    size_t cap;
+};
+
+void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch);
 void handlePutConfig(const char *jsonLine);
 
 void handlePutConfigChunk(const JsonObjectConst &obj);
