@@ -2,6 +2,7 @@
 #if APP_BLE_ENABLED
 
     #include "ble_server.h"
+    #include "ble_json_arena.h"
     #include "ble_server_internal.h"
 
     #include "board.h"
@@ -21,11 +22,16 @@ void updateStatus() {
     auto *pStatus = BleServerInternal::s_pStatus;
     if (!pStatus)
         return;
-    JsonDocument doc;
+    BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Status);
+    JsonDocument &doc = leased.document();
     doc["ver"] = APP_VERSION_STR;
     doc["board_id"] = canshift::boards::runtimeBoardProfile().board_id;
     doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
+    if (doc.overflowed()) {
+        LOG_WARN("BLE", "STATUS arena %s — skipping notify", leased.held() ? "full" : "busy");
+        return;
+    }
     char buf[128];
 
     const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
