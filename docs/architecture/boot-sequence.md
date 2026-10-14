@@ -115,16 +115,23 @@ post-Arduino heap.
 
 ## OTA mark-valid placement
 
-`BootSequence::markOtaSlotValidIfPending()` is **NOT** called from
-`BootSequence::run()`. It is called from `taskUI` once
-`UI_OTA_VALID_FRAMES` successful frames have rendered (`main.cpp`).
+A freshly OTA-written slot boots as `ESP_OTA_IMG_PENDING_VERIFY`, and the
+prebuilt bootloader rolls back to the previous slot if it resets before the
+image is marked valid. The mark has one home:
+`BootSequence::markOtaSlotValidIfPending()`, called from `taskUI` once
+`UI_OTA_VALID_FRAMES` frames have rendered (`main.cpp`). So a crash anywhere in
+`setup()`, the boot sequence or the first frames rolls back.
 
-The original placement (right after `[BOOT] Ready`) marked too early — a
-crash inside the first `lv_task_handler()` call (font decode, page
-rebuild, theme apply) happens AFTER the mark and therefore never triggers
-the bootloader rollback. F-ME-8 (#1014) moved the mark to a gated point
-inside taskUI so a flaky build self-rolls-back. Source: `main.cpp`
-`taskUI` loop.
+arduino-esp32's `initArduino()` would otherwise mark the image valid itself,
+before `setup()` runs: it calls the weak `verifyRollbackLater()`, which returns
+`false` by default, and then `esp_ota_mark_app_valid_cancel_rollback()`.
+`boot_sequence.cpp` defines `verifyRollbackLater()` to return `true`, which hands
+the mark to the gate above (#312). Without that override the gate never sees
+`PENDING_VERIFY` and no crash after an OTA ever rolls back.
+
+The gate sits after `UI_OTA_VALID_FRAMES` rather than right after
+`[BOOT] Ready` so that a crash inside the first `lv_task_handler()` calls
+(font decode, page rebuild, theme apply) still rolls back (#1014).
 
 ## CAN hardware init: tolerate failure
 

@@ -82,11 +82,11 @@ logs a warning when it does. The flag cannot reach a release:
 `lint` job (`scripts/check_release_flags.py`) fails if `platformio.ini` names it.
 
 The firmware marks the new slot valid only after a stable boot
-([Boot sequence](boot-sequence.md)), so a bootloader built with app rollback
-returns to the previous slot when the new image crashes first. The flag that
-asks for it, `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, sits in
-`platformio.ini`, but arduino-esp32 ships a prebuilt bootloader that the flag
-does not rebuild.
+([Boot sequence](boot-sequence.md#ota-mark-valid-placement)). The prebuilt
+bootloader has app rollback compiled in, so an image that crashes before that
+point is replaced by the previous slot on the next reset. arduino-esp32 would
+cancel the rollback before `setup()`; the firmware's `verifyRollbackLater()`
+override stops it (#312).
 
 ## Over the workshop socket
 
