@@ -2,8 +2,8 @@ use core::ffi::{c_char, CStr};
 use core::slice;
 
 use crate::{
-    board_supported, credentials_valid, generate_credentials, join_payload, next_state, offered,
-    WorkshopEvent, WorkshopState,
+    board_supported, content_type, credentials_valid, generate_credentials, join_payload,
+    next_state, offered, spa_route, tuner_path, WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
 };
 
 #[no_mangle]
@@ -101,6 +101,34 @@ pub unsafe extern "C" fn workshop_join_payload_rs(
     }
     let out = unsafe { slice::from_raw_parts_mut(out.cast::<u8>(), out_cap) };
     join_payload(ssid, password, out).unwrap_or(0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn workshop_tuner_path_rs(
+    uri: *const c_char,
+    gzip: bool,
+    out: *mut c_char,
+    out_cap: usize,
+) -> usize {
+    let Some(uri) = (unsafe { bytes_of(uri) }) else {
+        return 0;
+    };
+    if out.is_null() {
+        return 0;
+    }
+    let out = unsafe { slice::from_raw_parts_mut(out.cast::<u8>(), out_cap) };
+    tuner_path(uri, gzip, out).unwrap_or(0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn workshop_tuner_spa_route_rs(uri: *const c_char) -> bool {
+    unsafe { bytes_of(uri) }.is_some_and(spa_route)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn workshop_tuner_content_type_rs(uri: *const c_char) -> *const c_char {
+    let mime = unsafe { bytes_of(uri) }.map_or(DEFAULT_CONTENT_TYPE, content_type);
+    mime.as_ptr().cast::<c_char>()
 }
 
 #[cfg(test)]
@@ -225,5 +253,34 @@ mod tests {
             assert_eq!(len, 43);
         }
         assert_eq!(text(&out), "WIFI:T:WPA;S:CANShift-K7QX;P:abcdefgh2345;;");
+    }
+
+    #[test]
+    fn ffi_maps_tuner_assets() {
+        let mut out = [0 as c_char; crate::WORKSHOP_TUNER_PATH_CAP];
+        let len = unsafe {
+            workshop_tuner_path_rs(c"/app.js?v=1".as_ptr(), true, out.as_mut_ptr(), out.len())
+        };
+        assert_eq!(len, 16);
+        assert_eq!(text(&out), "/tuner/app.js.gz");
+        assert_eq!(
+            unsafe {
+                workshop_tuner_path_rs(c"/../x".as_ptr(), false, out.as_mut_ptr(), out.len())
+            },
+            0
+        );
+    }
+
+    #[test]
+    fn ffi_answers_spa_and_content_type() {
+        unsafe {
+            assert!(workshop_tuner_spa_route_rs(c"/vehicle".as_ptr()));
+            assert!(!workshop_tuner_spa_route_rs(c"/app.js".as_ptr()));
+            assert!(!workshop_tuner_spa_route_rs(ptr::null()));
+            let mime = CStr::from_ptr(workshop_tuner_content_type_rs(c"/".as_ptr()));
+            assert_eq!(mime.to_str().unwrap(), "text/html; charset=utf-8");
+            let fallback = CStr::from_ptr(workshop_tuner_content_type_rs(ptr::null()));
+            assert_eq!(fallback.to_str().unwrap(), "application/octet-stream");
+        }
     }
 }

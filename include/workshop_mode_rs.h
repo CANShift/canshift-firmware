@@ -9,6 +9,7 @@
 #define WORKSHOP_SSID_CAP 33
 #define WORKSHOP_PASSWORD_CAP 64
 #define WORKSHOP_JOIN_PAYLOAD_CAP 224
+#define WORKSHOP_TUNER_PATH_CAP 32
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +27,9 @@ bool workshop_generate_credentials_rs(const uint8_t *entropy, size_t entropy_len
                                       size_t ssid_cap, char *password, size_t password_cap);
 bool workshop_credentials_valid_rs(const char *ssid, const char *password);
 size_t workshop_join_payload_rs(const char *ssid, const char *password, char *out, size_t out_cap);
+size_t workshop_tuner_path_rs(const char *uri, bool gzip, char *out, size_t out_cap);
+bool workshop_tuner_spa_route_rs(const char *uri);
+const char *workshop_tuner_content_type_rs(const char *uri);
 
 #ifdef __cplusplus
 }
