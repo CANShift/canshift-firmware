@@ -137,6 +137,14 @@ v1 constraints (enforced at parse time):
 Frame IDs are fixed in v1: request on `0x7DF`, response on `0x7E8`. Multi-ECU
 (`0x7E9..0x7EF`) is deferred to OBD-II v2.
 
+A signal with a valid `polling` block is decoded only by the poller, from
+the response that matches its mode and PID. The broadcast parser does not
+decode it from `0x7E8`. That frame id carries every PID's response, a
+negative response (`03 7F …`) and other tools' replies, all at the same byte
+offsets, so a broadcast decode would overwrite every polled value with
+whatever frame came last. A polled signal keeps its `targetId`, so
+expressions can still read it, and its `timeoutMs`.
+
 The `OBDII_SIGNALS` array in `ecu-profiles/index.ts` is the reference — six
 standard PIDs (RPM, speed, coolant, throttle, IAT, battery) with the J1979
 scale/offset formulas worked out in `obd2-mode01-pids.ts`.

@@ -152,17 +152,27 @@ void bindTarget(const CfgSignalDef &def, SignalId sid) {
     ++s_targetCount;
 }
 
+bool isPolled(const CfgSignalDef &def) {
+    return def.pollIntervalMs != 0;
+}
+
+bool addBroadcastDecode(const CfgSignalDef &def, SignalId sid) {
+    RuntimeSignal &r = s_runtime[s_runtimeCount];
+    fillRuntimeSignal(def, sid, r);
+    if (!compileExpression(def, r))
+        return false;
+    ++s_runtimeCount;
+    return true;
+}
+
 void addRuntimeSignal(const CfgSignalDef &def) {
     const SignalId sid = signalIdFromName(def.name);
     if (sid == SignalIds::SIGNAL_COUNT) {
         LOG_WARN("CAN", "Unknown signal name '%s' in signals.json — skipping", def.name);
         return;
     }
-    RuntimeSignal &r = s_runtime[s_runtimeCount];
-    fillRuntimeSignal(def, sid, r);
-    if (!compileExpression(def, r))
+    if (!isPolled(def) && !addBroadcastDecode(def, sid))
         return;
-    ++s_runtimeCount;
     bindTarget(def, sid);
     SignalStore::setTimeout(sid, def.timeoutMs);
 }
