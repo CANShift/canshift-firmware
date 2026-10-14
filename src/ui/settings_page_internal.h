@@ -68,6 +68,9 @@ void onReset(lv_event_t *e);
 
 void updateDayModeButtons();
 
+lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, uint32_t bdrColor,
+                         uint32_t textColor, lv_event_cb_t cb);
+
 void computePanelGeometry(int16_t yOffset, int16_t height);
 lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height);
 
@@ -78,6 +81,8 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW);
 void buildDayModeRow(int16_t &y, int16_t rowW);
 void buildAboutRow(int16_t &y, int16_t rowW);
 void buildRebootRow(int16_t &y, int16_t rowW);
+void buildWorkshopRow(int16_t &y, int16_t rowW);
+void refreshWorkshopRow();
 
 void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb);
 void onSnapOpenDone(lv_anim_t *a);

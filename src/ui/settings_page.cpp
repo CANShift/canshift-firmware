@@ -13,6 +13,16 @@
 
 using namespace SettingsPageInternal;
 
+namespace {
+
+void revealPanel() {
+    lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(s_panel);
+    refreshWorkshopRow();
+}
+
+} // namespace
+
 void SettingsPage::init(int16_t yOffset, int16_t height) {
     LVGL_ASSERT_LOCKED();
     nvsLoad();
@@ -37,6 +47,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     buildRebootRow(y, rowW);
     y += LayoutScale::y(GAP_ROW);
     buildAboutRow(y, rowW);
+    buildWorkshopRow(y, rowW);
 
     applyBrightness();
     LOG_INFO("Settings", "Settings page initialized");
@@ -47,8 +58,7 @@ void SettingsPage::open() {
     if (!s_panel || s_open)
         return;
     lv_obj_set_y(s_panel, s_openY);
-    lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(s_panel);
+    revealPanel();
     s_open = true;
     s_lastOpenMs = millis();
     LOG_DEBUG("Settings", "Settings page opened");
@@ -114,10 +124,8 @@ void SettingsPage::setPanelY(int16_t y) {
         y = s_openY;
 
     lv_obj_set_y(s_panel, y);
-    if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
-        lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(s_panel);
-    }
+    if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN))
+        revealPanel();
 }
 
 void SettingsPage::snapOpen() {
@@ -125,10 +133,8 @@ void SettingsPage::snapOpen() {
     if (!s_panel)
         return;
     if (lv_obj_has_flag(s_panel, LV_OBJ_FLAG_HIDDEN)) {
-
         lv_obj_set_y(s_panel, s_closedY);
-        lv_obj_clear_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(s_panel);
+        revealPanel();
     }
     runSnap(s_openY, onSnapOpenDone);
 }

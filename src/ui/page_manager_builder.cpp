@@ -125,6 +125,15 @@ void releasePage(Page &p) {
     p.built = false;
 }
 
+void releaseAllPages() {
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        releasePage(s_pages[i]);
+    }
+    s_pageCount = 0;
+    s_pendingFreeIdx = 0xFF;
+    s_pendingLazyBuildIdx = 0xFF;
+}
+
 uint8_t defaultPageIndex() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     for (uint8_t i = 0; i < s_pageCount; ++i) {
@@ -223,13 +232,7 @@ void PageManager::reloadFromStorage() {
     lv_obj_set_style_bg_color(blank, lv_color_hex(ThemeTokens::kGroundNight), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(blank, LV_OPA_COVER, LV_PART_MAIN);
     lv_scr_load(blank);
-
-    for (uint8_t i = 0; i < s_pageCount; ++i) {
-        releasePage(s_pages[i]);
-    }
-    s_pageCount = 0;
-    s_pendingFreeIdx = 0xFF;
-    s_pendingLazyBuildIdx = 0xFF;
+    releaseAllPages();
 
     if (!ConfigLoader::reloadAll()) {
         LOG_ERROR("UI", "Config reload: dashboard.json unusable — showing the failure screen");

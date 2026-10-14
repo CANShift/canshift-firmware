@@ -27,12 +27,14 @@
 #include "runtime/lvgl_lock.h"
 #include "runtime/pending_actions.h"
 #include "runtime/task_spawn.h"
+#include "runtime/workshop_mode.h"
 #include "ui/burn_overlay.h"
 #include "ui/day_night_auto.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
 #include "ui/passkey_overlay.h"
 #include "ui/theme_manager.h"
+#include "ui/workshop_screen.h"
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
 #endif
@@ -276,6 +278,22 @@ inline void uiDrainOtaOverlayActions() {
     OtaOverlay::Detail::tick();
 }
 
+inline void uiDrainWorkshopEntry() {
+    if (!WorkshopMode::isEntering())
+        return;
+    const bool entered = WorkshopScreen::enter();
+    WorkshopMode::settleEntry(entered);
+#if APP_BLE_ENABLED
+    if (entered)
+        BleServer::requestRelease();
+#endif
+}
+
+inline void uiDrainWorkshopConfigReload() {
+    if (PendingActions::takeConfigReload())
+        BurnOverlay::hide();
+}
+
 inline void uiRunLvTaskHandler() {
     PERF_SCOPE(::PerfCounters::LV_HANDLER);
 #if APP_LV_TASK_LOG
@@ -293,6 +311,24 @@ inline void uiRunLvTaskHandler() {
 
 constexpr uint32_t UI_LVGL_LOCK_TIMEOUT_MS = 10;
 
+inline void uiRunWorkshopFrame() {
+    uiDrainBurnOverlayActions();
+    uiDrainOtaOverlayActions();
+    uiDrainWorkshopConfigReload();
+    uiRunLvTaskHandler();
+}
+
+inline void uiRunDashFrame(bool &didDayNightChange) {
+    didDayNightChange = uiDrainDayNightActions();
+    uiDrainPasskeyActions();
+    uiDrainBurnOverlayActions();
+    uiDrainOtaOverlayActions();
+    uiDrainConfigReload();
+    uiDrainNavActions();
+    PageManager::updateWidgets();
+    uiRunLvTaskHandler();
+}
+
 inline bool uiRunMutexFrame(bool &didDayNightChange) {
 #if APP_PROFILE_UI
     const int64_t lockStartUs = esp_timer_get_time();
@@ -307,14 +343,12 @@ inline bool uiRunMutexFrame(bool &didDayNightChange) {
         return false;
     }
     LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_UI);
-    didDayNightChange = uiDrainDayNightActions();
-    uiDrainPasskeyActions();
-    uiDrainBurnOverlayActions();
-    uiDrainOtaOverlayActions();
-    uiDrainConfigReload();
-    uiDrainNavActions();
-    PageManager::updateWidgets();
-    uiRunLvTaskHandler();
+    uiDrainWorkshopEntry();
+    if (WorkshopMode::isActive()) {
+        uiRunWorkshopFrame();
+        return true;
+    }
+    uiRunDashFrame(didDayNightChange);
     return true;
 }
 
@@ -512,6 +546,9 @@ void taskBLE(void *pvParameters) {
     while (true) {
         if (BleServer::takeStopRequest()) {
             BleServer::stop();
+        }
+        if (BleServer::takeReleaseRequest()) {
+            BleServer::release();
         }
         BleServer::tick();
 

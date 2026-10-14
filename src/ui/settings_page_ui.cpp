@@ -59,6 +59,8 @@ lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_eve
     return btn;
 }
 
+} // namespace
+
 lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, uint32_t bdrColor,
                          uint32_t textColor, lv_event_cb_t cb) {
     lv_obj_t *btn = lv_btn_create(parent);
@@ -78,8 +80,6 @@ lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, 
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, nullptr);
     return btn;
 }
-
-} // namespace
 
 void computePanelGeometry(int16_t yOffset, int16_t height) {
 
