@@ -229,6 +229,23 @@ ones red). Copy the actual PNGs over the goldens once the diff is the change you
 meant. On Linux x86-64, `python3 scripts/bench_visual.py --update-goldens`
 writes them directly.
 
+### Stats history and PR comment
+
+On every push to `main`, the `bench stats` job collects the size reports, the
+perf report, and the behaviour and visual pass counts of the same run, appends
+them to `history.json` on the unprotected `bench-data` branch (created on the
+first run), and regenerates that branch's `README.md`: current sizes, hot-path
+medians and golden pass counts, with unicode sparklines over the last 30
+commits. Perf trends are divided by the `calibration` case, so a faster or
+slower runner does not read as a code change. It is the only job with
+`contents: write`.
+
+On a PR from this repository, the `bench comment` job posts one comment and
+edits it on every push: sizes against the latest `main` entry in
+`bench-data`, the perf comparison with the PR's base, and the golden pass
+counts. It is the only job with `pull-requests: write`. Neither job gates
+`ci-success`: they report, the gates above decide.
+
 ## Rust crates — cargo test (`canshift-firmware`)
 
 Each crate under `canshift-firmware/rust/` carries its own tests.
@@ -274,12 +291,12 @@ alongside it to exercise them.
 
 Each repository enforces its own required checks before merge:
 
-| Repository          | Gates                                                                                                                                                           |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `canshift-firmware` | clang-format and parity scripts · `cargo test`/`clippy`/`fmt` · `pio test -e native` · per-board build with flash budget and SPIFFS round-trip · `secure` build |
-| `canshift-core`     | `lint` · `test` · `build`                                                                                                                                       |
-| `canshift-tuner`    | `lint` · `typecheck` · `test` · `build`                                                                                                                         |
-| `canshift-mobile`   | `lint` · `typecheck` · `test`                                                                                                                                   |
+| Repository          | Gates                                                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canshift-firmware` | clang-format and parity scripts · `cargo test`/`clippy`/`fmt` · `pio test -e native` · per-board build with flash budget and SPIFFS round-trip · size budget · perf bench · behaviour and visual goldens · `secure` build |
+| `canshift-core`     | `lint` · `test` · `build`                                                                                                                                                                                                 |
+| `canshift-tuner`    | `lint` · `typecheck` · `test` · `build`                                                                                                                                                                                   |
+| `canshift-mobile`   | `lint` · `typecheck` · `test`                                                                                                                                                                                             |
 
 All required checks must pass before merge; every repository merges via
 rebase and merge.
