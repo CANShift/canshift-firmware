@@ -1,0 +1,11 @@
+{"cmd":48,"total":0,"sha256":"00"}
+{"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench"}
+{"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"AAAA"}
+{"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+{"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+{"cmd":49,"offset":48,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+{"cmd":49,"offset":0,"data":"!!!!"}
+{"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+{"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+{"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+{"cmd":50,"action":"commit"}

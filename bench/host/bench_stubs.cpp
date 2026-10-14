@@ -1,9 +1,30 @@
+#include "bench_can_tx.h"
+
 #include "can/can_manager.h"
 #include "hal/ble/ble_server.h"
 #include "hal/memory/psram.h"
 #include "hal/touch/touch_driver.h"
 
 #include <cstdint>
+
+namespace {
+
+BenchCanTx::Sink s_txSink = nullptr;
+
+} // namespace
+
+namespace BenchCanTx {
+
+void setSink(Sink sink) {
+    s_txSink = sink;
+}
+
+void emit(uint32_t id, const uint8_t *data, uint8_t length) {
+    if (s_txSink != nullptr)
+        s_txSink(id, data, length);
+}
+
+} // namespace BenchCanTx
 
 namespace CanManager {
 
@@ -15,7 +36,8 @@ uint32_t busRateHz() {
     return 0;
 }
 
-bool sendFrame(uint32_t, const uint8_t *, uint8_t, bool) {
+bool sendFrame(uint32_t id, const uint8_t *data, uint8_t length, bool) {
+    BenchCanTx::emit(id, data, length);
     return true;
 }
 

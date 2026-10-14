@@ -1,0 +1,1013 @@
+       0 rx 0x370 0000000000000000
+       0   rpm=0
+       0   throttle_pos=0
+       0   map_kpa=0
+       0   iat_c=-40
+       0   speed_kph=0
+       1 rx 0x371 0258000000000000
+       1   fuel_press_bar=0
+       1   lambda_1=0.6
+       1   gear=0
+       2 rx 0x372 0000000000000000
+       2   coolant_temp_c=-40
+       2   oil_temp_c=-40
+       2   oil_press_bar=0
+       3 rx 0x373 0320000000000000
+       3   battery_volts=8
+       4 rx 0x374 0000000000000000
+       4   flag_mil=0
+       4   flag_launch_ctrl=0
+       4   flag_flat_shift=0
+       4   flag_anti_lag=0
+       4   flag_traction_cut=0
+       4   clutch_state=0
+       4   flag_cruise=0
+       4   flag_boost_cut=0
+       4   flag_fuel_cut=0
+       4   flag_ignition_cut=0
+       4   flag_ignition_retard=0
+       4   flag_rev_limit=0
+       4   flag_pit_limit_cut=0
+       4   flag_overheat_protect=0
+       4   flag_limp_mode=0
+       5 rx 0x375 0100000000000000
+       5   map_number=1
+       6 rx 0x376 FF9CFF9C00000000
+       6   boost_bar=-1
+       6   egt_c=0
+       6   knock_count=0
+       6   boost_target_bar=-1
+       7 rx 0x377 0000000000000000
+       7   fuel_level_pct=0
+       7   gearbox_temp_c=-40
+       7   diff_temp_c=-40
+       7   odo_km=0
+      50 rx 0x370 03E81701A60E0112
+      50   rpm=1000
+      50   throttle_pos=11.5
+      50   map_kpa=42.2
+      50   iat_c=-26
+      50   speed_kph=27.4
+      51 rx 0x371 02D5010069000000
+      51   fuel_press_bar=1.05
+      51   lambda_1=0.725
+      51   gear=1
+      52 rx 0x372 00EE00FC00690000
+      52   coolant_temp_c=-16.2
+      52   oil_temp_c=-14.8
+      52   oil_press_bar=1.05
+      53 rx 0x373 039D000000000000
+      53   battery_volts=9.25
+      54 rx 0x374 0000000000000000
+      55 rx 0x375 0300000000000000
+      55   map_number=3
+      56 rx 0x376 FFCEFFCA007F1900
+      56   boost_bar=-0.5
+      56   egt_c=127
+      56   knock_count=25
+      56   boost_target_bar=-0.54
+      57 rx 0x377 011300FC15190C86
+      57   fuel_level_pct=10.5
+      57   gearbox_temp_c=-12.5
+      57   diff_temp_c=-14.8
+      57   odo_km=1.64161e+06
+     100 rx 0x370 07D02E034C1B0223
+     100   rpm=2000
+     100   throttle_pos=23
+     100   map_kpa=84.4
+     100   iat_c=-13
+     100   speed_kph=54.7
+     101 rx 0x371 03520100D3000000
+     101   fuel_press_bar=2.11
+     101   lambda_1=0.85
+     102 rx 0x372 01DB01F700D30000
+     102   coolant_temp_c=7.5
+     102   oil_temp_c=10.3
+     102   oil_press_bar=2.11
+     103 rx 0x373 041A000000000000
+     103   battery_volts=10.5
+     104 rx 0x374 0100000000000000
+     104   flag_mil=1
+     105 rx 0x375 0500000000000000
+     105   map_number=5
+     106 rx 0x376 0000FFF800FD3200
+     106   boost_bar=0
+     106   egt_c=253
+     106   knock_count=50
+     106   boost_target_bar=-0.08
+     107 rx 0x377 022601F72A32190C
+     107   fuel_level_pct=21
+     107   gearbox_temp_c=15
+     107   diff_temp_c=10.3
+     107   odo_km=3.28321e+06
+     150 rx 0x370 0BB84504F2290335
+     150   rpm=3000
+     150   throttle_pos=34.5
+     150   map_kpa=126.6
+     150   iat_c=1
+     150   speed_kph=82.1
+     151 rx 0x371 03CF02013C000000
+     151   fuel_press_bar=3.16
+     151   lambda_1=0.975
+     151   gear=2
+     152 rx 0x372 02C802F3013C0000
+     152   coolant_temp_c=31.2
+     152   oil_temp_c=35.5
+     152   oil_press_bar=3.16
+     153 rx 0x373 0497000000000000
+     153   battery_volts=11.75
+     154 rx 0x374 0100000000000000
+     155 rx 0x375 0700000000000000
+     155   map_number=7
+     156 rx 0x376 00320025017C4B00
+     156   boost_bar=0.5
+     156   egt_c=380
+     156   knock_count=75
+     156   boost_target_bar=0.37
+     157 rx 0x377 033902F33F4B2592
+     157   fuel_level_pct=31.5
+     157   gearbox_temp_c=42.5
+     157   diff_temp_c=35.5
+     157   odo_km=4.92482e+06
+     200 rx 0x370 0FA05C0698370447
+     200   rpm=4000
+     200   throttle_pos=46
+     200   map_kpa=168.8
+     200   iat_c=15
+     200   speed_kph=109.5
+     201 rx 0x371 044C0301A6000000
+     201   fuel_press_bar=4.22
+     201   lambda_1=1.1
+     201   gear=3
+     202 rx 0x372 03B603EF01A60000
+     202   coolant_temp_c=55
+     202   oil_temp_c=60.7
+     202   oil_press_bar=4.22
+     203 rx 0x373 0514000000000000
+     203   battery_volts=13
+     204 rx 0x374 0200000000000000
+     204   flag_mil=0
+     204   flag_launch_ctrl=1
+     205 rx 0x375 0800000000000000
+     205   map_number=8
+     206 rx 0x376 0064005301FA6400
+     206   boost_bar=1
+     206   egt_c=506
+     206   knock_count=100
+     206   boost_target_bar=0.83
+     207 rx 0x377 044C03EF54643219
+     207   fuel_level_pct=42
+     207   gearbox_temp_c=70
+     207   diff_temp_c=60.7
+     207   odo_km=6.56642e+06
+     250 rx 0x370 138872083E440559
+     250   rpm=5000
+     250   throttle_pos=57
+     250   map_kpa=211
+     250   iat_c=28
+     250   speed_kph=136.9
+     251 rx 0x371 04C903020F000000
+     251   fuel_press_bar=5.27
+     251   lambda_1=1.225
+     252 rx 0x372 04A404EB020F0000
+     252   coolant_temp_c=78.8
+     252   oil_temp_c=85.9
+     252   oil_press_bar=5.27
+     253 rx 0x373 0591000000000000
+     253   battery_volts=14.25
+     254 rx 0x374 0200000000000000
+     255 rx 0x375 0A00000000000000
+     255   map_number=10
+     256 rx 0x376 0096008102797D00
+     256   boost_bar=1.5
+     256   egt_c=633
+     256   knock_count=125
+     256   boost_target_bar=1.29
+     257 rx 0x377 055F04EB697D3E9F
+     257   fuel_level_pct=52.5
+     257   gearbox_temp_c=97.5
+     257   diff_temp_c=85.9
+     257   odo_km=8.20803e+06
+     300 rx 0x370 17708909E452066A
+     300   rpm=6000
+     300   throttle_pos=68.5
+     300   map_kpa=253.2
+     300   iat_c=42
+     300   speed_kph=164.2
+     301 rx 0x371 0546040279000000
+     301   fuel_press_bar=6.33
+     301   lambda_1=1.35
+     301   gear=4
+     302 rx 0x372 059105E602790000
+     302   coolant_temp_c=102.5
+     302   oil_temp_c=111
+     302   oil_press_bar=6.33
+     303 rx 0x373 060E000000000000
+     303   battery_volts=15.5
+     304 rx 0x374 0700000000000000
+     304   flag_mil=1
+     304   flag_flat_shift=1
+     305 rx 0x375 0C00000000000000
+     305   map_number=12
+     306 rx 0x376 00C800AF02F79600
+     306   boost_bar=2
+     306   egt_c=759
+     306   knock_count=150
+     306   boost_target_bar=1.75
+     307 rx 0x377 067205E67F964B25
+     307   fuel_level_pct=63.5
+     307   gearbox_temp_c=125
+     307   diff_temp_c=111
+     307   odo_km=9.84964e+06
+     350 rx 0x370 1B58A00B8A60077C
+     350   rpm=7000
+     350   throttle_pos=80
+     350   map_kpa=295.4
+     350   iat_c=56
+     350   speed_kph=191.6
+     351 rx 0x371 05C30502E2000000
+     351   fuel_press_bar=7.38
+     351   lambda_1=1.475
+     351   gear=5
+     352 rx 0x372 067E06E202E20000
+     352   coolant_temp_c=126.2
+     352   oil_temp_c=136.2
+     352   oil_press_bar=7.38
+     353 rx 0x373 068B000000000000
+     353   battery_volts=16.75
+     354 rx 0x374 0700000000000000
+     355 rx 0x375 0E00000000000000
+     355   map_number=14
+     356 rx 0x376 00FA00DC0376AF00
+     356   boost_bar=2.5
+     356   egt_c=886
+     356   knock_count=175
+     356   boost_target_bar=2.2
+     357 rx 0x377 078506E294AF57AB
+     357   fuel_level_pct=74
+     357   gearbox_temp_c=152.5
+     357   diff_temp_c=136.2
+     357   odo_km=1.14912e+07
+     400 rx 0x370 1F40B70D306E088E
+     400   rpm=8000
+     400   throttle_pos=91.5
+     400   map_kpa=337.6
+     400   iat_c=70
+     400   speed_kph=219
+     401 rx 0x371 064005034C000000
+     401   fuel_press_bar=8.44
+     401   lambda_1=1.6
+     402 rx 0x372 076C07DE034C0000
+     402   coolant_temp_c=150
+     402   oil_temp_c=161.4
+     402   oil_press_bar=8.44
+     403 rx 0x373 0708000000000000
+     403   battery_volts=18
+     404 rx 0x374 0C00000000000000
+     404   flag_mil=0
+     404   flag_launch_ctrl=0
+     404   flag_anti_lag=1
+     405 rx 0x375 1000000000000000
+     405   map_number=16
+     406 rx 0x376 012C010A03F5C800
+     406   boost_bar=3
+     406   egt_c=1013
+     406   knock_count=200
+     406   boost_target_bar=2.66
+     407 rx 0x377 089807DEA9C86431
+     407   fuel_level_pct=84.5
+     407   gearbox_temp_c=180
+     407   diff_temp_c=161.4
+     407   odo_km=1.31328e+07
+     450 rx 0x370 1B58C20ED57B09A0
+     450   rpm=7000
+     450   throttle_pos=97
+     450   map_kpa=379.7
+     450   iat_c=83
+     450   speed_kph=246.4
+     451 rx 0x371 05C30603B5000000
+     451   fuel_press_bar=9.49
+     451   lambda_1=1.475
+     451   gear=6
+     452 rx 0x372 067E085703B50000
+     452   coolant_temp_c=126.2
+     452   oil_temp_c=173.5
+     452   oil_press_bar=9.49
+     453 rx 0x373 068B000000000000
+     453   battery_volts=16.75
+     454 rx 0x374 0C00000000000000
+     455 rx 0x375 0E00000000000000
+     455   map_number=14
+     456 rx 0x376 00FA01200473E100
+     456   boost_bar=2.5
+     456   egt_c=1139
+     456   knock_count=225
+     456   boost_target_bar=2.88
+     457 rx 0x377 07850857BEE170B7
+     457   fuel_level_pct=95
+     457   gearbox_temp_c=152.5
+     457   diff_temp_c=173.5
+     457   odo_km=1.47745e+07
+     500 rx 0x370 1770AB0EC5890AB1
+     500   rpm=6000
+     500   throttle_pos=85.5
+     500   map_kpa=378.1
+     500   iat_c=97
+     500   speed_kph=273.7
+     501 rx 0x371 05460503B1000000
+     501   fuel_press_bar=9.45
+     501   lambda_1=1.35
+     501   gear=5
+     502 rx 0x372 0591075B03B10000
+     502   coolant_temp_c=102.5
+     502   oil_temp_c=148.3
+     502   oil_press_bar=9.45
+     503 rx 0x373 060E000000000000
+     503   battery_volts=15.5
+     504 rx 0x374 1D00000000000000
+     504   flag_mil=1
+     504   flag_traction_cut=1
+     505 rx 0x375 0C00000000000000
+     505   map_number=12
+     506 rx 0x376 00C800F2046EFA00
+     506   boost_bar=2
+     506   egt_c=1134
+     506   knock_count=250
+     506   boost_target_bar=2.42
+     507 rx 0x377 0672075BBDFA7D3E
+     507   fuel_level_pct=94.5
+     507   gearbox_temp_c=125
+     507   diff_temp_c=148.3
+     507   odo_km=1.64161e+07
+     550 rx 0x370 1388940D1F810BAD
+     550   rpm=5000
+     550   throttle_pos=74
+     550   map_kpa=335.9
+     550   iat_c=89
+     550   speed_kph=298.9
+     551 rx 0x371 04C9040348000000
+     551   fuel_press_bar=8.4
+     551   lambda_1=1.225
+     551   gear=4
+     552 rx 0x372 04A4065F03480000
+     552   coolant_temp_c=78.8
+     552   oil_temp_c=123.1
+     552   oil_press_bar=8.4
+     553 rx 0x373 0591000000000000
+     553   battery_volts=14.25
+     554 rx 0x374 1D00000000000000
+     555 rx 0x375 0A00000000000000
+     555   map_number=10
+     556 rx 0x376 009600C503F0EC00
+     556   boost_bar=1.5
+     556   egt_c=1008
+     556   knock_count=236
+     556   boost_target_bar=1.97
+     557 rx 0x377 055F065FA8EC763A
+     557   fuel_level_pct=84
+     557   gearbox_temp_c=97.5
+     557   diff_temp_c=123.1
+     557   odo_km=1.54968e+07
+     600 rx 0x370 0FA07D0B79740A9B
+     600   rpm=4000
+     600   throttle_pos=62.5
+     600   map_kpa=293.7
+     600   iat_c=76
+     600   speed_kph=271.5
+     601 rx 0x371 044C0402DE000000
+     601   fuel_press_bar=7.34
+     601   lambda_1=1.1
+     602 rx 0x372 03B6056302DE0000
+     602   coolant_temp_c=55
+     602   oil_temp_c=97.9
+     602   oil_press_bar=7.34
+     603 rx 0x373 0514000000000000
+     603   battery_volts=13
+     604 rx 0x374 3A00000000000000
+     604   flag_mil=0
+     604   flag_launch_ctrl=1
+     604   flag_flat_shift=0
+     604   flag_boost_cut=1
+     605 rx 0x375 0800000000000000
+     605   map_number=8
+     606 rx 0x376 006400970371D300
+     606   boost_bar=1
+     606   egt_c=881
+     606   knock_count=211
+     606   boost_target_bar=1.51
+     607 rx 0x377 044C056393D369B4
+     607   fuel_level_pct=73.5
+     607   gearbox_temp_c=70
+     607   diff_temp_c=97.9
+     607   odo_km=1.38552e+07
+     650 rx 0x370 0BB86709D366098A
+     650   rpm=3000
+     650   throttle_pos=51.5
+     650   map_kpa=251.5
+     650   iat_c=62
+     650   speed_kph=244.2
+     651 rx 0x371 03CF030275000000
+     651   fuel_press_bar=6.29
+     651   lambda_1=0.975
+     651   gear=3
+     652 rx 0x372 02C8046802750000
+     652   coolant_temp_c=31.2
+     652   oil_temp_c=72.8
+     652   oil_press_bar=6.29
+     653 rx 0x373 0497000000000000
+     653   battery_volts=11.75
+     654 rx 0x374 3A00000000000000
+     655 rx 0x375 0700000000000000
+     655   map_number=7
+     656 rx 0x376 0032006902F2BA00
+     656   boost_bar=0.5
+     656   egt_c=754
+     656   knock_count=186
+     656   boost_target_bar=1.05
+     657 rx 0x377 033904687EBA5D2E
+     657   fuel_level_pct=63
+     657   gearbox_temp_c=42.5
+     657   diff_temp_c=72.8
+     657   odo_km=1.22136e+07
+     700 rx 0x370 07D050082D580878
+     700   rpm=2000
+     700   throttle_pos=40
+     700   map_kpa=209.3
+     700   iat_c=48
+     700   speed_kph=216.8
+     701 rx 0x371 035202020B000000
+     701   fuel_press_bar=5.23
+     701   lambda_1=0.85
+     701   gear=2
+     702 rx 0x372 01DB036C020B0000
+     702   coolant_temp_c=7.5
+     702   oil_temp_c=47.6
+     702   oil_press_bar=5.23
+     703 rx 0x373 041A000000000000
+     703   battery_volts=10.5
+     704 rx 0x374 7B00000000000000
+     704   flag_mil=1
+     704   flag_fuel_cut=1
+     705 rx 0x375 0500000000000000
+     705   map_number=5
+     706 rx 0x376 0000003B0274A100
+     706   boost_bar=0
+     706   egt_c=628
+     706   knock_count=161
+     706   boost_target_bar=0.59
+     707 rx 0x377 0226036C69A150A8
+     707   fuel_level_pct=52.5
+     707   gearbox_temp_c=15
+     707   diff_temp_c=47.6
+     707   odo_km=1.05719e+07
+     750 rx 0x370 03E83906874B0766
+     750   rpm=1000
+     750   throttle_pos=28.5
+     750   map_kpa=167.1
+     750   iat_c=35
+     750   speed_kph=189.4
+     751 rx 0x371 02D50201A2000000
+     751   fuel_press_bar=4.18
+     751   lambda_1=0.725
+     752 rx 0x372 00EE027001A20000
+     752   coolant_temp_c=-16.2
+     752   oil_temp_c=22.4
+     752   oil_press_bar=4.18
+     753 rx 0x373 039D000000000000
+     753   battery_volts=9.25
+     754 rx 0x374 7B00000000000000
+     755 rx 0x375 0300000000000000
+     755   map_number=3
+     756 rx 0x376 FFCE000E01F58800
+     756   boost_bar=-0.5
+     756   egt_c=501
+     756   knock_count=136
+     756   boost_target_bar=0.14
+     757 rx 0x377 0113027054884422
+     757   fuel_level_pct=42
+     757   gearbox_temp_c=-12.5
+     757   diff_temp_c=22.4
+     757   odo_km=8.93034e+06
+     800 rx 0x370 00002204E13D0654
+     800   rpm=0
+     800   throttle_pos=17
+     800   map_kpa=124.9
+     800   iat_c=21
+     800   speed_kph=162
+     801 rx 0x371 0258010138000000
+     801   fuel_press_bar=3.12
+     801   lambda_1=0.6
+     801   gear=1
+     802 rx 0x372 0000017501380000
+     802   coolant_temp_c=-40
+     802   oil_temp_c=-2.7
+     802   oil_press_bar=3.12
+     803 rx 0x373 0320000000000000
+     803   battery_volts=8
+     804 rx 0x374 F000000000000000
+     804   flag_mil=0
+     804   flag_launch_ctrl=0
+     804   flag_anti_lag=0
+     804   flag_ignition_cut=1
+     805 rx 0x375 0100000000000000
+     805   map_number=1
+     806 rx 0x376 FF9CFFE001776F00
+     806   boost_bar=-1
+     806   egt_c=375
+     806   knock_count=111
+     806   boost_target_bar=-0.32
+     807 rx 0x377 000001753E6F379B
+     807   fuel_level_pct=31
+     807   gearbox_temp_c=-40
+     807   diff_temp_c=-2.7
+     807   odo_km=7.28873e+06
+     850 rx 0x370 03E80B033B2F0543
+     850   rpm=1000
+     850   throttle_pos=5.5
+     850   map_kpa=82.7
+     850   iat_c=7
+     850   speed_kph=134.7
+     851 rx 0x371 02D50000CF000000
+     851   fuel_press_bar=2.07
+     851   lambda_1=0.725
+     851   gear=0
+     852 rx 0x372 00EE007900CF0000
+     852   coolant_temp_c=-16.2
+     852   oil_temp_c=-27.9
+     852   oil_press_bar=2.07
+     853 rx 0x373 039D000000000000
+     853   battery_volts=9.25
+     854 rx 0x374 F000000000000000
+     855 rx 0x375 0300000000000000
+     855   map_number=3
+     856 rx 0x376 FFCEFFB200F85600
+     856   boost_bar=-0.5
+     856   egt_c=248
+     856   knock_count=86
+     856   boost_target_bar=-0.78
+     857 rx 0x377 0113007929562B15
+     857   fuel_level_pct=20.5
+     857   gearbox_temp_c=-12.5
+     857   diff_temp_c=-27.9
+     857   odo_km=5.64712e+06
+     900 rx 0x370 07D00C0195210431
+     900   rpm=2000
+     900   throttle_pos=6
+     900   map_kpa=40.5
+     900   iat_c=-7
+     900   speed_kph=107.3
+     901 rx 0x371 0352000065000000
+     901   fuel_press_bar=1.01
+     901   lambda_1=0.85
+     902 rx 0x372 01DB008300650000
+     902   coolant_temp_c=7.5
+     902   oil_temp_c=-26.9
+     902   oil_press_bar=1.01
+     903 rx 0x373 041A000000000000
+     903   battery_volts=10.5
+     904 rx 0x374 F501000000000000
+     904   flag_mil=1
+     904   flag_flat_shift=1
+     904   flag_ignition_retard=1
+     905 rx 0x375 0500000000000000
+     905   map_number=5
+     906 rx 0x376 0000FFB4007A3D00
+     906   boost_bar=0
+     906   egt_c=122
+     906   knock_count=61
+     906   boost_target_bar=-0.76
+     907 rx 0x377 02260083143D1E8F
+     907   fuel_level_pct=10
+     907   gearbox_temp_c=15
+     907   diff_temp_c=-26.9
+     907   odo_km=4.00552e+06
+     950 rx 0x370 0BB823001114031F
+     950   rpm=3000
+     950   throttle_pos=17.5
+     950   map_kpa=1.7
+     950   iat_c=-20
+     950   speed_kph=79.9
+     951 rx 0x371 03CF010004000000
+     951   fuel_press_bar=0.04
+     951   lambda_1=0.975
+     951   gear=1
+     952 rx 0x372 02C8017F00040000
+     952   coolant_temp_c=31.2
+     952   oil_temp_c=-1.7
+     952   oil_press_bar=0.04
+     953 rx 0x373 0497000000000000
+     953   battery_volts=11.75
+     954 rx 0x374 F501000000000000
+     955 rx 0x375 0700000000000000
+     955   map_number=7
+     956 rx 0x376 0032FFE200052400
+     956   boost_bar=0.5
+     956   egt_c=5
+     956   knock_count=36
+     956   boost_target_bar=-0.3
+     957 rx 0x377 0339017F01241209
+     957   fuel_level_pct=0.5
+     957   gearbox_temp_c=42.5
+     957   diff_temp_c=-1.7
+     957   odo_km=2.36391e+06
+    1000 rx 0x370 0FA03A01B706020E
+    1000   rpm=4000
+    1000   throttle_pos=29
+    1000   map_kpa=43.9
+    1000   iat_c=-34
+    1000   speed_kph=52.6
+    1001 rx 0x371 044C02006E000000
+    1001   fuel_press_bar=1.1
+    1001   lambda_1=1.1
+    1001   gear=2
+    1002 rx 0x372 03B6027A006E0000
+    1002   coolant_temp_c=55
+    1002   oil_temp_c=23.4
+    1002   oil_press_bar=1.1
+    1003 rx 0x373 0514000000000000
+    1003   battery_volts=13
+    1004 rx 0x374 E603000000000000
+    1004   flag_mil=0
+    1004   flag_launch_ctrl=1
+    1004   flag_traction_cut=0
+    1004   flag_rev_limit=1
+    1005 rx 0x375 0800000000000000
+    1005   map_number=8
+    1006 rx 0x376 0064000F00840B00
+    1006   boost_bar=1
+    1006   egt_c=132
+    1006   knock_count=11
+    1006   boost_target_bar=0.15
+    1007 rx 0x377 044C027A160B0583
+    1007   fuel_level_pct=11
+    1007   gearbox_temp_c=70
+    1007   diff_temp_c=23.4
+    1007   odo_km=722307
+    1050 rx 0x370 138851035D0800FC
+    1050   rpm=5000
+    1050   throttle_pos=40.5
+    1050   map_kpa=86.1
+    1050   iat_c=-32
+    1050   speed_kph=25.2
+    1051 rx 0x371 04C90200D7000000
+    1051   fuel_press_bar=2.15
+    1051   lambda_1=1.225
+    1052 rx 0x372 04A4037600D70000
+    1052   coolant_temp_c=78.8
+    1052   oil_temp_c=48.6
+    1052   oil_press_bar=2.15
+    1053 rx 0x373 0591000000000000
+    1053   battery_volts=14.25
+    1054 rx 0x374 E603000000000000
+    1055 rx 0x375 0A00000000000000
+    1055   map_number=10
+    1056 rx 0x376 0096003D01020E00
+    1056   boost_bar=1.5
+    1056   egt_c=258
+    1056   knock_count=14
+    1056   boost_target_bar=0.61
+    1057 rx 0x377 055F03762B0E0703
+    1057   fuel_level_pct=21.5
+    1057   gearbox_temp_c=97.5
+    1057   diff_temp_c=48.6
+    1057   odo_km=919299
+    1100 rx 0x370 1770670503150016
+    1100   rpm=6000
+    1100   throttle_pos=51.5
+    1100   map_kpa=128.3
+    1100   iat_c=-19
+    1100   speed_kph=2.2
+    1101 rx 0x371 0546030141000000
+    1101   fuel_press_bar=3.21
+    1101   lambda_1=1.35
+    1101   gear=3
+    1102 rx 0x372 0591047201410000
+    1102   coolant_temp_c=102.5
+    1102   oil_temp_c=73.8
+    1102   oil_press_bar=3.21
+    1103 rx 0x373 060E000000000000
+    1103   battery_volts=15.5
+    1104 rx 0x374 E707000000000000
+    1104   flag_mil=1
+    1104   flag_pit_limit_cut=1
+    1105 rx 0x375 0C00000000000000
+    1105   map_number=12
+    1106 rx 0x376 00C8006B01812700
+    1106   boost_bar=2
+    1106   egt_c=385
+    1106   knock_count=39
+    1106   boost_target_bar=1.07
+    1107 rx 0x377 067204724027138A
+    1107   fuel_level_pct=32
+    1107   gearbox_temp_c=125
+    1107   diff_temp_c=73.8
+    1107   odo_km=2.56091e+06
+    1150 rx 0x370 1B587E06A9230128
+    1150   rpm=7000
+    1150   throttle_pos=63
+    1150   map_kpa=170.5
+    1150   iat_c=-5
+    1150   speed_kph=29.6
+    1151 rx 0x371 05C30401AA000000
+    1151   fuel_press_bar=4.26
+    1151   lambda_1=1.475
+    1151   gear=4
+    1152 rx 0x372 067E056D01AA0000
+    1152   coolant_temp_c=126.2
+    1152   oil_temp_c=98.9
+    1152   oil_press_bar=4.26
+    1153 rx 0x373 068B000000000000
+    1153   battery_volts=16.75
+    1154 rx 0x374 E707000000000000
+    1155 rx 0x375 0E00000000000000
+    1155   map_number=14
+    1156 rx 0x376 00FA009901FF4000
+    1156   boost_bar=2.5
+    1156   egt_c=511
+    1156   knock_count=64
+    1156   boost_target_bar=1.53
+    1157 rx 0x377 0785056D55402010
+    1157   fuel_level_pct=42.5
+    1157   gearbox_temp_c=152.5
+    1157   diff_temp_c=98.9
+    1157   odo_km=4.20251e+06
+    1200 rx 0x370 1F4095084F310239
+    1200   rpm=8000
+    1200   throttle_pos=74.5
+    1200   map_kpa=212.7
+    1200   iat_c=9
+    1200   speed_kph=56.9
+    1201 rx 0x371 0640040214000000
+    1201   fuel_press_bar=5.32
+    1201   lambda_1=1.6
+    1202 rx 0x372 076C066902140000
+    1202   coolant_temp_c=150
+    1202   oil_temp_c=124.1
+    1202   oil_press_bar=5.32
+    1203 rx 0x373 0708000000000000
+    1203   battery_volts=18
+    1204 rx 0x374 C80F000000000000
+    1204   flag_mil=0
+    1204   flag_launch_ctrl=0
+    1204   flag_flat_shift=0
+    1204   flag_anti_lag=1
+    1204   flag_boost_cut=0
+    1204   flag_overheat_protect=1
+    1205 rx 0x375 1000000000000000
+    1205   map_number=16
+    1206 rx 0x376 012C00C6027E5900
+    1206   boost_bar=3
+    1206   egt_c=638
+    1206   knock_count=89
+    1206   boost_target_bar=1.98
+    1207 rx 0x377 089806696A592C96
+    1207   fuel_level_pct=53
+    1207   gearbox_temp_c=180
+    1207   diff_temp_c=124.1
+    1207   odo_km=5.84412e+06
+    1250 rx 0x370 1B58AC09F53E034B
+    1250   rpm=7000
+    1250   throttle_pos=86
+    1250   map_kpa=254.9
+    1250   iat_c=22
+    1250   speed_kph=84.3
+    1251 rx 0x371 05C305027D000000
+    1251   fuel_press_bar=6.37
+    1251   lambda_1=1.475
+    1251   gear=5
+    1252 rx 0x372 067E0765027D0000
+    1252   coolant_temp_c=126.2
+    1252   oil_temp_c=149.3
+    1252   oil_press_bar=6.37
+    1253 rx 0x373 068B000000000000
+    1253   battery_volts=16.75
+    1254 rx 0x374 C80F000000000000
+    1255 rx 0x375 0E00000000000000
+    1255   map_number=14
+    1256 rx 0x376 00FA00F402FD7200
+    1256   boost_bar=2.5
+    1256   egt_c=765
+    1256   knock_count=114
+    1256   boost_target_bar=2.44
+    1257 rx 0x377 078507657F72391C
+    1257   fuel_level_pct=63.5
+    1257   gearbox_temp_c=152.5
+    1257   diff_temp_c=149.3
+    1257   odo_km=7.48572e+06
+    1300 rx 0x370 1770C30B9A4C045D
+    1300   rpm=6000
+    1300   throttle_pos=97.5
+    1300   map_kpa=297
+    1300   iat_c=36
+    1300   speed_kph=111.7
+    1301 rx 0x371 05460602E7000000
+    1301   fuel_press_bar=7.43
+    1301   lambda_1=1.35
+    1301   gear=6
+    1302 rx 0x372 0591086102E70000
+    1302   coolant_temp_c=102.5
+    1302   oil_temp_c=174.5
+    1302   oil_press_bar=7.43
+    1303 rx 0x373 060E000000000000
+    1303   battery_volts=15.5
+    1304 rx 0x374 C91F000000000000
+    1304   flag_mil=1
+    1304   flag_limp_mode=1
+    1305 rx 0x375 0C00000000000000
+    1305   map_number=12
+    1306 rx 0x376 00C80122037B8B00
+    1306   boost_bar=2
+    1306   egt_c=891
+    1306   knock_count=139
+    1306   boost_target_bar=2.9
+    1307 rx 0x377 06720861958B45A2
+    1307   fuel_level_pct=74.5
+    1307   gearbox_temp_c=125
+    1307   diff_temp_c=174.5
+    1307   odo_km=9.12733e+06
+    1350 rx 0x370 1388B60D405A056F
+    1350   rpm=5000
+    1350   throttle_pos=91
+    1350   map_kpa=339.2
+    1350   iat_c=50
+    1350   speed_kph=139.1
+    1351 rx 0x371 04C9050350000000
+    1351   fuel_press_bar=8.48
+    1351   lambda_1=1.225
+    1351   gear=5
+    1352 rx 0x372 04A407D403500000
+    1352   coolant_temp_c=78.8
+    1352   oil_temp_c=160.4
+    1352   oil_press_bar=8.48
+    1353 rx 0x373 0591000000000000
+    1353   battery_volts=14.25
+    1354 rx 0x374 C91F000000000000
+    1355 rx 0x375 0A00000000000000
+    1355   map_number=10
+    1356 rx 0x376 0096010803FAA400
+    1356   boost_bar=1.5
+    1356   egt_c=1018
+    1356   knock_count=164
+    1356   boost_target_bar=2.64
+    1357 rx 0x377 055F07D4AAA45228
+    1357   fuel_level_pct=85
+    1357   gearbox_temp_c=97.5
+    1357   diff_temp_c=160.4
+    1357   odo_km=1.07689e+07
+    1400 rx 0x370 0FA09F0EE6680680
+    1400   rpm=4000
+    1400   throttle_pos=79.5
+    1400   map_kpa=381.4
+    1400   iat_c=64
+    1400   speed_kph=166.4
+    1401 rx 0x371 044C0503BA000000
+    1401   fuel_press_bar=9.54
+    1401   lambda_1=1.1
+    1402 rx 0x372 03B606D803BA0000
+    1402   coolant_temp_c=55
+    1402   oil_temp_c=135.2
+    1402   oil_press_bar=9.54
+    1403 rx 0x373 0514000000000000
+    1403   battery_volts=13
+    1404 rx 0x374 8A3F000000000000
+    1404   flag_mil=0
+    1404   flag_launch_ctrl=1
+    1404   clutch_state=1
+    1404   flag_fuel_cut=0
+    1405 rx 0x375 0800000000000000
+    1405   map_number=8
+    1406 rx 0x376 006400DB0478BD00
+    1406   boost_bar=1
+    1406   egt_c=1144
+    1406   knock_count=189
+    1406   boost_target_bar=2.19
+    1407 rx 0x377 044C06D8BFBD5EAF
+    1407   fuel_level_pct=95.5
+    1407   gearbox_temp_c=70
+    1407   diff_temp_c=135.2
+    1407   odo_km=1.24105e+07
+    1450 rx 0x370 0BB8880EB4750792
+    1450   rpm=3000
+    1450   throttle_pos=68
+    1450   map_kpa=376.4
+    1450   iat_c=77
+    1450   speed_kph=193.8
+    1451 rx 0x371 03CF0403AD000000
+    1451   fuel_press_bar=9.41
+    1451   lambda_1=0.975
+    1451   gear=4
+    1452 rx 0x372 02C805DC03AD0000
+    1452   coolant_temp_c=31.2
+    1452   oil_temp_c=110
+    1452   oil_press_bar=9.41
+    1453 rx 0x373 0497000000000000
+    1453   battery_volts=11.75
+    1454 rx 0x374 8A3F000000000000
+    1455 rx 0x375 0700000000000000
+    1455   map_number=7
+    1456 rx 0x376 003200AD0469D600
+    1456   boost_bar=0.5
+    1456   egt_c=1129
+    1456   knock_count=214
+    1456   boost_target_bar=1.73
+    1457 rx 0x377 033905DCBCD66B35
+    1457   fuel_level_pct=94
+    1457   gearbox_temp_c=42.5
+    1457   diff_temp_c=110
+    1457   odo_km=1.40521e+07
+    1500 rx 0x370 07D072
+    1500   rpm=2000
+    1500   throttle_pos=57
+    1501 rx 0x123 0001020304050607
+    1502 rx 0x370
+    1952   map_kpa invalid
+    1952   lambda_1 invalid
+    1952   speed_kph invalid
+    1952   gear invalid
+    1962   boost_bar invalid
+    1962   boost_target_bar invalid
+    2002   rpm invalid
+    2002   throttle_pos invalid
+    2452   iat_c invalid
+    2452   fuel_press_bar invalid
+    2462   coolant_temp_c invalid
+    2462   oil_temp_c invalid
+    2462   oil_press_bar invalid
+    2462   egt_c invalid
+    2462   gearbox_temp_c invalid
+    2462   diff_temp_c invalid
+    2462   knock_count invalid
+    2600 rx 0x370 0FA00A080B8008BA
+    2600   rpm=4000
+    2600   throttle_pos=5
+    2600   map_kpa=205.9
+    2600   iat_c=88
+    2600   speed_kph=223.4
+    2601 rx 0x371 044C000203000000
+    2601   fuel_press_bar=5.15
+    2601   lambda_1=1.1
+    2601   gear=0
+    2602 rx 0x372 03B6006F02030000
+    2602   coolant_temp_c=55
+    2602   oil_temp_c=-28.9
+    2602   oil_press_bar=5.15
+    2603 rx 0x373 0514000000000000
+    2603   battery_volts=13
+    2604 rx 0x374 D260000000000000
+    2604   flag_anti_lag=0
+    2604   flag_traction_cut=1
+    2604   flag_cruise=1
+    2604   flag_fuel_cut=1
+    2604   flag_ignition_retard=0
+    2604   flag_rev_limit=0
+    2604   flag_pit_limit_cut=0
+    2604   flag_overheat_protect=0
+    2604   flag_limp_mode=0
+    2605 rx 0x375 0800000000000000
+    2605   map_number=8
+    2606 rx 0x376 0064FFB0026AE900
+    2606   boost_bar=1
+    2606   egt_c=618
+    2606   knock_count=233
+    2606   boost_target_bar=-0.8
+    2607 rx 0x377 044C006F67E974B9
+    2607   fuel_level_pct=51.5
+    2607   gearbox_temp_c=70
+    2607   diff_temp_c=-28.9
+    2607   odo_km=1.52998e+07
+    3107   rpm invalid
+    3107   throttle_pos invalid
+    3107   map_kpa invalid
+    3107   boost_bar invalid
+    3107   lambda_1 invalid
+    3107   speed_kph invalid
+    3107   gear invalid
+    3107   boost_target_bar invalid
+    3607   iat_c invalid
+    3607   coolant_temp_c invalid
+    3607   oil_temp_c invalid
+    3607   oil_press_bar invalid
+    3607   fuel_press_bar invalid
+    3607   egt_c invalid
+    3607   knock_count invalid
+    3617   gearbox_temp_c invalid
+    3617   diff_temp_c invalid
+    4607   battery_volts invalid
+    4607   flag_mil invalid
+    4607   flag_launch_ctrl invalid
+    4607   flag_flat_shift invalid
+    4607   flag_anti_lag invalid
+    4607   flag_traction_cut invalid
+    4607   clutch_state invalid
+    4607   flag_cruise invalid
+    4607   flag_boost_cut invalid
+    4607   flag_fuel_cut invalid
+    4607   flag_ignition_cut invalid
+    4607   flag_ignition_retard invalid
+    4607   flag_rev_limit invalid
+    4607   flag_pit_limit_cut invalid
+    4607   flag_overheat_protect invalid
+    4607   flag_limp_mode invalid
+    4617   fuel_level_pct invalid
+    7607   map_number invalid
+    7617   odo_km invalid

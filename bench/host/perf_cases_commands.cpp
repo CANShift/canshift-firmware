@@ -14,12 +14,12 @@ bool setupCommand(const char *line) {
     s_line = line;
     ReplyCapture::setRecording(false);
     ReplyCapture::clear();
-    ReplyCapture::dispatch(s_line);
-    return ReplyCapture::lineCount() == 1;
+    ReplyCapture::dispatch(ReplyCapture::Transport::Ws, s_line);
+    return ReplyCapture::replyCount() == 1;
 }
 
 void runCommand(uint32_t) {
-    ReplyCapture::dispatch(s_line);
+    ReplyCapture::dispatch(ReplyCapture::Transport::Ws, s_line);
 }
 
 } // namespace PerfCases

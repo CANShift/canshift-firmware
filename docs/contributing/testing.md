@@ -132,6 +132,46 @@ that without a false failure, while an injected 20 % slowdown is caught.
 A deliberate slowdown, such as a new feature in a hot path, still fails the
 job; say so in the PR and let the reviewer accept it.
 
+### Behaviour goldens
+
+The same `bench` binary replays recorded behaviour and `scripts/bench_goldens.py`
+compares it, byte for byte, with the files committed under `bench/goldens/`.
+Time is virtual in both modes (`sim/shims/sim_clock.h`), so log timestamps,
+timeouts and poll schedules are reproducible.
+
+| Golden             | Input                                       | Output                                                    |
+| ------------------ | ------------------------------------------- | --------------------------------------------------------- |
+| `can/maxxecu_demo` | `trace.txt` over the bundled `signals.json` | `timeline.golden`: every frame and every signal change    |
+| `can/obd2_j1979`   | `trace.txt` plus the case's `signals.json`  | the same, including the OBD-II requests the poller sends  |
+| `protocol/<name>`  | `<name>.in`, one command line each          | `<name>.golden`: the reply lines, over USB then WebSocket |
+
+A CAN trace line is `<ms> rx <id> <hex payload>` or `<ms> end`; frames go
+through `CanRxRoute::deliver`, the same route the TWAI task uses, while the
+OBD-II poller and signal timeouts tick every 10 ms of virtual time. A protocol
+golden runs each `.in` file twice, through `dispatchFromSerial` and
+`dispatchFromSocket`, on a fresh copy of `data/`; `>` is the command, `<` a line
+the transport received (log lines included, as a host sees them) and
+`~ restart` a restart the command requested. The protocol inputs cover status,
+ping, the shared commands, chunked config put and get, typed config get and put,
+and OTA begin/write/end with `ota_unsigned`, `ota_bad_signature`,
+`sha256_mismatch`, `not_app_image` and the offset errors.
+
+The traces and `.in` files are generated: edit `scripts/bench_inputs.py`, then
+run `python3 scripts/bench_inputs.py`. Goldens change only on purpose:
+
+```bash
+pio run -e bench
+python3 scripts/bench_goldens.py                    # what CI runs
+python3 scripts/bench_goldens.py --update-goldens   # rewrite them, then review the diff
+```
+
+A golden records today's behaviour, bugs included: the PR that fixes one
+updates its golden in the same change.
+
+CI never passes `--update-goldens`. On a mismatch the job prints a unified diff
+and uploads the actual output as the `goldens-report` artifact. A golden that
+changes in a PR is a behaviour change: the diff is part of the review.
+
 ## Rust crates — cargo test (`canshift-firmware`)
 
 Each crate under `canshift-firmware/rust/` carries its own tests.

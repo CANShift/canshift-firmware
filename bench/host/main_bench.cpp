@@ -1,4 +1,6 @@
 #include "perf_mode.h"
+#include "trace_mode.h"
+#include "transcript_mode.h"
 
 #include <cstdio>
 #include <cstring>
@@ -12,6 +14,8 @@ struct Mode {
 
 constexpr Mode kModes[] = {
     {"perf", &PerfMode::run},
+    {"trace", &TraceMode::run},
+    {"transcript", &TranscriptMode::run},
 };
 
 int usage() {

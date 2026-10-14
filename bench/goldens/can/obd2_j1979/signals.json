@@ -1,0 +1,121 @@
+{
+  "version": "1.0.0",
+  "protocol": "obd2_j1979",
+  "canSpeedKbps": 500,
+  "signals": [
+    {
+      "name": "rpm",
+      "canFrameId": "0x7E8",
+      "startByte": 3,
+      "byteLength": 2,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.25,
+      "offset": 0.0,
+      "unit": "rpm",
+      "min": 800.0,
+      "max": 6400.0,
+      "timeoutMs": 1000,
+      "polling": {
+        "mode": 1,
+        "pid": 12,
+        "intervalMs": 100
+      }
+    },
+    {
+      "name": "speed_kph",
+      "canFrameId": "0x7E8",
+      "startByte": 3,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1.0,
+      "offset": 0.0,
+      "unit": "km/h",
+      "min": 0.0,
+      "max": 180.0,
+      "timeoutMs": 1000,
+      "polling": {
+        "mode": 1,
+        "pid": 13,
+        "intervalMs": 100
+      }
+    },
+    {
+      "name": "coolant_temp_c",
+      "canFrameId": "0x7E8",
+      "startByte": 3,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1.0,
+      "offset": -40.0,
+      "unit": "°C",
+      "min": 20.0,
+      "max": 105.0,
+      "timeoutMs": 1000,
+      "polling": {
+        "mode": 1,
+        "pid": 5,
+        "intervalMs": 100
+      }
+    },
+    {
+      "name": "throttle_pos",
+      "canFrameId": "0x7E8",
+      "startByte": 3,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.39215686274509803,
+      "offset": 0.0,
+      "unit": "%",
+      "min": 0.0,
+      "max": 100.0,
+      "timeoutMs": 1000,
+      "polling": {
+        "mode": 1,
+        "pid": 17,
+        "intervalMs": 100
+      }
+    },
+    {
+      "name": "iat_c",
+      "canFrameId": "0x7E8",
+      "startByte": 3,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1.0,
+      "offset": -40.0,
+      "unit": "°C",
+      "min": 10.0,
+      "max": 60.0,
+      "timeoutMs": 1000,
+      "polling": {
+        "mode": 1,
+        "pid": 15,
+        "intervalMs": 100
+      }
+    },
+    {
+      "name": "battery_volts",
+      "canFrameId": "0x7E8",
+      "startByte": 3,
+      "byteLength": 2,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.001,
+      "offset": 0.0,
+      "unit": "V",
+      "min": 12.0,
+      "max": 14.4,
+      "timeoutMs": 1000,
+      "polling": {
+        "mode": 1,
+        "pid": 66,
+        "intervalMs": 100
+      }
+    }
+  ]
+}
