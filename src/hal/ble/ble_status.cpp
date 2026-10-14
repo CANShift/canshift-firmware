@@ -9,6 +9,7 @@
     #include "runtime/signal_store.h"
     #include "can/signal_map.h"
     #include "ui/theme_manager.h"
+    #include "util/json_writer.h"
 
     #include <ArduinoJson.h>
     #include <NimBLEDevice.h>
@@ -27,7 +28,7 @@ void updateStatus() {
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     char buf[128];
 
-    const size_t len = serializeJson(doc, buf, sizeof(buf));
+    const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
     if (len == 0 || len >= sizeof(buf)) {
         LOG_WARN("BLE", "STATUS payload truncated (len=%u, cap=%u) — skipping notify",
                  static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));

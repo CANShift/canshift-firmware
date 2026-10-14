@@ -14,6 +14,7 @@
 #include "runtime/pending_actions.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
+#include "util/json_writer.h"
 
 #include <ArduinoJson.h>
 #include <esp_heap_caps.h>
@@ -34,7 +35,7 @@ namespace {
 
 void storeBoardProfileBlob(const JsonVariantConst &payload) {
     char blob[1536];
-    const size_t n = serializeJson(payload, blob, sizeof blob);
+    const size_t n = JsonWriter::toBuffer(payload, blob, sizeof blob);
     if (n == 0 || n >= sizeof blob) {
         UsbComm::sendError("blob_too_large");
         return;

@@ -6,6 +6,7 @@
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
 #include "util/mem_alloc.h"
+#include "util/json_writer.h"
 
 #include <ArduinoJson.h>
 #include <esp_heap_caps.h>
@@ -35,7 +36,7 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
     JsonDocument out;
     out[fieldKey] = subValue;
 
-    const size_t projected = measureJson(out);
+    const size_t projected = JsonWriter::measure(out);
     if (projected == 0 || projected > UsbCommInternal::kTypedPutMaxPayloadBytes) {
         LOG_WARN("USB", "PUT %s: serialized size %u out of bounds", path,
                  static_cast<unsigned>(projected));
@@ -50,7 +51,7 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
     }
 
     ChunkedAtomicWriter writer;
-    const size_t written = serializeJson(out, writer);
+    const size_t written = JsonWriter::toPrint(out, writer);
     if (written != projected) {
         StorageDriver::abortChunkedWrite();
         LOG_ERROR("USB", "PUT %s: stream failed (%u/%u bytes)", path,
@@ -101,7 +102,7 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
     resp["status"] = "ok";
     resp[fieldKey] = body;
 
-    const size_t needed = measureJson(resp) + 1;
+    const size_t needed = JsonWriter::measure(resp) + 1;
     char *buf = static_cast<char *>(Mem::allocPreferSpiram(needed));
     if (!buf) {
         LOG_ERROR("USB", "GET %s: response buffer alloc (%u B) failed", path,
@@ -109,7 +110,7 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
         UsbComm::sendError("oom");
         return;
     }
-    const size_t written = serializeJson(resp, buf, needed);
+    const size_t written = JsonWriter::toBuffer(resp, buf, needed);
     buf[written] = '\0';
     UsbComm::sendLine(buf);
     heap_caps_free(buf);

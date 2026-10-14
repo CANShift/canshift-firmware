@@ -15,6 +15,7 @@
     #include "runtime/pending_actions.h"
     #include "runtime/timer_service.h"
     #include "ui/settings_page.h"
+    #include "util/json_writer.h"
 
     #include <ArduinoJson.h>
     #include <Arduino.h>
@@ -151,7 +152,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         doc["brightness"] = SettingsPage::getBrightness();
         char buf[64];
 
-        const size_t len = serializeJson(doc, buf, sizeof(buf));
+        const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
         if (len == 0 || len >= sizeof(buf)) {
             LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",
                      static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
