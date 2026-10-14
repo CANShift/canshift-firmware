@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "diag/logger.h"
+#include "ota_signature_rs.h"
 #include "runtime/ota_receiver.h"
 #include "runtime/pending_actions.h"
 #include "ui/ota_overlay.h"
@@ -47,6 +48,18 @@ bool parseOtaWriteFields(const char *jsonLine, uint32_t *offsetOut, const char *
     return true;
 }
 
+enum class SignatureField : uint8_t { Missing, Malformed, Present };
+
+SignatureField decodeSignature(const char *b64, uint8_t out[OTA_SIGNATURE_BYTES]) {
+    if (b64 == nullptr)
+        return SignatureField::Missing;
+    size_t decoded = 0;
+    const int rc = mbedtls_base64_decode(out, OTA_SIGNATURE_BYTES, &decoded,
+                                         reinterpret_cast<const unsigned char *>(b64), strlen(b64));
+    const bool whole = rc == 0 && decoded == OTA_SIGNATURE_BYTES;
+    return whole ? SignatureField::Present : SignatureField::Malformed;
+}
+
 } // namespace
 
 namespace UsbCommInternal {
@@ -59,7 +72,14 @@ void handleOtaBegin(const JsonObjectConst &obj) {
         UsbComm::sendError("bad_args");
         return;
     }
-    const OtaReceiver::BeginResult result = OtaReceiver::begin(total, sha);
+    uint8_t signature[OTA_SIGNATURE_BYTES];
+    const SignatureField field = decodeSignature(obj["sig"], signature);
+    if (field == SignatureField::Malformed) {
+        UsbComm::sendError("ota_bad_signature");
+        return;
+    }
+    const uint8_t *provided = field == SignatureField::Present ? signature : nullptr;
+    const OtaReceiver::BeginResult result = OtaReceiver::begin(total, sha, provided);
     if (!result.ok) {
         UsbComm::sendError(result.error != nullptr ? result.error : "begin_failed");
         return;

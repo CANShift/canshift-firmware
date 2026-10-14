@@ -11,6 +11,14 @@
     #define APP_DEBUG_BUILD 0
 #endif
 
+#ifndef APP_OTA_ALLOW_UNSIGNED
+    #define APP_OTA_ALLOW_UNSIGNED 0
+#endif
+
+#if APP_OTA_ALLOW_UNSIGNED && !APP_DEBUG_BUILD
+    #error "APP_OTA_ALLOW_UNSIGNED is for debug builds only"
+#endif
+
 #ifndef APP_SECURE_BOOT_BUILD
     #define APP_SECURE_BOOT_BUILD 0
 #endif

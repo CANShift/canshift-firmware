@@ -1,6 +1,8 @@
 #include "ota_receiver.h"
 
+#include "app_config.h"
 #include "diag/logger.h"
+#include "ota_signature_rs.h"
 
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
@@ -25,6 +27,26 @@ mbedtls_sha256_context s_shaCtx;
 uint8_t s_expectedSha[32] = {0};
 uint8_t s_headerProbe[APP_HEADER_PROBE_BYTES] = {0};
 size_t s_headerProbeLen = 0;
+OtaSignatureSlot s_signature;
+bool s_signed = false;
+
+const char *startSignature(const uint8_t *signature) {
+    ota_signature_clear_rs(&s_signature);
+    s_signed = signature != nullptr;
+    if (!s_signed && APP_OTA_ALLOW_UNSIGNED) {
+        LOG_WARN("OTA", "unsigned image accepted — debug build only");
+        return nullptr;
+    }
+    if (!s_signed)
+        return "ota_unsigned";
+    return ota_signature_begin_rs(&s_signature, signature) ? nullptr : "ota_bad_signature";
+}
+
+bool signatureAccepted() {
+    if (!s_signed)
+        return APP_OTA_ALLOW_UNSIGNED;
+    return ota_signature_finish_rs(&s_signature);
+}
 
 void captureHeaderProbe(const uint8_t *data, size_t len) {
     if (s_headerProbeLen >= APP_HEADER_PROBE_BYTES)
@@ -58,6 +80,7 @@ void teardownOtaHandle() {
     }
     s_targetPartition = nullptr;
     mbedtls_sha256_free(&s_shaCtx);
+    ota_signature_clear_rs(&s_signature);
     s_expectedSize = 0;
     s_writtenSize = 0;
     s_headerProbeLen = 0;
@@ -87,7 +110,7 @@ size_t writtenSize() {
     return s_writtenSize;
 }
 
-BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
+BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32], const uint8_t *signature) {
     if (s_state == State::Receiving) {
         LOG_WARN("OTA", "begin while already receiving — aborting previous session");
         teardownOtaHandle();
@@ -101,6 +124,12 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
     if (totalSize < APP_HEADER_PROBE_BYTES || totalSize > target->size) {
         s_state = State::Failed;
         return {false, "size_out_of_range"};
+    }
+    const char *signatureError = startSignature(signature);
+    if (signatureError != nullptr) {
+        LOG_ERROR("OTA", "begin refused: %s", signatureError);
+        s_state = State::Failed;
+        return {false, signatureError};
     }
 
     esp_ota_handle_t handle = 0;
@@ -157,6 +186,7 @@ WriteResult writeChunk(uint32_t offset, const uint8_t *data, size_t len) {
         LOG_ERROR("OTA", "sha256 update failed at offset=%u", static_cast<unsigned>(offset));
         return abortWrite("sha_engine_failed");
     }
+    ota_signature_update_rs(&s_signature, data, len);
     s_writtenSize += len;
     return {true, nullptr, s_writtenSize};
 }
@@ -184,6 +214,12 @@ CommitResult commit() {
         teardownOtaHandle();
         s_state = State::Failed;
         return {false, "sha256_mismatch", 0};
+    }
+    if (!signatureAccepted()) {
+        LOG_ERROR("OTA", "signature does not match the release key — aborting");
+        teardownOtaHandle();
+        s_state = State::Failed;
+        return {false, "ota_bad_signature", 0};
     }
 
     const esp_err_t endErr = esp_ota_end(s_otaHandle);
