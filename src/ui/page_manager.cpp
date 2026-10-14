@@ -145,6 +145,62 @@ void PageManager::releaseAll() {
     LOG_INFO("UI", "Dashboard pages released, overlays hidden");
 }
 
+namespace {
+
+static_assert(WIDGET_REFRESH_PERIOD_MS == LV_DISP_DEF_REFR_PERIOD,
+              "widgets refresh at the rate LVGL redraws");
+
+bool widgetRefreshDue() {
+    static uint32_t s_lastRefreshMs = 0;
+    const uint32_t nowMs = millis();
+    if (nowMs - s_lastRefreshMs < WIDGET_REFRESH_PERIOD_MS)
+        return false;
+    s_lastRefreshMs = nowMs;
+    return true;
+}
+
+void refreshCurrentPage() {
+    using namespace PageManagerInternal;
+
+    lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
+    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::snapshotAll(snap);
+
+    SignalStats::tick(snap);
+    AlertEngine::tick(snap);
+    RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
+                       AlertEngine::isRevLimiterRowLit());
+    CutBand::update(snap);
+    PERF_SCOPE(::PerfCounters::WIDGETS);
+    WidgetFactory::updateAll(currentScreen, snap);
+}
+
+void refreshChrome() {
+    static uint32_t lastTopBarMs = 0;
+    const uint32_t nowMs = millis();
+    if (nowMs - lastTopBarMs > 200) {
+        PERF_SCOPE(::PerfCounters::TOPBAR);
+        TopBar::update();
+        lastTopBarMs = nowMs;
+    }
+
+    static uint32_t lastTimeoutCheck = 0;
+    if (nowMs - lastTimeoutCheck > 100) {
+        SignalStore::checkTimeouts();
+        lastTimeoutCheck = nowMs;
+    }
+
+    AlertBanner::update();
+    AlertTakeover::update();
+    BusSilentLine::update();
+    DisplayIdle::update();
+    ControlSplash::update();
+
+    ErrorBar::update();
+}
+
+} // namespace
+
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 
@@ -161,41 +217,8 @@ void PageManager::updateWidgets() {
     }
 
     GestureController::checkGestures();
-
-    lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
-    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
-    SignalStore::snapshotAll(snap);
-
-    SignalStats::tick(snap);
-    AlertEngine::tick(snap);
-    RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
-                       AlertEngine::isRevLimiterRowLit());
-    CutBand::update(snap);
-    {
-        PERF_SCOPE(::PerfCounters::WIDGETS);
-        WidgetFactory::updateAll(currentScreen, snap);
-    }
-
-    static uint32_t lastTopBarMs = 0;
-    uint32_t nowMs = millis();
-    if (nowMs - lastTopBarMs > 200) {
-        PERF_SCOPE(::PerfCounters::TOPBAR);
-        TopBar::update();
-        lastTopBarMs = nowMs;
-    }
-
-    static uint32_t lastTimeoutCheck = 0;
-    uint32_t now = millis();
-    if (now - lastTimeoutCheck > 100) {
-        SignalStore::checkTimeouts();
-        lastTimeoutCheck = now;
-    }
-
-    AlertBanner::update();
-    AlertTakeover::update();
-    BusSilentLine::update();
-    DisplayIdle::update();
-    ControlSplash::update();
-
-    ErrorBar::update();
+    if (!widgetRefreshDue())
+        return;
+    refreshCurrentPage();
+    refreshChrome();
 }

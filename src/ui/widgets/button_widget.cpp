@@ -42,7 +42,7 @@ struct ButtonTag {
     uint32_t commandDeadlineMs;
     uint8_t syncedLevel;
     bool hasSyncedLevel;
-    char signalId[CFG_MAX_SIGNAL_LEN];
+    SignalId signal;
 };
 
 void setUppercased(char *out, size_t outLen, const char *text) {
@@ -100,7 +100,7 @@ ControlState resolveState(const ButtonTag &tag) {
     if (!tag.control)
         return tag.engaged ? ControlState::ACTIVE : ControlState::OFF;
     const ControlStatus::Request request = {tag.engaged, tag.stepper.level};
-    return ControlStatus::evaluate(*tag.control, tag.signalId, request);
+    return ControlStatus::evaluate(*tag.control, tag.signal, request);
 }
 
 void refreshTexts(const ButtonTag &tag, ControlState state) {
@@ -215,7 +215,7 @@ void initTag(ButtonTag *tag, const CfgWidget &cfg, const CfgButtonParams &p) {
     tag->commandDeadlineMs = 0;
     tag->syncedLevel = 0;
     tag->hasSyncedLevel = false;
-    strlcpy(tag->signalId, cfg.signalId, sizeof(tag->signalId));
+    tag->signal = signalIdFromName(cfg.signalId);
     const uint8_t floor = tag->control ? tag->control->stepFloor : 0;
     control_stepper_init_rs(&tag->stepper, floor);
 }
@@ -235,13 +235,12 @@ void attachEvents(lv_obj_t *btn, const ButtonTag &tag) {
 }
 
 void syncEngagedFromSignal(ButtonTag &tag) {
-    if (tag.control || !tag.params || !tag.params->isToggle || tag.signalId[0] == '\0')
+    if (tag.control || !tag.params || !tag.params->isToggle ||
+        tag.signal >= SignalIds::SIGNAL_COUNT)
         return;
     if (static_cast<int32_t>(millis() - tag.signalSyncIgnoreUntilMs) < 0)
         return;
-    const SignalId sid = signalIdFromName(tag.signalId);
-    const bool valid = sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid);
-    tag.engaged = valid && SignalStore::read(sid, 0.0f) != 0.0f;
+    tag.engaged = ControlStatus::isConfirming(tag.signal);
 }
 
 void pollCommandTimeout(ButtonTag &tag) {
@@ -249,7 +248,7 @@ void pollCommandTimeout(ButtonTag &tag) {
         return;
     if (!tag.engaged || tag.commandDeadlineMs == 0)
         return;
-    if (ControlStatus::isConfirming(tag.signalId)) {
+    if (ControlStatus::isConfirming(tag.signal)) {
         tag.commandDeadlineMs = 0;
         return;
     }

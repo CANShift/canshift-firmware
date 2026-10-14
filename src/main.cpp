@@ -67,31 +67,6 @@ static StaticTask_t s_usbTaskTCB;
 static StaticTask_t s_bleTaskTCB;
 #endif
 
-static esp_timer_handle_t s_lvglTickTimer = nullptr;
-
-static void lvglTickCb(void *) {
-    lv_tick_inc(LVGL_TICK_MS);
-}
-
-static void startLvglTickTimer() {
-    const esp_timer_create_args_t args = {
-        .callback = &lvglTickCb,
-        .arg = nullptr,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "lvgl_tick",
-        .skip_unhandled_events = false,
-    };
-    esp_err_t err = esp_timer_create(&args, &s_lvglTickTimer);
-    if (err == ESP_OK) {
-        err = esp_timer_start_periodic(s_lvglTickTimer,
-                                       static_cast<uint64_t>(LVGL_TICK_MS) * 1000ULL);
-    }
-    if (err != ESP_OK) {
-        LOG_ERROR("BOOT", "LVGL tick timer failed: %s", esp_err_to_name(err));
-        ErrorStore::push(ERROR_SRC_SYSTEM, "lvgl_tick", "LVGL tick timer failed");
-    }
-}
-
 static void preallocateTaskStacks() {
     s_uiStack = static_cast<StackType_t *>(heap_caps_malloc(TASK_STACK_UI * sizeof(StackType_t),
                                                             MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
@@ -169,7 +144,6 @@ void setup() {
     CanManager::reserveInitTaskStack();
 
     BootSequence::run();
-    startLvglTickTimer();
     PERF_INIT();
 
     LOG_INFO("BOOT", "Boot complete — starting tasks");

@@ -74,17 +74,14 @@ int readRounded(SignalId sid) {
 
 } // namespace
 
-bool isConfirming(const char *signalId) {
-    if (!signalId || signalId[0] == '\0')
-        return false;
-    const SignalId sid = signalIdFromName(signalId);
-    return signalValid(sid) && SignalStore::read(sid, 0.0f) != 0.0f;
+bool isConfirming(SignalId signal) {
+    return signalValid(signal) && SignalStore::read(signal, 0.0f) != 0.0f;
 }
 
-ControlState evaluate(const ControlVocabulary::Control &control, const char *signalId,
+ControlState evaluate(const ControlVocabulary::Control &control, SignalId signal,
                       const Request &request) {
     const bool blocked = guardTripped(control.id);
-    const bool acting = isConfirming(signalId);
+    const bool acting = isConfirming(signal);
     const bool requested = control.kind == ControlKind::TOGGLE
                                ? request.engaged
                                : (control.stepFloor == 0 && request.level > 0);

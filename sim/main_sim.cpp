@@ -99,13 +99,10 @@ int main(int argc, char **argv) {
     SimInjector::init(scenario);
 
     const uint32_t startMs = millis();
-    uint32_t lastTickMs = startMs;
     while (!SimDisplay::quitRequested()) {
         SimDisplay::pumpEvents();
 
         const uint32_t now = millis();
-        lv_tick_inc(now - lastTickMs);
-        lastTickMs = now;
 
         SimInjector::tick(now);
         SignalStore::checkTimeouts();
