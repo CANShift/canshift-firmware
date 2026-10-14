@@ -13,12 +13,15 @@
 #include "ui/font_manager.h"
 #include "ui/page_manager.h"
 #include "ui/screen_profile.h"
+#include "ui/theme_manager.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include <sim_clock.h>
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 extern void simRegisterLvglFs(const char *rootDir);
 extern void simStorageSetRoot(const char *rootDir);
@@ -28,6 +31,7 @@ namespace {
 constexpr int kWidePanelPx = 640;
 constexpr size_t kBoardBlobCapacity = 4096;
 constexpr uint32_t kFrameMs = 16;
+constexpr uint32_t kCaptureEpochMs = 1000;
 
 int zoomForPanel(int width) {
     return width >= kWidePanelPx ? 1 : 2;
@@ -51,6 +55,13 @@ bool applyBoardProfileFile(const char *path) {
     return true;
 }
 
+void applyThemeOverride() {
+    const char *theme = getenv("CANSHIFT_SIM_THEME");
+    if (theme == nullptr)
+        return;
+    ThemeManager::setDayMode(strcmp(theme, "day") == 0);
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -59,6 +70,8 @@ int main(int argc, char **argv) {
     const char *scenario = argc > 2 ? argv[2] : nullptr;
     const char *pageId = argc > 3 ? argv[3] : nullptr;
     const uint32_t captureAfterMs = argc > 4 ? strtoul(argv[4], nullptr, 10) : 0;
+    if (captureAfterMs > 0)
+        SimClock::useManual(kCaptureEpochMs);
 
     const char *boardPath = getenv("CANSHIFT_SIM_BOARD");
     if (boardPath != nullptr && !applyBoardProfileFile(boardPath))
@@ -95,6 +108,7 @@ int main(int argc, char **argv) {
     }
 
     LvglPool::report("first page build");
+    applyThemeOverride();
 
     SimInjector::init(scenario);
 

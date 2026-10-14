@@ -116,6 +116,39 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  visual:
+    name: visual goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install SDL2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsdl2-dev
+      - uses: ./.github/actions/pio-setup
+        with:
+          cache-suffix: sim
+      - name: build sim
+        run: pio run -e sim
+      - name: compare against bench/goldens/visual
+        run: |
+          python3 scripts/bench_visual.py --failures visual-failures \
+            --report visual-report.json --summary "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: visual-report
+          path: |
+            visual-report.json
+            visual-failures/
+          if-no-files-found: ignore
+          retention-days: 14
+
   set-matrix:
     name: resolve board matrix
     runs-on: ubuntu-latest
@@ -370,6 +403,7 @@ jobs:
         native,
         perf,
         goldens,
+        visual,
         set-matrix,
         firmware,
         size-budget,
