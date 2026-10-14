@@ -36,6 +36,48 @@ What's covered:
 The `test/native/shim/` directory holds host-side fakes for HAL surfaces
 (StorageDriver, etc.) so tests can run without an ESP32.
 
+## Regression bench (`canshift-firmware`)
+
+The bench catches regressions that pass every unit test: an image that grows,
+a hot path that slows down, a behaviour or a frame that changes. It needs no
+hardware and runs in `build.yml`; every gating job is in the `needs` of
+`ci-success`.
+
+### Size budgets
+
+`bench/size-budget.json` holds, per board, the bytes each build may take:
+
+| Metric  | Measured from                                                  |
+| ------- | -------------------------------------------------------------- |
+| `flash` | `firmware.bin`, the image written to the app partition         |
+| `dram`  | `.dram0.data` + `.dram0.bss` + `.noinit` — static internal RAM |
+| `iram`  | every `.iram0.*` section                                       |
+| `psram` | every `.ext_ram*` section — static PSRAM, `0` on every board   |
+
+Each `firmware` matrix leg measures the ELF it just linked
+(`scripts/bench_size.py measure`) and uploads `size-<board>.json`; the `size budget`
+job compares the five reports against the budget and writes the delta
+table to the job summary. A board fails when it grows past its budget plus the
+per-metric `tolerance` in the same file, or when the budget and the build
+matrix disagree on the board list.
+
+Raising a budget is a decision, not a fix: change the numbers in
+`bench/size-budget.json` in the PR that grows the image, and say why in its
+description. Lower them when an image shrinks, so the next growth is measured
+from where it really is. To reproduce the check locally after a build:
+
+```bash
+mkdir -p sizes
+python3 scripts/bench_size.py measure --board crowpanel_28 \
+  --elf .pio/build/crowpanel_28/firmware.elf \
+  --bin .pio/build/crowpanel_28/firmware.bin --out sizes/size-crowpanel_28.json
+python3 scripts/bench_size.py check --measured sizes
+```
+
+The check needs a report for every board, so measure all five first. Local
+numbers drift from CI's by a few bytes (paths baked into assert strings), which
+the tolerance absorbs; take budget numbers from the CI job summary.
+
 ## Rust crates — cargo test (`canshift-firmware`)
 
 Each crate under `canshift-firmware/rust/` carries its own tests.
