@@ -66,12 +66,37 @@ constexpr uint8_t TELE_PERIOD_TICKS = 10;
 struct CanHealthStats {
     uint32_t fpsX10;
     uint32_t errors;
+    uint32_t missed;
 };
-CanHealthStats s_canStats = {0, 0};
+CanHealthStats s_canStats = {0, 0, 0};
 portMUX_TYPE s_canStatsMux = portMUX_INITIALIZER_UNLOCKED;
 std::atomic<bool> s_canStatsPending{false};
 
 constexpr size_t TELE_BUF_SIZE = 768;
+
+void sendCanStatLine() {
+    static constexpr size_t CAN_STAT_BUF_WORST_CASE = 74;
+    char statBuf[80];
+    static_assert(sizeof(statBuf) >= CAN_STAT_BUF_WORST_CASE,
+                  "statBuf too small for worst-case can_stat payload");
+    CanHealthStats stats;
+    portENTER_CRITICAL(&s_canStatsMux);
+    stats = s_canStats;
+    portEXIT_CRITICAL(&s_canStatsMux);
+    const int n = snprintf(statBuf, sizeof(statBuf),
+                           "{\"can_stat\":1,\"fps\":%lu.%lu,\"errors\":%lu,\"missed\":%lu}\n",
+                           static_cast<unsigned long>(stats.fpsX10 / 10),
+                           static_cast<unsigned long>(stats.fpsX10 % 10),
+                           static_cast<unsigned long>(stats.errors),
+                           static_cast<unsigned long>(stats.missed));
+    if (n > 0 && static_cast<size_t>(n) < sizeof(statBuf)) {
+        UsbComm::sendLine(statBuf);
+        return;
+    }
+    LOG_WARN("USB", "can_stat payload truncated (n=%d, cap=%u)", n,
+             static_cast<unsigned>(sizeof(statBuf)));
+    ErrorStore::push(ERROR_SRC_SYSTEM, "USB_TRUNC", "can_stat payload truncated");
+}
 
 void sendTelemetry() {
     char buf[TELE_BUF_SIZE];
@@ -246,10 +271,11 @@ bool UsbComm::isHostActive() {
     return (millis() - UsbCommInternal::s_lastHostCmdMs) < HOST_TIMEOUT_MS;
 }
 
-void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors) {
+void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors, uint32_t missed) {
     portENTER_CRITICAL(&s_canStatsMux);
     s_canStats.fpsX10 = fpsX10;
     s_canStats.errors = errors;
+    s_canStats.missed = missed;
     portEXIT_CRITICAL(&s_canStatsMux);
     s_canStatsPending.store(true, std::memory_order_release);
 }
@@ -310,27 +336,7 @@ void UsbComm::tick() {
     drainCanScanQueue();
 
     if (s_canStatsPending.exchange(false, std::memory_order_acquire)) {
-
-        static constexpr size_t CAN_STAT_BUF_WORST_CASE = 54;
-        static_assert(72 >= CAN_STAT_BUF_WORST_CASE,
-                      "statBuf too small for worst-case can_stat payload");
-        char statBuf[72];
-        CanHealthStats stats;
-        portENTER_CRITICAL(&s_canStatsMux);
-        stats = s_canStats;
-        portEXIT_CRITICAL(&s_canStatsMux);
-        const int n =
-            snprintf(statBuf, sizeof(statBuf), "{\"can_stat\":1,\"fps\":%lu.%lu,\"errors\":%lu}\n",
-                     static_cast<unsigned long>(stats.fpsX10 / 10),
-                     static_cast<unsigned long>(stats.fpsX10 % 10),
-                     static_cast<unsigned long>(stats.errors));
-        if (n > 0 && static_cast<size_t>(n) < sizeof(statBuf)) {
-            UsbComm::sendLine(statBuf);
-        } else {
-            LOG_WARN("USB", "can_stat payload truncated (n=%d, cap=%u)", n,
-                     static_cast<unsigned>(sizeof(statBuf)));
-            ErrorStore::push(ERROR_SRC_SYSTEM, "USB_TRUNC", "can_stat payload truncated");
-        }
+        sendCanStatLine();
     }
 
     if (++s_tickCount >= TELE_PERIOD_TICKS) {

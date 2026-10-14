@@ -3,6 +3,7 @@
 
 #include "boot/boot_phases.h"
 #include "can/can_manager.h"
+#include "can/can_task.h"
 #include "config/board_profile_store.h"
 #include "config/config_loader.h"
 #include "diag/error_store.h"
@@ -33,7 +34,8 @@ uint32_t s_selfTestShownMs = 0;
 
 constexpr uint32_t kBootHoldMs = 400;
 constexpr uint32_t kSelfTestHoldMs = 2000;
-constexpr uint32_t kCanQuietMs = 500;
+constexpr uint32_t kCanListenWindowMs = 1000;
+constexpr uint32_t kCanListenPollMs = 10;
 
 void holdSince(uint32_t sinceMs, uint32_t minMs) {
     const uint32_t elapsed = millis() - sinceMs;
@@ -42,8 +44,12 @@ void holdSince(uint32_t sinceMs, uint32_t minMs) {
     vTaskDelay(pdMS_TO_TICKS(minMs - elapsed));
 }
 
+bool canFrameSeen() {
+    return CanManager::msSinceLastRx() < kCanListenWindowMs;
+}
+
 BootScreens::CheckResult canBusCheck() {
-    const bool ok = CanManager::isAvailable() && CanManager::msSinceLastRx() < kCanQuietMs;
+    const bool ok = CanManager::isAvailable() && canFrameSeen();
     return {ok ? "OK" : "NO FRAMES", ok};
 }
 
@@ -125,6 +131,24 @@ void initUsbCommPhase() {
     UsbComm::init();
 }
 
+void listenForFirstCanFrame() {
+    const uint32_t startMs = millis();
+    while (!canFrameSeen() && millis() - startMs < kCanListenWindowMs)
+        vTaskDelay(pdMS_TO_TICKS(kCanListenPollMs));
+}
+
+void startCanTaskAndListen() {
+    LOG_INFO("BOOT", "Starting CAN task...");
+    if (!CanTask::start()) {
+        LOG_ERROR("BOOT", "CAN task did not start — no frames will be read");
+        return;
+    }
+    if (!CanManager::isAvailable())
+        return;
+    listenForFirstCanFrame();
+    LOG_INFO("BOOT", "CAN listen window: %s", canFrameSeen() ? "frames seen" : "no frames");
+}
+
 void buildUiWithHeapBracket() {
     holdSince(s_selfTestShownMs, kSelfTestHoldMs);
     BootPhases::logHeap("before buildUI");
@@ -194,6 +218,7 @@ void BootSequence::run() {
     initRuntimeServices();
     initCanHardwarePhase();
     initUsbCommPhase();
+    startCanTaskAndListen();
     showSelfTestScreen(storageOk);
     buildUiWithHeapBracket();
 

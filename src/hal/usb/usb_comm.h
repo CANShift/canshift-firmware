@@ -58,7 +58,7 @@ struct CanScanFrame {
 
 bool pushCanFrame(const CanScanFrame &frame);
 
-void updateCanStats(uint32_t fpsX10, uint32_t errors);
+void updateCanStats(uint32_t fpsX10, uint32_t errors, uint32_t missed);
 
 bool isHostActive();
 

@@ -15,6 +15,7 @@
 
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
+#include "can/can_task.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_hold_timer.h"
@@ -40,7 +41,6 @@
     #include "hal/ble/ble_server.h"
 #endif
 void taskUI(void *pvParameters);
-void taskCAN(void *pvParameters);
 void taskUSBComm(void *pvParameters);
 #if APP_BLE_ENABLED
 void taskBLE(void *pvParameters);
@@ -50,21 +50,18 @@ SemaphoreHandle_t g_lvglMutex = nullptr;
 
 TaskHandle_t g_uiTaskHandle = nullptr;
 
-static TaskHandle_t s_canTaskHandle = nullptr;
 static TaskHandle_t s_usbTaskHandle = nullptr;
 #if APP_BLE_ENABLED
 static TaskHandle_t s_bleTaskHandle = nullptr;
 #endif
 
 static StackType_t *s_uiStack = nullptr;
-static StackType_t *s_canStack = nullptr;
 static StackType_t *s_usbStack = nullptr;
 #if APP_BLE_ENABLED
 static StackType_t *s_bleStack = nullptr;
 #endif
 
 static StaticTask_t s_uiTaskTCB;
-static StaticTask_t s_canTaskTCB;
 static StaticTask_t s_usbTaskTCB;
 #if APP_BLE_ENABLED
 static StaticTask_t s_bleTaskTCB;
@@ -98,15 +95,14 @@ static void startLvglTickTimer() {
 static void preallocateTaskStacks() {
     s_uiStack = static_cast<StackType_t *>(heap_caps_malloc(TASK_STACK_UI * sizeof(StackType_t),
                                                             MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-    s_canStack = static_cast<StackType_t *>(heap_caps_malloc(
-        TASK_STACK_CAN * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+    const bool canStackOk = CanTask::reserveStack();
     s_usbStack = static_cast<StackType_t *>(heap_caps_malloc(
         TASK_STACK_USB * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 #if APP_BLE_ENABLED
     s_bleStack = static_cast<StackType_t *>(heap_caps_malloc(
         TASK_STACK_BLE * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 #endif
-    if (!s_uiStack || !s_canStack || !s_usbStack
+    if (!s_uiStack || !canStackOk || !s_usbStack
 #if APP_BLE_ENABLED
         || !s_bleStack
 #endif
@@ -142,8 +138,6 @@ static void registerBurnOverlayObserver() {
 static void createAllTasks() {
     g_uiTaskHandle = TaskSpawn::spawnStatic("ui", taskUI, TASK_STACK_UI, TASK_PRIO_UI, s_uiStack,
                                             &s_uiTaskTCB, TASK_CORE_UI);
-    s_canTaskHandle = TaskSpawn::spawnStatic("can", taskCAN, TASK_STACK_CAN, TASK_PRIO_CAN,
-                                             s_canStack, &s_canTaskTCB, TASK_CORE_CAN);
     s_usbTaskHandle = TaskSpawn::spawnStatic("usb", taskUSBComm, TASK_STACK_USB, TASK_PRIO_USB,
                                              s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
 #if APP_BLE_ENABLED
@@ -401,7 +395,7 @@ inline void uiReportStackHeadroom() {
         return;
     lastLogMs = nowMs;
     logStackHeadroom("ui", g_uiTaskHandle);
-    logStackHeadroom("can", s_canTaskHandle);
+    logStackHeadroom("can", CanTask::handle());
     logStackHeadroom("usb", s_usbTaskHandle);
     #if APP_BLE_ENABLED
     logStackHeadroom("ble", s_bleTaskHandle);
@@ -485,25 +479,6 @@ void taskUI(void *pvParameters) {
         uiRecordFrameMetrics(frameStartUs, frameWakeStart);
         uiFlushLvTaskLog();
         uiThrottle(lastWake);
-    }
-}
-
-void taskCAN(void *pvParameters) {
-
-    constexpr uint32_t CAN_BURST_BEFORE_YIELD = 16;
-    uint32_t consecutiveFrames = 0;
-    while (true) {
-        const bool frameConsumed = CanManager::tick();
-
-        esp_task_wdt_reset();
-        if (!frameConsumed) {
-            consecutiveFrames = 0;
-            continue;
-        }
-        if (++consecutiveFrames >= CAN_BURST_BEFORE_YIELD) {
-            consecutiveFrames = 0;
-            vTaskDelay(CAN_TASK_YIELD_TICKS);
-        }
     }
 }
 
