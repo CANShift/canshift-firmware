@@ -3,21 +3,71 @@
 Source: [`src/hal/usb/usb_comm.cpp`](../../src/hal/usb/usb_comm.cpp)
 
 USB CDC is the dash's primary host link to canshift-tuner: command/response
-JSON lines + ~10 Hz telemetry. Sources: `src/hal/usb/usb_comm.cpp`,
+JSON lines plus a telemetry line every 200 ms. Sources: `src/hal/usb/usb_comm.cpp`,
 `src/hal/usb/usb_dispatch.cpp`, `src/hal/usb/usb_dispatch_files.cpp`,
 `src/hal/usb/usb_config_sync.cpp`, `src/hal/usb/usb_envelope.cpp`.
 
 ## Wire protocol
 
-- **Baud**: 115200 over the CH340 UART0 bridge.
+- **Link**: `Serial` at 115200 baud. On the CrowPanel that is UART0 behind the
+  CH340 bridge; on the native-USB ESP32-S3 it is the USB-serial-JTAG CDC, where
+  the baud rate is nominal.
 - **Framing**: newline-delimited JSON lines, no other framing.
-- **Command shape**: `{"cmd":<int>, …}`. Replies are command-specific JSON.
-- **Telemetry**: `{"tele":1,"v":{…signals…}}` emitted every `TELE_PERIOD_TICKS`
-  (10 ticks ≈ 10 Hz) from `usb_comm.cpp::sendTelemetry`.
+- **Command shape**: `{"cmd":<int>, …}`. Replies are command-specific JSON;
+  errors are always `{"status":"error","message":"<code>"}` (`UsbComm::sendError`).
+- **Telemetry**: `{"tele":1,"v":{…signals…}}` every `TELE_PERIOD_TICKS` (10) USB
+  ticks of `USB_TASK_TICK_INTERVAL_MS` (20 ms), so every 200 ms, from
+  `usb_comm.cpp::sendTelemetry`.
 - **Logs**: `{"log":1,"lvl":"…","tag":"…","msg":"…"}` (protocol v2).
 
 `USB_PROTOCOL_VERSION = 2` (in `include/app_config.h`) reflects that LOG\_\*
 macros emit envelopes instead of plain `[I][TAG]` text.
+
+## Commands
+
+Opcodes are the `CMD_*` constants in
+[`usb_comm.h`](../../src/hal/usb/usb_comm.h). `handleCommand()` first offers the
+line to the raw-payload handlers (`PUT_CONFIG`, `PUT_FILE`, `OTA_WRITE`), then to
+the command table shared with BLE
+([`device_commands.cpp`](../../src/runtime/device_commands.cpp)), then to the
+USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
+
+| Code   | Name                     | Request                                               | Reply and effect                                                                                    |
+| ------ | ------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `0x01` | `CMD_GET_CONFIG`         | `{"cmd":1}`                                           | `{"status":"ok","config":{…}}`, the on-disk `dashboard.json`                                        |
+| `0x02` | `CMD_PUT_CONFIG`         | `{"cmd":2,"payload":{…}}`                             | Atomic write of `dashboard.json`, then reboot (see below)                                           |
+| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                           | `device.json`, or `config_not_found`                                                                |
+| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{…}}`                             | Atomic write of `device.json`, then reboot                                                          |
+| `0x05` | `CMD_SCREEN_SETTINGS`    | `{"cmd":5,"brightness":80,"rotation":0}`              | Applies brightness; a `rotation` of 0 or 180 that differs from the current one persists and reboots |
+| `0x06` | `CMD_PUT_FILE`           | `{"cmd":6,"path":…,"total":N,"idx":i,"data":"<b64>"}` | Chunked write under `/assets/` or `/fonts/` only; an out-of-order chunk aborts the transfer         |
+| `0x07` | `CMD_TOGGLE_DAY_NIGHT`   | `{"cmd":7}`                                           | Flips the theme on the next UI tick                                                                 |
+| `0x08` | `CMD_CALIBRATE_TOUCH`    | `{"cmd":8}`                                           | Runs touch calibration (resistive boards only)                                                      |
+| `0x09` | `CMD_SET_DAY_NIGHT`      | `{"cmd":9,"day":true}`                                | Sets the theme; `missing_day` without the bool                                                      |
+| `0x0A` | `CMD_RESET_TOUCH_CAL`    | `{"cmd":10}`                                          | Clears the saved calibration                                                                        |
+| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}`                                          | `input_bindings.json`, or `config_not_found`                                                        |
+| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{…}}`                            | Atomic write of `input_bindings.json`, then reboot                                                  |
+| `0x0D` | `CMD_SET_BOARD_PROFILE`  | `{"cmd":13,"payload":{…}}`                            | Stores a board id or profile blob in NVS, then reboots ([Board profile](board-profile.md))          |
+| `0x0E` | `CMD_PUT_CONFIG_CHUNK`   | `{"cmd":14,"total":N,"idx":i,"data":"<b64>"}`         | `dashboard.json` in chunks; the last one commits and reloads the config live, without a reboot      |
+| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                          | `{"status":"ok","version":…,"protocol":2,"is_day":0,"board_id":…}`                                  |
+| `0x11` | `CMD_PING`               | `{"cmd":17}`                                          | `{"status":"ok","uptime_ms":…}`                                                                     |
+| `0x20` | `CMD_CAN_SCAN_START`     | `{"cmd":32}`                                          | Starts forwarding raw frames                                                                        |
+| `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                          | Stops forwarding; the ack carries `drops`                                                           |
+| `0x22` | `CMD_OBD_READ_DTC`       | `{"cmd":34}`                                          | OBD-II mode 03; replies `{"status":"ok","dtc_bytes":[…]}` when the ECU answers                      |
+| `0x23` | `CMD_OBD_CLEAR_DTC`      | `{"cmd":35}`                                          | OBD-II mode 04                                                                                      |
+| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`               | Opens the inactive app slot (see [Firmware OTA](#firmware-ota))                                     |
+| `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<b64>"}`                | Writes one chunk; `{"status":"ok","written":N}`                                                     |
+| `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"}`                        | `commit` verifies and reboots into the new slot; `abort`, the default, discards                     |
+| `0xF0` | `CMD_REBOOT`             | `{"cmd":240}`                                         | `{"status":"ok","restart":true}`, then restarts                                                     |
+
+## Device-to-host lines
+
+| Line                  | When                               | Shape                                               |
+| --------------------- | ---------------------------------- | --------------------------------------------------- |
+| Telemetry             | every 200 ms                       | `{"tele":1,"v":{"rpm":3500,…}}`, valid signals only |
+| CAN frame (scan mode) | per frame, at most 32 per USB tick | `{"can":1,"id":888,"len":8,"d":[…]}`                |
+| CAN health            | every 2 s (`STAT_INTERVAL_MS`)     | `{"can_stat":1,"fps":125.0,"errors":0}`             |
+| Log                   | on event                           | `{"log":1,"lvl":"info","tag":"USB","msg":"…"}`      |
+| Ack                   | once per command                   | `{"status":"ok",…}` or `{"status":"error",…}`       |
 
 ## The serial sink
 
@@ -108,3 +158,28 @@ The `unwrapKey` argument handles the disk-vs-wire shape difference:
 `input_bindings.json` wraps its array under `{"input_bindings":[…]}` on
 disk, so `sendTypedConfigGet` lifts the body out under that key; `device.json`
 is already flat and passes `unwrapKey = nullptr`.
+
+## Firmware OTA
+
+A firmware update streams over this link into the app slot the dash is not
+running from; the bootloader switches slots on the next boot
+([Flash layout](../reference/flash-layout.md)). The receiver is
+[`ota_receiver.cpp`](../../src/runtime/ota_receiver.cpp), and an overlay on screen
+follows the progress.
+
+1. `CMD_OTA_BEGIN` carries the image size and its SHA-256. The firmware refuses a
+   size that does not fit the slot.
+2. `CMD_OTA_WRITE` streams base64 chunks in order. The `offset` must equal the
+   bytes written so far; a gap, an overrun, or a first chunk that is not an app
+   image aborts the transfer.
+3. `CMD_OTA_END` with `"commit"` hashes what was written, refuses the slot switch
+   on a SHA-256 mismatch, otherwise replies `{"status":"ok","restart":true}` and
+   reboots.
+
+The firmware marks the new slot valid only after a stable boot
+([Boot sequence](boot-sequence.md)), so a bootloader built with app rollback
+returns to the previous slot when the new image crashes first. The flag that asks
+for it, `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, sits in `platformio.ini`, but
+arduino-esp32 ships a prebuilt bootloader that the flag does not rebuild. The dash checks the SHA-256, not a
+signature: the Ed25519 `.sig` files a release carries are for the host to check
+([Firmware signing](../reference/firmware-signing.md)).

@@ -42,7 +42,9 @@ its editor surface in `canshift-tuner`. See
 
 - Node ≥ 20 — for `canshift-core`, `canshift-tuner`, and `canshift-mobile`.
 - PlatformIO Core — for `canshift-firmware`. `pip install platformio`.
-- Rust toolchain (xtensa) — optional, only if you touch the firmware's Rust modules.
+- Rust with the Espressif Xtensa toolchain — for `canshift-firmware`. Every board
+  build links the Rust crates: `cargo install espup --locked && espup install`, then
+  `. ~/export-esp.sh` in the shell that runs `pio`.
 
 ## Clone as siblings
 

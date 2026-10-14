@@ -1,943 +1,162 @@
-# canshift-firmware
+# CANShift
 
-ESP32 firmware for the CANShift configurable automotive dashboard.
+CANShift turns a small ESP32 touch screen into a dashboard for your car. Wired to
+the CAN bus through a transceiver, it decodes the frames your ECU already
+broadcasts (RPM, temperatures, pressures, lambda, gear, speed) and draws them on
+pages you design yourself. No proprietary tooling and no cloud: the dash, a
+browser and an optional phone app are the whole system.
 
-> 🚨 **Architecture refactor (#1351)** — the WiFi stack, WebServer, WS bridge, and SPA-on-SPIFFS pipeline were removed in this PR. Studio is now the browser Tuner, [CANShift/canshift-tuner](https://github.com/CANShift/canshift-tuner) and talks to the dash over WebSerial via the CH340 UART. Existing devices need a USB reflash via the Tuner — OTA between the WiFi-extended layout and the new one is unsafe (the bootloader-visible partition table changed).
+This repository holds the firmware that runs on the dash, and it is the front door
+for the whole project: releases ship from here, and the documentation for building,
+flashing and using a dash lives in [`docs/`](docs/README.md).
 
-- **Platform:** Elecrow CrowPanel 2.8" (ESP32-WROOM-32, 320×240 ILI9341 + XPT2046 touch)
-- **Framework:** PlatformIO + Arduino + C++17
-- **UI:** LVGL 8.3 (`lvgl/lvgl @ ^8.3.11`)
-- **CAN:** ESP32 TWAI + [Adafruit CAN Pal (TJA1051T/3)](https://www.digikey.ch/fr/products/detail/adafruit-industries-llc/5708/18716420)
-- **Wireless:** NimBLE GATT (`h2zero/NimBLE-Arduino @ ^1.4.3`)
+## The project
 
-Library versions are pinned in [`platformio.ini`](platformio.ini).
+| Repository                                                     | Role                                                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **canshift-firmware** (here)                                   | ESP32 firmware: C++17, Arduino, LVGL 8.3, Rust modules. Releases and project docs.                     |
+| [canshift-core](https://github.com/CANShift/canshift-core)     | The shared contracts: config schemas, migrations, wire protocol. Published as `@canshift/core` on npm. |
+| [canshift-tuner](https://github.com/CANShift/canshift-tuner)   | The configurator: page editor, ECU profiles, signals, live values, firmware upload.                    |
+| [canshift-mobile](https://github.com/CANShift/canshift-mobile) | The iPhone companion: telemetry and lap timing over BLE while driving.                                 |
 
-📖 **[Documentation](docs/README.md)** — using the dash, building one, firmware
-architecture, reference, and contributing guides.
+Brand assets and design references live in
+[canshift-brand](https://github.com/CANShift/canshift-brand). The firmware mirrors
+core's schemas in C++ and pins the schema version it was built against
+(`core-schema-version.txt`), so a change to the contract lands here first.
 
----
+## How a dash is used
 
-## Hardware platform
+```mermaid
+flowchart LR
+    A[Blank board] -->|esptool over USB, once| B[Dash]
+    B -->|Settings → Workshop mode| C[Tuner in any browser, over the dash's Wi-Fi]
+    B -->|BLE| D[Mobile app while driving]
+```
 
-- **MCU** — ESP32-WROOM-32 mounted on the Elecrow CrowPanel 2.8" ESP32 HMI (SKU `DIS05028H`).
-- **Display** — ILI9341, 320×240, SPI bus, backlight on GPIO 27 (PWM channel 0, 5 kHz, 8-bit).
-- **Touch** — XPT2046 resistive controller, sharing the display's HSPI bus, polled (no IRQ).
-- **CAN** — ESP32 TWAI controller fed through an [Adafruit CAN Pal (TJA1051T/3)](https://www.digikey.ch/fr/products/detail/adafruit-industries-llc/5708/18716420) wired to the CrowPanel expansion header. CAN Pal `CTX → TWAI_TX`, `CRX → TWAI_RX`, `CANH/CANL → ECU CAN H/L`, `VCC → 5 V`, `GND → GND`. CANShift is ECU-agnostic — MaxxECU is the example used during development, but `signals.json` accepts any passively-broadcast frame layout (see #556).
+1. **First flash.** A blank board gets its firmware once, from a terminal, with
+   `esptool`. [First flash](docs/guide/first-flash.md) has the steps for each
+   board family.
+2. **Workshop mode — configure.** A button in the dash's Settings panel turns
+   Bluetooth off, brings up a password-protected Wi-Fi access point, and serves the
+   tuner from the dash's own flash. Any phone or laptop browser opens it: no
+   Chrome, no cable, no install. Pages, signals, CAN settings and firmware updates
+   all happen there. Leaving workshop mode reboots the dash.
+3. **Drive.** Back on the dashboard, the mobile app connects over BLE for
+   telemetry and lap timing.
 
-All pin assignments live in [`include/board_config.h`](include/board_config.h) and are still flagged as assumptions until they're verified on the actual board.
-
----
+> [!IMPORTANT]
+> **Workshop mode is in progress, not shipped.** The design is
+> [Workshop mode](docs/architecture/workshop-mode.md); the first firmware slice is
+> open as #300, and the later slices (access point, server, on-board tuner) are not
+> built yet. Until they ship, the tuner configures the dash over a USB cable from
+> a Chromium browser, which is also how the 4 MB boards below keep working.
 
 ## Supported boards
 
-The firmware targets a single board per build, selected at compile time. There is
-no runtime driver configuration — the unused LCD/touch drivers are stripped by
-the linker, so each binary carries only the code its board needs.
+The firmware is one image per chip family. Every LCD and touch driver is compiled
+in, and the board is resolved at boot from its profile
+([Board profile](docs/architecture/board-profile.md)).
 
-| `board_id`              | Display         | Touch              | Status          |
-| ----------------------- | --------------- | ------------------ | --------------- |
-| `crowpanel_28`          | ILI9341 320×240 | XPT2046 resistive  | Hardware target |
-| `generic_ili9341`       | ILI9341 320×240 | XPT2046 resistive  | CI-built only   |
-| `generic_ili9341_gt911` | ILI9341 320×240 | GT911 capacitive   | CI-built only   |
-| `waveshare_s3_28`       | ST7789 240×320  | CST3530 capacitive | Hardware target |
+| Board (`env`)                                             | Chip     | Flash | PSRAM        | Display               | Touch               | Tuner on board | Status                            |
+| --------------------------------------------------------- | -------- | ----- | ------------ | --------------------- | ------------------- | -------------- | --------------------------------- |
+| Waveshare ESP32-S3-Touch-LCD-2.8 (`waveshare_s3_28`)      | ESP32-S3 | 16 MB | 8 MB OPI     | ST7789T3, 240×320 SPI | CST3530, capacitive | Yes (planned)  | Hardware-verified, native USB     |
+| Elecrow CrowPanel 2.8" (`crowpanel_28`)                   | ESP32    | 4 MB  | none (WROOM) | ILI9341, 320×240 SPI  | XPT2046, resistive  | No             | Hardware target, CH340 USB        |
+| Generic ESP32 + ILI9341 (`generic_ili9341`)               | ESP32    | 4 MB  | optional     | ILI9341, 320×240 SPI  | XPT2046, resistive  | No             | CI-built profile, pins unverified |
+| Generic ESP32 + ILI9341 + GT911 (`generic_ili9341_gt911`) | ESP32    | 4 MB  | optional     | ILI9341, 320×240 SPI  | GT911, capacitive   | No             | CI-built profile, pins unverified |
 
-`crowpanel_28` is the reference hardware — the [Elecrow CrowPanel 2.8"](#hardware-platform)
-the dashboard ships on. The two `generic_*` profiles are portability seams: they
-build green in CI on every push but their pinouts are representative starting
-points, unverified against physical hardware. **CI-built only** means the leg
-compiles and links; it does not mean the pin map is correct for any given board.
-`waveshare_s3_28` is the ESP32-S3 board tracked on #81 — display, touch, SPIFFS,
-BLE and CAN all verified on the board itself.
+`generic_esp32s3` also builds in CI as a compile target, but it is not released:
+the `esp32s3` image carries the 16 MB partition table of the Waveshare board.
 
-### How it fits together
+### Why the 4 MB boards get no workshop mode
 
-- [`include/board.h`](include/board.h) is the compile-time selector. It reads the
-  `-DBOARD_*` flag from the active pio env, pulls in the matching profile header,
-  and exposes `kBoard` plus the `canshift::display::kWidth/kHeight/kColorDepth`
-  constants the rest of the firmware derives geometry from.
-- [`include/boards/`](include/boards/) holds one profile header per board, each a
-  single `constexpr BoardProfile kActiveBoard` filling the struct defined in
-  [`include/board_profile.h`](include/board_profile.h) (LCD, backlight, touch,
-  CAN, storage, connectivity — pins, driver enums, and capability flags).
-- [`include/lgfx_factory.h`](include/lgfx_factory.h) is the LovyanGFX bring-up: at
-  boot it instantiates the `Panel_*`/`Touch_*` drivers named by the active
-  profile's `lcd.driver`/`touch.driver` enums and configures the SPI bus, panel,
-  touch, and backlight from the profile fields. All common SPI display and touch
-  drivers are compiled in and selected at runtime, so a board that reuses an
-  existing driver pair needs no display code.
+The on-board tuner needs the 16 MB flash layout, and only the Waveshare board has
+it today. On a 4 MB board:
 
-### Adding a board
+- **Flash.** The firmware already fills about 90 % of each 1.5 MB app slot, with no
+  room left for a Wi-Fi stack and a web server, and SPIFFS is 832 KB shared with
+  config, fonts and icons. The 16 MB layout gives 4 MB app slots and 7.5 MB of
+  SPIFFS for the gzipped tuner.
+- **Memory.** Wi-Fi and BLE share one radio, and running an access point and its
+  server needs heap. The ESP32-WROOM has no PSRAM, and once LVGL owns its pool the
+  largest free block is around 13–18 KB. The S3 has 8 MB of PSRAM.
 
-Two paths, and the first needs no firmware change: the board profile is resolved at
-run time, so an unknown board can be provisioned over USB from the tuner. Adding one
-to the catalog so it ships for everyone is five steps plus a gate that checks you
-did all five.
+The 4 MB boards still do everything else: the full dashboard, CAN decoding,
+configuration and firmware updates over USB from the tuner, and the mobile app
+over BLE. They just never show the workshop button. The budgets are in
+[Flash layout](docs/reference/flash-layout.md).
 
-Both are in [Adding a board](docs/reference/add-a-board.md).
+To run CANShift on a board that is not listed, provision its profile over USB or
+add it to the catalog: [Adding a board](docs/reference/add-a-board.md).
 
-### Responsive UI (LayoutScale)
+## Quick start
 
-New UI code is authored against a fixed **320×240 design space** and scaled to the
-board's physical resolution through [`include/layout_scale.h`](include/layout_scale.h):
-`LayoutScale::x()` / `y()` for horizontal/vertical extents, `LayoutScale::square()`
-for radii and other aspect-locked dimensions. When the board's resolution equals
-the design space (as on `crowpanel_28`) the scale folds to the identity at compile
-time, so that board's binary is byte-identical to the pre-responsive build.
+1. Get the board and a CAN transceiver: [Hardware & BOM](docs/reference/hardware-bom.md).
+2. Download `canshift-<chip>-vX.Y.Z-merged.bin` and `-spiffs.bin` from
+   [Releases](https://github.com/CANShift/canshift-firmware/releases).
+3. Flash both with `esptool`: [First flash](docs/guide/first-flash.md).
+4. Wire the transceiver to the board's TWAI pins and the car's CAN-H / CAN-L:
+   [CAN header](docs/reference/pinout-can.md).
+5. Pick your ECU profile and lay out your pages in the tuner.
 
-Two things stay **unscaled by design**: thin border strokes (scaling them muddies
-the edge) and fonts with their optical-centring nudges (a resolution-tiered font
-set is the follow-up, tracked in #64). Wrap container geometry, not text metrics.
+## Build from source
 
----
-
-## What is working
-
-- LVGL 8.3 rendering with widgets for `bar`, `button`, `gauge`, `gear`, `image`, `label`, `timer`, and `warning` (`src/ui/widgets/`).
-- Gauge `revFlash` pulse triggered at the configured `revLimitRpm` (see `GaugeWidget::create` in `src/ui/widgets/gauge_widget.cpp`, issue #263).
-- Button widgets with toggle latch, optional icon, and idle/active color tints (`src/ui/widgets/button_widget.cpp`).
-- ESP32 TWAI CAN reception at 500 kbps, runtime-overridable via `device.json`.
-- CAN frame parsing — RPM, throttle, MAP, boost, IAT, coolant, oil temp/pressure, fuel pressure, lambda, AFR, road speed, gear, battery, MIL/launch flags, map number. The shipped default `signals.json` is tuned for MaxxECU but `signals.json` is fully generic; swap it for any passive-broadcast ECU.
-- Dynamic CAN signal table built from `signals.json` at boot — runtime dispatch with bitmask support and per-signal timeout.
-- Touch calibration via LovyanGFX `calibrateTouch()` (4-point crosshair sequence); result stored in NVS (`namespace="touch"`, `key="cal"`).
-- Day/night theme toggle that rebuilds all LVGL pages.
-- USB JSON-line protocol over UART0 (115200 baud) — see [USB protocol](#usb-protocol).
-- BLE GATT server for the mobile app (`src/hal/ble/ble_server.cpp`) — TELE notify, STATUS read+notify, SETTINGS read+write, CMD channel.
-- Firmware OTA over USB — chunked, SHA-256-verified writes to the inactive app slot with automatic bootloader rollback (`CMD_OTA_BEGIN` / `CMD_OTA_WRITE` / `CMD_OTA_END`, see [Firmware OTA](#firmware-ota-over-usb)).
-- Default-config provisioning — embedded `dashboard.json` / `signals.json` / `theme.json` are written to fresh SPIFFS on first boot. User data is never overwritten (`src/config/default_config.h`, `src/boot/boot_sequence.cpp`).
-- Atomic config writes via `StorageDriver::writeFileAtomic` with a `.bak` fallback (see `readAndParseWithBak` in `src/config/config_loader.cpp`).
-- Burn overlay — full-screen "Saving config…" feedback with auto error state on storage write failure (`src/ui/burn_overlay.h`).
-- Runtime device config (`device.json`) can override the CAN bus speed and, if needed, the TWAI pins — but it ships without pins, so each board uses the ones in its own profile (see `installAndStartOnThisCore` in `src/can/can_manager.cpp`).
-- CAN-task IDLE0 yield fix — `vTaskDelay(CAN_TASK_YIELD_TICKS)` keeps the Task Watchdog Timer happy on a busy bus (see `taskCAN` in `src/main.cpp`, issue #200).
-- Splash screen with progress bar and a 2 s minimum hold (see `BootSequence::run` in `src/boot/boot_sequence.cpp`).
-- CAN scan mode — queues raw frames (FreeRTOS queue, 64 frames deep) and drains them to USB at ≤32 frames per tick.
-- CAN health stats emitted as `{"can_stat":1,"fps":X.X,"errors":N}` every 2 s.
-- Telemetry push — `{"tele":1,"v":{...}}` every ~200 ms over USB; same payload at 10 Hz over BLE TELE.
-- LVGL draw buffers sized at 20 lines × 320 px × 2 bytes (~12.8 KB each) so the firmware fits comfortably alongside NimBLE in DRAM.
-
----
-
-## Build & flash
-
-### Prerequisites
-
-- [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html) or VS Code + the PlatformIO IDE extension
-- A USB cable to the CrowPanel ESP32
-
-### Commands
+You need [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html)
+and the Espressif Rust toolchain, because every board build links the crates
+under [`rust/`](rust/):
 
 ```bash
-# From canshift-firmware/
+pip install platformio
+cargo install espup --locked && espup install
+. ~/export-esp.sh                      # in every shell that runs pio
 
-pio run                          # Build only
-pio run --target upload          # Build and flash firmware
-pio run --target uploadfs        # Upload SPIFFS filesystem (data/)
-pio device monitor               # Serial monitor at 115200 baud
+pio run -e waveshare_s3_28             # or crowpanel_28, generic_ili9341, ...
+pio run -e waveshare_s3_28 -t upload   # flash the app
+pio run -e waveshare_s3_28 -t uploadfs # flash data/ to SPIFFS — a separate step
+pio test -e native                     # host unit tests
+cd rust && cargo test --workspace      # Rust crate tests
+pio run -e sim                         # SDL simulator, see sim/README.md
 ```
 
-First boot provisions the embedded default config files automatically — no
-manual asset copy step is required. Fonts and icons under `data/assets/` and
-`data/fonts/` ship to the device via `pio run -t uploadfs`.
-
-### Logging knobs
-
-Two independent log levels gate what reaches UART0 / USB-CDC. They are easy to
-confuse because both names contain "level" and both end up on the same wire.
-
-| Knob               | Gates                                                                                                                 | Format                                                                               | Default in `[env:crowpanel_28]`                                                      |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `APP_LOG_LEVEL`    | Project `LOG_ERROR` / `LOG_WARN` / `LOG_INFO` / `LOG_DEBUG` / `LOG_VDEBUG` macros (`src/diag/logger.h`)               | JSON-line envelope `{"log":1,"lvl":"...","tag":"...","msg":"..."}` (USB protocol v2) | `1` (error only) — release contract from `include/app_config.h` (#899)               |
-| `CORE_DEBUG_LEVEL` | Arduino-framework `log_e` / `log_w` / `log_i` / `log_d` / `log_v` calls inside arduino-esp32, LovyanGFX, NimBLE, etc. | Plain-text `[E][TAG]…` lines emitted directly by the framework                       | `1` (errors only) — saves ~4-7 KB flash by stripping framework format strings (#408) |
-
-Levels: `0`=none, `1`=error, `2`=warn, `3`=info, `4`=debug, `5`=verbose. The two
-scales line up, but the knobs are otherwise orthogonal — raising one does not
-affect the other.
-
-To get full chatter (both framework + app logs at verbose) when debugging,
-build `[env:debug]` instead of overriding flags by hand.
-
-### Flashing a release
-
-There are two supported paths:
-
-1. **CANShift Studio firmware updater (recommended).** Open Settings → Firmware
-   Update → Check for update. The studio bundles `esptool` and handles port
-   detection, baud, and the SPIFFS partition automatically.
-2. **Manual `esptool` flash (fallback).** Use this when the studio isn't
-   available, or to flash a binary that hasn't been published yet.
-
-**One-time setup** for the manual path:
-
-```bash
-# Option A — Homebrew
-brew install esptool
-
-# Option B — pip (any platform)
-pip install esptool
-```
-
-**Manual flash procedure** — works on macOS, Linux, and Windows (or WSL):
-
-```bash
-# 1. Download the artifact set for your board from
-#    https://github.com/tburkhalterr/CANShift/releases
-#    Each release publishes per-board files named canshift-<board>-<tag>-*.bin
-#    and a manifest.json mapping every board to its artifacts. For the
-#    CrowPanel 2.8" the files needed are:
-#      canshift-crowpanel_28-vX.Y.Z-merged.bin
-#      canshift-crowpanel_28-vX.Y.Z-spiffs.bin
-
-# 2. Identify the device's serial port. With the device plugged in:
-#    macOS:    ls /dev/tty.usbserial-*
-#    Linux:    ls /dev/ttyUSB*
-#    Windows:  Check Device Manager → Ports (COM & LPT)
-
-# 3. Flash both partitions in one command (replace PORT, BOARD and TAG):
-PORT=/dev/tty.usbserial-10
-BOARD=crowpanel_28
-TAG=v0.7.0
-
-esptool.py --chip esp32 -p "$PORT" -b 460800 \
-  --before default_reset --after hard_reset write_flash \
-  --flash_mode keep --flash_size keep --flash_freq keep \
-  0x0      "canshift-${BOARD}-${TAG}-merged.bin" \
-  0x310000 "canshift-${BOARD}-${TAG}-spiffs.bin"
-```
-
-**Notes:**
-
-- The merged firmware binary already starts at offset `0x0` (it embeds the
-  bootloader at its own internal `0x1000` offset). Writing it at `0x1000`
-  would shift every component and brick the boot.
-- SPIFFS partition offset `0x310000` matches `ota_4mb.csv` (see
-  [Partition layout](#partition-layout) below). Dashes carrying a
-  pre-#1351 WiFi-extended image (SPIFFS at `0x370000`) must be re-flashed
-  via USB to pick up the reverted partition table; OTA between the two
-  layouts is unsafe.
-- `460800` baud is reliable on most CH340 + cable combos. If the flash hangs,
-  drop to `230400`. Avoid `921600` — it tends to time out on weak cables.
-- PlatformIO uses `upload_speed = 115200` by default for cable compatibility
-  (`platformio.ini:80`); raise it manually if your cable is reliable.
-- After a successful flash the device reboots and the studio auto-connects
-  within a few seconds.
-
----
-
-## Partition layout
-
-`crowpanel_28` uses `ota_4mb.csv` — dual OTA app slots plus SPIFFS on a 4 MB
-flash:
-
-| Region                 | Size    | Offset                 |
-| ---------------------- | ------- | ---------------------- |
-| `nvs`                  | 20 KB   | `0x9000`               |
-| `otadata`              | 8 KB    | `0xe000`               |
-| `app0` / `app1` (each) | 1536 KB | `0x10000` / `0x190000` |
-| `spiffs`               | 832 KB  | `0x310000`             |
-| `coredump`             | 128 KB  | `0x3E0000`             |
-
-Two app slots are what makes USB OTA possible: firmware is written to the
-inactive slot while the device runs from the active one, then the bootloader
-swaps them on the next boot. `[env:secure]` uses the geometry-identical
-`ota_4mb_secure.csv` (see [Secure boot](#secure-boot-v2--flash-encryption-531)).
-
-**Field-upgrade caveat.** A WiFi-extended layout (`ota_4mb_wifi.csv`, 1728 KB
-app slots with SPIFFS at `0x370000`) shipped briefly before the WiFi + SPA
-stack was removed in #1351; the layout above reverts SPIFFS to `0x310000`. An
-OTA between the two layouts is **unsafe** — the running bootloader writes the
-new image into a slot whose offset no longer matches what it expects on next
-boot, and SPIFFS lands in the wrong region. Dashes carrying a pre-#1351
-WiFi-extended image must be USB-reflashed via the Tuner before OTA resumes.
-
----
-
-## First-flash checklist
-
-1. Verify the pins in your board's profile under
-   [`include/boards/`](include/boards/) against its schematic and your CAN-Pal
-   wiring.
-2. `pio run --target upload` — flash the default `[env:crowpanel_28]` build.
-3. Confirm the display initializes, the splash holds for 2 s, and the
-   dashboard renders. Without a CAN transceiver attached the signal-driven
-   widgets stay at their default values — the BLE path still comes up.
-4. Connect the CAN transceiver and verify signal reception via the Tuner's
-   Diagnostics panel over WebSerial.
-5. The TWAI pins come from the active board profile in
-   [`include/boards/`](include/boards/); `device.json` ships with only
-   `can_speed_kbps` and does not name them. Add `twai_tx_pin` / `twai_rx_pin`
-   there only to override a board whose wiring differs from its profile.
-6. Connect the dash over USB and push a config from the browser Tuner
-   ([canshift-tuner](https://github.com/CANShift/canshift-tuner)).
-
----
-
-## Folder structure
-
-```
-canshift-firmware/
-├── platformio.ini                  # Build envs (crowpanel_28, native, …)
-├── include/
-│   ├── app_config.h                # Feature flags, task sizes, thresholds
-│   ├── board.h                     # Compile-time board selector (#831)
-│   ├── board_config.h              # !! All GPIO assignments — verify before flash
-│   ├── board_profile.h             # Per-board capability flags
-│   ├── boards/                     # Per-board pin/feature tables
-│   ├── can_signals_out.h           # SignalId-anchored telemetry export table
-│   ├── hardware_profile.h          # Hardware feature-flag mirror
-│   ├── lgfx_factory.h              # Runtime LovyanGFX bring-up (panel/touch/bus/backlight from the profile)
-│   └── lv_conf.h                   # LVGL 8.3 compile-time config
-├── src/
-│   ├── main.cpp                    # Entry point — FreeRTOS task creation
-│   ├── boot/
-│   │   ├── boot_sequence.{cpp,h}   # Power-on init: HAL → LVGL → config → UI
-│   │   └── default_fonts.{cpp,h}   # LVGL default-font embed
-│   ├── hal/
-│   │   ├── ble/ble_server.{cpp,h}  # NimBLE GATT — TELE/STATUS/SETTINGS/CMD (#873)
-│   │   ├── display/                # LovyanGFX wrapper (ILI9341, DMA flush)
-│   │   ├── memory/psram.{cpp,h}    # PSRAM probe + allocator helpers
-│   │   ├── storage/                # SPIFFS read/write + LVGL FS driver
-│   │   ├── touch/                  # XPT2046 — calibrate() + setTouch()
-│   │   └── usb/usb_comm.{cpp,h}    # JSON line parser, command dispatch, scans
-│   ├── can/
-│   │   ├── can_manager.{cpp,h}     # TWAI receive loop, CAN health stats
-│   │   ├── can_parser.{cpp,h}      # Runtime signal table from signals.json + fallback
-│   │   └── signal_map.{cpp,h}      # Canonical SignalId enum + name table (#279)
-│   ├── config/
-│   │   ├── config_loader.{cpp,h}   # JSON → domain structs, atomic writes + .bak, PSRAM-backed rollback snapshot (#1073)
-│   │   ├── config_types.h          # Mirrors canshift-core schema (C++ structs)
-│   │   ├── default_config.{cpp,h}  # First-boot SPIFFS provisioning (embedded JSON)
-│   │   └── rotation_config.{cpp,h} # 0°/180° mounting rotation persistence
-│   ├── runtime/
-│   │   ├── action_dispatcher.{cpp,h} # Button-action → side-effect router (#833)
-│   │   ├── alert_engine.{cpp,h}    # Rev-limiter flash, warning state machine
-│   │   ├── input_buttons.{cpp,h}   # Physical GPIO button polling (Input task, #833)
-│   │   ├── pending_actions.h       # Deferred-action queue used by the dispatcher
-│   │   ├── signal_store.{cpp,h}    # Thread-safe live signal store with timeout
-│   │   ├── timer_service.{cpp,h}   # Shared monotonic timer abstraction
-│   │   └── track_store.{cpp,h}     # Lap/session telemetry buffer (#815)
-│   ├── ui/
-│   │   ├── alert_flash.{cpp,h}     # Rev-limit screen flash effect
-│   │   ├── burn_overlay.{cpp,h}    # "Saving config…" full-screen overlay
-│   │   ├── diag_drawer.{cpp,h}     # On-device diagnostics drawer
-│   │   ├── error_bar.{cpp,h}       # Config error badge on lv_layer_top
-│   │   ├── font_manager.{cpp,h}    # LVGL font registration
-│   │   ├── gesture_controller.{cpp,h} # Swipe / multi-tap recognizer
-│   │   ├── icon_assets.{cpp,h}     # LVGL icon binary loaders
-│   │   ├── page_manager.{cpp,h}    # Page navigation, theme rebuild
-│   │   ├── passkey_overlay.{cpp,h} # BLE Secure-Connections passkey display (#873)
-│   │   ├── sensor_color_ramp.{cpp,h} # Sensor → ramp resolver (#430)
-│   │   ├── sensor_palette.{cpp,h}  # Two-zone sensor palette (#954)
-│   │   ├── settings_page.{cpp,h}   # Brightness + sleep + rotation panel
-│   │   ├── setup_screen.{cpp,h}    # First-boot setup wizard
-│   │   ├── theme_manager.{cpp,h}   # Day/night colour scheme
-│   │   ├── top_bar.{cpp,h}         # Status bar — page map, MIL, day/night
-│   │   ├── widget_factory.{cpp,h}  # Instantiate widgets from config
-│   │   ├── widget_label.{cpp,h}    # Shared widget label primitive
-│   │   ├── widget_styles.{cpp,h}   # Reusable lv_style_t bank
-│   │   └── widgets/                # bar, button, gauge, gear, image, label,
-│   │                               # timer, warning
-│   ├── util/                       # format_float, no_float_printf — host-portable helpers
-│   └── diag/
-│       ├── error_store.{cpp,h}     # Persistent error state for the badge
-│       ├── logger.{cpp,h}          # LOG_INFO / LOG_WARN / LOG_ERROR macros
-│       ├── lvgl_assert.{cpp,h}     # LVGL invariant asserts
-│       ├── lvgl_lock_guard.h       # RAII wrapper around g_lvglMutex
-│       └── perf_counters.{cpp,h}   # UI / CAN / heap counters (#1006)
-├── data/                           # SPIFFS image — uploaded via `pio run -t uploadfs`
-│   ├── config/
-│   │   ├── dashboard.json          # Default dashboard layout (also embedded)
-│   │   ├── signals.json            # Default CAN signal mapping (MaxxECU example, UNVERIFIED, also embedded)
-│   │   └── device.json             # Runtime overrides — CAN speed, optionally the TWAI pins
-│   ├── assets/                     # LVGL .bin icons (sensor_*.bin, etc.)
-│   └── fonts/                      # LVGL .bin fonts (orbitron_<weight>_<size>.bin)
-└── scripts/
-    ├── extra_targets.py            # Inject APP_VERSION_STR + CONFIG_SCHEMA_VERSION
-    ├── build_rust.py               # Builds the enabled Rust crates (USE_RUST_*, #827)
-    ├── build_sensor_icons.py       # Bulk sensor-icon build
-    ├── build_ui_icons.py           # Generic UI-icon build
-    ├── generate_keys.sh            # Generate the secure-boot signing key
-    ├── png_to_lvgl_bin.py          # PNG → LVGL .bin converter
-    ├── regen_orbitron_fonts.py     # Rebuild bundled fonts from sources
-    └── secure_boot_first_flash.sh  # First-flash secure-boot helper
-```
-
----
-
-## FreeRTOS task layout
-
-| Task  | Core | Priority | Stack  | Period                                       | Source                                        |
-| ----- | ---- | -------- | ------ | -------------------------------------------- | --------------------------------------------- |
-| UI    | 1    | 10       | 8192 B | 20 ms (`LVGL_HANDLER_PERIOD_MS`)             | `taskUI` — `src/main.cpp`                     |
-| CAN   | 0    | 15       | 4096 B | tight loop + `CAN_TASK_YIELD_TICKS` (1 tick) | `taskCAN` — `src/main.cpp`                    |
-| USB   | 1    | 8        | 4096 B | 20 ms                                        | `taskUSBComm` — `src/main.cpp`                |
-| Input | 0    | 7        | 2048 B | poll @ `INPUT_POLL_INTERVAL_MS`              | `taskInput` — `src/runtime/input_buttons.cpp` |
-| BLE   | 1    | 6        | 5120 B | 100 ms (`BLE_TELE_INTERVAL_MS`, ~10 Hz)      | `taskBLE` — `src/main.cpp`                    |
-
-Priorities and stack sizes are defined in `include/app_config.h`
-(`TASK_PRIO_*` / `TASK_STACK_*` / `TASK_CORE_*` macros — that file is the
-canonical source). The LVGL tick is **not** driven by the UI task —
-`setup()` installs a periodic `esp_timer` that calls
-`lv_tick_inc(LVGL_TICK_MS)` every 5 ms so animations stay wall-clock
-accurate even when the UI task overruns. `lv_tick_inc()` is the only LVGL
-API documented as mutex-free.
-
-All other LVGL calls require the global `g_lvglMutex` (declared in
-`src/main.cpp`). The CAN task writes to `SignalStore`; the UI task reads from
-it on each render tick. This decouples the CAN receive rate from the UI frame
-rate.
-
----
-
-## USB protocol
-
-JSON lines at 115200 baud over UART0. Each message is one JSON object followed
-by `\n`. `USB_PROTOCOL_VERSION = 2` (defined in `include/app_config.h`). Under
-protocol v2, log entries are emitted as `{"log":1,...}` JSON envelopes
-(instead of plain `[I][TAG]` text), and all writes are serialized under a
-shared UART mutex with command acks.
-
-### Commands (host → device)
-
-Opcodes are defined in `src/hal/usb/usb_comm.h` as `CMD_*` constants.
-
-| Cmd    | Name                     | Payload                                                                | Behaviour                                                                                                                                                                                                                                       |
-| ------ | ------------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0x01` | `CMD_GET_CONFIG`         | `{"cmd":1}`                                                            | Reply with on-disk `dashboard.json`: `{"status":"ok","config":{...}}` (newlines stripped).                                                                                                                                                      |
-| `0x02` | `CMD_PUT_CONFIG`         | `{"cmd":2,"payload":{...}}`                                            | Show burn overlay → atomic storage write → ack → reboot. On failure: `{"status":"error","message":"write_failed"}` and the overlay flips to error state.                                                                                        |
-| `0x05` | `CMD_SCREEN_SETTINGS`    | `{"cmd":5,"brightness":80,"sleep":0,"rotation":0}`                     | Apply brightness + sleep via `SettingsPage::applyFromUsb`. If `rotation` (0/180) differs from the current value, persist and reboot.                                                                                                            |
-| `0x06` | `CMD_PUT_FILE`           | `{"cmd":6,"path":"/assets/x.bin","total":N,"idx":i,"data":"<base64>"}` | Chunked, base64 storage write to an allowlisted path prefix (see `kAllowedPutFilePrefixes` in `usb_comm.cpp`). `idx=0` truncates and opens; the final chunk closes the file. Out-of-sequence chunks abort the transfer; idle ≥10 s also aborts. |
-| `0x07` | `CMD_TOGGLE_DAY_NIGHT`   | `{"cmd":7}`                                                            | Flip the day/night theme on the next UI tick.                                                                                                                                                                                                   |
-| `0x08` | `CMD_CALIBRATE_TOUCH`    | `{"cmd":8}`                                                            | Run the on-device 4-point crosshair calibration. UI task drives without holding `g_lvglMutex` (calibration blocks on user input).                                                                                                               |
-| `0x09` | `CMD_SET_DAY_NIGHT`      | `{"cmd":9,"day":true\|false}`                                          | Idempotent variant of `0x07` (issue #225).                                                                                                                                                                                                      |
-| `0x0A` | `CMD_RESET_TOUCH_CAL`    | `{"cmd":10}`                                                           | Clear the saved touch calibration in NVS; the firmware reverts to the `TOUCH_CAL_*` defaults on the next boot.                                                                                                                                  |
-| `0x10` | `CMD_GET_STATUS`         | `{"cmd":16}`                                                           | Reply: `{"status":"ok","version":"X.Y.Z","protocol":2,"is_day":0\|1,"board_id":"crowpanel_28"}`.                                                                                                                                                |
-| `0x20` | `CMD_CAN_SCAN_START`     | `{"cmd":32}`                                                           | Begin forwarding raw CAN frames; resets the drop counter.                                                                                                                                                                                       |
-| `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                                           | Stop forwarding; ack includes `drops`.                                                                                                                                                                                                          |
-| `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                                            | Read `/config/device.json` (TWAI pins + CAN speed); reply `{"status":"ok","config":{...}}`, or `config_not_found` when the file is absent.                                                                                                      |
-| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{...}}`                                            | Atomic write of `/config/device.json`; same wire shape as `deviceConfigToWire` in `canshift-core`. Pairs with `0x03`.                                                                                                                           |
-| `0x0B` | `CMD_GET_INPUT_BINDINGS` | `{"cmd":11}`                                                           | Read `/config/input_bindings.json` (physical button → action map, #833). Same lifecycle as `0x03`.                                                                                                                                              |
-| `0x0C` | `CMD_PUT_INPUT_BINDINGS` | `{"cmd":12,"payload":{...}}`                                           | Atomic write of `/config/input_bindings.json`; pairs with `0x0B`.                                                                                                                                                                               |
-| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`                                | Open the inactive OTA app slot for a `total`-byte image with the expected SHA-256. Ack `{"status":"ok"}` or `{"status":"error","message":"..."}`. See [Firmware OTA](#firmware-ota-over-usb).                                                   |
-| `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<base64>"}`                              | Stream one chunk to `offset`; ack `{"status":"ok","written":N}` (or `{"status":"error","message":"...","written":N}`).                                                                                                                          |
-| `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"\|"abort"}`                                | `commit` verifies the image SHA-256, then acks `{"status":"ok","restart":true}` and reboots into the new slot; `abort` (default) discards the transfer.                                                                                         |
-
-There is no `CMD_REBOOT`, `CMD_PUT_SIGNALS`, or `CMD_PUT_THEME` — older drafts
-of this doc listed them. Theme is folded into `dashboard.json` (#901), signals
-are pushed via `CMD_PUT_CONFIG` (the firmware re-reads both files atomically),
-and reboot is implicit on `CMD_PUT_CONFIG`.
-
-### Proactive output (device → host)
-
-| Packet                    | Cadence                     | Format                                                                                                                                                           |
-| ------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Telemetry                 | 200 ms                      | `{"tele":1,"v":{"rpm":3500,"coolant_temp_c":89.2,...}}` — only valid (non-stale) signals; full signal name list in `TELE_SIGNALS[]` (`src/hal/usb/usb_comm.cpp`) |
-| CAN frame _(scan mode)_   | per frame, drained ≤32/tick | `{"can":1,"id":888,"len":8,"d":[0,1,2,3,4,5,6,7]}`                                                                                                               |
-| CAN health                | 2 s                         | `{"can_stat":1,"fps":125.0,"errors":0}`                                                                                                                          |
-| Log entry _(protocol v2)_ | event-driven                | `{"log":1,"lvl":"info","tag":"USB","msg":"..."}`                                                                                                                 |
-| Command ack               | per command                 | `{"status":"ok"}` or `{"status":"error","message":"<reason>"}`                                                                                                   |
-
----
-
-## BLE protocol
-
-NimBLE GATT, peripheral-only build (central / observer / broadcaster / mesh
-roles disabled in `platformio.ini:97-104` to keep flash + DRAM in budget).
-
-- **Service UUID:** `4fa0b6a0-0000-0000-0000-000000000001`
-- **Device name:** `CANShift`
-- **TX power:** `ESP_PWR_LVL_P9` (max)
-- **Connection params:** server requests `min=15 ms`, `max=30 ms`,
-  `supervision timeout=4 s` on connect (see `BleServer::onConnect` in
-  `src/hal/ble/ble_server.cpp`)
-
-### Characteristics
-
-| UUID                                   | Properties       | Direction     | Payload                                  |
-| -------------------------------------- | ---------------- | ------------- | ---------------------------------------- |
-| `4fa0b6a0-0000-0000-0000-000000000002` | READ + NOTIFY    | device → app  | TELE — live telemetry, ~10 Hz            |
-| `4fa0b6a0-0000-0000-0000-000000000003` | READ + NOTIFY    | device → app  | STATUS — version + board_id + CAN health |
-| `4fa0b6a0-0000-0000-0000-000000000004` | READ + WRITE     | bidirectional | SETTINGS — brightness / sleep / rotation |
-| `4fa0b6a0-0000-0000-0000-000000000005` | WRITE + WRITE_NR | app → device  | CMD — device commands                    |
-
-### TELE — compact JSON keys
-
-| Key   | Signal            | Unit |
-| ----- | ----------------- | ---- |
-| `r`   | RPM               | rpm  |
-| `tps` | throttle position | %    |
-| `map` | manifold pressure | kPa  |
-| `bst` | boost             | bar  |
-| `iat` | intake-air temp   | °C   |
-| `ct`  | coolant temp      | °C   |
-| `ot`  | oil temp          | °C   |
-| `op`  | oil pressure      | bar  |
-| `fp`  | fuel pressure     | bar  |
-| `lam` | lambda            | λ    |
-| `s`   | road speed        | kph  |
-| `g`   | gear              | int  |
-| `bat` | battery           | V    |
-
-Only valid (non-stale) signals are included. Values are rounded server-side to
-1 decimal place (see `addSignalIfValid` in `src/hal/ble/ble_server.cpp`).
-Notifications fire only when at least one client is subscribed.
-
-### STATUS payload
-
-```json
-{"ver":"X.Y.Z","board_id":"crowpanel_28","can":0|1,"is_day":0|1}
-```
-
-STATUS is refreshed every 2 s and re-notified on theme changes (see
-`updateStatus` in `src/hal/ble/ble_status.cpp`).
-
-### SETTINGS payload
-
-A read returns the current values; a write applies them.
-
-```json
-{"brightness":80,"sleep":30,"rotation":0|180}
-```
-
-Rotation is applied only when the value differs from the current setting,
-because applying it triggers a reboot.
-
-### CMD payload
-
-| `cmd` value         | Extra fields         | Behaviour                       |
-| ------------------- | -------------------- | ------------------------------- |
-| `toggle_day_night`  | —                    | Flip theme on next UI tick      |
-| `set_day_night`     | `"day": true\|false` | Idempotent set                  |
-| `start_calibration` | —                    | Run on-device touch calibration |
-| `reboot`            | —                    | `esp_restart()` after 100 ms    |
-
-BLE is compiled in for the production build (`APP_BLE_ENABLED=1`) but stays
-**off at runtime by default** — `BLE_DEFAULT_ENABLED=0` since #873 so a
-freshly-flashed device does not advertise until the user turns BLE on from
-the on-device Settings page. NimBLE adds ~30 KB DRAM; the build flags trim
-the stack to peripheral-only.
-
-### Pairing & security (issue #873)
-
-- **Encrypted access control.** All sensitive characteristics (SETTINGS, CMD)
-  are declared `READ_ENC` / `WRITE_ENC` so NimBLE refuses I/O on an unbonded
-  link.
-- **Passkey display.** First-time pairing draws a 6-digit passkey on screen
-  (see `src/ui/passkey_overlay.cpp`); the phone is prompted to type the same
-  digits — MITM-resistant Secure Connections.
-- **BLE off by default.** Devices ship with `BLE_DEFAULT_ENABLED=0`; the
-  user enables BLE from the on-device Settings page so an unconfigured
-  device does not advertise.
-
----
-
-## Firmware OTA (over USB)
-
-New firmware is flashed over the USB (WebSerial) link from the browser Tuner —
-there is no over-the-air path. An update streams to the **inactive** OTA app
-slot while the device keeps running from the active one; the bootloader swaps
-slots on the next boot. Freshly-flashed slots boot as
-`ESP_OTA_IMG_PENDING_VERIFY` and roll back automatically unless the new image
-calls `esp_ota_mark_app_valid_cancel_rollback()` after a stable boot (see the
-rollback build flag in [`platformio.ini`](platformio.ini)).
-
-### Protocol
-
-Three USB commands drive the transfer (opcodes in
-[USB protocol](#usb-protocol)); the receiver state machine lives in
-`src/runtime/ota_receiver.cpp` and an on-screen overlay
-(`src/ui/ota_overlay.cpp`) tracks progress and flips to an error state on
-failure:
-
-1. `CMD_OTA_BEGIN` — `{"total":N,"sha256":"<hex>"}` opens the inactive slot for
-   an `N`-byte image and records the expected SHA-256.
-2. `CMD_OTA_WRITE` — `{"offset":O,"data":"<base64>"}` streams each chunk in
-   order; a gap or overrun aborts the transfer.
-3. `CMD_OTA_END` — `{"action":"commit"}` finalises: the firmware hashes the
-   bytes it wrote and refuses the slot swap on a SHA-256 mismatch, otherwise
-   acks `{"status":"ok","restart":true}` and reboots into the new slot.
-   `{"action":"abort"}` (the default) discards the transfer.
-
-The two-slot `ota_4mb.csv` layout is what makes this safe — see
-[Partition layout](#partition-layout).
-
-## Secure boot v2 + flash encryption (#531)
-
-> [!CAUTION]
-> **No fielded device runs secure boot yet.** This section documents the
-> rollout state — what's ready, what's not, and the irreversible operations
-> that gate the next step. **Burning eFuses is one-way per chip — a wrong
-> step bricks the module.** Read [`docs/secure-boot-setup.md`](../docs/secure-boot-setup.md)
-> end to end before invoking any `scripts/secure_boot_*` or `scripts/generate_keys.sh`.
-
-### Rollout state
-
-| Layer                                  | Status                | Notes                                                                                                                                                                                                                                                  |
-| -------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `[env:secure]` PlatformIO env          | Ready                 | RSA-3072 signing + AES-XTS-256 flash encryption, anti-rollback floor at SEC_VER=2 (#531)                                                                                                                                                               |
-| Partition table (`ota_4mb_secure.csv`) | Ready                 | Follows `ota_4mb.csv` geometry — same app/SPIFFS offsets, `encrypted` flag on data partitions, 4 KB `nvs_keys` for encrypted-NVS                                                                                                                       |
-| `sdkconfig.defaults.secure`            | Ready                 | Anti-rollback wired with `SEC_VER=2` floor, release-mode flash encryption, UART download backdoors closed                                                                                                                                              |
-| Host scripts                           | Ready                 | `generate_keys.sh` (project-wide signing key, one-shot), `secure_boot_first_flash.sh` (per-chip irreversible provisioning)                                                                                                                             |
-| CI build                               | Gated                 | `firmware-secure-build` (non-blocking) compiles `[env:secure]` when `SECURE_BOOT_SIGNING_KEY_TEST` repository secret is present; otherwise skipped with a notice. Promote to blocking once the secret is provisioned and a few clean runs are observed |
-| Signing key                            | **Not yet generated** | One-time per-project. Run `scripts/generate_keys.sh --i-understand-this-is-irreversible` on a controlled workstation and place the result under offline custody (HSM / YubiKey / encrypted offline backup)                                             |
-| Test signing key (CI)                  | **Not yet generated** | SEPARATE key from production, provisioned as `SECURE_BOOT_SIGNING_KEY_TEST` repo secret. Production key never enters CI                                                                                                                                |
-| First-flash on a real chip             | **Not yet performed** | Gated on sacrificial-board QA per the issue's acceptance criteria                                                                                                                                                                                      |
-| Flasher compat (Tuner Firmware tab)    | **Not yet**           | Today's built-in flasher writes raw bytes via `esptool-js` — it has no `--encrypt` path and no signed-bootloader awareness. See "Flashing signed builds" below                                                                                         |
-
-The `[env:secure]` env compiles on a developer workstation as soon as the
-project-wide signing key exists at
-`canshift-firmware/secrets/secure_boot_signing_key.pem`:
-
-```bash
-cd canshift-firmware
-./scripts/generate_keys.sh --i-understand-this-is-irreversible   # one-shot
-pio run -e secure
-```
-
-The build alone does **not** flash anything or touch any chip — it produces
-a signed app image and an encryptable bootloader, both verified locally
-with `esptool.py image_info --version 2`.
-
-### Key custody — the single most security-critical artifact
-
-The RSA-3072 secure-boot signing key signs every image every CANShift unit
-ever fielded under this key will accept. The blast-radius failure modes:
-
-- **Lost key.** Every device fielded under this key is permanently stuck
-  on its last-flashed image. No future OTA passes the signature check.
-  There is no recovery key, no Espressif master key, no vendor escrow —
-  the fleet is frozen.
-- **Leaked key.** An attacker can sign arbitrary firmware that every
-  fielded device accepts. There is no revocation path. Mitigation: keep
-  the key behind hardware (HSM / YubiKey PIV slot 9c) so theft requires
-  physical compromise plus the PIN.
-
-Recommended posture (full detail in [section 6 of the runbook](../docs/secure-boot-setup.md)):
-
-- HSM (YubiHSM 2 / NitroKey HSM 2) **or** YubiKey PIV slot 9c, **or**
-- LUKS / FileVault encrypted volume on an air-gapped dedicated workstation
-- Encrypted offline backup (age / GPG to a USB stick in a safe)
-- Two-person control: backup custodian and key holder are different people
-
-Anti-recommended: never commit to Git, never put the production key in CI,
-never store in a cloud-synced folder. The `.gitignore` blocks `secrets/`,
-`keys/`, and `*.pem` defensively — verify with `git check-ignore secrets/`.
-
-### Anti-rollback
-
-`CONFIG_BOOTLOADER_APP_SEC_VER` is the per-release security version. The
-bootloader stores the highest version ever booted in eFuse and refuses
-images with a lower version. Floor is currently `2` (#531 rollout-readiness
-bump). Decrement is impossible — bump only on a release that fixes a
-remotely exploitable bug. Every bump permanently raises the floor on every
-chip that boots the new image.
-
-### Flashing signed builds
-
-The Tuner's built-in USB flasher writes raw binaries via `esptool-js` from
-the browser. It does **not** currently understand:
-
-- `write_flash --encrypt` (mandatory for chips in release-mode flash
-  encryption — every write to an encrypted partition must be pre-encrypted
-  or the chip will increment `FLASH_CRYPT_CNT` and eventually refuse to
-  boot)
-- The signed-bootloader path (signing happens at build time on the host,
-  but the flasher must keep the bootloader signature intact on the wire)
-- The `nvs_keys` partition (encrypted-NVS key storage, present only in
-  `ota_4mb_secure.csv`)
-
-For now, **signed builds are flashed exclusively via**
-`scripts/secure_boot_first_flash.sh` on a controlled workstation with
-PlatformIO + esptool installed locally. Browser-based flashing of signed
-builds is out of scope and tracked as separate follow-up work on the
-Tuner's flasher, which will need a signed-build mode that pre-encrypts
-the app + SPIFFS payloads on the host side before pushing them through
-Web Serial.
-
-### First-flash procedure (one-time, irreversible)
-
-```bash
-cd canshift-firmware
-./scripts/secure_boot_first_flash.sh --i-understand-this-is-irreversible
-```
-
-See [section 4 of the runbook](../docs/secure-boot-setup.md) for the
-full prompt-by-prompt walk-through. The script enforces a 60-second
-abort window, requires the operator to retype the chip MAC, refuses on
-dev workstations (`DEV_BOARD_DO_NOT_RUN=1`), and pauses for operator
-confirmation between the irreversible fuse-burn steps.
-
----
-
-## Dynamic CAN signal loading
-
-At boot, `ConfigLoader` reads `signals.json` and builds a `RuntimeSignal[]`
-table in `can_parser.cpp`. Each entry maps a CAN frame ID and byte offset
-to a `SignalId` with scale, offset, endianness, sign, and optional bit mask.
-
-- `parseFrame()` iterates the runtime table first; unmatched frames fall
-  through to the hardcoded switch for backward compatibility. Signals not
-  present in `signals.json` use the hardcoded fallback values.
-- Frame IDs are parsed from the `canFrameId` field — hex strings are
-  supported, e.g. `"0x370"`.
-- `bitMask` is a `uint8_t` covering a single byte for flag-type signals
-  (e.g. `flag_mil`, `flag_launch_ctrl`).
-- `signal_map.h` defines the canonical `SignalId` enum used by `SignalStore`
-  and the BLE / USB telemetry tables. Names in `signals.json` must match the
-  single source of truth (issue #279).
-- Per-signal `timeoutMs` controls `SignalStore::isValid()`. The fallback is
-  `SIGNAL_DEFAULT_TIMEOUT_MS = 1000` ms (defined in `include/app_config.h`).
-
----
-
-## Touch calibration
-
-`TouchDriver::calibrate()` runs LovyanGFX's built-in `calibrateTouch()`
-(4-point crosshair sequence), stores the 10-byte result in NVS, and applies
-it via `setTouch()`. On boot, `init()` loads the stored calibration if
-present; otherwise it falls back to the `TOUCH_CAL_*` constants in
-`board_config.h`.
-
-Calibration can also be triggered remotely:
-
-- USB — `CMD_CALIBRATE_TOUCH` (`0x08`); `CMD_RESET_TOUCH_CAL` (`0x0A`) wipes
-  the saved values so the next boot re-calibrates against the defaults.
-- BLE — `{"cmd":"start_calibration"}` on the CMD characteristic.
-
-Both run inside the UI task **without** holding `g_lvglMutex` because
-`calibrateTouch()` draws via LovyanGFX directly (not LVGL) and blocks on
-user input.
-
----
-
-## Physical buttons (issue #833)
-
-The dash can be driven by physical GPIO buttons in addition to the touchscreen.
-The runtime polls every configured pin at 1 kHz on a dedicated Input task
-(core 0, priority 7, 2 KB stack — see `app_config.h`), debounces in software,
-classifies presses as **short** / **long** / **double**, then dispatches the
-resulting event through the same `ActionDispatcher` that touch buttons feed.
-
-### Config — `input_bindings.json`
-
-Optional file at `/config/input_bindings.json` (SPIFFS). When absent, no
-bindings are active. Maximum of `MAX_INPUT_BINDINGS` entries (cap defined in
-`@canshift/core` (`src/constants/firmware-caps.ts`)).
-
-```json
-{
-  "input_bindings": [
-    {
-      "id": "btn_cruise_set",
-      "pin": 34,
-      "active": "low",
-      "pullup": true,
-      "debounce_ms": 25,
-      "kind": "short",
-      "action": { "type": "cruise_control", "op": "set" }
-    },
-    {
-      "id": "btn_map_cycle",
-      "pin": 35,
-      "active": "low",
-      "pullup": true,
-      "debounce_ms": 25,
-      "kind": "short",
-      "action": { "type": "map_switch", "delta": 1 },
-      "signal": "map_number"
-    }
-  ]
-}
-```
-
-Fields:
-
-- **`pin`** — ESP32 GPIO number. Allowlist enforced by
-  `Esp32InputGpioSchema` (`@canshift/core`, `src/schemas/device.ts`): all
-  output-safe pins **plus** 34-39 (input-only). Pins 6-11 (SPI flash) are
-  rejected — they'd brick the device.
-- **`active`** — `"low"` (default, button to GND + internal pullup) or
-  `"high"` (external pulldown, button to 3.3 V).
-- **`pullup`** — `true` enables the ESP32's internal pull-up resistor.
-  Required when `active: "low"` unless an external pull-up is fitted.
-  **Pins 34-39 have no internal pull-up** — they need an external resistor.
-- **`debounce_ms`** — software debounce, bounded by
-  `DEBOUNCE_MIN_MS` / `DEBOUNCE_MAX_MS` in core. 20-50 ms covers most
-  mechanical buttons.
-- **`kind`** — `"short"` (release within ~600 ms), `"long"` (held past
-  ~600 ms), or `"double"` (two short presses within ~400 ms).
-- **`action`** — same shape as a dashboard button widget's `action` field.
-  Supported types: `navigate_page`, `map_switch`, `can_raw`, `cruise_control`.
-  Adding a new action type only requires extending `ButtonActionSchema` in
-  `canshift-core`; the firmware dispatcher picks it up automatically.
-- **`signal`** _(optional)_ — when set, the physical button shares its visual
-  toggle state with every on-screen button widget bound to the same signal
-  name. Pressing a physical "ALS arm" button flips the on-screen ALS button's
-  active tint without waiting for the ECU echo. Either side can disarm.
-
-### Wiring
-
-Default pattern: button between GPIO and **GND**, internal pull-up enabled.
-Released = `HIGH`, pressed = `LOW` → `active: "low"`.
-
-For input-only pins (34-39) the internal pull-up doesn't exist; wire an
-external 10 kΩ pull-up to 3.3 V and use `pullup: false`.
-
-### Editing in Studio
-
-Studio's `InputBindingsSection` lets you add / edit / remove bindings; pin
-pickers consume `SAFE_INPUT_PINS_WROOM32` from `canshift-core` so an invalid
-pin is rejected before the push to the dash.
-
----
-
-## Hardware assumptions
-
-> Verify all GPIO assignments against your CrowPanel 2.8" schematic before the
-> first flash. Source: [`include/board_config.h`](include/board_config.h).
-
-| Signal        | GPIO   | Note                                   |
-| ------------- | ------ | -------------------------------------- |
-| TFT MOSI      | 13     |                                        |
-| TFT MISO      | 12     | Display is write-only                  |
-| TFT SCLK      | 14     |                                        |
-| TFT CS        | 15     |                                        |
-| TFT DC/RS     | 2      |                                        |
-| TFT RST       | -1     | Held high internally on CrowPanel 2.8" |
-| TFT Backlight | 27     | PWM channel 0, 5 kHz, 8-bit            |
-| Touch CS      | 33     | Shared SPI bus                         |
-| Touch IRQ     | -1     | Polled via `getTouch()`                |
-| TWAI TX       | **25** | → CAN Pal CTX                          |
-| TWAI RX       | **32** | ← CAN Pal CRX                          |
-
-CAN speed: 500 kbps default (defined in `board_config.h`); runtime override
-via `device.json`. The default `signals.json` shipped with the firmware is a
-MaxxECU layout and the frame IDs in it are **unverified** — confirm them
-against your ECU's CAN protocol document (the MaxxECU PC software for that
-default, or your ECU vendor's docs for any other layout) before relying on
-the readings.
-
-### Powering an external CAN transceiver
-
-GPIO 25 and GPIO 32 sit on the CrowPanel 2.8" expansion header but the
-header itself does **not** expose a dedicated 3.3 V rail next to them. The
-SN65HVD230 / TJA1051 / MCP2562 module needs power — source it from the
-expansion-header pin labelled `GPIO_D` on the silkscreen, which is wired to
-the board's 3.3 V regulator output (observed on the dash revision shipped in
-2026-05). A 100 nF decoupling cap right at the transceiver's VCC pin is
-recommended.
-
-Footprints `R35` and `C21` (silkscreen) are present on the board for
-pull-up / decoupling on the CAN pair; verify they match your transceiver
-module's terminator + decoupling before final assembly — board revisions may
-ship them unpopulated.
-
----
-
-## Config files on SPIFFS
-
-Each canonical config lives at `/config/` on the SPIFFS partition (paths from
-`board_config.h`).
-
-| File                  | Purpose                                            | Required?                                         |
-| --------------------- | -------------------------------------------------- | ------------------------------------------------- |
-| `dashboard.json`      | Layout, pages, widgets, signal bindings, day theme | Provisioned from the firmware embed on first boot |
-| `signals.json`        | CAN signal mapping (default: MaxxECU example)      | Same — provisioned on first boot                  |
-| `device.json`         | Runtime hardware overrides (TWAI pins, CAN speed)  | Optional — falls back to `board_config.h`         |
-| `input_bindings.json` | Physical GPIO button → action map (#833)           | Optional — falls back to no bindings              |
-
-The standalone `theme.json` file was removed in schema 1.13 → 1.14 (#901);
-day-theme palette lives under `dashboard.json.dayTheme`. Older firmware
-images that still wrote `theme.json` are migrated automatically the next
-time Studio pushes a config.
-
-In addition, `/assets/*.bin` holds icon images in LVGL binary format,
-generated by `scripts/png_to_lvgl_bin.py`.
-
-Every canonical config is written via `StorageDriver::writeFileAtomic`, which
-keeps a `<file>.bak` companion. On boot, the loader falls back to `.bak` if
-the primary file is missing or corrupt (see `readAndParseWithBak` in
-`src/config/config_loader.cpp`).
-
----
-
-## Connections to other workspaces
-
-- **canshift-tuner** — the browser configurator (WebSerial). Pushes configs
-  over the USB JSON-line protocol, and its Firmware tab drives both first-flash
-  (browser-based `esptool-js`, merged firmware + SPIFFS images read from the
-  GitHub release feed) and the in-place USB OTA
-  ([Firmware OTA](#firmware-ota-over-usb)).
-- **canshift-mobile** — connects over BLE; reads telemetry, writes settings,
-  and issues CMD-channel actions. Pairs with the `ble_server.cpp`
-  characteristics described above.
-- **canshift-core** — owns the JSON schema; the firmware mirrors it in
-  `src/config/config_types.h`. `CONFIG_SCHEMA_VERSION` is injected at build
-  time from a sibling `../canshift-core` checkout (falling back to the committed `core-schema-version.txt` pin) by `scripts/extra_targets.py`, the
-  same script that injects `APP_VERSION_STR` from
-  `canshift-firmware/package.json` — firmware is the only release artifact,
-  so the version naturally tracks the firmware.
-
----
-
-## CI — boot smoke-test gate
-
-Every PR touching `canshift-firmware/` runs a QEMU boot smoke test that
-asserts the production binary reaches `[BOOT] Ready` within 30 s exactly
-once, with no panic strings (`Guru Meditation`, `abort()`, `assert failed`,
-`Backtrace:`, multiple `rst:0x`). Do not remove the `[BOOT] Ready` log
-line at the end of `BootSequence::run()` in `src/boot/boot_sequence.cpp`
-— CI depends on it. Workflow: `.github/workflows/firmware-boot-smoke.yml`
-(issue #486).
-
-## Static analysis layers (#936 Phase 0)
-
-The firmware is gated by four complementary static- and dynamic-analysis
-layers. Together they cover the bug classes the codebase has historically
-taken (UB shifts #682, races #876, use-after-free #886, length-validation
-gaps #897) before they reach a real device.
-
-| Layer                          | Build env                                                                         | What it catches                                                                                                                                                                                              | What it doesn't                                                                                                                                                                                                                                    |
-| ------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ASan + UBSan (full)**        | `[env:native]` — host gcc/clang, `pio test -e native`                             | Use-after-free, double-free, heap-overflow, stack-overflow, leak (Linux CI via `ASAN_OPTIONS=detect_leaks=1`), integer UB, null deref, alignment, vptr, bounds, vla-bound, returns-nonnull violations        | Anything that only manifests on the Xtensa target (cache coherency, PSRAM access patterns, FreeRTOS scheduler timing). 11 first-party TUs only (the unit-test source set).                                                                         |
-| **clang-tidy strict (gating)** | `[env:native]` compile DB, CI job `firmware — clang-tidy (gating, native subset)` | Anti-pattern + secure-coding rules: `bugprone-*`, `cert-*`, `clang-analyzer-core.*`, `clang-analyzer-cplusplus.*`, `concurrency-*`. `WarningsAsErrors: '*'` — any rule emit fails the build. Required check. | The same 11 TUs as ASan/UBSan; UI / LVGL / driver code is not yet gated.                                                                                                                                                                           |
-| **clang-tidy informational**   | `[env:crowpanel_28]` compile DB, CI job `firmware — clang-tidy (non-blocking)`    | Same rule set on the Xtensa compile DB — wider TU coverage, including UI / drivers / HAL.                                                                                                                    | Dominated by toolchain-induced `clang-diagnostic-error` noise (stock Ubuntu clang's host sysroot is missing ESP32-newlib bits like `machine/endian.h`). Surfaces signal but is not blocking until the ESP-IDF Xtensa-aware clang is wired into CI. |
-
-Ruleset lives in `canshift-firmware/.clang-tidy`. Suppressions are inline
-`// NOLINTNEXTLINE(<check>)` with a one-line WHY immediately above the
-target line — see `src/config/config_loader.cpp` and
-`src/ui/sensor_color_ramp.cpp` for the current set.
-
-Native run locally:
-
-```bash
-# ASan + UBSan
-pio test -e native
-
-# clang-tidy gating (needs LLVM clang-tidy locally — `brew install llvm`
-# on macOS, `apt install clang-tidy` on Linux).
-pio run -e native -t compiledb
-clang-tidy -p . src/can/can_parser.cpp src/can/signal_map.cpp \
-    src/config/config_loader.cpp src/config/json_reader.cpp \
-    src/diag/error_store.cpp src/diag/logger.cpp \
-    src/hal/usb/usb_envelope.cpp \
-    src/runtime/signal_store.cpp src/ui/sensor_color_ramp.cpp \
-    src/ui/sensor_palette.cpp
-```
-
-## Contributing & issues
-
-Bug reports, feature requests, and hardware-verification PRs are welcome at
-[`github.com/tburkhalterr/CANShift`](https://github.com/tburkhalterr/CANShift).
-Commit messages follow Conventional Commits — see the project root
-[`CLAUDE.md`](../CLAUDE.md). `clang-format` **is** enforced by CI
-(`.github/workflows/ci.yml` — `firmware — clang-format check`), and the
-host-side Unity native test suite runs on every firmware PR via the
-`firmware — native tests` job. Run `pio run -t format` (or the local
-`clang-format -i` invocation it wraps) before pushing. The pin assignments
-in `board_config.h` are still flagged "verify before flash"; please file an
-issue with any board-level discoveries.
-
----
+A change under `data/` only reaches the board with `uploadfs`. On the ESP32,
+`[env:debug]` raises the log level; the rest of the knobs are in
+[Build flags](docs/reference/build-flags.md). Sibling checkouts of the other repos
+and the CI each one runs: [Dev setup](docs/contributing/dev-setup.md).
+
+## Documentation
+
+Start at [`docs/README.md`](docs/README.md). The main entry points:
+
+| You want to…                  | Read                                                                                                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Understand what the dash does | [What is CANShift?](docs/guide/overview.md)                                                                                                                           |
+| Flash a board                 | [First flash](docs/guide/first-flash.md) · [Flash layout](docs/reference/flash-layout.md)                                                                             |
+| Use the dash in the car       | [Navigating pages](docs/guide/navigating-pages.md) · [Settings panel](docs/guide/settings-panel.md)                                                                   |
+| Build the hardware            | [Hardware & BOM](docs/reference/hardware-bom.md) · [Pinout](docs/reference/pinout.md) · [Physical buttons](docs/reference/physical-buttons.md)                        |
+| Connect your ECU              | [ECU integration](docs/reference/ecu-integration.md) · [CAN integration](docs/reference/can-integration.md)                                                           |
+| Understand the firmware       | [Architecture overview](docs/architecture/overview.md) · [USB transport](docs/architecture/usb-transport.md) · [BLE transport](docs/architecture/ble-transport.md)    |
+| Follow the workshop mode work | [Workshop mode](docs/architecture/workshop-mode.md)                                                                                                                   |
+| Match the dash design         | [Dash design system](docs/design/DASH_DESIGN_SYSTEM.md), the binding spec                                                                                             |
+| Ship a release                | [Release process](docs/contributing/release-process.md) · [Firmware signing](docs/reference/firmware-signing.md) · [Secure boot](docs/reference/secure-boot-setup.md) |
+
+[Releases](https://github.com/CANShift/canshift-firmware/releases) are the
+changelog.
+
+## Contributing
+
+Bug reports, board bring-up notes and pull requests are welcome in
+[issues](https://github.com/CANShift/canshift-firmware/issues). Before opening a
+PR, read [`CLAUDE.md`](CLAUDE.md) for the code shape the review holds every change
+to, and [Testing](docs/contributing/testing.md) for the suites CI runs.
+
+- Branches are `type/short-description`; commits follow Conventional Commits,
+  subject line only.
+- clang-format 22.1.8 gates every PR over `src`, `include`, `test` and `sim`
+  (`pip install clang-format==22.1.8`); the same workflow runs `cargo fmt`,
+  `clippy` and `cargo test` on the Rust crates.
+- PRs merge by rebase only, once `lint` and `ci-success` pass.
+- A change to `@canshift/core` is delivered with its firmware and tuner sides in
+  the same piece of work.
 
 ## License
 
-See the root [`LICENSE`](../LICENSE).
+[MIT](LICENSE).

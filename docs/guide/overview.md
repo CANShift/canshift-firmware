@@ -55,7 +55,7 @@ The dash is the only thing on the car. The tuner is just a browser tab — open 
 
 | Step                                                                                                                  | Reading time |               Doing time |
 | --------------------------------------------------------------------------------------------------------------------- | -----------: | -----------------------: |
-| [Wire up + first flash](https://github.com/CANShift/canshift-tuner/blob/main/docs/install/first-flash.md)             |        4 min | ~5 min for a fresh board |
+| [Wire up + first flash](first-flash.md)                                                                               |        4 min | ~5 min for a fresh board |
 | [Pick an ECU profile, edit a page](https://github.com/CANShift/canshift-tuner/blob/main/docs/configure/with-tuner.md) |        3 min |   ~10 min the first time |
 | [Use the dash on the road](../guide/navigating-pages.md)                                                              |        2 min |                        0 |
 
@@ -63,4 +63,4 @@ If something goes wrong, the boot logs are explicit — see [Boot diagnostics](h
 
 ## Next
 
-Read [First flash](https://github.com/CANShift/canshift-tuner/blob/main/docs/install/first-flash.md) — it walks the box-to-splash path in five steps, with a serial monitor on standby in case the boot logs need a second look.
+Read [First flash](first-flash.md) — it takes a blank board to the splash screen from a terminal, with `esptool`, for each board family.

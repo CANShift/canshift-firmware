@@ -81,12 +81,12 @@ alongside it to exercise them.
 
 Each repository enforces its own required checks before merge:
 
-| Repository          | Gates                                                                       |
-| ------------------- | --------------------------------------------------------------------------- |
-| `canshift-firmware` | clang-format · `pio test -e native` · `cargo test --workspace` · boot smoke |
-| `canshift-core`     | `lint` · `test` · `build`                                                   |
-| `canshift-tuner`    | `lint` · `typecheck` · `test` · `build`                                     |
-| `canshift-mobile`   | `lint` · `typecheck` · `test`                                               |
+| Repository          | Gates                                                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canshift-firmware` | clang-format and parity scripts · `cargo test`/`clippy`/`fmt` · `pio test -e native` · per-board build with flash budget and SPIFFS round-trip · `secure` build |
+| `canshift-core`     | `lint` · `test` · `build`                                                                                                                                       |
+| `canshift-tuner`    | `lint` · `typecheck` · `test` · `build`                                                                                                                         |
+| `canshift-mobile`   | `lint` · `typecheck` · `test`                                                                                                                                   |
 
 All required checks must pass before merge; every repository merges via
 rebase and merge.
