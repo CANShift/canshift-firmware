@@ -16,6 +16,7 @@
     #include <atomic>
     #include <memory>
     #include <stdint.h>
+    #include <string.h>
 
 namespace WorkshopServerInternal {
 
@@ -23,6 +24,7 @@ namespace {
 
 constexpr int kNoClient = -1;
 constexpr UBaseType_t kLineQueueDepth = 2;
+constexpr UBaseType_t kLogQueueDepth = 16;
 constexpr uint32_t kLineQueueWaitMs = 2000;
 constexpr size_t kMaxLineBytes = USB_RX_BUF_SIZE;
 constexpr char kLineEnd = '\n';
@@ -37,7 +39,18 @@ using LineBuffer = std::unique_ptr<char, HeapFree>;
 
 httpd_handle_t s_server = nullptr;
 std::atomic<QueueHandle_t> s_lines{nullptr};
+std::atomic<QueueHandle_t> s_logLines{nullptr};
 std::atomic<int> s_clientFd{kNoClient};
+std::atomic<uint32_t> s_droppedLogs{0};
+
+void dropClient(int fd, esp_err_t err) {
+    int expected = fd;
+    if (!s_clientFd.compare_exchange_strong(expected, kNoClient))
+        return;
+    if (httpd_sess_trigger_close(s_server, fd) != ESP_OK)
+        LOG_WARN("WORKSHOP", "Socket %d could not be closed", fd);
+    LOG_WARN("WORKSHOP", "Socket send failed (%s) — tuner dropped", esp_err_to_name(err));
+}
 
 void sendToClient(const char *line, size_t len) {
     const int fd = s_clientFd.load();
@@ -52,7 +65,42 @@ void sendToClient(const char *line, size_t len) {
     frame.len = len;
     const esp_err_t err = httpd_ws_send_frame_async(s_server, fd, &frame);
     if (err != ESP_OK)
-        LOG_WARN("WORKSHOP", "Socket send failed: %s", esp_err_to_name(err));
+        dropClient(fd, err);
+}
+
+void mirrorLog(const char *line, size_t len) {
+    const QueueHandle_t logs = s_logLines.load();
+    if (!logs || s_clientFd.load() == kNoClient)
+        return;
+    LineBuffer copy(static_cast<char *>(Mem::allocPreferSpiram(len + 1)));
+    if (!copy) {
+        s_droppedLogs.fetch_add(1);
+        return;
+    }
+    memcpy(copy.get(), line, len);
+    copy.get()[len] = '\0';
+    char *raw = copy.get();
+    if (xQueueSend(logs, &raw, 0) != pdTRUE) {
+        s_droppedLogs.fetch_add(1);
+        return;
+    }
+    copy.release();
+}
+
+void reportDroppedLogs() {
+    const uint32_t dropped = s_droppedLogs.exchange(0);
+    if (dropped > 0)
+        LOG_WARN("WORKSHOP", "%lu log line(s) not mirrored to the tuner",
+                 static_cast<unsigned long>(dropped));
+}
+
+void drainLogs() {
+    char *raw = nullptr;
+    while (xQueueReceive(s_logLines.load(), &raw, 0) == pdTRUE) {
+        const LineBuffer line(raw);
+        sendToClient(line.get(), strlen(line.get()));
+    }
+    reportDroppedLogs();
 }
 
 void closeSession(int fd) {
@@ -126,12 +174,15 @@ void onSessionClosed(httpd_handle_t, int sockfd) {
 bool bindSocket(httpd_handle_t server) {
     s_server = server;
     const QueueHandle_t lines = xQueueCreate(kLineQueueDepth, sizeof(char *));
-    if (!lines) {
-        LOG_ERROR("WORKSHOP", "Socket line queue allocation failed");
+    const QueueHandle_t logs = xQueueCreate(kLogQueueDepth, sizeof(char *));
+    if (!lines || !logs) {
+        LOG_ERROR("WORKSHOP", "Socket queue allocation failed");
         return false;
     }
+    s_logLines.store(logs);
     s_lines.store(lines);
     UsbComm::setSocketSink(sendToClient);
+    Logger::setMirror(mirrorLog);
     return true;
 }
 
@@ -145,6 +196,7 @@ void drainSocket() {
         const LineBuffer line(raw);
         UsbComm::dispatchFromSocket(line.get());
     }
+    drainLogs();
 }
 
 } // namespace WorkshopServerInternal

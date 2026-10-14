@@ -15,6 +15,12 @@ bool writeAll(const uint8_t *bytes, size_t len);
 
 bool lockUart(TickType_t timeout);
 void unlockUart();
+
+#if APP_WORKSHOP_ENABLED
+using LineMirror = void (*)(const char *line, size_t len);
+
+void setMirror(LineMirror mirror);
+#endif
 } // namespace Logger
 
 #define LOG_LEVEL_ERROR 1
