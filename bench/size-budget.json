@@ -19,15 +19,15 @@
       "psram": 0
     },
     "generic_ili9341": {
-      "flash": 1220464,
-      "dram": 89628,
-      "iram": 110323,
+      "flash": 1271552,
+      "dram": 89644,
+      "iram": 110327,
       "psram": 0
     },
     "generic_ili9341_gt911": {
-      "flash": 1220784,
-      "dram": 89628,
-      "iram": 110323,
+      "flash": 1271840,
+      "dram": 89644,
+      "iram": 110327,
       "psram": 0
     },
     "waveshare_s3_28": {
