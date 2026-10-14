@@ -12,6 +12,7 @@ members = [
     "layout-grid",
     "control-state",
     "unit-convert",
+    "workshop-mode",
 ]
 
 # Workspace-shared profile knobs — Phase 1 host build only. ESP32 target

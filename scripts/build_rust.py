@@ -90,6 +90,12 @@ CRATES = (
         "libfile": "libunit_convert.a",
         "include": None,
     },
+    {
+        "flag": "USE_RUST_WORKSHOP_MODE=1",
+        "manifest": os.path.join(RUST_DIR, "workshop-mode", "Cargo.toml"),
+        "libfile": "libworkshop_mode.a",
+        "include": None,
+    },
 )
 
 

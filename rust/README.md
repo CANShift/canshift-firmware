@@ -19,6 +19,7 @@ ESP32 binary via `scripts/build_rust.py`, gated per crate by a
 | `sensor-color-ramp` | `include/sensor_color_ramp_rs.h`   |
 | `timer-core`        | `include/timer_core_rs.h`          |
 | `layout-grid`       | `include/layout_grid_rs.h`         |
+| `workshop-mode`     | `include/workshop_mode_rs.h`       |
 
 ## Running
 
