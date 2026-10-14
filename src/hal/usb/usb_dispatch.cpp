@@ -264,7 +264,6 @@ const UsbCommand *findUsbCommand(uint8_t code) {
 }
 
 void handleCommand(char *jsonLine) {
-    s_lastHostCmdMs = millis();
     LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
 
     const size_t jsonLen = strlen(jsonLine);
