@@ -35,7 +35,7 @@ struct CommitResult {
 
 [[nodiscard]] size_t writtenSize();
 
-BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]);
+BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32], const uint8_t *signature);
 
 WriteResult writeChunk(uint32_t offset, const uint8_t *data, size_t len);
 
