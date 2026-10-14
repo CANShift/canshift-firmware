@@ -19,7 +19,6 @@
     #include <ArduinoJson.h>
     #include <Arduino.h>
     #include <NimBLEDevice.h>
-    #include <atomic>
     #include <esp_heap_caps.h>
     #include <esp_random.h>
     #include <freertos/semphr.h>
@@ -41,20 +40,22 @@ static constexpr uint32_t BLE_SETTINGS_MUTEX_TIMEOUT_MS = 50U;
 
 static constexpr uint16_t BLE_PREFERRED_MTU = 247U;
 
-static bool s_stackInited = false;
-static bool s_gattInited = false;
-
 namespace BleServerInternal {
 NimBLECharacteristic *s_pTele = nullptr;
 NimBLECharacteristic *s_pStatus = nullptr;
 NimBLECharacteristic *s_pTimerState = nullptr;
 NimBLECharacteristic *s_pTimerLap = nullptr;
 bool s_connected = false;
+bool s_stackInited = false;
+bool s_gattInited = false;
+bool s_enabled = false;
+bool s_released = false;
 } // namespace BleServerInternal
 
-static bool s_enabled = false;
-
-static std::atomic<bool> s_stopRequested{false};
+using BleServerInternal::s_enabled;
+using BleServerInternal::s_gattInited;
+using BleServerInternal::s_released;
+using BleServerInternal::s_stackInited;
 
 namespace {
 
@@ -401,48 +402,11 @@ void BleServer::init() {
 }
 
 void BleServer::start() {
-    if (s_enabled)
+    if (s_enabled || s_released)
         return;
     if (!startStack()) {
         reportStartFailure();
     }
-}
-
-void BleServer::stop() {
-    if (!s_enabled)
-        return;
-    if (s_gattInited) {
-
-        NimBLEDevice::stopAdvertising();
-        BleServerInternal::s_connected = false;
-        s_enabled = false;
-        LOG_INFO("BLE", "BLE advertising stopped (GATT preserved)");
-    } else {
-
-        BleServerInternal::s_pTele = nullptr;
-        BleServerInternal::s_pStatus = nullptr;
-        BleServerInternal::s_pTimerState = nullptr;
-        BleServerInternal::s_pTimerLap = nullptr;
-        BleServerInternal::s_connected = false;
-
-        std::atomic_thread_fence(std::memory_order_release);
-        NimBLEDevice::deinit(true);
-        s_enabled = false;
-        s_stackInited = false;
-        LOG_INFO("BLE", "BLE stack stopped — heap freed");
-    }
-}
-
-bool BleServer::isEnabled() {
-    return s_enabled;
-}
-
-void BleServer::requestStop() {
-    s_stopRequested.store(true, std::memory_order_relaxed);
-}
-
-bool BleServer::takeStopRequest() {
-    return s_stopRequested.exchange(false, std::memory_order_relaxed);
 }
 
 void BleServer::tick() {
