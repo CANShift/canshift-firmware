@@ -55,32 +55,60 @@ void TouchDriver::readCallback(lv_indev_drv_t *, lv_indev_data_t *data) {
     }
 }
 
-void TouchDriver::init() {
-    LOG_INFO("TOUCH", "Initializing touch controller...");
+namespace {
 
-    if (canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
-        Preferences p;
-        p.begin(NVS_NS, true);
-        const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
-        if (hasCalibration) {
-            uint16_t calData[8] = {};
-            p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
-            s_lcd.setTouchCalibrate(calData);
-            LOG_INFO("TOUCH", "Calibration loaded from NVS");
-        }
-        p.end();
+constexpr uint8_t kProbeAttempts = 3;
+constexpr uint32_t kProbeRetryDelayMs = 20;
 
-        if (!hasCalibration) {
-            LOG_WARN("TOUCH", "No NVS calibration — running first-boot calibration");
-            calibrate();
-        }
-    } else {
-        LOG_INFO("TOUCH", "Capacitive controller — calibration not required");
+bool probeController() {
+    lgfx::ITouch *touch = s_lcd.touch();
+    if (touch == nullptr)
+        return false;
+    if (canshift::boards::runtimeBoardProfile().touch.driver ==
+        canshift::boards::TouchDriver::XPT2046)
+        return true;
+    for (uint8_t attempt = 0; attempt < kProbeAttempts; ++attempt) {
+        if (touch->init())
+            return true;
+        vTaskDelay(pdMS_TO_TICKS(kProbeRetryDelayMs));
     }
+    return false;
+}
 
+void loadOrRunCalibration() {
+    Preferences p;
+    p.begin(NVS_NS, true);
+    const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
+    if (hasCalibration) {
+        uint16_t calData[8] = {};
+        p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
+        s_lcd.setTouchCalibrate(calData);
+        LOG_INFO("TOUCH", "Calibration loaded from NVS");
+    }
+    p.end();
+
+    if (!hasCalibration) {
+        LOG_WARN("TOUCH", "No NVS calibration — running first-boot calibration");
+        TouchDriver::calibrate();
+    }
+}
+
+void applyCalibration(bool controllerAnswered) {
+    if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
+        LOG_INFO("TOUCH", "Capacitive controller — calibration not required");
+        return;
+    }
+    if (!controllerAnswered) {
+        LOG_WARN("TOUCH", "Skipping calibration — the controller did not answer");
+        return;
+    }
+    loadOrRunCalibration();
+}
+
+void registerIndev() {
     lv_indev_drv_init(&s_indevDrv);
     s_indevDrv.type = LV_INDEV_TYPE_POINTER;
-    s_indevDrv.read_cb = readCallback;
+    s_indevDrv.read_cb = TouchDriver::readCallback;
     s_indevDrv.gesture_limit = 40;
     s_indevDrv.gesture_min_velocity = 3;
     s_indevDrv.scroll_limit = 8;
@@ -101,6 +129,21 @@ void TouchDriver::init() {
         LV_EVENT_CLICKED, nullptr);
 
     LOG_INFO("TOUCH", "Touch driver registered");
+}
+
+} // namespace
+
+bool TouchDriver::init() {
+    LOG_INFO("TOUCH", "Initializing touch controller...");
+    const bool answered = probeController();
+    if (!answered) {
+        LOG_ERROR("TOUCH", "Touch controller did not answer after %u attempts",
+                  static_cast<unsigned>(kProbeAttempts));
+        ErrorStore::push(ERROR_SRC_SYSTEM, "TOUCH_NONE", "touch controller did not answer");
+    }
+    applyCalibration(answered);
+    registerIndev();
+    return answered;
 }
 
 bool TouchDriver::isCalibrated() {

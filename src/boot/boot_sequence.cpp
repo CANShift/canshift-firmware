@@ -9,6 +9,7 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_pool.h"
+#include "hal/display/display_driver.h"
 #include "hal/usb/usb_comm.h"
 #include "runtime/alert_engine.h"
 #include "runtime/lvgl_lock.h"
@@ -62,16 +63,23 @@ void showBootScreen() {
     s_bootShownMs = millis();
     lv_task_handler();
     lv_refr_now(NULL);
+    DisplayDriver::backlightOn();
 }
 
-void showSelfTestScreen(bool storageOk) {
+struct BootChecks {
+    bool storageOk;
+    bool displayOk;
+    bool touchOk;
+};
+
+void showSelfTestScreen(const BootChecks &checks) {
     const CfgDashboard &dashboard = ConfigLoader::getDashboardConfig();
     char pages[16];
     snprintf(pages, sizeof(pages), "%u PAGES", static_cast<unsigned>(dashboard.pageCount));
     const BootScreens::CheckResult results[BootScreens::kCheckCount] = {
-        {"OK", true},
-        {"OK", true},
-        {storageOk ? "OK" : "NO FLASH", storageOk},
+        {checks.displayOk ? "OK" : "INIT FAIL", checks.displayOk},
+        {checks.touchOk ? "OK" : "NO ANSWER", checks.touchOk},
+        {checks.storageOk ? "OK" : "NO FLASH", checks.storageOk},
         {dashboard.loaded ? pages : "DEFAULTS", dashboard.loaded},
         canBusCheck()};
 
@@ -191,14 +199,9 @@ void BootSequence::markOtaSlotValidIfPending() {
     }
 }
 
-void BootSequence::run() {
-    BootPhases::silenceFrameworkLogNoise();
-    BoardProfileStore::loadAndApply();
-    const uint32_t bootStartMs = millis();
-    BootPhases::initPsramAndLogEntry();
-    BootPhases::initTaskWatchdog();
-    BootPhases::initLvglMemoryPool();
+namespace {
 
+bool loadStorageAndConfig() {
     const bool storageOk = BootPhases::mountStorageOrLogError();
     BootPhases::provisionDefaultConfigsIfNeeded(storageOk);
     // Config parses before BLE claims its ~55 KB of internal heap — the
@@ -207,13 +210,31 @@ void BootSequence::run() {
     BootPhases::loadConfigWithHeapBracket();
     ScreenProfile::initFromDashboard();
     BootPhases::initBleEarlyIfEnabled();
+    return storageOk;
+}
 
-    BootPhases::initDisplayHardware();
-    BootPhases::initTouchHardware();
+void prepareUiAssets(bool storageOk) {
     BootPhases::initLvglFsIfStorageOk(storageOk);
     BootPhases::provisionDefaultFontsIfNeeded(storageOk);
     BootPhases::initFontManagerWithHeapLog();
     BootPhases::preloadIconsWithHeapLog();
+}
+
+} // namespace
+
+void BootSequence::run() {
+    BootPhases::silenceFrameworkLogNoise();
+    BoardProfileStore::loadAndApply();
+    const uint32_t bootStartMs = millis();
+    BootPhases::initPsramAndLogEntry();
+    BootPhases::initTaskWatchdog();
+    BootPhases::initLvglMemoryPool();
+
+    BootChecks checks = {};
+    checks.storageOk = loadStorageAndConfig();
+    checks.displayOk = BootPhases::initDisplayHardware();
+    checks.touchOk = BootPhases::initTouchHardware();
+    prepareUiAssets(checks.storageOk);
 
     showBootScreen();
     BootPhases::logHeap("after boot screen");
@@ -221,7 +242,7 @@ void BootSequence::run() {
     initCanHardwarePhase();
     initUsbCommPhase();
     startCanTaskAndListen();
-    showSelfTestScreen(storageOk);
+    showSelfTestScreen(checks);
     buildUiWithHeapBracket();
 
     logBootCompleteAndReady(bootStartMs);

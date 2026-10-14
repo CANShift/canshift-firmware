@@ -43,8 +43,8 @@ setup()                                             // main.cpp
        ├─ provisionDefaultConfigsIfNeeded           // first-boot embed→FS
        ├─ loadConfigWithHeapBracket                 // ArduinoJson ~20 KB
        ├─ initDisplayAndLVGL                        // lv_init claims ~80 KB
-       │    └─ DisplayDriver::init + register
-       ├─ initTouchHardware
+       │    └─ DisplayDriver::init + register        // backlight held off, panel init retried once
+       ├─ initTouchHardware                         // controller probed before calibration
        ├─ initLvglFsIfStorageOk                     // needs lv_init done
        ├─ provisionDefaultFontsIfNeeded             // before FontManager
        ├─ initFontManagerWithHeapLog
@@ -90,6 +90,20 @@ task returns the whole stack to the heap.
   to parse `dashboard.json`. After `lv_init` the largest free block drops
   to ~15 KB, causing `NoMemory` parse failures. At this point the heap
   has ~120 KB contiguous — ample.
+
+- **The DISPLAY and TOUCH rows are measured**: `DisplayDriver::init()`
+  returns whether the draw buffers were allocated and `s_lcd.init()`
+  succeeded (one retry after 50 ms). `TouchDriver::init()` re-runs the
+  controller's own `init()` up to three times, 20 ms apart, before anything
+  depends on it. A controller that never answers pushes `TOUCH_NONE`, and the
+  first-boot calibration is skipped: `calibrateTouch()` waits for taps that
+  would never come. The XPT2046 has no ID register and shares the panel's
+  SPI bus, so it is not re-initialised and reads as answering.
+
+- **Backlight after the first frame**: the brightness is set to 0 before
+  `s_lcd.init()`, which applies it, and `DisplayDriver::backlightOn()` runs
+  after the boot screen's first `lv_refr_now()`, so the panel never shows
+  its power-on garbage.
 
 - **`lv_init()` before `DisplayDriver::init()`**: LovyanGFX's
   `s_lcd.init()` fragments the heap such that LVGL's pool malloc no

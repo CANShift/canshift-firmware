@@ -76,59 +76,86 @@ void DisplayDriver::flushCallback(lv_disp_drv_t *disp, const lv_area_t *area,
     lv_disp_flush_ready(disp);
 }
 
-void DisplayDriver::init() {
-    LOG_INFO("DISP", "Initializing LovyanGFX...");
+namespace {
 
+constexpr uint8_t kPanelInitAttempts = 2;
+constexpr uint32_t kPanelRetryDelayMs = 50;
+constexpr uint8_t kBacklightOff = 0;
+
+void releaseDrawBuffers() {
+    heap_caps_free(s_buf1);
+    heap_caps_free(s_buf2);
+    s_buf1 = nullptr;
+    s_buf2 = nullptr;
+}
+
+bool allocateInPsram(size_t bufBytes) {
+    s_buf1 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
+    s_buf2 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
+    if (s_buf1 && s_buf2) {
+        LOG_INFO("DISP", "LVGL draw buffers allocated in PSRAM (%u bytes each)",
+                 static_cast<unsigned>(bufBytes));
+        return true;
+    }
+    releaseDrawBuffers();
+    LOG_WARN("DISP", "PSRAM alloc failed — retrying in DRAM");
+    return false;
+}
+
+bool allocateInDram(size_t bufBytes) {
+    s_buf1 =
+        static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    if (!s_buf1) {
+        LOG_ERROR("DISP", "Failed to allocate primary draw buffer (%u bytes)",
+                  static_cast<unsigned>(bufBytes));
+        ErrorStore::push(ERROR_SRC_SYSTEM, "DISP_BUF", "no RAM for the display draw buffer");
+        return false;
+    }
+    s_buf2 =
+        static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    if (s_buf2) {
+        LOG_INFO("DISP", "LVGL draw buffers allocated in DRAM (%u bytes each)",
+                 static_cast<unsigned>(bufBytes));
+    } else {
+        LOG_WARN("DISP", "Single draw buffer mode — heap too fragmented for second (%u bytes)",
+                 static_cast<unsigned>(bufBytes));
+    }
+    return true;
+}
+
+bool allocateDrawBuffers() {
     const uint16_t screenW = canshift::display::width();
     s_bufLines = computeLvglBufLines(screenW, HardwareProfile::kLvglDrawBudgetBytes);
     const size_t bufBytes = static_cast<size_t>(screenW) * s_bufLines * sizeof(lv_color_t);
+    if (canshift::hal::memory::isPsramAvailable() && allocateInPsram(bufBytes))
+        return true;
+    return allocateInDram(bufBytes);
+}
 
-    const bool offloadToPsram = canshift::hal::memory::isPsramAvailable();
-    if (offloadToPsram) {
-        s_buf1 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
-        s_buf2 = static_cast<lv_color_t *>(heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM));
-        if (s_buf1 && s_buf2) {
-            LOG_INFO("DISP", "LVGL draw buffers allocated in PSRAM (%u bytes each)",
-                     static_cast<unsigned>(bufBytes));
-        } else {
-
-            if (s_buf1) {
-                heap_caps_free(s_buf1);
-                s_buf1 = nullptr;
-            }
-            if (s_buf2) {
-                heap_caps_free(s_buf2);
-                s_buf2 = nullptr;
-            }
-            LOG_WARN("DISP", "PSRAM alloc failed — retrying in DRAM");
-        }
+bool initPanel() {
+    s_lcd.setBrightness(kBacklightOff);
+    for (uint8_t attempt = 1; attempt <= kPanelInitAttempts; ++attempt) {
+        if (s_lcd.init())
+            return true;
+        LOG_WARN("DISP", "Panel init attempt %u/%u failed", static_cast<unsigned>(attempt),
+                 static_cast<unsigned>(kPanelInitAttempts));
+        vTaskDelay(pdMS_TO_TICKS(kPanelRetryDelayMs));
     }
+    LOG_ERROR("DISP", "Panel did not initialise — the screen stays dark");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "DISP_INIT", "display panel did not initialise");
+    return false;
+}
 
-    if (!s_buf1 || !s_buf2) {
-        s_buf1 = static_cast<lv_color_t *>(
-            heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
-        if (!s_buf1) {
-            LOG_ERROR("DISP", "Failed to allocate primary draw buffer (%u bytes)",
-                      static_cast<unsigned>(bufBytes));
-            return;
-        }
+} // namespace
 
-        s_buf2 = static_cast<lv_color_t *>(
-            heap_caps_malloc(bufBytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
-        if (s_buf2) {
-            LOG_INFO("DISP", "LVGL draw buffers allocated in DRAM (%u bytes each)",
-                     static_cast<unsigned>(bufBytes));
-        } else {
-            LOG_WARN("DISP", "Single draw buffer mode — heap too fragmented for second (%u bytes)",
-                     static_cast<unsigned>(bufBytes));
-        }
-    }
+bool DisplayDriver::init() {
+    LOG_INFO("DISP", "Initializing LovyanGFX...");
+    const bool buffersOk = allocateDrawBuffers();
 
     const uint8_t rotation = RotationConfig::computeLgfxRotation();
     reportUnbuiltDrivers(s_lcd.configure());
-    s_lcd.init();
+    const bool panelOk = initPanel();
     s_lcd.setRotation(rotation);
-    s_lcd.setBrightness(canshift::boards::runtimeBoardProfile().backlight.default_duty);
     LOG_INFO("DISP", "After setRotation(%d, offset=%u°): width=%d height=%d", rotation,
              RotationConfig::getOffsetDeg(), s_lcd.width(), s_lcd.height());
 
@@ -136,6 +163,11 @@ void DisplayDriver::init() {
 
     LOG_INFO("DISP", "Display initialized (%dx%d)", canshift::display::width(),
              canshift::display::height());
+    return buffersOk && panelOk;
+}
+
+void DisplayDriver::backlightOn() {
+    s_lcd.setBrightness(canshift::boards::runtimeBoardProfile().backlight.default_duty);
 }
 
 void DisplayDriver::registerWithLVGL() {

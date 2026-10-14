@@ -20,9 +20,9 @@ void loadConfigWithHeapBracket();
 
 void initBleEarlyIfEnabled();
 
-void initDisplayHardware();
+[[nodiscard]] bool initDisplayHardware();
 
-void initTouchHardware();
+[[nodiscard]] bool initTouchHardware();
 
 void initLvglFsIfStorageOk(bool storageOk);
 
