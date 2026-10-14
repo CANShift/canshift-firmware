@@ -177,12 +177,12 @@ void setup() {
 
     registerBurnOverlayObserver();
     InputButtons::init();
-    LOG_INFO("BOOT", "All tasks started");
+    LOG_INFO("BOOT", "All tasks started — releasing the %u B setup stack",
+             static_cast<unsigned>(getArduinoLoopTaskStackSize()));
+    vTaskDelete(nullptr);
 }
 
-void loop() {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-}
+void loop() {}
 
 #if APP_LV_TASK_LOG
 

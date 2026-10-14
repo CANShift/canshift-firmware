@@ -28,8 +28,8 @@ struct RuntimeSignal {
     bool hasExpr;
     uint8_t tokenCount;
     uint8_t refCount;
+    uint16_t tokenOffset;
     uint16_t refTargetIds[CFG_MAX_EXPR_REFS];
-    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
 };
 
 struct TargetBinding {
@@ -37,7 +37,11 @@ struct TargetBinding {
     SignalId signalId;
 };
 
+constexpr size_t kExprPoolTokens = 512;
+
 static RuntimeSignal s_runtime[CONFIG_MAX_SIGNALS];
+static FfiTok s_exprPool[kExprPoolTokens];
+static size_t s_exprPoolUsed = 0;
 static uint8_t s_runtimeCount = 0;
 static bool s_runtimeLoaded = false;
 static TargetBinding s_targets[CONFIG_MAX_SIGNALS];
@@ -66,9 +70,9 @@ void evalCrossSignal(const RuntimeSignal &sig, const uint8_t *data, uint8_t leng
     RefValueRs refs[CFG_MAX_EXPR_REFS] = {};
     if (!resolveRefs(sig, refs))
         return;
-    const float val = eval_tokens_refs_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
-                                          sig.isSigned, sig.bitMask, sig.scale, sig.offset, length,
-                                          sig.tokens, sig.tokenCount, refs, sig.refCount);
+    const float val = eval_tokens_refs_rs(
+        data, sig.startByte, sig.byteLength, sig.bigEndian, sig.isSigned, sig.bitMask, sig.scale,
+        sig.offset, length, s_exprPool + sig.tokenOffset, sig.tokenCount, refs, sig.refCount);
     if (std::isnan(val))
         return;
     SignalStore::update(sig.signalId, val);
@@ -85,6 +89,7 @@ constexpr ExprRejection kExprRejections[] = {
     {CANSHIFT_EXPR_ERR_TOO_LONG, "EXPR_LONG", "too many tokens"},
     {CANSHIFT_EXPR_ERR_SYNTAX, "EXPR_SYNTAX", "syntax error"},
     {CANSHIFT_EXPR_ERR_TOO_DEEP, "EXPR_DEPTH", "nested too deep"},
+    {CANSHIFT_EXPR_ERR_NO_ROOM, "EXPR_POOL", "expression pool full"},
 };
 
 constexpr ExprRejection kUnknownExprRejection = {0, "EXPR_FAIL", "rejected"};
@@ -111,13 +116,16 @@ bool compileExpression(const CfgSignalDef &def, RuntimeSignal &r) {
     r.hasExpr = exprLen > 0;
     if (!r.hasExpr)
         return true;
-    const int32_t status = compile_expr_rs(reinterpret_cast<const uint8_t *>(def.expr), exprLen,
-                                           r.tokens, CANSHIFT_EXPR_MAX_TOKENS);
+    const int32_t status =
+        compile_expr_rs(reinterpret_cast<const uint8_t *>(def.expr), exprLen,
+                        s_exprPool + s_exprPoolUsed, kExprPoolTokens - s_exprPoolUsed);
     if (status <= 0) {
         reportExprRejected(def, status);
         return false;
     }
+    r.tokenOffset = static_cast<uint16_t>(s_exprPoolUsed);
     r.tokenCount = static_cast<uint8_t>(status);
+    s_exprPoolUsed += static_cast<size_t>(status);
     return true;
 }
 
@@ -188,7 +196,7 @@ void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length
                                            sig.isSigned, sig.bitMask, sig.scale, sig.offset, length)
                          : eval_tokens_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
                                           sig.isSigned, sig.bitMask, sig.scale, sig.offset, length,
-                                          sig.tokens, sig.tokenCount);
+                                          s_exprPool + sig.tokenOffset, sig.tokenCount);
         SignalStore::update(sig.signalId, val);
     }
 
@@ -210,6 +218,7 @@ void CanParser::loadSignalDefinitions() {
 
     s_runtimeCount = 0;
     s_targetCount = 0;
+    s_exprPoolUsed = 0;
     s_runtimeLoaded = false;
 
     for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < CONFIG_MAX_SIGNALS; ++i)

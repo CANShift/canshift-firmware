@@ -110,15 +110,11 @@ void sendTelemetry() {
     memcpy(p, prefix, prefixLen);
     p += prefixLen;
 
-    static SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
-    SignalStore::snapshotAll(snap);
-
     bool first = true;
     for (size_t i = 0; i < TELE_SIGNAL_COUNT; i++) {
-        const SignalId id = TELE_SIGNALS[i].id;
-        if (!snap[id].valid)
+        float val = 0.0f;
+        if (!SignalStore::tryRead(TELE_SIGNALS[i].id, &val))
             continue;
-        float val = snap[id].smoothed;
 
         if (!first) {
             if (p >= end)

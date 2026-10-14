@@ -64,6 +64,11 @@ setup()                                             // main.cpp
 `BootSequence::run` so those allocations happen against the still-clean
 post-Arduino heap.
 
+`setup()` runs on the Arduino `loopTask`, whose 16 KB stack
+(`ARDUINO_LOOP_STACK_SIZE`) the boot path needs. Once the tasks are started,
+`setup()` ends with `vTaskDelete(nullptr)`: `loop()` has no work, and the idle
+task returns the whole stack to the heap.
+
 ## Why each ordering matters
 
 - **`reserveRxBuf` / `reserveInitTaskStack` before `lv_init`**: After

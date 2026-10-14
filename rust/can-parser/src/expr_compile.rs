@@ -51,6 +51,7 @@ pub enum CompileError {
     TooLong,
     Syntax,
     TooDeep,
+    NoRoom,
 }
 
 #[derive(Clone, Copy)]

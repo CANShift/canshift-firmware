@@ -75,6 +75,11 @@ values held at once (`1+(1+(1+…))` nested 17 deep, for example). A rejected ex
 signal rather than publishing a wrong value: the console logs the reason, and the error list
 shows `EXPR_LEX`, `EXPR_LONG`, `EXPR_SYNTAX` or `EXPR_DEPTH` with the signal name.
 
+Compiled programs share one pool of 512 tokens across all signals, in load order. A signal
+whose expression no longer fits is dropped the same way, with `EXPR_POOL`. Typical conversion
+expressions take 5 to 15 tokens, so the pool only fills when most of the 48 signals carry long
+expressions.
+
 ---
 
 ## Update Rates

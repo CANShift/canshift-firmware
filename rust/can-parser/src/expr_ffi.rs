@@ -16,6 +16,7 @@ pub const COMPILE_ERR_LEX: i32 = -1;
 pub const COMPILE_ERR_TOO_LONG: i32 = -2;
 pub const COMPILE_ERR_SYNTAX: i32 = -3;
 pub const COMPILE_ERR_TOO_DEEP: i32 = -4;
+pub const COMPILE_ERR_NO_ROOM: i32 = -5;
 
 const UNARIES: [Unary; 5] = [
     Unary::Neg,
@@ -87,13 +88,14 @@ pub fn compile_error_code(error: CompileError) -> i32 {
         CompileError::TooLong => COMPILE_ERR_TOO_LONG,
         CompileError::Syntax => COMPILE_ERR_SYNTAX,
         CompileError::TooDeep => COMPILE_ERR_TOO_DEEP,
+        CompileError::NoRoom => COMPILE_ERR_NO_ROOM,
     }
 }
 
 pub fn compile_to_ffi(expr: &[u8], out: &mut [FfiTok]) -> Result<usize, CompileError> {
     let mut steps = [Step::V; MAX_TOKENS];
     let n = compile(expr, &mut steps)?;
-    let dst = out.get_mut(..n).ok_or(CompileError::TooLong)?;
+    let dst = out.get_mut(..n).ok_or(CompileError::NoRoom)?;
     for (slot, step) in dst.iter_mut().zip(&steps[..n]) {
         *slot = encode(*step);
     }
@@ -190,7 +192,7 @@ mod tests {
         let mut short = [ffi_tok(0, 0, 0.0); 2];
         assert_eq!(
             compile_to_ffi(b"1+2", &mut short).err(),
-            Some(CompileError::TooLong)
+            Some(CompileError::NoRoom)
         );
     }
 }
