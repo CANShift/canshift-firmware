@@ -12,6 +12,7 @@
 #include "ui/no_config_screen.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
+#include "ui/workshop_screen.h"
 
 #include <Arduino.h>
 #include <SDL.h>
@@ -249,6 +250,11 @@ void startConfigRejected(uint32_t) {
     ConfigRejectedScreen::show(rejection);
 }
 
+void startWorkshop(uint32_t) {
+    if (!WorkshopScreen::enter())
+        printf("workshop card could not be entered\n");
+}
+
 void startFailureSurface(uint32_t) {
     ErrorStore::push(ERROR_SRC_CONFIG, "OVERFLOW", "PAGE 4 EXCEEDS 240 PX");
     ErrorStore::push(ERROR_SRC_CAN, "NO_FRAMES", "BUS SILENT 4 s — CHECK WIRING");
@@ -282,7 +288,8 @@ constexpr OverlayScenario kOverlayScenarios[] = {
     {"ota", startOtaDemo},          {"ota-complete", startOtaComplete},
     {"ota-failed", startOtaFailed}, {"failure", startFailureSurface},
     {"boot", startBootScreen},      {"self-test", startSelfTestScreen},
-    {"no-config", startNoConfig},   {"config-rejected", startConfigRejected}};
+    {"no-config", startNoConfig},   {"config-rejected", startConfigRejected},
+    {"workshop", startWorkshop}};
 
 void tickOtaDemo(uint32_t nowMs) {
     if (!s_otaDemo)

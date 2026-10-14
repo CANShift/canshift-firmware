@@ -25,4 +25,6 @@ void updateWidgets();
 
 void requestRebuild();
 
+void releaseAll();
+
 } // namespace PageManager

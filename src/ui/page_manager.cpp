@@ -132,6 +132,19 @@ void PageManager::requestRebuild() {
     PageManagerInternal::s_rebuildRequested = true;
 }
 
+void PageManager::releaseAll() {
+    using namespace PageManagerInternal;
+
+    LVGL_ASSERT_LOCKED();
+    releaseAllPages();
+    lv_obj_t *layer = lv_layer_top();
+    const uint32_t overlayCount = lv_obj_get_child_cnt(layer);
+    for (uint32_t i = 0; i < overlayCount; ++i) {
+        lv_obj_add_flag(lv_obj_get_child(layer, static_cast<int32_t>(i)), LV_OBJ_FLAG_HIDDEN);
+    }
+    LOG_INFO("UI", "Dashboard pages released, overlays hidden");
+}
+
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 

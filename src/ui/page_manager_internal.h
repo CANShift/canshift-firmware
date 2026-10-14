@@ -42,6 +42,8 @@ uint8_t defaultPageIndex();
 
 void releasePage(Page &p);
 
+void releaseAllPages();
+
 void showPage(uint8_t idx);
 
 void onSwipe(lv_dir_t dir);
