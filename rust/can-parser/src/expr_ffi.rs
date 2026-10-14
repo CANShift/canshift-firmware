@@ -1,184 +1,120 @@
-//! FFI token mapping for the expression evaluator — the tokenized form the C++
-//! side caches per signal so hot-path evals skip the lexer.
+use crate::expr::{EvalContext, MAX_TOKENS};
+use crate::expr_compile::{compile, Binary, CompileError, Step, Unary};
+use crate::expr_run::{run, MissingRef};
+use crate::CAN_FRAME_MAX_BYTES;
 
-use crate::expr::{
-    all_refs_resolve, lex, parse_or, EvalContext, FnKind, Op, ParseState, TokKind, MAX_TOKENS,
-};
-
-const TOK_NUM: u8 = 0;
-const TOK_V: u8 = 1;
-const TOK_B: u8 = 2;
-const TOK_FN: u8 = 3;
-const TOK_OP: u8 = 4;
-const TOK_ID: u8 = 5;
+const STEP_NUM: u8 = 0;
+const STEP_V: u8 = 1;
+const STEP_B: u8 = 2;
+const STEP_UNARY: u8 = 3;
+const STEP_BINARY: u8 = 4;
+const STEP_ID: u8 = 5;
 
 pub const MAX_REFS: usize = 8;
 
+pub const COMPILE_ERR_LEX: i32 = -1;
+pub const COMPILE_ERR_TOO_LONG: i32 = -2;
+pub const COMPILE_ERR_SYNTAX: i32 = -3;
+pub const COMPILE_ERR_TOO_DEEP: i32 = -4;
+
+const UNARIES: [Unary; 5] = [
+    Unary::Neg,
+    Unary::Not,
+    Unary::Floor,
+    Unary::Ceil,
+    Unary::Round,
+];
+
+const BINARIES: [Binary; 16] = [
+    Binary::Or,
+    Binary::Xor,
+    Binary::And,
+    Binary::Eq,
+    Binary::Ne,
+    Binary::Lt,
+    Binary::Le,
+    Binary::Gt,
+    Binary::Ge,
+    Binary::Shl,
+    Binary::Shr,
+    Binary::Add,
+    Binary::Sub,
+    Binary::Mul,
+    Binary::Div,
+    Binary::Rem,
+];
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FfiTok {
     pub kind: u8,
     pub aux: u8,
     pub num: f32,
 }
 
-fn fn_from_u8(aux: u8) -> Option<FnKind> {
-    match aux {
-        0 => Some(FnKind::Floor),
-        1 => Some(FnKind::Ceil),
-        2 => Some(FnKind::Round),
-        _ => None,
+const fn ffi_tok(kind: u8, aux: u8, num: f32) -> FfiTok {
+    FfiTok { kind, aux, num }
+}
+
+fn encode(step: Step) -> FfiTok {
+    match step {
+        Step::Num(n) => ffi_tok(STEP_NUM, 0, n),
+        Step::V => ffi_tok(STEP_V, 0, 0.0),
+        Step::B(idx) => ffi_tok(STEP_B, idx, 0.0),
+        Step::Unary(op) => ffi_tok(STEP_UNARY, op as u8, 0.0),
+        Step::Binary(op) => ffi_tok(STEP_BINARY, op as u8, 0.0),
+        Step::Id(target_id) => ffi_tok(STEP_ID, 0, f32::from(target_id)),
     }
 }
 
-fn op_from_u8(aux: u8) -> Option<Op> {
-    match aux {
-        0 => Some(Op::LParen),
-        1 => Some(Op::RParen),
-        2 => Some(Op::Comma),
-        3 => Some(Op::Plus),
-        4 => Some(Op::Minus),
-        5 => Some(Op::Star),
-        6 => Some(Op::Slash),
-        7 => Some(Op::Percent),
-        8 => Some(Op::Shl),
-        9 => Some(Op::Shr),
-        10 => Some(Op::Lt),
-        11 => Some(Op::Le),
-        12 => Some(Op::Gt),
-        13 => Some(Op::Ge),
-        14 => Some(Op::Eq),
-        15 => Some(Op::Ne),
-        16 => Some(Op::And),
-        17 => Some(Op::Or),
-        18 => Some(Op::Xor),
-        19 => Some(Op::Bang),
-        _ => None,
-    }
-}
-
-fn tok_to_ffi(t: TokKind) -> FfiTok {
-    match t {
-        TokKind::Num(n) => FfiTok {
-            kind: TOK_NUM,
-            aux: 0,
-            num: n,
-        },
-        TokKind::V => FfiTok {
-            kind: TOK_V,
-            aux: 0,
-            num: 0.0,
-        },
-        TokKind::B(idx) => FfiTok {
-            kind: TOK_B,
-            aux: idx,
-            num: 0.0,
-        },
-        TokKind::Fn(f) => FfiTok {
-            kind: TOK_FN,
-            aux: f as u8,
-            num: 0.0,
-        },
-        TokKind::Op(o) => FfiTok {
-            kind: TOK_OP,
-            aux: o as u8,
-            num: 0.0,
-        },
-        TokKind::Id(target_id) => FfiTok {
-            kind: TOK_ID,
-            aux: 0,
-            num: f32::from(target_id),
-        },
-    }
-}
-
-fn ffi_to_tok(f: FfiTok) -> Option<TokKind> {
-    Some(match f.kind {
-        TOK_NUM => TokKind::Num(f.num),
-        TOK_V => TokKind::V,
-        TOK_B if f.aux < crate::CAN_FRAME_MAX_BYTES as u8 => TokKind::B(f.aux),
-        TOK_FN => TokKind::Fn(fn_from_u8(f.aux)?),
-        TOK_OP => TokKind::Op(op_from_u8(f.aux)?),
-        TOK_ID if f.num >= 0.0 && f.num <= f32::from(u16::MAX) => TokKind::Id(f.num as u16),
+fn decode(tok: FfiTok) -> Option<Step> {
+    let aux = usize::from(tok.aux);
+    Some(match tok.kind {
+        STEP_NUM => Step::Num(tok.num),
+        STEP_V => Step::V,
+        STEP_B if aux < CAN_FRAME_MAX_BYTES => Step::B(tok.aux),
+        STEP_UNARY => Step::Unary(*UNARIES.get(aux)?),
+        STEP_BINARY => Step::Binary(*BINARIES.get(aux)?),
+        STEP_ID if tok.num >= 0.0 && tok.num <= f32::from(u16::MAX) => Step::Id(tok.num as u16),
         _ => return None,
     })
 }
 
-pub fn lex_to_ffi(expr: &[u8], out: &mut [FfiTok]) -> Option<usize> {
-    let mut tokens = [TokKind::V; MAX_TOKENS];
-    let n = lex(expr, &mut tokens)?;
-    if out.len() < n {
+#[must_use]
+pub fn compile_error_code(error: CompileError) -> i32 {
+    match error {
+        CompileError::Lex => COMPILE_ERR_LEX,
+        CompileError::TooLong => COMPILE_ERR_TOO_LONG,
+        CompileError::Syntax => COMPILE_ERR_SYNTAX,
+        CompileError::TooDeep => COMPILE_ERR_TOO_DEEP,
+    }
+}
+
+pub fn compile_to_ffi(expr: &[u8], out: &mut [FfiTok]) -> Result<usize, CompileError> {
+    let mut steps = [Step::V; MAX_TOKENS];
+    let n = compile(expr, &mut steps)?;
+    let dst = out.get_mut(..n).ok_or(CompileError::TooLong)?;
+    for (slot, step) in dst.iter_mut().zip(&steps[..n]) {
+        *slot = encode(*step);
+    }
+    Ok(n)
+}
+
+fn run_ffi(tokens: &[FfiTok], ctx: &EvalContext, missing: MissingRef) -> Option<f32> {
+    if tokens.len() > MAX_TOKENS {
         return None;
     }
-    for i in 0..n {
-        out[i] = tok_to_ffi(tokens[i]);
-    }
-    Some(n)
+    run(tokens.iter().map(|tok| decode(*tok)), ctx, missing)
 }
 
 #[must_use]
 pub fn eval_ffi(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
-    let n = tokens.len();
-    if n == 0 || n > MAX_TOKENS {
-        return 0.0;
-    }
-    let mut buf = [TokKind::V; MAX_TOKENS];
-    for i in 0..n {
-        match ffi_to_tok(tokens[i]) {
-            Some(t) => buf[i] = t,
-            None => return 0.0,
-        }
-    }
-    let mut state = ParseState {
-        tokens: &buf[..n],
-        pos: 0,
-    };
-    let Some(result) = parse_or(&mut state, ctx) else {
-        return 0.0;
-    };
-    if state.pos != n {
-        return 0.0;
-    }
-    if result.is_finite() {
-        result
-    } else {
-        0.0
-    }
+    run_ffi(tokens, ctx, MissingRef::ReadsNan).unwrap_or(0.0)
 }
 
-// Mirrors core's evalExprChecked: NaN means "cannot be published", where
-// eval_ffi coerces to 0.0 to keep the shared parity fixtures agreeing.
 #[must_use]
 pub fn eval_ffi_checked(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
-    let n = tokens.len();
-    if n == 0 || n > MAX_TOKENS {
-        return f32::NAN;
-    }
-    let mut buf = [TokKind::V; MAX_TOKENS];
-    for i in 0..n {
-        match ffi_to_tok(tokens[i]) {
-            Some(t) => buf[i] = t,
-            None => return f32::NAN,
-        }
-    }
-    if !all_refs_resolve(&buf[..n], ctx) {
-        return f32::NAN;
-    }
-    let mut state = ParseState {
-        tokens: &buf[..n],
-        pos: 0,
-    };
-    let Some(result) = parse_or(&mut state, ctx) else {
-        return f32::NAN;
-    };
-    if state.pos != n {
-        return f32::NAN;
-    }
-    if result.is_finite() {
-        result
-    } else {
-        f32::NAN
-    }
+    run_ffi(tokens, ctx, MissingRef::Rejects).unwrap_or(f32::NAN)
 }
 
 #[cfg(test)]
@@ -186,20 +122,13 @@ mod tests {
     use super::*;
     use crate::expr::eval;
 
-    fn eval_tokenized(expr: &[u8], ctx: &EvalContext) -> f32 {
-        let mut toks = [FfiTok {
-            kind: 0,
-            aux: 0,
-            num: 0.0,
-        }; MAX_TOKENS];
-        match lex_to_ffi(expr, &mut toks) {
-            Some(n) => eval_ffi(&toks[..n], ctx),
-            None => 0.0,
-        }
+    fn compiled(expr: &[u8]) -> Result<([FfiTok; MAX_TOKENS], usize), CompileError> {
+        let mut toks = [ffi_tok(0, 0, 0.0); MAX_TOKENS];
+        compile_to_ffi(expr, &mut toks).map(|n| (toks, n))
     }
 
     #[test]
-    fn tokenized_matches_oneshot() {
+    fn compiled_matches_oneshot() {
         let bytes = [117u8, 20, 30, 40, 50, 60, 70, 80];
         let exprs: &[&[u8]] = &[
             b"42",
@@ -215,16 +144,53 @@ mod tests {
             b"(Floor(V/200)/2)*100",
             b"(V==0xD7)|(V==0xEF)",
             b"14.7*(B0/117)",
-            b"",
-            b"@@@",
         ];
+        let c = EvalContext {
+            refs: &[],
+            v: 0xD7 as f32,
+            bytes: &bytes,
+        };
         for e in exprs {
-            let c = EvalContext {
-                refs: &[],
-                v: 0xD7 as f32,
-                bytes: &bytes,
-            };
-            assert_eq!(eval(e, &c), eval_tokenized(e, &c), "expr {e:?}");
+            let (toks, n) = compiled(e).expect("compiles");
+            assert_eq!(eval(e, &c), eval_ffi(&toks[..n], &c), "expr {e:?}");
         }
+    }
+
+    #[test]
+    fn every_operator_round_trips_through_the_ffi_encoding() {
+        for op in UNARIES {
+            assert_eq!(decode(encode(Step::Unary(op))), Some(Step::Unary(op)));
+        }
+        for op in BINARIES {
+            assert_eq!(decode(encode(Step::Binary(op))), Some(Step::Binary(op)));
+        }
+        assert_eq!(decode(encode(Step::Id(481))), Some(Step::Id(481)));
+    }
+
+    #[test]
+    fn corrupt_tokens_evaluate_to_the_failure_value() {
+        let c = EvalContext {
+            refs: &[],
+            v: 1.0,
+            bytes: &[],
+        };
+        let bad_op = [ffi_tok(STEP_V, 0, 0.0), ffi_tok(STEP_UNARY, 99, 0.0)];
+        assert_eq!(eval_ffi(&bad_op, &c), 0.0);
+        assert!(eval_ffi_checked(&bad_op, &c).is_nan());
+        let underflow = [ffi_tok(STEP_BINARY, Binary::Add as u8, 0.0)];
+        assert_eq!(eval_ffi(&underflow, &c), 0.0);
+        assert_eq!(eval_ffi(&[], &c), 0.0);
+    }
+
+    #[test]
+    fn compile_reports_each_failure_kind() {
+        assert_eq!(compiled(b"@@@").err(), Some(CompileError::Lex));
+        assert_eq!(compiled(b"V+").err(), Some(CompileError::Syntax));
+        assert_eq!(compiled(b"").err(), Some(CompileError::Syntax));
+        let mut short = [ffi_tok(0, 0, 0.0); 2];
+        assert_eq!(
+            compile_to_ffi(b"1+2", &mut short).err(),
+            Some(CompileError::TooLong)
+        );
     }
 }

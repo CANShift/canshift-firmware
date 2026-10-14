@@ -64,6 +64,17 @@ Verify them against your ECU's CAN output configuration before use.
 Default: **500 kbps** — configurable in `signals.json` (`canSpeedKbps`) and the tuner's **Vehicle** tab.
 Common ECU values: 500 kbps, 1 Mbps. Verify in your ECU's configuration.
 
+### Conversion expressions
+
+A signal's `expr` is compiled once, when the signal table loads, into a postfix program that
+each frame runs in a loop. Nothing is parsed per frame, and nothing recurses, so the stack a
+frame needs does not depend on how the expression nests.
+
+The compiler rejects an expression that has more than 64 tokens, or that needs more than 16
+values held at once (`1+(1+(1+…))` nested 17 deep, for example). A rejected expression drops its
+signal rather than publishing a wrong value: the console logs the reason, and the error list
+shows `EXPR_LEX`, `EXPR_LONG`, `EXPR_SYNTAX` or `EXPR_DEPTH` with the signal name.
+
 ---
 
 ## Update Rates

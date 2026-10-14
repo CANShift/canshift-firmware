@@ -49,6 +49,41 @@ PAIRS = (
         "CANSHIFT_EXPR_MAX_TOKENS",
     ),
     (
+        "expression stack depth cap",
+        "rust/can-parser/src/expr_compile.rs",
+        "MAX_STACK_DEPTH",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_MAX_STACK_DEPTH",
+    ),
+    (
+        "expression lex error",
+        "rust/can-parser/src/expr_ffi.rs",
+        "COMPILE_ERR_LEX",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_ERR_LEX",
+    ),
+    (
+        "expression too-long error",
+        "rust/can-parser/src/expr_ffi.rs",
+        "COMPILE_ERR_TOO_LONG",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_ERR_TOO_LONG",
+    ),
+    (
+        "expression syntax error",
+        "rust/can-parser/src/expr_ffi.rs",
+        "COMPILE_ERR_SYNTAX",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_ERR_SYNTAX",
+    ),
+    (
+        "expression too-deep error",
+        "rust/can-parser/src/expr_ffi.rs",
+        "COMPILE_ERR_TOO_DEEP",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_ERR_TOO_DEEP",
+    ),
+    (
         "expression reference cap",
         "rust/can-parser/src/expr_ffi.rs",
         "MAX_REFS",
@@ -239,8 +274,8 @@ PAIRS = (
     ),
 )
 
-RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(\\d+)"
-CPP_RE = "(?:#define\\s+{name}\\s+|{name}\\s*=\\s*)(\\d+)"
+RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(-?\\d+)"
+CPP_RE = "(?:#define\\s+{name}\\s+|{name}\\s*=\\s*)(-?\\d+)"
 
 
 def read(rel):

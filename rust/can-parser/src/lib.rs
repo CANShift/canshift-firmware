@@ -4,7 +4,9 @@
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 pub mod expr;
+pub mod expr_compile;
 pub mod expr_ffi;
+pub mod expr_run;
 
 #[cfg(feature = "ffi")]
 pub mod ffi;
