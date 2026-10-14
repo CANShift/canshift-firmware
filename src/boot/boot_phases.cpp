@@ -134,20 +134,22 @@ void initBleEarlyIfEnabled() {
 #endif
 }
 
-void initDisplayHardware() {
+bool initDisplayHardware() {
     LOG_INFO("BOOT", "Initializing display...");
-    DisplayDriver::init();
-    LOG_INFO("BOOT", "Display driver up");
+    const bool displayOk = DisplayDriver::init();
+    LOG_INFO("BOOT", "Display driver %s", displayOk ? "up" : "FAILED");
 
     LOG_INFO("BOOT", "Registering display with LVGL...");
     DisplayDriver::registerWithLVGL();
     LOG_INFO("BOOT", "Display + LVGL ready");
+    return displayOk;
 }
 
-void initTouchHardware() {
+bool initTouchHardware() {
     LOG_INFO("BOOT", "Initializing touch...");
-    TouchDriver::init();
-    LOG_INFO("BOOT", "Touch ready");
+    const bool touchOk = TouchDriver::init();
+    LOG_INFO("BOOT", "Touch %s", touchOk ? "ready" : "NOT ANSWERING");
+    return touchOk;
 }
 
 void initLvglFsIfStorageOk(bool storageOk) {

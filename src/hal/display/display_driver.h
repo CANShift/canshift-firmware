@@ -7,7 +7,8 @@
 
 namespace DisplayDriver {
 
-void init();
+[[nodiscard]] bool init();
+void backlightOn();
 void registerWithLVGL();
 void setBacklight(uint8_t brightness);
 void flushCallback(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorMap);
