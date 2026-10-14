@@ -87,12 +87,12 @@ void UsbCommInternal::routeLine(const char *line, size_t len) {
         socketSink(line, len);
 }
 
-void UsbCommInternal::dispatchFromSerial(const char *jsonLine) {
+void UsbCommInternal::dispatchFromSerial(char *jsonLine) {
     const RouteScope scope(ReplyRoute::Serial);
     handleCommand(jsonLine);
 }
 
-void UsbComm::dispatchFromSocket(const char *jsonLine) {
+void UsbComm::dispatchFromSocket(char *jsonLine) {
     const RouteScope scope(ReplyRoute::Socket);
     UsbCommInternal::handleCommand(jsonLine);
 }
@@ -107,7 +107,7 @@ void UsbCommInternal::routeLine(const char *line, size_t len) {
     serialSink(line, len);
 }
 
-void UsbCommInternal::dispatchFromSerial(const char *jsonLine) {
+void UsbCommInternal::dispatchFromSerial(char *jsonLine) {
     handleCommand(jsonLine);
 }
 
