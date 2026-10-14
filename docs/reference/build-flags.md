@@ -27,9 +27,17 @@ Exactly one is set per env. A board env unflags the base
 `-DBOARD_CROWPANEL_28=1` before setting its own — see
 [Adding a board](../../README.md#adding-a-board).
 
-`BOARD_HAS_PSRAM` enables the IDF PSRAM init so WROVER variants light up
-automatically. On a WROOM chip with no PSRAM the init fails silently and the
-runtime detect in `src/hal/memory/psram.cpp` handles it.
+No board env sets `BOARD_HAS_PSRAM`. The framework's own sdkconfig initialises
+PSRAM whenever the module carries it, `src/hal/memory/psram.cpp` detects it at
+run time, and the LVGL pool is sized from what is actually free (below). One
+image therefore boots both WROOM and WROVER modules. Only `env:sim` defines the
+flag, to give the simulator's LVGL pool the size a PSRAM board gets (#311).
+
+`-DCONFIG_*` flags cannot change the prebuilt sdkconfig: `sdkconfig.h` is read
+after the command line and wins. Use the macro the code actually reads, for
+example `ARDUINO_LOOP_STACK_SIZE` for the loop task's stack (#313). The
+`CONFIG_BT_NIMBLE_*` sizes in `platformio.ini` are the exception: NimBLE-Arduino
+reads them itself with `#ifndef`.
 
 ## Build profile
 
@@ -84,34 +92,31 @@ handful of symbols, and the linker takes the first.
 | `LVGL_FS_MIN_HEAP_BYTES`    |     256 | Below this the LVGL FS driver refuses opens, keeping newlib's `__sfp` out of `abort()`.                                 |
 | `LVGL_POOL_FORCE_FAIL`      |       0 | Fault injection for the LVGL pool allocator. Makes the first _n_ capability tiers refuse. Never set in a shipped env.   |
 
-### Exercising the pool allocator's failure path
+### The LVGL pool and its failure path
 
-`canshift_lvgl_pool_alloc()` tries PSRAM, then internal RAM, then restarts —
-returning `NULL` would make `lv_tlsf_create()` write through address 0, since it
-only checks alignment and `NULL` is aligned (#290).
+On hardware LVGL allocates through `LV_MEM_CUSTOM` from one region claimed at
+`lv_init()` (`src/boot/lvgl_pool_alloc.cpp`, an ESP-IDF `multi_heap` over that
+region), so the pool size is decided at run time:
 
-It restarts rather than halting because that is what arms the recovery already in
-the tree: `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` leaves a freshly flashed image
-`PENDING_VERIFY` until the UI loop has rendered `UI_OTA_VALID_FRAMES`, so an
-image that dies here is rolled back to the last known-good one. A halt never
-reboots, so the rollback never fires and the board stays on the bad image.
+| Module | Pool |
+| --- | --- |
+| PSRAM with a free 512 KB block | 512 KB in PSRAM |
+| no PSRAM (WROOM) | 80 KB of internal RAM, less if the largest free block minus 16 KB headroom is smaller, halving down to a 32 KB floor |
 
-The real trigger is a module whose PSRAM is absent or refuses the pool, which no
-board here has. `LVGL_POOL_FORCE_FAIL` stands in for it:
+Only when not even 32 KB of internal RAM is free does it restart. With the
+rollback gate armed ([Boot sequence](../architecture/boot-sequence.md#ota-mark-valid-placement)),
+an OTA image that dies there rolls back to the previous slot.
+`LVGL_POOL_FORCE_FAIL` exercises the ladder on a board that has PSRAM:
 
 | Value | What refuses | What you should see |
 | ----: | --- | --- |
-| `0` | nothing | normal boot, pool from PSRAM |
-| `1` | PSRAM | `pool of N B came from internal RAM — PSRAM refused it`, then a boot that dies for want of 512 KB of DRAM |
-| `2` | PSRAM and internal RAM | `no pool: N B unavailable… — restarting`, then a reboot, and on hardware a rollback rather than a panic at address 0 |
+| `0` | nothing | `pool: 524288 B in PSRAM` on a PSRAM board, `pool: N B in internal RAM` on a WROOM |
+| `1` | PSRAM | `pool: N B in internal RAM`, the WROOM path on PSRAM hardware |
+| `2` | PSRAM and internal RAM | `no pool: … restarting`, then a reboot loop, or a rollback after an OTA |
 
 ```
-pio run -e waveshare_s3_28 -t upload --build-flag="-DLVGL_POOL_FORCE_FAIL=2"
+PLATFORMIO_BUILD_FLAGS="-DLVGL_POOL_FORCE_FAIL=1" pio run -e waveshare_s3_28 -t upload
 ```
-
-Tier 1 is expected to fail on every current target — 512 KB of internal RAM does
-not exist on an ESP32 and will not survive the framework's share on an S3. It is
-there so the ladder is real if the pool size is ever made per-board.
 
 ## Tracing
 

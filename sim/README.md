@@ -83,11 +83,11 @@ Mouse clicks are the touch input.
 
 ## The LVGL pool is the board's
 
-`env:sim` declares `BOARD_HAS_PSRAM` exactly as every board env does, so
-`LV_MEM_SIZE` resolves to the same **512 KB** through the same switch in
-`include/lv_conf.h` — not a number written into `platformio.ini`. `SIM_BUILD`
-keeps the allocator on plain `malloc`: the size follows the board, the
-allocator follows the platform.
+On hardware the LVGL pool is sized at run time: 512 KB in PSRAM when the module
+has it, 80 KB of internal RAM otherwise ([Build flags](../docs/reference/build-flags.md#the-lvgl-pool-and-its-failure-path)).
+The sim stands in for a PSRAM board: `env:sim` declares `BOARD_HAS_PSRAM`, so
+LVGL's own pool resolves to **512 KB** in `include/lv_conf.h`, and `SIM_BUILD`
+keeps it on plain `malloc`.
 
 Both builds print pool usage at two points, so a capture session shows the
 numbers:
@@ -97,11 +97,8 @@ LVGL  pool after fonts: used=8376/524288 B (1%) frag=0% largest=...
 LVGL  pool after first page build: used=69696/524288 B (13%) frag=1% largest=...
 ```
 
-Every shipped board env inherits `BOARD_HAS_PSRAM` from `crowpanel_28`, so
-there is currently no build — simulator or hardware — that runs LVGL on the
-80 KB branch of `lv_conf.h`. If a board without PSRAM is ever added, it needs
-its own env that does *not* inherit that flag, and this sim needs a sibling
-that matches it.
+To see the WROOM budget in the sim, build it without `BOARD_HAS_PSRAM`: the
+pool drops to the 80 KB a no-PSRAM board gets.
 
 
 ## How it works
