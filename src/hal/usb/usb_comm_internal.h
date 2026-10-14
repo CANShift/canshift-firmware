@@ -17,6 +17,10 @@ extern volatile uint32_t s_lastHostCmdMs;
 
 void handleCommand(const char *jsonLine);
 
+void routeLine(const char *line, size_t len);
+
+void dispatchFromSerial(const char *jsonLine);
+
 void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey);
 void handlePutDeviceConfig(const JsonObjectConst &obj);
 void handlePutInputBindings(const JsonObjectConst &obj);

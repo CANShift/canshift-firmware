@@ -1,5 +1,7 @@
 #pragma once
 
+#include "app_config.h"
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -69,6 +71,16 @@ void sendOkRebooting();
 void flushAndRestart();
 
 void sendError(const char *code);
+
+using LineSink = void (*)(const char *line, size_t len);
+
+#if APP_WORKSHOP_ENABLED
+
+void setSocketSink(LineSink sink);
+
+void dispatchFromSocket(const char *jsonLine);
+
+#endif
 
 using BurnOverlayShowCb = void (*)();
 
