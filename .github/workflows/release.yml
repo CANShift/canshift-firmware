@@ -198,15 +198,17 @@ jobs:
       - name: Sign firmware artifacts with Ed25519
         run: |
           if [ -z "${FIRMWARE_SIGNING_PRIVATE_KEY:-}" ]; then
-            echo "::warning::FIRMWARE_SIGNING_PRIVATE_KEY repo secret not set —"
-            echo "::warning::skipping .sig generation. Set the secret before the flasher"
-            echo "::warning::starts enforcing signature verification (#1259)."
-            exit 0
+            echo "::error::FIRMWARE_SIGNING_PRIVATE_KEY is not set — the dash refuses unsigned OTA images"
+            exit 1
           fi
           TAG=${{ needs.check-version.outputs.tag }}
           CHIP=${{ matrix.chip }}
           pip install --quiet cryptography
           python3 scripts/sign_release_artifacts.py \
+            "canshift-${CHIP}-${TAG}-merged.bin" \
+            "canshift-${CHIP}-${TAG}-firmware.bin" \
+            "canshift-${CHIP}-${TAG}-spiffs.bin"
+          python3 scripts/verify_release_signatures.py keys/firmware-signing-public.pem \
             "canshift-${CHIP}-${TAG}-merged.bin" \
             "canshift-${CHIP}-${TAG}-firmware.bin" \
             "canshift-${CHIP}-${TAG}-spiffs.bin"
@@ -220,14 +222,7 @@ jobs:
           MERGED="canshift-${CHIP}-${TAG}-merged.bin"
           OTA="canshift-${CHIP}-${TAG}-firmware.bin"
           FS="canshift-${CHIP}-${TAG}-spiffs.bin"
-          # Ed25519 signatures land alongside their .bin when the signing key
-          # is configured (#1259). They are append-only assets so we glob
-          # rather than name them explicitly — the workflow stays compatible
-          # with the pre-signing world while the rollout completes.
-          SIGS=()
-          for f in "${MERGED}.sig" "${OTA}.sig" "${FS}.sig"; do
-            [ -f "${f}" ] && SIGS+=("${f}")
-          done
+          SIGS=("${MERGED}.sig" "${OTA}.sig" "${FS}.sig")
           for i in 1 2 3 4 5; do
             gh release upload "${TAG}" "${MERGED}" "${OTA}" "${FS}" "${SIGS[@]}" --clobber && break
             if [ $i -eq 5 ]; then exit 1; fi
