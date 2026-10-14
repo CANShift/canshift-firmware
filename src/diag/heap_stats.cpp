@@ -110,4 +110,12 @@ void logHeapBracket(const char *tag) {
     LOG_INFO("HEAP", "heap.largest_free=%u before %s", static_cast<unsigned>(largest), tag);
 }
 
+void logMoment(const char *moment) {
+    const Snapshot s = sampleInternal();
+    LOG_INFO("HEAP", "%s: internal free=%lu largest=%lu, psram free=%lu", moment,
+             static_cast<unsigned long>(s.freeInternal),
+             static_cast<unsigned long>(s.largestInternal),
+             static_cast<unsigned long>(s.freePsram));
+}
+
 } // namespace HeapStats
