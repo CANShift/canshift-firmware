@@ -25,6 +25,12 @@ void requestStop();
 
 bool takeStopRequest();
 
+void requestRelease();
+
+bool takeReleaseRequest();
+
+void release();
+
 void tick();
 
 bool isConnected();

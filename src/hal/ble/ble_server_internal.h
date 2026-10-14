@@ -15,6 +15,10 @@ extern NimBLECharacteristic *s_pTimerState;
 extern NimBLECharacteristic *s_pTimerLap;
 
 extern bool s_connected;
+extern bool s_stackInited;
+extern bool s_gattInited;
+extern bool s_enabled;
+extern bool s_released;
 
 void updateStatus();
 
