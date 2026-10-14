@@ -6,6 +6,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 
 - `pio run -e debug` — dev build (prod env requires the OTA HMAC secret)
 - `pio test -e native` — native tests; `pio run -e crowpanel_28 -t buildfs` — SPIFFS
+- `pio run -e bench` then `scripts/bench_perf.py` / `scripts/bench_goldens.py`, and `pio run -e sim` then `scripts/bench_visual.py` — the regression bench; goldens change only via `--update-goldens`, budgets via `scripts/bench_size.py update`
 - `cd rust && cargo test --workspace` — host tests for the Rust crates; CI runs this plus `cargo clippy -- -D warnings` and `cargo fmt --check` on stable (`RUSTUP_TOOLCHAIN=stable`), since the host pass does not need the pinned Espressif fork. `rust/rustfmt.toml` pins the one construct stable and the pinned Espressif rustfmt disagree on, so either toolchain formats identically.
 - Stale `.pio/build` can corrupt — `rm -rf .pio` fixes it. RTK truncates pio logs: use `rtk proxy` + exit codes, not `tee | tail`.
 
@@ -15,7 +16,7 @@ ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · A
 - `src/config/config_types.h` mirrors `@canshift/core` schemas; `core-schema-version.txt` pins `CURRENT_SCHEMA_VERSION` for standalone builds (a sibling `../canshift-core` checkout wins) — update the pin on every schema bump.
 - Firmware visuals are the canonical rendering of the brand (assets/design refs in CANShift/canshift-brand); the tuner preview mirrors them via core `widget-metrics.ts`.
 - `docs/design/DASH_DESIGN_SYSTEM.md` is the binding dash spec and `docs/design/DASH_PAGES.json` the six default pages as data — where the firmware differs, the firmware is wrong. Read both before touching a widget; open deviations live on #127.
-- Zero comments policy — prose belongs in `docs/`, not in the source; clang-format gates every PR over `src`, `include`, `test` and `sim` (`.cpp`, `.h`, `.inc`). CI pins `clang-format==22.1.8`; run `pip install clang-format==22.1.8` to match it, since versions disagree on constructs like `struct stat st{};`.
+- Zero comments policy — prose belongs in `docs/`, not in the source; clang-format gates every PR over `src`, `include`, `test`, `sim` and `bench` (`.cpp`, `.h`, `.inc`). CI pins `clang-format==22.1.8`; run `pip install clang-format==22.1.8` to match it, since versions disagree on constructs like `struct stat st{};`.
 
 ## Code shape
 
@@ -34,5 +35,5 @@ Non-negotiable. Reviewed on every PR, ahead of feature count.
 ## Workflow
 
 - Branch `type/short-description`; Conventional Commits, subject only.
-- PR via `gh pr create`; required checks `ci-success` (aggregates every job in `build.yml`: `native tests`, the per-board `firmware` matrix, `secure`, `diagnostic`, `lint`, `rust` and `scripts and workflows`: actionlint, shellcheck, `ruff check` per `ruff.toml`, prettier on YAML) and `dependency-review`, plus the CodeQL code-scanning rule; **rebase and merge only**.
+- PR via `gh pr create`; required checks `ci-success` (aggregates every gating job in `build.yml`: `native tests`, the per-board `firmware` matrix, the bench (`size budget`, `perf bench`, `behaviour goldens`, `visual goldens` — see `docs/contributing/testing.md`), `secure`, `diagnostic`, `lint`, `rust` and `scripts and workflows`: actionlint, shellcheck, `ruff check` per `ruff.toml`, prettier on YAML) and `dependency-review`, plus the CodeQL code-scanning rule; **rebase and merge only**.
 - Release: bump `package.json` version, merge — once the `build` workflow passes on that commit, the release workflow tags it, builds and drafts the release with merged/firmware/spiffs artifacts. Write substantive release notes before publishing — GitHub Releases is the public changelog.
