@@ -53,6 +53,8 @@ setup()                                             // main.cpp
        ├─ initRuntimeServices                       // TimerService → SignalStore → …
        ├─ initCanHardwarePhase                      // installs TWAI on reserved stack
        ├─ initUsbCommPhase
+       ├─ startCanTaskAndListen                     // taskCAN runs; waits ≤1 s for a frame
+       ├─ showSelfTestScreen                        // CAN BUS row reads the listen window
        ├─ buildUiWithHeapBracket                    // PageManager::init
        ├─ holdSplashUntilMin (2000 ms)              // user can read version
        └─ logBootCompleteAndReady                   // "[BOOT] Ready" marker
@@ -106,6 +108,15 @@ post-Arduino heap.
 - **`updateSplash("Ready", 100)` before `buildUI()`**: `PageManager::init`
   calls `lv_obj_clean(lv_scr_act())` which frees the splash objects.
   Any call to `updateSplash` after that point would deref freed objects.
+
+- **`startCanTaskAndListen` before `showSelfTestScreen`**: the CAN BUS
+  row reports whether a frame arrived, and only `taskCAN` drains the TWAI
+  queue and stamps the last-RX time. The task starts here, not with the
+  others in `createAllTasks()`, and boot waits up to `kCanListenWindowMs`
+  for the first frame. With a live bus that ends within milliseconds;
+  without one it adds up to the window to boot, which the self-test needs
+  to say anything true. Started later, the row always read NO FRAMES and
+  the 32-deep RX queue overflowed during the holds.
 
 - **`holdSplashUntilMin` uses a yielding `vTaskDelay` loop**: boot tends
   to finish in <1 s, which feels twitchy and gives the user no time to

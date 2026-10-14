@@ -23,7 +23,7 @@ static uint32_t s_errorCount = 0;
 
 static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
-static uint32_t s_lastRxMs = 0;
+static std::atomic<uint32_t> s_lastRxMs{0};
 static uint32_t s_lastBusRateX10 = 0;
 static constexpr uint32_t STAT_INTERVAL_MS = 2000;
 
@@ -42,6 +42,8 @@ static constexpr uint32_t RX_ERROR_REPORT_INTERVAL_MS = 1000;
 
 static uint32_t s_lastErrLogMs = 0;
 static uint32_t s_lastErrPushMs = 0;
+static uint32_t s_rxDropped = 0;
+static bool s_rxDropPushed = false;
 
 static StackType_t *s_initTaskStack = nullptr;
 static StaticTask_t s_initTaskTCB;
@@ -154,9 +156,10 @@ bool CanManager::isAvailable() {
 }
 
 uint32_t CanManager::msSinceLastRx() {
-    if (s_lastRxMs == 0)
+    const uint32_t lastRxMs = s_lastRxMs.load(std::memory_order_relaxed);
+    if (lastRxMs == 0)
         return UINT32_MAX;
-    return millis() - s_lastRxMs;
+    return millis() - lastRxMs;
 }
 
 uint32_t CanManager::busRateHz() {
@@ -241,17 +244,21 @@ static void tickInitRetry() {
     }
 }
 
+static bool consumedByObd2(const twai_message_t &message, uint8_t len) {
+    if (Obd2Dtc::onRxFrame(message.identifier, message.data, len))
+        return true;
+    return Obd2Poller::onRxFrame(message.identifier, message.data, len);
+}
+
 static void routeFrame(const twai_message_t &message) {
     s_windowFrames++;
-    s_lastRxMs = millis();
+    s_lastRxMs.store(millis(), std::memory_order_relaxed);
     if (message.rtr)
         return;
     const uint8_t safeLen =
         static_cast<uint8_t>(message.data_length_code < kCanFrameMaxBytes ? message.data_length_code
                                                                           : kCanFrameMaxBytes);
-    const bool consumedByPoller = Obd2Dtc::onRxFrame(message.identifier, message.data, safeLen);
-    Obd2Poller::onRxFrame(message.identifier, message.data, safeLen);
-    if (!consumedByPoller) {
+    if (!consumedByObd2(message, safeLen)) {
         CanParser::parseFrame(message.identifier, message.data, safeLen);
     }
     UsbComm::CanScanFrame sf;
@@ -296,6 +303,33 @@ static void handleRxError(esp_err_t err) {
     vTaskDelay(pdMS_TO_TICKS(TWAI_RX_ERROR_BACKOFF_MS));
 }
 
+static bool readRxDropped(uint32_t *dropped) {
+    twai_status_info_t status;
+    const esp_err_t err = twai_get_status_info(&status);
+    if (err != ESP_OK) {
+        LOG_WARN("CAN", "TWAI status read failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    *dropped = status.rx_missed_count + status.rx_overrun_count;
+    return true;
+}
+
+static void reportRxDrops() {
+    uint32_t dropped = 0;
+    if (!readRxDropped(&dropped))
+        return;
+    const uint32_t previous = s_rxDropped;
+    s_rxDropped = dropped;
+    if (dropped <= previous)
+        return;
+    LOG_WARN("CAN", "TWAI lost %lu frames (total %lu) — RX queue full or FIFO overrun",
+             static_cast<unsigned long>(dropped - previous), static_cast<unsigned long>(dropped));
+    if (s_rxDropPushed)
+        return;
+    s_rxDropPushed = true;
+    ErrorStore::push(ERROR_SRC_CAN, "RX_DROPPED", "frames lost: RX queue or FIFO overrun");
+}
+
 static void updateStatsWindow(uint32_t nowMs) {
     if (s_lastStatMs == 0) {
         s_lastStatMs = nowMs;
@@ -306,7 +340,8 @@ static void updateStatsWindow(uint32_t nowMs) {
     const uint32_t elapsed = nowMs - s_lastStatMs;
     const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
     s_lastBusRateX10 = fpsX10;
-    UsbComm::updateCanStats(fpsX10, s_errorCount);
+    reportRxDrops();
+    UsbComm::updateCanStats(fpsX10, s_errorCount, s_rxDropped);
     s_windowFrames = 0;
     s_lastStatMs = nowMs;
 }

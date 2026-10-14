@@ -65,9 +65,13 @@ USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 | --------------------- | ---------------------------------- | --------------------------------------------------- |
 | Telemetry             | every 200 ms                       | `{"tele":1,"v":{"rpm":3500,…}}`, valid signals only |
 | CAN frame (scan mode) | per frame, at most 32 per USB tick | `{"can":1,"id":888,"len":8,"d":[…]}`                |
-| CAN health            | every 2 s (`STAT_INTERVAL_MS`)     | `{"can_stat":1,"fps":125.0,"errors":0}`             |
+| CAN health            | every 2 s (`STAT_INTERVAL_MS`)     | `{"can_stat":1,"fps":125.0,"errors":0,"missed":0}`  |
 | Log                   | on event                           | `{"log":1,"lvl":"info","tag":"USB","msg":"…"}`      |
 | Ack                   | once per command                   | `{"status":"ok",…}` or `{"status":"error",…}`       |
+
+`missed` is the TWAI driver's lost-frame total since install: frames dropped because the RX
+queue was full plus frames lost to an RX FIFO overrun. The first loss also logs a warning and
+pushes `RX_DROPPED` to the error store.
 
 ## The serial sink
 
