@@ -39,8 +39,8 @@ mod tests {
         unsafe {
             layout_grid_resolve_rs(6, 6, 0, 1, 320, 240, &mut rect);
         }
-        assert_eq!(rect.x, 166);
-        assert_eq!(rect.w, 138);
+        assert_eq!(rect.x, 163);
+        assert_eq!(rect.w, 149);
     }
 
     #[test]

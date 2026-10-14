@@ -45,10 +45,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --all-features
         working-directory: rust
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
         working-directory: rust
       - name: cargo fmt
         run: cargo fmt --all --check
