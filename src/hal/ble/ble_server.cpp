@@ -2,6 +2,8 @@
 #if APP_BLE_ENABLED
 
     #include "ble_server.h"
+    #include "ble_json_arena.h"
+    #include "ble_json_budget.h"
     #include "ble_server_internal.h"
 
     #include "config/json_reader.h"
@@ -36,7 +38,7 @@ static constexpr char TIMER_LAP_UUID[] = "4fa0b6a0-0000-0000-0000-000000000008";
 
 static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
 
-static constexpr size_t BLE_MAX_WRITE_LEN = 256U;
+static constexpr size_t BLE_MAX_WRITE_LEN = BleJsonBudget::kMaxWriteBytes;
 static constexpr uint32_t BLE_SETTINGS_MUTEX_TIMEOUT_MS = 50U;
 
 static constexpr uint16_t BLE_PREFERRED_MTU = 247U;
@@ -119,7 +121,8 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
             return;
         }
 
-        JsonDocument doc;
+        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
+        JsonDocument &doc = leased.document();
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
@@ -148,12 +151,13 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
     }
 
     void onRead(NimBLECharacteristic *pChar) override {
-        JsonDocument doc;
+        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
+        JsonDocument &doc = leased.document();
         doc["brightness"] = SettingsPage::getBrightness();
         char buf[64];
 
         const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
-        if (len == 0 || len >= sizeof(buf)) {
+        if (doc.overflowed() || len == 0 || len >= sizeof(buf)) {
             LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",
                      static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
             pChar->setValue("{\"err\":\"too_long\"}");
@@ -174,7 +178,8 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
             return;
         }
 
-        JsonDocument doc;
+        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
+        JsonDocument &doc = leased.document();
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
@@ -203,7 +208,8 @@ class TimerCmdCallbacks : public NimBLECharacteristicCallbacks {
             return;
         }
 
-        JsonDocument doc;
+        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
+        JsonDocument &doc = leased.document();
         if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
             return;
 
