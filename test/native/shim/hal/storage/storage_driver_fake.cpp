@@ -77,11 +77,18 @@ size_t fileSize(const char *path) {
     return f ? f->size : 0;
 }
 
-size_t streamFileTo(const char *path, Print & /*out*/, bool /*replaceNewlinesWithSpaces*/) {
-    // Host tests don't exercise the streaming-to-Serial path. Return size so
-    // callers' contracts still see "non-zero on success".
+size_t streamFileTo(const char *path, Print &out, bool replaceNewlinesWithSpaces) {
     FakeFile *f = findFile(path);
-    return f ? f->size : 0;
+    if (!f)
+        return 0;
+    for (size_t i = 0; i < f->size; ++i) {
+        const bool newline = f->data[i] == '\n';
+        const uint8_t byte =
+            static_cast<uint8_t>(newline && replaceNewlinesWithSpaces ? ' ' : f->data[i]);
+        if (out.write(byte) != 1)
+            return 0;
+    }
+    return f->size;
 }
 
 namespace {

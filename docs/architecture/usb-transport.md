@@ -88,6 +88,13 @@ socket line to the socket only, and a line written outside any command
 an RAII scope around `handleCommand()` and applies only to the task that set
 it. See [Transports](transports.md#workshop-socket--the-16-mb-boards-wi-fi-link).
 
+GET_CONFIG is the one reply too large for a line buffer: the bundled
+`dashboard.json` alone is ~28 KB. It asks the route where the reply goes
+(`replyReachesSerial()` / `replyReachesSocket()`). On UART0 it streams the
+file under the UART lock without buffering it, which keeps a no-PSRAM board
+out of a 28 KB allocation. For the socket it reads the file into one
+PSRAM-preferred buffer and sends it as a single frame.
+
 On a `Logger::lockUart` timeout the line is dropped rather than interleaved
 with a log line.
 
