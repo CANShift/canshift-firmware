@@ -84,6 +84,54 @@ gh run download <run-id> --pattern 'size-*' --dir sizes
 python3 scripts/bench_size.py update --measured sizes
 ```
 
+### Performance bench
+
+`pio run -e bench` builds `.pio/build/bench/program`, a host binary that links
+the firmware's own CAN parser, expression VM, telemetry encoder, status writer,
+float formatter and the complete USB/WebSocket command dispatcher at `-O2`,
+with fakes only for the hardware (`bench/host/`, `bench/host/shims/`). Its
+`perf` mode times each hot path:
+
+| Case               | What one operation is                                                                                                                               |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calibration`      | a fixed integer loop, the yardstick for the runner's speed                                                                                          |
+| `can_decode`       | `CanParser::parseFrame` over the bundled `signals.json` frames                                                                                      |
+| `expr_eval`        | `eval_tokens_rs` over five representative compiled expressions                                                                                      |
+| `telemetry_encode` | `TelemetryFrame::encode` of a 14-field frame                                                                                                        |
+| `status_writer`    | `UsbStatusLine::format`                                                                                                                             |
+| `format_float`     | `FloatFormat::formatFixed` across values and precisions                                                                                             |
+| `command/<class>`  | `handleCommand` for status, ping, a shared command, a config read, an OTA rejection, an unknown command and a parse error, over the WebSocket route |
+
+Each case calibrates its batch to about 2 ms, warms up, then takes 31 batches
+and reports the median and quartiles in ns per operation.
+
+`scripts/bench_perf.py` runs the head binary and the baseline binary five
+times each, alternating, and compares the median of the five medians. A case
+fails only when it is more than 10 % slower **and** every head round is slower
+than every baseline round; a slower median whose rounds overlap is reported as
+`noisy` and does not fail. A suspected regression gets five more rounds of each
+side before the verdict. The `noise` column is the largest run-to-run spread
+(max − min over median) of either side.
+
+In CI the `perf bench` job checks out the PR's base commit next to the head,
+builds the bench in both, and compares them on the same runner, so runner
+generations never mix. When the base predates the bench env it compares the
+head with itself. To run it locally:
+
+```bash
+pio run -e bench
+python3 scripts/bench_perf.py                       # head against itself: the noise floor
+python3 scripts/bench_perf.py --base-root ../main   # a second checkout with its own bench build
+```
+
+Measured on `ubuntu-latest` over five A/A runs, the largest median delta was
+4.4 % (`command/ota_reject`), every other case stayed under 2 %, and single
+rounds spread up to 16 %: the median-of-medians and the separation rule absorb
+that without a false failure, while an injected 20 % slowdown is caught.
+
+A deliberate slowdown, such as a new feature in a hot path, still fails the
+job; say so in the PR and let the reviewer accept it.
+
 ## Rust crates — cargo test (`canshift-firmware`)
 
 Each crate under `canshift-firmware/rust/` carries its own tests.

@@ -42,6 +42,50 @@ jobs:
       - name: native tests
         run: pio test -e native
 
+  perf:
+    name: perf bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: stable
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.BASE_SHA }}
+          path: .bench-base
+          persist-credentials: false
+      - uses: ./.github/actions/pio-setup
+        with:
+          cache-suffix: bench
+      - name: build head
+        run: pio run -e bench
+      - name: build baseline
+        id: base
+        run: |
+          if ! grep -q '^\[env:bench\]' .bench-base/platformio.ini; then
+            echo "::notice title=perf bench::baseline ${BASE_SHA::7} has no bench env; comparing head against itself"
+            exit 0
+          fi
+          (cd .bench-base && pio run -e bench)
+          echo "root=.bench-base" >> "$GITHUB_OUTPUT"
+      - name: compare
+        env:
+          BASE_ROOT: ${{ steps.base.outputs.root }}
+        run: |
+          python3 scripts/bench_perf.py ${BASE_ROOT:+--base-root "$BASE_ROOT"} \
+            --baseline-label "${BASE_SHA::7}" --report perf-report.json --summary "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: perf-report
+          path: perf-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   set-matrix:
     name: resolve board matrix
     runs-on: ubuntu-latest
@@ -203,7 +247,7 @@ jobs:
       - name: clang-format
         run: |
           pip install "clang-format==${CLANG_FORMAT_VERSION}"
-          find src include test sim \( -name "*.cpp" -o -name "*.h" -o -name "*.inc" \) \
+          find src include test sim bench \( -name "*.cpp" -o -name "*.h" -o -name "*.inc" \) \
             ! -name 'lv_conf.h' ! -path 'test/native/vendor/*' -print0 \
             | xargs -0 clang-format --dry-run --Werror --style=file
       - name: FFI constant parity
@@ -281,7 +325,8 @@ jobs:
 
   ci-success:
     name: ci-success
-    needs: [native, set-matrix, firmware, size-budget, secure, diagnostic, lint, rust, scripts]
+    needs:
+      [native, perf, set-matrix, firmware, size-budget, secure, diagnostic, lint, rust, scripts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
