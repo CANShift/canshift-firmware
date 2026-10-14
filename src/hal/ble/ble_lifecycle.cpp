@@ -5,6 +5,7 @@
     #include "ble_server_internal.h"
 
     #include "diag/error_store.h"
+    #include "diag/heap_stats.h"
     #include "diag/logger.h"
 
     #include <NimBLEDevice.h>
@@ -59,6 +60,7 @@ void BleServer::stop() {
 void BleServer::release() {
     if (BleServerInternal::s_released)
         return;
+    HeapStats::logMoment("before BLE release");
     if (s_stackInited)
         teardownStack();
     BleServerInternal::s_released = true;
@@ -69,6 +71,7 @@ void BleServer::release() {
         return;
     }
     LOG_INFO("BLE", "BLE stopped for workshop mode — controller memory released");
+    HeapStats::logMoment("after BLE release");
 }
 
     #endif

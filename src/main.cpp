@@ -22,6 +22,7 @@
 #include "hal/display/display_driver.h"
 #include "hal/touch/touch_driver.h"
 #include "hal/usb/usb_comm.h"
+#include "hal/wifi/workshop_server.h"
 #include "runtime/alert_engine.h"
 #include "runtime/input_buttons.h"
 #include "runtime/lvgl_lock.h"
@@ -278,15 +279,21 @@ inline void uiDrainOtaOverlayActions() {
     OtaOverlay::Detail::tick();
 }
 
+inline void uiHandRadioToWorkshop() {
+#if APP_BLE_ENABLED
+    BleServer::requestRelease();
+#else
+    WorkshopServer::requestStart();
+#endif
+}
+
 inline void uiDrainWorkshopEntry() {
     if (!WorkshopMode::isEntering())
         return;
     const bool entered = WorkshopScreen::enter();
     WorkshopMode::settleEntry(entered);
-#if APP_BLE_ENABLED
     if (entered)
-        BleServer::requestRelease();
-#endif
+        uiHandRadioToWorkshop();
 }
 
 inline void uiDrainWorkshopConfigReload() {
@@ -522,6 +529,7 @@ void taskUSBComm(void *pvParameters) {
 #endif
 
         UsbComm::tick();
+        WorkshopServer::tick();
 
 #if APP_USB_TICK_TRACE
         const int64_t bodyDurUs = esp_timer_get_time() - bodyStartUs;
@@ -549,6 +557,7 @@ void taskBLE(void *pvParameters) {
         }
         if (BleServer::takeReleaseRequest()) {
             BleServer::release();
+            WorkshopServer::requestStart();
         }
         BleServer::tick();
 
