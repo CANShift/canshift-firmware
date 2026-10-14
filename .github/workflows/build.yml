@@ -50,6 +50,9 @@ jobs:
           pio run -e "${{ matrix.board }}" 2>&1 | tee build.log \
             || { echo "::error title=firmware build failed::board '${{ matrix.board }}' failed to build"; exit 1; }
 
+      - name: link invariants
+        run: python3 scripts/check_link_invariants.py ".pio/build/${{ matrix.board }}/firmware.map"
+
       - name: flash budget gate
         run: |
           PCT=$(grep '^Flash:' build.log | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%')
