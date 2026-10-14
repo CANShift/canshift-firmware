@@ -1,7 +1,9 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
     branches: [main]
 
 concurrency:
@@ -9,39 +11,48 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
+  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
   ESPTOOL_VERSION: 5.5.0
   CRYPTOGRAPHY_VERSION: 50.0.2
 
 jobs:
   check-version:
     name: Check version
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
       version: ${{ steps.ver.outputs.version }}
       should_release: ${{ steps.check.outputs.should_release }}
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
 
       - name: Read firmware version
         id: ver
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Check if release already exists
         id: check
         run: |
           if gh release view "${{ steps.ver.outputs.tag }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
             echo "Release ${{ steps.ver.outputs.tag }} already exists — skipping."
           else
-            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "New version ${{ steps.ver.outputs.tag }} — will release."
           fi
         env:
@@ -52,10 +63,14 @@ jobs:
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       chips: ${{ steps.read.outputs.chips }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
       - id: read
         run: |
           echo "chips=$(jq -c '[.[] | select(.universal) | {chip, pio_env: .id}]' .github/boards.json)" >> "$GITHUB_OUTPUT"
@@ -67,8 +82,12 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
 
       - name: Create GitHub Release if missing
         run: |
@@ -77,6 +96,7 @@ jobs:
             gh release create "${TAG}" \
               --repo "${{ github.repository }}" \
               --title "${TAG}" \
+              --target "${HEAD_SHA}" \
               --notes "Firmware-only release. See README.md for the bundled changes." \
               --draft
           fi
@@ -97,12 +117,16 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.set-matrix.outputs.chips) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
 
       - uses: ./.github/actions/pio-setup
         with:
@@ -208,8 +232,12 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
 
       - name: Download release binaries
         run: |
