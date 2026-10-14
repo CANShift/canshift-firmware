@@ -30,7 +30,7 @@ documents the workarounds.
 
 Each button is two axis-aligned rectangles glued together with a notched
 inner corner. The outer five corners are rounded; the notch's two corners
-are rounded at smaller radius. Studio's `CruiseControlPreview.tsx` is the
+are rounded at smaller radius. The tuner's `CruiseControlPreview.tsx` is the
 SoT for layout; firmware mirrors it pixel-by-pixel.
 
 ## Why polygons, not lv_btn

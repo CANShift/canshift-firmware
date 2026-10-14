@@ -190,7 +190,7 @@ jobs:
             "$BOOTLOADER_ADDR" ".pio/build/${PIO_ENV}/bootloader.bin" \
             0x8000 ".pio/build/${PIO_ENV}/partitions.bin" \
             0x10000 ".pio/build/${PIO_ENV}/firmware.bin"
-          # Firmware-partition image — what mobile / studio OTA must consume.
+          # Firmware-partition image — what mobile / tuner OTA must consume.
           cp ".pio/build/${PIO_ENV}/firmware.bin" "canshift-${CHIP}-${TAG}-firmware.bin"
           # SPIFFS image — flashed to the data partition.
           cp ".pio/build/${PIO_ENV}/spiffs.bin" "canshift-${CHIP}-${TAG}-spiffs.bin"

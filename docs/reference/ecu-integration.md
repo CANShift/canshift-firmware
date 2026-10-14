@@ -15,7 +15,7 @@ You should be able to complete this in an evening if you already have:
 - hardware wired per [`docs/can-integration-notes.md`](can-integration.md).
 
 If you only own one of the ECUs that ships as a built-in preset
-(MaxxECU, OBD-II J1979), skip to [Section 4](#4-pick-a-preset-in-studio-and-flash)
+(MaxxECU, OBD-II J1979), skip to [Section 4](#4-pick-a-preset-in-the-tuner-and-flash)
 — most of the work is already done.
 
 ---
@@ -44,7 +44,7 @@ offsets**, **byte length**, **byte order** (big- vs little-endian),
 ### Using the scanner
 
 CANShift's USB scanner mode emits live frames as JSON over the serial port.
-Plug the device into Studio over USB, switch to the **CAN Scanner** tab, and
+Plug the device into the tuner over USB, open the bus scan on the **Vehicle** tab, and
 the bus will surface as `{ "can_frame": { "id": "0x370", "data": "1A2B..." } }`
 lines. Even when you have vendor docs, run the scanner for 30 s once — it
 catches surprises like frames the docs forgot to mention or rates that don't
@@ -203,23 +203,22 @@ export const ECU_PROFILES: EcuProfile[] = [
 
 [`canshift-core/src/__tests__/ecu-profiles.test.ts`](https://github.com/CANShift/canshift-core/blob/main/src/__tests__/ecu-profiles.test.ts)
 validates every preset against the full `SignalConfigSchema` — typo a frame
-ID and CI catches it before the preset hits Studio.
+ID and CI catches it before the preset reaches the tuner.
 
 If you don't want to share the catalog upstream, skip this step and pick the
-`Generic (blank)` preset in Studio, then paste your signals one at a time.
+`Generic (blank)` preset in the tuner, then paste your signals one at a time.
 
 ---
 
-## 4. Pick a preset in Studio and flash
+## 4. Pick a preset in the tuner and flash
 
-1. Open CANShift Studio, connect the device over USB.
-2. Open the **Signal Config** route. The dropdown shows every preset from
+1. Open the CANShift tuner, connect the device over USB.
+2. Open the **Vehicle** tab. The ECU profile picker shows every preset from
    `ECU_PROFILES` plus an option to import a custom `signals.json`.
 3. Pick your preset (or `Generic (blank)` if you're hand-editing).
 4. The preview pane renders every signal in the catalog. Eyeball it — do
    the frame IDs match what your ECU broadcasts? Do the units make sense?
-5. **Save** writes the catalog to studio's local `userData/signals.json`.
-6. **Push to device** sends the file over USB. The firmware reloads its
+5. **Push to device** sends the file over USB. The firmware reloads its
    `SignalStore` and the dashboard starts decoding the new layout
    immediately — no reboot needed.
 
@@ -269,8 +268,8 @@ Per-ECU integration notes for built-in presets:
 | Preset                    | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **MaxxECU Street / Race** | Default frame group at `0x370`-`0x375`. Verify against your MaxxECU's "CAN Output" page in MaxxECU PC software — Street and Race share the layout but Race adds extra frames (race-specific telemetry) you may want to map manually.                                                                                                                                                                                                                       |
-| **OBD-II J1979**          | Polling shipped in [#841](https://github.com/CANShift/issues/841). Add a `polling: { mode: 0x01, pid, intervalMs }` block to each signal; the firmware's `Obd2Poller` then sends `0x7DF` requests and decodes the `0x7E8` responses. See `data/signals_obd2_mode01.json.example` for a starter catalog, and the Studio editor's **Signals** tab for the Mode 01 PID picker. v1 scope = Mode 01 + single ECU at `0x7DF/0x7E8`; multi-ECU + ISO-TP deferred. |
-| **Generic (blank)**       | Use as the starting point for any ECU not yet covered. No signals predefined — add them via the Studio editor or by editing the exported `signals.json` directly.                                                                                                                                                                                                                                                                                          |
+| **OBD-II J1979**          | Polling shipped in [#841](https://github.com/CANShift/issues/841). Add a `polling: { mode: 0x01, pid, intervalMs }` block to each signal; the firmware's `Obd2Poller` then sends `0x7DF` requests and decodes the `0x7E8` responses. See `data/signals_obd2_mode01.json.example` for a starter catalog, and the tuner's **Vehicle** tab for the Mode 01 PID picker. v1 scope = Mode 01 + single ECU at `0x7DF/0x7E8`; multi-ECU + ISO-TP deferred. |
+| **Generic (blank)**       | Use as the starting point for any ECU not yet covered. No signals predefined — add them in the tuner or by editing the exported `signals.json` directly.                                                                                                                                                                                                                                                                                          |
 
 ### Want to add a vendor preset?
 

@@ -167,7 +167,7 @@ pub fn format_from_spec(buf: &mut [u8], value: f32, spec: &[u8]) -> usize {
 }
 
 // printf %g equivalent — fixed notation, trailing zeros dropped. Output is
-// valid JSON numeric (Studio parses telemetry as JSON).
+// valid JSON numeric (the tuner parses telemetry as JSON).
 #[must_use]
 pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
     if buf.is_empty() {
