@@ -67,20 +67,21 @@ jobs:
             exit 1
           fi
           IMG=".pio/build/${{ matrix.board }}/spiffs.bin"
+          STAGED=".pio/build/${{ matrix.board }}/spiffs_data"
           if [ ! -f "$IMG" ]; then
             echo "::error::spiffs.bin not produced by buildfs for '${{ matrix.board }}'"
             exit 1
           fi
           EXTRACT=$(mktemp -d)
           "$MKSPIFFS" -u "$EXTRACT" "$IMG" > /dev/null
-          (cd data && find . -type f | sort) > /tmp/src.list
+          (cd "$STAGED" && find . -type f | sort) > /tmp/src.list
           (cd "$EXTRACT" && find . -type f | sort) > /tmp/img.list
           if ! diff /tmp/src.list /tmp/img.list > /tmp/list.diff; then
             echo "::error::spiffs file list mismatch for '${{ matrix.board }}' (#1240)"
             cat /tmp/list.diff
             exit 1
           fi
-          (cd data && find . -type f | sort | xargs -I{} sha256sum {}) > /tmp/src.sha
+          (cd "$STAGED" && find . -type f | sort | xargs -I{} sha256sum {}) > /tmp/src.sha
           (cd "$EXTRACT" && find . -type f | sort | xargs -I{} sha256sum {}) > /tmp/img.sha
           if ! diff /tmp/src.sha /tmp/img.sha > /tmp/sha.diff; then
             echo "::error::spiffs content mismatch for '${{ matrix.board }}'"
