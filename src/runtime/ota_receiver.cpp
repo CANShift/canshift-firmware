@@ -104,7 +104,7 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32]) {
     }
 
     esp_ota_handle_t handle = 0;
-    const esp_err_t err = esp_ota_begin(target, totalSize, &handle);
+    const esp_err_t err = esp_ota_begin(target, OTA_WITH_SEQUENTIAL_WRITES, &handle);
     if (err != ESP_OK) {
         LOG_ERROR("OTA", "esp_ota_begin failed: %s", esp_err_to_name(err));
         s_state = State::Failed;
