@@ -6,10 +6,18 @@ inputs:
     description: Install the esp32 Xtensa Rust toolchain (needed for firmware builds, not host tests)
     required: false
     default: 'false'
+  espup-targets:
+    description: Comma-separated chips espup installs the Xtensa toolchain for
+    required: false
+    default: esp32,esp32s3
   cache-suffix:
     description: Extra key segment to isolate the .pio build cache per matrix leg (e.g. the board)
     required: false
     default: default
+  build-cache:
+    description: Restore the .pio build tree; release builds pass 'false' so no stale object reaches a shipped image
+    required: false
+    default: 'true'
 
 runs:
   using: composite
@@ -23,7 +31,7 @@ runs:
         path: |
           ~/.platformio/.cache
           ~/.platformio/.packages
-          .pio
+          ${{ inputs.build-cache == 'true' && '.pio' || '' }}
         key: pio-${{ runner.os }}-${{ inputs.cache-suffix }}-${{ hashFiles('platformio.ini') }}
         restore-keys: |
           pio-${{ runner.os }}-${{ inputs.cache-suffix }}-
@@ -34,6 +42,7 @@ runs:
     - uses: actions/cache@v6
       with:
         path: |
+          ~/.cargo/bin/espup
           ~/.cargo/registry
           ~/.cargo/git
           ~/.rustup
@@ -45,11 +54,14 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        ESPUP_VERSION: 0.17.1
+        XTENSA_TOOLCHAIN_VERSION: 1.97.0.0
+        ESPUP_TARGETS: ${{ inputs.espup-targets }}
       run: |
-        if ! command -v espup >/dev/null; then
-          cargo install espup --locked
+        if [ "$(espup --version 2>/dev/null)" != "espup ${ESPUP_VERSION}" ]; then
+          cargo install espup --locked --force --version "${ESPUP_VERSION}"
         fi
-        espup install --targets esp32,esp32s3
+        espup install --targets "${ESPUP_TARGETS}" --toolchain-version "${XTENSA_TOOLCHAIN_VERSION}"
         . ~/export-esp.sh
         echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
         for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do
@@ -57,4 +69,6 @@ runs:
         done
 
     - shell: bash
-      run: pip install platformio
+      env:
+        PLATFORMIO_VERSION: 6.2.0
+      run: pip install "platformio==${PLATFORMIO_VERSION}"
