@@ -1,6 +1,6 @@
 #include "can_manager.h"
 #include "can_parser.h"
-#include "obd2_dtc.h"
+#include "can_rx_route.h"
 #include "obd2_poller.h"
 #include "board.h"
 #include "app_config.h"
@@ -244,12 +244,6 @@ static void tickInitRetry() {
     }
 }
 
-static bool consumedByObd2(const twai_message_t &message, uint8_t len) {
-    if (Obd2Dtc::onRxFrame(message.identifier, message.data, len))
-        return true;
-    return Obd2Poller::onRxFrame(message.identifier, message.data, len);
-}
-
 static void routeFrame(const twai_message_t &message) {
     s_windowFrames++;
     s_lastRxMs.store(millis(), std::memory_order_relaxed);
@@ -258,9 +252,7 @@ static void routeFrame(const twai_message_t &message) {
     const uint8_t safeLen =
         static_cast<uint8_t>(message.data_length_code < kCanFrameMaxBytes ? message.data_length_code
                                                                           : kCanFrameMaxBytes);
-    if (!consumedByObd2(message, safeLen)) {
-        CanParser::parseFrame(message.identifier, message.data, safeLen);
-    }
+    CanRxRoute::deliver(message.identifier, message.data, safeLen);
     UsbComm::CanScanFrame sf;
     sf.id = message.identifier;
     sf.len = safeLen;

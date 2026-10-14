@@ -1,0 +1,60 @@
+== usb
+> {"cmd":48,"total":96,"sha256":"e68967031832c34a109bf26673a5c9c26c22acdf6012837512c19f1b324af39d","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8AAAAAJCUmJygpKissLS4v"}
+< {"log":1,"ts":1010,"lvl":"E","tag":"OTA","msg":"not an app image — rejecting at offset=0"}
+< {"status":"error","message":"not_app_image","written":0}
+> {"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+< {"status":"error","message":"not_receiving","written":0}
+> {"cmd":48,"total":96,"sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"ok","written":48}
+> {"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+< {"status":"ok","written":96}
+> {"cmd":50,"action":"commit"}
+< {"log":1,"ts":1061,"lvl":"E","tag":"OTA","msg":"sha256 mismatch — aborting"}
+< {"status":"error","message":"sha256_mismatch","detail":"0x0"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"ok","written":48}
+> {"cmd":50,"action":"commit"}
+< {"log":1,"ts":1092,"lvl":"E","tag":"OTA","msg":"commit while incomplete: written=48 expected=96"}
+< {"status":"error","message":"incomplete","detail":"0x0"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":50}
+< {"status":"ok"}
+> {"cmd":50,"action":"commit"}
+< {"status":"error","message":"not_receiving","detail":"0x0"}
+== ws
+> {"cmd":48,"total":96,"sha256":"e68967031832c34a109bf26673a5c9c26c22acdf6012837512c19f1b324af39d","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8AAAAAJCUmJygpKissLS4v"}
+< {"log":1,"ts":1010,"lvl":"E","tag":"OTA","msg":"not an app image — rejecting at offset=0"}
+< {"status":"error","message":"not_app_image","written":0}
+> {"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+< {"status":"error","message":"not_receiving","written":0}
+> {"cmd":48,"total":96,"sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"ok","written":48}
+> {"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+< {"status":"ok","written":96}
+> {"cmd":50,"action":"commit"}
+< {"log":1,"ts":1061,"lvl":"E","tag":"OTA","msg":"sha256 mismatch — aborting"}
+< {"status":"error","message":"sha256_mismatch","detail":"0x0"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"ok","written":48}
+> {"cmd":50,"action":"commit"}
+< {"log":1,"ts":1092,"lvl":"E","tag":"OTA","msg":"commit while incomplete: written=48 expected=96"}
+< {"status":"error","message":"incomplete","detail":"0x0"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":50}
+< {"status":"ok"}
+> {"cmd":50,"action":"commit"}
+< {"status":"error","message":"not_receiving","detail":"0x0"}

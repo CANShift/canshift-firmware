@@ -1,0 +1,50 @@
+== usb
+> {"cmd":48,"total":0,"sha256":"00"}
+< {"status":"error","message":"bad_args"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench"}
+< {"log":1,"ts":1010,"lvl":"E","tag":"OTA","msg":"begin refused: ota_unsigned"}
+< {"status":"error","message":"ota_unsigned"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"AAAA"}
+< {"status":"error","message":"ota_bad_signature"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"error","message":"not_receiving","written":0}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":48,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"error","message":"offset_mismatch","written":0}
+> {"cmd":49,"offset":0,"data":"!!!!"}
+< {"status":"error","message":"b64_decode"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"ok","written":48}
+> {"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+< {"status":"ok","written":96}
+> {"cmd":50,"action":"commit"}
+< {"log":1,"ts":1101,"lvl":"E","tag":"OTA","msg":"signature does not match the release key — aborting"}
+< {"status":"error","message":"ota_bad_signature","detail":"0x0"}
+== ws
+> {"cmd":48,"total":0,"sha256":"00"}
+< {"status":"error","message":"bad_args"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench"}
+< {"log":1,"ts":1010,"lvl":"E","tag":"OTA","msg":"begin refused: ota_unsigned"}
+< {"status":"error","message":"ota_unsigned"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"AAAA"}
+< {"status":"error","message":"ota_bad_signature"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"error","message":"not_receiving","written":0}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":48,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"error","message":"offset_mismatch","written":0}
+> {"cmd":49,"offset":0,"data":"!!!!"}
+< {"status":"error","message":"b64_decode"}
+> {"cmd":48,"total":96,"sha256":"2a3fe7d37d2fc5f9517004e142bcd9e70061ab0dd3b6bb86dea31246c3cf458c","version":"9.9.9-bench","sig":"ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERAA=="}
+< {"status":"ok"}
+> {"cmd":49,"offset":0,"data":"6QECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8yVM2rJCUmJygpKissLS4v"}
+< {"status":"ok","written":48}
+> {"cmd":49,"offset":48,"data":"MDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5f"}
+< {"status":"ok","written":96}
+> {"cmd":50,"action":"commit"}
+< {"log":1,"ts":1101,"lvl":"E","tag":"OTA","msg":"signature does not match the release key — aborting"}
+< {"status":"error","message":"ota_bad_signature","detail":"0x0"}

@@ -86,6 +86,35 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  goldens:
+    name: behaviour goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/pio-setup
+        with:
+          cache-suffix: bench
+      - name: build bench
+        run: pio run -e bench
+      - name: compare against bench/goldens
+        run: |
+          python3 scripts/bench_goldens.py --failures golden-failures \
+            --report goldens-report.json --summary "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: goldens-report
+          path: |
+            goldens-report.json
+            golden-failures/
+          if-no-files-found: ignore
+          retention-days: 14
+
   set-matrix:
     name: resolve board matrix
     runs-on: ubuntu-latest
@@ -326,7 +355,19 @@ jobs:
   ci-success:
     name: ci-success
     needs:
-      [native, perf, set-matrix, firmware, size-budget, secure, diagnostic, lint, rust, scripts]
+      [
+        native,
+        perf,
+        goldens,
+        set-matrix,
+        firmware,
+        size-budget,
+        secure,
+        diagnostic,
+        lint,
+        rust,
+        scripts,
+      ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

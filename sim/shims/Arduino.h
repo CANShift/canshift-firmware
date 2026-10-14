@@ -2,30 +2,25 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "sim_clock.h"
 
-#include <chrono>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <math.h>
-#include <thread>
 
 inline uint32_t millis() {
-    using namespace std::chrono;
-    static const steady_clock::time_point start = steady_clock::now();
-    return static_cast<uint32_t>(duration_cast<milliseconds>(steady_clock::now() - start).count());
+    return SimClock::nowMs();
 }
 
 inline uint32_t micros() {
-    using namespace std::chrono;
-    static const steady_clock::time_point start = steady_clock::now();
-    return static_cast<uint32_t>(duration_cast<microseconds>(steady_clock::now() - start).count());
+    return static_cast<uint32_t>(SimClock::nowUs());
 }
 
 inline void delay(uint32_t ms) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    SimClock::sleepMs(ms);
 }
 
 inline long random(long minVal, long maxVal) {
@@ -65,6 +60,17 @@ class Print {
 
 class SerialShim : public Print {
   public:
+    using Capture = void (*)(uint8_t c);
+    void setCapture(Capture capture) {
+        m_capture = capture;
+    }
+    size_t write(uint8_t c) override {
+        if (m_capture == nullptr)
+            return Print::write(c);
+        m_capture(c);
+        return 1;
+    }
+    using Print::write;
     void begin(unsigned long) {}
     void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3))) {
         va_list args;
@@ -85,6 +91,9 @@ class SerialShim : public Print {
     int availableForWrite() {
         return 4096;
     }
+
+  private:
+    Capture m_capture = nullptr;
 };
 
 inline SerialShim Serial;
