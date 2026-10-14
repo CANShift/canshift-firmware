@@ -168,6 +168,13 @@ PAIRS = (
         "WORKSHOP_JOIN_PAYLOAD_CAP",
     ),
     (
+        "workshop tuner path cap",
+        "rust/workshop-mode/src/tuner_assets.rs",
+        "WORKSHOP_TUNER_PATH_CAP",
+        "include/workshop_mode_rs.h",
+        "WORKSHOP_TUNER_PATH_CAP",
+    ),
+    (
         "workshop state driving",
         "rust/workshop-mode/src/lib.rs",
         "WORKSHOP_STATE_DRIVING",

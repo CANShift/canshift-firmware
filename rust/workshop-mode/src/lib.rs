@@ -5,12 +5,16 @@ mod ffi;
 
 mod credentials;
 mod join_payload;
+mod tuner_assets;
 
 pub use credentials::{
     credentials_valid, generate_credentials, Credentials, WORKSHOP_ENTROPY_BYTES,
     WORKSHOP_PASSWORD_CAP, WORKSHOP_PASSWORD_LEN, WORKSHOP_SSID_CAP,
 };
 pub use join_payload::{join_payload, WORKSHOP_JOIN_PAYLOAD_CAP};
+pub use tuner_assets::{
+    content_type, spa_route, tuner_path, DEFAULT_CONTENT_TYPE, WORKSHOP_TUNER_PATH_CAP,
+};
 
 #[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
 #[panic_handler]
