@@ -114,6 +114,13 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("flag_limp_mode", ids::FLAG_LIMP_MODE),
 ];
 
+pub const MAX_NAME_LEN: usize = 32;
+
+#[must_use]
+pub fn terminated_name_len(read: impl Fn(usize) -> u8) -> Option<usize> {
+    (0..MAX_NAME_LEN).find(|&i| read(i) == 0)
+}
+
 /// Returns SIGNAL_COUNT on unknown name or empty input.
 #[must_use]
 pub fn signal_id_from_name(name: &str) -> SignalId {
@@ -131,6 +138,22 @@ pub fn signal_id_from_name(name: &str) -> SignalId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn name_scan_never_reads_past_the_terminator() {
+        let short = b"rpm\0";
+        let len = terminated_name_len(|i| *short.get(i).expect("read past the terminator"));
+        assert_eq!(len, Some(3));
+    }
+
+    #[test]
+    fn unterminated_name_scan_stops_at_the_cap() {
+        let len = terminated_name_len(|i| {
+            assert!(i < MAX_NAME_LEN, "read past the cap");
+            b'a'
+        });
+        assert_eq!(len, None);
+    }
 
     #[test]
     fn known_names_resolve() {
