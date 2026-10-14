@@ -4,17 +4,34 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHON_VERSION: '3.12'
+  CLANG_FORMAT_VERSION: '22.1.8'
 
 jobs:
   native:
     name: native tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # The host static libs are x86; the workspace pins the Espressif fork for
     # the xtensa target only, and this job never installs espup.
     env:
       RUSTUP_TOOLCHAIN: stable
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/pio-setup
       - name: native tests
         run: pio test -e native
@@ -22,10 +39,13 @@ jobs:
   set-matrix:
     name: resolve board matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       boards: ${{ steps.read.outputs.boards }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - id: read
         run: echo "boards=$(jq -c '[.[].id]' .github/boards.json)" >> "$GITHUB_OUTPUT"
 
@@ -33,12 +53,15 @@ jobs:
     name: firmware
     needs: set-matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         board: ${{ fromJSON(needs.set-matrix.outputs.boards) }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/pio-setup
         with:
@@ -95,8 +118,11 @@ jobs:
   secure:
     name: secure build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/pio-setup
         with:
@@ -106,12 +132,14 @@ jobs:
       - name: build (secure)
         run: pio run -e secure
 
-
   diagnostic:
     name: diagnostic builds
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/pio-setup
         with:
           espup: 'true'
@@ -125,19 +153,69 @@ jobs:
           PLATFORMIO_BUILD_FLAGS="-DAPP_BLE_ENABLED=0" pio run -e debug \
             || { echo "::error title=BLE-disabled build failed::code guarded by APP_BLE_ENABLED no longer compiles without it"; exit 1; }
 
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: clang-format
+        run: |
+          pip install "clang-format==${CLANG_FORMAT_VERSION}"
+          find src include test sim \( -name "*.cpp" -o -name "*.h" -o -name "*.inc" \) \
+            ! -name 'lv_conf.h' ! -path 'test/native/vendor/*' -print0 \
+            | xargs -0 clang-format --dry-run --Werror --style=file
+      - name: FFI constant parity
+        run: python3 scripts/check_ffi_parity.py
+      - name: Release envs keep OTA signature checks
+        run: python3 scripts/check_release_flags.py
+      - name: Board lists agree
+        run: python3 scripts/check_board_lists.py
+      - name: Display tiers agree
+        run: python3 scripts/check_display_tiers.py
+      - name: Release manifest builds
+        run: python3 scripts/build_manifest.py v0.0.0-lint 0.0.0-lint > /dev/null
+
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The workspace pins the Espressif fork for the xtensa target; the host
+    # test and lint pass needs neither, so it runs on stable without espup.
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: cargo test
+        run: cargo test --workspace --all-features
+        working-directory: rust
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        working-directory: rust
+      - name: cargo fmt
+        run: cargo fmt --all --check
+        working-directory: rust
+
   ci-success:
     name: ci-success
-    needs: [native, firmware, secure, diagnostic]
+    needs: [native, set-matrix, firmware, secure, diagnostic, lint, rust]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "native=${{ needs.native.result }} firmware=${{ needs.firmware.result }} secure=${{ needs.secure.result }} diagnostic=${{ needs.diagnostic.result }}"
-          if [ "${{ needs.native.result }}" != "success" ] \
-            || [ "${{ needs.firmware.result }}" != "success" ] \
-            || [ "${{ needs.secure.result }}" != "success" ] \
-            || [ "${{ needs.diagnostic.result }}" != "success" ]; then
-            echo "::error::one or more required CI jobs failed — see the failing job above"
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
+          if ! echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null; then
+            echo "::error::one or more required CI jobs did not succeed — see the job list above"
             exit 1
           fi
