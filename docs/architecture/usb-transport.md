@@ -71,15 +71,21 @@ USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 
 ## The serial sink
 
-The send path is a single sink. `serialSink()` (`usb_comm.cpp`) writes to
-UART0: it takes `Logger::lockUart` with a 50 ms timeout, writes the bytes,
-appends a newline if the payload lacks one, then releases the lock.
-`UsbComm::sendLine()` calls `serialSink()` directly — there is no aux sink and
-no per-task dispatch sink. UART0 is the only place a reply is written.
+`serialSink()` (`usb_reply_route.cpp`) writes to UART0: it takes
+`Logger::lockUart` with a 50 ms timeout, writes the bytes, appends a newline
+if the payload lacks one, then releases the lock. `UsbComm::sendLine()` hands
+every line to `routeLine()`.
 
-On a `Logger::lockUart` timeout the write still goes through, unprotected:
-the sink favours "degrade, don't drop", so a busy logger never loses a
-command ack — at worst a log line and a reply interleave on the wire.
+Without workshop mode, `routeLine()` is the serial sink and nothing else. With
+it (`APP_WORKSHOP_ENABLED`), a line is routed by where the command being
+handled came from: a reply to a USB line goes to UART0 only, a reply to a
+socket line to the socket only, and a line written outside any command
+(telemetry, CAN scan, `can_stat`, `heap_stats`) to both. The route is held by
+an RAII scope around `handleCommand()` and applies only to the task that set
+it. See [Transports](transports.md#workshop-socket--the-16-mb-boards-wi-fi-link).
+
+On a `Logger::lockUart` timeout the line is dropped rather than interleaved
+with a log line.
 
 ## RX buffer reservation
 

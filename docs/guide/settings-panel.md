@@ -75,8 +75,10 @@ stored and takes effect when you leave.
 **Leave** reboots the dash. Releasing the Bluetooth controller cannot be undone
 without a restart, and a reboot brings every subsystem back to a known state.
 
-The access point itself is not up yet: the card shows the credentials it will
-use.
+Once Bluetooth is down, the dash raises a WPA2 access point with those
+credentials and serves the tuner at `http://192.168.4.1` (or
+`http://canshift.local`). Join the network with the QR code and open either
+address. See [Transports](../architecture/transports.md#workshop-socket--the-16-mb-boards-wi-fi-link).
 
 ### Save / Reset buttons
 
