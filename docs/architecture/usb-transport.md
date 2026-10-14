@@ -54,7 +54,7 @@ USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 | `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                          | Stops forwarding; the ack carries `drops`                                                           |
 | `0x22` | `CMD_OBD_READ_DTC`       | `{"cmd":34}`                                          | OBD-II mode 03; replies `{"status":"ok","dtc_bytes":[…]}` when the ECU answers                      |
 | `0x23` | `CMD_OBD_CLEAR_DTC`      | `{"cmd":35}`                                          | OBD-II mode 04                                                                                      |
-| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`               | Opens the inactive app slot (see [Firmware OTA](#firmware-ota))                                     |
+| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`               | Opens the inactive app slot (see [Firmware OTA](firmware-ota.md))                                     |
 | `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<b64>"}`                | Writes one chunk; `{"status":"ok","written":N}`                                                     |
 | `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"}`                        | `commit` verifies and reboots into the new slot; `abort`, the default, discards                     |
 | `0xF0` | `CMD_REBOOT`             | `{"cmd":240}`                                         | `{"status":"ok","restart":true}`, then restarts                                                     |
@@ -167,25 +167,6 @@ is already flat and passes `unwrapKey = nullptr`.
 
 ## Firmware OTA
 
-A firmware update streams over this link into the app slot the dash is not
-running from; the bootloader switches slots on the next boot
-([Flash layout](../reference/flash-layout.md)). The receiver is
-[`ota_receiver.cpp`](../../src/runtime/ota_receiver.cpp), and an overlay on screen
-follows the progress.
-
-1. `CMD_OTA_BEGIN` carries the image size and its SHA-256. The firmware refuses a
-   size that does not fit the slot.
-2. `CMD_OTA_WRITE` streams base64 chunks in order. The `offset` must equal the
-   bytes written so far; a gap, an overrun, or a first chunk that is not an app
-   image aborts the transfer.
-3. `CMD_OTA_END` with `"commit"` hashes what was written, refuses the slot switch
-   on a SHA-256 mismatch, otherwise replies `{"status":"ok","restart":true}` and
-   reboots.
-
-The firmware marks the new slot valid only after a stable boot
-([Boot sequence](boot-sequence.md)), so a bootloader built with app rollback
-returns to the previous slot when the new image crashes first. The flag that asks
-for it, `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, sits in `platformio.ini`, but
-arduino-esp32 ships a prebuilt bootloader that the flag does not rebuild. The dash checks the SHA-256, not a
-signature: the Ed25519 `.sig` files a release carries are for the host to check
-([Firmware signing](../reference/firmware-signing.md)).
+`CMD_OTA_BEGIN`, `CMD_OTA_WRITE` and `CMD_OTA_END` are transport-neutral; the
+flow, the limits a host must respect and what the dash verifies are on
+[Firmware OTA](firmware-ota.md).
