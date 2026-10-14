@@ -34,5 +34,5 @@ Non-negotiable. Reviewed on every PR, ahead of feature count.
 ## Workflow
 
 - Branch `type/short-description`; Conventional Commits, subject only.
-- PR via `gh pr create`; required checks `lint` (clang-format), `ci-success` (aggregates every job in `build.yml`: `native tests`, the per-board `firmware` matrix, `secure`, `diagnostic`, `lint` and `rust`); **rebase and merge only**.
-- Release: bump `package.json` version, merge — the workflow tags, builds and drafts the release with merged/firmware/spiffs artifacts. Write substantive release notes before publishing — GitHub Releases is the public changelog.
+- PR via `gh pr create`; required checks `ci-success` (aggregates every job in `build.yml`: `native tests`, the per-board `firmware` matrix, `secure`, `diagnostic`, `lint` and `rust`) and `dependency-review`, plus the CodeQL code-scanning rule; **rebase and merge only**.
+- Release: bump `package.json` version, merge — once the `build` workflow passes on that commit, the release workflow tags it, builds and drafts the release with merged/firmware/spiffs artifacts. Write substantive release notes before publishing — GitHub Releases is the public changelog.
