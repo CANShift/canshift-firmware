@@ -2,25 +2,43 @@
 
 #include "app_config.h"
 #include "can/can_manager.h"
+#include "diag/logger.h"
 #include "runtime/task_spawn.h"
 
+#include <Arduino.h>
+#include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_task_wdt.h>
 
 namespace {
 
 constexpr uint32_t kBurstBeforeYield = 16;
+constexpr uint32_t kWatchdogFeedPeriodMs = 100;
 
 StackType_t *s_stack = nullptr;
 StaticTask_t s_tcb;
 TaskHandle_t s_handle = nullptr;
 
+void feedWatchdogEvery(uint32_t &lastFeedMs) {
+    static bool s_feedFailureLogged = false;
+    const uint32_t nowMs = millis();
+    if (nowMs - lastFeedMs < kWatchdogFeedPeriodMs)
+        return;
+    lastFeedMs = nowMs;
+    const esp_err_t err = esp_task_wdt_reset();
+    if (err == ESP_OK || s_feedFailureLogged)
+        return;
+    s_feedFailureLogged = true;
+    LOG_WARN("CAN", "task watchdog feed failed: %s", esp_err_to_name(err));
+}
+
 void taskCAN(void *) {
     uint32_t consecutiveFrames = 0;
+    uint32_t lastFeedMs = 0;
     while (true) {
         const bool frameConsumed = CanManager::tick();
 
-        esp_task_wdt_reset();
+        feedWatchdogEvery(lastFeedMs);
         if (!frameConsumed) {
             consecutiveFrames = 0;
             continue;

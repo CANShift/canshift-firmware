@@ -1,5 +1,6 @@
 #pragma once
 
+#include "can/signal_map.h"
 #include "ui/control_vocabulary.h"
 
 #include <stdint.h>
@@ -11,10 +12,10 @@ struct Request {
     uint8_t level;
 };
 
-bool isConfirming(const char *signalId);
+bool isConfirming(SignalId signal);
 
-ControlVocabulary::ControlState evaluate(const ControlVocabulary::Control &control,
-                                         const char *signalId, const Request &request);
+ControlVocabulary::ControlState evaluate(const ControlVocabulary::Control &control, SignalId signal,
+                                         const Request &request);
 
 int paramValue(ControlVocabulary::ControlParam param, uint8_t level);
 

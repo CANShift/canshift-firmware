@@ -69,9 +69,9 @@ inline constexpr int USB_TICK_INTERVAL_WARN_US = 200000UL;
     #define APP_USB_CAN_SCAN_FAIL_LOUD 0
 #endif
 
-inline constexpr int LVGL_TICK_MS = 5;
-
 inline constexpr int LVGL_HANDLER_PERIOD_MS = 10;
+
+inline constexpr uint32_t WIDGET_REFRESH_PERIOD_MS = 20;
 
 inline constexpr int SWIPE_CANCEL_THRESHOLD_PX = 8;
 

@@ -44,13 +44,30 @@ uint8_t litSegments(float value, const ShiftLightTag &tag) {
     return static_cast<uint8_t>(pct * kSegmentCount);
 }
 
+uint32_t segmentRgb(const ShiftLightTag *tag, uint8_t index, uint8_t lit) {
+    if (index >= lit)
+        return tag->trackRgb;
+    return index >= tag->redFromIndex ? WidgetHelpers::kZoneDangerRgb : tag->litRgb;
+}
+
+void paintRange(ShiftLightTag *tag, uint8_t from, uint8_t to, uint8_t lit) {
+    for (uint8_t i = from; i < to; ++i)
+        lv_obj_set_style_bg_color(tag->segments[i], lv_color_hex(segmentRgb(tag, i, lit)), 0);
+}
+
 void paintSegments(ShiftLightTag *tag, uint8_t lit) {
-    for (uint8_t i = 0; i < kSegmentCount; ++i) {
-        const uint32_t rgb = (i >= lit)                 ? tag->trackRgb
-                             : (i >= tag->redFromIndex) ? WidgetHelpers::kZoneDangerRgb
-                                                        : tag->litRgb;
-        lv_obj_set_style_bg_color(tag->segments[i], lv_color_hex(rgb), 0);
+    paintRange(tag, 0, kSegmentCount, lit);
+    tag->lastLit = lit;
+}
+
+void paintChangedSegments(ShiftLightTag *tag, uint8_t lit) {
+    if (tag->lastLit > kSegmentCount) {
+        paintSegments(tag, lit);
+        return;
     }
+    const uint8_t from = tag->lastLit < lit ? tag->lastLit : lit;
+    const uint8_t to = tag->lastLit < lit ? lit : tag->lastLit;
+    paintRange(tag, from, to, lit);
     tag->lastLit = lit;
 }
 
@@ -123,5 +140,5 @@ void ShiftLightWidget::update(lv_obj_t *obj, float value, bool valid, const CfgW
 
     const uint8_t lit = litSegments(value, *tag);
     if (lit != tag->lastLit)
-        paintSegments(tag, lit);
+        paintChangedSegments(tag, lit);
 }

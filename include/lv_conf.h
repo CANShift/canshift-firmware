@@ -45,7 +45,9 @@
 
         #define LV_INDEV_DEF_READ_PERIOD 15 
 
-        #define LV_TICK_CUSTOM 0
+        #define LV_TICK_CUSTOM 1
+        #define LV_TICK_CUSTOM_INCLUDE "lvgl_tick.h"
+        #define LV_TICK_CUSTOM_SYS_TIME_EXPR (canshift_lv_tick_ms())
 
         #define LV_DPI_DEF 100
 

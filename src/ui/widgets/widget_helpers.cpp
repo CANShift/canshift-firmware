@@ -231,7 +231,13 @@ void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t tr
 void animateFill(lv_obj_t *obj, lv_anim_exec_xcb_t setter, int32_t from, int32_t to) {
     if (!obj)
         return;
-    lv_anim_del(obj, setter);
+    lv_anim_t *running = lv_anim_get(obj, setter);
+    if (running != nullptr) {
+        running->start_value = from;
+        running->end_value = to;
+        running->act_time = 0;
+        return;
+    }
     if (from == to) {
         setter(obj, to);
         return;

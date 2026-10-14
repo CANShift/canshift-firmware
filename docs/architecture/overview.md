@@ -44,7 +44,7 @@ CAN decoding owns **core 0**, at the highest priority, so a busy bus is never st
 
 The `TASK_PRIO_*`, `TASK_STACK_*` and `TASK_CORE_*` constants in [`include/app_config.h`](../../include/app_config.h) are the source; this table only reads them. The `ui`, `can`, `usb` and `ble` stacks are allocated statically before boot; the `input` task is spawned only when [`input_bindings.json`](../reference/physical-buttons.md) binds at least one pin.
 
-The LVGL tick is **not** driven by `taskUI`: `setup()` starts a periodic `esp_timer` that calls `lv_tick_inc(LVGL_TICK_MS)` every 5 ms, so animations keep wall-clock time when a frame overruns. `lv_tick_inc()` is the only LVGL call that needs no mutex.
+LVGL reads its clock instead of counting ticks: `LV_TICK_CUSTOM` points `lv_tick_get()` at `canshift_lv_tick_ms()` (`esp_timer_get_time() / 1000`, `src/runtime/lvgl_tick.cpp`), so animations keep wall-clock time when a frame overruns, and no 200 Hz timer wakes core 0 to advance a counter.
 
 ## Where to look next
 

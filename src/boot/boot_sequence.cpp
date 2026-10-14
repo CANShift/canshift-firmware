@@ -36,6 +36,8 @@ constexpr uint32_t kBootHoldMs = 400;
 constexpr uint32_t kSelfTestHoldMs = 2000;
 constexpr uint32_t kCanListenWindowMs = 1000;
 constexpr uint32_t kCanListenPollMs = 10;
+constexpr uint8_t kSettleFrames = 8;
+constexpr uint32_t kSettleFrameMs = 20;
 
 void holdSince(uint32_t sinceMs, uint32_t minMs) {
     const uint32_t elapsed = millis() - sinceMs;
@@ -96,8 +98,8 @@ void buildUI() {
 
     LvglPool::report("first page build");
 
-    for (uint8_t i = 0; i < 8; i++) {
-        lv_tick_inc(20);
+    for (uint8_t i = 0; i < kSettleFrames; i++) {
+        vTaskDelay(pdMS_TO_TICKS(kSettleFrameMs));
         lv_task_handler();
     }
     LOG_INFO("BOOT", "UI ready");
