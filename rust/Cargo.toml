@@ -13,6 +13,7 @@ members = [
     "control-state",
     "unit-convert",
     "workshop-mode",
+    "ota-signature",
 ]
 
 # Workspace-shared profile knobs — Phase 1 host build only. ESP32 target

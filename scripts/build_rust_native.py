@@ -21,6 +21,7 @@ CRATES = (
     ("control-state", "libcontrol_state.a"),
     ("unit-convert", "libunit_convert.a"),
     ("workshop-mode", "libworkshop_mode.a"),
+    ("ota-signature", "libota_signature.a"),
 )
 
 

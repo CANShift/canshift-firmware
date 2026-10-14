@@ -96,6 +96,12 @@ CRATES = (
         "libfile": "libworkshop_mode.a",
         "include": None,
     },
+    {
+        "flag": "USE_RUST_OTA_SIGNATURE=1",
+        "manifest": os.path.join(RUST_DIR, "ota-signature", "Cargo.toml"),
+        "libfile": "libota_signature.a",
+        "include": None,
+    },
 )
 
 

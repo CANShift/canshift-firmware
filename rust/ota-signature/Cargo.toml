@@ -1,0 +1,21 @@
+[package]
+name = "ota-signature"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Streaming Ed25519 check of an OTA image against the release signing key embedded at build time. Flash writes and the OTA session stay C++."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []
+
+[dependencies]
+ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["hazmat"] }
+
+[build-dependencies]
+base64 = "=0.22.1"

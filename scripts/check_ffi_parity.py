@@ -216,6 +216,27 @@ PAIRS = (
         "include/workshop_mode_rs.h",
         "WORKSHOP_EVENT_FAILED",
     ),
+    (
+        "OTA signature bytes",
+        "rust/ota-signature/src/lib.rs",
+        "OTA_SIGNATURE_BYTES",
+        "include/ota_signature_rs.h",
+        "OTA_SIGNATURE_BYTES",
+    ),
+    (
+        "OTA signature state bytes",
+        "rust/ota-signature/src/lib.rs",
+        "OTA_SIGNATURE_STATE_BYTES",
+        "include/ota_signature_rs.h",
+        "OTA_SIGNATURE_STATE_BYTES",
+    ),
+    (
+        "OTA signature state align",
+        "rust/ota-signature/src/lib.rs",
+        "OTA_SIGNATURE_STATE_ALIGN",
+        "include/ota_signature_rs.h",
+        "OTA_SIGNATURE_STATE_ALIGN",
+    ),
 )
 
 RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(\\d+)"
