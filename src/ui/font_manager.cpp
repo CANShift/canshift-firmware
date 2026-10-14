@@ -1,4 +1,6 @@
 #include "font_manager.h"
+
+#include "diag/lvgl_pool.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "display_tiers.h"
@@ -112,18 +114,17 @@ bool poolHasRoomFor(const char *spiffsPath, const char *family, const char *weig
     const size_t fileSize = static_cast<size_t>(f.size());
     f.close();
 
-    lv_mem_monitor_t mon;
-    lv_mem_monitor(&mon);
+    const LvglPool::Stats mon = LvglPool::stats();
 
     constexpr uint32_t kOverheadBytes = 1024;
     const uint32_t needed = static_cast<uint32_t>(fileSize) + kOverheadBytes;
-    if (mon.free_size < needed) {
+    if (mon.free < needed) {
         LOG_ERROR("FONT",
                   "LVGL pool too small for %s_%s_%u.bin: need ~%u B, "
                   "have %u B free (pool=%u B). Skipping to avoid NULL-deref "
                   "inside lv_font_load.",
                   family, weight, static_cast<unsigned>(size), static_cast<unsigned>(needed),
-                  static_cast<unsigned>(mon.free_size), static_cast<unsigned>(mon.total_size));
+                  static_cast<unsigned>(mon.free), static_cast<unsigned>(mon.total));
         char detail[60];
         snprintf(detail, sizeof(detail), "pool too small for %s_%u", weight, size);
         ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_POOL_OOM", detail);

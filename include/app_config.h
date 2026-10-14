@@ -11,6 +11,12 @@
     #define APP_DEBUG_BUILD 0
 #endif
 
+#if defined(ESP_PLATFORM) || defined(SIM_BUILD)
+    #define APP_RUNTIME_PSRAM_DETECT 1
+#else
+    #define APP_RUNTIME_PSRAM_DETECT 0
+#endif
+
 #ifndef APP_OTA_ALLOW_UNSIGNED
     #define APP_OTA_ALLOW_UNSIGNED 0
 #endif
