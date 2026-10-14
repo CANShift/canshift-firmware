@@ -34,8 +34,12 @@ carries exactly one JSON line in either direction, with no trailing newline.
 Incoming lines are queued to `taskUSB`, which runs them through the same
 `handleCommand()` as a USB line. A reply goes back on the transport its command
 came from and only there. Unsolicited lines (`tele`, `can`, `can_stat`,
-`heap_stats`) go to both. That routing lives in `usb_reply_route.cpp`; logs stay
-on USB.
+`heap_stats`) go to both. That routing lives in `usb_reply_route.cpp`. Log lines
+(`{"log":1,…}`) are mirrored to the socket too, because over Wi-Fi it is the
+only link: `Logger::emit` hands each line to a hook that copies it into a
+16-line queue, and `taskUSB` sends it. A full queue drops the line and reports
+the count later. Every socket write happens on `taskUSB`, so frames never
+interleave.
 
 | Rule | Value |
 | --- | --- |
@@ -59,7 +63,10 @@ Longer names and anything with `..`, `%`, `\` or a hidden segment are refused
 scripts and styles in the bundle.
 
 Until the pinned bundle lands, `data/tuner/` holds a probe page that opens the
-socket and sends `PING` and `GET_STATUS`.
+socket and sends `PING` and `GET_STATUS`. `scripts/stage_fs_data.py` stages
+`data/` into `.pio/build/<env>/spiffs_data/` for `buildfs` and `uploadfs`, and
+leaves `tuner/` out on every env without `APP_WORKSHOP_ENABLED`, so the 4 MB
+boards' 832 KB image never carries the bundle.
 
 ## What they share
 
