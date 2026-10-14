@@ -43,10 +43,10 @@ Verify them against your ECU's CAN output configuration before use.
 
 **How to verify:**
 
-1. Use Studio's **CAN Scanner** tab — connect the display while the ECU is running
+1. Use the tuner's bus scan on the **Vehicle** tab — connect the display while the ECU is running
 2. Capture live frames: note which IDs appear and at what rate
 3. Cross-reference with your ECU's documentation or configuration software
-4. Update `signals.json` to match, then push from Studio
+4. Update `signals.json` to match, then push from the tuner
 
 ### Example Frame Layout (edit to match your ECU)
 
@@ -61,7 +61,7 @@ Verify them against your ECU's CAN output configuration before use.
 
 ### CAN Speed
 
-Default: **500 kbps** — configurable in `signals.json` (`canSpeedKbps`) and Studio → Device Config.
+Default: **500 kbps** — configurable in `signals.json` (`canSpeedKbps`) and the tuner's **Vehicle** tab.
 Common ECU values: 500 kbps, 1 Mbps. Verify in your ECU's configuration.
 
 ---
@@ -127,7 +127,7 @@ If you see bus-off errors:
 ## Known Risks
 
 1. **Frame IDs unverified** — `signals.json` contains example frame IDs.
-   If wrong, CAN data will be silently ignored. Always verify with Studio's CAN Scanner.
+   If wrong, CAN data will be silently ignored. Always verify with the tuner's bus scan.
 
 2. **TWAI pin conflict** — the two pins the board profile claims for TWAI (22 and 21 on the
    CrowPanel 2.8") must not be used by SPI or other peripherals.

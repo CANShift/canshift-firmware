@@ -7,7 +7,7 @@ receives security fixes. There is no LTS branch.
 
 | Component                   | Supported |
 | --------------------------- | --------- |
-| Studio-web (latest release) | ✅        |
+| Tuner (latest release)      | ✅        |
 | Firmware (latest on `main`) | ✅        |
 | Mobile (latest release)     | ✅        |
 | Anything earlier            | ❌        |
@@ -27,7 +27,7 @@ private GitHub Security Advisory visible only to you and the maintainers.
 
 In your report please include:
 
-- Affected component (`canshift-core`, `canshift-studio-web`, `canshift-firmware`,
+- Affected component (`canshift-core`, `canshift-tuner`, `canshift-firmware`,
   or `canshift-mobile`) and the commit SHA or release tag you tested against.
 - A short description of the issue and the impact (what an attacker can read,
   write, or run).
@@ -46,8 +46,7 @@ In scope:
 
 - Remote-exploitable issues in firmware HAL surfaces — BLE GATT, USB JSON
   protocol, Wi-Fi AP HTTP server, WS dispatcher, Wi-Fi OTA endpoint, OTA HMAC.
-- `canshift-studio-web` payload parsing, WS transport, and outbound network
-  calls (release fetch, firmware download).
+- `canshift-tuner` payload parsing and its USB and WebSocket transports.
 - Mobile BLE / OTA flows.
 - Schema-validation bypasses in `canshift-core` that let a malicious config
   reach the firmware.
@@ -58,7 +57,7 @@ Out of scope:
   `canshift-firmware/include/hardware_profile.h`.
 - Issues that require unrestricted physical access to an unlocked device
   (e.g. dumping flash with a soldered programmer).
-- Self-XSS in the dash-hosted Studio with no privilege boundary crossed.
+- Self-XSS in the dash-hosted tuner with no privilege boundary crossed.
 - Denial-of-service from malformed local CAN traffic — the device is expected
   to be on a trusted bus.
 - Vulnerabilities in unmaintained or end-of-life dependencies that we already

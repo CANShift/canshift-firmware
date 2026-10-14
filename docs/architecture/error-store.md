@@ -58,8 +58,8 @@ keep `≤16` (F-ME-12). 6 is enough that a transient burst (failed CAN
 init + dropped USB cmd + stale signal warning) doesn't evict the
 underlying root cause.
 
-Promoted from a local constexpr so the Studio ErrorBar UI and any other
-cross-package consumer can stay in sync with a single source of truth.
+Promoted from a local constexpr so any cross-package consumer can stay in
+sync with a single source of truth.
 
 ## Push semantics
 
