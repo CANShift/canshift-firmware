@@ -3,14 +3,6 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub const COLUMNS: u8 = 12;
 pub const ROWS: u8 = 12;
 pub const GUTTER: u32 = 6;

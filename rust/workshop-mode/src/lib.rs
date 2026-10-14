@@ -16,14 +16,6 @@ pub use tuner_assets::{
     content_type, spa_route, tuner_path, DEFAULT_CONTENT_TYPE, WORKSHOP_TUNER_PATH_CAP,
 };
 
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub const WORKSHOP_STATE_DRIVING: u8 = 0;
 pub const WORKSHOP_STATE_ENTERING: u8 = 1;
 pub const WORKSHOP_STATE_ACTIVE: u8 = 2;

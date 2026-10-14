@@ -3,14 +3,6 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub const LAP_CAPACITY: usize = 32;
 
 pub const RUN_STATE_RESET: u8 = 0;

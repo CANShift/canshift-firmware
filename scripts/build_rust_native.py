@@ -7,21 +7,23 @@ Import("env")  # noqa: F821
 
 PROJECT_DIR = env["PROJECT_DIR"]  # noqa: F821
 RUST_DIR = os.path.join(PROJECT_DIR, "rust")
+MANIFEST = os.path.join(RUST_DIR, "canshift-ffi", "Cargo.toml")
+LIBFILE = "libcanshift_ffi.a"
 
-CRATES = (
-    ("signal-map", "libsignal_map.a"),
-    ("can-parser", "libcan_parser.a"),
-    ("usb-envelope", "libusb_envelope.a"),
-    ("config-loader", "libconfig_loader.a"),
-    ("format-float", "libformat_float.a"),
-    ("error-store", "liberror_store.a"),
-    ("alert-engine", "libalert_engine.a"),
-    ("timer-core", "libtimer_core.a"),
-    ("layout-grid", "liblayout_grid.a"),
-    ("control-state", "libcontrol_state.a"),
-    ("unit-convert", "libunit_convert.a"),
-    ("workshop-mode", "libworkshop_mode.a"),
-    ("ota-signature", "libota_signature.a"),
+FEATURES = (
+    "signal-map",
+    "can-parser",
+    "usb-envelope",
+    "config-loader",
+    "format-float",
+    "error-store",
+    "alert-engine",
+    "timer-core",
+    "layout-grid",
+    "control-state",
+    "unit-convert",
+    "workshop-mode",
+    "ota-signature",
 )
 
 
@@ -33,24 +35,22 @@ def fail(msg):
 if shutil.which("cargo") is None:
     fail("cargo not found in PATH — install Rust first")
 
-for crate, libfile in CRATES:
-    manifest = os.path.join(RUST_DIR, crate, "Cargo.toml")
-    print(f"[rust-native] building {crate}")
-    cmd = [
-        "cargo",
-        "build",
-        "--release",
-        "--manifest-path",
-        manifest,
-        "--features",
-        "ffi",
-    ]
-    res = subprocess.run(cmd, cwd=RUST_DIR)
-    if res.returncode != 0:
-        fail(f"cargo build failed for {libfile} (exit {res.returncode})")
+print("[rust-native] building canshift-ffi")
+cmd = [
+    "cargo",
+    "build",
+    "--release",
+    "--manifest-path",
+    MANIFEST,
+    "--features",
+    ",".join(FEATURES),
+]
+res = subprocess.run(cmd, cwd=RUST_DIR)
+if res.returncode != 0:
+    fail(f"cargo build failed for {LIBFILE} (exit {res.returncode})")
 
-    lib_path = os.path.join(RUST_DIR, "target", "release", libfile)
-    if not os.path.exists(lib_path):
-        fail(f"expected staticlib not found at {lib_path}")
+lib_path = os.path.join(RUST_DIR, "target", "release", LIBFILE)
+if not os.path.exists(lib_path):
+    fail(f"expected staticlib not found at {lib_path}")
 
-    env.Append(LIBS=[File(lib_path)])  # noqa: F821
+env.Append(LIBS=[File(lib_path)])  # noqa: F821

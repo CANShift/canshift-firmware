@@ -26,6 +26,25 @@ name = "can-parser"
 version = "0.1.0"
 
 [[package]]
+name = "canshift-ffi"
+version = "0.1.0"
+dependencies = [
+ "alert-engine",
+ "can-parser",
+ "config-loader",
+ "control-state",
+ "error-store",
+ "format-float",
+ "layout-grid",
+ "ota-signature",
+ "signal-map",
+ "timer-core",
+ "unit-convert",
+ "usb-envelope",
+ "workshop-mode",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

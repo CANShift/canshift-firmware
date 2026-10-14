@@ -80,8 +80,11 @@ invoke the FFI unconditionally, so an env that rebuilds `build_flags` from
 | `USE_RUST_CONTROL_STATE` | `rust/control-state` | Cruise and button control state machines |
 | `USE_RUST_UNIT_CONVERT`  | `rust/unit-convert`  | Metric ↔ imperial pairs for the rendered value |
 
-`-Wl,-z,muldefs` accompanies them: the Rust staticlib and newlib both define a
-handful of symbols, and the linker takes the first.
+Each flag turns on the matching feature of [`rust/canshift-ffi`](../../rust/canshift-ffi/),
+the one staticlib the image links. The member crates are rlibs inside it, so the
+release profile's LTO runs across all of them, there is a single `core` and a
+single panic handler, and the link needs no `-z muldefs`. A Rust panic calls C
+`abort()`, which leaves a coredump.
 
 ## Hardware
 

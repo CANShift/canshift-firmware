@@ -4,15 +4,6 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 /// Tightened vs C++ strtol: rejects leading whitespace and `+/-` signs.
 /// Production strings ("1.0", "2.3.1") never trigger the divergence.
 #[must_use]

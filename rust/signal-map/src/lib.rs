@@ -6,15 +6,6 @@
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub type SignalId = u8;
 
 /// Sentinel for unknown name. Must mirror SignalIds::SIGNAL_COUNT in signal_map.h.

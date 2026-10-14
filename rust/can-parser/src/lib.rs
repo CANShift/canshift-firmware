@@ -3,6 +3,7 @@
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+mod decimal;
 pub mod expr;
 pub mod expr_compile;
 pub mod expr_ffi;
@@ -10,15 +11,6 @@ pub mod expr_run;
 
 #[cfg(feature = "ffi")]
 pub mod ffi;
-
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
 
 // Mirrors kCanFrameMaxBytes — keep in lockstep with app_config.h.
 pub const CAN_FRAME_MAX_BYTES: usize = 8;

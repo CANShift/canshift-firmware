@@ -5,15 +5,6 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 /// Length-bounded substring search. Empty needle → None (matches C++ contract).
 /// Avoids strstr — embedded NUL can't short-circuit (#884).
 #[must_use]
