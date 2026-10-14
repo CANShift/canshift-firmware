@@ -88,6 +88,20 @@ jobs:
           awk -v p="$PCT" 'BEGIN { exit (p > 98) ? 1 : 0 }' \
             || { echo "::error title=flash budget::board '${{ matrix.board }}' flash ${PCT}% > 98% (#305 / #158)"; exit 1; }
 
+      - name: measure sizes
+        run: |
+          python3 scripts/bench_size.py measure --board "${{ matrix.board }}" \
+            --elf ".pio/build/${{ matrix.board }}/firmware.elf" \
+            --bin ".pio/build/${{ matrix.board }}/firmware.bin" \
+            --out "size-${{ matrix.board }}.json"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: size-${{ matrix.board }}
+          path: size-${{ matrix.board }}.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: buildfs (${{ matrix.board }})
         run: pio run -e "${{ matrix.board }}" -t buildfs
 
@@ -120,6 +134,22 @@ jobs:
             cat /tmp/sha.diff
             exit 1
           fi
+
+  size-budget:
+    name: size budget
+    needs: firmware
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: size-*
+          path: sizes
+      - name: compare against bench/size-budget.json
+        run: python3 scripts/bench_size.py check --measured sizes --summary "$GITHUB_STEP_SUMMARY"
 
   secure:
     name: secure build
@@ -251,7 +281,7 @@ jobs:
 
   ci-success:
     name: ci-success
-    needs: [native, set-matrix, firmware, secure, diagnostic, lint, rust, scripts]
+    needs: [native, set-matrix, firmware, size-budget, secure, diagnostic, lint, rust, scripts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
