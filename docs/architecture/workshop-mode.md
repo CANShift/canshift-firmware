@@ -6,25 +6,25 @@
 
 Workshop mode turns the dash into its own configurator. One button in the
 Settings panel stops the dashboard, switches the radio from Bluetooth to a
-Wi-Fi access point, and serves the studio from flash. Any browser on any
+Wi-Fi access point, and serves the tuner from flash. Any browser on any
 phone or laptop opens it. No Chrome, no USB cable, no install.
 
 ## Why
 
-The studio used to talk to the dash over Web Serial. That meant a desktop
+The tuner used to talk to the dash over Web Serial. That meant a desktop
 Chromium browser, a cable, and a serial link that resets the board on DTR and
 drops bytes on the native-USB S3. None of that works from an iPhone, which is
 what a driver has in the garage.
 
-The 16 MB boards have the room to carry the studio themselves: the `spiffs`
-partition in `ota_16mb.csv` is 7.5 MB, and the gzipped studio is about 0.5 MB.
+The 16 MB boards have the room to carry the tuner themselves: the `spiffs`
+partition in `ota_16mb.csv` is 7.5 MB, and the gzipped tuner is about 0.5 MB.
 
 ## The three ways to touch a dash
 
 | Moment | Tool | Link |
 | --- | --- | --- |
 | First flash of a blank board | `esptool` from a terminal, documented step by step | USB, once |
-| Configuration and firmware updates | The studio, served by the dash in workshop mode | Wi-Fi access point |
+| Configuration and firmware updates | The tuner, served by the dash in workshop mode | Wi-Fi access point |
 | Driving | The mobile app, unchanged | BLE |
 
 After the first flash, the USB cable is only for recovery.
@@ -52,10 +52,10 @@ stateDiagram-v2
 | --- | --- | --- |
 | BLE | Stopped, controller memory released | Wi-Fi and BLE share one radio; the RAM goes to the web server |
 | Dashboard pages | Released, only the workshop card is drawn | The LVGL page trees are the largest heap user after BLE |
-| CAN decode | Running | The studio shows live values while you map signals |
+| CAN decode | Running | The tuner shows live values while you map signals |
 | USB | Running | Recovery path stays open |
 | Wi-Fi | Access point, WPA2 | — |
-| HTTP + WebSocket server | Running | Serves the studio and carries its commands |
+| HTTP + WebSocket server | Running | Serves the tuner and carries its commands |
 
 The access point is never open. Its password is generated per board on first
 entry, stored in NVS and shown on the workshop card, so a stranger in the same
@@ -63,7 +63,7 @@ car park cannot reach the dash.
 
 ## One protocol
 
-The studio's WebSocket carries the same newline-delimited JSON lines as USB.
+The tuner's WebSocket carries the same newline-delimited JSON lines as USB.
 They go into the same `handleCommand()` dispatcher
 ([USB transport](usb-transport.md)), so config push and pull, CAN scan, and
 firmware OTA behave the same on both links. The wire contract stays in
@@ -71,21 +71,21 @@ firmware OTA behave the same on both links. The wire contract stays in
 
 ## Offline by construction
 
-A phone on the dash's access point has no internet. Everything the studio needs
+A phone on the dash's access point has no internet. Everything the tuner needs
 ships in flash: the app bundle, its fonts, and the ECU catalogue. Nothing in the
-studio may fetch from the network. This is also why analytics and the contact
+tuner may fetch from the network. This is also why analytics and the contact
 form are gone from it.
 
 A firmware update means downloading the signed `.bin` from
 [Releases](https://github.com/CANShift/canshift-firmware/releases) first, then
-uploading it from the studio. The dash verifies the signature before writing
+uploading it from the tuner. The dash verifies the signature before writing
 the inactive OTA slot ([Firmware signing](../reference/firmware-signing.md)).
 
-## The studio, reduced
+## The tuner, reduced
 
 The dash canvas keeps full fidelity against the
 [dash design system](../design/DASH_DESIGN_SYSTEM.md); it is the reason the
-studio exists. Everything around it is plain forms, as simple as possible.
+tuner exists. Everything around it is plain forms, as simple as possible.
 
 | Tab | Holds |
 | --- | --- |
@@ -97,13 +97,13 @@ Removed: Welcome, Home, Contact, analytics, and the Web Serial flasher.
 
 ## Where the code lives
 
-The studio stays in its own repo,
+The tuner stays in its own repo,
 [canshift-tuner](https://github.com/CANShift/canshift-tuner). It is a Node and
 Vite project with its own CI and an npm dependency on `@canshift/core`. Mixing
 that toolchain into PlatformIO would slow both pipelines and blur ownership.
-The coupling is one artifact: each studio release publishes a gzipped bundle,
-and the firmware build pins a studio version and copies that bundle into
-`data/studio/` before `uploadfs`. This works like the schema pin, which is
+The coupling is one artifact: each tuner release publishes a gzipped bundle,
+and the firmware build pins a tuner version and copies that bundle into
+`data/tuner/` before `uploadfs`. This works like the schema pin, which is
 already the firmware's only link to core.
 
 ## Boards
@@ -119,13 +119,13 @@ Each slice ships and is verified on its own, in this order:
 1. **Firmware: workshop mode.** Settings button, BLE stop, workshop card with
    QR, leave by reboot.
 2. **Firmware: access point and server.** WPA2 access point, static gzipped
-   files from `data/studio/`, WebSocket into `handleCommand()`.
-3. **Studio: reduction.** Remove Welcome, Home, Contact and analytics; three
+   files from `data/tuner/`, WebSocket into `handleCommand()`.
+3. **Tuner: reduction.** Remove Welcome, Home, Contact and analytics; three
    tabs; offline assets.
-4. **Studio: WebSocket transport.** Replaces Web Serial; release publishes the
+4. **Tuner: WebSocket transport.** Replaces Web Serial; release publishes the
    bundle.
-5. **Firmware: studio pin.** The build fetches the pinned bundle into
-   `data/studio/`.
+5. **Firmware: tuner pin.** The build fetches the pinned bundle into
+   `data/tuner/`.
 6. **Firmware: upload OTA over Wi-Fi.** Signed `.bin` upload from the Device
    tab.
 7. **Docs: first flash from a terminal.** `esptool` steps move here from the
