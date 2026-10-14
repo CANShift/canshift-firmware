@@ -7,6 +7,7 @@
 #endif
 #include "board_config.h"
 
+#include <atomic>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,6 +19,18 @@
 namespace {
 
 SemaphoreHandle_t s_uartMutex = nullptr;
+
+#if APP_WORKSHOP_ENABLED
+std::atomic<Logger::LineMirror> s_mirror{nullptr};
+
+void mirrorLine(const char *line, size_t len) {
+    const Logger::LineMirror mirror = s_mirror.load(std::memory_order_acquire);
+    if (mirror)
+        mirror(line, len);
+}
+#else
+void mirrorLine(const char *, size_t) {}
+#endif
 
 constexpr size_t MSG_BUF_SIZE = 256;
 constexpr size_t ESC_BUF_SIZE = 512;
@@ -190,8 +203,9 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     const int n = snprintf(line, sizeof(line),
                            "{\"log\":1,\"ts\":%lu,\"lvl\":\"%c\",\"tag\":\"%s\",\"msg\":\"%s\"}\n",
                            static_cast<unsigned long>(millis()), lvl, tagBuf, escaped);
+    size_t toWrite = 0;
     if (n > 0) {
-        const size_t toWrite =
+        toWrite =
             (static_cast<size_t>(n) >= sizeof(line)) ? sizeof(line) - 1 : static_cast<size_t>(n);
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -201,4 +215,12 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     if (s_uartMutex) {
         xSemaphoreGiveRecursive(s_uartMutex);
     }
+    if (toWrite > 0)
+        mirrorLine(line, toWrite);
 }
+
+#if APP_WORKSHOP_ENABLED
+void Logger::setMirror(LineMirror mirror) {
+    s_mirror.store(mirror, std::memory_order_release);
+}
+#endif
