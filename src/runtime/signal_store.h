@@ -28,6 +28,8 @@ void set(SignalId id, float value);
 
 [[nodiscard]] bool isValid(SignalId id);
 
+[[nodiscard]] bool tryRead(SignalId id, float *smoothed);
+
 [[nodiscard]] bool anyValid(const SignalId *ids, size_t count);
 
 void snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]);

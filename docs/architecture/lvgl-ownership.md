@@ -13,7 +13,7 @@ Sources: `src/main.cpp` (taskUI), `src/ui/widgets/widget_tag_pool.cpp`,
 | `taskCAN`                      | 0    | Never touches LVGL. Writes only to `SignalStore` (its own portMUX)                                         |
 | `taskUSB`                      | 1    | Must take `g_lvglMutex` before any LVGL call. The PUT_CONFIG burn path holds it for the full storage write |
 | `taskBLE`                      | 1    | Same rule as USB: take the mutex before any LVGL call                                                      |
-| Arduino `loopTask` (boot only) | —    | Owns LVGL implicitly because taskUI hasn't spawned yet                                                     |
+| Arduino `loopTask` (boot only) | —    | Owns LVGL implicitly because taskUI hasn't spawned yet; deletes itself at the end of `setup()`             |
 
 The boot phase is single-threaded by construction (taskUI is spawned at the
 end of `BootSequence::run`), so `WidgetTagPool::allocRaw` accepts a null

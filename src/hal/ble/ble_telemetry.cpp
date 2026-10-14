@@ -35,14 +35,9 @@ constexpr SignalId BLE_TELE_SIGNALS[] = {
 constexpr size_t BLE_TELE_SIGNAL_COUNT = sizeof(BLE_TELE_SIGNALS) / sizeof(BLE_TELE_SIGNALS[0]);
 
 size_t buildTelemetryPayload(uint8_t *buf, size_t bufSize) {
-    static SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
-    SignalStore::snapshotAll(snap);
-
     TelemetryFrame::Field fields[BLE_TELE_SIGNAL_COUNT];
     for (size_t i = 0; i < BLE_TELE_SIGNAL_COUNT; i++) {
-        const SignalId id = BLE_TELE_SIGNALS[i];
-        fields[i].present = snap[id].valid;
-        fields[i].value = snap[id].smoothed;
+        fields[i].present = SignalStore::tryRead(BLE_TELE_SIGNALS[i], &fields[i].value);
     }
     return TelemetryFrame::encode(fields, BLE_TELE_SIGNAL_COUNT, buf, bufSize);
 }

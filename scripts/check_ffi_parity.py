@@ -84,6 +84,13 @@ PAIRS = (
         "CANSHIFT_EXPR_ERR_TOO_DEEP",
     ),
     (
+        "expression no-room error",
+        "rust/can-parser/src/expr_ffi.rs",
+        "COMPILE_ERR_NO_ROOM",
+        "include/can_parser_rs.h",
+        "CANSHIFT_EXPR_ERR_NO_ROOM",
+    ),
+    (
         "expression reference cap",
         "rust/can-parser/src/expr_ffi.rs",
         "MAX_REFS",

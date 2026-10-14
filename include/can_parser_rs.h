@@ -14,6 +14,7 @@ inline constexpr int32_t CANSHIFT_EXPR_ERR_LEX = -1;
 inline constexpr int32_t CANSHIFT_EXPR_ERR_TOO_LONG = -2;
 inline constexpr int32_t CANSHIFT_EXPR_ERR_SYNTAX = -3;
 inline constexpr int32_t CANSHIFT_EXPR_ERR_TOO_DEEP = -4;
+inline constexpr int32_t CANSHIFT_EXPR_ERR_NO_ROOM = -5;
 
 #ifdef __cplusplus
 extern "C" {

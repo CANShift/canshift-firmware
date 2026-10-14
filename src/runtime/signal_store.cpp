@@ -97,6 +97,17 @@ bool SignalStore::isValid(SignalId id) {
     return result;
 }
 
+bool SignalStore::tryRead(SignalId id, float *smoothed) {
+    if (!idValid(id) || smoothed == nullptr)
+        return false;
+
+    portENTER_CRITICAL(&s_signalsMux);
+    const bool valid = s_signals[id].valid;
+    *smoothed = s_signals[id].smoothed;
+    portEXIT_CRITICAL(&s_signalsMux);
+    return valid;
+}
+
 bool SignalStore::anyValid(const SignalId *ids, size_t count) {
     if (ids == nullptr || count == 0)
         return false;

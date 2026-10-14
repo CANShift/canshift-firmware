@@ -79,6 +79,27 @@ void test_set_repeated_toggles_stay_binary() {
     }
 }
 
+void test_tryRead_reportsValidityAndValue() {
+    float value = kReadDefault;
+    TEST_ASSERT_FALSE(SignalStore::tryRead(kUnwrittenSignalId, &value));
+
+    SignalStore::set(kTestSignalId, kTestSignalValue);
+    TEST_ASSERT_TRUE(SignalStore::tryRead(kTestSignalId, &value));
+    TEST_ASSERT_EQUAL_FLOAT(kTestSignalValue, value);
+
+    mockAdvanceMillis(kPastTimeoutMs);
+    SignalStore::checkTimeouts();
+    TEST_ASSERT_FALSE(SignalStore::tryRead(kTestSignalId, &value));
+}
+
+void test_tryRead_rejectsOutOfRangeIdAndNullOut() {
+    float value = kReadDefault;
+    TEST_ASSERT_FALSE(SignalStore::tryRead(SignalIds::SIGNAL_COUNT, &value));
+    TEST_ASSERT_EQUAL_FLOAT(kReadDefault, value);
+    SignalStore::set(kTestSignalId, kTestSignalValue);
+    TEST_ASSERT_FALSE(SignalStore::tryRead(kTestSignalId, nullptr));
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_set_then_get_returnsValue_andValid);
@@ -86,5 +107,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_timeout_invalidates_after_threshold);
     RUN_TEST(test_set_writes_exact_value);
     RUN_TEST(test_set_repeated_toggles_stay_binary);
+    RUN_TEST(test_tryRead_reportsValidityAndValue);
+    RUN_TEST(test_tryRead_rejectsOutOfRangeIdAndNullOut);
     return UNITY_END();
 }

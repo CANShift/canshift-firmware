@@ -38,6 +38,30 @@ constexpr const char *kSignalsWithDeepExpr = R"json({
   ]
 })json";
 
+constexpr const char *kPoolSignalNames[] = {
+    "rpm",        "throttle_pos",   "map_kpa",       "boost_bar",     "iat_c",
+    "oil_temp_c", "coolant_temp_c", "oil_press_bar", "fuel_press_bar"};
+constexpr size_t kPoolSignalCount = sizeof(kPoolSignalNames) / sizeof(kPoolSignalNames[0]);
+constexpr int kOperandsPerPoolExpr = 30;
+
+void appendSumOfV(char *json, size_t cap) {
+    for (int i = 0; i < kOperandsPerPoolExpr; ++i)
+        strlcat(json, i == 0 ? "V" : "+V", cap);
+}
+
+void buildPoolFillingSignals(char *json, size_t cap) {
+    strlcpy(json, R"({"version": "1.0.0", "signals": [)", cap);
+    for (size_t i = 0; i < kPoolSignalCount; ++i) {
+        strlcat(json, i == 0 ? R"({"name": ")" : R"(, {"name": ")", cap);
+        strlcat(json, kPoolSignalNames[i], cap);
+        strlcat(json, R"(", "canFrameId": "0x370", "startByte": 1, "byteLength": 1, "expr": ")",
+                cap);
+        appendSumOfV(json, cap);
+        strlcat(json, R"("})", cap);
+    }
+    strlcat(json, "]}", cap);
+}
+
 bool errorStoreHolds(const char *code) {
     FwError errors[8];
     uint8_t count = 0;
@@ -73,6 +97,25 @@ void test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError() {
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::RPM));
     TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::COOLANT_TEMP_C));
     TEST_ASSERT_TRUE(errorStoreHolds("EXPR_DEPTH"));
+}
+
+void test_loadSignalDefinitions_rejectsExpressionsPastThePool() {
+    static char json[4096];
+    buildPoolFillingSignals(json, sizeof(json));
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, json, strlen(json));
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+    SignalStore::init();
+    ErrorStore::clear();
+
+    CanParser::loadSignalDefinitions();
+    CanParser::parseFrame(kExprFrameId, kExprFrame, sizeof(kExprFrame));
+
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 7.0f * kOperandsPerPoolExpr,
+                             SignalStore::read(SignalIds::RPM));
+    TEST_ASSERT_TRUE(SignalStore::isValid(SignalIds::COOLANT_TEMP_C));
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::FUEL_PRESS_BAR));
+    TEST_ASSERT_TRUE(errorStoreHolds("EXPR_POOL"));
 }
 
 void test_evalTokensRefs_resolvesReference() {
@@ -154,5 +197,6 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_evalTokensRefs_missingRefDoesNotReadAsZero);
     RUN_TEST(test_compileExpr_rejectsOperandStackPastTheCap);
     RUN_TEST(test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError);
+    RUN_TEST(test_loadSignalDefinitions_rejectsExpressionsPastThePool);
     return UNITY_END();
 }

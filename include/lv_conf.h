@@ -168,6 +168,8 @@
         #define LV_USE_TILEVIEW 0
         #define LV_USE_WIN 0
 
+        #define LV_USE_GRID 0
+
         #define LV_USE_THEME_DEFAULT 1
         
         #define LV_THEME_DEFAULT_DARK 1
@@ -184,7 +186,7 @@
 
 #define LV_USE_FS_IF   0    
 #define LV_USE_PNG     0    
-#define LV_USE_BMP     1    
+#define LV_USE_BMP     0    
 #define LV_USE_SJPG    0    
 #define LV_USE_GIF     0    
 #define LV_USE_QRCODE  CANSHIFT_LV_WORKSHOP
