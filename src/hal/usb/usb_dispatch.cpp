@@ -7,6 +7,7 @@
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "diag/logger.h"
+#include "hal/usb/usb_status_line.h"
 #include "diag/lvgl_hold_timer.h"
 #include "runtime/lvgl_lock.h"
 #include "runtime/device_commands.h"
@@ -72,15 +73,13 @@ void handleSetBoardProfile(const JsonObjectConst &doc) {
 
 void sendStatusResponse() {
     char resp[160];
-    const int n = snprintf(resp, sizeof(resp),
-                           "{\"status\":\"ok\",\"version\":\"%s\",\"protocol\":%u,\"is_day\":%d,"
-                           "\"board_id\":\"%s\"}",
-                           APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION),
-                           ThemeManager::isDayMode() ? 1 : 0,
-                           canshift::boards::runtimeBoardProfile().board_id);
-    if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
-        LOG_WARN("USB", "GET_STATUS payload truncated (n=%d, cap=%u)", n,
-                 static_cast<unsigned>(sizeof(resp)));
+    const UsbStatusLine::Fields fields = {
+        APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION), ThemeManager::isDayMode(),
+        canshift::boards::runtimeBoardProfile().board_id};
+    if (UsbStatusLine::format(fields, resp, sizeof(resp)) == 0) {
+        LOG_ERROR("USB", "GET_STATUS payload does not fit %u B",
+                  static_cast<unsigned>(sizeof(resp)));
+        UsbComm::sendError("status_too_long");
         return;
     }
     UsbComm::sendLine(resp);
