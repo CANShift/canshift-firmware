@@ -204,7 +204,8 @@ void UsbComm::sendOkRebooting() {
 
 void UsbComm::flushAndRestart() {
 #ifdef ARDUINO
-    Serial.flush();
+    if (isHostActive())
+        Serial.flush();
     vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
     esp_restart();
 #endif
