@@ -12,5 +12,7 @@ bool putUChar(const char *ns, const char *key, uint8_t value);
 bool putUShort(const char *ns, const char *key, uint16_t value);
 bool remove(const char *ns, const char *key);
 uint8_t getUChar(const char *ns, const char *key, uint8_t fallback);
+bool putULong(const char *ns, const char *key, uint32_t value);
+[[nodiscard]] bool getULong(const char *ns, const char *key, uint32_t &value);
 
 } // namespace NvsStore

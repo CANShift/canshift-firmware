@@ -60,6 +60,18 @@ void assertNothingWritten() {
     TEST_ASSERT_FALSE(StorageDriver::isChunkedWriteOpen());
 }
 
+constexpr uint32_t kAdlerModulus = 65521;
+
+uint32_t adler32(const std::vector<uint8_t> &bytes) {
+    uint32_t a = 1;
+    uint32_t b = 0;
+    for (const uint8_t byte : bytes) {
+        a = (a + byte) % kAdlerModulus;
+        b = (b + a) % kAdlerModulus;
+    }
+    return (b << 16) | a;
+}
+
 } // namespace
 
 void setUp() {
@@ -128,6 +140,26 @@ void test_failedStorageWriteAbortsTheFile() {
     assertNothingWritten();
 }
 
+void test_contentStampIsTheInflatedBytesAdler32() {
+    const std::vector<uint8_t> json = blobOf(fixtures::kJsonLikeDeflated);
+    const std::vector<uint8_t> random = blobOf(fixtures::kNoiseDeflated);
+    uint32_t jsonStamp = 0;
+    uint32_t noiseStamp = 0;
+    TEST_ASSERT_TRUE(
+        EmbeddedAsset::contentStamp(json.data(), json.data() + json.size(), jsonStamp));
+    TEST_ASSERT_TRUE(
+        EmbeddedAsset::contentStamp(random.data(), random.data() + random.size(), noiseStamp));
+    TEST_ASSERT_EQUAL_HEX32(adler32(jsonLike()), jsonStamp);
+    TEST_ASSERT_EQUAL_HEX32(adler32(noise()), noiseStamp);
+}
+
+void test_contentStampRefusesABlobTooShortForATrailer() {
+    const uint8_t headerOnly[] = {0x10, 0x00, 0x00, 0x00, 0x78, 0x9C};
+    uint32_t stamp = 0;
+    TEST_ASSERT_FALSE(
+        EmbeddedAsset::contentStamp(headerOnly, headerOnly + sizeof(headerOnly), stamp));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_textLongerThanTheWindowInflatesByteForByte);
@@ -138,5 +170,7 @@ int main(int, char **) {
     RUN_TEST(test_streamWiderThanTheWindowIsRefused);
     RUN_TEST(test_blobWithoutAStreamIsEmpty);
     RUN_TEST(test_failedStorageWriteAbortsTheFile);
+    RUN_TEST(test_contentStampIsTheInflatedBytesAdler32);
+    RUN_TEST(test_contentStampRefusesABlobTooShortForATrailer);
     return UNITY_END();
 }

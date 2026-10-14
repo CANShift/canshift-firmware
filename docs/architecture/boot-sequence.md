@@ -114,7 +114,13 @@ task returns the whole stack to the heap.
 
 - **`provisionDefaultFontsIfNeeded` before `initFontManagerWithHeapLog`**:
   FontManager's `lv_font_load()` opens SPIFFS paths; the embedded
-  `.bin` fonts must already be staged on the filesystem.
+  `.bin` fonts must already be staged on the filesystem. A face is
+  rewritten when its file is missing **or** when the stamp NVS holds for
+  it (namespace `fonts`) differs from the firmware's copy. The stamp is the
+  Adler-32 in the deflated blob's zlib trailer, so a font changed by an OTA
+  reaches SPIFFS on the first boot of the new image. The stamp is recorded
+  only after the file is written and committed. If recording it fails, the
+  face is rewritten again on the next boot.
 
 - **`preloadIconsWithHeapLog` before page widgets allocate**: page-widget
   allocations consume the same LVGL pool as the SPIFFS icon decoder. After

@@ -67,6 +67,17 @@ class Preferences {
         return 1;
     }
 
+    uint32_t getULong(const char *key, uint32_t fallback = 0) {
+        const auto it = store().find(m_ns + "/" + key);
+        return it != store().end() ? static_cast<uint32_t>(strtoul(it->second.c_str(), nullptr, 10))
+                                   : fallback;
+    }
+
+    size_t putULong(const char *key, uint32_t value) {
+        store()[m_ns + "/" + key] = std::to_string(value);
+        return sizeof(uint32_t);
+    }
+
     bool getBool(const char *key, bool fallback = false) {
         const auto it = store().find(m_ns + "/" + key);
         return it != store().end() ? it->second == "1" : fallback;
