@@ -50,25 +50,6 @@ const TeleEntry TELE_SIGNALS[] = {
 
 constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
 
-#ifdef ARDUINO
-
-void serialSink(const char *data, size_t len) {
-    if (!data || len == 0)
-        return;
-    const bool needsNewline = data[len - 1] != '\n';
-    if (!Logger::lockUart(pdMS_TO_TICKS(USB_TX_LOCK_TIMEOUT_MS))) {
-        return;
-    }
-    static constexpr uint8_t kNewline = '\n';
-    if (Logger::writeAll(reinterpret_cast<const uint8_t *>(data), len) && needsNewline) {
-        (void)Logger::writeAll(&kNewline, 1);
-    }
-    Logger::unlockUart();
-}
-#else
-void serialSink(const char *, size_t) {}
-#endif
-
 UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
 UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
 
@@ -210,7 +191,7 @@ void UsbComm::init() {
 void UsbComm::sendLine(const char *line) {
     if (!line)
         return;
-    serialSink(line, strlen(line));
+    UsbCommInternal::routeLine(line, strlen(line));
 }
 
 void UsbComm::sendOk() {
@@ -310,7 +291,7 @@ void UsbComm::tick() {
         if (c == '\n') {
             UsbCommInternal::s_rxBuf[s_rxPos] = '\0';
             if (s_rxPos > 0) {
-                UsbCommInternal::handleCommand(UsbCommInternal::s_rxBuf);
+                UsbCommInternal::dispatchFromSerial(UsbCommInternal::s_rxBuf);
             }
             s_rxPos = 0;
         } else if (s_rxPos < USB_RX_BUF_SIZE - 1) {
