@@ -100,8 +100,8 @@ void reportExprRejected(const CfgSignalDef &def, int32_t status) {
     const ExprRejection &rejection = exprRejection(status);
     LOG_ERROR("CAN", "signals.json: dropping '%s' — expression %s: %s", def.name, rejection.reason,
               def.expr);
-    char msg[52];
-    snprintf(msg, sizeof(msg), "%s: %s", def.name, rejection.reason);
+    char msg[sizeof(FwError::message)];
+    snprintf(msg, sizeof(msg), "%.32s: %s", def.name, rejection.reason);
     ErrorStore::push(ERROR_SRC_CONFIG, rejection.errorCode, msg);
 }
 
