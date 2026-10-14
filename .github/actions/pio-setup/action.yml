@@ -37,6 +37,18 @@ runs:
           pio-${{ runner.os }}-${{ inputs.cache-suffix }}-
           pio-${{ runner.os }}-
 
+    - shell: bash
+      run: |
+        {
+          echo "ESPUP_VERSION=0.17.1"
+          echo "XTENSA_TOOLCHAIN_VERSION=1.97.0.0"
+          echo "PLATFORMIO_VERSION=6.2.0"
+          echo "CARGO_NET_RETRY=10"
+          echo "CARGO_HTTP_TIMEOUT=60"
+          echo "PIP_RETRIES=10"
+          echo "PIP_TIMEOUT=60"
+        } >> "$GITHUB_ENV"
+
     - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
       with:
         toolchain: stable
@@ -44,26 +56,46 @@ runs:
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
-          ~/.cargo/bin/espup
           ~/.cargo/registry
           ~/.cargo/git
           ~/.rustup
+          !~/.rustup/toolchains/esp
           rust/target
         key: rust-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
         restore-keys: rust-${{ runner.os }}-
 
     - if: inputs.espup == 'true'
+      id: espup-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.cargo/bin/espup
+          ~/.rustup/toolchains/esp
+          ~/export-esp.sh
+        key: espup-${{ runner.os }}-${{ env.ESPUP_VERSION }}-${{ env.XTENSA_TOOLCHAIN_VERSION }}-${{ inputs.espup-targets }}
+
+    - if: inputs.espup == 'true' && steps.espup-cache.outputs.cache-hit != 'true'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
-        ESPUP_VERSION: 0.17.1
-        XTENSA_TOOLCHAIN_VERSION: 1.97.0.0
         ESPUP_TARGETS: ${{ inputs.espup-targets }}
+        RETRY_ATTEMPTS: 4
+        RETRY_BACKOFF_SECONDS: 20
       run: |
-        if [ "$(espup --version 2>/dev/null)" != "espup ${ESPUP_VERSION}" ]; then
-          cargo install espup --locked --force --version "${ESPUP_VERSION}"
-        fi
-        espup install --targets "${ESPUP_TARGETS}" --toolchain-version "${XTENSA_TOOLCHAIN_VERSION}"
+        retry() {
+          for attempt in $(seq "$RETRY_ATTEMPTS"); do
+            "$@" && return 0
+            echo "::warning::attempt ${attempt}/${RETRY_ATTEMPTS} failed: $*"
+            sleep $((attempt * RETRY_BACKOFF_SECONDS))
+          done
+          return 1
+        }
+        retry cargo install espup --locked --force --version "${ESPUP_VERSION}"
+        retry espup install --targets "${ESPUP_TARGETS}" --toolchain-version "${XTENSA_TOOLCHAIN_VERSION}"
+
+    - if: inputs.espup == 'true'
+      shell: bash
+      run: |
         . ~/export-esp.sh
         echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> "$GITHUB_ENV"
         for dir in $(echo "$PATH" | tr ':' '\n' | grep -E '(esp|rustup)' || true); do
@@ -71,6 +103,4 @@ runs:
         done
 
     - shell: bash
-      env:
-        PLATFORMIO_VERSION: 6.2.0
       run: pip install "platformio==${PLATFORMIO_VERSION}"
