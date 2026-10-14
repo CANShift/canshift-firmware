@@ -78,8 +78,10 @@ form are gone from it.
 
 A firmware update means downloading the signed `.bin` from
 [Releases](https://github.com/CANShift/canshift-firmware/releases) first, then
-uploading it from the tuner. The dash verifies the signature before writing
-the inactive OTA slot ([Firmware signing](../reference/firmware-signing.md)).
+uploading it with its `.sig` from the tuner. The dash verifies the Ed25519
+signature against the release key compiled into it, and switches to the new slot
+only when it verifies ([Firmware OTA](firmware-ota.md),
+[Firmware signing](../reference/firmware-signing.md)).
 
 ## The tuner, reduced
 

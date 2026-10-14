@@ -16,7 +16,7 @@ reply goes back only on the link its command came from.
 sequenceDiagram
     participant T as Tuner
     participant D as Dash (taskUSB)
-    T->>D: {"cmd":48,"total":N,"sha256":"<hex>","version":"x.y.z"}
+    T->>D: {"cmd":48,"total":N,"sha256":"<hex>","sig":"<base64>","version":"x.y.z"}
     D-->>T: {"status":"ok"}
     loop until N bytes
         T->>D: {"cmd":49,"offset":O,"data":"<base64>"}
@@ -27,8 +27,11 @@ sequenceDiagram
     Note over D: overlay holds "UPDATE COMPLETE", then reboots into the new slot
 ```
 
-1. `CMD_OTA_BEGIN` carries the image size and its SHA-256. The dash refuses
-   a size that does not fit the slot. It opens the slot for sequential writes,
+1. `CMD_OTA_BEGIN` carries the image size, its SHA-256 and `sig`: the
+   release's 64-byte Ed25519 `.sig`, in base64. The dash refuses a size that
+   does not fit the slot. It refuses a missing `sig` (`ota_unsigned`) and a
+   `sig` that is not 64 bytes of canonical signature (`ota_bad_signature`)
+   before touching flash. It opens the slot for sequential writes,
    so `BEGIN` returns at once: each chunk erases the sectors it is about to
    fill, rather than `BEGIN` erasing the whole image up front.
 2. `CMD_OTA_WRITE` streams base64 chunks in order. `offset` must equal the
@@ -36,7 +39,8 @@ sequenceDiagram
    app image aborts the transfer. The chunk is decoded in place in the line
    that carried it, so no transport-specific buffer is involved.
 3. `CMD_OTA_END` with `"commit"` hashes what was written. It refuses the slot
-   switch on a SHA-256 mismatch (`sha256_mismatch`). Otherwise it replies
+   switch on a SHA-256 mismatch (`sha256_mismatch`) or when the image does not
+   verify against the release key (`ota_bad_signature`). Otherwise it replies
    `{"status":"ok","restart":true}`, holds the completion screen for
    `OTA_COMPLETE_SCREEN_HOLD_MS` and reboots. `"abort"`, the default, discards
    the slot.
@@ -52,10 +56,30 @@ sequenceDiagram
 
 ## What the dash checks, and what it does not
 
-The dash checks the SHA-256 that `BEGIN` announced and the app-image header of
-the first chunk. It does not verify the Ed25519 `.sig` a release carries. That
-check belongs to the host ([Firmware signing](../reference/firmware-signing.md)),
-and moving it onto the dash would need a new field in `OTA_BEGIN`.
+Every image is checked against the release signing key on both links, with no
+exception in any shipped build:
+
+| Check | Where | Refusal |
+| --- | --- | --- |
+| `sig` present | `BEGIN` | `ota_unsigned` |
+| `sig` is 64 bytes, canonical | `BEGIN` | `ota_bad_signature` |
+| app-image header | first chunk | `not_app_image` |
+| SHA-256 of the whole image | commit | `sha256_mismatch` |
+| Ed25519 over the whole image, against the embedded release key | commit | `ota_bad_signature` |
+
+The signature is verified as the chunks stream in (`rust/ota-signature`, built on
+`ed25519-dalek`'s incremental verifier), so the image never has to fit in RAM, and
+nothing becomes bootable until it verifies. The public key is
+`keys/firmware-signing-public.pem`, compiled in at build time
+([Firmware signing](../reference/firmware-signing.md)). Anyone who can reach the
+dash, whether on its Wi-Fi or with a cable, can still upload, but only an image
+signed by the release key will boot.
+
+A debug build may accept unsigned images when built with
+`PLATFORMIO_BUILD_FLAGS="-DAPP_DEBUG_BUILD=1 -DAPP_OTA_ALLOW_UNSIGNED=1"` and
+logs a warning when it does. The flag cannot reach a release:
+`include/app_config.h` refuses to compile it without `APP_DEBUG_BUILD`, and the
+`lint` job (`scripts/check_release_flags.py`) fails if `platformio.ini` names it.
 
 The firmware marks the new slot valid only after a stable boot
 ([Boot sequence](boot-sequence.md)), so a bootloader built with app rollback

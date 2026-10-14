@@ -54,7 +54,7 @@ USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 | `0x21` | `CMD_CAN_SCAN_STOP`      | `{"cmd":33}`                                          | Stops forwarding; the ack carries `drops`                                                           |
 | `0x22` | `CMD_OBD_READ_DTC`       | `{"cmd":34}`                                          | OBD-II mode 03; replies `{"status":"ok","dtc_bytes":[…]}` when the ECU answers                      |
 | `0x23` | `CMD_OBD_CLEAR_DTC`      | `{"cmd":35}`                                          | OBD-II mode 04                                                                                      |
-| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>"}`               | Opens the inactive app slot (see [Firmware OTA](firmware-ota.md))                                     |
+| `0x30` | `CMD_OTA_BEGIN`          | `{"cmd":48,"total":N,"sha256":"<hex>","sig":"<b64>"}` | Opens the inactive app slot (see [Firmware OTA](firmware-ota.md))                                     |
 | `0x31` | `CMD_OTA_WRITE`          | `{"cmd":49,"offset":O,"data":"<b64>"}`                | Writes one chunk; `{"status":"ok","written":N}`                                                     |
 | `0x32` | `CMD_OTA_END`            | `{"cmd":50,"action":"commit"}`                        | `commit` verifies and reboots into the new slot; `abort`, the default, discards                     |
 | `0xF0` | `CMD_REBOOT`             | `{"cmd":240}`                                         | `{"status":"ok","restart":true}`, then restarts                                                     |
