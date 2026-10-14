@@ -31,10 +31,12 @@ class ChunkedAtomicWriter : public Print {
     }
 };
 
-void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
-                                 JsonVariantConst subValue) {
+void persistTypedConfigAndReboot(const char *path, const char *wrapKey, JsonVariantConst subValue) {
     JsonDocument out;
-    out[fieldKey] = subValue;
+    if (wrapKey)
+        out[wrapKey] = subValue;
+    else
+        out.set(subValue);
 
     const size_t projected = JsonWriter::measure(out);
     if (projected == 0 || projected > UsbCommInternal::kTypedPutMaxPayloadBytes) {
@@ -75,7 +77,7 @@ void persistTypedConfigAndReboot(const char *path, const char *fieldKey,
 
 namespace UsbCommInternal {
 
-void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwrapKey) {
+void sendTypedConfigGet(const char *path, const char *fieldKey, TypedConfigBody::BodyOf bodyOf) {
     if (!StorageDriver::fileExists(path)) {
         UsbComm::sendError("config_not_found");
         return;
@@ -89,11 +91,9 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
         return;
     }
 
-    JsonVariantConst body =
-        unwrapKey ? fileDoc[unwrapKey].as<JsonVariantConst>() : fileDoc.as<JsonVariantConst>();
+    const JsonVariantConst body = bodyOf(fileDoc);
     if (body.isNull()) {
-        LOG_WARN("USB", "GET %s: missing '%s' in file body", path,
-                 unwrapKey ? unwrapKey : "(root)");
+        LOG_WARN("USB", "GET %s: no '%s' body in the file", path, fieldKey);
         UsbComm::sendError("config_not_found");
         return;
     }
@@ -117,21 +117,21 @@ void sendTypedConfigGet(const char *path, const char *fieldKey, const char *unwr
 }
 
 void handlePutDeviceConfig(const JsonObjectConst &obj) {
-    JsonVariantConst sub = obj["device_config"];
+    JsonVariantConst sub = obj[TypedConfigBody::kDeviceConfigKey];
     if (sub.isNull() || !sub.is<JsonObjectConst>()) {
         UsbComm::sendError("missing_device_config");
         return;
     }
-    persistTypedConfigAndReboot(CONFIG_PATH_DEVICE, "device_config", sub);
+    persistTypedConfigAndReboot(CONFIG_PATH_DEVICE, nullptr, sub);
 }
 
 void handlePutInputBindings(const JsonObjectConst &obj) {
-    JsonVariantConst sub = obj["input_bindings"];
+    JsonVariantConst sub = obj[TypedConfigBody::kInputBindingsKey];
     if (sub.isNull() || !sub.is<JsonArrayConst>()) {
         UsbComm::sendError("missing_input_bindings");
         return;
     }
-    persistTypedConfigAndReboot(CONFIG_PATH_INPUTS, "input_bindings", sub);
+    persistTypedConfigAndReboot(CONFIG_PATH_INPUTS, TypedConfigBody::kInputBindingsKey, sub);
 }
 
 } // namespace UsbCommInternal

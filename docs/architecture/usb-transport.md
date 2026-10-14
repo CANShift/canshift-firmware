@@ -37,7 +37,7 @@ USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 | `0x01` | `CMD_GET_CONFIG`         | `{"cmd":1}`                                           | `{"status":"ok","config":{…}}`, the on-disk `dashboard.json`                                        |
 | `0x02` | `CMD_PUT_CONFIG`         | `{"cmd":2,"payload":{…}}`                             | Atomic write of `dashboard.json`, then reboot (see below)                                           |
 | `0x03` | `CMD_GET_DEVICE_CONFIG`  | `{"cmd":3}`                                           | `device.json`, or `config_not_found`                                                                |
-| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"payload":{…}}`                             | Atomic write of `device.json`, then reboot                                                          |
+| `0x04` | `CMD_PUT_DEVICE_CONFIG`  | `{"cmd":4,"device_config":{…}}`                       | Atomic write of `device.json`, then reboot                                                          |
 | `0x05` | `CMD_SCREEN_SETTINGS`    | `{"cmd":5,"brightness":80,"rotation":0}`              | Applies brightness; a `rotation` of 0 or 180 that differs from the current one persists and reboots |
 | `0x06` | `CMD_PUT_FILE`           | `{"cmd":6,"path":…,"total":N,"idx":i,"data":"<b64>"}` | Chunked write under `/assets/` or `/fonts/` only; an out-of-order chunk aborts the transfer         |
 | `0x07` | `CMD_TOGGLE_DAY_NIGHT`   | `{"cmd":7}`                                           | Flips the theme on the next UI tick                                                                 |
@@ -158,8 +158,8 @@ lazily on the first `CMD_CAN_SCAN_START`.
 
 `usb_config_sync.cpp` handles `device.json` and `input_bindings.json`:
 
-- `CMD_GET_DEVICE_CONFIG` → `sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", nullptr)`
-- `CMD_GET_INPUT_BINDINGS` → `sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", "input_bindings")`
+- `CMD_GET_DEVICE_CONFIG` → `sendTypedConfigGet(CONFIG_PATH_DEVICE, "device_config", TypedConfigBody::device)`
+- `CMD_GET_INPUT_BINDINGS` → `sendTypedConfigGet(CONFIG_PATH_INPUTS, "input_bindings", TypedConfigBody::inputBindings)`
 - `CMD_PUT_DEVICE_CONFIG` → `handlePutDeviceConfig`
 - `CMD_PUT_INPUT_BINDINGS` → `handlePutInputBindings`
 
@@ -171,10 +171,19 @@ document straight to storage through `ChunkedAtomicWriter`
 then `sendOkRebooting()` and `esp_restart()` — same reboot-to-apply model
 as PUT_CONFIG.
 
-The `unwrapKey` argument handles the disk-vs-wire shape difference:
-`input_bindings.json` wraps its array under `{"input_bindings":[…]}` on
-disk, so `sendTypedConfigGet` lifts the body out under that key; `device.json`
-is already flat and passes `unwrapKey = nullptr`.
+`TypedConfigBody` (`src/config/typed_config_body.h`) holds the on-disk shape
+of each file. The PUT handlers, the GET and `ConfigLoader` all go through it:
+
+| File | On disk | Wire |
+| --- | --- | --- |
+| `device.json` | the flat object, `{"can_speed_kbps":500,…}` | `{"device_config":{…}}` |
+| `input_bindings.json` | `{"input_bindings":[…]}` | `{"input_bindings":[…]}` |
+
+`PUT_DEVICE_CONFIG` writes the object flat. Earlier firmware wrapped it
+as `{"device_config":{…}}`, and the loader read nothing from that file. A
+device that took such a push still has a wrapped file, so
+`TypedConfigBody::device` reads a top-level `device_config` object when there
+is one, and the next push rewrites the file flat.
 
 ## Firmware OTA
 
