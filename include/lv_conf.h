@@ -21,20 +21,25 @@
 
         #define LV_COLOR_CHROMA_KEY lv_color_hex(0x00ff00)
 
-    #ifndef LV_MEM_SIZE
-        #ifdef BOARD_HAS_PSRAM
-            #define LV_MEM_SIZE (512U * 1024U)
-        #else
-            #define LV_MEM_SIZE (80U * 1024U)
+    #ifdef SIM_BUILD
+        #ifndef LV_MEM_SIZE
+            #ifdef BOARD_HAS_PSRAM
+                #define LV_MEM_SIZE (512U * 1024U)
+            #else
+                #define LV_MEM_SIZE (80U * 1024U)
+            #endif
         #endif
-    #endif
 
         #define LV_MEM_ADR 0U
-
-        #if LV_MEM_ADR == 0U
-            #define LV_MEM_POOL_INCLUDE "lvgl_pool_alloc.h"
-            #define LV_MEM_POOL_ALLOC(size) canshift_lvgl_pool_alloc((size))
-        #endif
+        #define LV_MEM_POOL_INCLUDE "lvgl_pool_alloc.h"
+        #define LV_MEM_POOL_ALLOC(size) canshift_lvgl_pool_alloc((size))
+    #else
+        #define LV_MEM_CUSTOM 1
+        #define LV_MEM_CUSTOM_INCLUDE "lvgl_pool_alloc.h"
+        #define LV_MEM_CUSTOM_ALLOC canshift_lv_malloc
+        #define LV_MEM_CUSTOM_FREE canshift_lv_free
+        #define LV_MEM_CUSTOM_REALLOC canshift_lv_realloc
+    #endif
 
         #define LV_DISP_DEF_REFR_PERIOD 20 
 

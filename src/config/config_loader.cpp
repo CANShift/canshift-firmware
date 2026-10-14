@@ -25,13 +25,13 @@ CfgRejection s_rejection = {};
 namespace {
 constexpr size_t kRollbackSnapshotSize = sizeof(CfgSignalConfig);
 
-#ifndef BOARD_HAS_PSRAM
+#if !APP_RUNTIME_PSRAM_DETECT
 alignas(CfgSignalConfig) uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
 #endif
 } // namespace
 
 uint8_t *acquireRollbackSnapshot() {
-#ifdef BOARD_HAS_PSRAM
+#if APP_RUNTIME_PSRAM_DETECT
     static uint8_t *s_rollback_snapshot_psram = nullptr;
     static bool s_psram_alloc_attempted = false;
     if (!s_psram_alloc_attempted) {
