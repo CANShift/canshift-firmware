@@ -13,6 +13,10 @@ constexpr size_t kSlotBytes = 192;
 
 constexpr size_t kSlotAlign = 8;
 
+[[nodiscard]] bool reserveResidentSlots(size_t slots);
+
+[[nodiscard]] size_t capacity();
+
 void *allocRaw();
 
 void releaseRaw(void *p);

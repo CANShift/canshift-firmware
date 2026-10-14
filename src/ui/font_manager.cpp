@@ -4,6 +4,7 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "display_tiers.h"
+#include "hal/memory/psram.h"
 
 #include <Arduino.h>
 #include <SPIFFS.h>
@@ -164,18 +165,21 @@ void loadOne(const Family &fam, uint8_t size, FaceSlot &slot) {
     slot.font = font;
 }
 
-const lv_font_t *faceAt(const Family &fam, size_t idx) {
+void ensureLoaded(const Family &fam, size_t idx) {
     FaceSlot &slot = fam.slots[idx];
     if (slot.attempted)
-        return slot.font != nullptr ? slot.font : fam.fallback;
-
+        return;
     slot.attempted = true;
     if (fam.faces[idx].inFlash != nullptr) {
         slot.font = fam.faces[idx].inFlash;
-        return slot.font;
+        return;
     }
-
     loadOne(fam, fam.faces[idx].size, slot);
+}
+
+const lv_font_t *faceAt(const Family &fam, size_t idx) {
+    ensureLoaded(fam, idx);
+    const FaceSlot &slot = fam.slots[idx];
     return slot.font != nullptr ? slot.font : fam.fallback;
 }
 
@@ -210,10 +214,26 @@ const Family kLabelFamily = {"archivo",
                              s_labelSlots,
                              &lv_font_archivo_extrabold_14_nk};
 
+size_t preloadFamily(const Family &fam) {
+    size_t loaded = 0;
+    for (size_t i = 0; i < fam.count; ++i) {
+        ensureLoaded(fam, i);
+        if (fam.slots[i].font != nullptr)
+            ++loaded;
+    }
+    return loaded;
+}
+
 } // namespace
 
 void FontManager::init() {
-    LOG_INFO("FONT", "Font faces load on first use");
+    if (!canshift::hal::memory::isPsramAvailable()) {
+        LOG_INFO("FONT", "No PSRAM — each face loads when the boot page check first uses it");
+        return;
+    }
+    const size_t loaded = preloadFamily(kValueFamily) + preloadFamily(kLabelFamily);
+    LOG_INFO("FONT", "Preloaded %u/%u font faces", static_cast<unsigned>(loaded),
+             static_cast<unsigned>(kValueCount + kLabelCount));
 }
 
 void FontManager::shutdown() {

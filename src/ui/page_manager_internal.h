@@ -26,9 +26,11 @@ extern uint8_t s_pendingFreeIdx;
 
 extern uint8_t s_pendingLazyBuildIdx;
 
+extern bool s_keepAllPages;
+
 void showConfigFailure();
 
-void buildPage(uint8_t idx, const CfgPage &cfg);
+[[nodiscard]] bool buildPage(uint8_t idx, const CfgPage &cfg);
 
 [[nodiscard]] bool pageDeclaresShiftStrip(const CfgPage &cfg);
 
@@ -37,6 +39,10 @@ void buildPage(uint8_t idx, const CfgPage &cfg);
 void reapplyThemeAllPages();
 
 void buildPageList();
+
+void buildPagesAtBoot(uint8_t target);
+
+void rebuildPagesForTheme(uint8_t target);
 
 uint8_t defaultPageIndex();
 

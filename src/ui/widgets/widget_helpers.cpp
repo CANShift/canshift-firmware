@@ -260,7 +260,7 @@ void setFillImmediate(lv_obj_t *obj, lv_anim_exec_xcb_t setter, int32_t value) {
 
 void logTagPoolExhausted(const char *logTag, const char *widgetId) {
     LOG_WARN(logTag, "Tag pool exhausted for '%s' (all %u slots busy)", widgetId,
-             static_cast<unsigned>(WidgetTagPool::kPoolSlots));
+             static_cast<unsigned>(WidgetTagPool::capacity()));
 }
 
 } // namespace WidgetHelpers

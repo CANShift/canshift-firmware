@@ -8,13 +8,27 @@ makes this the most fragile part of the UI. Sources:
 `src/ui/page_manager.cpp`, `src/ui/page_manager_anim.cpp`,
 `src/ui/page_manager_builder.cpp`, `src/ui/widget_factory.cpp`.
 
-## Lazy build, not eager
+## Every page is built at boot
 
-Only the default page is built eagerly at boot. Other pages stay as
-`Page{built=false, screen=nullptr}` entries until first navigation. The LVGL
-pool would OOM on gauge-heavy configs if every page were materialised at
-boot — the pool runs ~80 KB and a single dense page can claim 20 KB+ in
-arc + label objects.
+`buildPagesAtBoot()` (`page_manager_residency.cpp`) builds every visible page
+before the dash starts. A page whose widgets do not all build logs an error
+and pushes `PAGE_BUILD` with the page id to the error store, so a broken
+layout shows at boot instead of on the first swipe to it.
+
+What happens next depends on the board:
+
+| Board | Boot | Swipe |
+| --- | --- | --- |
+| PSRAM (S3) | The widget tag pool grows into PSRAM (`kPoolSlots × MAX_PAGES` slots), every page is built and kept, and the fonts are preloaded | Loads a screen that already exists: nothing is allocated or freed |
+| PSRAM, pages do not fit | All-or-nothing: if any page is incomplete, or the LVGL pool keeps less than 64 KB free, every page is released and the board falls back to the row below | Lazy, as below |
+| No PSRAM (WROOM) | Each page is built alone, checked, and released, then the default page is built. Peak use is one page, as on a swipe | Lazy build of the target page, as below |
+
+The fallback keeps one page alive because the tag pool holds
+`CONFIG_MAX_WIDGETS_PER_PAGE` tags. On a WROOM the boot check still loads
+every font face some page uses, so no face is loaded for the first time
+while driving.
+
+## Lazy build without PSRAM
 
 When a swipe / `navigateTo` lands on an unbuilt page, `showPage()` schedules
 the build via `lv_async_call(asyncDoLazyBuild, nullptr)` instead of doing it
@@ -32,7 +46,7 @@ the most recent index. This matches typical UI debounce semantics.
 
 ## Release on the next navigation
 
-LVGL screen transitions need both screens alive while the animation
+With every page resident, nothing is released. Otherwise, LVGL screen transitions need both screens alive while the animation
 plays. `showPage()` defers the release of the departing page until the
 **next** call: `s_pendingFreeIdx = s_currentIdx` after starting the
 animation, and the head of the next `showPage()` invocation
