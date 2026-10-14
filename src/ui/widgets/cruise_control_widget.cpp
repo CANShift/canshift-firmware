@@ -9,6 +9,7 @@
 
 #include "diag/logger.h"
 
+#include <initializer_list>
 #include <lvgl.h>
 #include <string.h>
 

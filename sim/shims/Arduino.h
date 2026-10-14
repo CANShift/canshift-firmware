@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <math.h>
 #include <thread>
 
 inline uint32_t millis() {
@@ -75,6 +76,12 @@ class SerialShim : public Print {
         ::printf("%s\n", s);
     }
     void flush() {}
+    int available() {
+        return 0;
+    }
+    int read() {
+        return -1;
+    }
     int availableForWrite() {
         return 4096;
     }
