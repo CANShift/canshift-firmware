@@ -3,13 +3,14 @@
 Source: [`scripts/sign_release_artifacts.py`](../../scripts/sign_release_artifacts.py)
 
 The release workflow (`.github/workflows/release.yml`) signs every shipped
-firmware binary with an Ed25519 private key. The public counterpart is
-meant to be embedded in the Tuner's built-in USB flasher build via a Vite
-env var, so the flasher can verify the detached `.sig` sidecar before
-calling `writeFlash`, defending against a hosting-origin compromise that
-swaps both the binary and its SHA-256 sidecar from the same source.
-Flasher-side verification is not wired up yet. See issue
-[#1259](https://github.com/CANShift/issues/1259).
+firmware binary with an Ed25519 private key. **The dash enforces it.** The
+public key, `keys/firmware-signing-public.pem`, is compiled into the firmware,
+and an OTA image is only made bootable once it verifies against that key, over
+USB or the workshop socket ([Firmware OTA](../architecture/firmware-ota.md)).
+An image without a signature is refused.
+
+A host may check the `.sig` too before it uploads, to fail early, but the dash
+does not rely on it.
 
 ## Released assets
 
@@ -45,25 +46,40 @@ base64 -i firmware-signing-private.pem
 
 The release workflow's `Sign firmware artifacts with Ed25519` step:
 
-- Exits non-zero if the secret is set but malformed.
-- Exits `0` with a warning when the secret is missing — the release still ships, just without `.sig` files. Keeps the workflow green during the rollout window while the flasher's verification stays no-op (see #1259).
+- Fails when the secret is missing or malformed. A release without `.sig`
+  files could not be installed over the air.
+- Verifies every `.sig` it just wrote against `keys/firmware-signing-public.pem`
+  (`scripts/verify_release_signatures.py`), so a secret that does not match the
+  key the firmware embeds fails the release instead of shipping images every
+  dash would refuse.
 
-## Distributing the public key to the flasher
+## Where the public key lives
 
-Provide the **public** PEM (`firmware-signing-public.pem`) to the Tuner build pipeline. The current contract is single-key, embedded at build time via a Vite env var (raw PEM, not base64).
+`keys/firmware-signing-public.pem` is the only copy. `rust/ota-signature/build.rs`
+reads it at build time and checks it is an Ed25519 SubjectPublicKeyInfo. Hosts
+that want to check signatures too read the same file. The private key never
+enters the repo.
 
 ## Rotation runbook
 
-The simplest model is **single-key, manual rotation** — minimises operational complexity at the cost of a flasher rebuild + redeploy for any rotation.
+A dash only accepts images signed by the key it was built with, so a rotation
+has to travel inside a release signed by the old key.
 
 1. Generate a new keypair via the steps above.
-2. Update the embedded public key in the Tuner and ship a new build. Users automatically pick it up on their next visit.
-3. Once telemetry confirms the new flasher build has reached its install base (≥ 99 % visitors over a 7-day window), rotate `FIRMWARE_SIGNING_PRIVATE_KEY` in this repo's CI secret to the new private key.
-4. Releases shipped between step 2 and step 3 will still verify against the old key. The change that introduces flasher-side verification should keep the old key around as a transition fallback for one release cycle.
+2. Replace `keys/firmware-signing-public.pem` with the new public key and
+   release. **Sign that release with the old key.** Dashes accept it because
+   it verifies against the key they run, and from then on they accept only the
+   new one.
+3. Rotate `FIRMWARE_SIGNING_PRIVATE_KEY` to the new private key. Every later
+   release is signed with it.
 
-For an emergency rotation (private key suspected to be exposed), skip the gradual rollout: rotate the CI secret immediately, force-push a new flasher build, accept the user friction.
+A dash that skipped step 2's release cannot take a release from step 3 over
+the air. It needs the step 2 release first, or a cable and `esptool`
+([First flash](../guide/first-flash.md)).
 
-A multi-key variant (flasher embeds a key set, verifies against any one of N) is a future option — see issue #1259 for the discussion.
+For an emergency rotation (private key suspected to be exposed), the old key
+can no longer be trusted to carry the new one. Rotate both immediately, and
+reflash dashes over USB.
 
 ## References
 
