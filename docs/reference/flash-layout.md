@@ -72,6 +72,14 @@ The firmware still boots. It formats a SPIFFS partition that does not mount, the
 writes back what it carries inside the app image: `dashboard.json`
 ([`default_config.cpp`](../../src/config/default_config.cpp)) and the fonts listed
 under `board_build.embed_files`. Files that already exist are never overwritten.
+The image stores each of them deflated: the build
+([`deflate_embeds.py`](../../scripts/deflate_embeds.py)) writes a 4-byte length plus
+a zlib stream with a 4 KB window, and checks the round trip. The firmware inflates
+it with the tinfl in the chip ROM ([`embedded_asset.cpp`](../../src/boot/embedded_asset.cpp)),
+streaming through a 4 KB ring into an atomic chunked write, so provisioning needs
+about 15 KB of heap whatever the file size. The zlib Adler-32 and the length are
+checked before the write is committed: a damaged copy reports `EMBED_CORRUPT` and
+leaves nothing on SPIFFS.
 Icons have no embedded copy, so flash the `-spiffs.bin` too.
 
 ### Atomic writes and the `.bak` fallback

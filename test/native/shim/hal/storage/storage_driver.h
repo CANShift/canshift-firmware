@@ -42,5 +42,7 @@ void sweepOrphanTmp(const char *path);
 // ---------------------------------------------------------------------------
 void fakeReset();
 void fakeWrite(const char *path, const char *contents, size_t length);
+void fakeFailChunksAfter(size_t bytes);
+const uint8_t *fakeRead(const char *path, size_t *length);
 
 } // namespace StorageDriver

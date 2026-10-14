@@ -148,18 +148,48 @@ void getSpaceInfo(size_t *totalBytes, size_t *usedBytes) {
     }
 }
 
-bool beginChunkedWriteAtomic(const char * /*path*/) {
-    return false;
+namespace {
+
+struct ChunkedWrite {
+    bool open;
+    char path[64];
+    uint8_t data[kMaxFileBytes];
+    size_t size;
+    size_t failAfter;
+};
+
+ChunkedWrite s_chunk = {false, {0}, {0}, 0, kMaxFileBytes};
+
+} // namespace
+
+bool beginChunkedWriteAtomic(const char *path) {
+    if (!path)
+        return false;
+    s_chunk.open = true;
+    strncpy(s_chunk.path, path, sizeof(s_chunk.path) - 1);
+    s_chunk.path[sizeof(s_chunk.path) - 1] = '\0';
+    s_chunk.size = 0;
+    return true;
 }
-bool appendChunk(const uint8_t * /*data*/, size_t /*length*/) {
-    return false;
+bool appendChunk(const uint8_t *data, size_t length) {
+    if (!s_chunk.open || s_chunk.size + length > s_chunk.failAfter)
+        return false;
+    memcpy(s_chunk.data + s_chunk.size, data, length);
+    s_chunk.size += length;
+    return true;
 }
 bool endChunkedWrite() {
-    return false;
+    if (!s_chunk.open)
+        return true;
+    s_chunk.open = false;
+    return stageFileBytes(s_chunk.path, s_chunk.data, s_chunk.size);
 }
-void abortChunkedWrite() {}
+void abortChunkedWrite() {
+    s_chunk.open = false;
+    s_chunk.size = 0;
+}
 bool isChunkedWriteOpen() {
-    return false;
+    return s_chunk.open;
 }
 bool ensureParentDirs(const char * /*path*/) {
     return true;
@@ -167,6 +197,8 @@ bool ensureParentDirs(const char * /*path*/) {
 void sweepOrphanTmp(const char * /*path*/) {}
 
 void fakeReset() {
+    abortChunkedWrite();
+    s_chunk.failAfter = kMaxFileBytes;
     for (auto &f : s_files) {
         f.used = false;
         f.size = 0;
@@ -176,6 +208,16 @@ void fakeReset() {
 
 void fakeWrite(const char *path, const char *contents, size_t length) {
     stageFileBytes(path, reinterpret_cast<const uint8_t *>(contents), length);
+}
+
+void fakeFailChunksAfter(size_t bytes) {
+    s_chunk.failAfter = bytes;
+}
+
+const uint8_t *fakeRead(const char *path, size_t *length) {
+    FakeFile *f = findFile(path);
+    *length = f ? f->size : 0;
+    return f ? reinterpret_cast<const uint8_t *>(f->data) : nullptr;
 }
 
 } // namespace StorageDriver
