@@ -6,15 +6,6 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 const MAX_DECIMALS: i32 = 9;
 const MAX_SIG_DIGITS: i32 = 9;
 

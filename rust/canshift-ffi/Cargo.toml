@@ -1,0 +1,44 @@
+[package]
+name = "canshift-ffi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The one staticlib the firmware links: every enabled member crate as an rlib, so the release profile's LTO applies across all of them and one panic handler serves the image."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+doctest = false
+
+[features]
+default = ["std"]
+std = ["signal-map?/std", "can-parser?/std", "usb-envelope?/std", "config-loader?/std", "format-float?/std", "error-store?/std", "alert-engine?/std", "timer-core?/std", "layout-grid?/std", "control-state?/std", "unit-convert?/std", "workshop-mode?/std", "ota-signature?/std"]
+signal-map = ["dep:signal-map"]
+can-parser = ["dep:can-parser"]
+usb-envelope = ["dep:usb-envelope"]
+config-loader = ["dep:config-loader"]
+format-float = ["dep:format-float"]
+error-store = ["dep:error-store"]
+alert-engine = ["dep:alert-engine"]
+timer-core = ["dep:timer-core"]
+layout-grid = ["dep:layout-grid"]
+control-state = ["dep:control-state"]
+unit-convert = ["dep:unit-convert"]
+workshop-mode = ["dep:workshop-mode"]
+ota-signature = ["dep:ota-signature"]
+
+[dependencies]
+signal-map = { path = "../signal-map", default-features = false, features = ["ffi"], optional = true }
+can-parser = { path = "../can-parser", default-features = false, features = ["ffi"], optional = true }
+usb-envelope = { path = "../usb-envelope", default-features = false, features = ["ffi"], optional = true }
+config-loader = { path = "../config-loader", default-features = false, features = ["ffi"], optional = true }
+format-float = { path = "../format-float", default-features = false, features = ["ffi"], optional = true }
+error-store = { path = "../error-store", default-features = false, features = ["ffi"], optional = true }
+alert-engine = { path = "../alert-engine", default-features = false, features = ["ffi"], optional = true }
+timer-core = { path = "../timer-core", default-features = false, features = ["ffi"], optional = true }
+layout-grid = { path = "../layout-grid", default-features = false, features = ["ffi"], optional = true }
+control-state = { path = "../control-state", default-features = false, features = ["ffi"], optional = true }
+unit-convert = { path = "../unit-convert", default-features = false, features = ["ffi"], optional = true }
+workshop-mode = { path = "../workshop-mode", default-features = false, features = ["ffi"], optional = true }
+ota-signature = { path = "../ota-signature", default-features = false, features = ["ffi"], optional = true }

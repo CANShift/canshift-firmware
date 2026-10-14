@@ -11,15 +11,6 @@ mod ffi;
 
 pub mod bus_silence;
 
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 // repr(u8) is load-bearing — C++ enum is uint8_t.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]

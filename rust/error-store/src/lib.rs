@@ -5,15 +5,6 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
-// Required for no_std staticlib — reaching here means invariant break.
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub const CODE_LEN: usize = 12;
 pub const MESSAGE_LEN: usize = 52;
 

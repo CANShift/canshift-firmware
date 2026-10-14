@@ -6,12 +6,6 @@ publish = false
 description = "Rust port of CANShift CanParser::detail::decodeBytes — issue #1177 R-1"
 license = "UNLICENSED"
 
-[lib]
-# rlib: required for `cargo test` (parity suite against the C++ Unity tests).
-# staticlib: emits `.a` so PlatformIO's Xtensa link step can pull the Rust
-#   implementation into the ESP32 firmware (gated by USE_RUST_CAN_PARSER=1).
-crate-type = ["rlib", "staticlib"]
-
 [features]
 # `std` is on by default so `cargo test` works without ceremony.
 # The PlatformIO build flips to `no_std + ffi`:

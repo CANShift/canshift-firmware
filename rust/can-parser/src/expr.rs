@@ -1,4 +1,4 @@
-use core::str;
+use crate::decimal::parse_decimal;
 
 pub(crate) const MAX_TOKENS: usize = 64;
 
@@ -117,8 +117,7 @@ fn lex_decimal(expr: &[u8], start: usize) -> Option<(TokKind, usize)> {
     while i < expr.len() && (expr[i].is_ascii_digit() || expr[i] == b'.') {
         i += 1;
     }
-    let s = str::from_utf8(&expr[start..i]).ok()?;
-    let num: f32 = s.parse().ok()?;
+    let num = parse_decimal(&expr[start..i])?;
     Some((TokKind::Num(num), i))
 }
 

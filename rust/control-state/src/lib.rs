@@ -10,14 +10,6 @@ pub use splash::{
     CONTROL_SPLASH_REFUSAL_MS,
 };
 
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub const CONTROL_STATE_COUNT: u8 = 4;
 pub const CONTROL_STEP_MAX: u8 = 6;
 pub const CONTROL_LONG_PRESS_MS: u32 = 600;

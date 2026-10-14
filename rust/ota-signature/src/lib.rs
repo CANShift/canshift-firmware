@@ -7,14 +7,6 @@ use ed25519_dalek::{Signature, StreamVerifier, VerifyingKey};
 
 include!(concat!(env!("OUT_DIR"), "/release_key.rs"));
 
-#[cfg(all(feature = "ffi", not(any(test, feature = "std"))))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
-
 pub const OTA_SIGNATURE_BYTES: usize = 64;
 pub const OTA_SIGNATURE_STATE_BYTES: usize = 576;
 pub const OTA_SIGNATURE_STATE_ALIGN: usize = 16;

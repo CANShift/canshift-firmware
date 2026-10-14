@@ -1,9 +1,10 @@
 # canshift-firmware/rust
 
-Rust workspace for the firmware's pure-logic modules. Each crate builds as a
-`staticlib` with a hand-written `extern "C"` header and is linked into the
-ESP32 binary via `scripts/build_rust.py`, gated per crate by a
-`USE_RUST_<NAME>=1` build flag in `platformio.ini`.
+Rust workspace for the firmware's pure-logic modules. Each crate is an rlib
+with a hand-written `extern "C"` header. `canshift-ffi` bundles the enabled
+crates into the one staticlib the ESP32 binary links (`scripts/build_rust.py`),
+one feature per `USE_RUST_<NAME>=1` build flag in `platformio.ini`; bundling is
+what lets the release profile's LTO apply, and it owns the only panic handler.
 
 ## Member crates
 
@@ -34,8 +35,8 @@ cargo test
 cargo clippy --all-targets --features ffi -- -D warnings
 cargo fmt --check
 
-# Verify the ffi module + panic_handler compile under no_std.
-cargo build --release --no-default-features --features ffi
+# Verify the ffi modules + panic_handler compile under no_std.
+cargo build --release -p canshift-ffi --no-default-features --features can-parser,signal-map
 ```
 
 ## ESP32 build
@@ -49,6 +50,6 @@ espup install
 `espup install` downloads the LLVM fork Espressif maintains for Xtensa into
 `~/.rustup/toolchains/esp/`. `rust-toolchain.toml` in this directory auto-selects
 it. The firmware build then invokes `scripts/build_rust.py`, which runs
-`cargo build --release --no-default-features --features ffi --target
-xtensa-esp32-none-elf -Z build-std=core,alloc` for each enabled crate and appends
-the resulting `.a` to the link.
+`cargo build --release --manifest-path canshift-ffi/Cargo.toml --no-default-features
+--features <enabled crates> --target xtensa-esp32-none-elf -Z build-std=core,alloc`
+once and appends `libcanshift_ffi.a` to the link.
