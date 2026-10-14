@@ -20,6 +20,7 @@ CRATES = (
     ("layout-grid", "liblayout_grid.a"),
     ("control-state", "libcontrol_state.a"),
     ("unit-convert", "libunit_convert.a"),
+    ("workshop-mode", "libworkshop_mode.a"),
 )
 
 

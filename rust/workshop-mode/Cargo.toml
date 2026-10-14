@@ -1,0 +1,15 @@
+[package]
+name = "workshop-mode"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Workshop mode pure logic: entry state machine, eligibility, the per-board Wi-Fi credentials and their QR join payload. LVGL, NVS and the radio stay C++."
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["std"]
+std = []
+ffi = []
