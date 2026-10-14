@@ -62,11 +62,29 @@ Longer names and anything with `..`, `%`, `\` or a hidden segment are refused
 (`rust/workshop-mode/src/tuner_assets.rs`). The CSP also rules out inline
 scripts and styles in the bundle.
 
-Until the pinned bundle lands, `data/tuner/` holds a probe page that opens the
-socket and sends `PING` and `GET_STATUS`. `scripts/stage_fs_data.py` stages
-`data/` into `.pio/build/<env>/spiffs_data/` for `buildfs` and `uploadfs`, and
-leaves `tuner/` out on every env without `APP_WORKSHOP_ENABLED`, so the 4 MB
-boards' 832 KB image never carries the bundle.
+`scripts/stage_fs_data.py` stages `data/` into `.pio/build/<env>/spiffs_data/`
+for `buildfs` and `uploadfs`. On every env without `APP_WORKSHOP_ENABLED` it
+leaves `tuner/` out, so the 4 MB boards' 832 KB image never carries the bundle.
+On the workshop envs it fills `tuner/` from the first of:
+
+| Source | When |
+| --- | --- |
+| `../canshift-tuner/dist-tuner/` | a sibling checkout has run `npm run bundle:dash` |
+| the release pinned in `tuner-version.txt` | `tag` is a `vX.Y.Z` |
+| `data/tuner/` as committed | nothing is pinned (`tag=none`) |
+
+The pinned release is
+`canshift-tuner-dash-<tag>.tar.gz` from CANShift/canshift-tuner's Releases,
+cached under `.pio/tuner-cache/`. Its sha256 must match the pin or the build
+fails. Its entries must be flat files whose names fit the SPIFFS path above,
+and it must hold `index.html.gz`. `python3 scripts/pin_tuner.py vX.Y.Z` writes
+the pin from the release's `.sha256` asset. Like the core schema pin, a sibling
+checkout wins so local work never needs a release; release builds run in CI,
+where there is none.
+
+The committed `data/tuner/` is a probe page that opens the socket and sends
+`PING` and `GET_STATUS`, so a board can be bench-tested before any tuner
+release exists.
 
 ## What they share
 

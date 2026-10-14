@@ -1,12 +1,18 @@
 import os
 import shutil
+import sys
 
 from SCons.Script import COMMAND_LINE_TARGETS
 
 Import("env")  # noqa: F821
 
+sys.path.insert(0, os.path.join(env["PROJECT_DIR"], "scripts"))  # noqa: F821
+
+import tuner_bundle  # noqa: E402
+
 WORKSHOP_FLAG = "APP_WORKSHOP_ENABLED=1"
-WORKSHOP_ONLY = ("tuner",)
+TUNER_DIR = "tuner"
+WORKSHOP_ONLY = (TUNER_DIR,)
 FS_TARGETS = {"buildfs", "uploadfs", "uploadfsota"}
 STAGE_DIR_NAME = "spiffs_data"
 
@@ -32,6 +38,8 @@ def stage():
     shutil.rmtree(target, ignore_errors=True)
     ignore = None if workshop_enabled() else skip_workshop_only(source)
     shutil.copytree(source, target, ignore=ignore)
+    if ignore is None:
+        tuner_bundle.fill_or_exit(env["PROJECT_DIR"], os.path.join(target, TUNER_DIR))  # noqa: F821
     env.Replace(PROJECT_DATA_DIR=target)  # noqa: F821
     print(f"[fs] staged {source} -> {target} (workshop files {'kept' if ignore is None else 'dropped'})")
 
