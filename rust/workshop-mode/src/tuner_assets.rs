@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn assets_map_under_the_studio_root() {
+    fn assets_map_under_the_tuner_root() {
         assert_eq!(path(b"/a/app.js", true).unwrap(), b"/tuner/a/app.js.gz");
         assert_eq!(path(b"/app.css", false).unwrap(), b"/tuner/app.css");
     }
