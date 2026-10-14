@@ -148,7 +148,17 @@ def find_objcopy():
     return None  # unreachable
 
 
-WEAK_MEM_SYMS = ("memcpy", "memmove", "memset", "memcmp", "bcmp")
+WEAK_MEM_SYMS = (
+    "memcpy",
+    "memmove",
+    "memset",
+    "memcmp",
+    "bcmp",
+    "strlen",
+    "fmodf",
+    "fmod",
+    "__udivdi3",
+)
 
 
 def build_one(crate, objcopy):
