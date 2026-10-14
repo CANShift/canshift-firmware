@@ -43,7 +43,9 @@ limiter clears is reproducible) and the overlay scenarios `ota`, `ota-complete`,
 `ota-failed`, `failure` (pushes two errors so the failure surface renders),
 `boot` (D01), `self-test` (D02, with the CAN BUS row failing), `no-config` (D07,
 the first-boot empty screen) and `config-rejected` (D06, a layout that does not
-fit 240 px). The last two replace the whole screen and hide the dash chrome, so
+fit 240 px), and `workshop` (the workshop-mode card, entered through the real
+path: credentials generated into the in-memory NVS shim, pages released). The
+last three replace the whole screen and hide the dash chrome, so
 the captured frame is what a device with no usable config shows. The control
 scenarios `controls`, `controls-armed`, `controls-active`, `controls-locked` and
 `controls-cruise` pin the signals behind the four button states and synthesise
