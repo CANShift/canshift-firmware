@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn ffi_no_nul_within_cap_returns_minus_one() {
-        let buf = vec![b'1'; MAX_VERSION_LEN + 8];
+        let buf = [b'1'; MAX_VERSION_LEN + 8];
         unsafe {
             assert_eq!(parse_major_version_rs(buf.as_ptr() as *const c_char), -1);
         }
