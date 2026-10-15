@@ -68,7 +68,8 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
 
 void formatStalePlaceholder(char *out, size_t outLen, float maxValue);
 
-float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow);
+float resolveWarnLevel(const char *signalId, float widgetWarnLevel, float dangerLevel,
+                       bool dangerBelow);
 
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
                    uint32_t borderRgb);

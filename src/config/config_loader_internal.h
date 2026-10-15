@@ -56,4 +56,6 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out);
 
 void parseWidget(JsonObjectConst src, CfgWidget *w);
 
+void parseCriticalAlert(JsonObjectConst src, CfgCriticalAlert *out);
+
 } // namespace ConfigLoaderInternal

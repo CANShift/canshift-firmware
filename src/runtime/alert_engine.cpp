@@ -6,6 +6,7 @@
 #include "app_config.h"
 #include "diag/logger.h"
 #include "alert_engine_rs.h"
+#include "critical_alert_source.h"
 
 #include <Arduino.h>
 #include <cmath>
@@ -222,6 +223,7 @@ void AlertEngine::init() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (dash.loaded && dash.revLimitRpm > 0.0f)
         s_revLimitRpm = dash.revLimitRpm;
+    CriticalAlertSource::init(dash.criticalAlert);
 
     struct ThresholdBinding {
         const char *name;
@@ -316,6 +318,7 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     s_state.milActive = (mil > 0.5f);
     s_state.batteryVoltage = withSensorLost(stepBattery(volts, now), s_state.batterySensorLost);
     stepDeclaredTemps(snap, now);
+    s_state.userCritical = CriticalAlertSource::step(snap, now, &s_state.userSensorLost);
 
     s_state.global = s_state.revLimiter;
     s_state.global = maxLevel(s_state.global, s_state.coolantTemp);
@@ -324,6 +327,7 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     s_state.global = maxLevel(s_state.global, s_state.batteryVoltage);
     for (const DeclaredTempSource &src : s_declaredTemps)
         s_state.global = maxLevel(s_state.global, s_state.*(src.level));
+    s_state.global = maxLevel(s_state.global, s_state.userCritical);
 
     stepRevLimitBlink(s_state.revLimiter == AlertLevel::CRITICAL, now);
 }

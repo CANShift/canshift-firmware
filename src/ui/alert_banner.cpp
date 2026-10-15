@@ -25,7 +25,8 @@ constexpr int16_t kRowGapPx = 4;
 void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t len) {
     size_t used = 0;
     buf[0] = '\0';
-    for (const AlertSources::CriticalSource &src : AlertSources::kSources) {
+    for (size_t i = 0; i < AlertSources::count(); ++i) {
+        const AlertSources::CriticalSource &src = AlertSources::at(i);
         if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
             continue;
         if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
@@ -47,7 +48,8 @@ void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size
     buf[0] = '\0';
     if (BusHealth::sample().silent)
         return;
-    for (const AlertSources::CriticalSource &src : AlertSources::kSources) {
+    for (size_t i = 0; i < AlertSources::count(); ++i) {
+        const AlertSources::CriticalSource &src = AlertSources::at(i);
         if (!(state.*(src.sensorLost)))
             continue;
         if (!TextJoin::append(buf, len, used, src.chipLabel))

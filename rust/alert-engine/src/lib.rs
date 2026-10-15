@@ -9,6 +9,8 @@ mod ffi;
 
 pub mod bus_silence;
 
+pub mod critical_alert;
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub enum AlertLevel {
@@ -229,7 +231,7 @@ pub enum Severity {
 }
 
 #[must_use]
-fn crossed(value: f32, threshold: f32, below: bool) -> bool {
+pub(crate) fn crossed(value: f32, threshold: f32, below: bool) -> bool {
     if threshold.is_nan() {
         return false;
     }

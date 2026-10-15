@@ -37,8 +37,8 @@ void ackClickCb(lv_event_t *e) {
 }
 
 int pickCriticalSource(const AlertEngine::AlertState &state) {
-    for (size_t i = 0; i < AlertSources::kSourceCount; ++i) {
-        const AlertSources::CriticalSource &src = AlertSources::kSources[i];
+    for (size_t i = 0; i < AlertSources::count(); ++i) {
+        const AlertSources::CriticalSource &src = AlertSources::at(i);
         if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
             continue;
         if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
@@ -51,7 +51,8 @@ int pickCriticalSource(const AlertEngine::AlertState &state) {
 void showFor(int sourceIndex) {
     s_lastValueText[0] = '\0';
     s_lastContextText[0] = '\0';
-    AlertTakeoverView::setSignalName(AlertSources::kSources[sourceIndex].takeoverName);
+    AlertTakeoverView::setSignalName(
+        AlertSources::at(static_cast<size_t>(sourceIndex)).takeoverName);
     AlertTakeoverView::setHidden(false);
 }
 
@@ -76,8 +77,7 @@ void refreshValue(const AlertSources::CriticalSource &src) {
 
 void formatContext(char *out, size_t outLen, const AlertSources::CriticalSource &src) {
     const int rpm = static_cast<int>(lroundf(SignalStore::read(SignalIds::kRpm)));
-    const AlertEngine::CriticalLimit limit =
-        AlertEngine::criticalLimitFor(src.id, SignalStore::read(src.id));
+    const AlertEngine::CriticalLimit limit = src.limitFor(src.id, SignalStore::read(src.id));
     if (!limit.valid) {
         snprintf(out, outLen, "AT %d rpm", rpm);
         return;
@@ -140,8 +140,8 @@ void AlertTakeover::update() {
         s_activeFlag.store(true, std::memory_order_relaxed);
         showFor(critical);
     }
-    refreshValue(AlertSources::kSources[critical]);
-    refreshContext(AlertSources::kSources[critical]);
+    refreshValue(AlertSources::at(static_cast<size_t>(critical)));
+    refreshContext(AlertSources::at(static_cast<size_t>(critical)));
 }
 
 bool AlertTakeover::isActive() {

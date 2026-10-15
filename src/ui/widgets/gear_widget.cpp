@@ -61,7 +61,7 @@ lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOf
     WidgetHelpers::makeTopRule(cont,
                                primaryTier ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx,
                                primaryTier ? textRgb : ThemeManager::trackColor());
-    WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
+    WidgetLabelOverlay::applyWidgetHeader(cont, cfg.label.kicker, cfg.signalId);
 
     WidgetTagPool::Slot<GearTag> tagSlot;
     GearTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "GEAR", cont);

@@ -68,6 +68,7 @@ struct CfgGaugeParams {
     uint8_t big;
     float minValue;
     float maxValue;
+    float warnLevel;
     float dangerLevel;
     bool dangerBelow;
     bool revFlash;
@@ -75,6 +76,7 @@ struct CfgGaugeParams {
     char prefix[8];
     char suffix[16];
     char iconName[16];
+    char kicker[kCfgMaxNameLen];
 };
 
 struct CfgLabelParams {
@@ -82,6 +84,8 @@ struct CfgLabelParams {
     uint8_t decimalPlaces;
     char prefix[16];
     char suffix[16];
+    char kicker[kCfgMaxNameLen];
+    float warnLevel;
     float dangerLevel;
     bool dangerBelow;
     bool showBar;
@@ -288,6 +292,13 @@ enum class CfgUnitSystem : uint8_t {
     IMPERIAL = 1,
 };
 
+struct CfgCriticalAlert {
+    bool armed;
+    char signalId[kCfgMaxSignalLen];
+    float firesAt;
+    bool below;
+};
+
 struct CfgDashboard {
     char version[16];
     char name[kCfgMaxNameLen];
@@ -300,6 +311,7 @@ struct CfgDashboard {
     CfgTheme dayFace;
     CfgTheme nightFace;
     char dayNightSignal[kCfgMaxIdLen];
+    CfgCriticalAlert criticalAlert;
     uint8_t pageCount;
     CfgPage pages[kConfigMaxPages];
     bool loaded;

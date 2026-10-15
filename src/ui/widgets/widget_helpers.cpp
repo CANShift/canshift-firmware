@@ -108,7 +108,10 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text) {
     return true;
 }
 
-float resolveWarnLevel(const char *signalId, float dangerLevel, bool dangerBelow) {
+float resolveWarnLevel(const char *signalId, float widgetWarnLevel, float dangerLevel,
+                       bool dangerBelow) {
+    if (!isnan(widgetWarnLevel))
+        return widgetWarnLevel;
     if (!signalId || signalId[0] == '\0')
         return NAN;
     const CfgSignalDef *def = ConfigLoader::findSignal(signalId);

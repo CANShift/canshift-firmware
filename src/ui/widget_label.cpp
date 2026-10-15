@@ -48,29 +48,58 @@ lv_obj_t *drawHeader(lv_obj_t *cont, const char *text, HeaderPos pos) {
     return lbl;
 }
 
+char kickerChar(char c) {
+    if (c == '_')
+        return ' ';
+    if (c >= 'a' && c <= 'z')
+        return static_cast<char>(c - 'a' + 'A');
+    return c;
+}
+
+} // namespace
+
+void formatKicker(const char *raw, char *out, size_t outLen) {
+    if (!out || outLen == 0)
+        return;
+    size_t i = 0;
+    for (; raw && i < outLen - 1 && raw[i] != '\0'; ++i)
+        out[i] = kickerChar(raw[i]);
+    out[i] = '\0';
+}
+
+void signalKicker(const char *signalId, char *out, size_t outLen) {
+    const char *curated = SignalPresentation::kickerForSignal(signalId);
+    formatKicker(curated != nullptr ? curated : signalId, out, outLen);
+}
+
+namespace {
+
+bool isEmpty(const char *text) {
+    return !text || text[0] == '\0';
+}
+
+bool composeKicker(const char *kicker, const char *signalId, char *out, size_t outLen) {
+    if (!isEmpty(kicker)) {
+        formatKicker(kicker, out, outLen);
+        return true;
+    }
+    if (isEmpty(signalId))
+        return false;
+    signalKicker(signalId, out, outLen);
+    return true;
+}
+
 } // namespace
 
 lv_obj_t *applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {
-    if (!cont || !signalId || signalId[0] == '\0')
+    return applyWidgetHeader(cont, nullptr, signalId, pos);
+}
+
+lv_obj_t *applyWidgetHeader(lv_obj_t *cont, const char *kicker, const char *signalId,
+                            HeaderPos pos) {
+    char buf[kKickerBufLen];
+    if (!cont || !composeKicker(kicker, signalId, buf, sizeof(buf)))
         return nullptr;
-
-    const char *curated = SignalPresentation::kickerForSignal(signalId);
-    if (curated != nullptr)
-        return drawHeader(cont, curated, pos);
-
-    char buf[32];
-    size_t i = 0;
-    for (; i < sizeof(buf) - 1 && signalId[i] != '\0'; ++i) {
-        char c = signalId[i];
-        if (c == '_')
-            buf[i] = ' ';
-        else if (c >= 'a' && c <= 'z')
-            buf[i] = static_cast<char>(c - 'a' + 'A');
-        else
-            buf[i] = c;
-    }
-    buf[i] = '\0';
-
     return drawHeader(cont, buf, pos);
 }
 
