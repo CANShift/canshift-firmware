@@ -86,7 +86,10 @@ tagging and building. You are not tagging by hand.
 
 3. **Let the release workflow run.** On the version-bump merge, the workflow
    tags the commit, builds the signed firmware artifacts (merged / firmware /
-   SPIFFS), and drafts a GitHub Release for the tag.
+   SPIFFS), and drafts a GitHub Release for the tag. The ESP32-S3 secure boot
+   images are a separate job that stays skipped unless `SECURE_BOOT_RELEASE` is
+   set, and that waits for a reviewer when it is
+   ([Secure boot setup](../reference/secure-boot-setup.md#signing-in-ci)).
 
 4. **Fill in the release notes.** Edit the drafted release, paste the
    structured template above, and write real content from the PR stream since

@@ -67,7 +67,7 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 | [Flash layout](reference/flash-layout.md)           | Partition tables, what lives in SPIFFS, why workshop mode needs 16 MB |
 | [ECU integration](reference/ecu-integration.md)     | Catalogue format, frame parser, CAN XML import                        |
 | [Firmware signing](reference/firmware-signing.md)   | Ed25519 signature workflow for shipped binaries                       |
-| [Secure boot setup](reference/secure-boot-setup.md) | Secure boot v2 and flash encryption on production builds              |
+| [Secure boot setup](reference/secure-boot-setup.md) | ESP32-S3 secure boot v2 + flash encryption: build, bring-up, recovery |
 
 The JSON contract shared with the tuner and the mobile app lives in core:
 [config contract](https://github.com/CANShift/canshift-core/blob/main/docs/config-contract.md) ·
