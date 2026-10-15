@@ -9,6 +9,7 @@ A tier is a design space, a grid and a font ladder. Both sides must agree on all
 three or the preview stops being a preview. Run from the repository root.
 """
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -103,6 +104,9 @@ def main() -> int:
         print(f"[tiers] no tier entries parsed from {HEADER}", file=sys.stderr)
         return 1
 
+    if not CORE_TIERS.exists() and os.environ.get("CI"):
+        print(f"[tiers] {CORE_TIERS} missing — CI must check out canshift-core", file=sys.stderr)
+        return 1
     if not CORE_TIERS.exists():
         print("[tiers] no sibling canshift-core checkout — skipping tier parity")
         return 0
