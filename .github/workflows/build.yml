@@ -381,6 +381,8 @@ jobs:
             | xargs -0 clang-format --dry-run --Werror --style=file
       - name: FFI constant parity
         run: python3 scripts/check_ffi_parity.py
+      - name: Constant naming
+        run: python3 scripts/check_constant_naming.py
       - name: Release envs keep OTA signature checks
         run: python3 scripts/check_release_flags.py
       - name: Board lists agree

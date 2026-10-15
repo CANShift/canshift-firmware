@@ -27,7 +27,7 @@ Non-negotiable. Reviewed on every PR, ahead of feature count.
 - Every return code is consumed at the call site. Never call a `bool` or `esp_err_t` function as a bare statement; never fail silently — `LOG_ERROR` plus `ErrorStore::push`. Persistent writes (NVS, storage) are checked before anything reports success.
 - Acquisition is RAII. A take/lock in one function whose release lives in another is a bug, and a helper must be named for what it actually does.
 - Dispatch is a `constexpr` table. No `switch` with inline case bodies, no `strcmp` chain, and never two transports carrying separate copies of one command set.
-- `constexpr` in a namespace, not `#define`. `#define` is for preprocessor conditions and build flags only. A constant shared with Rust exists twice — register the pair in `scripts/check_ffi_parity.py`, which fails the build and the `lint` job on drift.
+- `constexpr` in a namespace, not `#define`, named `kCamelCase` — `UPPER_SNAKE` means a macro. `#define` is for preprocessor conditions, build flags and the values `lv_conf.h` reads; `scripts/check_constant_naming.py` fails the `lint` job on anything else. Rust keeps its own `SCREAMING_SNAKE` consts; the FFI pair just differs in spelling. A constant shared with Rust exists twice — register the pair in `scripts/check_ffi_parity.py`, which fails the build and the `lint` job on drift.
 - Third copy gets extracted — LVGL style ladders and show/hide toggles included. If a helper already exists in one file, promote it to `WidgetHelpers` instead of retyping it.
 - A constant must be read by the code it names. `(void)symbol;` to silence an unused warning means delete the symbol.
 - The zero-comment rule covers `rust/` too.
