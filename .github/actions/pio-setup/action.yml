@@ -38,8 +38,11 @@ runs:
           pio-${{ runner.os }}-
 
     - shell: bash
+      env:
+        ESPUP_TARGETS: ${{ inputs.espup-targets }}
       run: |
         {
+          echo "ESPUP_TARGETS_KEY=${ESPUP_TARGETS//,/-}"
           echo "ESPUP_VERSION=0.17.1"
           echo "XTENSA_TOOLCHAIN_VERSION=1.97.0.0"
           echo "PLATFORMIO_VERSION=6.2.0"
@@ -72,7 +75,7 @@ runs:
           ~/.cargo/bin/espup
           ~/.rustup/toolchains/esp
           ~/export-esp.sh
-        key: espup-${{ runner.os }}-${{ env.ESPUP_VERSION }}-${{ env.XTENSA_TOOLCHAIN_VERSION }}-${{ inputs.espup-targets }}
+        key: espup-${{ runner.os }}-${{ env.ESPUP_VERSION }}-${{ env.XTENSA_TOOLCHAIN_VERSION }}-${{ env.ESPUP_TARGETS_KEY }}
 
     - if: inputs.espup == 'true' && steps.espup-cache.outputs.cache-hit != 'true'
       shell: bash
