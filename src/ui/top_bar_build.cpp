@@ -21,42 +21,42 @@ using namespace TopBarInternal;
 
 namespace TopBarInternal {
 lv_obj_t *s_bar = nullptr;
-DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
+DynItem s_dynItems[kCfgMaxTopbarItems];
 uint8_t s_dynCount = 0;
-bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS] = {};
+bool s_dynEverSeen[kCfgMaxTopbarItems] = {};
 } // namespace TopBarInternal
 
 namespace TopBarMetrics {
-constexpr float DOT_RATIO = 0.30f;
-constexpr float GAP_RATIO = 0.25f;
-constexpr float PADDING_RATIO = 0.40f;
+constexpr float kDotRatio = 0.30f;
+constexpr float kGapRatio = 0.25f;
+constexpr float kPaddingRatio = 0.40f;
 } // namespace TopBarMetrics
 
 static inline int16_t metricRound(float v) {
     return static_cast<int16_t>(lroundf(v));
 }
 static inline int16_t derivedDot(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::DOT_RATIO);
+    return metricRound(static_cast<float>(height) * TopBarMetrics::kDotRatio);
 }
 static inline int16_t derivedGap(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::GAP_RATIO);
+    return metricRound(static_cast<float>(height) * TopBarMetrics::kGapRatio);
 }
 static inline int16_t derivedPadding(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::PADDING_RATIO);
+    return metricRound(static_cast<float>(height) * TopBarMetrics::kPaddingRatio);
 }
 static lv_obj_t *s_themeIcon = nullptr;
 static int16_t s_height = 30;
 static bool s_pageOverridden = false;
 
-static constexpr uint32_t COLOR_BAR_BG_DAY = 0xF0F0F0;
+static constexpr uint32_t kColorBarBgDay = 0xF0F0F0;
 
 static uint32_t barBgColor(const CfgTopBar &cfg) {
-    return ThemeManager::pickColor(cfg.bgColor.rgb, COLOR_BAR_BG_DAY);
+    return ThemeManager::pickColor(cfg.bgColor.rgb, kColorBarBgDay);
 }
 
 static lv_obj_t *makeStatusDot(lv_obj_t *parent) {
     const int16_t side = derivedDot(s_height);
-    return WidgetHelpers::makeSquareBadge(parent, side, COLOR_DOT_DOWN);
+    return WidgetHelpers::makeSquareBadge(parent, side, kColorDotDown);
 }
 
 static lv_obj_t *makeFlagBadge(lv_obj_t *parent, const char *text) {
@@ -65,13 +65,13 @@ static lv_obj_t *makeFlagBadge(lv_obj_t *parent, const char *text) {
     lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(cont, LayoutScale::x(FLAG_GAP_PX), LV_PART_MAIN);
-    WidgetHelpers::makeSquareBadge(cont, FLAG_SQUARE_PX, COLOR_MODE_ACTIVE);
+    lv_obj_set_style_pad_column(cont, LayoutScale::x(kFlagGapPx), LV_PART_MAIN);
+    WidgetHelpers::makeSquareBadge(cont, kFlagSquarePx, kColorModeActive);
 
     lv_obj_t *lbl = lv_label_create(cont);
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
-    lv_obj_set_style_text_color(cont, lv_color_hex(COLOR_MODE_ACTIVE), 0);
+    lv_obj_set_style_text_color(cont, lv_color_hex(kColorModeActive), 0);
     lv_obj_update_layout(cont);
     return cont;
 }
@@ -82,7 +82,7 @@ static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color
     lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
 
     lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
-    lv_obj_set_style_text_letter_space(lbl, BAR_LETTER_SPACE_PX, 0);
+    lv_obj_set_style_text_letter_space(lbl, kBarLetterSpacePx, 0);
     return lbl;
 }
 
@@ -170,7 +170,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
             break;
         }
         case TopBarItemKind::CAN_RATE: {
-            obj = makeBarLabel(s_bar, BUS_RATE_SILENT, labelColor());
+            obj = makeBarLabel(s_bar, kBusRateSilent, labelColor());
             anchor(obj, gap);
             break;
         }
@@ -207,7 +207,7 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
          item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::TRACK_BADGE ||
          item.kind == TopBarItemKind::CAN_RATE || item.kind == TopBarItemKind::LABEL ||
          (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
-    if (needsUpdate && s_dynCount < CFG_MAX_TOPBAR_ITEMS) {
+    if (needsUpdate && s_dynCount < kCfgMaxTopbarItems) {
         const uint8_t myIdx = s_dynCount;
         DynItem &d = s_dynItems[s_dynCount++];
         d.kind = item.kind;
@@ -217,18 +217,18 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
         strlcpy(d.format, item.format, sizeof(d.format));
         strlcpy(d.prefix, item.text, sizeof(d.prefix));
         d.lastText[0] = '\0';
-        d.lastColor = COLOR_UNSET;
+        d.lastColor = kColorUnset;
         d.lastSeenValid = false;
 
         d.hidden =
             (item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::SEPARATOR);
         d.linkedFlagIdx =
-            (item.kind == TopBarItemKind::SEPARATOR) ? prevFlagIdx : TopBarSeparatorLink::NO_FLAG;
-        d.nextFlagIdx = TopBarSeparatorLink::NO_FLAG;
+            (item.kind == TopBarItemKind::SEPARATOR) ? prevFlagIdx : TopBarSeparatorLink::kNoFlag;
+        d.nextFlagIdx = TopBarSeparatorLink::kNoFlag;
         if (item.kind == TopBarItemKind::MODE_FLAG) {
             const int8_t pendingSepIdx = TopBarSeparatorLink::registerModeFlag(
                 trackers[posIdx], static_cast<int8_t>(myIdx), static_cast<int8_t>(s_dynCount));
-            if (pendingSepIdx != TopBarSeparatorLink::NO_FLAG) {
+            if (pendingSepIdx != TopBarSeparatorLink::kNoFlag) {
                 s_dynItems[pendingSepIdx].nextFlagIdx = static_cast<int8_t>(myIdx);
             }
         } else if (item.kind == TopBarItemKind::SEPARATOR) {
@@ -276,7 +276,7 @@ void clearDynItems() {
 // system); the left field is always the bus rate.
 uint8_t mergePageStatusRow(const CfgTopBar &base, const CfgStatusRow &row, CfgTopBarItem *out) {
     uint8_t n = 0;
-    for (uint8_t i = 0; i < base.itemCount && n < CFG_MAX_TOPBAR_ITEMS; ++i) {
+    for (uint8_t i = 0; i < base.itemCount && n < kCfgMaxTopbarItems; ++i) {
         const CfgTopBarItem &item = base.items[i];
         if (row.hasCenter && item.position == TopBarItemPos::CENTER)
             continue;
@@ -284,9 +284,9 @@ uint8_t mergePageStatusRow(const CfgTopBar &base, const CfgStatusRow &row, CfgTo
             continue;
         out[n++] = item;
     }
-    if (row.hasCenter && n < CFG_MAX_TOPBAR_ITEMS)
+    if (row.hasCenter && n < kCfgMaxTopbarItems)
         out[n++] = row.center;
-    if (row.hasRight && n < CFG_MAX_TOPBAR_ITEMS)
+    if (row.hasRight && n < kCfgMaxTopbarItems)
         out[n++] = row.right;
     return n;
 }
@@ -343,7 +343,7 @@ void TopBar::init() {
             if (!SettingsPage::isOpen())
                 return;
 
-            if (millis() - SettingsPage::lastOpenMs() < SETTINGS_OPEN_TAP_GUARD_MS)
+            if (millis() - SettingsPage::lastOpenMs() < kSettingsOpenTapGuardMs)
                 return;
             LOG_INFO("UI", "Top bar tapped — closing Settings");
             SettingsPage::close();
@@ -373,7 +373,7 @@ void TopBar::reapplyTheme() {
                                         ThemeManager::isDayMode() ? "icon_day" : "icon_night"));
     }
     for (uint8_t i = 0; i < s_dynCount; ++i) {
-        s_dynItems[i].lastColor = COLOR_UNSET;
+        s_dynItems[i].lastColor = kColorUnset;
     }
     TopBar::update();
 }

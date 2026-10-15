@@ -43,15 +43,15 @@ uint32_t s_startMs = 0;
 uint32_t s_lastRaiseMs = 0;
 
 void feed(const Case &c) {
-    SignalStore::update(SignalIds::EGT_C, c.egtC);
-    SignalStore::update(SignalIds::RPM, c.rpm);
-    SignalStore::update(SignalIds::SPEED_KPH, c.speedKph);
-    SignalStore::update(SignalIds::GEAR, c.gear);
-    SignalStore::update(SignalIds::MAP_NUMBER, 1.0f);
-    SignalStore::update(SignalIds::FLAG_BRAKE, 0.0f);
-    SignalStore::update(SignalIds::COOLANT_TEMP_C, 92.0f);
-    SignalStore::update(SignalIds::OIL_PRESS_BAR, 4.1f);
-    SignalStore::update(SignalIds::BATTERY_VOLTS, 13.8f);
+    SignalStore::update(SignalIds::kEgtC, c.egtC);
+    SignalStore::update(SignalIds::kRpm, c.rpm);
+    SignalStore::update(SignalIds::kSpeedKph, c.speedKph);
+    SignalStore::update(SignalIds::kGear, c.gear);
+    SignalStore::update(SignalIds::kMapNumber, 1.0f);
+    SignalStore::update(SignalIds::kFlagBrake, 0.0f);
+    SignalStore::update(SignalIds::kCoolantTempC, 92.0f);
+    SignalStore::update(SignalIds::kOilPressBar, 4.1f);
+    SignalStore::update(SignalIds::kBatteryVolts, 13.8f);
 }
 
 } // namespace

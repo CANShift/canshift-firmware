@@ -16,19 +16,19 @@ struct CriticalSource {
 };
 
 constexpr CriticalSource kSources[] = {
-    {"OIL PRESS", "OIL PRESSURE", SignalIds::OIL_PRESS_BAR, "bar", 1,
+    {"OIL PRESS", "OIL PRESSURE", SignalIds::kOilPressBar, "bar", 1,
      &AlertEngine::AlertState::oilPressure, &AlertEngine::AlertState::oilPressureSensorLost},
-    {"COOLANT", "WATER", SignalIds::COOLANT_TEMP_C, "°C", 0, &AlertEngine::AlertState::coolantTemp,
+    {"COOLANT", "WATER", SignalIds::kCoolantTempC, "°C", 0, &AlertEngine::AlertState::coolantTemp,
      &AlertEngine::AlertState::coolantSensorLost},
-    {"OIL TEMP", "OIL TEMP", SignalIds::OIL_TEMP_C, "°C", 0, &AlertEngine::AlertState::oilTemp,
+    {"OIL TEMP", "OIL TEMP", SignalIds::kOilTempC, "°C", 0, &AlertEngine::AlertState::oilTemp,
      &AlertEngine::AlertState::oilTempSensorLost},
-    {"BATT", "BATTERY", SignalIds::BATTERY_VOLTS, "V", 1, &AlertEngine::AlertState::batteryVoltage,
+    {"BATT", "BATTERY", SignalIds::kBatteryVolts, "V", 1, &AlertEngine::AlertState::batteryVoltage,
      &AlertEngine::AlertState::batterySensorLost},
-    {"EGT", "EXHAUST TEMP", SignalIds::EGT_C, "°C", 0, &AlertEngine::AlertState::exhaustTemp,
+    {"EGT", "EXHAUST TEMP", SignalIds::kEgtC, "°C", 0, &AlertEngine::AlertState::exhaustTemp,
      &AlertEngine::AlertState::exhaustSensorLost},
-    {"GEARBOX", "GEARBOX TEMP", SignalIds::GEARBOX_TEMP_C, "°C", 0,
+    {"GEARBOX", "GEARBOX TEMP", SignalIds::kGearboxTempC, "°C", 0,
      &AlertEngine::AlertState::gearboxTemp, &AlertEngine::AlertState::gearboxSensorLost},
-    {"DIFF", "DIFF TEMP", SignalIds::DIFF_TEMP_C, "°C", 0, &AlertEngine::AlertState::diffTemp,
+    {"DIFF", "DIFF TEMP", SignalIds::kDiffTempC, "°C", 0, &AlertEngine::AlertState::diffTemp,
      &AlertEngine::AlertState::diffSensorLost},
 };
 

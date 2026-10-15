@@ -29,7 +29,7 @@ struct RuntimeSignal {
     uint8_t tokenCount;
     uint8_t refCount;
     uint16_t tokenOffset;
-    uint16_t refTargetIds[CFG_MAX_EXPR_REFS];
+    uint16_t refTargetIds[kCfgMaxExprRefs];
 };
 
 struct TargetBinding {
@@ -39,26 +39,26 @@ struct TargetBinding {
 
 constexpr size_t kExprPoolTokens = 512;
 
-static RuntimeSignal s_runtime[CONFIG_MAX_SIGNALS];
+static RuntimeSignal s_runtime[kConfigMaxSignals];
 static FfiTok s_exprPool[kExprPoolTokens];
 static size_t s_exprPoolUsed = 0;
 static uint8_t s_runtimeCount = 0;
 static bool s_runtimeLoaded = false;
-static TargetBinding s_targets[CONFIG_MAX_SIGNALS];
+static TargetBinding s_targets[kConfigMaxSignals];
 static uint8_t s_targetCount = 0;
 
 // A cross-signal expression reads values its own frame does not carry, so it
 // runs after every plain signal in the frame has been stored.
 bool resolveRefs(const RuntimeSignal &sig, RefValueRs *out) {
     for (uint8_t i = 0; i < sig.refCount; ++i) {
-        SignalId sid = SignalIds::SIGNAL_COUNT;
+        SignalId sid = SignalIds::kSignalCount;
         for (uint8_t t = 0; t < s_targetCount; ++t) {
             if (s_targets[t].targetId == sig.refTargetIds[i]) {
                 sid = s_targets[t].signalId;
                 break;
             }
         }
-        if (sid >= SIGNAL_STORE_MAX_SIGNALS || !SignalStore::isValid(sid))
+        if (sid >= kSignalStoreMaxSignals || !SignalStore::isValid(sid))
             return false;
         out[i].target_id = sig.refTargetIds[i];
         out[i].value = SignalStore::read(sid);
@@ -67,7 +67,7 @@ bool resolveRefs(const RuntimeSignal &sig, RefValueRs *out) {
 }
 
 void evalCrossSignal(const RuntimeSignal &sig, const uint8_t *data, uint8_t length) {
-    RefValueRs refs[CFG_MAX_EXPR_REFS] = {};
+    RefValueRs refs[kCfgMaxExprRefs] = {};
     if (!resolveRefs(sig, refs))
         return;
     const float val = eval_tokens_refs_rs(
@@ -85,11 +85,11 @@ struct ExprRejection {
 };
 
 constexpr ExprRejection kExprRejections[] = {
-    {CANSHIFT_EXPR_ERR_LEX, "EXPR_LEX", "unknown symbol"},
-    {CANSHIFT_EXPR_ERR_TOO_LONG, "EXPR_LONG", "too many tokens"},
-    {CANSHIFT_EXPR_ERR_SYNTAX, "EXPR_SYNTAX", "syntax error"},
-    {CANSHIFT_EXPR_ERR_TOO_DEEP, "EXPR_DEPTH", "nested too deep"},
-    {CANSHIFT_EXPR_ERR_NO_ROOM, "EXPR_POOL", "expression pool full"},
+    {kCanshiftExprErrLex, "EXPR_LEX", "unknown symbol"},
+    {kCanshiftExprErrTooLong, "EXPR_LONG", "too many tokens"},
+    {kCanshiftExprErrSyntax, "EXPR_SYNTAX", "syntax error"},
+    {kCanshiftExprErrTooDeep, "EXPR_DEPTH", "nested too deep"},
+    {kCanshiftExprErrNoRoom, "EXPR_POOL", "expression pool full"},
 };
 
 constexpr ExprRejection kUnknownExprRejection = {0, "EXPR_FAIL", "rejected"};
@@ -145,7 +145,7 @@ void fillRuntimeSignal(const CfgSignalDef &def, SignalId sid, RuntimeSignal &r) 
 }
 
 void bindTarget(const CfgSignalDef &def, SignalId sid) {
-    if (!def.hasTargetId || s_targetCount >= CONFIG_MAX_SIGNALS)
+    if (!def.hasTargetId || s_targetCount >= kConfigMaxSignals)
         return;
     s_targets[s_targetCount].targetId = def.targetId;
     s_targets[s_targetCount].signalId = sid;
@@ -167,7 +167,7 @@ bool addBroadcastDecode(const CfgSignalDef &def, SignalId sid) {
 
 void addRuntimeSignal(const CfgSignalDef &def) {
     const SignalId sid = signalIdFromName(def.name);
-    if (sid == SignalIds::SIGNAL_COUNT) {
+    if (sid == SignalIds::kSignalCount) {
         LOG_WARN("CAN", "Unknown signal name '%s' in signals.json — skipping", def.name);
         return;
     }
@@ -231,7 +231,7 @@ void CanParser::loadSignalDefinitions() {
     s_exprPoolUsed = 0;
     s_runtimeLoaded = false;
 
-    for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < CONFIG_MAX_SIGNALS; ++i)
+    for (uint8_t i = 0; i < cfg.signalCount && s_runtimeCount < kConfigMaxSignals; ++i)
         addRuntimeSignal(cfg.signals[i]);
 
     std::sort(

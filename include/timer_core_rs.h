@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-inline constexpr int TIMER_CORE_LAP_CAPACITY = 32;
+inline constexpr int kTimerCoreLapCapacity = 32;
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +29,7 @@ typedef struct TimerCoreState {
     uint8_t pend_head;
     uint8_t pend_count;
     uint8_t _pad;
-    TimerCoreLap pending[TIMER_CORE_LAP_CAPACITY];
+    TimerCoreLap pending[kTimerCoreLapCapacity];
 } TimerCoreState;
 
 void timer_core_init_rs(TimerCoreState *core);
@@ -47,7 +47,7 @@ bool timer_core_pop_pending_rs(TimerCoreState *core, TimerCoreLap *out_lap);
 }
 
 static_assert(sizeof(TimerCoreLap) == 12, "TimerCoreLap layout must match rust/timer-core");
-static_assert(sizeof(TimerCoreState) == 40 + TIMER_CORE_LAP_CAPACITY * 12,
+static_assert(sizeof(TimerCoreState) == 40 + kTimerCoreLapCapacity * 12,
               "TimerCoreState layout must match rust/timer-core");
 #endif
 

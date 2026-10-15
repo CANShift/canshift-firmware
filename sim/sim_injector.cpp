@@ -108,29 +108,29 @@ void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1
     SimCanBus::markRx();
     const float t = static_cast<float>(nowMs - s_startMs) / 1000.0f;
     const float sweep = 0.5f + 0.5f * sinf(t * 0.6f);
-    setSignal(SignalIds::RPM, rpmOverride >= 0.0f ? rpmOverride : 1200.0f + sweep * 4800.0f);
-    setSignal(SignalIds::SPEED_KPH, 40.0f + sweep * 140.0f);
-    setSignal(SignalIds::GEAR, 2.0f + floorf(sweep * 4.0f));
-    setSignal(SignalIds::THROTTLE_POS, sweep * 100.0f);
-    setSignal(SignalIds::BOOST_BAR, sweep * 1.4f);
-    setSignal(SignalIds::MAP_KPA, 100.0f + sweep * 120.0f);
-    setSignal(SignalIds::COOLANT_TEMP_C, coolantC);
-    setSignal(SignalIds::OIL_TEMP_C, 104.0f);
-    setSignal(SignalIds::OIL_PRESS_BAR, oilPressBar);
-    setSignal(SignalIds::FUEL_PRESS_BAR, 3.0f);
-    setSignal(SignalIds::BATTERY_VOLTS, 13.8f);
-    setSignal(SignalIds::IAT_C, 38.0f);
-    setSignal(SignalIds::LAMBDA_1, 0.95f + 0.05f * sinf(t * 2.0f));
-    setSignal(SignalIds::AFR_1, 14.0f + sweep * 0.9f);
-    setSignal(SignalIds::FUEL_LEVEL_PCT, 46.0f);
-    setSignal(SignalIds::EGT_C, 780.0f + sweep * 180.0f);
-    setSignal(SignalIds::GEARBOX_TEMP_C, 96.0f);
-    setSignal(SignalIds::DIFF_TEMP_C, 104.0f);
-    setSignal(SignalIds::KNOCK_COUNT, 0.0f);
-    setSignal(SignalIds::CLUTCH_STATE, 0.0f);
-    setSignal(SignalIds::ODO_KM, 184203.0f);
-    setSignal(SignalIds::TRIP_KM, 128.0f);
-    setSignal(SignalIds::MAP_NUMBER, 1.0f);
+    setSignal(SignalIds::kRpm, rpmOverride >= 0.0f ? rpmOverride : 1200.0f + sweep * 4800.0f);
+    setSignal(SignalIds::kSpeedKph, 40.0f + sweep * 140.0f);
+    setSignal(SignalIds::kGear, 2.0f + floorf(sweep * 4.0f));
+    setSignal(SignalIds::kThrottlePos, sweep * 100.0f);
+    setSignal(SignalIds::kBoostBar, sweep * 1.4f);
+    setSignal(SignalIds::kMapKpa, 100.0f + sweep * 120.0f);
+    setSignal(SignalIds::kCoolantTempC, coolantC);
+    setSignal(SignalIds::kOilTempC, 104.0f);
+    setSignal(SignalIds::kOilPressBar, oilPressBar);
+    setSignal(SignalIds::kFuelPressBar, 3.0f);
+    setSignal(SignalIds::kBatteryVolts, 13.8f);
+    setSignal(SignalIds::kIatC, 38.0f);
+    setSignal(SignalIds::kLambda1, 0.95f + 0.05f * sinf(t * 2.0f));
+    setSignal(SignalIds::kAfr1, 14.0f + sweep * 0.9f);
+    setSignal(SignalIds::kFuelLevelPct, 46.0f);
+    setSignal(SignalIds::kEgtC, 780.0f + sweep * 180.0f);
+    setSignal(SignalIds::kGearboxTempC, 96.0f);
+    setSignal(SignalIds::kDiffTempC, 104.0f);
+    setSignal(SignalIds::kKnockCount, 0.0f);
+    setSignal(SignalIds::kClutchState, 0.0f);
+    setSignal(SignalIds::kOdoKm, 184203.0f);
+    setSignal(SignalIds::kTripKm, 128.0f);
+    setSignal(SignalIds::kMapNumber, 1.0f);
 }
 
 void feedRevLimit(uint32_t nowMs) {
@@ -159,9 +159,9 @@ void feedWaterCritical(uint32_t nowMs) {
 
 void feedWarning(uint32_t nowMs) {
     feedCruise(nowMs);
-    SignalStore::update(SignalIds::COOLANT_TEMP_C, kWarnCoolantC);
-    SignalStore::update(SignalIds::OIL_TEMP_C, kWarnOilTempC);
-    SignalStore::update(SignalIds::IAT_C, kWarnIatC);
+    SignalStore::update(SignalIds::kCoolantTempC, kWarnCoolantC);
+    SignalStore::update(SignalIds::kOilTempC, kWarnOilTempC);
+    SignalStore::update(SignalIds::kIatC, kWarnIatC);
 }
 
 void feedBusLost(uint32_t nowMs) {
@@ -169,21 +169,20 @@ void feedBusLost(uint32_t nowMs) {
         feedCruise(nowMs);
         return;
     }
-    SignalStore::update(SignalIds::BATTERY_VOLTS, kBusLostBatteryVolts);
+    SignalStore::update(SignalIds::kBatteryVolts, kBusLostBatteryVolts);
 }
 
 constexpr Pin kBoostCutPins[] = {
-    {SignalIds::BOOST_BAR, 1.94f}, {SignalIds::THROTTLE_POS, 100.0f}, {SignalIds::MAP_KPA, 294.0f}};
+    {SignalIds::kBoostBar, 1.94f}, {SignalIds::kThrottlePos, 100.0f}, {SignalIds::kMapKpa, 294.0f}};
 
-constexpr Pin kKnockPins[] = {{SignalIds::KNOCK_COUNT, 4.0f},
-                              {SignalIds::IAT_C, 52.0f},
-                              {SignalIds::LAMBDA_1, 0.84f},
-                              {SignalIds::EGT_C, 948.0f}};
+constexpr Pin kKnockPins[] = {{SignalIds::kKnockCount, 4.0f},
+                              {SignalIds::kIatC, 52.0f},
+                              {SignalIds::kLambda1, 0.84f},
+                              {SignalIds::kEgtC, 948.0f}};
 
-constexpr Pin kFuelCutPins[] = {{SignalIds::OIL_TEMP_C, 128.0f},
-                                {SignalIds::COOLANT_TEMP_C, 104.0f}};
+constexpr Pin kFuelCutPins[] = {{SignalIds::kOilTempC, 128.0f}, {SignalIds::kCoolantTempC, 104.0f}};
 
-constexpr Pin kLimpPins[] = {{SignalIds::BOOST_BAR, 0.0f}, {SignalIds::MAP_KPA, 100.0f}};
+constexpr Pin kLimpPins[] = {{SignalIds::kBoostBar, 0.0f}, {SignalIds::kMapKpa, 100.0f}};
 
 void feedPinned(uint32_t nowMs, const Pin *pins, size_t count, float oilPressBar, float rpm) {
     s_pins = pins;
@@ -195,24 +194,24 @@ void feedPinned(uint32_t nowMs, const Pin *pins, size_t count, float oilPressBar
 
 void feedCutBoost(uint32_t nowMs) {
     feedPinned(nowMs, kBoostCutPins, pinCount(kBoostCutPins), 4.1f, 6180.0f);
-    SignalStore::update(SignalIds::BOOST_TARGET_BAR, 1.80f);
-    SignalStore::update(SignalIds::FLAG_BOOST_CUT, 1.0f);
+    SignalStore::update(SignalIds::kBoostTargetBar, 1.80f);
+    SignalStore::update(SignalIds::kFlagBoostCut, 1.0f);
 }
 
 void feedCutKnock(uint32_t nowMs) {
     feedPinned(nowMs, kKnockPins, pinCount(kKnockPins), 4.1f, -1.0f);
-    SignalStore::update(SignalIds::KNOCK_CYL, 3.0f);
-    SignalStore::update(SignalIds::FLAG_IGNITION_RETARD, 1.0f);
+    SignalStore::update(SignalIds::kKnockCyl, 3.0f);
+    SignalStore::update(SignalIds::kFlagIgnitionRetard, 1.0f);
 }
 
 void feedCutFuel(uint32_t nowMs) {
     feedPinned(nowMs, kFuelCutPins, pinCount(kFuelCutPins), 1.1f, 2400.0f);
-    SignalStore::update(SignalIds::FLAG_FUEL_CUT, 1.0f);
+    SignalStore::update(SignalIds::kFlagFuelCut, 1.0f);
 }
 
 void feedCutLimp(uint32_t nowMs) {
     feedPinned(nowMs, kLimpPins, pinCount(kLimpPins), 4.1f, 3000.0f);
-    SignalStore::update(SignalIds::FLAG_LIMP_MODE, 1.0f);
+    SignalStore::update(SignalIds::kFlagLimpMode, 1.0f);
 }
 
 void startOtaDemo(uint32_t nowMs) {

@@ -111,20 +111,20 @@ static void registerBurnOverlayObserver() {
 }
 
 static void createAllTasks() {
-    g_uiTaskHandle = TaskSpawn::spawnStatic("ui", taskUI, TASK_STACK_UI, TASK_PRIO_UI, s_uiStack,
-                                            &s_uiTaskTCB, TASK_CORE_UI);
-    s_usbTaskHandle = TaskSpawn::spawnStatic("usb", taskUSBComm, TASK_STACK_USB, TASK_PRIO_USB,
-                                             s_usbStack, &s_usbTaskTCB, TASK_CORE_USB);
+    g_uiTaskHandle = TaskSpawn::spawnStatic("ui", taskUI, TASK_STACK_UI, kTaskPrioUi, s_uiStack,
+                                            &s_uiTaskTCB, kTaskCoreUi);
+    s_usbTaskHandle = TaskSpawn::spawnStatic("usb", taskUSBComm, TASK_STACK_USB, kTaskPrioUsb,
+                                             s_usbStack, &s_usbTaskTCB, kTaskCoreUsb);
 #if APP_BLE_ENABLED
-    s_bleTaskHandle = TaskSpawn::spawnStatic("ble", taskBLE, TASK_STACK_BLE, TASK_PRIO_BLE,
-                                             s_bleStack, &s_bleTaskTCB, TASK_CORE_BLE);
+    s_bleTaskHandle = TaskSpawn::spawnStatic("ble", taskBLE, TASK_STACK_BLE, kTaskPrioBle,
+                                             s_bleStack, &s_bleTaskTCB, kTaskCoreBle);
 #endif
 }
 
 void setup() {
     Serial.setRxBufferSize(2048);
-    Serial.setTxBufferSize(USB_TX_BUFFER_BYTES);
-    Serial.begin(USB_SERIAL_BAUD);
+    Serial.setTxBufferSize(kUsbTxBufferBytes);
+    Serial.begin(kUsbSerialBaud);
     delay(200);
 
     Logger::init();
@@ -164,7 +164,7 @@ static uint32_t s_lvSumUs = 0, s_lvMaxUs = 0, s_lvCount = 0;
 static int64_t s_lvLastFlushUs = 0;
 #endif
 
-static constexpr int UI_OTA_VALID_FRAMES = 30;
+static constexpr int kUiOtaValidFrames = 30;
 
 namespace {
 
@@ -223,7 +223,7 @@ inline void uiDrainConfigReload() {
 }
 
 inline void uiDrainNavActions() {
-    char pageId[CFG_MAX_ID_LEN];
+    char pageId[kCfgMaxIdLen];
     if (PendingActions::takeNavPage(pageId, sizeof(pageId))) {
         PageManager::navigateTo(pageId);
     }
@@ -284,7 +284,7 @@ inline void uiRunLvTaskHandler() {
 #endif
 }
 
-constexpr uint32_t UI_LVGL_LOCK_TIMEOUT_MS = 10;
+constexpr uint32_t kUiLvglLockTimeoutMs = 10;
 
 inline void uiRunWorkshopFrame() {
     uiDrainBurnOverlayActions();
@@ -308,7 +308,7 @@ inline bool uiRunMutexFrame(bool &didDayNightChange) {
 #if APP_PROFILE_UI
     const int64_t lockStartUs = esp_timer_get_time();
 #endif
-    LvglLock lock(pdMS_TO_TICKS(UI_LVGL_LOCK_TIMEOUT_MS));
+    LvglLock lock(pdMS_TO_TICKS(kUiLvglLockTimeoutMs));
 #if APP_PROFILE_UI
     ::PerfCounters::recordSample(::PerfCounters::MUTEX_WAIT,
                                  static_cast<uint32_t>(esp_timer_get_time() - lockStartUs));
@@ -328,10 +328,10 @@ inline bool uiRunMutexFrame(bool &didDayNightChange) {
 }
 
 inline void uiHandleOtaMark(int &successfulFrames, bool &otaSlotMarked) {
-    if (successfulFrames < UI_OTA_VALID_FRAMES) {
+    if (successfulFrames < kUiOtaValidFrames) {
         ++successfulFrames;
     }
-    if (!otaSlotMarked && successfulFrames >= UI_OTA_VALID_FRAMES) {
+    if (!otaSlotMarked && successfulFrames >= kUiOtaValidFrames) {
         BootSequence::markOtaSlotValidIfPending();
         otaSlotMarked = true;
     }
@@ -352,7 +352,7 @@ inline void uiNotifyDayNightChanged(bool didDayNightChange) {
 }
 
 #if APP_PROFILE_UI
-constexpr uint32_t STACK_LOG_INTERVAL_MS = 5000;
+constexpr uint32_t kStackLogIntervalMs = 5000;
 
 inline void logStackHeadroom(const char *name, TaskHandle_t task) {
     if (task == nullptr)
@@ -365,7 +365,7 @@ inline void logStackHeadroom(const char *name, TaskHandle_t task) {
 inline void uiReportStackHeadroom() {
     static uint32_t lastLogMs = 0;
     const uint32_t nowMs = millis();
-    if (nowMs - lastLogMs < STACK_LOG_INTERVAL_MS)
+    if (nowMs - lastLogMs < kStackLogIntervalMs)
         return;
     lastLogMs = nowMs;
     logStackHeadroom("ui", g_uiTaskHandle);
@@ -383,7 +383,7 @@ inline void uiRecordFrameMetrics(int64_t frameStartUs, TickType_t lastWake) {
     ::PerfCounters::recordSample(::PerfCounters::FRAME_TOTAL,
                                  static_cast<uint32_t>(frameEndUs - frameStartUs));
     const TickType_t nowTicks = xTaskGetTickCount();
-    if ((nowTicks - lastWake) > pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS + 2)) {
+    if ((nowTicks - lastWake) > pdMS_TO_TICKS(kLvglHandlerPeriodMs + 2)) {
         ::PerfCounters::recordFrameMiss();
     }
     ::PerfCounters::tick();
@@ -412,7 +412,7 @@ inline void uiFlushLvTaskLog() {
 }
 
 inline void uiThrottle(TickType_t &lastWake) {
-    const TickType_t period = pdMS_TO_TICKS(LVGL_HANDLER_PERIOD_MS);
+    const TickType_t period = pdMS_TO_TICKS(kLvglHandlerPeriodMs);
     const TickType_t now = xTaskGetTickCount();
     const TickType_t elapsed = now - lastWake;
     if (elapsed >= period) {
@@ -469,7 +469,7 @@ void taskUSBComm(void *pvParameters) {
 #if APP_USB_TICK_TRACE
         const int64_t entryUs = esp_timer_get_time();
         const int64_t gapUs = entryUs - prevEntryUs;
-        if (gapUs > static_cast<int64_t>(USB_TICK_INTERVAL_WARN_US)) {
+        if (gapUs > static_cast<int64_t>(kUsbTickIntervalWarnUs)) {
             LOG_WARN("USB_TRACE", "tick gap %lld us (count=%lu) — USB task starved",
                      static_cast<long long>(gapUs), static_cast<unsigned long>(tickCount));
         }
@@ -482,7 +482,7 @@ void taskUSBComm(void *pvParameters) {
 
 #if APP_USB_TICK_TRACE
         const int64_t bodyDurUs = esp_timer_get_time() - bodyStartUs;
-        if (bodyDurUs > static_cast<int64_t>(USB_TICK_DURATION_WARN_US)) {
+        if (bodyDurUs > static_cast<int64_t>(kUsbTickDurationWarnUs)) {
             LOG_WARN("USB_TRACE", "tick body %lld us (count=%lu) — slow path inside tick()",
                      static_cast<long long>(bodyDurUs), static_cast<unsigned long>(tickCount));
         }
@@ -490,7 +490,7 @@ void taskUSBComm(void *pvParameters) {
 #endif
 
         esp_task_wdt_reset();
-        vTaskDelay(pdMS_TO_TICKS(USB_TASK_TICK_INTERVAL_MS));
+        vTaskDelay(pdMS_TO_TICKS(kUsbTaskTickIntervalMs));
     }
 }
 
@@ -511,7 +511,7 @@ void taskBLE(void *pvParameters) {
         BleServer::tick();
 
         esp_task_wdt_reset();
-        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(BLE_TELE_INTERVAL_MS));
+        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(kBleTeleIntervalMs));
     }
 }
 

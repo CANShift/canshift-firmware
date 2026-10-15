@@ -12,7 +12,7 @@ struct Surface {
     lv_obj_t *box;
     lv_obj_t *kicker;
     lv_obj_t *word;
-    lv_obj_t *segments[CONTROL_STEP_MAX];
+    lv_obj_t *segments[kControlStepMax];
     bool hasSegments;
     ControlVocabulary::ControlState painted;
     uint8_t paintedLevel;

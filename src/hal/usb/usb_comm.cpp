@@ -28,32 +28,32 @@ struct TeleEntry {
     const char *name;
 };
 
-const TeleEntry TELE_SIGNALS[] = {
-    {SignalIds::RPM, "rpm"},
-    {SignalIds::THROTTLE_POS, "throttle_pos"},
-    {SignalIds::MAP_KPA, "map_kpa"},
-    {SignalIds::BOOST_BAR, "boost_bar"},
-    {SignalIds::IAT_C, "iat_c"},
-    {SignalIds::COOLANT_TEMP_C, "coolant_temp_c"},
-    {SignalIds::OIL_TEMP_C, "oil_temp_c"},
-    {SignalIds::OIL_PRESS_BAR, "oil_press_bar"},
-    {SignalIds::FUEL_PRESS_BAR, "fuel_press_bar"},
-    {SignalIds::LAMBDA_1, "lambda_1"},
-    {SignalIds::AFR_1, "afr_1"},
-    {SignalIds::SPEED_KPH, "speed_kph"},
-    {SignalIds::GEAR, "gear"},
-    {SignalIds::BATTERY_VOLTS, "battery_volts"},
-    {SignalIds::FLAG_MIL, "flag_mil"},
-    {SignalIds::FLAG_LAUNCH_CTRL, "flag_launch_ctrl"},
-    {SignalIds::MAP_NUMBER, "map_number"},
+const TeleEntry kTeleSignals[] = {
+    {SignalIds::kRpm, "rpm"},
+    {SignalIds::kThrottlePos, "throttle_pos"},
+    {SignalIds::kMapKpa, "map_kpa"},
+    {SignalIds::kBoostBar, "boost_bar"},
+    {SignalIds::kIatC, "iat_c"},
+    {SignalIds::kCoolantTempC, "coolant_temp_c"},
+    {SignalIds::kOilTempC, "oil_temp_c"},
+    {SignalIds::kOilPressBar, "oil_press_bar"},
+    {SignalIds::kFuelPressBar, "fuel_press_bar"},
+    {SignalIds::kLambda1, "lambda_1"},
+    {SignalIds::kAfr1, "afr_1"},
+    {SignalIds::kSpeedKph, "speed_kph"},
+    {SignalIds::kGear, "gear"},
+    {SignalIds::kBatteryVolts, "battery_volts"},
+    {SignalIds::kFlagMil, "flag_mil"},
+    {SignalIds::kFlagLaunchCtrl, "flag_launch_ctrl"},
+    {SignalIds::kMapNumber, "map_number"},
 };
 
-constexpr size_t TELE_SIGNAL_COUNT = sizeof(TELE_SIGNALS) / sizeof(TELE_SIGNALS[0]);
+constexpr size_t kTeleSignalCount = sizeof(kTeleSignals) / sizeof(kTeleSignals[0]);
 
 UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
 UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
 
-static_assert(USB_RX_BUF_SIZE >= CONFIG_JSON_DOC_DASHBOARD + 256,
+static_assert(kUsbRxBufSize >= kConfigJsonDocDashboard + 256,
               "USB_RX_BUF_SIZE must hold CONFIG_JSON_DOC_DASHBOARD + envelope overhead");
 
 size_t s_rxPos = 0;
@@ -61,7 +61,7 @@ size_t s_rxPos = 0;
 bool s_rxDraining = false;
 
 uint8_t s_tickCount = 0;
-constexpr uint8_t TELE_PERIOD_TICKS = 10;
+constexpr uint8_t kTelePeriodTicks = 10;
 
 struct CanHealthStats {
     uint32_t fpsX10;
@@ -72,12 +72,12 @@ CanHealthStats s_canStats = {0, 0, 0};
 portMUX_TYPE s_canStatsMux = portMUX_INITIALIZER_UNLOCKED;
 std::atomic<bool> s_canStatsPending{false};
 
-constexpr size_t TELE_BUF_SIZE = 768;
+constexpr size_t kTeleBufSize = 768;
 
 void sendCanStatLine() {
-    static constexpr size_t CAN_STAT_BUF_WORST_CASE = 74;
+    static constexpr size_t kCanStatBufWorstCase = 74;
     char statBuf[80];
-    static_assert(sizeof(statBuf) >= CAN_STAT_BUF_WORST_CASE,
+    static_assert(sizeof(statBuf) >= kCanStatBufWorstCase,
                   "statBuf too small for worst-case can_stat payload");
     CanHealthStats stats;
     portENTER_CRITICAL(&s_canStatsMux);
@@ -99,9 +99,9 @@ void sendCanStatLine() {
 }
 
 void sendTelemetry() {
-    char buf[TELE_BUF_SIZE];
+    char buf[kTeleBufSize];
     char *p = buf;
-    const char *end = buf + TELE_BUF_SIZE - 2;
+    const char *end = buf + kTeleBufSize - 2;
 
     const char *prefix = "{\"tele\":1,\"v\":{";
     size_t prefixLen = strlen(prefix);
@@ -111,9 +111,9 @@ void sendTelemetry() {
     p += prefixLen;
 
     bool first = true;
-    for (size_t i = 0; i < TELE_SIGNAL_COUNT; i++) {
+    for (size_t i = 0; i < kTeleSignalCount; i++) {
         float val = 0.0f;
-        if (!SignalStore::tryRead(TELE_SIGNALS[i].id, &val))
+        if (!SignalStore::tryRead(kTeleSignals[i].id, &val))
             continue;
 
         if (!first) {
@@ -123,7 +123,7 @@ void sendTelemetry() {
         }
         first = false;
 
-        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":", TELE_SIGNALS[i].name);
+        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":", kTeleSignals[i].name);
         if (n <= 0 || p + n >= end)
             break;
         p += n;
@@ -187,10 +187,10 @@ void UsbComm::reserveRxBuf() {
         return;
     }
 
-    UsbCommInternal::s_rxBuf = static_cast<char *>(Mem::allocPreferSpiram(USB_RX_BUF_SIZE));
+    UsbCommInternal::s_rxBuf = static_cast<char *>(Mem::allocPreferSpiram(kUsbRxBufSize));
     if (!UsbCommInternal::s_rxBuf) {
 
-        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", USB_RX_BUF_SIZE);
+        LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", kUsbRxBufSize);
     }
 }
 
@@ -205,7 +205,7 @@ void UsbComm::init() {
     if (!UsbCommInternal::s_rxBuf) {
         return;
     }
-    memset(UsbCommInternal::s_rxBuf, 0, USB_RX_BUF_SIZE);
+    memset(UsbCommInternal::s_rxBuf, 0, kUsbRxBufSize);
     LOG_INFO("USB", "USB comm initialized");
 }
 
@@ -227,7 +227,7 @@ void UsbComm::flushAndRestart() {
 #ifdef ARDUINO
     if (isHostActive())
         Serial.flush();
-    vTaskDelay(pdMS_TO_TICKS(USB_PRE_RESTART_FLUSH_DELAY_MS));
+    vTaskDelay(pdMS_TO_TICKS(kUsbPreRestartFlushDelayMs));
     esp_restart();
 #endif
 }
@@ -261,10 +261,10 @@ void UsbCommInternal::invokeBurnOverlayShowError(int reason) {
 }
 
 bool UsbComm::isHostActive() {
-    constexpr uint32_t HOST_TIMEOUT_MS = 5000;
+    constexpr uint32_t kHostTimeoutMs = 5000;
     if (UsbCommInternal::s_lastHostCmdMs == 0)
         return false;
-    return (millis() - UsbCommInternal::s_lastHostCmdMs) < HOST_TIMEOUT_MS;
+    return (millis() - UsbCommInternal::s_lastHostCmdMs) < kHostTimeoutMs;
 }
 
 void UsbComm::updateCanStats(uint32_t fpsX10, uint32_t errors, uint32_t missed) {
@@ -292,9 +292,9 @@ void UsbComm::tick() {
     UsbCommInternal::tickChunkTransferTimeout();
     UsbCommInternal::tickObdDtc();
 
-    if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > USB_RX_LINE_TIMEOUT_MS) {
+    if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > kUsbRxLineTimeoutMs) {
         LOG_WARN("USB", "RX line abandoned after %u ms — dropping %u buffered byte(s)",
-                 static_cast<unsigned>(USB_RX_LINE_TIMEOUT_MS), static_cast<unsigned>(s_rxPos));
+                 static_cast<unsigned>(kUsbRxLineTimeoutMs), static_cast<unsigned>(s_rxPos));
         s_rxPos = 0;
         s_rxDraining = false;
     }
@@ -317,12 +317,12 @@ void UsbComm::tick() {
                 UsbCommInternal::dispatchFromSerial(UsbCommInternal::s_rxBuf);
             }
             s_rxPos = 0;
-        } else if (s_rxPos < USB_RX_BUF_SIZE - 1) {
+        } else if (s_rxPos < kUsbRxBufSize - 1) {
             UsbCommInternal::s_rxBuf[s_rxPos++] = c;
         } else {
 
             LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
-                     static_cast<unsigned>(USB_RX_BUF_SIZE - 1));
+                     static_cast<unsigned>(kUsbRxBufSize - 1));
             UsbComm::sendError("line_too_long");
             s_rxPos = 0;
             s_rxDraining = true;
@@ -335,7 +335,7 @@ void UsbComm::tick() {
         sendCanStatLine();
     }
 
-    if (++s_tickCount >= TELE_PERIOD_TICKS) {
+    if (++s_tickCount >= kTelePeriodTicks) {
         s_tickCount = 0;
         sendTelemetry();
     }

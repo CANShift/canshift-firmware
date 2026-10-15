@@ -19,7 +19,7 @@ What happens next depends on the board:
 
 | Board                   | Boot                                                                                                                                                     | Swipe                                                             |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| PSRAM (S3)              | The widget tag pool grows into PSRAM (`kPoolSlots × MAX_PAGES` slots), every page is built and kept, and the fonts are preloaded                         | Loads a screen that already exists: nothing is allocated or freed |
+| PSRAM (S3)              | The widget tag pool grows into PSRAM (`kPoolSlots × kMaxPages` slots), every page is built and kept, and the fonts are preloaded                         | Loads a screen that already exists: nothing is allocated or freed |
 | PSRAM, pages do not fit | All-or-nothing: if any page is incomplete, or the LVGL pool keeps less than 64 KB free, every page is released and the board falls back to the row below | Lazy, as below                                                    |
 | No PSRAM (WROOM)        | Each page is built alone, checked, and released, then the default page is built. Peak use is one page, as on a swipe                                     | Lazy build of the target page, as below                           |
 
@@ -74,7 +74,7 @@ page mid-tap navigated unexpectedly.
 
 `gesture_controller.cpp` also drives an early swipe via
 `cancelClickIfSwiping`: once horizontal travel passes
-`SWIPE_CANCEL_THRESHOLD_PX = 8 px`, the indev is reset
+`kSwipeCancelThresholdPx = 8 px`, the indev is reset
 (`lv_indev_reset_long_press` + `lv_indev_reset`) and the swipe is
 dispatched directly. Waiting for LVGL's own cumulative `gesture_limit`
 left a 12–40 px dead zone where the click was cancelled but no swipe
@@ -101,7 +101,7 @@ static is the widget storage: each page's `widgets` array is heap-allocated at
 load time, sized to the page's actual widget count. That is what keeps a
 four-page dashboard from paying for twelve widgets on eight pages.
 
-The allocation is bounded. `CONFIG_DASHBOARD_HEAP_BUDGET_BYTES` (48 KB) caps
+The allocation is bounded. `kConfigDashboardHeapBudgetBytes` (48 KB) caps
 the cumulative widget allocation across all pages, checked page by page as the
 config is parsed. Crossing it pushes a `BUDGET` error and **refuses the
 payload** rather than allocating until something else fails — a config that is
@@ -141,7 +141,7 @@ interactive:
 
 **Track telemetry is not on the bus.** `TrackStore` is fed by the companion app
 through `applyTrackState`, so on a bench with no phone the track sources show their
-placeholders. `TRACK_TELEMETRY_TIMEOUT_MS` decides when that data has gone stale;
+placeholders. `kTrackTelemetryTimeoutMs` decides when that data has gone stale;
 past it, `lap` and `lapCount` fall back to the on-device stopwatch and `delta`
 blanks out, because a delta against a stale reference is worse than no delta.
 

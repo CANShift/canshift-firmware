@@ -13,8 +13,8 @@
 
 namespace {
 
-constexpr uint32_t BLINK_PERIOD_MS = 1000;
-constexpr lv_opa_t IDLE_BG_OPA = 0x18;
+constexpr uint32_t kBlinkPeriodMs = 1000;
+constexpr lv_opa_t kIdleBgOpa = 0x18;
 
 enum class WarnState : uint8_t { IDLE, ALARM, STALE };
 
@@ -38,8 +38,8 @@ void startBlink(WarningTag *tag) {
     lv_anim_set_var(&tag->blinkAnim, tag->root);
     lv_anim_set_values(&tag->blinkAnim, 0x00, 0xCC);
     lv_anim_set_path_cb(&tag->blinkAnim, lv_anim_path_step);
-    lv_anim_set_time(&tag->blinkAnim, BLINK_PERIOD_MS / 2);
-    lv_anim_set_playback_time(&tag->blinkAnim, BLINK_PERIOD_MS / 2);
+    lv_anim_set_time(&tag->blinkAnim, kBlinkPeriodMs / 2);
+    lv_anim_set_playback_time(&tag->blinkAnim, kBlinkPeriodMs / 2);
     lv_anim_set_repeat_count(&tag->blinkAnim, LV_ANIM_REPEAT_INFINITE);
     lv_anim_set_exec_cb(&tag->blinkAnim, blinkAnimCb);
     lv_anim_start(&tag->blinkAnim);
@@ -77,7 +77,7 @@ void enterState(WarningTag *tag, WarnState next) {
             break;
         case WarnState::IDLE:
             applyLiveStyle(tag);
-            lv_obj_set_style_bg_opa(tag->root, IDLE_BG_OPA, LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(tag->root, kIdleBgOpa, LV_PART_MAIN);
             break;
         case WarnState::STALE:
             applyStaleStyle(tag);
@@ -119,7 +119,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     lv_obj_t *signalLabel = nullptr;
     const uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
     if (WidgetHelpers::scaledBox(cfg).h >= 28) {
-        char labelBuf[CFG_MAX_SIGNAL_LEN + 4];
+        char labelBuf[kCfgMaxSignalLen + 4];
         WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
         signalLabel = lv_label_create(root);
         lv_label_set_text(signalLabel, labelBuf);

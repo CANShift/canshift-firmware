@@ -122,7 +122,7 @@ void handlePutDeviceConfig(const JsonObjectConst &obj) {
         UsbComm::sendError("missing_device_config");
         return;
     }
-    persistTypedConfigAndReboot(CONFIG_PATH_DEVICE, nullptr, sub);
+    persistTypedConfigAndReboot(kConfigPathDevice, nullptr, sub);
 }
 
 void handlePutInputBindings(const JsonObjectConst &obj) {
@@ -131,7 +131,7 @@ void handlePutInputBindings(const JsonObjectConst &obj) {
         UsbComm::sendError("missing_input_bindings");
         return;
     }
-    persistTypedConfigAndReboot(CONFIG_PATH_INPUTS, TypedConfigBody::kInputBindingsKey, sub);
+    persistTypedConfigAndReboot(kConfigPathInputs, TypedConfigBody::kInputBindingsKey, sub);
 }
 
 } // namespace UsbCommInternal

@@ -11,7 +11,7 @@ timer ops over GATT write. Sources: `src/hal/ble/ble_server.cpp`,
 
 ## GATT layout
 
-A single primary service (`SVC_UUID` = `4fa0b6a0-…-0001`) with seven
+A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with seven
 characteristics. Every read/write property is an **encrypted** variant
 (`READ_ENC` / `WRITE_ENC`), so the client must be paired before it can read
 telemetry or issue a command.
@@ -33,7 +33,7 @@ itself (see below), not exposed over GATT.
 
 BLE does **not** reuse the USB command table. `CmdCallbacks::onWrite`
 (`ble_server.cpp`) parses its own small, string-keyed command set and routes
-each to a runtime action; writes are capped at `BLE_MAX_WRITE_LEN` (256 B):
+each to a runtime action; writes are capped at `kBleMaxWriteLen` (256 B):
 
 - `toggle_day_night` / `set_day_night` (`{"day":<bool>}`) → `PendingActions`
 - `start_calibration` / `reset_calibration` → `PendingActions`
@@ -58,13 +58,13 @@ client cannot read telemetry or write commands.
 ## Telemetry payload — binary frame
 
 TELE is a packed binary frame, not JSON. `TelemetryFrame::encode`
-(`telemetry_frame.cpp`) writes a 3-byte header — `VERSION` (`0x01`) followed
+(`telemetry_frame.cpp`) writes a 3-byte header — `kVersion` (`0x01`) followed
 by a little-endian `uint16` presence mask — then one little-endian `int32`
-per present field, each value scaled by `SCALE` (×1000). Up to
-`MAX_FIELDS` (14) signals are carried; the set and their bit order are
-`BLE_TELE_SIGNALS[]` in `ble_telemetry.cpp`. Non-finite values are dropped
+per present field, each value scaled by `kScale` (×1000). Up to
+`kMaxFields` (14) signals are carried; the set and their bit order are
+`kBleTeleSignals[]` in `ble_telemetry.cpp`. Non-finite values are dropped
 (`std::isfinite`). `buildTelemetryPayload` serialises into a stack buffer of
-`MAX_FRAME_BYTES`, so the BLE task never touches the heap on the hot path.
+`kMaxFrameBytes`, so the BLE task never touches the heap on the hot path.
 
 This codec mirrors the canonical implementation in `@canshift/core`; the
 mobile parser decodes against the same contract, so changing the field set
@@ -73,7 +73,7 @@ or order requires updating both sides.
 ### Dedupe + keepalive
 
 `emitTelemetry` runs a `TelemetryFrame::Deduper`: a frame identical to the
-last one is not notified, but a keepalive is forced every `KEEPALIVE_TICKS`
+last one is not notified, but a keepalive is forced every `kKeepaliveTicks`
 (10 ≈ 1 s) so a subscriber that joins mid-stream still receives a full
 frame. The deduper is reset when the subscriber count rises.
 
@@ -87,16 +87,16 @@ compiled in and the heap gates below allow it.
 
 Two heap gates guard the stack:
 
-- `BLE_MIN_HEAP_BYTES` (50 KB) — the contiguous-DRAM floor checked before
+- `kBleMinHeapBytes` (50 KB) — the contiguous-DRAM floor checked before
   `NimBLEDevice::init`; below it the dash boots BLE-less.
-- `BLE_GATT_MIN_HEAP_BYTES` (24 KB) — checked in `startStack()` before
+- `kBleGattMinHeapBytes` (24 KB) — checked in `startStack()` before
   `setupGatt()` so the GATT phase has its own budget.
 
 ## Connection tuning
 
 On connect, `ServerCallbacks::onConnect` calls `updateConnParams` with a
 12–24-interval window, a slave latency of 4, and a 400-unit supervision
-timeout; the stack advertises with `BLE_PREFERRED_MTU` (247) requested. The
+timeout; the stack advertises with `kBlePreferredMtu` (247) requested. The
 latency lets the phone skip connection events when telemetry is idle without
 dropping the link.
 

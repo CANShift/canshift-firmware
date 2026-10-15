@@ -47,40 +47,40 @@ void test_isPathSafe_controlCharacter_returnsFalse() {
 
 void test_parseSha256Hex_validLowercase_returnsTrue() {
     const char *hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-    uint8_t out[SHA256_BYTES] = {0};
+    uint8_t out[kSha256Bytes] = {0};
     TEST_ASSERT_TRUE(parseSha256Hex(hex, out));
     TEST_ASSERT_EQUAL_UINT8(0x01, out[0]);
     TEST_ASSERT_EQUAL_UINT8(0x23, out[1]);
-    TEST_ASSERT_EQUAL_UINT8(0xEF, out[SHA256_BYTES - 1]);
+    TEST_ASSERT_EQUAL_UINT8(0xEF, out[kSha256Bytes - 1]);
 }
 
 void test_parseSha256Hex_validUppercase_returnsTrue() {
     const char *hex = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789";
-    uint8_t out[SHA256_BYTES] = {0};
+    uint8_t out[kSha256Bytes] = {0};
     TEST_ASSERT_TRUE(parseSha256Hex(hex, out));
     TEST_ASSERT_EQUAL_UINT8(0xAB, out[0]);
 }
 
 void test_parseSha256Hex_oddLength_returnsFalse() {
     const char *hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde";
-    uint8_t out[SHA256_BYTES] = {0};
+    uint8_t out[kSha256Bytes] = {0};
     TEST_ASSERT_EQUAL_UINT32(63u, strlen(hex));
     TEST_ASSERT_FALSE(parseSha256Hex(hex, out));
 }
 
 void test_parseSha256Hex_nonHexChars_returnsFalse() {
     const char *hex = "zz23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-    uint8_t out[SHA256_BYTES] = {0};
+    uint8_t out[kSha256Bytes] = {0};
     TEST_ASSERT_FALSE(parseSha256Hex(hex, out));
 }
 
 void test_parseSha256Hex_emptyInput_returnsFalse() {
-    uint8_t out[SHA256_BYTES] = {0};
+    uint8_t out[kSha256Bytes] = {0};
     TEST_ASSERT_FALSE(parseSha256Hex("", out));
 }
 
 void test_parseSha256Hex_nullptr_returnsFalse() {
-    uint8_t out[SHA256_BYTES] = {0};
+    uint8_t out[kSha256Bytes] = {0};
     TEST_ASSERT_FALSE(parseSha256Hex(nullptr, out));
 }
 

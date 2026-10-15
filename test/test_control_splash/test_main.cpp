@@ -25,7 +25,7 @@ Content composeFor(const char *kicker, ControlState state, uint8_t level) {
 }
 
 void feedAntiLag(float egtC) {
-    SignalStore::update(SignalIds::EGT_C, egtC);
+    SignalStore::update(SignalIds::kEgtC, egtC);
 }
 
 } // namespace
@@ -64,7 +64,7 @@ void test_s02_antiLagOff() {
 }
 
 void test_s03_launchArmed() {
-    SignalStore::update(SignalIds::RPM, 4200.0f);
+    SignalStore::update(SignalIds::kRpm, 4200.0f);
     const Content content = composeFor("LAUNCH", ControlState::ARMED, 0);
     TEST_ASSERT_EQUAL(Tone::ENGAGE, content.tone);
     TEST_ASSERT_EQUAL_STRING("LAUNCH CONTROL", content.name);
@@ -96,7 +96,7 @@ void test_s05_ecuMapChanged() {
 }
 
 void test_s06_refused() {
-    SignalStore::update(SignalIds::SPEED_KPH, 24.0f);
+    SignalStore::update(SignalIds::kSpeedKph, 24.0f);
     const Content content = composeFor("LAUNCH", ControlState::UNAVAILABLE, 0);
     TEST_ASSERT_EQUAL(Tone::REFUSE, content.tone);
     TEST_ASSERT_EQUAL_STRING("LAUNCH CONTROL", content.name);
@@ -124,41 +124,41 @@ void test_aStaleGuardNeverInventsAReading() {
 }
 
 void test_aHeldValueNeverRepeatsItselfUnderTheHero() {
-    SignalStore::update(SignalIds::SPEED_KPH, 60.0f);
+    SignalStore::update(SignalIds::kSpeedKph, 60.0f);
     const Content content = composeFor("PIT LIMIT", ControlState::ACTIVE, 0);
     TEST_ASSERT_EQUAL_STRING("60", content.hero);
     TEST_ASSERT_EQUAL(Sub::NONE, content.sub);
 }
 
 void test_theChangeWindowIs800msAndTheRefusal1200() {
-    TEST_ASSERT_EQUAL_UINT32(CONTROL_SPLASH_CHANGE_MS,
-                             control_splash_hold_ms_rs(CONTROL_SPLASH_KIND_CHANGE));
-    TEST_ASSERT_EQUAL_UINT32(CONTROL_SPLASH_REFUSAL_MS,
-                             control_splash_hold_ms_rs(CONTROL_SPLASH_KIND_REFUSAL));
+    TEST_ASSERT_EQUAL_UINT32(kControlSplashChangeMs,
+                             control_splash_hold_ms_rs(kControlSplashKindChange));
+    TEST_ASSERT_EQUAL_UINT32(kControlSplashRefusalMs,
+                             control_splash_hold_ms_rs(kControlSplashKindRefusal));
 
     ControlSplashRs timer = {};
-    control_splash_raise_rs(&timer, CONTROL_SPLASH_KIND_CHANGE, 1000);
-    TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 1000 + CONTROL_SPLASH_CHANGE_MS - 1));
-    TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, 1000 + CONTROL_SPLASH_CHANGE_MS));
+    control_splash_raise_rs(&timer, kControlSplashKindChange, 1000);
+    TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 1000 + kControlSplashChangeMs - 1));
+    TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, 1000 + kControlSplashChangeMs));
 
-    control_splash_raise_rs(&timer, CONTROL_SPLASH_KIND_REFUSAL, 0);
-    TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, CONTROL_SPLASH_REFUSAL_MS - 1));
-    TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, CONTROL_SPLASH_REFUSAL_MS));
+    control_splash_raise_rs(&timer, kControlSplashKindRefusal, 0);
+    TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, kControlSplashRefusalMs - 1));
+    TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, kControlSplashRefusalMs));
 }
 
 void test_aSecondChangeReplacesTheFirstInsteadOfQueueing() {
     ControlSplashRs timer = {};
-    control_splash_raise_rs(&timer, CONTROL_SPLASH_KIND_CHANGE, 0);
+    control_splash_raise_rs(&timer, kControlSplashKindChange, 0);
     TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 400));
-    control_splash_raise_rs(&timer, CONTROL_SPLASH_KIND_CHANGE, 400);
+    control_splash_raise_rs(&timer, kControlSplashKindChange, 400);
     TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 1000));
-    TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 400 + CONTROL_SPLASH_CHANGE_MS - 1));
-    TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, 400 + CONTROL_SPLASH_CHANGE_MS));
+    TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 400 + kControlSplashChangeMs - 1));
+    TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, 400 + kControlSplashChangeMs));
 }
 
 void test_aCriticalAlertPreemptsTheSplashAtOnce() {
     ControlSplashRs timer = {};
-    control_splash_raise_rs(&timer, CONTROL_SPLASH_KIND_REFUSAL, 0);
+    control_splash_raise_rs(&timer, kControlSplashKindRefusal, 0);
     TEST_ASSERT_TRUE(control_splash_poll_rs(&timer, 10));
     TEST_ASSERT_TRUE(control_splash_preempt_rs(&timer));
     TEST_ASSERT_FALSE(control_splash_poll_rs(&timer, 11));

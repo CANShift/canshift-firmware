@@ -33,23 +33,23 @@ struct SignalValue {
     uint32_t lastUpdateMs;    // millis() at last update()
     bool valid;               // false until the first sample arrives
 };
-SignalValue s_signals[SIGNAL_STORE_MAX_SIGNALS];
+SignalValue s_signals[kSignalStoreMaxSignals];
 ```
 
 The table is indexed by `SignalId` (a `uint8_t` enum). Adding a signal
 means: bump the enum in `include/signal_map.h`, add the name → id
 mapping row in `src/can/signal_map.cpp::kNameToId`, and ensure
-`SIGNAL_STORE_MAX_SIGNALS` is large enough (currently 32 — matches
-`CONFIG_MAX_SIGNALS`).
+`kSignalStoreMaxSignals` is large enough (currently 32 — matches
+`kConfigMaxSignals`).
 
 ## EMA smoothing
 
 `update(id, value)` writes the raw sample AND updates `smoothed` via
-`SIGNAL_EMA_ALPHA = 0.2f`:
+`kSignalEmaAlpha = 0.2f`:
 
 ```cpp
 new_smoothed = valid
-    ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * smoothed)
+    ? (kSignalEmaAlpha * value + (1.0f - kSignalEmaAlpha) * smoothed)
     : value;
 ```
 
@@ -106,6 +106,6 @@ This is what taskUSB and taskBLE both use; it's also what the F1 path in
 ## Why this lives in BSS
 
 `s_signals` is a static array, not a `Vec`. The runtime cannot tolerate
-heap allocation in the hot RX path (taskCAN at TASK_PRIO_CAN=15, decoding
+heap allocation in the hot RX path (taskCAN at kTaskPrioCan=15, decoding
 1000+ frames/sec on a busy bus). The fixed-size table is sized for the
 worst case and indexed by integer; lookup is O(1).

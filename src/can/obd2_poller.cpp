@@ -31,7 +31,7 @@ struct PollSlot {
     float offset;
 };
 
-PollSlot s_slots[OBD2_MAX_POLL_SLOTS];
+PollSlot s_slots[kObd2MaxPollSlots];
 uint8_t s_slotCount = 0;
 uint32_t s_pollsSent = 0;
 uint32_t s_responsesMatched = 0;
@@ -80,17 +80,17 @@ void Obd2Poller::init() {
         if (def.pollIntervalMs == 0)
             continue;
 
-        if (s_slotCount >= OBD2_MAX_POLL_SLOTS) {
+        if (s_slotCount >= kObd2MaxPollSlots) {
             if (!s_warnedSlotOverflow) {
                 LOG_WARN("OBD2", "Polling slot table full (cap=%u) — dropping extras",
-                         static_cast<unsigned>(OBD2_MAX_POLL_SLOTS));
+                         static_cast<unsigned>(kObd2MaxPollSlots));
                 s_warnedSlotOverflow = true;
             }
             continue;
         }
 
         const SignalId sid = signalIdFromName(def.name);
-        if (sid == SignalIds::SIGNAL_COUNT) {
+        if (sid == SignalIds::kSignalCount) {
             LOG_WARN("OBD2", "Polling signal '%s' has no SignalId mapping — skipped", def.name);
             continue;
         }
@@ -141,7 +141,7 @@ void Obd2Poller::tick(uint32_t nowMs) {
             continue;
         }
 
-        const bool sent = CanManager::sendFrame(OBD2_REQUEST_FRAME_ID, payload, kRequestDlc, false);
+        const bool sent = CanManager::sendFrame(kObd2RequestFrameId, payload, kRequestDlc, false);
         if (sent) {
             ++s_pollsSent;
             LOG_DEBUG("OBD2", "Poll sent mode=0x%02X pid=0x%02X", slot.mode, slot.pid);
@@ -163,7 +163,7 @@ void Obd2Poller::tick(uint32_t nowMs) {
 bool Obd2Poller::onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
     if (s_slotCount == 0)
         return false;
-    if (frameId != OBD2_RESPONSE_FRAME_ID)
+    if (frameId != kObd2ResponseFrameId)
         return false;
 
     const Obd2Response::Header header = Obd2Response::parseHeader(data, length);

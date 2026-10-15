@@ -17,7 +17,7 @@
 namespace {
 
 constexpr size_t kDismissMinHeapBytes = 1024;
-constexpr uint8_t kMaxRows = ERROR_STORE_RING_SIZE;
+constexpr uint8_t kMaxRows = kErrorStoreRingSize;
 constexpr int16_t kDetailMaxH = 160;
 constexpr int16_t kRightInsetPx = 8;
 constexpr int16_t kRowGapPx = 4;

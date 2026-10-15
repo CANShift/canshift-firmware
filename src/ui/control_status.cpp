@@ -19,7 +19,7 @@ constexpr float kEgtHighC = 950.0f;
 constexpr float kLaunchMaxSpeedKph = 3.0f;
 constexpr float kPitMaxGear = 3.0f;
 constexpr float kFlagOff = 0.0f;
-constexpr SignalId kNoSignal = SignalIds::SIGNAL_COUNT;
+constexpr SignalId kNoSignal = SignalIds::kSignalCount;
 
 struct Guard {
     SignalId signal;
@@ -28,16 +28,16 @@ struct Guard {
 };
 
 constexpr Guard kGuards[] = {
-    {SignalIds::EGT_C, kEgtHighC, false},
-    {SignalIds::SPEED_KPH, kFlagOff, true},
-    {SignalIds::SPEED_KPH, kLaunchMaxSpeedKph, false},
-    {SignalIds::GEAR, kPitMaxGear, false},
-    {SignalIds::FLAG_BRAKE, kFlagOff, false},
-    {SignalIds::MAP_NUMBER, kFlagOff, true},
+    {SignalIds::kEgtC, kEgtHighC, false},
+    {SignalIds::kSpeedKph, kFlagOff, true},
+    {SignalIds::kSpeedKph, kLaunchMaxSpeedKph, false},
+    {SignalIds::kGear, kPitMaxGear, false},
+    {SignalIds::kFlagBrake, kFlagOff, false},
+    {SignalIds::kMapNumber, kFlagOff, true},
 };
 
 constexpr SignalId kLevelSources[] = {kNoSignal, kNoSignal, kNoSignal,
-                                      kNoSignal, kNoSignal, SignalIds::MAP_NUMBER};
+                                      kNoSignal, kNoSignal, SignalIds::kMapNumber};
 
 static_assert(sizeof(kGuards) / sizeof(kGuards[0]) == static_cast<size_t>(ControlId::COUNT),
               "every ControlId needs one guard row");
@@ -50,12 +50,12 @@ struct ParamSignal {
     SignalId signal;
 };
 
-constexpr ParamSignal kParamSignals[] = {{ControlParam::RPM, SignalIds::RPM},
-                                         {ControlParam::SPEED_KPH, SignalIds::SPEED_KPH},
-                                         {ControlParam::GEAR, SignalIds::GEAR}};
+constexpr ParamSignal kParamSignals[] = {{ControlParam::RPM, SignalIds::kRpm},
+                                         {ControlParam::SPEED_KPH, SignalIds::kSpeedKph},
+                                         {ControlParam::GEAR, SignalIds::kGear}};
 
 bool signalValid(SignalId sid) {
-    return sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid);
+    return sid < SignalIds::kSignalCount && SignalStore::isValid(sid);
 }
 
 bool guardTripped(ControlId id) {
@@ -110,7 +110,7 @@ bool levelFromSignal(ControlId id, uint8_t *outLevel) {
     if (!outLevel || !signalValid(sid))
         return false;
     const int value = readRounded(sid);
-    if (value < 0 || value > CONTROL_STEP_MAX)
+    if (value < 0 || value > kControlStepMax)
         return false;
     *outLevel = static_cast<uint8_t>(value);
     return true;

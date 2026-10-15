@@ -30,12 +30,12 @@ void onWorkshopMode(lv_event_t *) {
 void buildWorkshopRow(int16_t &y, int16_t rowW) {
     if (!WorkshopMode::boardSupported())
         return;
-    y += LayoutScale::y(GAP_ROW);
-    s_workshopBtn = makeFullButton(s_panel, "WORKSHOP MODE", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
-                                   onWorkshopMode);
-    lv_obj_set_pos(s_workshopBtn, LayoutScale::x(PAD_H), y);
-    lv_obj_set_size(s_workshopBtn, rowW, BTN_H);
-    y += BTN_H;
+    y += LayoutScale::y(kGapRow);
+    s_workshopBtn =
+        makeFullButton(s_panel, "WORKSHOP MODE", kClrBtnBg, kClrBtnBdr, kClrMuted, onWorkshopMode);
+    lv_obj_set_pos(s_workshopBtn, LayoutScale::x(kPadH), y);
+    lv_obj_set_size(s_workshopBtn, rowW, kBtnH);
+    y += kBtnH;
     refreshWorkshopRow();
 }
 

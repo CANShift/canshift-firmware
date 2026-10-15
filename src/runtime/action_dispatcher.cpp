@@ -90,7 +90,7 @@ void dispatchNavPage(const CfgButtonAction &a) {
 void dispatchMapSwitch(const CfgButtonAction &a) {
     const CfgSignalsOut &outCfg = ConfigLoader::getSignalConfig().out;
     const uint32_t frameId =
-        outCfg.mapSwitchFrameId != 0 ? outCfg.mapSwitchFrameId : CAN_OUT_MAP_SWITCH_ID;
+        outCfg.mapSwitchFrameId != 0 ? outCfg.mapSwitchFrameId : kCanOutMapSwitchId;
     const bool extended = outCfg.mapSwitchExtended;
     static bool s_warnedMapSwitchUnverified = false;
     if (!s_warnedMapSwitchUnverified) {
@@ -98,14 +98,14 @@ void dispatchMapSwitch(const CfgButtonAction &a) {
                  static_cast<unsigned long>(frameId), extended ? 1 : 0);
         s_warnedMapSwitchUnverified = true;
     }
-    if (a.mapIndex < MAP_SWITCH_MIN_INDEX || a.mapIndex > MAP_SWITCH_MAX_INDEX) {
+    if (a.mapIndex < kMapSwitchMinIndex || a.mapIndex > kMapSwitchMaxIndex) {
         LOG_WARN("BTN", "map_switch: mapIndex=%u out of range [%u,%u] — dropped",
-                 static_cast<unsigned>(a.mapIndex), static_cast<unsigned>(MAP_SWITCH_MIN_INDEX),
-                 static_cast<unsigned>(MAP_SWITCH_MAX_INDEX));
+                 static_cast<unsigned>(a.mapIndex), static_cast<unsigned>(kMapSwitchMinIndex),
+                 static_cast<unsigned>(kMapSwitchMaxIndex));
         return;
     }
-    const uint8_t payload[CAN_OUT_MAP_SWITCH_DLC] = {a.mapIndex};
-    sendControlFrame(frameId, payload, CAN_OUT_MAP_SWITCH_DLC, extended, "map_switch");
+    const uint8_t payload[kCanOutMapSwitchDlc] = {a.mapIndex};
+    sendControlFrame(frameId, payload, kCanOutMapSwitchDlc, extended, "map_switch");
 }
 
 void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {

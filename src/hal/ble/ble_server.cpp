@@ -27,21 +27,21 @@
     #include <freertos/semphr.h>
     #include <string.h>
 
-static constexpr char SVC_UUID[] = "4fa0b6a0-0000-0000-0000-000000000001";
-static constexpr char TELE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000002";
-static constexpr char STATUS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000003";
-static constexpr char SETTINGS_UUID[] = "4fa0b6a0-0000-0000-0000-000000000004";
-static constexpr char CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000005";
-static constexpr char TIMER_CMD_UUID[] = "4fa0b6a0-0000-0000-0000-000000000006";
-static constexpr char TIMER_STATE_UUID[] = "4fa0b6a0-0000-0000-0000-000000000007";
-static constexpr char TIMER_LAP_UUID[] = "4fa0b6a0-0000-0000-0000-000000000008";
+static constexpr char kSvcUuid[] = "4fa0b6a0-0000-0000-0000-000000000001";
+static constexpr char kTeleUuid[] = "4fa0b6a0-0000-0000-0000-000000000002";
+static constexpr char kStatusUuid[] = "4fa0b6a0-0000-0000-0000-000000000003";
+static constexpr char kSettingsUuid[] = "4fa0b6a0-0000-0000-0000-000000000004";
+static constexpr char kCmdUuid[] = "4fa0b6a0-0000-0000-0000-000000000005";
+static constexpr char kTimerCmdUuid[] = "4fa0b6a0-0000-0000-0000-000000000006";
+static constexpr char kTimerStateUuid[] = "4fa0b6a0-0000-0000-0000-000000000007";
+static constexpr char kTimerLapUuid[] = "4fa0b6a0-0000-0000-0000-000000000008";
 
-static constexpr size_t BLE_MIN_HEAP = BLE_MIN_HEAP_BYTES;
+static constexpr size_t kBleMinHeap = kBleMinHeapBytes;
 
-static constexpr size_t BLE_MAX_WRITE_LEN = BleJsonBudget::kMaxWriteBytes;
-static constexpr uint32_t BLE_SETTINGS_MUTEX_TIMEOUT_MS = 50U;
+static constexpr size_t kBleMaxWriteLen = BleJsonBudget::kMaxWriteBytes;
+static constexpr uint32_t kBleSettingsMutexTimeoutMs = 50U;
 
-static constexpr uint16_t BLE_PREFERRED_MTU = 247U;
+static constexpr uint16_t kBlePreferredMtu = 247U;
 
 namespace BleServerInternal {
 NimBLECharacteristic *s_pTele = nullptr;
@@ -62,16 +62,16 @@ using BleServerInternal::s_stackInited;
 
 namespace {
 
-constexpr uint16_t CONN_MIN_INTERVAL = 12;
-constexpr uint16_t CONN_MAX_INTERVAL = 24;
-constexpr uint16_t CONN_SLAVE_LATENCY = 4;
-constexpr uint16_t CONN_SUPERVISION_TIMEOUT = 400;
+constexpr uint16_t kConnMinInterval = 12;
+constexpr uint16_t kConnMaxInterval = 24;
+constexpr uint16_t kConnSlaveLatency = 4;
+constexpr uint16_t kConnSupervisionTimeout = 400;
 
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override {
         BleServerInternal::s_connected = true;
-        pServer->updateConnParams(desc->conn_handle, CONN_MIN_INTERVAL, CONN_MAX_INTERVAL,
-                                  CONN_SLAVE_LATENCY, CONN_SUPERVISION_TIMEOUT);
+        pServer->updateConnParams(desc->conn_handle, kConnMinInterval, kConnMaxInterval,
+                                  kConnSlaveLatency, kConnSupervisionTimeout);
         LOG_INFO("BLE", "Client connected: %s",
                  NimBLEAddress(desc->peer_ota_addr).toString().c_str());
     }
@@ -83,15 +83,15 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     }
 
     uint32_t onPassKeyRequest() override {
-        constexpr uint32_t PASSKEY_RANGE = 1000000u;
-        constexpr uint32_t REJECTION_LIMIT = UINT32_MAX - (UINT32_MAX % PASSKEY_RANGE);
+        constexpr uint32_t kPasskeyRange = 1000000u;
+        constexpr uint32_t kRejectionLimit = UINT32_MAX - (UINT32_MAX % kPasskeyRange);
         uint32_t passkey;
         do {
             uint32_t draw = esp_random();
-            while (draw >= REJECTION_LIMIT) {
+            while (draw >= kRejectionLimit) {
                 draw = esp_random();
             }
-            passkey = draw % PASSKEY_RANGE;
+            passkey = draw % kPasskeyRange;
         } while (passkey == 0u);
         LOG_INFO("BLE", "Pairing requested — passkey %06u", static_cast<unsigned>(passkey));
         PendingActions::blePasskeyShow.store(passkey, std::memory_order_relaxed);
@@ -114,9 +114,9 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         std::string val = pChar->getValue();
         if (val.empty())
             return;
-        if (val.length() > BLE_MAX_WRITE_LEN) {
+        if (val.length() > kBleMaxWriteLen) {
             LOG_WARN("BLE", "SETTINGS write %u bytes exceeds cap %u — dropping",
-                     static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+                     static_cast<unsigned>(val.length()), static_cast<unsigned>(kBleMaxWriteLen));
             pChar->setValue("{\"err\":\"too_long\"}");
             return;
         }
@@ -129,7 +129,7 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         JsonVariantConst brightnessVar = doc["brightness"];
         if (!brightnessVar.isNull()) {
             const uint8_t brightness = brightnessVar.as<uint8_t>();
-            LvglLock lock(pdMS_TO_TICKS(BLE_SETTINGS_MUTEX_TIMEOUT_MS));
+            LvglLock lock(pdMS_TO_TICKS(kBleSettingsMutexTimeoutMs));
             if (!lock.held()) {
                 LOG_WARN("BLE", "SETTINGS write: LVGL mutex busy — brightness dropped");
                 pChar->setValue("{\"err\":\"busy\"}");
@@ -172,9 +172,9 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         std::string val = pChar->getValue();
         if (val.empty())
             return;
-        if (val.length() > BLE_MAX_WRITE_LEN) {
+        if (val.length() > kBleMaxWriteLen) {
             LOG_WARN("BLE", "CMD write %u bytes exceeds cap %u — dropping",
-                     static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+                     static_cast<unsigned>(val.length()), static_cast<unsigned>(kBleMaxWriteLen));
             return;
         }
 
@@ -191,7 +191,7 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         }
 
         if (entry->run(doc.as<JsonObjectConst>()) == DeviceCommands::Outcome::RebootRequested) {
-            delay(PRE_RESTART_FLUSH_DELAY_MS);
+            delay(kPreRestartFlushDelayMs);
             esp_restart();
         }
     }
@@ -202,9 +202,9 @@ class TimerCmdCallbacks : public NimBLECharacteristicCallbacks {
         std::string val = pChar->getValue();
         if (val.empty())
             return;
-        if (val.length() > BLE_MAX_WRITE_LEN) {
+        if (val.length() > kBleMaxWriteLen) {
             LOG_WARN("BLE", "TIMER cmd write %u bytes exceeds cap %u — dropping",
-                     static_cast<unsigned>(val.length()), static_cast<unsigned>(BLE_MAX_WRITE_LEN));
+                     static_cast<unsigned>(val.length()), static_cast<unsigned>(kBleMaxWriteLen));
             return;
         }
 
@@ -266,18 +266,18 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
     static TimerStateCallbacks s_timerStateCb;
 
     BleServerInternal::s_pTele =
-        requireChar(pSvc, TELE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+        requireChar(pSvc, kTeleUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
     BleServerInternal::s_pStatus =
-        requireChar(pSvc, STATUS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+        requireChar(pSvc, kStatusUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
     NimBLECharacteristic *pSettings =
-        requireChar(pSvc, SETTINGS_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
+        requireChar(pSvc, kSettingsUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
     NimBLECharacteristic *pCmd =
-        requireChar(pSvc, CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+        requireChar(pSvc, kCmdUuid, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
     NimBLECharacteristic *pTimerCmd =
-        requireChar(pSvc, TIMER_CMD_UUID, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+        requireChar(pSvc, kTimerCmdUuid, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
     BleServerInternal::s_pTimerState =
-        requireChar(pSvc, TIMER_STATE_UUID, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pTimerLap = requireChar(pSvc, TIMER_LAP_UUID, NIMBLE_PROPERTY::NOTIFY);
+        requireChar(pSvc, kTimerStateUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+    BleServerInternal::s_pTimerLap = requireChar(pSvc, kTimerLapUuid, NIMBLE_PROPERTY::NOTIFY);
 
     if (!BleServerInternal::s_pTele || !BleServerInternal::s_pStatus || !pSettings || !pCmd ||
         !pTimerCmd || !BleServerInternal::s_pTimerState || !BleServerInternal::s_pTimerLap) {
@@ -304,7 +304,7 @@ bool setupGatt() {
     }
     pServer->setCallbacks(&s_serverCb);
 
-    NimBLEService *pSvc = pServer->createService(SVC_UUID);
+    NimBLEService *pSvc = pServer->createService(kSvcUuid);
     if (pSvc == nullptr) {
         LOG_ERROR("BLE", "GATT service alloc failed");
         return false;
@@ -318,7 +318,7 @@ bool setupGatt() {
     }
 
     NimBLEAdvertising *pAdv = NimBLEDevice::getAdvertising();
-    pAdv->addServiceUUID(SVC_UUID);
+    pAdv->addServiceUUID(kSvcUuid);
     pAdv->setName("CANShift");
     pAdv->setScanResponse(false);
     if (!pAdv->start()) {
@@ -346,14 +346,14 @@ bool startStack() {
     if (!s_stackInited) {
 
         const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-        if (avail < BLE_MIN_HEAP) {
+        if (avail < kBleMinHeap) {
             LOG_WARN("BLE", "Insufficient contiguous DRAM for BLE stack (%u B < %u B) — skipped",
-                     static_cast<unsigned>(avail), static_cast<unsigned>(BLE_MIN_HEAP));
+                     static_cast<unsigned>(avail), static_cast<unsigned>(kBleMinHeap));
             return false;
         }
         NimBLEDevice::init("CANShift");
         NimBLEDevice::setPower(ESP_PWR_LVL_P9);
-        NimBLEDevice::setMTU(BLE_PREFERRED_MTU);
+        NimBLEDevice::setMTU(kBlePreferredMtu);
 
         NimBLEDevice::setSecurityAuth(true, true, true);
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
@@ -361,9 +361,9 @@ bool startStack() {
     }
 
     const size_t heapFree = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    if (heapFree < BLE_GATT_MIN_HEAP_BYTES) {
+    if (heapFree < kBleGattMinHeapBytes) {
         LOG_WARN("BLE", "Heap too low for GATT setup (%u B < %u B) — BLE disabled",
-                 static_cast<unsigned>(heapFree), static_cast<unsigned>(BLE_GATT_MIN_HEAP_BYTES));
+                 static_cast<unsigned>(heapFree), static_cast<unsigned>(kBleGattMinHeapBytes));
         return false;
     }
 
@@ -380,9 +380,9 @@ void reportStartFailure() {
 
 void BleServer::earlyInit() {
     const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-    if (avail < BLE_MIN_HEAP) {
+    if (avail < kBleMinHeap) {
         LOG_WARN("BLE", "Insufficient contiguous DRAM for BLE early init (%u B < %u B)",
-                 static_cast<unsigned>(avail), static_cast<unsigned>(BLE_MIN_HEAP));
+                 static_cast<unsigned>(avail), static_cast<unsigned>(kBleMinHeap));
         return;
     }
 

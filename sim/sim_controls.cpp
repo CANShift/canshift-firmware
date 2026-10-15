@@ -41,23 +41,23 @@ uint32_t s_startMs = 0;
 bool s_tapped = false;
 
 void feed(const Variant &v) {
-    SignalStore::update(SignalIds::RPM, v.rpm);
-    SignalStore::update(SignalIds::SPEED_KPH, v.speedKph);
-    SignalStore::update(SignalIds::GEAR, v.gear);
-    SignalStore::update(SignalIds::THROTTLE_POS, 0.0f);
-    SignalStore::update(SignalIds::EGT_C, v.egtC);
-    SignalStore::update(SignalIds::CLUTCH_STATE, 1.0f);
-    SignalStore::update(SignalIds::BATTERY_VOLTS, 13.8f);
-    SignalStore::update(SignalIds::COOLANT_TEMP_C, 92.0f);
-    SignalStore::update(SignalIds::OIL_PRESS_BAR, 4.1f);
-    SignalStore::update(SignalIds::FLAG_BRAKE, v.brake);
-    SignalStore::update(SignalIds::FLAG_LAUNCH_CTRL, v.flags);
-    SignalStore::update(SignalIds::FLAG_ANTI_LAG, v.flags);
-    SignalStore::update(SignalIds::FLAG_PIT_LIMIT, v.flags);
-    SignalStore::update(SignalIds::FLAG_CRUISE, v.flags);
-    SignalStore::update(SignalIds::FLAG_TRACTION_CUT, v.flags);
+    SignalStore::update(SignalIds::kRpm, v.rpm);
+    SignalStore::update(SignalIds::kSpeedKph, v.speedKph);
+    SignalStore::update(SignalIds::kGear, v.gear);
+    SignalStore::update(SignalIds::kThrottlePos, 0.0f);
+    SignalStore::update(SignalIds::kEgtC, v.egtC);
+    SignalStore::update(SignalIds::kClutchState, 1.0f);
+    SignalStore::update(SignalIds::kBatteryVolts, 13.8f);
+    SignalStore::update(SignalIds::kCoolantTempC, 92.0f);
+    SignalStore::update(SignalIds::kOilPressBar, 4.1f);
+    SignalStore::update(SignalIds::kFlagBrake, v.brake);
+    SignalStore::update(SignalIds::kFlagLaunchCtrl, v.flags);
+    SignalStore::update(SignalIds::kFlagAntiLag, v.flags);
+    SignalStore::update(SignalIds::kFlagPitLimit, v.flags);
+    SignalStore::update(SignalIds::kFlagCruise, v.flags);
+    SignalStore::update(SignalIds::kFlagTractionCut, v.flags);
     if (v.mapNumber >= 0.0f)
-        SignalStore::update(SignalIds::MAP_NUMBER, v.mapNumber);
+        SignalStore::update(SignalIds::kMapNumber, v.mapNumber);
 }
 
 void tapObject(lv_obj_t *obj, uint8_t times) {

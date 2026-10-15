@@ -29,10 +29,10 @@ static float s_oilPressWarnBar = 1.5f;
 static float s_oilPressCritBar = 1.0f;
 static float s_oilPressHighWarnBar = NAN;
 static float s_oilPressHighCritBar = NAN;
-static float s_batteryLowWarnV = BATTERY_DEFAULT_LOW_WARN_V;
-static float s_batteryLowCritV = BATTERY_DEFAULT_LOW_CRIT_V;
-static float s_batteryHighWarnV = BATTERY_DEFAULT_HIGH_WARN_V;
-static float s_batteryHighCritV = BATTERY_DEFAULT_HIGH_CRIT_V;
+static float s_batteryLowWarnV = kBatteryDefaultLowWarnV;
+static float s_batteryLowCritV = kBatteryDefaultLowCritV;
+static float s_batteryHighWarnV = kBatteryDefaultHighWarnV;
+static float s_batteryHighCritV = kBatteryDefaultHighCritV;
 
 namespace {
 
@@ -47,7 +47,7 @@ void stepRevLimitBlink(bool engaged, uint32_t now) {
         s_revLimiterSinceMs = now;
     }
     s_state.revLimiterRowLit =
-        alert_rev_limit_row_lit_rs(now - s_revLimiterSinceMs, ALERT_REVLIMIT_FLASH_HZ);
+        alert_rev_limit_row_lit_rs(now - s_revLimiterSinceMs, kAlertRevlimitFlashHz);
 }
 
 struct SensorHealthSlot {
@@ -58,10 +58,10 @@ struct SensorHealthSlot {
 };
 
 SensorHealthSlot s_sensorHealth[] = {
-    {"coolant temp", SignalIds::COOLANT_TEMP_C, &AlertEngine::AlertState::coolantSensorLost, {}},
-    {"oil temp", SignalIds::OIL_TEMP_C, &AlertEngine::AlertState::oilTempSensorLost, {}},
-    {"oil pressure", SignalIds::OIL_PRESS_BAR, &AlertEngine::AlertState::oilPressureSensorLost, {}},
-    {"battery", SignalIds::BATTERY_VOLTS, &AlertEngine::AlertState::batterySensorLost, {}},
+    {"coolant temp", SignalIds::kCoolantTempC, &AlertEngine::AlertState::coolantSensorLost, {}},
+    {"oil temp", SignalIds::kOilTempC, &AlertEngine::AlertState::oilTempSensorLost, {}},
+    {"oil pressure", SignalIds::kOilPressBar, &AlertEngine::AlertState::oilPressureSensorLost, {}},
+    {"battery", SignalIds::kBatteryVolts, &AlertEngine::AlertState::batterySensorLost, {}},
 };
 
 struct DeclaredTempSource {
@@ -78,7 +78,7 @@ struct DeclaredTempSource {
 
 DeclaredTempSource s_declaredTemps[] = {
     {"gearbox temp",
-     SignalIds::GEARBOX_TEMP_C,
+     SignalIds::kGearboxTempC,
      &AlertEngine::AlertState::gearboxTemp,
      &AlertEngine::AlertState::gearboxSensorLost,
      120.0f,
@@ -87,7 +87,7 @@ DeclaredTempSource s_declaredTemps[] = {
      {},
      false},
     {"diff temp",
-     SignalIds::DIFF_TEMP_C,
+     SignalIds::kDiffTempC,
      &AlertEngine::AlertState::diffTemp,
      &AlertEngine::AlertState::diffSensorLost,
      120.0f,
@@ -96,7 +96,7 @@ DeclaredTempSource s_declaredTemps[] = {
      {},
      false},
     {"exhaust temp",
-     SignalIds::EGT_C,
+     SignalIds::kEgtC,
      &AlertEngine::AlertState::exhaustTemp,
      &AlertEngine::AlertState::exhaustSensorLost,
      950.0f,
@@ -119,7 +119,7 @@ void updateSensorHealth(const SignalStore::SignalValue *snap, uint32_t now) {
     for (SensorHealthSlot &slot : s_sensorHealth) {
         const bool wasLost = slot.health.lost;
         alert_sensor_health_step_rs(&slot.health, snap[slot.id].valid, now,
-                                    ALERT_SENSOR_LOST_CLEAR_HOLD_MS);
+                                    kAlertSensorLostClearHoldMs);
         s_state.*(slot.lost) = slot.health.lost;
         if (slot.health.lost != wasLost) {
             if (slot.health.lost) {
@@ -137,25 +137,25 @@ AlertEngine::AlertLevel withSensorLost(AlertEngine::AlertLevel level, bool lost)
 
 AlertEngine::AlertLevel evalRevLimiter(float rpm) {
     return static_cast<AlertEngine::AlertLevel>(alert_eval_rev_limiter_rs(
-        rpm, s_revLimitRpm, ALERT_REVLIMIT_WARN_PCT, ALERT_REVLIMIT_FLASH_PCT));
+        rpm, s_revLimitRpm, kAlertRevlimitWarnPct, kAlertRevlimitFlashPct));
 }
 
 AlertEngine::AlertLevel stepCoolantTemp(float tempC, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_coolant_temp_step_rs(
         &s_coolantHold, tempC, s_coolantWarnC, s_coolantCritC, s_coolantHighWarnC,
-        s_coolantHighCritC, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
+        s_coolantHighCritC, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 AlertEngine::AlertLevel stepOilTemp(float tempC, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_high_side_temp_step_rs(
         &s_oilTempHold, tempC, s_oilTempWarnC, s_oilTempCritC, s_oilTempHighWarnC,
-        s_oilTempHighCritC, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
+        s_oilTempHighCritC, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 AlertEngine::AlertLevel stepOilPressure(float pressBar, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_oil_pressure_step_rs(
         &s_oilPressureHold, pressBar, s_oilPressWarnBar, s_oilPressCritBar, s_oilPressHighWarnBar,
-        s_oilPressHighCritBar, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
+        s_oilPressHighCritBar, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 struct CriticalLimitBinding {
@@ -166,10 +166,10 @@ struct CriticalLimitBinding {
 };
 
 constexpr CriticalLimitBinding kCriticalLimits[] = {
-    {SignalIds::COOLANT_TEMP_C, &s_coolantCritC, false, &s_coolantHighCritC},
-    {SignalIds::OIL_TEMP_C, &s_oilTempCritC, false, &s_oilTempHighCritC},
-    {SignalIds::OIL_PRESS_BAR, &s_oilPressCritBar, true, &s_oilPressHighCritBar},
-    {SignalIds::BATTERY_VOLTS, &s_batteryLowCritV, true, &s_batteryHighCritV},
+    {SignalIds::kCoolantTempC, &s_coolantCritC, false, &s_coolantHighCritC},
+    {SignalIds::kOilTempC, &s_oilTempCritC, false, &s_oilTempHighCritC},
+    {SignalIds::kOilPressBar, &s_oilPressCritBar, true, &s_oilPressHighCritBar},
+    {SignalIds::kBatteryVolts, &s_batteryLowCritV, true, &s_batteryHighCritV},
 };
 
 void bindDeclaredTemp(const CfgSignalDef &def) {
@@ -190,12 +190,12 @@ void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
         if (!src.declared)
             continue;
         alert_sensor_health_step_rs(&src.health, snap[src.id].valid, now,
-                                    ALERT_SENSOR_LOST_CLEAR_HOLD_MS);
+                                    kAlertSensorLostClearHoldMs);
         s_state.*(src.lost) = src.health.lost;
         const float value = snap[src.id].valid ? snap[src.id].smoothed : 0.0f;
         const auto level = static_cast<AlertEngine::AlertLevel>(
             alert_high_side_temp_step_rs(&src.hold, value, src.warnC, src.critC, NAN, NAN, now,
-                                         ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
+                                         kAlertHysteresisPct, kAlertMinActiveMs));
         s_state.*(src.level) = withSensorLost(level, src.health.lost);
     }
 }
@@ -203,7 +203,7 @@ void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
 AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_battery_step_rs(
         &s_batteryHold, volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV,
-        s_batteryHighCritV, now, ALERT_HYSTERESIS_PCT, ALERT_MIN_ACTIVE_MS));
+        s_batteryHighCritV, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 } // namespace
@@ -301,12 +301,12 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     const auto readSnap = [&snap](SignalId id, float def) {
         return snap[id].valid ? snap[id].smoothed : def;
     };
-    float rpm = readSnap(SignalIds::RPM, 0.0f);
-    float coolant = readSnap(SignalIds::COOLANT_TEMP_C, 0.0f);
-    float oilTemp = readSnap(SignalIds::OIL_TEMP_C, 0.0f);
-    float oilPres = readSnap(SignalIds::OIL_PRESS_BAR, 5.0f);
-    float volts = readSnap(SignalIds::BATTERY_VOLTS, 13.0f);
-    float mil = readSnap(SignalIds::FLAG_MIL, 0.0f);
+    float rpm = readSnap(SignalIds::kRpm, 0.0f);
+    float coolant = readSnap(SignalIds::kCoolantTempC, 0.0f);
+    float oilTemp = readSnap(SignalIds::kOilTempC, 0.0f);
+    float oilPres = readSnap(SignalIds::kOilPressBar, 5.0f);
+    float volts = readSnap(SignalIds::kBatteryVolts, 13.0f);
+    float mil = readSnap(SignalIds::kFlagMil, 0.0f);
 
     s_state.revLimiter = evalRevLimiter(rpm);
     s_state.coolantTemp = withSensorLost(stepCoolantTemp(coolant, now), s_state.coolantSensorLost);

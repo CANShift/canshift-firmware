@@ -9,10 +9,10 @@ int8_t linkedFlagForSeparator(const Tracker &tracker) {
 int8_t registerModeFlag(Tracker &tracker, int8_t registeredIdx, int8_t dynCount) {
     tracker.lastModeFlagIdx = registeredIdx;
     const int8_t pending = tracker.pendingSepNeedingNext;
-    tracker.pendingSepNeedingNext = NO_FLAG;
+    tracker.pendingSepNeedingNext = kNoFlag;
     if (pending >= 0 && pending < dynCount)
         return pending;
-    return NO_FLAG;
+    return kNoFlag;
 }
 
 void registerSeparator(Tracker &tracker, int8_t registeredIdx) {
@@ -20,8 +20,8 @@ void registerSeparator(Tracker &tracker, int8_t registeredIdx) {
 }
 
 void resetTracking(Tracker &tracker) {
-    tracker.lastModeFlagIdx = NO_FLAG;
-    tracker.pendingSepNeedingNext = NO_FLAG;
+    tracker.lastModeFlagIdx = kNoFlag;
+    tracker.pendingSepNeedingNext = kNoFlag;
 }
 
 bool hasValidLink(int8_t linkedFlagIdx, int8_t dynCount) {

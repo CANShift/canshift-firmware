@@ -187,8 +187,8 @@ void toggleClickCb(lv_event_t *e) {
         return;
     if (tag->params->isToggle || tag->control) {
         tag->engaged = !tag->engaged;
-        tag->signalSyncIgnoreUntilMs = millis() + BUTTON_SIGNAL_SYNC_GRACE_MS;
-        tag->commandDeadlineMs = tag->engaged ? millis() + BUTTON_COMMAND_TIMEOUT_MS : 0;
+        tag->signalSyncIgnoreUntilMs = millis() + kButtonSignalSyncGraceMs;
+        tag->commandDeadlineMs = tag->engaged ? millis() + kButtonCommandTimeoutMs : 0;
     }
     LOG_DEBUG("BTN", "tap id=%s engaged=%d", tag->cfg ? tag->cfg->id : "?", tag->engaged ? 1 : 0);
     dispatchActions(*tag, tag->engaged);
@@ -236,7 +236,7 @@ void attachEvents(lv_obj_t *btn, const ButtonTag &tag) {
 
 void syncEngagedFromSignal(ButtonTag &tag) {
     if (tag.control || !tag.params || !tag.params->isToggle ||
-        tag.signal >= SignalIds::SIGNAL_COUNT)
+        tag.signal >= SignalIds::kSignalCount)
         return;
     if (static_cast<int32_t>(millis() - tag.signalSyncIgnoreUntilMs) < 0)
         return;

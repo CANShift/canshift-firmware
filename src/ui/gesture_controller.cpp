@@ -13,9 +13,9 @@ namespace GestureController {
 
 namespace {
 
-constexpr int16_t DRAG_HOTZONE_MAX_PX = 40;
+constexpr int16_t kDragHotzoneMaxPx = 40;
 
-constexpr int16_t DRAG_START_THRESHOLD_PX = 6;
+constexpr int16_t kDragStartThresholdPx = 6;
 
 SwipeHandler s_swipeHandler = nullptr;
 bool s_gesturePressStartedOnClickable = false;
@@ -104,7 +104,7 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
 
         const bool isOpen = SettingsPage::isOpen();
 
-        const int16_t hotzoneY = LV_MIN(DRAG_HOTZONE_MAX_PX, TopBar::getHeight());
+        const int16_t hotzoneY = LV_MIN(kDragHotzoneMaxPx, TopBar::getHeight());
         if (p.y > hotzoneY) {
             s_drag.active = false;
             return;
@@ -119,7 +119,7 @@ void updateDrag(lv_indev_t *indev, lv_indev_state_t state) {
     const int16_t deltaY = p.y - s_drag.startY;
 
     if (!s_drag.tracking) {
-        if (abs(deltaY) < DRAG_START_THRESHOLD_PX)
+        if (abs(deltaY) < kDragStartThresholdPx)
             return;
 
         const bool isOpen = SettingsPage::isOpen();

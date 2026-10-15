@@ -29,7 +29,7 @@ constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
 
 constexpr uint8_t kRulePrimaryFontMin = 32;
 
-constexpr size_t kStalePlaceholderCap = 2 * ALERT_STALE_DASH_GROUPS_MAX;
+constexpr size_t kStalePlaceholderCap = 2 * kAlertStaleDashGroupsMax;
 
 constexpr int16_t kValueRightInsetPx = 8;
 constexpr uint16_t kFillCatchUpMs = 120;

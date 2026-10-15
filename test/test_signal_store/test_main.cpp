@@ -6,15 +6,15 @@
 
 namespace {
 
-constexpr SignalId kTestSignalId = SignalIds::RPM;
-constexpr SignalId kUnwrittenSignalId = SignalIds::OIL_PRESS_BAR;
+constexpr SignalId kTestSignalId = SignalIds::kRpm;
+constexpr SignalId kUnwrittenSignalId = SignalIds::kOilPressBar;
 constexpr float kTestSignalValue = 1234.0f;
 constexpr float kReadDefault = -1.0f;
 constexpr float kEpsilon = 1e-4f;
 
 // 5 ms past SIGNAL_DEFAULT_TIMEOUT_MS — guaranteed to exceed the staleness
 // window without sitting exactly on the boundary.
-constexpr uint32_t kPastTimeoutMs = SIGNAL_DEFAULT_TIMEOUT_MS + 5;
+constexpr uint32_t kPastTimeoutMs = kSignalDefaultTimeoutMs + 5;
 
 } // namespace
 
@@ -94,7 +94,7 @@ void test_tryRead_reportsValidityAndValue() {
 
 void test_tryRead_rejectsOutOfRangeIdAndNullOut() {
     float value = kReadDefault;
-    TEST_ASSERT_FALSE(SignalStore::tryRead(SignalIds::SIGNAL_COUNT, &value));
+    TEST_ASSERT_FALSE(SignalStore::tryRead(SignalIds::kSignalCount, &value));
     TEST_ASSERT_EQUAL_FLOAT(kReadDefault, value);
     SignalStore::set(kTestSignalId, kTestSignalValue);
     TEST_ASSERT_FALSE(SignalStore::tryRead(kTestSignalId, nullptr));

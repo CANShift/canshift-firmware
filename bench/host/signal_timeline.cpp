@@ -15,13 +15,13 @@ struct Seen {
     const char *name;
 };
 
-Seen s_seen[SIGNAL_STORE_MAX_SIGNALS];
+Seen s_seen[kSignalStoreMaxSignals];
 
 void trackConfiguredSignals() {
     const CfgSignalConfig &cfg = ConfigLoader::getSignalConfig();
     for (uint8_t i = 0; i < cfg.signalCount; ++i) {
         const SignalId sid = signalIdFromName(cfg.signals[i].name);
-        if (sid >= SIGNAL_STORE_MAX_SIGNALS)
+        if (sid >= kSignalStoreMaxSignals)
             continue;
         s_seen[sid] = {true, false, 0.0f, cfg.signals[i].name};
     }
@@ -59,9 +59,9 @@ void writeFrame(FILE *out, uint32_t atMs, const char *direction, uint32_t id, co
 }
 
 void writeChanges(FILE *out, uint32_t atMs) {
-    SignalStore::SignalValue now[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::SignalValue now[kSignalStoreMaxSignals];
     SignalStore::snapshotAll(now);
-    for (SignalId sid = 0; sid < SIGNAL_STORE_MAX_SIGNALS; ++sid) {
+    for (SignalId sid = 0; sid < kSignalStoreMaxSignals; ++sid) {
         Seen &seen = s_seen[sid];
         if (!seen.tracked || !changed(seen, now[sid]))
             continue;

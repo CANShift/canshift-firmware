@@ -73,7 +73,7 @@ void initPsramAndLogEntry() {
 }
 
 void initTaskWatchdog() {
-    constexpr uint32_t kWdtTimeoutS = (TASK_WDT_TIMEOUT_MS + 999U) / 1000U;
+    constexpr uint32_t kWdtTimeoutS = (kTaskWdtTimeoutMs + 999U) / 1000U;
     const esp_err_t wdtErr = esp_task_wdt_init(kWdtTimeoutS, true);
     if (wdtErr != ESP_OK) {
         LOG_ERROR("BOOT", "Task WDT init failed: %d — continuing without WDT",

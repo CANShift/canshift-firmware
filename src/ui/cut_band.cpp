@@ -23,7 +23,7 @@ constexpr int16_t kRowHeightPx = 26;
 constexpr int16_t kColumnGapPx = DashMetrics::kRowGapPx;
 constexpr size_t kDetailBufLen = 64;
 constexpr size_t kReadoutBufLen = 12;
-constexpr size_t kRowCapacity = ALERT_CUT_ROW_CAPACITY;
+constexpr size_t kRowCapacity = kAlertCutRowCapacity;
 constexpr uint32_t kRgbUnset = 0xFFFFFFFFu;
 
 constexpr const char *kFixedReadout[] = {nullptr, "HOLDING", "LATCHED"};
@@ -131,7 +131,7 @@ void buildRow(BandRow &row, lv_obj_t *parent) {
     lv_obj_set_flex_grow(row.detail, 1);
     lv_label_set_long_mode(row.detail, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_pad_left(row.elapsed, LayoutScale::x(kColumnGapPx), LV_PART_MAIN);
-    row.offending = SignalIds::SIGNAL_COUNT;
+    row.offending = SignalIds::kSignalCount;
     row.level = Severity::Level::INFORMATION;
     applyRowTheme(row);
     WidgetHelpers::setVisible(row.root, false);
@@ -197,7 +197,7 @@ void renderRow(BandRow &row, const CutRowRs &data, const SignalStore::SignalValu
 }
 
 void hideRow(BandRow &row) {
-    row.offending = SignalIds::SIGNAL_COUNT;
+    row.offending = SignalIds::kSignalCount;
     WidgetHelpers::setVisibleIfChanged(row.root, false);
 }
 
@@ -247,7 +247,7 @@ void CutBand::update(const SignalStore::SignalValue *snap) {
 }
 
 Severity::Level CutBand::levelFor(SignalId signal) {
-    if (signal >= SignalIds::SIGNAL_COUNT)
+    if (signal >= SignalIds::kSignalCount)
         return Severity::Level::INFORMATION;
     for (size_t i = 0; i < s_visibleCount; ++i) {
         if (s_rows[i].offending == signal)

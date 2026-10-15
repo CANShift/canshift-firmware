@@ -60,7 +60,7 @@ void applyDefaultTopBarLayout(CfgTopBar *bar) {
     auto &items = bar->items;
     auto addItem = [&](TopBarItemKind kind, TopBarItemPos pos, const char *sig, const char *txt) {
         // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
-        if (n >= CFG_MAX_TOPBAR_ITEMS)
+        if (n >= kCfgMaxTopbarItems)
             return;
         CfgTopBarItem &out = items[n++];
         out.kind = kind;
@@ -80,17 +80,17 @@ void applyDefaultTopBarLayout(CfgTopBar *bar) {
 
 void parseTopBarLayout(JsonArrayConst layout, CfgTopBar *bar) {
     const size_t total = layout.size();
-    if (total > CFG_MAX_TOPBAR_ITEMS) {
+    if (total > kCfgMaxTopbarItems) {
         LOG_WARN("CFG", "topBar.layout: %u items exceed CFG_MAX_TOPBAR_ITEMS=%u — extras ignored",
-                 static_cast<unsigned>(total), CFG_MAX_TOPBAR_ITEMS);
+                 static_cast<unsigned>(total), kCfgMaxTopbarItems);
     }
     for (JsonObjectConst item : layout) {
-        if (bar->itemCount >= CFG_MAX_TOPBAR_ITEMS)
+        if (bar->itemCount >= kCfgMaxTopbarItems)
             break;
         CfgTopBarItem tmp{};
         tmp.kind = parseTopBarItemKind(item["type"] | "");
         tmp.position = parseTopBarItemPos(item["position"] | "left");
-        strlcpy(tmp.signalId, item["signal"] | "", CFG_MAX_SIGNAL_LEN);
+        strlcpy(tmp.signalId, item["signal"] | "", kCfgMaxSignalLen);
         strlcpy(tmp.text, item["text"] | "", sizeof(tmp.text));
         strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
         if (tmp.kind == TopBarItemKind::UNKNOWN) {
@@ -154,7 +154,7 @@ bool parseStatusItem(JsonObjectConst item, CfgTopBarItem *out) {
     if (tmp.kind == TopBarItemKind::UNKNOWN)
         return false;
     tmp.position = parseTopBarItemPos(item["position"] | "right");
-    strlcpy(tmp.signalId, item["signal"] | "", CFG_MAX_SIGNAL_LEN);
+    strlcpy(tmp.signalId, item["signal"] | "", kCfgMaxSignalLen);
     strlcpy(tmp.text, item["text"] | "", sizeof(tmp.text));
     strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
     *out = tmp;
@@ -172,8 +172,8 @@ void parsePageStatusRow(JsonObjectConst page, CfgPage *p) {
 }
 
 void parsePageMeta(JsonObjectConst page, CfgPage *p) {
-    strlcpy(p->id, page["id"] | "", CFG_MAX_ID_LEN);
-    strlcpy(p->bgImagePath, page["backgroundImage"] | "", CFG_MAX_PATH_LEN);
+    strlcpy(p->id, page["id"] | "", kCfgMaxIdLen);
+    strlcpy(p->bgImagePath, page["backgroundImage"] | "", kCfgMaxPathLen);
     parseColor(page["backgroundColor"] | "#1A1A1A", &p->bgColor);
     p->showTopBar = page["showTopBar"] | true;
     parsePageStatusRow(page, p);
@@ -191,21 +191,21 @@ void parsePageMeta(JsonObjectConst page, CfgPage *p) {
 }
 
 bool allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) {
-    if (totalWidgets > CONFIG_MAX_WIDGETS_PER_PAGE) {
+    if (totalWidgets > kConfigMaxWidgetsPerPage) {
         LOG_WARN("CFG",
                  "page '%s': %u widgets exceed CONFIG_MAX_WIDGETS_PER_PAGE=%u — extras ignored",
-                 p->id, static_cast<unsigned>(totalWidgets), CONFIG_MAX_WIDGETS_PER_PAGE);
+                 p->id, static_cast<unsigned>(totalWidgets), kConfigMaxWidgetsPerPage);
     }
     const size_t cap =
-        totalWidgets > CONFIG_MAX_WIDGETS_PER_PAGE ? CONFIG_MAX_WIDGETS_PER_PAGE : totalWidgets;
+        totalWidgets > kConfigMaxWidgetsPerPage ? kConfigMaxWidgetsPerPage : totalWidgets;
     if (cap == 0)
         return true;
     const size_t allocBytes = cap * sizeof(CfgWidget);
-    if (*totalAllocBytes + allocBytes > CONFIG_DASHBOARD_HEAP_BUDGET_BYTES) {
+    if (*totalAllocBytes + allocBytes > kConfigDashboardHeapBudgetBytes) {
         LOG_ERROR("CFG",
                   "dashboard.json: cumulative widget alloc would exceed budget %u B "
                   "(at page '%s', running=%u + adding=%u) — refusing payload",
-                  static_cast<unsigned>(CONFIG_DASHBOARD_HEAP_BUDGET_BYTES), p->id,
+                  static_cast<unsigned>(kConfigDashboardHeapBudgetBytes), p->id,
                   static_cast<unsigned>(*totalAllocBytes), static_cast<unsigned>(allocBytes));
         ErrorStore::push(ERROR_SRC_CONFIG, "BUDGET", "payload_too_large");
         return false;
@@ -224,13 +224,13 @@ bool allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) 
 
 bool parsePages(JsonArrayConst pages, CfgDashboard *out) {
     out->pageCount = 0;
-    if (pages.size() > CONFIG_MAX_PAGES) {
+    if (pages.size() > kConfigMaxPages) {
         LOG_WARN("CFG", "dashboard.json: %u pages exceed CONFIG_MAX_PAGES=%u — extras ignored",
-                 static_cast<unsigned>(pages.size()), CONFIG_MAX_PAGES);
+                 static_cast<unsigned>(pages.size()), kConfigMaxPages);
     }
     size_t totalAllocBytes = 0;
     for (JsonObjectConst page : pages) {
-        if (out->pageCount >= CONFIG_MAX_PAGES)
+        if (out->pageCount >= kConfigMaxPages)
             break;
         CfgPage &p = out->pages[out->pageCount++];
         parsePageMeta(page, &p);
@@ -262,7 +262,7 @@ bool loadDashboard() {
     }
 
     JsonDocument doc(JsonReader::configAllocator());
-    if (!readAndParseWithBak(CONFIG_PATH_DASHBOARD, doc)) {
+    if (!readAndParseWithBak(kConfigPathDashboard, doc)) {
         LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
         char msg[48];
         snprintf(msg, sizeof(msg), "dashboard.json: %s", lastParseError());

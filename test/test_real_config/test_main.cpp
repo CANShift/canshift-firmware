@@ -46,8 +46,8 @@ void test_real_six_page_dashboard_loads() {
     printf("dashboard.json bytes=%zu signals.json bytes=%zu\n", dashLen, sigLen);
 
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, dash, dashLen);
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, sigs, sigLen);
+    StorageDriver::fakeWrite(kConfigPathDashboard, dash, dashLen);
+    StorageDriver::fakeWrite(kConfigPathSignals, sigs, sigLen);
 
     const ConfigLoader::LoadResult result = ConfigLoader::loadAll();
     printf("dashboardOk=%d signalsOk=%d\n", result.dashboardOk ? 1 : 0, result.signalsOk ? 1 : 0);
@@ -78,8 +78,8 @@ static bool signalIsDeclared(const CfgSignalConfig &s, const char *name) {
 void test_every_bound_signal_is_declared() {
     const CfgDashboard &d = ConfigLoader::getDashboardConfig();
     const CfgSignalConfig &s = ConfigLoader::getSignalConfig();
-    printf("signalCount=%u cap=%u\n", (unsigned)s.signalCount, (unsigned)CONFIG_MAX_SIGNALS);
-    TEST_ASSERT_LESS_OR_EQUAL_UINT8(CONFIG_MAX_SIGNALS, s.signalCount);
+    printf("signalCount=%u cap=%u\n", (unsigned)s.signalCount, (unsigned)kConfigMaxSignals);
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(kConfigMaxSignals, s.signalCount);
 
     for (uint8_t p = 0; p < d.pageCount; ++p) {
         for (uint8_t w = 0; w < d.pages[p].widgetCount; ++w) {

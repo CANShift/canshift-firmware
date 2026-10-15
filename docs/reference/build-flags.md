@@ -92,7 +92,7 @@ single panic handler, and the link needs no `-z muldefs`. A Rust panic calls C
 | --------------------------- | ------: | ----------------------------------------------------------------------------------------------------------------------- |
 | `HW_LVGL_DRAW_BUDGET_BYTES` |   25 KB | RAM budget for both LVGL draw buffers combined. Drives the line-count computation. Set in `include/hardware_profile.h`. |
 | `TASK_WDT_TIMEOUT_MS`       |    8000 | Watchdog timeout for the UI, CAN and USB tasks. Long enough to survive a page rebuild plus a SPIFFS font load.          |
-| `LVGL_FS_MIN_HEAP_BYTES`    |     256 | Below this the LVGL FS driver refuses opens, keeping newlib's `__sfp` out of `abort()`.                                 |
+| `kLvglFsMinHeapBytes`       |     256 | Below this the LVGL FS driver refuses opens, keeping newlib's `__sfp` out of `abort()`.                                 |
 | `LVGL_POOL_FORCE_FAIL`      |       0 | Fault injection for the LVGL pool allocator. Makes the first _n_ capability tiers refuse. Never set in a shipped env.   |
 
 ### The LVGL pool and its failure path

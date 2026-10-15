@@ -45,7 +45,7 @@ void taskCAN(void *) {
         }
         if (++consecutiveFrames >= kBurstBeforeYield) {
             consecutiveFrames = 0;
-            vTaskDelay(CAN_TASK_YIELD_TICKS);
+            vTaskDelay(kCanTaskYieldTicks);
         }
     }
 }
@@ -61,8 +61,8 @@ bool CanTask::reserveStack() {
 bool CanTask::start() {
     if (s_handle != nullptr)
         return true;
-    s_handle = TaskSpawn::spawnStatic("can", taskCAN, TASK_STACK_CAN, TASK_PRIO_CAN, s_stack,
-                                      &s_tcb, TASK_CORE_CAN);
+    s_handle = TaskSpawn::spawnStatic("can", taskCAN, TASK_STACK_CAN, kTaskPrioCan, s_stack, &s_tcb,
+                                      kTaskCoreCan);
     return s_handle != nullptr;
 }
 

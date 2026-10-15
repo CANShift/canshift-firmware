@@ -30,9 +30,9 @@ uint8_t alert_coolant_temp_step_rs(AlertLevelHoldRs *hold, float temp_c, float w
                                    float high_warn_c, float high_crit_c, uint32_t now_ms,
                                    float hysteresis_pct, uint32_t min_active_ms);
 
-inline constexpr uint8_t ALERT_DISPLAY_IDLE_LIVE = 0;
-inline constexpr uint8_t ALERT_DISPLAY_IDLE_DIM = 1;
-inline constexpr uint8_t ALERT_DISPLAY_IDLE_OFF = 2;
+inline constexpr uint8_t kAlertDisplayIdleLive = 0;
+inline constexpr uint8_t kAlertDisplayIdleDim = 1;
+inline constexpr uint8_t kAlertDisplayIdleOff = 2;
 
 uint8_t alert_display_idle_state_rs(uint32_t idle_ms, uint32_t dim_after_ms, uint32_t off_after_ms);
 
@@ -49,14 +49,14 @@ uint8_t alert_battery_step_rs(AlertLevelHoldRs *hold, float volts, float low_war
                               uint32_t now_ms, float hysteresis_pct, uint32_t min_active_ms);
 
 /* Mirror of rust/alert-engine SEVERITY_LEVEL_COUNT — gated by check_ffi_parity.py. */
-enum { ALERT_SEVERITY_LEVEL_COUNT = 4 };
+enum { kAlertSeverityLevelCount = 4 };
 
 /* Mirror of rust/alert-engine Severity (repr(u8)) — keep in sync. */
 enum {
-    ALERT_SEVERITY_INFORMATION = 0,
-    ALERT_SEVERITY_WARNING = 1,
-    ALERT_SEVERITY_CRITICAL = 2,
-    ALERT_SEVERITY_FAILURE = 3
+    kAlertSeverityInformation = 0,
+    kAlertSeverityWarning = 1,
+    kAlertSeverityCritical = 2,
+    kAlertSeverityFailure = 3
 };
 
 float alert_warn_level_for_rs(float danger_level, bool danger_below, float sig_warn,
@@ -101,28 +101,24 @@ typedef struct {
 } AlertBusSilenceRs;
 
 /* Mirror of rust/alert-engine STALE_DASH_GROUPS_MAX — gated by check_ffi_parity.py. */
-enum { ALERT_STALE_DASH_GROUPS_MAX = 4 };
+enum { kAlertStaleDashGroupsMax = 4 };
 
 void alert_bus_silence_rs(AlertBusSilenceRs *out, uint32_t ms_since_rx, uint32_t uptime_ms,
                           uint32_t threshold_ms);
 
 uint8_t alert_stale_dash_groups_rs(float max_value);
 
-enum { ALERT_CUT_KIND_COUNT = 9 };
-enum { ALERT_CUT_ROW_CAPACITY = 3 };
-enum { ALERT_CUT_MIN_VISIBLE_MS = 1500 };
+enum { kAlertCutKindCount = 9 };
+enum { kAlertCutRowCapacity = 3 };
+enum { kAlertCutMinVisibleMs = 1500 };
 
-enum {
-    ALERT_CUT_READOUT_ELAPSED = 0,
-    ALERT_CUT_READOUT_HOLDING = 1,
-    ALERT_CUT_READOUT_LATCHED = 2
-};
+enum { kAlertCutReadoutElapsed = 0, kAlertCutReadoutHolding = 1, kAlertCutReadoutLatched = 2 };
 
 typedef struct {
-    uint32_t raised_at_ms[ALERT_CUT_KIND_COUNT];
-    uint32_t ended_at_ms[ALERT_CUT_KIND_COUNT];
-    bool active[ALERT_CUT_KIND_COUNT];
-    bool visible[ALERT_CUT_KIND_COUNT];
+    uint32_t raised_at_ms[kAlertCutKindCount];
+    uint32_t ended_at_ms[kAlertCutKindCount];
+    bool active[kAlertCutKindCount];
+    bool visible[kAlertCutKindCount];
 } CutBandStateRs;
 
 typedef struct {

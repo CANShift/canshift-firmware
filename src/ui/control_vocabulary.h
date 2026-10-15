@@ -12,13 +12,13 @@ inline constexpr const char *kDash = " — ";
 inline constexpr const char *kStack = "\n";
 
 enum class ControlState : uint8_t {
-    OFF = CONTROL_STATE_OFF,
-    ARMED = CONTROL_STATE_ARMED,
-    ACTIVE = CONTROL_STATE_ACTIVE,
-    UNAVAILABLE = CONTROL_STATE_UNAVAILABLE,
+    OFF = kControlStateOff,
+    ARMED = kControlStateArmed,
+    ACTIVE = kControlStateActive,
+    UNAVAILABLE = kControlStateUnavailable,
 };
 
-constexpr uint8_t kStateCount = CONTROL_STATE_COUNT;
+constexpr uint8_t kStateCount = kControlStateCount;
 
 enum class ControlId : uint8_t {
     ANTI_LAG = 0,

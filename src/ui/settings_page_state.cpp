@@ -19,10 +19,10 @@
 
 namespace SettingsPageInternal {
 
-static constexpr char NVS_NS[] = "screen_cfg";
-static constexpr char KEY_BRIGHTNESS[] = "brightness";
+static constexpr char kNvsNs[] = "screen_cfg";
+static constexpr char kKeyBrightness[] = "brightness";
 
-uint8_t s_brightness = DEFAULT_BRIGHTNESS;
+uint8_t s_brightness = kDefaultBrightness;
 
 lv_obj_t *s_panel = nullptr;
 lv_obj_t *s_brSlider = nullptr;
@@ -42,16 +42,16 @@ int16_t s_panelHeight = 0;
 
 void nvsLoad() {
     Preferences p;
-    p.begin(NVS_NS, true);
-    s_brightness = p.getUChar(KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
+    p.begin(kNvsNs, true);
+    s_brightness = p.getUChar(kKeyBrightness, kDefaultBrightness);
     p.end();
 
     if (s_brightness < 10 || s_brightness > 100)
-        s_brightness = DEFAULT_BRIGHTNESS;
+        s_brightness = kDefaultBrightness;
 }
 
 void nvsSave() {
-    const bool saved = NvsStore::putUChar(NVS_NS, KEY_BRIGHTNESS, s_brightness);
+    const bool saved = NvsStore::putUChar(kNvsNs, kKeyBrightness, s_brightness);
     if (!saved) {
         LOG_ERROR("Settings", "NVS write failed — settings not persisted");
         ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "settings not persisted");
@@ -82,13 +82,13 @@ void updateDayModeButtons() {
     for (uint8_t i = 0; i < 2; ++i) {
         if (!s_dayBtns[i])
             continue;
-        lv_obj_set_style_bg_color(s_dayBtns[i], lv_color_hex(active[i] ? CLR_BTN_ACT : CLR_BTN_BG),
+        lv_obj_set_style_bg_color(s_dayBtns[i], lv_color_hex(active[i] ? kClrBtnAct : kClrBtnBg),
                                   LV_PART_MAIN);
         lv_obj_set_style_border_color(
-            s_dayBtns[i], lv_color_hex(active[i] ? CLR_ACCENT : CLR_BTN_BDR), LV_PART_MAIN);
+            s_dayBtns[i], lv_color_hex(active[i] ? kClrAccent : kClrBtnBdr), LV_PART_MAIN);
         lv_obj_t *lbl = lv_obj_get_child(s_dayBtns[i], 0);
         if (lbl)
-            lv_obj_set_style_text_color(lbl, lv_color_hex(active[i] ? CLR_ACCENT : CLR_MUTED), 0);
+            lv_obj_set_style_text_color(lbl, lv_color_hex(active[i] ? kClrAccent : kClrMuted), 0);
     }
 }
 
@@ -111,9 +111,9 @@ static void clearTouchCalFeedback(lv_timer_t *t) {
         lv_obj_t *lbl = lv_obj_get_child(s_resetTouchCalBtn, 0);
         if (lbl) {
             lv_label_set_text(lbl, "RESET TOUCH CAL");
-            lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+            lv_obj_set_style_text_color(lbl, lv_color_hex(kClrMuted), 0);
         }
-        lv_obj_set_style_border_color(s_resetTouchCalBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
+        lv_obj_set_style_border_color(s_resetTouchCalBtn, lv_color_hex(kClrBtnBdr), LV_PART_MAIN);
     }
     lv_timer_del(t);
     s_resetTouchCalTimer = nullptr;
@@ -127,16 +127,16 @@ void onResetTouchCal(lv_event_t *) {
         lv_obj_t *lbl = lv_obj_get_child(s_resetTouchCalBtn, 0);
         if (lbl) {
             lv_label_set_text(lbl, "RESET PENDING - REBOOT");
-            lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_ACCENT), 0);
+            lv_obj_set_style_text_color(lbl, lv_color_hex(kClrAccent), 0);
         }
-        lv_obj_set_style_border_color(s_resetTouchCalBtn, lv_color_hex(CLR_ACCENT), LV_PART_MAIN);
+        lv_obj_set_style_border_color(s_resetTouchCalBtn, lv_color_hex(kClrAccent), LV_PART_MAIN);
     }
 
     if (s_resetTouchCalTimer) {
         lv_timer_del(s_resetTouchCalTimer);
         s_resetTouchCalTimer = nullptr;
     }
-    s_resetTouchCalTimer = lv_timer_create(clearTouchCalFeedback, RESET_FEEDBACK_MS, nullptr);
+    s_resetTouchCalTimer = lv_timer_create(clearTouchCalFeedback, kResetFeedbackMs, nullptr);
     lv_timer_set_repeat_count(s_resetTouchCalTimer, 1);
 }
 
@@ -161,14 +161,14 @@ static void writeRebootLabel(const char *text, uint32_t color) {
 }
 
 static void resetRebootBtn() {
-    writeRebootLabel("HOLD 3 s TO REBOOT", CLR_MUTED);
+    writeRebootLabel("HOLD 3 s TO REBOOT", kClrMuted);
     if (s_rebootBtn)
-        lv_obj_set_style_border_color(s_rebootBtn, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
+        lv_obj_set_style_border_color(s_rebootBtn, lv_color_hex(kClrBtnBdr), LV_PART_MAIN);
 }
 
 static void tickRebootCountdown(lv_timer_t *t) {
     const uint32_t elapsed = millis() - s_rebootPressStartMs;
-    if (elapsed >= REBOOT_LONG_PRESS_MS) {
+    if (elapsed >= kRebootLongPressMs) {
         LOG_INFO("Settings", "Reboot requested via settings page long-press");
         lv_timer_del(t);
         s_rebootCountdownTimer = nullptr;
@@ -176,11 +176,11 @@ static void tickRebootCountdown(lv_timer_t *t) {
         esp_restart();
         return;
     }
-    const uint32_t remainingMs = REBOOT_LONG_PRESS_MS - elapsed;
+    const uint32_t remainingMs = kRebootLongPressMs - elapsed;
     const uint32_t remainingS = (remainingMs + 999) / 1000;
     char buf[24];
     snprintf(buf, sizeof(buf), "REBOOT IN %us", static_cast<unsigned>(remainingS));
-    writeRebootLabel(buf, CLR_ACCENT);
+    writeRebootLabel(buf, kClrAccent);
 }
 
 void onRebootLongPress(lv_event_t *e) {
@@ -190,8 +190,8 @@ void onRebootLongPress(lv_event_t *e) {
     if (code == LV_EVENT_PRESSED) {
         s_rebootBtn = btn;
         s_rebootPressStartMs = millis();
-        lv_obj_set_style_border_color(btn, lv_color_hex(CLR_ACCENT), LV_PART_MAIN);
-        writeRebootLabel("REBOOT IN 3s", CLR_ACCENT);
+        lv_obj_set_style_border_color(btn, lv_color_hex(kClrAccent), LV_PART_MAIN);
+        writeRebootLabel("REBOOT IN 3s", kClrAccent);
         if (s_rebootCountdownTimer) {
             lv_timer_del(s_rebootCountdownTimer);
             s_rebootCountdownTimer = nullptr;
@@ -216,7 +216,7 @@ void onSave(lv_event_t *) {
 }
 
 void onReset(lv_event_t *) {
-    s_brightness = DEFAULT_BRIGHTNESS;
+    s_brightness = kDefaultBrightness;
 
     lv_slider_set_value(s_brSlider, s_brightness, LV_ANIM_OFF);
     updateBrValue();

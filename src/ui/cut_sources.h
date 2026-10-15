@@ -22,7 +22,7 @@ struct Source {
     Clause secondary;
 };
 
-constexpr size_t kSourceCount = ALERT_CUT_KIND_COUNT;
+constexpr size_t kSourceCount = kAlertCutKindCount;
 
 extern const Source kSources[kSourceCount];
 

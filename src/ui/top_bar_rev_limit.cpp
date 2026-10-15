@@ -15,7 +15,7 @@ namespace {
 
 lv_obj_t *s_field = nullptr;
 bool s_overriding = false;
-uint32_t s_lastColor = COLOR_UNSET;
+uint32_t s_lastColor = kColorUnset;
 
 bool defaultHiddenFor(TopBarItemKind kind) {
     return kind == TopBarItemKind::MODE_FLAG || kind == TopBarItemKind::SEPARATOR;
@@ -38,7 +38,7 @@ void releaseRightGroup() {
             continue;
         d.hidden = defaultHiddenFor(d.kind);
         d.lastText[0] = '\0';
-        d.lastColor = COLOR_UNSET;
+        d.lastColor = kColorUnset;
         WidgetHelpers::setVisible(d.obj, !d.hidden);
     }
 }
@@ -54,11 +54,11 @@ void paintField() {
 void onFieldDeleted(lv_event_t *) {
     s_field = nullptr;
     s_overriding = false;
-    s_lastColor = COLOR_UNSET;
+    s_lastColor = kColorUnset;
 }
 
 void writeLimitText() {
-    char buf[DYN_TEXT_CAP];
+    char buf[kDynTextCap];
     snprintf(buf, sizeof(buf), "LIMIT %ld",
              lroundf(ConfigLoader::getDashboardConfig().revLimitRpm));
     lv_label_set_text(s_field, buf);
@@ -68,12 +68,12 @@ void writeLimitText() {
 
 void TopBarRevLimit::build(lv_obj_t *bar) {
     s_overriding = false;
-    s_lastColor = COLOR_UNSET;
+    s_lastColor = kColorUnset;
     s_field = lv_label_create(bar);
     if (!s_field)
         return;
     lv_obj_set_style_text_font(s_field, FontManager::units(), 0);
-    lv_obj_set_style_text_letter_space(s_field, BAR_LETTER_SPACE_PX, 0);
+    lv_obj_set_style_text_letter_space(s_field, kBarLetterSpacePx, 0);
     lv_obj_align(s_field, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_flag(s_field, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(s_field, onFieldDeleted, LV_EVENT_DELETE, nullptr);

@@ -13,10 +13,10 @@
 
 namespace {
 
-constexpr uint16_t SAMPLES_PER_METRIC = 96;
-constexpr uint32_t REPORT_INTERVAL_US = 1000UL * 1000UL;
+constexpr uint16_t kSamplesPerMetric = 96;
+constexpr uint32_t kReportIntervalUs = 1000UL * 1000UL;
 
-constexpr uint32_t PERF_MUTEX_WAIT_WARN_US = 5000;
+constexpr uint32_t kPerfMutexWaitWarnUs = 5000;
 
 const char *metricName(PerfCounters::Metric m) {
     switch (m) {
@@ -46,7 +46,7 @@ const char *metricName(PerfCounters::Metric m) {
 }
 
 struct Window {
-    uint32_t samples[SAMPLES_PER_METRIC];
+    uint32_t samples[kSamplesPerMetric];
     uint16_t count;
     uint32_t maxUs;
     uint64_t sumUs;
@@ -70,10 +70,10 @@ volatile int64_t s_touchPressUs = 0;
 int64_t s_pageXStartUs = 0;
 
 void appendSample(Window &w, uint32_t durationUs) {
-    if (w.count < SAMPLES_PER_METRIC) {
+    if (w.count < kSamplesPerMetric) {
         w.samples[w.count++] = durationUs;
     } else {
-        w.samples[w.count % SAMPLES_PER_METRIC] = durationUs;
+        w.samples[w.count % kSamplesPerMetric] = durationUs;
     }
     w.sumUs += durationUs;
     if (durationUs > w.maxUs) {
@@ -84,8 +84,8 @@ void appendSample(Window &w, uint32_t durationUs) {
 uint32_t computeP95(Window &w) {
     if (w.count == 0)
         return 0;
-    uint32_t buf[SAMPLES_PER_METRIC];
-    const uint16_t n = (w.count < SAMPLES_PER_METRIC) ? w.count : SAMPLES_PER_METRIC;
+    uint32_t buf[kSamplesPerMetric];
+    const uint16_t n = (w.count < kSamplesPerMetric) ? w.count : kSamplesPerMetric;
     memcpy(buf, w.samples, sizeof(uint32_t) * n);
     std::sort(buf, buf + n);
 
@@ -117,10 +117,10 @@ void recordSample(Metric m, uint32_t durationUs) {
     if (m >= METRIC_COUNT)
         return;
     appendSample(s_windows[m], durationUs);
-    if (m == MUTEX_WAIT && durationUs > PERF_MUTEX_WAIT_WARN_US && !s_mutexWarnEmittedThisWindow) {
+    if (m == MUTEX_WAIT && durationUs > kPerfMutexWaitWarnUs && !s_mutexWarnEmittedThisWindow) {
         s_mutexWarnEmittedThisWindow = true;
         LOG_WARN("PERF", "lvgl mutex wait %u µs (>%u)", static_cast<unsigned>(durationUs),
-                 static_cast<unsigned>(PERF_MUTEX_WAIT_WARN_US));
+                 static_cast<unsigned>(kPerfMutexWaitWarnUs));
     }
 }
 
@@ -166,7 +166,7 @@ void recordPageTransitionEnd() {
 
 void tick() {
     const int64_t now = esp_timer_get_time();
-    if (now - s_lastReportUs < static_cast<int64_t>(REPORT_INTERVAL_US)) {
+    if (now - s_lastReportUs < static_cast<int64_t>(kReportIntervalUs)) {
         return;
     }
     const int64_t windowUs = now - s_lastReportUs;

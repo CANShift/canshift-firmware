@@ -10,9 +10,8 @@ namespace UnitDisplay {
 namespace {
 
 uint8_t activeSystem() {
-    return ConfigLoader::getDashboardConfig().units == CfgUnitSystem::IMPERIAL
-               ? UNIT_SYSTEM_IMPERIAL
-               : UNIT_SYSTEM_METRIC;
+    return ConfigLoader::getDashboardConfig().units == CfgUnitSystem::IMPERIAL ? kUnitSystemImperial
+                                                                               : kUnitSystemMetric;
 }
 
 bool isRenderable(const char *declaredUnit) {

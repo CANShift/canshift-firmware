@@ -14,7 +14,7 @@
 
 namespace {
 
-constexpr uint8_t CAN_SCAN_QUEUE_DEPTH = 64;
+constexpr uint8_t kCanScanQueueDepth = 64;
 // Created once on first scan start and never deleted (only reset), so a
 // producer holding a stale handle can never touch freed queue memory.
 // s_canScanQueue is null while scanning is stopped; s_canScanQueueStorage
@@ -55,7 +55,7 @@ void handleCanScanStart() {
     s_scanDrops = 0;
 
     if (!s_canScanQueueStorage) {
-        s_canScanQueueStorage = xQueueCreate(CAN_SCAN_QUEUE_DEPTH, sizeof(UsbComm::CanScanFrame));
+        s_canScanQueueStorage = xQueueCreate(kCanScanQueueDepth, sizeof(UsbComm::CanScanFrame));
         if (!s_canScanQueueStorage) {
             LOG_ERROR("USB", "CAN scan start: queue alloc failed");
 #if APP_USB_CAN_SCAN_FAIL_LOUD

@@ -19,7 +19,7 @@ constexpr size_t kSpiffsMountLen = 7;
 } // namespace
 
 static constexpr size_t kAtomicSuffixLen = 4;
-static constexpr size_t kSuffixedPathLen = CFG_MAX_PATH_LEN + kAtomicSuffixLen + 1;
+static constexpr size_t kSuffixedPathLen = kCfgMaxPathLen + kAtomicSuffixLen + 1;
 
 namespace {
 
@@ -105,8 +105,8 @@ bool StorageDriver::init() {
              static_cast<unsigned>(total), static_cast<unsigned>(used),
              static_cast<unsigned>(total - used));
 
-    sweepOrphanTmp(CONFIG_PATH_DASHBOARD);
-    sweepOrphanTmp(CONFIG_PATH_SIGNALS);
+    sweepOrphanTmp(kConfigPathDashboard);
+    sweepOrphanTmp(kConfigPathSignals);
 
     s_initStatus = InitStatus::Ok;
     return true;
@@ -213,7 +213,7 @@ bool StorageDriver::fileExists(const char *path) {
 
     if (!path || path[0] != '/')
         return false;
-    char full[kSpiffsMountLen + CFG_MAX_PATH_LEN + 1];
+    char full[kSpiffsMountLen + kCfgMaxPathLen + 1];
     const int n = snprintf(full, sizeof(full), "%s%s", kSpiffsMount, path);
     if (n <= 0 || static_cast<size_t>(n) >= sizeof(full))
         return false;
@@ -255,7 +255,7 @@ namespace {
 File s_chunkFile;
 bool s_chunkOpen = false;
 bool s_chunkAtomic = false;
-char s_chunkAtomicPath[CFG_MAX_PATH_LEN] = {0};
+char s_chunkAtomicPath[kCfgMaxPathLen] = {0};
 char s_chunkActualPath[kSuffixedPathLen] = {0};
 } // namespace
 
@@ -291,7 +291,7 @@ bool StorageDriver::beginChunkedWriteAtomic(const char *path) {
         abortChunkedWrite();
     }
 
-    if (!path || strlen(path) >= CFG_MAX_PATH_LEN) {
+    if (!path || strlen(path) >= kCfgMaxPathLen) {
         LOG_ERROR("STORAGE", "Path too long for atomic chunked write");
         return false;
     }

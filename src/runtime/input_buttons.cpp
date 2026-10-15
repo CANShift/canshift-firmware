@@ -19,9 +19,9 @@ namespace InputButtons {
 
 namespace {
 
-constexpr uint32_t INPUT_POLL_PERIOD_MS = 1;
-constexpr uint32_t LONG_PRESS_MS = 600;
-constexpr uint32_t DOUBLE_TAP_GAP_MS = 250;
+constexpr uint32_t kInputPollPeriodMs = 1;
+constexpr uint32_t kLongPressMs = 600;
+constexpr uint32_t kDoubleTapGapMs = 250;
 
 struct BindingState {
     bool rawPrev;
@@ -33,7 +33,7 @@ struct BindingState {
     bool pendingDoubleArmed;
 };
 
-BindingState s_states[CFG_MAX_INPUT_BINDINGS];
+BindingState s_states[kCfgMaxInputBindings];
 bool s_initDone = false;
 
 bool isPressedNow(const CfgInputBinding &b) {
@@ -48,7 +48,7 @@ void syncSharedSignal(const CfgInputBinding &b) {
     if (b.signal[0] == '\0')
         return;
     const SignalId sid = signalIdFromName(b.signal);
-    if (sid >= SignalIds::SIGNAL_COUNT)
+    if (sid >= SignalIds::kSignalCount)
         return;
     const float current = SignalStore::read(sid, 0.0f);
     SignalStore::set(sid, current != 0.0f ? 0.0f : 1.0f);
@@ -87,8 +87,8 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
     } else if (!raw && s.debouncedPressed) {
         s.debouncedPressed = false;
         const uint32_t heldMs = nowMs - s.pressStartMs;
-        const bool wasLong = (heldMs >= LONG_PRESS_MS);
-        if (!wasLong && s.pendingDoubleArmed && nowMs - s.lastReleaseMs <= DOUBLE_TAP_GAP_MS) {
+        const bool wasLong = (heldMs >= kLongPressMs);
+        if (!wasLong && s.pendingDoubleArmed && nowMs - s.lastReleaseMs <= kDoubleTapGapMs) {
             firePress(b, CfgInputPressKind::DOUBLE);
             s.pendingDoubleArmed = false;
         } else if (!wasLong) {
@@ -97,15 +97,14 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
         }
         s.lastReleaseMs = nowMs;
     } else if (raw && s.debouncedPressed && !s.longFiredThisPress) {
-        if (nowMs - s.pressStartMs >= LONG_PRESS_MS) {
+        if (nowMs - s.pressStartMs >= kLongPressMs) {
             firePress(b, CfgInputPressKind::LONG);
             s.longFiredThisPress = true;
             s.pendingDoubleArmed = false;
         }
     }
 
-    if (s.pendingDoubleArmed && !s.debouncedPressed &&
-        nowMs - s.lastReleaseMs > DOUBLE_TAP_GAP_MS) {
+    if (s.pendingDoubleArmed && !s.debouncedPressed && nowMs - s.lastReleaseMs > kDoubleTapGapMs) {
         firePress(b, CfgInputPressKind::SHORT);
         s.pendingDoubleArmed = false;
     }
@@ -113,13 +112,13 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
 
 void taskInput(void *) {
     TickType_t lastWake = xTaskGetTickCount();
-    const TickType_t period = pdMS_TO_TICKS(INPUT_POLL_PERIOD_MS);
+    const TickType_t period = pdMS_TO_TICKS(kInputPollPeriodMs);
     const CfgInputBindings &cfg = ConfigLoader::getInputBindings();
 
     while (true) {
         esp_task_wdt_reset();
         const uint32_t nowMs = millis();
-        for (size_t i = 0; i < cfg.count && i < CFG_MAX_INPUT_BINDINGS; ++i) {
+        for (size_t i = 0; i < cfg.count && i < kCfgMaxInputBindings; ++i) {
             const CfgInputBinding &b = cfg.bindings[i];
             if (b.pin < 0)
                 continue;
@@ -150,14 +149,14 @@ void init() {
     }
 
     memset(s_states, 0, sizeof(s_states));
-    for (size_t i = 0; i < cfg.count && i < CFG_MAX_INPUT_BINDINGS; ++i) {
+    for (size_t i = 0; i < cfg.count && i < kCfgMaxInputBindings; ++i) {
         configurePin(cfg.bindings[i]);
         LOG_INFO("INPUT", "registered binding %s on GPIO%d (debounce=%ums)", cfg.bindings[i].id,
                  cfg.bindings[i].pin, static_cast<unsigned>(cfg.bindings[i].debounceMs));
     }
 
-    if (TaskSpawn::spawnDynamic("input", taskInput, TASK_STACK_INPUT, TASK_PRIO_INPUT,
-                                TASK_CORE_INPUT) == nullptr) {
+    if (TaskSpawn::spawnDynamic("input", taskInput, TASK_STACK_INPUT, kTaskPrioInput,
+                                kTaskCoreInput) == nullptr) {
         LOG_ERROR("INPUT", "input task not started — bindings inert");
     }
     s_initDone = true;

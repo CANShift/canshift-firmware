@@ -7,33 +7,33 @@
 
 namespace SettingsPageInternal {
 
-static constexpr uint32_t CLR_BG = 0x0D0D0D;
-static constexpr uint32_t CLR_ACCENT = 0xFF4747;
-static constexpr uint32_t CLR_TEXT = 0xCCCCCC;
-static constexpr uint32_t CLR_MUTED = 0x555555;
-static constexpr uint32_t CLR_BTN_BG = 0x111111;
-static constexpr uint32_t CLR_BTN_ACT = 0x1A0A0A;
-static constexpr uint32_t CLR_BTN_BDR = 0x2A2A2A;
-static constexpr uint32_t CLR_SAVE_BG = 0x1A3A1A;
-static constexpr uint32_t CLR_SAVE_BDR = 0x336633;
-static constexpr uint32_t CLR_SAVE_TEXT = 0x55AA55;
+static constexpr uint32_t kClrBg = 0x0D0D0D;
+static constexpr uint32_t kClrAccent = 0xFF4747;
+static constexpr uint32_t kClrText = 0xCCCCCC;
+static constexpr uint32_t kClrMuted = 0x555555;
+static constexpr uint32_t kClrBtnBg = 0x111111;
+static constexpr uint32_t kClrBtnAct = 0x1A0A0A;
+static constexpr uint32_t kClrBtnBdr = 0x2A2A2A;
+static constexpr uint32_t kClrSaveBg = 0x1A3A1A;
+static constexpr uint32_t kClrSaveBdr = 0x336633;
+static constexpr uint32_t kClrSaveText = 0x55AA55;
 
-static constexpr int16_t PAD_H = 8;
-static constexpr int16_t SLIDER_H = 16;
-static constexpr int16_t LABEL_H = 14;
+static constexpr int16_t kPadH = 8;
+static constexpr int16_t kSliderH = 16;
+static constexpr int16_t kLabelH = 14;
 
 // DASH_DESIGN_SYSTEM.md §6 puts the floor for a button at 48; the panel
 // fits one screen at that height and scrolls at anything taller.
-static constexpr int16_t BTN_H = 48;
-static constexpr int16_t GAP_ROW = 10;
-static constexpr int16_t GAP_INNER = 6;
+static constexpr int16_t kBtnH = 48;
+static constexpr int16_t kGapRow = 10;
+static constexpr int16_t kGapInner = 6;
 
-static constexpr uint32_t SNAP_ANIM_MS = 180;
+static constexpr uint32_t kSnapAnimMs = 180;
 
-static constexpr uint8_t DEFAULT_BRIGHTNESS = 80;
+static constexpr uint8_t kDefaultBrightness = 80;
 
-static constexpr uint32_t REBOOT_LONG_PRESS_MS = 3000;
-static constexpr uint32_t RESET_FEEDBACK_MS = 3000;
+static constexpr uint32_t kRebootLongPressMs = 3000;
+static constexpr uint32_t kResetFeedbackMs = 3000;
 
 extern uint8_t s_brightness;
 

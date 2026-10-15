@@ -8,20 +8,20 @@
     #error "CONFIG_SCHEMA_VERSION not defined — extra_targets.py must inject it from canshift-core"
 #endif
 
-constexpr int32_t CFG_MAX_TOPBAR_ITEMS = 16;
+constexpr int32_t kCfgMaxTopbarItems = 16;
 
-constexpr int32_t CFG_MAX_BUTTON_ACTIONS = 4;
+constexpr int32_t kCfgMaxButtonActions = 4;
 
-constexpr int32_t CFG_MAX_CYCLE_STATES = 4;
+constexpr int32_t kCfgMaxCycleStates = 4;
 
-constexpr int32_t CFG_MAX_ID_LEN = 32;
-constexpr int32_t CFG_MAX_NAME_LEN = 32;
-constexpr int32_t CFG_MAX_SIGNAL_LEN = 64;
-constexpr int32_t CFG_MAX_EXPR_LEN = 128;
-constexpr int32_t CFG_MAX_EXPR_REFS = 8;
-constexpr int32_t CFG_MAX_PROFILE_ID_LEN = 24;
-constexpr int32_t CFG_MAX_PATH_LEN = 64;
-constexpr int32_t CFG_MAX_COLOR_LEN = 8;
+constexpr int32_t kCfgMaxIdLen = 32;
+constexpr int32_t kCfgMaxNameLen = 32;
+constexpr int32_t kCfgMaxSignalLen = 64;
+constexpr int32_t kCfgMaxExprLen = 128;
+constexpr int32_t kCfgMaxExprRefs = 8;
+constexpr int32_t kCfgMaxProfileIdLen = 24;
+constexpr int32_t kCfgMaxPathLen = 64;
+constexpr int32_t kCfgMaxColorLen = 8;
 
 struct CfgColor {
     uint32_t rgb;
@@ -137,7 +137,7 @@ enum class CfgCruiseOp : uint8_t {
 
 struct CfgButtonAction {
     CfgButtonActionType type;
-    char pageId[CFG_MAX_ID_LEN];
+    char pageId[kCfgMaxIdLen];
     uint8_t mapIndex;
     uint32_t canFrameId;
     uint8_t canData[8];
@@ -156,7 +156,7 @@ enum class CfgButtonMode : uint8_t {
 };
 
 struct CfgButtonState {
-    char label[CFG_MAX_NAME_LEN];
+    char label[kCfgMaxNameLen];
     bool hasColors;
     CfgColor colorNormal;
     CfgColor colorActive;
@@ -165,18 +165,18 @@ struct CfgButtonState {
 
 struct CfgButtonParams {
     CfgButtonMode mode;
-    char label[CFG_MAX_NAME_LEN];
-    char kicker[CFG_MAX_NAME_LEN];
+    char label[kCfgMaxNameLen];
+    char kicker[kCfgMaxNameLen];
     bool isToggle;
     bool showLabel;
     bool hasColors;
     CfgColor colorNormal;
     CfgColor colorActive;
     uint8_t actionsCount;
-    CfgButtonAction actions[CFG_MAX_BUTTON_ACTIONS];
+    CfgButtonAction actions[kCfgMaxButtonActions];
     uint8_t statesCount;
     uint8_t initialActiveIndex;
-    CfgButtonState states[CFG_MAX_CYCLE_STATES];
+    CfgButtonState states[kCfgMaxCycleStates];
 };
 
 struct CfgTimerParams {
@@ -192,13 +192,13 @@ struct CfgShiftLightParams {
 };
 
 struct CfgImageParams {
-    char imagePath[CFG_MAX_PATH_LEN];
+    char imagePath[kCfgMaxPathLen];
 };
 
 struct CfgWidget {
-    char id[CFG_MAX_ID_LEN];
+    char id[kCfgMaxIdLen];
     WidgetType type;
-    char signalId[CFG_MAX_SIGNAL_LEN];
+    char signalId[kCfgMaxSignalLen];
     CfgLayout layout;
     CfgStyle style;
 
@@ -243,7 +243,7 @@ enum class TopBarItemPos : uint8_t {
 struct CfgTopBarItem {
     TopBarItemKind kind;
     TopBarItemPos position;
-    char signalId[CFG_MAX_SIGNAL_LEN];
+    char signalId[kCfgMaxSignalLen];
     char text[16];
     char format[16];
 };
@@ -256,8 +256,8 @@ struct CfgStatusRow {
 };
 
 struct CfgPage {
-    char id[CFG_MAX_ID_LEN];
-    char bgImagePath[CFG_MAX_PATH_LEN];
+    char id[kCfgMaxIdLen];
+    char bgImagePath[kCfgMaxPathLen];
     CfgColor bgColor;
     bool showTopBar;
     bool visible;
@@ -273,7 +273,7 @@ struct CfgTopBar {
     CfgColor bgColor;
     CfgColor textColor;
     uint8_t itemCount;
-    CfgTopBarItem items[CFG_MAX_TOPBAR_ITEMS];
+    CfgTopBarItem items[kCfgMaxTopbarItems];
 };
 
 struct CfgTheme {
@@ -290,18 +290,18 @@ enum class CfgUnitSystem : uint8_t {
 
 struct CfgDashboard {
     char version[16];
-    char name[CFG_MAX_NAME_LEN];
-    char defaultPageId[CFG_MAX_ID_LEN];
+    char name[kCfgMaxNameLen];
+    char defaultPageId[kCfgMaxIdLen];
     float revLimitRpm;
     CfgUnitSystem units = CfgUnitSystem::METRIC;
-    char targetProfile[CFG_MAX_PROFILE_ID_LEN];
+    char targetProfile[kCfgMaxProfileIdLen];
     CfgTopBar topBar;
     bool hasTheme;
     CfgTheme dayFace;
     CfgTheme nightFace;
-    char dayNightSignal[CFG_MAX_ID_LEN];
+    char dayNightSignal[kCfgMaxIdLen];
     uint8_t pageCount;
-    CfgPage pages[CONFIG_MAX_PAGES];
+    CfgPage pages[kConfigMaxPages];
     bool loaded;
 
     ~CfgDashboard() {
@@ -319,7 +319,7 @@ struct CfgDashboard {
 };
 
 struct CfgSignalDef {
-    char name[CFG_MAX_SIGNAL_LEN];
+    char name[kCfgMaxSignalLen];
     uint32_t canFrameId;
     uint8_t startByte;
     uint8_t byteLength;
@@ -339,11 +339,11 @@ struct CfgSignalDef {
     uint8_t pollMode;
     uint8_t pollPid;
     uint32_t pollIntervalMs;
-    char expr[CFG_MAX_EXPR_LEN];
+    char expr[kCfgMaxExprLen];
     uint16_t targetId;
     bool hasTargetId;
     uint8_t exprRefCount;
-    uint16_t exprRefs[CFG_MAX_EXPR_REFS];
+    uint16_t exprRefs[kCfgMaxExprRefs];
 };
 
 struct CfgSignalsOut {
@@ -356,7 +356,7 @@ struct CfgSignalConfig {
     char protocol[32];
     uint32_t canSpeedKbps;
     uint8_t signalCount;
-    CfgSignalDef signals[CONFIG_MAX_SIGNALS];
+    CfgSignalDef signals[kConfigMaxSignals];
     CfgSignalsOut out;
     bool loaded;
 };
@@ -368,7 +368,7 @@ struct CfgDeviceConfig {
     bool loaded;
 };
 
-constexpr int32_t CFG_MAX_INPUT_BINDINGS = 16;
+constexpr int32_t kCfgMaxInputBindings = 16;
 
 enum class CfgInputActive : uint8_t {
     ACTIVE_LOW = 0,
@@ -383,18 +383,18 @@ enum class CfgInputPressKind : uint8_t {
 };
 
 struct CfgInputBinding {
-    char id[CFG_MAX_ID_LEN];
+    char id[kCfgMaxIdLen];
     int8_t pin;
     CfgInputActive active;
     bool pullup;
     uint16_t debounceMs;
     CfgInputPressKind kind;
     CfgButtonAction action;
-    char signal[CFG_MAX_SIGNAL_LEN];
+    char signal[kCfgMaxSignalLen];
 };
 
 struct CfgInputBindings {
     uint8_t count;
-    CfgInputBinding bindings[CFG_MAX_INPUT_BINDINGS];
+    CfgInputBinding bindings[kCfgMaxInputBindings];
     bool loaded;
 };

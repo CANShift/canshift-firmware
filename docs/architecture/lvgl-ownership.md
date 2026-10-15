@@ -32,7 +32,7 @@ null-tolerant branch (#1058) regressed boot (#1061) and was re-added.
 The wait threshold is 10 ms (`xSemaphoreTake(g_lvglMutex,
 pdMS_TO_TICKS(10))` at the taskUI site). `PerfCounters::recordSample`
 emits a `LOG_WARN("PERF", "lvgl mutex wait %u µs (>%u)")` when the wait
-crosses `PERF_MUTEX_WAIT_WARN_US = 5000` µs — half the timeout, so a
+crosses `kPerfMutexWaitWarnUs = 5000` µs — half the timeout, so a
 crossing means taskUI is at risk of skipping its own frame.
 
 ## Why not `lv_lock`?

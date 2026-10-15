@@ -8,16 +8,16 @@
 
 namespace PageManagerInternal {
 
-static constexpr uint8_t MAX_PAGES = CONFIG_MAX_PAGES;
+static constexpr uint8_t kMaxPages = kConfigMaxPages;
 
 struct Page {
-    char id[CFG_MAX_ID_LEN];
+    char id[kCfgMaxIdLen];
     lv_obj_t *screen;
     bool built;
     uint8_t cfgIdx;
 };
 
-extern Page s_pages[MAX_PAGES];
+extern Page s_pages[kMaxPages];
 extern uint8_t s_pageCount;
 extern uint8_t s_currentIdx;
 extern bool s_rebuildRequested;

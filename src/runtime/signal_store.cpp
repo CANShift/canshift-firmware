@@ -15,14 +15,14 @@ typedef int portMUX_TYPE;
 #include <atomic>
 #include <string.h>
 
-static SignalStore::SignalValue s_signals[SIGNAL_STORE_MAX_SIGNALS];
+static SignalStore::SignalValue s_signals[kSignalStoreMaxSignals];
 static portMUX_TYPE s_signalsMux = portMUX_INITIALIZER_UNLOCKED;
 static std::atomic<bool> s_anyValid{false};
 
 namespace {
 
 inline bool idValid(SignalId id) {
-    return id < SIGNAL_STORE_MAX_SIGNALS;
+    return id < kSignalStoreMaxSignals;
 }
 
 } // namespace
@@ -30,17 +30,17 @@ inline bool idValid(SignalId id) {
 void SignalStore::init() {
 
     portENTER_CRITICAL(&s_signalsMux);
-    for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
+    for (int i = 0; i < kSignalStoreMaxSignals; ++i) {
         s_signals[i] = {.raw = 0.0f,
                         .smoothed = 0.0f,
                         .lastUpdateMs = 0,
                         .valid = false,
-                        .timeoutMs = SIGNAL_DEFAULT_TIMEOUT_MS};
+                        .timeoutMs = kSignalDefaultTimeoutMs};
     }
     portEXIT_CRITICAL(&s_signalsMux);
     s_anyValid.store(false, std::memory_order_relaxed);
 
-    LOG_INFO("STORE", "Signal store initialized (%d slots)", SIGNAL_STORE_MAX_SIGNALS);
+    LOG_INFO("STORE", "Signal store initialized (%d slots)", kSignalStoreMaxSignals);
 }
 
 void SignalStore::update(SignalId id, float value) {
@@ -52,7 +52,7 @@ void SignalStore::update(SignalId id, float value) {
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
     const float new_smoothed =
-        sig.valid ? (SIGNAL_EMA_ALPHA * value + (1.0f - SIGNAL_EMA_ALPHA) * sig.smoothed) : value;
+        sig.valid ? (kSignalEmaAlpha * value + (1.0f - kSignalEmaAlpha) * sig.smoothed) : value;
     sig.raw = value;
     sig.smoothed = new_smoothed;
     sig.lastUpdateMs = now;
@@ -124,12 +124,12 @@ bool SignalStore::anyValid(const SignalId *ids, size_t count) {
     return false;
 }
 
-void SignalStore::snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]) {
+void SignalStore::snapshotAll(SignalValue out[kSignalStoreMaxSignals]) {
     if (out == nullptr)
         return;
 
     portENTER_CRITICAL(&s_signalsMux);
-    memcpy(out, s_signals, sizeof(SignalValue) * SIGNAL_STORE_MAX_SIGNALS);
+    memcpy(out, s_signals, sizeof(SignalValue) * kSignalStoreMaxSignals);
     portEXIT_CRITICAL(&s_signalsMux);
 }
 
@@ -150,7 +150,7 @@ void SignalStore::checkTimeouts() {
 
     bool stillValid = false;
     portENTER_CRITICAL(&s_signalsMux);
-    for (int i = 0; i < SIGNAL_STORE_MAX_SIGNALS; ++i) {
+    for (int i = 0; i < kSignalStoreMaxSignals; ++i) {
         if (s_signals[i].valid) {
             uint32_t age = now - s_signals[i].lastUpdateMs;
             if (age > s_signals[i].timeoutMs) {

@@ -5,25 +5,25 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CONTROL_STATE_COUNT 4
-#define CONTROL_STEP_MAX 6
-#define CONTROL_LONG_PRESS_MS 600
-#define CONTROL_SPLASH_CHANGE_MS 800
-#define CONTROL_SPLASH_REFUSAL_MS 1200
-#define CONTROL_SPLASH_KIND_COUNT 2
+inline constexpr int kControlStateCount = 4;
+inline constexpr int kControlStepMax = 6;
+inline constexpr int kControlLongPressMs = 600;
+inline constexpr int kControlSplashChangeMs = 800;
+inline constexpr int kControlSplashRefusalMs = 1200;
+inline constexpr int kControlSplashKindCount = 2;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 enum {
-    CONTROL_STATE_OFF = 0,
-    CONTROL_STATE_ARMED = 1,
-    CONTROL_STATE_ACTIVE = 2,
-    CONTROL_STATE_UNAVAILABLE = 3
+    kControlStateOff = 0,
+    kControlStateArmed = 1,
+    kControlStateActive = 2,
+    kControlStateUnavailable = 3
 };
 
-enum { CONTROL_SPLASH_KIND_CHANGE = 0, CONTROL_SPLASH_KIND_REFUSAL = 1 };
+enum { kControlSplashKindChange = 0, kControlSplashKindRefusal = 1 };
 
 typedef struct {
     uint32_t press_start_ms;

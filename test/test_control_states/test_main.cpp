@@ -78,7 +78,7 @@ void test_compose_truncatesWithoutOverrun() {
 void test_stepperTapClimbsThenWrapsToOff() {
     ControlStepperRs stepper = {};
     control_stepper_init_rs(&stepper, 0);
-    for (uint8_t expected = 1; expected <= CONTROL_STEP_MAX; ++expected) {
+    for (uint8_t expected = 1; expected <= kControlStepMax; ++expected) {
         control_stepper_press_rs(&stepper, expected * 10u);
         TEST_ASSERT_TRUE(control_stepper_release_rs(&stepper, expected * 10u + 5u));
         TEST_ASSERT_EQUAL_UINT8(expected, stepper.level);
@@ -92,28 +92,25 @@ void test_stepperLongPressReturnsToLevelOne() {
     ControlStepperRs stepper = {};
     control_stepper_init_rs(&stepper, 5);
     control_stepper_press_rs(&stepper, 2000);
-    TEST_ASSERT_FALSE(control_stepper_poll_rs(&stepper, 2000 + CONTROL_LONG_PRESS_MS - 1));
-    TEST_ASSERT_TRUE(control_stepper_poll_rs(&stepper, 2000 + CONTROL_LONG_PRESS_MS));
+    TEST_ASSERT_FALSE(control_stepper_poll_rs(&stepper, 2000 + kControlLongPressMs - 1));
+    TEST_ASSERT_TRUE(control_stepper_poll_rs(&stepper, 2000 + kControlLongPressMs));
     TEST_ASSERT_EQUAL_UINT8(1, stepper.level);
     TEST_ASSERT_FALSE(control_stepper_release_rs(&stepper, 3000));
     TEST_ASSERT_EQUAL_UINT8(1, stepper.level);
 }
 
 void test_resolveOrdersTheFourStates() {
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_UNAVAILABLE,
+    TEST_ASSERT_EQUAL_UINT8(kControlStateUnavailable,
                             control_state_resolve_rs(true, true, true, true));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ACTIVE,
-                            control_state_resolve_rs(false, true, true, true));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ARMED,
-                            control_state_resolve_rs(false, false, true, true));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_OFF, control_state_resolve_rs(false, false, false, true));
+    TEST_ASSERT_EQUAL_UINT8(kControlStateActive, control_state_resolve_rs(false, true, true, true));
+    TEST_ASSERT_EQUAL_UINT8(kControlStateArmed, control_state_resolve_rs(false, false, true, true));
+    TEST_ASSERT_EQUAL_UINT8(kControlStateOff, control_state_resolve_rs(false, false, false, true));
 }
 
 void test_binaryControlSkipsArmed() {
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_ACTIVE,
+    TEST_ASSERT_EQUAL_UINT8(kControlStateActive,
                             control_state_resolve_rs(false, false, true, false));
-    TEST_ASSERT_EQUAL_UINT8(CONTROL_STATE_OFF,
-                            control_state_resolve_rs(false, false, false, false));
+    TEST_ASSERT_EQUAL_UINT8(kControlStateOff, control_state_resolve_rs(false, false, false, false));
 }
 
 void test_armedIsDeclaredPerControl() {

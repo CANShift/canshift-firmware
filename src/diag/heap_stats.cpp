@@ -11,8 +11,8 @@ namespace HeapStats {
 
 namespace {
 
-constexpr uint32_t EMIT_INTERVAL_MS = 5 * 1000;
-constexpr size_t FRAME_BUF_SIZE = 192;
+constexpr uint32_t kEmitIntervalMs = 5 * 1000;
+constexpr size_t kFrameBufSize = 192;
 
 Snapshot s_latest = {};
 uint32_t s_lastEmitMs = 0;
@@ -47,7 +47,7 @@ Snapshot sampleInternal() {
 }
 
 void emitFrame(const Snapshot &s) {
-    char buf[FRAME_BUF_SIZE];
+    char buf[kFrameBufSize];
     int n;
     if (s.hasPsram) {
         n = snprintf(buf, sizeof(buf),
@@ -89,7 +89,7 @@ const Snapshot &latest() {
 
 void tick() {
     const uint32_t now = millis();
-    if (s_warmedUp && (now - s_lastEmitMs) < EMIT_INTERVAL_MS) {
+    if (s_warmedUp && (now - s_lastEmitMs) < kEmitIntervalMs) {
         return;
     }
     s_warmedUp = true;

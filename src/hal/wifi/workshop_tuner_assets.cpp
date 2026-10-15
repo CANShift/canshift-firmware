@@ -20,7 +20,7 @@ constexpr char kMountPoint[] = "/spiffs";
 constexpr char kIndexUri[] = "/";
 constexpr char kGzipEncoding[] = "gzip";
 constexpr size_t kChunkBytes = 2048;
-constexpr size_t kFullPathCap = sizeof(kMountPoint) + WORKSHOP_TUNER_PATH_CAP;
+constexpr size_t kFullPathCap = sizeof(kMountPoint) + kWorkshopTunerPathCap;
 
 struct ResponseHeader {
     const char *name;
@@ -47,7 +47,7 @@ struct FileCloser {
 using AssetFile = std::unique_ptr<FILE, FileCloser>;
 
 AssetFile openVariant(const char *uri, bool gzip) {
-    char path[WORKSHOP_TUNER_PATH_CAP];
+    char path[kWorkshopTunerPathCap];
     if (workshop_tuner_path_rs(uri, gzip, path, sizeof(path)) == 0)
         return nullptr;
     char fullPath[kFullPathCap];

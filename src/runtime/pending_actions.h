@@ -42,7 +42,7 @@ inline std::atomic<bool> configReload{false};
 
 inline std::atomic<bool> navPagePending{false};
 
-inline char navPageId[CFG_MAX_ID_LEN] = {};
+inline char navPageId[kCfgMaxIdLen] = {};
 
 inline bool takeDayNightToggle() {
     return dayNightToggle.exchange(false, std::memory_order_relaxed);

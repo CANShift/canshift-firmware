@@ -31,7 +31,7 @@ constexpr uint32_t kChunkTimeoutMs = 10000;
 constexpr uint32_t kBurnOverlayRenderGraceMs = 20;
 
 struct ChunkTransfer {
-    char path[CFG_MAX_PATH_LEN];
+    char path[kCfgMaxPathLen];
     uint32_t expectedIdx;
     uint32_t total;
     uint32_t lastActivityMs;
@@ -183,7 +183,7 @@ void handlePutConfigChunk(const JsonObjectConst &obj) {
 
     if (idx == 0) {
         abortConfigChunk("new transfer");
-        if (!StorageDriver::beginChunkedWriteAtomic(CONFIG_PATH_DASHBOARD)) {
+        if (!StorageDriver::beginChunkedWriteAtomic(kConfigPathDashboard)) {
             UsbComm::sendError("open_failed");
             return;
         }
@@ -264,7 +264,7 @@ void handlePutConfig(const char *jsonLine) {
     UsbCommInternal::invokeBurnOverlayShow();
     vTaskDelay(pdMS_TO_TICKS(kBurnOverlayRenderGraceMs));
 
-    LvglLock lock(pdMS_TO_TICKS(USB_PUT_CONFIG_MUTEX_TIMEOUT_MS));
+    LvglLock lock(pdMS_TO_TICKS(kUsbPutConfigMutexTimeoutMs));
     if (!lock.held()) {
         LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
         UsbCommInternal::invokeBurnOverlayShowError(0);
@@ -273,7 +273,7 @@ void handlePutConfig(const char *jsonLine) {
     }
 
     bool ok = StorageDriver::writeFileAtomic(
-        CONFIG_PATH_DASHBOARD, reinterpret_cast<const uint8_t *>(payloadStart), written);
+        kConfigPathDashboard, reinterpret_cast<const uint8_t *>(payloadStart), written);
     if (!ok) {
         UsbCommInternal::invokeBurnOverlayShowError(0);
         LOG_ERROR("USB", "PUT_CONFIG: storage write failed");

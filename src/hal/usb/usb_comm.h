@@ -13,42 +13,42 @@ void init();
 
 void tick();
 
-static constexpr uint8_t CMD_GET_CONFIG = 0x01;
-static constexpr uint8_t CMD_PUT_CONFIG = 0x02;
+static constexpr uint8_t kCmdGetConfig = 0x01;
+static constexpr uint8_t kCmdPutConfig = 0x02;
 
-static constexpr uint8_t CMD_GET_DEVICE_CONFIG = 0x03;
+static constexpr uint8_t kCmdGetDeviceConfig = 0x03;
 
-static constexpr uint8_t CMD_PUT_DEVICE_CONFIG = 0x04;
+static constexpr uint8_t kCmdPutDeviceConfig = 0x04;
 
-static constexpr uint8_t CMD_SCREEN_SETTINGS = 0x05;
+static constexpr uint8_t kCmdScreenSettings = 0x05;
 
-static constexpr uint8_t CMD_PUT_FILE = 0x06;
+static constexpr uint8_t kCmdPutFile = 0x06;
 
-static constexpr uint8_t CMD_TOGGLE_DAY_NIGHT = 0x07;
+static constexpr uint8_t kCmdToggleDayNight = 0x07;
 
-static constexpr uint8_t CMD_CALIBRATE_TOUCH = 0x08;
+static constexpr uint8_t kCmdCalibrateTouch = 0x08;
 
-static constexpr uint8_t CMD_SET_DAY_NIGHT = 0x09;
+static constexpr uint8_t kCmdSetDayNight = 0x09;
 
-static constexpr uint8_t CMD_RESET_TOUCH_CAL = 0x0A;
+static constexpr uint8_t kCmdResetTouchCal = 0x0A;
 
-static constexpr uint8_t CMD_GET_INPUT_BINDINGS = 0x0B;
+static constexpr uint8_t kCmdGetInputBindings = 0x0B;
 
-static constexpr uint8_t CMD_PUT_INPUT_BINDINGS = 0x0C;
-static constexpr uint8_t CMD_SET_BOARD_PROFILE = 0x0D;
-static constexpr uint8_t CMD_PUT_CONFIG_CHUNK = 0x0E;
-static constexpr uint8_t CMD_GET_STATUS = 0x10;
-static constexpr uint8_t CMD_PING = 0x11;
-static constexpr uint8_t CMD_CAN_SCAN_START = 0x20;
-static constexpr uint8_t CMD_CAN_SCAN_STOP = 0x21;
-static constexpr uint8_t CMD_OBD_READ_DTC = 0x22;
-static constexpr uint8_t CMD_OBD_CLEAR_DTC = 0x23;
+static constexpr uint8_t kCmdPutInputBindings = 0x0C;
+static constexpr uint8_t kCmdSetBoardProfile = 0x0D;
+static constexpr uint8_t kCmdPutConfigChunk = 0x0E;
+static constexpr uint8_t kCmdGetStatus = 0x10;
+static constexpr uint8_t kCmdPing = 0x11;
+static constexpr uint8_t kCmdCanScanStart = 0x20;
+static constexpr uint8_t kCmdCanScanStop = 0x21;
+static constexpr uint8_t kCmdObdReadDtc = 0x22;
+static constexpr uint8_t kCmdObdClearDtc = 0x23;
 
-static constexpr uint8_t CMD_OTA_BEGIN = 0x30;
-static constexpr uint8_t CMD_OTA_WRITE = 0x31;
-static constexpr uint8_t CMD_OTA_END = 0x32;
+static constexpr uint8_t kCmdOtaBegin = 0x30;
+static constexpr uint8_t kCmdOtaWrite = 0x31;
+static constexpr uint8_t kCmdOtaEnd = 0x32;
 
-static constexpr uint8_t CMD_REBOOT = 0xF0;
+static constexpr uint8_t kCmdReboot = 0xF0;
 
 struct CanScanFrame {
     uint32_t id;

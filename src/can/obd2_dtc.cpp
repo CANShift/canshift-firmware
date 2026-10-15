@@ -43,7 +43,7 @@ bool beginExchange(Obd2Dtc::detail::Pending kind, uint8_t mode, uint32_t timeout
         setPending(Obd2Dtc::detail::Pending::None);
         return false;
     }
-    if (!CanManager::sendFrame(OBD2_REQUEST_FRAME_ID, payload, Obd2Response::kRequestDlc, false)) {
+    if (!CanManager::sendFrame(kObd2RequestFrameId, payload, Obd2Response::kRequestDlc, false)) {
         setPending(Obd2Dtc::detail::Pending::None);
         return false;
     }
@@ -108,7 +108,7 @@ bool onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
     const detail::Pending pending = pendingState();
     if (pending == detail::Pending::None)
         return false;
-    if (frameId != OBD2_RESPONSE_FRAME_ID)
+    if (frameId != kObd2ResponseFrameId)
         return false;
     if (!detail::isPositiveResponse(pending, data, length))
         return false;

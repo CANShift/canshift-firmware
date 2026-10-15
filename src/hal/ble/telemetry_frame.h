@@ -5,12 +5,12 @@
 
 namespace TelemetryFrame {
 
-constexpr uint8_t VERSION = 0x01;
-constexpr int32_t SCALE = 1000;
-constexpr size_t MAX_FIELDS = 14;
-constexpr size_t HEADER_BYTES = 3;
-constexpr size_t VALUE_BYTES = 4;
-constexpr size_t MAX_FRAME_BYTES = HEADER_BYTES + MAX_FIELDS * VALUE_BYTES;
+constexpr uint8_t kVersion = 0x01;
+constexpr int32_t kScale = 1000;
+constexpr size_t kMaxFields = 14;
+constexpr size_t kHeaderBytes = 3;
+constexpr size_t kValueBytes = 4;
+constexpr size_t kMaxFrameBytes = kHeaderBytes + kMaxFields * kValueBytes;
 
 struct Field {
     bool present;
@@ -19,10 +19,10 @@ struct Field {
 
 size_t encode(const Field *fields, size_t count, uint8_t *buf, size_t bufSize);
 
-constexpr uint16_t KEEPALIVE_TICKS = 10;
+constexpr uint16_t kKeepaliveTicks = 10;
 
 struct Deduper {
-    uint8_t last[MAX_FRAME_BYTES];
+    uint8_t last[kMaxFrameBytes];
     size_t lastLen;
     uint16_t ticksSinceSend;
 };

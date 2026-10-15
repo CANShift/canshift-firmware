@@ -20,7 +20,7 @@ constexpr const char *kBakSuffix = ".bak";
 
 const char *s_lastParseError = "file missing";
 
-constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
+constexpr size_t kBakPathLen = kCfgMaxPathLen + 5;
 
 bool buildBakPath(char *out, size_t outLen, const char *base) {
     if (!out || !base || outLen == 0)

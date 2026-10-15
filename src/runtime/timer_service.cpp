@@ -9,7 +9,7 @@
 
 namespace {
 
-constexpr TickType_t TIMER_LOCK_TIMEOUT = pdMS_TO_TICKS(10);
+constexpr TickType_t kTimerLockTimeout = pdMS_TO_TICKS(10);
 
 struct ServiceState {
     SemaphoreHandle_t mutex = nullptr;
@@ -22,7 +22,7 @@ ServiceState g_state;
 class LockGuard {
   public:
     explicit LockGuard(SemaphoreHandle_t m) : mutex_(m) {
-        held_ = mutex_ && (xSemaphoreTake(mutex_, TIMER_LOCK_TIMEOUT) == pdTRUE);
+        held_ = mutex_ && (xSemaphoreTake(mutex_, kTimerLockTimeout) == pdTRUE);
     }
     ~LockGuard() {
         if (held_)
@@ -119,7 +119,7 @@ bool TimerService::lap() {
 
     if (droppedOldest) {
         LOG_WARN("TIMER", "Lap buffer full (%u) — dropped oldest unsynced lap",
-                 static_cast<unsigned>(TIMER_CORE_LAP_CAPACITY));
+                 static_cast<unsigned>(kTimerCoreLapCapacity));
     }
     LOG_DEBUG("TIMER", "lap %u — %ums (total %ums)", static_cast<unsigned>(raw.index),
               static_cast<unsigned>(raw.lap_ms), static_cast<unsigned>(raw.total_ms));

@@ -25,20 +25,20 @@ static uint32_t s_windowFrames = 0;
 static uint32_t s_lastStatMs = 0;
 static std::atomic<uint32_t> s_lastRxMs{0};
 static uint32_t s_lastBusRateX10 = 0;
-static constexpr uint32_t STAT_INTERVAL_MS = 2000;
+static constexpr uint32_t kStatIntervalMs = 2000;
 
 static bool s_twaiInstalled = false;
 static uint32_t s_lastRetryMs = 0;
 static uint8_t s_retryAttempts = 0;
 static bool s_permanentlyDownWarned = false;
 
-static constexpr uint32_t TWAI_INIT_TASK_STACK = 4096;
-static constexpr UBaseType_t TWAI_INIT_TASK_PRIO = 5;
-static constexpr uint32_t TWAI_INIT_TIMEOUT_MS = 5000;
-static constexpr uint32_t TWAI_RX_ERROR_BACKOFF_MS = 5;
-static constexpr uint32_t TWAI_RX_POLL_TIMEOUT_MS = 10;
-static constexpr uint32_t TWAI_DOWN_TICK_DELAY_MS = 100;
-static constexpr uint32_t RX_ERROR_REPORT_INTERVAL_MS = 1000;
+static constexpr uint32_t kTwaiInitTaskStack = 4096;
+static constexpr UBaseType_t kTwaiInitTaskPrio = 5;
+static constexpr uint32_t kTwaiInitTimeoutMs = 5000;
+static constexpr uint32_t kTwaiRxErrorBackoffMs = 5;
+static constexpr uint32_t kTwaiRxPollTimeoutMs = 10;
+static constexpr uint32_t kTwaiDownTickDelayMs = 100;
+static constexpr uint32_t kRxErrorReportIntervalMs = 1000;
 
 static uint32_t s_lastErrLogMs = 0;
 static uint32_t s_lastErrPushMs = 0;
@@ -89,7 +89,7 @@ esp_err_t installAndStartOnThisCore() {
 
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
         static_cast<gpio_num_t>(txPin), static_cast<gpio_num_t>(rxPin), TWAI_MODE_NORMAL);
-    g_config.rx_queue_len = CAN_RX_QUEUE_DEPTH;
+    g_config.rx_queue_len = kCanRxQueueDepth;
     g_config.tx_queue_len = 5;
 
     twai_timing_config_t t_config = getTimingConfig(speedKbps);
@@ -171,10 +171,10 @@ void CanManager::reserveInitTaskStack() {
         return;
     }
     s_initTaskStack = static_cast<StackType_t *>(heap_caps_malloc(
-        TWAI_INIT_TASK_STACK * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+        kTwaiInitTaskStack * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     if (!s_initTaskStack) {
         LOG_ERROR("CAN", "Failed to reserve twai_init task stack (%u B)",
-                  static_cast<unsigned>(TWAI_INIT_TASK_STACK * sizeof(StackType_t)));
+                  static_cast<unsigned>(kTwaiInitTaskStack * sizeof(StackType_t)));
     }
 }
 
@@ -194,12 +194,12 @@ esp_err_t CanManager::initHardware() {
     if (s_initTaskStack) {
 
         handle =
-            xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK, ctx,
-                                          TWAI_INIT_TASK_PRIO, s_initTaskStack, &s_initTaskTCB, 0);
+            xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", kTwaiInitTaskStack, ctx,
+                                          kTwaiInitTaskPrio, s_initTaskStack, &s_initTaskTCB, 0);
     } else {
 
-        BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", TWAI_INIT_TASK_STACK,
-                                                ctx, TWAI_INIT_TASK_PRIO, &handle, 0);
+        BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", kTwaiInitTaskStack,
+                                                ctx, kTwaiInitTaskPrio, &handle, 0);
         if (ok != pdPASS) {
             handle = nullptr;
         }
@@ -209,7 +209,7 @@ esp_err_t CanManager::initHardware() {
         LOG_ERROR("CAN", "Failed to spawn twai_init task");
         return ESP_ERR_NO_MEM;
     }
-    if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(TWAI_INIT_TIMEOUT_MS)) != pdTRUE) {
+    if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(kTwaiInitTimeoutMs)) != pdTRUE) {
         if (!ctx->handedOff.exchange(true)) {
             LOG_ERROR("CAN", "twai_init task timed out");
             return ESP_ERR_TIMEOUT;
@@ -227,8 +227,8 @@ esp_err_t CanManager::initHardware() {
 
 static void tickInitRetry() {
     const uint32_t nowMs = millis();
-    const bool retryDue = s_retryAttempts < TWAI_INIT_MAX_RETRIES &&
-                          (s_lastRetryMs == 0 || nowMs - s_lastRetryMs >= TWAI_INIT_RETRY_MS);
+    const bool retryDue = s_retryAttempts < kTwaiInitMaxRetries &&
+                          (s_lastRetryMs == 0 || nowMs - s_lastRetryMs >= kTwaiInitRetryMs);
     if (retryDue) {
         s_retryAttempts++;
         s_lastRetryMs = nowMs;
@@ -237,7 +237,7 @@ static void tickInitRetry() {
         }
         return;
     }
-    if (s_retryAttempts >= TWAI_INIT_MAX_RETRIES && !s_permanentlyDownWarned) {
+    if (s_retryAttempts >= kTwaiInitMaxRetries && !s_permanentlyDownWarned) {
         LOG_ERROR("CAN", "TWAI permanently down — heap too low at boot");
         ErrorStore::push(ERROR_SRC_CAN, "PERM_DOWN", "TWAI permanently down");
         s_permanentlyDownWarned = true;
@@ -276,13 +276,13 @@ static void maybeInitiateBusOffRecovery() {
 static void handleRxError(esp_err_t err) {
     s_errorCount++;
     const uint32_t nowMs = millis();
-    if (nowMs - s_lastErrLogMs >= RX_ERROR_REPORT_INTERVAL_MS) {
+    if (nowMs - s_lastErrLogMs >= kRxErrorReportIntervalMs) {
         LOG_WARN("CAN", "TWAI receive error: %s (total errors: %u)", esp_err_to_name(err),
                  s_errorCount);
         s_lastErrLogMs = nowMs;
     }
     maybeInitiateBusOffRecovery();
-    if (nowMs - s_lastErrPushMs >= RX_ERROR_REPORT_INTERVAL_MS) {
+    if (nowMs - s_lastErrPushMs >= kRxErrorReportIntervalMs) {
         char msg[52];
         snprintf(msg, sizeof(msg), "%s (total: %lu)", esp_err_to_name(err),
                  static_cast<unsigned long>(s_errorCount));
@@ -292,7 +292,7 @@ static void handleRxError(esp_err_t err) {
 
     // Hard errors return immediately (no rx-timeout block) — without a
     // backoff this priority-15 task starves core 0 during bus-off recovery.
-    vTaskDelay(pdMS_TO_TICKS(TWAI_RX_ERROR_BACKOFF_MS));
+    vTaskDelay(pdMS_TO_TICKS(kTwaiRxErrorBackoffMs));
 }
 
 static bool readRxDropped(uint32_t *dropped) {
@@ -327,7 +327,7 @@ static void updateStatsWindow(uint32_t nowMs) {
         s_lastStatMs = nowMs;
         return;
     }
-    if (nowMs - s_lastStatMs < STAT_INTERVAL_MS)
+    if (nowMs - s_lastStatMs < kStatIntervalMs)
         return;
     const uint32_t elapsed = nowMs - s_lastStatMs;
     const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
@@ -341,12 +341,12 @@ static void updateStatsWindow(uint32_t nowMs) {
 bool CanManager::tick() {
     if (!s_twaiInstalled) {
         tickInitRetry();
-        vTaskDelay(pdMS_TO_TICKS(TWAI_DOWN_TICK_DELAY_MS));
+        vTaskDelay(pdMS_TO_TICKS(kTwaiDownTickDelayMs));
         return false;
     }
 
     twai_message_t message;
-    const esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(TWAI_RX_POLL_TIMEOUT_MS));
+    const esp_err_t err = twai_receive(&message, pdMS_TO_TICKS(kTwaiRxPollTimeoutMs));
     if (err == ESP_OK) {
         routeFrame(message);
     } else if (err != ESP_ERR_TIMEOUT) {

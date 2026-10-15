@@ -216,7 +216,7 @@ TimerSources::Inputs gatherInputs(const TimerService::Snapshot &snap) {
     return {snap.elapsedMs,     snap.lapCount,
             track.currentLapMs, track.lastLapMs,
             track.bestLapMs,    track.lapNumber,
-            track.deltaMs,      TrackStore::isActiveWithin(TRACK_TELEMETRY_TIMEOUT_MS)};
+            track.deltaMs,      TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs)};
 }
 
 void updateReadout(TimerTag *tag, const TimerService::Snapshot &snap) {

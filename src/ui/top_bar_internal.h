@@ -9,17 +9,17 @@
 
 namespace TopBarInternal {
 
-constexpr uint8_t DYN_TEXT_CAP = 16;
+constexpr uint8_t kDynTextCap = 16;
 
 struct DynItem {
     TopBarItemKind kind;
     TopBarItemPos position;
     lv_obj_t *obj;
-    char signalId[CFG_MAX_SIGNAL_LEN];
-    char format[DYN_TEXT_CAP];
+    char signalId[kCfgMaxSignalLen];
+    char format[kDynTextCap];
     char prefix[16];
 
-    char lastText[DYN_TEXT_CAP];
+    char lastText[kDynTextCap];
     uint32_t lastColor;
     bool lastSeenValid;
 
@@ -29,30 +29,30 @@ struct DynItem {
 };
 
 extern lv_obj_t *s_bar;
-extern DynItem s_dynItems[CFG_MAX_TOPBAR_ITEMS];
+extern DynItem s_dynItems[kCfgMaxTopbarItems];
 extern uint8_t s_dynCount;
-extern bool s_dynEverSeen[CFG_MAX_TOPBAR_ITEMS];
+extern bool s_dynEverSeen[kCfgMaxTopbarItems];
 
-constexpr uint32_t COLOR_DOT_DOWN = 0xCC3333;
-constexpr uint32_t COLOR_MODE_ACTIVE = ThemeTokens::kEngaged;
-constexpr uint32_t COLOR_UNSET = 0xFFFFFFFFu;
+constexpr uint32_t kColorDotDown = 0xCC3333;
+constexpr uint32_t kColorModeActive = ThemeTokens::kEngaged;
+constexpr uint32_t kColorUnset = 0xFFFFFFFFu;
 
-constexpr uint32_t COLOR_LABEL_NIGHT = ThemeTokens::kDimNight;
-constexpr uint32_t COLOR_LABEL_DAY = ThemeTokens::kDimDay;
-constexpr uint32_t COLOR_MUTED_NIGHT = ThemeTokens::kDimNight;
-constexpr uint32_t COLOR_MUTED_DAY = ThemeTokens::kDimDay;
+constexpr uint32_t kColorLabelNight = ThemeTokens::kDimNight;
+constexpr uint32_t kColorLabelDay = ThemeTokens::kDimDay;
+constexpr uint32_t kColorMutedNight = ThemeTokens::kDimNight;
+constexpr uint32_t kColorMutedDay = ThemeTokens::kDimDay;
 
-constexpr const char *BUS_RATE_SILENT = "— Hz";
+constexpr const char *kBusRateSilent = "— Hz";
 
-constexpr int16_t BAR_LETTER_SPACE_PX = 1;
-constexpr int16_t FLAG_SQUARE_PX = 7;
-constexpr int16_t FLAG_GAP_PX = 3;
+constexpr int16_t kBarLetterSpacePx = 1;
+constexpr int16_t kFlagSquarePx = 7;
+constexpr int16_t kFlagGapPx = 3;
 
 inline uint32_t labelColor() {
-    return ThemeManager::pickColor(COLOR_LABEL_NIGHT, COLOR_LABEL_DAY);
+    return ThemeManager::pickColor(kColorLabelNight, kColorLabelDay);
 }
 inline uint32_t mutedColor() {
-    return ThemeManager::pickColor(COLOR_MUTED_NIGHT, COLOR_MUTED_DAY);
+    return ThemeManager::pickColor(kColorMutedNight, kColorMutedDay);
 }
 
 } // namespace TopBarInternal

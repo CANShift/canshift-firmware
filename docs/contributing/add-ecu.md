@@ -61,7 +61,7 @@ Where to find this:
    [`XmlImportZone`](https://github.com/CANShift/canshift-tuner/blob/main/src/components/ecu/XmlImportZone.tsx).
    Less reverse-engineering than reading a PDF.
 4. **Live scanner.** As a last resort, use CANShift's USB scanner mode
-   (`CMD_CAN_SCAN_START = 0x20`, in the firmware's
+   (`kCmdCanScanStart = 0x20`, in the firmware's
    [`usb_comm.h`](https://github.com/CANShift/canshift-firmware/blob/main/src/hal/usb/usb_comm.h)).
    The tuner's CAN bus view decodes the raw stream as JSON
    `{ "can_frame": { "id": "0x370", "data": "..." } }`. Move pedals, change

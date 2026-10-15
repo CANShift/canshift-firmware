@@ -18,7 +18,7 @@ bool s_slotBusy[kFsPoolSize] = {};
 void *fs_open(lv_fs_drv_t *, const char *path, lv_fs_mode_t mode) {
 
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    if (largest < LVGL_FS_MIN_HEAP_BYTES) {
+    if (largest < kLvglFsMinHeapBytes) {
         LOG_WARN("FS", "Refused open of %s (largest=%u) — heap too low", path, (unsigned)largest);
         return nullptr;
     }

@@ -48,7 +48,7 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &e
 
     if (strlen(cfg.bgImagePath) > 0) {
 
-        static char lvglPath[CFG_MAX_PATH_LEN + 4];
+        static char lvglPath[kCfgMaxPathLen + 4];
         snprintf(lvglPath, sizeof(lvglPath), "S:%s", cfg.bgImagePath);
 
         lv_obj_t *img = lv_img_create(screen);
@@ -109,7 +109,7 @@ bool buildPage(uint8_t idx, const CfgPage &cfg) {
     logBuildHeap("entry", cfg.id);
 
     Page &p = s_pages[idx];
-    strlcpy(p.id, cfg.id, CFG_MAX_ID_LEN);
+    strlcpy(p.id, cfg.id, kCfgMaxIdLen);
 
     p.screen = lv_obj_create(nullptr);
     if (!p.screen) {
@@ -161,13 +161,13 @@ void listVisiblePages() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     s_pageCount = 0;
     s_currentIdx = 0;
-    for (uint8_t i = 0; i < dash.pageCount && s_pageCount < MAX_PAGES; ++i) {
+    for (uint8_t i = 0; i < dash.pageCount && s_pageCount < kMaxPages; ++i) {
         if (!dash.pages[i].visible) {
             LOG_INFO("UI", "Skipping hidden page '%s' (visible=false)", dash.pages[i].id);
             continue;
         }
         Page &p = s_pages[s_pageCount++];
-        strlcpy(p.id, dash.pages[i].id, CFG_MAX_ID_LEN);
+        strlcpy(p.id, dash.pages[i].id, kCfgMaxIdLen);
         p.screen = nullptr;
         p.built = false;
         p.cfgIdx = i;

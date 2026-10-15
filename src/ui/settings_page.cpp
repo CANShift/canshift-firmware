@@ -28,24 +28,24 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     nvsLoad();
 
     const int16_t panelW = LV_HOR_RES;
-    const int16_t rowW = panelW - PAD_H * 2;
+    const int16_t rowW = panelW - kPadH * 2;
 
     computePanelGeometry(yOffset, height);
     s_panel = createPanel(yOffset, panelW, height);
 
     int16_t y = 6;
     buildBrightnessRow(y, rowW);
-    y += LayoutScale::y(GAP_ROW);
+    y += LayoutScale::y(kGapRow);
     buildDayModeRow(y, rowW);
-    y += LayoutScale::y(GAP_ROW);
+    y += LayoutScale::y(kGapRow);
     if (canshift::boards::runtimeBoardProfile().touch.needs_calibration) {
         buildCalibrateTouchRow(y, rowW);
-        y += LayoutScale::y(GAP_INNER);
+        y += LayoutScale::y(kGapInner);
         buildResetTouchCalRow(y, rowW);
-        y += LayoutScale::y(GAP_ROW);
+        y += LayoutScale::y(kGapRow);
     }
     buildRebootRow(y, rowW);
-    y += LayoutScale::y(GAP_ROW);
+    y += LayoutScale::y(kGapRow);
     buildAboutRow(y, rowW);
     buildWorkshopRow(y, rowW);
 
@@ -151,7 +151,7 @@ void SettingsPage::snapClosed() {
 void SettingsPage::applyFromUsb(uint8_t brightness) {
     LVGL_ASSERT_LOCKED();
     if (brightness < 10 || brightness > 100)
-        brightness = DEFAULT_BRIGHTNESS;
+        brightness = kDefaultBrightness;
 
     s_brightness = brightness;
     applyBrightness();

@@ -38,7 +38,7 @@ without it, or with an empty list, no input task starts at all.
 
 The schema is `input-bindings.ts` in `@canshift/core`
 ([config contract](https://github.com/CANShift/canshift-core/blob/main/docs/config-contract.md)),
-and it travels over USB with `CMD_GET_INPUT_BINDINGS` / `CMD_PUT_INPUT_BINDINGS`
+and it travels over USB with `kCmdGetInputBindings` / `kCmdPutInputBindings`
 ([USB transport](../architecture/usb-transport.md)). A PUT reboots the dash to apply.
 
 | Field         | Default   | Meaning                                                                                                                                  |
@@ -66,7 +66,7 @@ drops a binding, with a warning in the log, when:
 - `pin` is one of the board's TWAI pins,
 - `action` is missing or its type is unknown.
 
-At most 16 bindings load (`CFG_MAX_INPUT_BINDINGS`); extras are dropped. The finer
+At most 16 bindings load (`kCfgMaxInputBindings`); extras are dropped. The finer
 pin allowlist, which refuses the flash pins 6–11, is enforced by core's schema
 before the tuner burns the file.
 
