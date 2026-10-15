@@ -41,13 +41,13 @@ reads them itself with `#ifndef`.
 
 ## Build profile
 
-| Flag                     | Default                     | Effect                                                                                                                                             |
-| ------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `APP_DEBUG_BUILD`        | `0`                         | Extra logging and assertions. Set by `[env:debug]`.                                                                                                |
-| `APP_SECURE_BOOT_BUILD`  | `0`                         | Marks the image as a secure-boot + flash-encryption build. Set by `[env:secure]`. Fuse-burn is host-side via `scripts/secure_boot_first_flash.sh`. |
-| `APP_LOG_LEVEL`          | `1` (release) / `4` (debug) | `0=none 1=error 2=warn 3=info 4=debug 5=verbose`. Release stays at `error` — info leaks signal lifecycle (rpm, throttle, lambda) over UART.        |
-| `APP_VERBOSE_DEBUG_LOGS` | `0` (release) / `1` (debug) | Gates `LOG_VDEBUG` call sites — they collapse to no-ops at preprocess time when disabled.                                                          |
-| `CORE_DEBUG_LEVEL`       | `1`                         | Framework logging (arduino-esp32, LovyanGFX, NimBLE). Held at errors-only to drop their format strings; app logs are unaffected.                   |
+| Flag                     | Default                     | Effect                                                                                                                                      |
+| ------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_DEBUG_BUILD`        | `0`                         | Extra logging and assertions. Set by `[env:debug]`.                                                                                         |
+| `APP_SECURE_BOOT_BUILD`  | `0`                         | Set by the CrowPanel `[env:secure]`, read by no code. It does not make a build secure: see [Secure boot setup](secure-boot-setup.md).       |
+| `APP_LOG_LEVEL`          | `1` (release) / `4` (debug) | `0=none 1=error 2=warn 3=info 4=debug 5=verbose`. Release stays at `error` — info leaks signal lifecycle (rpm, throttle, lambda) over UART. |
+| `APP_VERBOSE_DEBUG_LOGS` | `0` (release) / `1` (debug) | Gates `LOG_VDEBUG` call sites — they collapse to no-ops at preprocess time when disabled.                                                   |
+| `CORE_DEBUG_LEVEL`       | `1`                         | Framework logging (arduino-esp32, LovyanGFX, NimBLE). Held at errors-only to drop their format strings; app logs are unaffected.            |
 
 ## Transport
 

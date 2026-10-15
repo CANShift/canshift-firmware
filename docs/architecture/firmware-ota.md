@@ -88,6 +88,18 @@ point is replaced by the previous slot on the next reset. arduino-esp32 would
 cancel the rollback before `setup()`; the firmware's `verifyRollbackLater()`
 override stops it (#312).
 
+## On a secure boot dash
+
+On a dash fused for secure boot ([Secure boot setup](../reference/secure-boot-setup.md)),
+the flow above does not change, and both checks apply. The dash checks the
+Ed25519 `sig` while the image streams. The bootloader then checks the image's
+own secure boot v2 signature before it runs it. The image to send is the
+`-secure-` release asset. A plain image passes the Ed25519 check and is
+committed, but the bootloader refuses it at the next boot and falls back to the
+slot that was running. The writes go through `esp_ota_write`, which pads and
+encrypts in 16-byte blocks once flash encryption is on. So sequential writes,
+the streaming hashes and `verifyRollbackLater()` stay as they are.
+
 ## Over the workshop socket
 
 - The overlay shows over the workshop card. A failed update can be dismissed

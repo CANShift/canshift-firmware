@@ -20,10 +20,12 @@ Which table a board uses is `board_build.partitions` in its env in
 [`platformio.ini`](../../platformio.ini): `waveshare_s3_28` takes `ota_16mb.csv`,
 every other env inherits `ota_4mb.csv`.
 
-`[env:secure]` uses [`ota_4mb_secure.csv`](../../ota_4mb_secure.csv): the same app
-and SPIFFS offsets, an `encrypted` flag on the data partitions, and a 4 KB
-`nvs_keys` partition carved out of `nvs` for encrypted NVS. See
-[Secure boot setup](secure-boot-setup.md).
+`[env:waveshare_s3_28_secure]` uses [`ota_16mb_secure.csv`](../../ota_16mb_secure.csv):
+the `ota_16mb.csv` geometry, with `coredump` flagged `encrypted`. Once flash
+encryption is on, the app slots and otadata are encrypted anyway. `nvs` and
+`spiffs` stay plaintext, because neither library works on encrypted flash. The
+CrowPanel `[env:secure]` table, `ota_4mb_secure.csv`, flags both, and builds no
+secure image. See [Secure boot setup](secure-boot-setup.md).
 
 Changing a partition table is a USB reflash, never an OTA. The running bootloader
 keeps the old table, so an OTA image built for a new layout lands in a slot whose

@@ -24,6 +24,14 @@ For every release `v<x.y.z>`, the workflow uploads three images per chip family
 Each of the three ships alongside a `.sig` sidecar (binary, 64 bytes) when
 the signing key is configured.
 
+## Secure boot images
+
+A secure boot release adds `canshift-esp32s3-secure-v<x.y.z>-{bootloader,partitions,firmware}.bin`,
+each with a `.sig`. Those images already carry a secure boot v2 signature. The
+Ed25519 `.sig` is computed over the secure-boot-signed bytes, never before
+secure boot signing, because the dash checks it over exactly what it receives.
+See [Secure boot setup](secure-boot-setup.md#two-signatures-in-a-fixed-order).
+
 ## Generating the keypair
 
 Run once on a trusted machine (offline if possible). OpenSSL 3.x is enough:
