@@ -19,7 +19,7 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ENTRY_FILE = "index.html.gz"
 MOUNT_PREFIX = "/tuner/"
 PATH_CAP_HEADER = os.path.join("include", "workshop_mode_rs.h")
-PATH_CAP_PATTERN = re.compile(r"#define\s+WORKSHOP_TUNER_PATH_CAP\s+(\d+)")
+PATH_CAP_PATTERN = re.compile(r"constexpr\s+int\s+kWorkshopTunerPathCap\s*=\s*(\d+)")
 DOWNLOAD_TIMEOUT_S = 60
 HASH_BLOCK_BYTES = 1 << 16
 
@@ -56,7 +56,7 @@ def name_cap(project_dir):
     ) as handle:
         match = PATH_CAP_PATTERN.search(handle.read())
     if match is None:
-        raise BundleError(f"WORKSHOP_TUNER_PATH_CAP not found in {PATH_CAP_HEADER}")
+        raise BundleError(f"kWorkshopTunerPathCap not found in {PATH_CAP_HEADER}")
     return int(match.group(1)) - 1 - len(MOUNT_PREFIX)
 
 
