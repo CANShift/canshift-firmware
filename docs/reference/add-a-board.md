@@ -78,8 +78,10 @@ merge.
    family has releasable boards and no universal build, or more than one.
 
 6. **Core catalog** — a releasable board must also exist in `@canshift/core`'s
-   `BOARD_PROFILES`, or the tuner cannot offer it. Core's own test enforces the
-   reverse direction: its catalog must equal this repo's releasable set.
+   `BOARD_PROFILES`, or the tuner cannot offer it. Core enforces this, not this repo:
+   its `firmware-parity` job runs `board-profile.test.ts` against this repo's `main`
+   and fails unless the catalog equals the releasable set. Land the firmware PR
+   first, then the core PR that adds the profile.
 
 Then `pio run -e <board_id>` and `python3 scripts/check_board_lists.py`.
 

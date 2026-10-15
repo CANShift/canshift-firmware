@@ -4,12 +4,10 @@
     include/boards/*.h   what the firmware can be built for, and what catalog.h can select
     .github/boards.json  what CI builds, which boards a release offers, and which env
                          ships as its chip family's universal firmware
-    core BOARD_PROFILES  what the tuner can offer   (checked when a sibling checkout exists)
 
 The invariants: every header has a boards.json entry under the same id and a
-PlatformIO env under that name, core's catalog holds exactly the releasable
-subset, and every chip family with releasable boards has exactly one universal
-build to publish for them. Run from the repository root.
+PlatformIO env under that name, and every chip family with releasable boards has
+exactly one universal build to publish for them. Run from the repository root.
 """
 
 import json
@@ -21,7 +19,6 @@ BOARDS_JSON = Path(".github/boards.json")
 HEADERS_DIR = Path("include/boards")
 PLATFORMIO = Path("platformio.ini")
 CATALOG = HEADERS_DIR / "catalog.h"
-CORE_CATALOG = Path("../canshift-core/src/board-profile/catalog.ts")
 
 
 def board_id_of(header: Path) -> str | None:
@@ -75,17 +72,6 @@ def check_envs(ids: set[str], problems: list[str]) -> None:
         problems.append(f"'{missing}' is in boards.json but has no [env:{missing}]")
 
 
-def check_core_catalog(releasable: set[str], problems: list[str]) -> None:
-    if not CORE_CATALOG.exists():
-        print("[boards] no sibling canshift-core checkout — skipping catalog parity")
-        return
-    catalog = set(re.findall(r"boardId:\s*'([^']+)'", CORE_CATALOG.read_text()))
-    for missing in sorted(releasable - catalog):
-        problems.append(f"'{missing}' is released but missing from core BOARD_PROFILES")
-    for extra in sorted(catalog - releasable):
-        problems.append(f"'{extra}' is in core BOARD_PROFILES but not released by this repo")
-
-
 def universal_by_chip(boards: list[dict], problems: list[str]) -> dict[str, list[str]]:
     by_chip: dict[str, list[str]] = {}
     for board in boards:
@@ -119,7 +105,6 @@ def main() -> int:
     check_headers(ids, problems)
     check_catalog(problems)
     check_envs(ids, problems)
-    check_core_catalog(releasable, problems)
     universal = check_universal(boards, problems)
 
     if problems:

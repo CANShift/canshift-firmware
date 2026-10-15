@@ -152,7 +152,7 @@ rather than `base_flags` so the Rust flags come along.
 ## Which boards exist, which CI builds, which ones ship
 
 Three lists describe board support. They are not the same list, and
-`scripts/check_board_lists.py` gates the relationship between them on every PR.
+`scripts/check_board_lists.py` gates the first two on every PR.
 
 | List                              | Answers                                             | Today                    |
 | --------------------------------- | --------------------------------------------------- | ------------------------ |
@@ -165,13 +165,13 @@ The invariants the gate enforces:
 - one board header per `boards.json` entry, **under the same id** — the header's
   `.board_id`, its filename and the entry's `id` all match;
 - a `[env:<id>]` in `platformio.ini` for every entry, so the matrix can build it;
-- core's catalog holds **exactly** the releasable subset — nothing offered that
-  cannot be flashed, nothing published that the tuner cannot name;
 - every chip family with releasable boards has **exactly one** `universal: true`
   entry — the env its published firmware is built from, and itself releasable.
 
-The core check is skipped when no sibling `canshift-core` checkout exists, the same
-way core's own firmware-parity suite skips without a firmware sibling.
+The third list is checked from the other side: core's `firmware-parity` job runs
+`board-profile.test.ts` against this repo's `main` and fails unless `BOARD_PROFILES`
+equals the releasable subset — nothing offered that cannot be flashed, nothing
+published that the tuner cannot name. A board change lands here first, then in core.
 
 `generic_esp32s3` is the one entry with `release: false`. It compiles, so CI covers
 it, but offering a profile whose every pin is `-1` would give a user a dark screen.

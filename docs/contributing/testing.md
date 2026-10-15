@@ -282,10 +282,11 @@ at least one schema-version test in `canshift-core` and a roundtrip test in a
 consumer — land the core change first, publish, then fix the consumer against
 the new version.
 
-The firmware mirrors the core schema in `config_types.h`. Its parity and
-fixture suites run against a sibling `../canshift-core` checkout and skip when
-none is present, so run the firmware suite with `canshift-core` cloned
-alongside it to exercise them.
+The firmware mirrors the core schema in `config_types.h`. Core's parity and
+fixture suites run against a sibling `../canshift-firmware` checkout, and the
+firmware's display-tier check against a sibling `../canshift-core`; both skip
+locally when the sibling is missing and fail in CI. Clone the repositories side
+by side to exercise them locally.
 
 ## CI gates
 
