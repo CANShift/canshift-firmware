@@ -8,7 +8,9 @@ import urllib.request
 
 PIN_FILE = "tuner-version.txt"
 SIBLING_BUNDLE = os.path.join("..", "canshift-tuner", "dist-tuner")
-RELEASE_URL = "https://github.com/CANShift/canshift-tuner/releases/download/{tag}/{asset}"
+RELEASE_URL = (
+    "https://github.com/CANShift/canshift-tuner/releases/download/{tag}/{asset}"
+)
 ASSET_NAME = "canshift-tuner-dash-{tag}.tar.gz"
 CACHE_DIR = os.path.join(".pio", "tuner-cache")
 UNPINNED = "none"
@@ -43,11 +45,15 @@ def validate_pin(tag, sha256):
     if not TAG_PATTERN.match(tag):
         raise BundleError(f"{PIN_FILE}: tag '{tag}' is not vX.Y.Z")
     if not SHA256_PATTERN.match(sha256):
-        raise BundleError(f"{PIN_FILE}: sha256 for {tag} is not 64 lowercase hex characters")
+        raise BundleError(
+            f"{PIN_FILE}: sha256 for {tag} is not 64 lowercase hex characters"
+        )
 
 
 def name_cap(project_dir):
-    with open(os.path.join(project_dir, PATH_CAP_HEADER), "r", encoding="utf-8") as handle:
+    with open(
+        os.path.join(project_dir, PATH_CAP_HEADER), "r", encoding="utf-8"
+    ) as handle:
         match = PATH_CAP_PATTERN.search(handle.read())
     if match is None:
         raise BundleError(f"WORKSHOP_TUNER_PATH_CAP not found in {PATH_CAP_HEADER}")
@@ -58,7 +64,9 @@ def check_names(names, project_dir):
     cap = name_cap(project_dir)
     too_long = [name for name in names if len(name) > cap]
     if too_long:
-        raise BundleError(f"names longer than {cap} characters do not fit SPIFFS: {too_long}")
+        raise BundleError(
+            f"names longer than {cap} characters do not fit SPIFFS: {too_long}"
+        )
     if ENTRY_FILE not in names:
         raise BundleError(f"bundle has no {ENTRY_FILE}")
 
@@ -76,7 +84,10 @@ def download(tag, destination):
     url = RELEASE_URL.format(tag=tag, asset=asset)
     log(f"downloading {url}")
     partial = destination + ".part"
-    with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as response, open(partial, "wb") as out:
+    with (
+        urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as response,
+        open(partial, "wb") as out,
+    ):
         shutil.copyfileobj(response, out)
     os.replace(partial, destination)
 
@@ -90,7 +101,9 @@ def cached_archive(project_dir, tag, sha256):
     actual = file_sha256(archive)
     if actual != sha256:
         os.remove(archive)
-        raise BundleError(f"{ASSET_NAME.format(tag=tag)} sha256 is {actual}, pinned {sha256}")
+        raise BundleError(
+            f"{ASSET_NAME.format(tag=tag)} sha256 is {actual}, pinned {sha256}"
+        )
     return archive
 
 
@@ -110,7 +123,10 @@ def unpack(archive_path, target, project_dir):
         check_names([member.name for member in members], project_dir)
         reset(target)
         for member in members:
-            with archive.extractfile(member) as source, open(os.path.join(target, member.name), "wb") as out:
+            with (
+                archive.extractfile(member) as source,
+                open(os.path.join(target, member.name), "wb") as out,
+            ):
                 shutil.copyfileobj(source, out)
     return len(members)
 
@@ -132,7 +148,9 @@ def copy_sibling(sibling, target, project_dir):
 def fill(project_dir, target):
     sibling = os.path.normpath(os.path.join(project_dir, SIBLING_BUNDLE))
     if os.path.isfile(os.path.join(sibling, ENTRY_FILE)):
-        log(f"using the sibling bundle {sibling} ({copy_sibling(sibling, target, project_dir)} files)")
+        log(
+            f"using the sibling bundle {sibling} ({copy_sibling(sibling, target, project_dir)} files)"
+        )
         return
     tag, sha256 = read_pin(project_dir)
     if tag == UNPINNED:

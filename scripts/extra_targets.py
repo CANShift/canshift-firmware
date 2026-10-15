@@ -79,9 +79,7 @@ try:
     Import("projenv")
     projenv.Append(CPPDEFINES=_defines)
 except Exception as exc:
-    raise SystemExit(
-        f"error: build-flag injection into projenv failed: {exc}"
-    ) from exc
+    raise SystemExit(f"error: build-flag injection into projenv failed: {exc}") from exc
 
 print(f"firmware version (from canshift-firmware package.json): {_firmware_version}")
 print(f"config schema version (from canshift-core): {_schema_version}")

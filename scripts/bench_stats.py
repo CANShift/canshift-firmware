@@ -25,7 +25,9 @@ def read_json(path: Path | None) -> dict | None:
 def read_sizes(directory: Path | None) -> dict:
     if directory is None or not directory.exists():
         return {}
-    reports = [json.loads(path.read_text()) for path in sorted(directory.rglob("size-*.json"))]
+    reports = [
+        json.loads(path.read_text()) for path in sorted(directory.rglob("size-*.json"))
+    ]
     return {report["board"]: report["sizes"] for report in reports}
 
 
@@ -67,7 +69,9 @@ def run_record(args: argparse.Namespace) -> int:
     entries.append(build_entry(args))
     history["entries"] = entries[-MAX_ENTRIES:]
     args.history.write_text(json.dumps(history, indent=1) + "\n")
-    print(f"[stats] {args.history}: {len(history['entries'])} entries, latest {args.sha[:7]}")
+    print(
+        f"[stats] {args.history}: {len(history['entries'])} entries, latest {args.sha[:7]}"
+    )
     return 0
 
 
@@ -96,7 +100,9 @@ def size_rows(entries: list[dict]) -> list[str]:
     for board in sorted(latest):
         for metric in SIZE_METRICS:
             trend = sparkline(series(entries, lambda e: size_of(e, board, metric)))
-            rows.append(f"| {board} | {metric} | {latest[board][metric]:,} | `{trend}` |")
+            rows.append(
+                f"| {board} | {metric} | {latest[board][metric]:,} | `{trend}` |"
+            )
     return rows
 
 
@@ -162,7 +168,10 @@ def run_readme(args: argparse.Namespace) -> int:
 
 
 def size_delta_rows(current: dict, baseline: dict) -> list[str]:
-    rows = ["| board | metric | main | PR | delta |", "| --- | --- | ---: | ---: | ---: |"]
+    rows = [
+        "| board | metric | main | PR | delta |",
+        "| --- | --- | ---: | ---: | ---: |",
+    ]
     for board in sorted(current):
         for metric in SIZE_METRICS:
             base = baseline.get(board, {}).get(metric)
@@ -174,12 +183,17 @@ def size_delta_rows(current: dict, baseline: dict) -> list[str]:
 
 
 def perf_delta_rows(report: dict) -> list[str]:
-    rows = ["| case | base ns | PR ns | delta | noise | verdict |", "| --- | ---: | ---: | ---: | ---: | --- |"]
+    rows = [
+        "| case | base ns | PR ns | delta | noise | verdict |",
+        "| --- | ---: | ---: | ---: | ---: | --- |",
+    ]
     for case in report["cases"]:
         base = f"{case['base_ns']:,.1f}" if "base_ns" in case else "—"
         delta = f"{(case['ratio'] - 1) * 100:+.1f} %" if "ratio" in case else "—"
         noise = max(case["head_spread"], case.get("base_spread", 0.0)) * 100
-        rows.append(f"| {case['name']} | {base} | {case['head_ns']:,.1f} | {delta} | {noise:.1f} % | {case['verdict']} |")
+        rows.append(
+            f"| {case['name']} | {base} | {case['head_ns']:,.1f} | {delta} | {noise:.1f} % | {case['verdict']} |"
+        )
     return rows
 
 
@@ -187,12 +201,28 @@ def comment_sections(args: argparse.Namespace, baseline: dict) -> list[str]:
     sections = []
     sizes = read_sizes(args.sizes)
     if sizes:
-        sections += ["### Image sizes (against the latest main in `bench-data`)", "", *size_delta_rows(sizes, baseline.get("sizes", {})), ""]
+        sections += [
+            "### Image sizes (against the latest main in `bench-data`)",
+            "",
+            *size_delta_rows(sizes, baseline.get("sizes", {})),
+            "",
+        ]
     perf = read_json(args.perf)
     if perf is not None:
-        sections += [f"### Hot paths (against {perf['baseline']})", "", *perf_delta_rows(perf), ""]
-    goldens, visual = pass_counts(read_json(args.goldens)), pass_counts(read_json(args.visual))
-    sections += [f"### Goldens\n\nbehaviour {golden_cell(goldens)} · visual {golden_cell(visual)}", ""]
+        sections += [
+            f"### Hot paths (against {perf['baseline']})",
+            "",
+            *perf_delta_rows(perf),
+            "",
+        ]
+    goldens, visual = (
+        pass_counts(read_json(args.goldens)),
+        pass_counts(read_json(args.visual)),
+    )
+    sections += [
+        f"### Goldens\n\nbehaviour {golden_cell(goldens)} · visual {golden_cell(visual)}",
+        "",
+    ]
     return sections
 
 

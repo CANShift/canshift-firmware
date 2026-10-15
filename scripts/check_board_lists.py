@@ -89,10 +89,14 @@ def check_universal(boards: list[dict], problems: list[str]) -> dict[str, list[s
     by_chip = universal_by_chip(boards, problems)
     for chip, chip_ids in sorted(by_chip.items()):
         if len(chip_ids) > 1:
-            problems.append(f"'{chip}' has more than one universal build: {sorted(chip_ids)}")
+            problems.append(
+                f"'{chip}' has more than one universal build: {sorted(chip_ids)}"
+            )
     released_chips = {b["chip"] for b in boards if b.get("release")}
     for chip in sorted(released_chips - set(by_chip)):
-        problems.append(f"'{chip}' has releasable boards but no universal build to publish")
+        problems.append(
+            f"'{chip}' has releasable boards but no universal build to publish"
+        )
     return by_chip
 
 

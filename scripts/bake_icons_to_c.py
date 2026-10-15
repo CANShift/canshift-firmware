@@ -58,7 +58,9 @@ def main() -> int:
         blob = src.read_bytes()
         cf, w, h = parse_header(blob)
         if cf != LV_IMG_CF_TRUE_COLOR_ALPHA:
-            raise SystemExit(f"ERROR: {fname} cf={cf}, only TRUE_COLOR_ALPHA (5) baker is supported")
+            raise SystemExit(
+                f"ERROR: {fname} cf={cf}, only TRUE_COLOR_ALPHA (5) baker is supported"
+            )
         payload = blob[4:]
         expected = w * h * 3
         if len(payload) != expected:
@@ -136,10 +138,14 @@ def main() -> int:
     if shutil.which("clang-format") is not None:
         subprocess.run(["clang-format", "-i", str(OUT_FILE)], check=True)
     else:
-        print("warning: clang-format not found on PATH — generated file left unformatted")
+        print(
+            "warning: clang-format not found on PATH — generated file left unformatted"
+        )
 
     total = sum((ASSETS_DIR / f).stat().st_size for _, f in BAKED_ICONS)
-    print(f"wrote {OUT_FILE} ({len(BAKED_ICONS)} icons, {total} bytes of pixel payload)")
+    print(
+        f"wrote {OUT_FILE} ({len(BAKED_ICONS)} icons, {total} bytes of pixel payload)"
+    )
     return 0
 
 

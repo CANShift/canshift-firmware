@@ -84,7 +84,10 @@ def trace_line(at_ms: int, frame_id: int, payload: bytes) -> str:
 
 
 def demo_cycle(grouped: dict[int, list[dict]], at_ms: int) -> list[str]:
-    return [trace_line(at_ms + slot, fid, demo_payload(sigs, at_ms)) for slot, (fid, sigs) in enumerate(sorted(grouped.items()))]
+    return [
+        trace_line(at_ms + slot, fid, demo_payload(sigs, at_ms))
+        for slot, (fid, sigs) in enumerate(sorted(grouped.items()))
+    ]
 
 
 def demo_edges(grouped: dict[int, list[dict]], at_ms: int) -> list[str]:
@@ -107,7 +110,16 @@ def demo_trace() -> list[str]:
     return lines + [f"{DEMO_END_MS} end"]
 
 
-def obd_signal(name: str, pid: int, length: int, scale: float, offset: float, low: float, high: float, unit: str) -> dict:
+def obd_signal(
+    name: str,
+    pid: int,
+    length: int,
+    scale: float,
+    offset: float,
+    low: float,
+    high: float,
+    unit: str,
+) -> dict:
     return {
         "name": name,
         "canFrameId": f"0x{OBD_RESPONSE_ID:03X}",
@@ -127,19 +139,32 @@ def obd_signal(name: str, pid: int, length: int, scale: float, offset: float, lo
 
 def obd_config() -> dict:
     signals = [obd_signal(*pid) for pid in OBD_PIDS]
-    return {"version": "1.0.0", "protocol": "obd2_j1979", "canSpeedKbps": 500, "signals": signals}
+    return {
+        "version": "1.0.0",
+        "protocol": "obd2_j1979",
+        "canSpeedKbps": 500,
+        "signals": signals,
+    }
 
 
 def obd_response(signal: dict, pid: int, at_ms: int, index: int) -> bytes:
     raw = to_raw(signal, physical_of(signal, at_ms, index))
-    data = bytes([2 + signal["byteLength"], 0x41, pid]) + raw.to_bytes(signal["byteLength"], "big")
+    data = bytes([2 + signal["byteLength"], 0x41, pid]) + raw.to_bytes(
+        signal["byteLength"], "big"
+    )
     return data.ljust(FRAME_BYTES, b"\x00")
 
 
 def obd_cycle(signals: list[dict], at_ms: int) -> list[str]:
     lines = []
     for index, (signal, pid) in enumerate(zip(signals, (p[1] for p in OBD_PIDS))):
-        lines.append(trace_line(at_ms + 5 + 10 * index, OBD_RESPONSE_ID, obd_response(signal, pid, at_ms, index)))
+        lines.append(
+            trace_line(
+                at_ms + 5 + 10 * index,
+                OBD_RESPONSE_ID,
+                obd_response(signal, pid, at_ms, index),
+            )
+        )
     return lines
 
 
@@ -147,7 +172,9 @@ def obd_edges(at_ms: int) -> list[str]:
     return [
         trace_line(at_ms, OBD_RESPONSE_ID, bytes([0x03, 0x7F, 0x01, 0x12, 0, 0, 0, 0])),
         trace_line(at_ms + 1, OBD_RESPONSE_ID, bytes([0x04, 0x41, 0x0C, 0x1A])),
-        trace_line(at_ms + 2, OBD_RESPONSE_ID, bytes([0x03, 0x41, 0x99, 0x10, 0, 0, 0, 0])),
+        trace_line(
+            at_ms + 2, OBD_RESPONSE_ID, bytes([0x03, 0x41, 0x99, 0x10, 0, 0, 0, 0])
+        ),
         trace_line(at_ms + 3, 0x7E9, bytes([0x03, 0x41, 0x0D, 0x50, 0, 0, 0, 0])),
     ]
 
@@ -165,7 +192,9 @@ def write_case(name: str, lines: list[str], config: dict | None) -> None:
     case.mkdir(parents=True, exist_ok=True)
     (case / "trace.txt").write_text("\n".join(lines) + "\n")
     if config is not None:
-        (case / "signals.json").write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
+        (case / "signals.json").write_text(
+            json.dumps(config, indent=2, ensure_ascii=False) + "\n"
+        )
 
 
 def b64(data: bytes) -> str:
@@ -185,12 +214,17 @@ def ota_image(magic: int) -> bytes:
 
 def ota_begin(image: bytes, sha: str | None = None, **fields) -> str:
     digest = sha if sha is not None else hashlib.sha256(image).hexdigest()
-    return command(0x30, total=len(image), sha256=digest, version="9.9.9-bench", **fields)
+    return command(
+        0x30, total=len(image), sha256=digest, version="9.9.9-bench", **fields
+    )
 
 
 def ota_writes(image: bytes) -> list[str]:
     offsets = range(0, len(image), OTA_CHUNK_BYTES)
-    return [command(0x31, offset=o, data=b64(image[o : o + OTA_CHUNK_BYTES])) for o in offsets]
+    return [
+        command(0x31, offset=o, data=b64(image[o : o + OTA_CHUNK_BYTES]))
+        for o in offsets
+    ]
 
 
 def ota_session_lines() -> list[str]:
@@ -232,9 +266,15 @@ def ota_failure_lines() -> list[str]:
 
 def config_chunks(text: str) -> list[str]:
     raw = text.encode()
-    parts = [raw[i : i + CONFIG_CHUNK_BYTES] for i in range(0, len(raw), CONFIG_CHUNK_BYTES)]
+    parts = [
+        raw[i : i + CONFIG_CHUNK_BYTES] for i in range(0, len(raw), CONFIG_CHUNK_BYTES)
+    ]
     head = [command(0x0E, total=len(parts), idx=0, bytes=len(raw), data=b64(parts[0]))]
-    return head + [command(0x0E, total=len(parts), idx=i, data=b64(p)) for i, p in enumerate(parts) if i > 0]
+    return head + [
+        command(0x0E, total=len(parts), idx=i, data=b64(p))
+        for i, p in enumerate(parts)
+        if i > 0
+    ]
 
 
 def config_lines() -> list[str]:

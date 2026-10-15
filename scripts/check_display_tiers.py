@@ -52,8 +52,10 @@ def core_symbols() -> dict[str, int]:
     caps = CORE_CAPS.read_text()
     grid = CORE_GRID.read_text()
     symbols = {}
-    for source, names in ((caps, ("WIDTH", "HEIGHT", "MAX_WIDGETS_PER_PAGE")),
-                          (grid, ("COLUMNS", "ROWS"))):
+    for source, names in (
+        (caps, ("WIDTH", "HEIGHT", "MAX_WIDGETS_PER_PAGE")),
+        (grid, ("COLUMNS", "ROWS")),
+    ):
         for name in names:
             match = re.search(rf"\b{name}:\s*(\d+)", source)
             if match is not None:
@@ -79,7 +81,9 @@ def read_core(symbols: dict[str, int]) -> dict[str, dict]:
             tier[field] = resolve(match.group(1), symbols) if match else None
         for ladder in ("valueFaces", "labelFaces"):
             match = re.search(rf"{ladder}:\s*\[([^\]]*)\]", body)
-            tier[ladder] = [int(n) for n in re.findall(r"\d+", match.group(1))] if match else []
+            tier[ladder] = (
+                [int(n) for n in re.findall(r"\d+", match.group(1))] if match else []
+            )
         tiers[tier_id] = tier
     return tiers
 
@@ -105,7 +109,10 @@ def main() -> int:
         return 1
 
     if not CORE_TIERS.exists() and os.environ.get("CI"):
-        print(f"[tiers] {CORE_TIERS} missing — CI must check out canshift-core", file=sys.stderr)
+        print(
+            f"[tiers] {CORE_TIERS} missing — CI must check out canshift-core",
+            file=sys.stderr,
+        )
         return 1
     if not CORE_TIERS.exists():
         print("[tiers] no sibling canshift-core checkout — skipping tier parity")

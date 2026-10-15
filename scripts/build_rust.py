@@ -10,7 +10,9 @@ Import("env")  # noqa: F821 — provided by PlatformIO script context
 PROJECT_DIR = env["PROJECT_DIR"]  # noqa: F821
 RUST_DIR = os.path.join(PROJECT_DIR, "rust")
 MCU = env.BoardConfig().get("build.mcu", "esp32")  # noqa: F821
-TARGET_TRIPLE = "xtensa-esp32s3-none-elf" if MCU == "esp32s3" else "xtensa-esp32-none-elf"
+TARGET_TRIPLE = (
+    "xtensa-esp32s3-none-elf" if MCU == "esp32s3" else "xtensa-esp32-none-elf"
+)
 
 MANIFEST = os.path.join(RUST_DIR, "canshift-ffi", "Cargo.toml")
 LIBFILE = "libcanshift_ffi.a"
@@ -38,7 +40,9 @@ def fail(msg):
 
 
 BUILD_FLAG_STRS = [str(f) for f in env["BUILD_FLAGS"]]  # noqa: F821
-enabled_features = [feature for flag, feature in CRATES if any(flag in f for f in BUILD_FLAG_STRS)]
+enabled_features = [
+    feature for flag, feature in CRATES if any(flag in f for f in BUILD_FLAG_STRS)
+]
 
 
 def check_cargo():
@@ -49,6 +53,7 @@ def check_cargo():
             "    espup install\n"
             "    source ~/export-esp.sh"
         )
+
 
 # Localize weak `memcpy / memmove / memset / memcmp / bcmp` so the static
 # lib doesn't override ESP-IDF's IRAM-resident copies. Without this, the

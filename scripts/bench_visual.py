@@ -72,21 +72,37 @@ def read_bmp(path: Path) -> Image:
     if bpp != 32:
         raise VisualError(f"{path}: expected a 32-bit BMP, got {bpp}-bit")
     stride = width * 4
-    rows = [bgra_to_rgb(blob[offset + y * stride : offset + (y + 1) * stride]) for y in range(abs(height))]
+    rows = [
+        bgra_to_rgb(blob[offset + y * stride : offset + (y + 1) * stride])
+        for y in range(abs(height))
+    ]
     ordered = rows if height < 0 else rows[::-1]
     return Image(width, abs(height), b"".join(ordered))
 
 
 def png_chunk(kind: bytes, data: bytes) -> bytes:
-    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    return (
+        struct.pack(">I", len(data))
+        + kind
+        + data
+        + struct.pack(">I", zlib.crc32(kind + data))
+    )
 
 
 def write_png(path: Path, image: Image) -> None:
     stride = image.width * RGB
-    raw = b"".join(b"\x00" + image.pixels[y * stride : (y + 1) * stride] for y in range(image.height))
+    raw = b"".join(
+        b"\x00" + image.pixels[y * stride : (y + 1) * stride]
+        for y in range(image.height)
+    )
     header = struct.pack(">IIBBBBB", image.width, image.height, 8, 2, 0, 0, 0)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(PNG_SIGNATURE + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", zlib.compress(raw, 9)) + png_chunk(b"IEND", b""))
+    path.write_bytes(
+        PNG_SIGNATURE
+        + png_chunk(b"IHDR", header)
+        + png_chunk(b"IDAT", zlib.compress(raw, 9))
+        + png_chunk(b"IEND", b"")
+    )
 
 
 def png_chunks(blob: bytes) -> dict[bytes, bytes]:
@@ -94,7 +110,9 @@ def png_chunks(blob: bytes) -> dict[bytes, bytes]:
     position = len(PNG_SIGNATURE)
     while position < len(blob):
         length, kind = struct.unpack_from(">I4s", blob, position)
-        chunks[kind] = chunks.get(kind, b"") + blob[position + 8 : position + 8 + length]
+        chunks[kind] = (
+            chunks.get(kind, b"") + blob[position + 8 : position + 8 + length]
+        )
         position += 12 + length
     return chunks
 
@@ -126,13 +144,17 @@ def read_png(path: Path) -> Image:
     chunks = png_chunks(blob)
     width, height, depth, color = struct.unpack_from(">IIBB", chunks[b"IHDR"])
     if (depth, color) != (8, 2):
-        raise VisualError(f"{path}: expected 8-bit RGB, got depth {depth} color type {color}")
+        raise VisualError(
+            f"{path}: expected 8-bit RGB, got depth {depth} color type {color}"
+        )
     raw = zlib.decompress(chunks[b"IDAT"])
     stride = width * RGB
     previous, rows = bytearray(stride), []
     for y in range(height):
         start = y * (stride + 1)
-        previous = unfilter_row(raw[start], raw[start + 1 : start + 1 + stride], previous)
+        previous = unfilter_row(
+            raw[start], raw[start + 1 : start + 1 + stride], previous
+        )
         rows.append(bytes(previous))
     return Image(width, height, b"".join(rows))
 
@@ -141,7 +163,11 @@ def diff_image(golden: Image, actual: Image) -> Image:
     out = bytearray()
     for i in range(0, len(golden.pixels), RGB):
         same = golden.pixels[i : i + RGB] == actual.pixels[i : i + RGB]
-        out += bytes(c // DIFF_DIM for c in golden.pixels[i : i + RGB]) if same else bytes(DIFF_MARK)
+        out += (
+            bytes(c // DIFF_DIM for c in golden.pixels[i : i + RGB])
+            if same
+            else bytes(DIFF_MARK)
+        )
     return Image(golden.width, golden.height, bytes(out))
 
 
@@ -149,7 +175,9 @@ def changed_pixels(golden: Image, actual: Image) -> int:
     if golden.pixels == actual.pixels:
         return 0
     pairs = zip(range(0, len(golden.pixels), RGB), range(0, len(actual.pixels), RGB))
-    return sum(1 for g, a in pairs if golden.pixels[g : g + RGB] != actual.pixels[a : a + RGB])
+    return sum(
+        1 for g, a in pairs if golden.pixels[g : g + RGB] != actual.pixels[a : a + RGB]
+    )
 
 
 def capture(scene: Scene, tier: str, program: Path) -> Image:
@@ -160,10 +188,20 @@ def capture(scene: Scene, tier: str, program: Path) -> Image:
     if scene.theme is not None:
         environment["CANSHIFT_SIM_THEME"] = scene.theme
     with tempfile.TemporaryDirectory() as scratch:
-        command = [str(program.resolve()), str(DATA.resolve()), scene.scenario, scene.page, str(scene.capture_ms)]
-        result = subprocess.run(command, cwd=scratch, env=environment, capture_output=True, text=True)
+        command = [
+            str(program.resolve()),
+            str(DATA.resolve()),
+            scene.scenario,
+            scene.page,
+            str(scene.capture_ms),
+        ]
+        result = subprocess.run(
+            command, cwd=scratch, env=environment, capture_output=True, text=True
+        )
         if result.returncode != 0:
-            raise VisualError(f"{scene.name} at {tier}: sim exited {result.returncode}: {result.stderr.strip()[-400:]}")
+            raise VisualError(
+                f"{scene.name} at {tier}: sim exited {result.returncode}: {result.stderr.strip()[-400:]}"
+            )
         return read_bmp(Path(scratch) / CAPTURE)
 
 
@@ -201,8 +239,15 @@ def check_scene(args: argparse.Namespace, scene: Scene, tier: str) -> dict:
 
 def format_table(results: list[dict]) -> str:
     passed = sum(1 for result in results if result["status"] in ("pass", "updated"))
-    lines = [f"### Visual goldens: {passed}/{len(results)} pass", "", "| frame | result |", "| --- | --- |"]
-    return "\n".join(lines + [f"| {r['name']} | {r['status']} |" for r in results]) + "\n"
+    lines = [
+        f"### Visual goldens: {passed}/{len(results)} pass",
+        "",
+        "| frame | result |",
+        "| --- | --- |",
+    ]
+    return (
+        "\n".join(lines + [f"| {r['name']} | {r['status']} |" for r in results]) + "\n"
+    )
 
 
 def write_outputs(args: argparse.Namespace, results: list[dict]) -> None:
@@ -237,7 +282,9 @@ def main(argv: list[str]) -> int:
         sys.stderr.write(f"[visual] {error}\n")
         return 1
     write_outputs(args, results)
-    return 0 if all(result["status"] in ("pass", "updated") for result in results) else 1
+    return (
+        0 if all(result["status"] in ("pass", "updated") for result in results) else 1
+    )
 
 
 if __name__ == "__main__":

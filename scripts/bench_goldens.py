@@ -36,9 +36,13 @@ def staged_data(scratch: Path, signals: Path | None) -> Path:
 
 
 def run_program(program: Path, arguments: list[str], out: Path) -> str:
-    result = subprocess.run([str(program), *arguments, "--out", str(out)], capture_output=True, text=True)
+    result = subprocess.run(
+        [str(program), *arguments, "--out", str(out)], capture_output=True, text=True
+    )
     if result.returncode != 0:
-        raise GoldenError(f"{program} {arguments[0]} exited {result.returncode}: {result.stderr.strip()}")
+        raise GoldenError(
+            f"{program} {arguments[0]} exited {result.returncode}: {result.stderr.strip()}"
+        )
     return out.read_text()
 
 
@@ -48,7 +52,13 @@ def trace_case(case_dir: Path) -> Case:
 
     def produce(program: Path, scratch: Path) -> str:
         data = staged_data(scratch, overlay)
-        arguments = ["trace", "--trace", str(case_dir / "trace.txt"), "--data", str(data)]
+        arguments = [
+            "trace",
+            "--trace",
+            str(case_dir / "trace.txt"),
+            "--data",
+            str(data),
+        ]
         return run_program(program, arguments, scratch / f"{case_dir.name}.timeline")
 
     return Case(f"can/{case_dir.name}", case_dir / "timeline.golden", produce)
@@ -59,22 +69,43 @@ def transcript_case(inputs: Path) -> Case:
         sections = []
         for transport in TRANSPORTS:
             data = staged_data(scratch, None)
-            arguments = ["transcript", "--in", str(inputs), "--transport", transport, "--data", str(data)]
-            sections.append(f"== {transport}\n" + run_program(program, arguments, scratch / f"{inputs.stem}.{transport}"))
+            arguments = [
+                "transcript",
+                "--in",
+                str(inputs),
+                "--transport",
+                transport,
+                "--data",
+                str(data),
+            ]
+            sections.append(
+                f"== {transport}\n"
+                + run_program(
+                    program, arguments, scratch / f"{inputs.stem}.{transport}"
+                )
+            )
         return "".join(sections)
 
     return Case(f"protocol/{inputs.stem}", inputs.with_suffix(".golden"), produce)
 
 
 def discover() -> list[Case]:
-    traces = [trace_case(path.parent) for path in sorted((GOLDENS / "can").glob("*/trace.txt"))]
-    transcripts = [transcript_case(path) for path in sorted((GOLDENS / "protocol").glob("*.in"))]
+    traces = [
+        trace_case(path.parent)
+        for path in sorted((GOLDENS / "can").glob("*/trace.txt"))
+    ]
+    transcripts = [
+        transcript_case(path) for path in sorted((GOLDENS / "protocol").glob("*.in"))
+    ]
     return traces + transcripts
 
 
 def diff_of(expected: str, actual: str, name: str) -> str:
     lines = difflib.unified_diff(
-        expected.splitlines(keepends=True), actual.splitlines(keepends=True), f"{name} (golden)", f"{name} (actual)"
+        expected.splitlines(keepends=True),
+        actual.splitlines(keepends=True),
+        f"{name} (golden)",
+        f"{name} (actual)",
     )
     return "".join(list(lines)[:DIFF_LINES])
 
@@ -86,7 +117,9 @@ def check(case: Case, actual: str, update: bool, failures_dir: Path | None) -> s
     expected = case.golden.read_text() if case.golden.exists() else ""
     if expected == actual:
         return "pass"
-    sys.stderr.write(diff_of(expected, actual, case.name) or f"{case.golden} is missing\n")
+    sys.stderr.write(
+        diff_of(expected, actual, case.name) or f"{case.golden} is missing\n"
+    )
     if failures_dir is not None:
         target = failures_dir / f"{case.name.replace('/', '__')}.actual"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -99,14 +132,26 @@ def run_cases(args: argparse.Namespace) -> list[dict]:
     with tempfile.TemporaryDirectory() as scratch:
         for case in discover():
             actual = case.produce(args.program, Path(scratch))
-            results.append({"name": case.name, "status": check(case, actual, args.update_goldens, args.failures)})
+            results.append(
+                {
+                    "name": case.name,
+                    "status": check(case, actual, args.update_goldens, args.failures),
+                }
+            )
     return results
 
 
 def format_table(results: list[dict]) -> str:
     passed = sum(1 for result in results if result["status"] != "fail")
-    lines = [f"### Behaviour goldens: {passed}/{len(results)} pass", "", "| golden | result |", "| --- | --- |"]
-    return "\n".join(lines + [f"| {r['name']} | {r['status']} |" for r in results]) + "\n"
+    lines = [
+        f"### Behaviour goldens: {passed}/{len(results)} pass",
+        "",
+        "| golden | result |",
+        "| --- | --- |",
+    ]
+    return (
+        "\n".join(lines + [f"| {r['name']} | {r['status']} |" for r in results]) + "\n"
+    )
 
 
 def write_outputs(args: argparse.Namespace, results: list[dict]) -> None:

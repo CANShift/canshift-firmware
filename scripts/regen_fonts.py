@@ -13,31 +13,73 @@ NUMERIC_RANGE = "0x20,0x2D,0x2E,0x30-0x39"
 HERO_RANGE = "0x20,0x2D,0x2F,0x30-0x39,0x41-0x5A"
 
 FAMILIES = (
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (32, 44, 48), "lvgl", LATIN_RANGE),
+    (
+        "jbmono",
+        "extrabold",
+        "JetBrainsMono-ExtraBold.ttf",
+        (32, 44, 48),
+        "lvgl",
+        LATIN_RANGE,
+    ),
     ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (64,), "lvgl", HERO_RANGE),
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (84,), "lvgl", NUMERIC_RANGE),
-    ("jbmono", "extrabold", "JetBrainsMono-ExtraBold.ttf", (13, 15, 17, 22), "bin", LATIN_RANGE),
+    (
+        "jbmono",
+        "extrabold",
+        "JetBrainsMono-ExtraBold.ttf",
+        (84,),
+        "lvgl",
+        NUMERIC_RANGE,
+    ),
+    (
+        "jbmono",
+        "extrabold",
+        "JetBrainsMono-ExtraBold.ttf",
+        (13, 15, 17, 22),
+        "bin",
+        LATIN_RANGE,
+    ),
     ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (10, 12, 16), "bin", LATIN_RANGE),
-    ("archivo", "extrabold", "Archivo-ExtraBold.ttf", (13, 14, 15), "lvgl", LATIN_RANGE),
+    (
+        "archivo",
+        "extrabold",
+        "Archivo-ExtraBold.ttf",
+        (13, 14, 15),
+        "lvgl",
+        LATIN_RANGE,
+    ),
 )
 
-JBMONO_VALUE_FALLBACK = ("jbmono", "medium", "JetBrainsMono-Medium.ttf", (10,), "lvgl", LATIN_RANGE)
+JBMONO_VALUE_FALLBACK = (
+    "jbmono",
+    "medium",
+    "JetBrainsMono-Medium.ttf",
+    (10,),
+    "lvgl",
+    LATIN_RANGE,
+)
 
 
 def run_lv_font_conv(*args: str) -> None:
-    cmd = ["lv_font_conv", "--no-compress", "--no-prefilter", "--no-kerning",
-           "--bpp", "4", *args]
+    cmd = [
+        "lv_font_conv",
+        "--no-compress",
+        "--no-prefilter",
+        "--no-kerning",
+        "--bpp",
+        "4",
+        *args,
+    ]
     subprocess.run(cmd, check=True)
 
 
 def collapse_include(path: Path) -> None:
     text = path.read_text()
     text = text.replace(
-        '#ifdef LV_LVGL_H_INCLUDE_SIMPLE\n'
+        "#ifdef LV_LVGL_H_INCLUDE_SIMPLE\n"
         '#include "lvgl.h"\n'
-        '#else\n'
+        "#else\n"
         '#include "lvgl/lvgl.h"\n'
-        '#endif\n',
+        "#endif\n",
         '#include "lvgl.h"\n',
     )
     path.write_text(text)
@@ -46,7 +88,10 @@ def collapse_include(path: Path) -> None:
 def regen(input_dir: Path, bins_dir: Path, src_dir: Path) -> None:
     bins_dir.mkdir(parents=True, exist_ok=True)
     src_dir.mkdir(parents=True, exist_ok=True)
-    for family, weight, ttf_name, sizes, fmt, char_range in (*FAMILIES, JBMONO_VALUE_FALLBACK):
+    for family, weight, ttf_name, sizes, fmt, char_range in (
+        *FAMILIES,
+        JBMONO_VALUE_FALLBACK,
+    ):
         ttf = input_dir / ttf_name
         if not ttf.exists():
             sys.exit(f"Missing TTF: {ttf} — see data/fonts/SOURCES.md")
@@ -56,11 +101,16 @@ def regen(input_dir: Path, bins_dir: Path, src_dir: Path) -> None:
             else:
                 out = src_dir / f"lv_font_{family}_{weight}_{size}_nk.c"
             run_lv_font_conv(
-                "--size", str(size),
-                "--font", str(ttf),
-                "-r", char_range,
-                "--format", fmt,
-                "-o", str(out),
+                "--size",
+                str(size),
+                "--font",
+                str(ttf),
+                "-r",
+                char_range,
+                "--format",
+                fmt,
+                "-o",
+                str(out),
             )
             if fmt == "lvgl":
                 collapse_include(out)
@@ -69,14 +119,21 @@ def regen(input_dir: Path, bins_dir: Path, src_dir: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input_dir", type=Path,
-                        help="Directory holding the static TTF instances named per FAMILIES")
+    parser.add_argument(
+        "input_dir",
+        type=Path,
+        help="Directory holding the static TTF instances named per FAMILIES",
+    )
     args = parser.parse_args()
     if not args.input_dir.is_dir():
         sys.exit(f"Not a directory: {args.input_dir}")
 
     firmware_dir = Path(__file__).resolve().parent.parent
-    regen(args.input_dir, firmware_dir / "data" / "fonts", firmware_dir / "src" / "ui" / "fonts")
+    regen(
+        args.input_dir,
+        firmware_dir / "data" / "fonts",
+        firmware_dir / "src" / "ui" / "fonts",
+    )
     return 0
 
 

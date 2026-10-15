@@ -5,6 +5,7 @@ The headers under include/*_rs.h are hand-written, so every constant that sizes
 a shared struct or buffer exists twice. A mismatch is silent until it corrupts
 memory, so it is gated here rather than trusted to a comment.
 """
+
 import os
 import re
 import sys
