@@ -24,6 +24,8 @@ env:
   SHELLCHECK_VERSION: '0.11.0'
   SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
   PRETTIER_VERSION: '3.9.6'
+  ESPTOOL_VERSION: '5.5.0'
+  CRYPTOGRAPHY_VERSION: '50.0.2'
 
 jobs:
   native:
@@ -275,6 +277,70 @@ jobs:
       - name: build (secure)
         run: pio run -e secure
 
+  secure-s3:
+    name: secure build (esp32s3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SECURE_DIR: ${{ github.workspace }}/.pio/secure-boot
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/pio-setup
+        with:
+          espup: 'true'
+          espup-targets: esp32s3
+          cache-suffix: secure-s3
+
+      - name: build app (waveshare_s3_28_secure)
+        run: pio run -e waveshare_s3_28_secure
+
+      - name: build secure bootloader (ESP-IDF v4.4.6)
+        run: scripts/secure_boot_bootloader.sh esp32s3 "$SECURE_DIR/unsigned"
+
+      - name: install esptool
+        run: pip install "esptool==${ESPTOOL_VERSION}" "cryptography==${CRYPTOGRAPHY_VERSION}"
+
+      - name: generate a throwaway signing key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/keys"
+          openssl genrsa -out "$RUNNER_TEMP/keys/secure-boot.pem" 3072
+          openssl genrsa -out "$RUNNER_TEMP/keys/other.pem" 3072
+          openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/keys/ota.pem"
+          openssl pkey -in "$RUNNER_TEMP/keys/ota.pem" -pubout -out "$RUNNER_TEMP/keys/ota-public.pem"
+
+      - name: sign and verify bootloader and app
+        run: |
+          scripts/secure_boot_sign.sh "$RUNNER_TEMP/keys/secure-boot.pem" \
+            "$SECURE_DIR/unsigned/bootloader.bin" \
+            .pio/build/waveshare_s3_28_secure/firmware.bin \
+            "$SECURE_DIR/signed"
+
+      - name: images refuse a key that did not sign them
+        run: |
+          for image in bootloader firmware; do
+            if python3 -m espsecure verify-signature --version 2 \
+              --keyfile "$RUNNER_TEMP/keys/other.pem" "$SECURE_DIR/signed/${image}.bin"; then
+              echo "::error title=secure boot::${image}.bin verified against a key that never signed it"
+              exit 1
+            fi
+          done
+
+      - name: OTA signature wraps the secure boot image
+        run: |
+          FIRMWARE_SIGNING_PRIVATE_KEY=$(base64 -w0 "$RUNNER_TEMP/keys/ota.pem") \
+            python3 scripts/sign_release_artifacts.py "$SECURE_DIR/signed/firmware.bin"
+          python3 scripts/verify_release_signatures.py "$RUNNER_TEMP/keys/ota-public.pem" \
+            "$SECURE_DIR/signed/firmware.bin"
+          python3 -m espsecure verify-signature --version 2 \
+            --keyfile "$SECURE_DIR/signed/secure-boot-public.pem" "$SECURE_DIR/signed/firmware.bin"
+
+      - name: destroy the throwaway keys and the images they signed
+        if: ${{ always() }}
+        run: rm -rf "$RUNNER_TEMP/keys" "$SECURE_DIR"
+
   diagnostic:
     name: diagnostic builds
     runs-on: ubuntu-latest
@@ -521,6 +587,7 @@ jobs:
         firmware,
         size-budget,
         secure,
+        secure-s3,
         diagnostic,
         lint,
         rust,
