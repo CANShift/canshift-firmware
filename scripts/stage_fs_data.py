@@ -41,7 +41,9 @@ def stage():
     if ignore is None:
         tuner_bundle.fill_or_exit(env["PROJECT_DIR"], os.path.join(target, TUNER_DIR))  # noqa: F821
     env.Replace(PROJECT_DATA_DIR=target)  # noqa: F821
-    print(f"[fs] staged {source} -> {target} (workshop files {'kept' if ignore is None else 'dropped'})")
+    print(
+        f"[fs] staged {source} -> {target} (workshop files {'kept' if ignore is None else 'dropped'})"
+    )
 
 
 if FS_TARGETS & set(COMMAND_LINE_TARGETS):

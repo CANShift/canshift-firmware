@@ -38,7 +38,9 @@ def artifact(chip: str, tag: str, kind: str, sums: dict[str, str]) -> dict:
     return {"file": name, "sha256": sums.get(name)}
 
 
-def build_manifest(boards: list[dict], tag: str, version: str, sums: dict[str, str]) -> dict:
+def build_manifest(
+    boards: list[dict], tag: str, version: str, sums: dict[str, str]
+) -> dict:
     chips = [b["chip"] for b in boards if b.get("universal")]
     return {
         "schema": SCHEMA,
@@ -57,7 +59,9 @@ def build_manifest(boards: list[dict], tag: str, version: str, sums: dict[str, s
 
 
 def orphan_boards(manifest: dict) -> list[str]:
-    return [b["id"] for b in manifest["boards"] if b["chip"] not in manifest["firmwares"]]
+    return [
+        b["id"] for b in manifest["boards"] if b["chip"] not in manifest["firmwares"]
+    ]
 
 
 def main(argv: list[str]) -> int:

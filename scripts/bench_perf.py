@@ -31,11 +31,20 @@ class Side:
 def run_once(side: Side, samples: int, case_filter: str | None) -> list[dict]:
     with tempfile.TemporaryDirectory() as scratch:
         out = Path(scratch) / "perf.json"
-        cmd = [str(side.root / PROGRAM), "perf", "--out", str(out), "--samples", str(samples)]
+        cmd = [
+            str(side.root / PROGRAM),
+            "perf",
+            "--out",
+            str(out),
+            "--samples",
+            str(samples),
+        ]
         cmd += ["--filter", case_filter] if case_filter else []
         result = subprocess.run(cmd, cwd=side.root, capture_output=True, text=True)
         if result.returncode != 0:
-            raise BenchError(f"{side.root / PROGRAM} exited {result.returncode}: {result.stderr.strip()}")
+            raise BenchError(
+                f"{side.root / PROGRAM} exited {result.returncode}: {result.stderr.strip()}"
+            )
         return json.loads(out.read_text())["cases"]
 
 
@@ -45,7 +54,9 @@ def record(side: Side, cases: list[dict]) -> None:
         side.units[case["name"]] = case["unit"]
 
 
-def run_rounds(sides: list[Side], rounds: int, samples: int, case_filter: str | None = None) -> None:
+def run_rounds(
+    sides: list[Side], rounds: int, samples: int, case_filter: str | None = None
+) -> None:
     for index in range(rounds):
         order = sides if index % 2 == 0 else list(reversed(sides))
         for side in order:
@@ -71,7 +82,12 @@ def verdict(base: list[float], head: list[float]) -> str:
 
 def case_row(name: str, base: Side, head: Side) -> dict:
     head_rounds = head.rounds[name]
-    row = {"name": name, "unit": head.units[name], "head_ns": center(head_rounds), "head_spread": spread(head_rounds)}
+    row = {
+        "name": name,
+        "unit": head.units[name],
+        "head_ns": center(head_rounds),
+        "head_spread": spread(head_rounds),
+    }
     if name not in base.rounds:
         return {**row, "verdict": "new"}
     base_rounds = base.rounds[name]
@@ -142,13 +158,19 @@ def write_outputs(args: argparse.Namespace, rows: list[dict], baseline: str) -> 
         with args.summary.open("a", encoding="utf-8") as handle:
             handle.write(table)
     if args.report is not None:
-        args.report.write_text(json.dumps({"baseline": baseline, "cases": rows}, indent=2) + "\n")
+        args.report.write_text(
+            json.dumps({"baseline": baseline, "cases": rows}, indent=2) + "\n"
+        )
 
 
 def run_compare(args: argparse.Namespace) -> int:
     head = Side(args.head_root.resolve())
     base = Side((args.base_root or args.head_root).resolve())
-    baseline = args.baseline_label if args.base_root is not None else "head (A/A, no baseline bench)"
+    baseline = (
+        args.baseline_label
+        if args.base_root is not None
+        else "head (A/A, no baseline bench)"
+    )
     run_rounds([base, head], args.rounds, args.samples)
     rows = compare_rows(base, head)
     suspects = flagged(rows)
@@ -160,7 +182,9 @@ def run_compare(args: argparse.Namespace) -> int:
     write_outputs(args, rows, baseline)
     regressions = flagged(rows)
     for name in regressions:
-        sys.stderr.write(f"[perf] {name}: median regressed past {REGRESSION_LIMIT:.0%} of the baseline\n")
+        sys.stderr.write(
+            f"[perf] {name}: median regressed past {REGRESSION_LIMIT:.0%} of the baseline\n"
+        )
     return 1 if regressions else 0
 
 

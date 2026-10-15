@@ -26,13 +26,15 @@ def source_for(entry):
     prefix = DEFLATED_DIR + os.sep
     if not entry.startswith(prefix):
         fail(f"{entry} is embedded raw; list it under {prefix}")
-    return entry[len(prefix):]
+    return entry[len(prefix) :]
 
 
 def pack(raw, source):
     if not raw:
         fail(f"{source} is empty")
-    compressor = zlib.compressobj(COMPRESSION_LEVEL, zlib.DEFLATED, WINDOW_BITS, MEMORY_LEVEL)
+    compressor = zlib.compressobj(
+        COMPRESSION_LEVEL, zlib.DEFLATED, WINDOW_BITS, MEMORY_LEVEL
+    )
     stream = compressor.compress(raw) + compressor.flush()
     if zlib.decompress(stream) != raw:
         fail(f"{source} does not survive a deflate round trip")

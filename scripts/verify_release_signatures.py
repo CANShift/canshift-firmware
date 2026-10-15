@@ -20,13 +20,18 @@ def verify(key: Ed25519PublicKey, image: Path) -> None:
     try:
         key.verify(signature.read_bytes(), image.read_bytes())
     except (InvalidSignature, OSError) as err:
-        raise SystemExit(f"error: {image} does not verify against the embedded key: {err!r}")
+        raise SystemExit(
+            f"error: {image} does not verify against the embedded key: {err!r}"
+        )
     print(f"verified {image}")
 
 
 def main() -> int:
     if len(sys.argv) < 3:
-        print("usage: verify_release_signatures.py <public.pem> <file> [<file> …]", file=sys.stderr)
+        print(
+            "usage: verify_release_signatures.py <public.pem> <file> [<file> …]",
+            file=sys.stderr,
+        )
         return 1
     key = load_key(Path(sys.argv[1]))
     for arg in sys.argv[2:]:

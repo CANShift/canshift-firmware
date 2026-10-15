@@ -19,7 +19,10 @@ def load_key() -> Ed25519PrivateKey:
     try:
         pem_bytes = base64.b64decode(raw)
     except Exception as err:
-        print(f"error: FIRMWARE_SIGNING_PRIVATE_KEY is not valid base64: {err}", file=sys.stderr)
+        print(
+            f"error: FIRMWARE_SIGNING_PRIVATE_KEY is not valid base64: {err}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         key = load_pem_private_key(pem_bytes, password=None)

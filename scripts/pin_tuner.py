@@ -13,7 +13,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def fetch_checksum(tag):
     asset = ASSET_NAME.format(tag=tag) + CHECKSUM_SUFFIX
     try:
-        with urllib.request.urlopen(RELEASE_URL.format(tag=tag, asset=asset), timeout=TIMEOUT_S) as response:
+        with urllib.request.urlopen(
+            RELEASE_URL.format(tag=tag, asset=asset), timeout=TIMEOUT_S
+        ) as response:
             fields = response.read().decode("ascii", errors="replace").split()
     except urllib.error.URLError as err:
         sys.stderr.write(f"{tag}: {asset} could not be fetched: {err}\n")
