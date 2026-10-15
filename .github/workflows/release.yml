@@ -133,7 +133,6 @@ jobs:
           espup: 'true'
           espup-targets: ${{ matrix.chip }}
           cache-suffix: release-${{ matrix.chip }}
-          build-cache: 'false'
 
       - name: Build universal firmware for ${{ matrix.chip }} (env ${{ matrix.pio_env }})
         run: platformio run -e "${{ matrix.pio_env }}"
