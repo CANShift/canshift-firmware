@@ -49,8 +49,10 @@ fi
 # Resolve toolchain paths and project layout.
 # ---------------------------------------------------------------------------
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly FIRMWARE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+FIRMWARE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly FIRMWARE_DIR
 readonly SECRETS_DIR="${FIRMWARE_DIR}/secrets"
 readonly KEYS_DIR="${FIRMWARE_DIR}/keys"
 readonly ESCROW_CSV="${KEYS_DIR}/escrow.csv"
@@ -76,7 +78,8 @@ if [[ -z "${ESP_PORT}" ]]; then
     exit 1
 fi
 
-readonly OPERATOR_EMAIL="$(git config user.email 2>/dev/null || echo 'unknown')"
+OPERATOR_EMAIL="$(git config user.email 2>/dev/null || echo 'unknown')"
+readonly OPERATOR_EMAIL
 
 mkdir -p "${KEYS_DIR}"
 if [[ ! -f "${ESCROW_CSV}" ]]; then
@@ -105,8 +108,9 @@ for i in 60 55 50 45 40 35 30 25 20 15 10 5; do
 done
 
 echo "Reading chip identity…"
-readonly CHIP_MAC="$("${ESPTOOL_PY}" --port "${ESP_PORT}" read_mac \
-    | awk '/MAC:/ {print $2; exit}')"
+CHIP_MAC="$("${ESPTOOL_PY}" --port "${ESP_PORT}" read_mac \
+    | awk '/MAC:/ && !seen {print $2; seen = 1}')"
+readonly CHIP_MAC
 if [[ -z "${CHIP_MAC}" ]]; then
     echo "Could not read chip MAC. Check cable + port." >&2
     exit 1
@@ -125,8 +129,9 @@ fi
 # ---------------------------------------------------------------------------
 
 echo "Pre-flight: checking eFuse summary…"
-readonly EFUSE_SUMMARY="$("${ESPEFUSE_PY}" --port "${ESP_PORT}" summary --format value-only \
+EFUSE_SUMMARY="$("${ESPEFUSE_PY}" --port "${ESP_PORT}" summary --format value-only \
     ABS_DONE_1 FLASH_CRYPT_CNT BLOCK1 BLOCK2 2>/dev/null)"
+readonly EFUSE_SUMMARY
 
 if echo "${EFUSE_SUMMARY}" | grep -qE '[1-9a-fA-F]'; then
     echo "Refusing: chip already has secure-boot or flash-encryption fuses set." >&2
@@ -150,7 +155,8 @@ fi
 echo "Generating per-chip AES-XTS-256 flash encryption key…"
 "${ESPSECURE_PY}" generate_flash_encryption_key "${FLASH_KEY_FILE}"
 
-readonly FLASH_KEY_SHA256="$(shasum -a 256 "${FLASH_KEY_FILE}" | awk '{print $1}')"
+FLASH_KEY_SHA256="$(shasum -a 256 "${FLASH_KEY_FILE}" | awk '{print $1}')"
+readonly FLASH_KEY_SHA256
 echo "Flash key SHA-256: ${FLASH_KEY_SHA256}"
 
 # ---------------------------------------------------------------------------
@@ -270,7 +276,8 @@ echo "===== Step 7/7 — disable USB-JTAG (no-op on original ESP32) ====="
 # Append escrow row.
 # ---------------------------------------------------------------------------
 
-readonly TS_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+TS_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+readonly TS_UTC
 echo "${CHIP_MAC},${FLASH_KEY_SHA256},${TS_UTC},${OPERATOR_EMAIL}," >> "${ESCROW_CSV}"
 
 # ---------------------------------------------------------------------------
