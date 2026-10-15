@@ -75,8 +75,9 @@ jobs:
       - name: compare
         env:
           BASE_ROOT: ${{ steps.base.outputs.root }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          python3 scripts/bench_perf.py ${BASE_ROOT:+--base-root "$BASE_ROOT"} \
+          python3 scripts/bench_perf.py ${BASE_ROOT:+--base-root "$BASE_ROOT"} ${PR_NUMBER:+--pr "$PR_NUMBER"} \
             --baseline-label "${BASE_SHA::7}" --report perf-report.json --summary "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}

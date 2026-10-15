@@ -89,7 +89,11 @@ python3 scripts/bench_size.py update --measured sizes
 `pio run -e bench` builds `.pio/build/bench/program`, a host binary that links
 the firmware's own CAN parser, expression VM, telemetry encoder, status writer,
 float formatter and the complete USB/WebSocket command dispatcher at `-O2`,
-with fakes only for the hardware (`bench/host/`, `bench/host/shims/`). Its
+with fakes only for the hardware (`bench/host/`, `bench/host/shims/`). The
+bench owns those fakes: it includes nothing from `sim/`, so a simulator or sim
+shim change cannot change a byte of the bench binary, and it is built with
+`-falign-functions=64 -falign-loops=32` so that code moving around elsewhere
+in the image shifts the hot paths' alignment less. Its
 `perf` mode times each hot path:
 
 | Case               | What one operation is                                                                                                                               |
@@ -130,7 +134,26 @@ rounds spread up to 16 %: the median-of-medians and the separation rule absorb
 that without a false failure, while an injected 20 % slowdown is caught.
 
 A deliberate slowdown, such as a new feature in a hot path, still fails the
-job; say so in the PR and let the reviewer accept it.
+job until the PR accepts it in `bench/perf-accept.json`:
+
+```json
+{
+  "accepted": [
+    {
+      "case": "status_writer",
+      "max_delta_pct": 15,
+      "pr": 400,
+      "reason": "status line now carries the board profile hash"
+    }
+  ]
+}
+```
+
+An entry only applies to the PR whose number it names and only up to
+`max_delta_pct`, so it is visible in that PR's diff and cannot waive a later
+regression on `main`. The case then reads `accepted (<reason>)` in the job
+table and the PR comment. Nothing is accepted automatically; remove stale
+entries whenever the file is touched.
 
 ### Behaviour goldens
 
