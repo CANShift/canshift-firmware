@@ -20,6 +20,7 @@ struct AlertState {
     AlertLevel gearboxTemp;
     AlertLevel diffTemp;
     AlertLevel exhaustTemp;
+    AlertLevel userCritical;
     AlertLevel global;
     bool coolantSensorLost;
     bool oilTempSensorLost;
@@ -28,6 +29,7 @@ struct AlertState {
     bool gearboxSensorLost;
     bool diffSensorLost;
     bool exhaustSensorLost;
+    bool userSensorLost;
 };
 
 struct CriticalLimit {

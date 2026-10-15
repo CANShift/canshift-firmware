@@ -1,4 +1,5 @@
 use crate::bus_silence::{bus_silence, stale_dash_groups, BusSilence};
+use crate::critical_alert::eval_critical_alert;
 use crate::{
     crossed_limit, eval_battery, eval_coolant_temp, eval_high_side, eval_high_side_temp,
     eval_oil_pressure, eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit,
@@ -129,6 +130,21 @@ pub extern "C" fn alert_display_idle_state_rs(
     off_after_ms: u32,
 ) -> u8 {
     crate::display_idle_state(idle_ms, dim_after_ms, off_after_ms)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn alert_critical_alert_step_rs(
+    hold: *mut LevelHold,
+    value: f32,
+    fires_at: f32,
+    below: bool,
+    now_ms: u32,
+    hysteresis_pct: f32,
+    min_active_ms: u32,
+) -> u8 {
+    step_hold(hold, value, now_ms, hysteresis_pct, min_active_ms, |v| {
+        eval_critical_alert(v, fires_at, below)
+    })
 }
 
 #[no_mangle]

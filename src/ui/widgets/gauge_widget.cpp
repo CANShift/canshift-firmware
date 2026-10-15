@@ -239,8 +239,7 @@ static void buildValueCluster(lv_obj_t *cont, const CfgWidget &cfg, lv_obj_t *&o
     if (outLabel)
         lv_obj_set_style_text_letter_space(outLabel, WidgetHelpers::valueTrackingPx(intFontSize),
                                            0);
-    outKicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId,
-                                                      WidgetLabelOverlay::HeaderPos::TOP_LEFT);
+    outKicker = WidgetLabelOverlay::applyWidgetHeader(cont, cfg.gauge.kicker, cfg.signalId);
 }
 
 static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildState &built,
@@ -259,8 +258,8 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->lastAngle = 0xFFFFu;
     tag->lastDisplayScaled = INT32_MIN;
-    tag->warnLevel =
-        WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
+    tag->warnLevel = WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.gauge.warnLevel,
+                                                     cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
     tag->dangerLevel = cfg.gauge.dangerLevel;
     tag->revFlash = cfg.gauge.revFlash;
     tag->lastLimiting = false;

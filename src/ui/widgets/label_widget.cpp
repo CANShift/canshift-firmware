@@ -153,7 +153,7 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     const uint8_t valueSize = pickValueFontSize(cfg);
     parts->textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    parts->kicker = WidgetLabelOverlay::applySignalHeader(cont, cfg.signalId);
+    parts->kicker = WidgetLabelOverlay::applyWidgetHeader(cont, cfg.label.kicker, cfg.signalId);
     lv_obj_t *valueRow = makeValueRow(cont);
     if (!valueRow) {
         LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
@@ -223,8 +223,8 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
         Severity::adopt(parts.topRule, parts.kicker, nullptr, parts.rulePx, parts.textRgb);
     tag->barMaxW = parts.barMaxW;
     tag->lastBarW = -1;
-    tag->warnLevel =
-        WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.label.dangerLevel, cfg.label.dangerBelow);
+    tag->warnLevel = WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.label.warnLevel,
+                                                     cfg.label.dangerLevel, cfg.label.dangerBelow);
     tag->dangerLevel = cfg.label.dangerLevel;
     tag->dangerBelow = cfg.label.dangerBelow;
     tag->lastValue = NAN;

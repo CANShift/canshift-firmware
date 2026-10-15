@@ -147,42 +147,6 @@ void parseWidgetStyle(JsonObjectConst style, CfgStyle *out) {
     out->respectDayMode = style["respectDayMode"] | true;
 }
 
-void parseArcGaugeParams(JsonObjectConst cfg, CfgGaugeParams *out) {
-    out->big = cfg["big"] | 0;
-    out->minValue = cfg["minValue"] | 0.0f;
-    out->maxValue = cfg["maxValue"] | 100.0f;
-    out->dangerLevel = cfg["dangerLevel"] | 95.0f;
-    out->dangerBelow = cfg["dangerBelow"] | false;
-    out->revFlash = cfg["revFlash"] | false;
-    out->decimalPlaces = cfg["decimalPlaces"] | 0;
-    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
-    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-    strlcpy(out->iconName, cfg["iconName"] | "", sizeof(out->iconName));
-}
-
-void parseLabelParams(JsonObjectConst cfg, CfgLabelParams *out) {
-    out->big = cfg["big"] | 0;
-    out->decimalPlaces = cfg["decimalPlaces"] | 0;
-    out->dangerLevel = cfg["dangerLevel"].is<float>() ? cfg["dangerLevel"].as<float>() : NAN;
-    out->dangerBelow = cfg["dangerBelow"] | false;
-    out->showBar = cfg["showBar"] | false;
-    out->revFlash = cfg["revFlash"] | false;
-    out->minValue = cfg["minValue"] | 0.0f;
-    out->maxValue = cfg["maxValue"] | 100.0f;
-    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
-    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
-}
-
-void parseGaugeWidget(JsonObjectConst cfg, CfgWidget *w) {
-    const char *displayStyle = cfg["displayStyle"] | "arc";
-    if (strcmp(displayStyle, "numeric") == 0) {
-        w->type = WidgetType::LABEL;
-        parseLabelParams(cfg, &w->label);
-    } else {
-        parseArcGaugeParams(cfg, &w->gauge);
-    }
-}
-
 void parseShiftLightWidget(JsonObjectConst cfg, CfgShiftLightParams *out) {
     out->startValue = cfg["startValue"] | 3000.0f;
     int red = cfg["redSegments"] | 5;
@@ -331,12 +295,6 @@ void parseTimerWidget(JsonObjectConst cfg, CfgTimerParams *out) {
 
 void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
     strlcpy(out->imagePath, cfg["imagePath"] | "", kCfgMaxPathLen);
-}
-
-void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
-    out->decimalPlaces = 0;
-    strlcpy(out->prefix, cfg["prefix"] | "", sizeof(out->prefix));
-    strlcpy(out->suffix, cfg["suffix"] | "", sizeof(out->suffix));
 }
 
 } // namespace
