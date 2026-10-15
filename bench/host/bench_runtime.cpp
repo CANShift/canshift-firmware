@@ -10,13 +10,13 @@
 
 #include <cstdio>
 
-extern void simStorageSetRoot(const char *rootDir);
+extern void benchStorageSetRoot(const char *rootDir);
 
 namespace BenchRuntime {
 
 bool boot(const char *dataRoot) {
     Logger::init();
-    simStorageSetRoot(dataRoot);
+    benchStorageSetRoot(dataRoot);
     const ConfigLoader::LoadResult cfg = ConfigLoader::loadAll();
     if (!cfg.signalsOk) {
         fprintf(stderr, "bench: signals.json under '%s' did not load\n", dataRoot);

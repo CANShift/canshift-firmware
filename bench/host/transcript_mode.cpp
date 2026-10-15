@@ -5,7 +5,7 @@
 #include "reply_capture.h"
 
 #include "esp_system.h"
-#include "sim_clock.h"
+#include "bench_clock.h"
 
 #include <cstdio>
 #include <cstring>
@@ -49,7 +49,7 @@ void runCommand(ReplyCapture::Transport transport, const std::string &command) {
         fprintf(s_out, "< %s\n", reply.c_str());
     if (s_restarts != restartsBefore)
         fprintf(s_out, "~ restart\n");
-    SimClock::advanceMs(kCommandGapMs);
+    BenchClock::advanceMs(kCommandGapMs);
 }
 
 bool replay(FILE *in, ReplyCapture::Transport transport) {
@@ -67,8 +67,8 @@ bool replay(FILE *in, ReplyCapture::Transport transport) {
 }
 
 bool bootTranscript(const char *dataRoot) {
-    SimClock::useManual(kEpochMs);
-    SimRestart::hook() = &noteRestart;
+    BenchClock::useManual(kEpochMs);
+    BenchRestart::hook() = &noteRestart;
     return BenchRuntime::boot(dataRoot);
 }
 
