@@ -51,8 +51,8 @@ reads them itself with `#ifndef`.
 
 ## Transport
 
-| Flag                  | Default | Effect                                                                                                                      |
-| --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Flag              | Default | Effect                                                                                                  |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------------- |
 | `APP_BLE_ENABLED` | `1`     | `0` excludes NimBLE entirely (~30 KB DRAM saved). This is the only switch — there is no runtime toggle. |
 
 USB CDC is not behind a flag — it is the primary transport and always compiled
@@ -66,18 +66,18 @@ invoke the FFI unconditionally, so an env that rebuilds `build_flags` from
 `base_flags` alone will fail to link. Envs that extend a board env must inherit
 `${env:crowpanel_28.build_flags}` rather than reconstruct it.
 
-| Flag                     | Crate                | What lives in Rust                       |
-| ------------------------ | -------------------- | ---------------------------------------- |
-| `USE_RUST_SIGNAL_MAP`    | `rust/signal-map`    | Name → `SignalId` lookup                 |
-| `USE_RUST_CAN_PARSER`    | `rust/can-parser`    | `decodeBytes` byte-range → f32           |
-| `USE_RUST_USB_ENVELOPE`  | `rust/usb-envelope`  | `PUT_CONFIG` envelope brace walk         |
-| `USE_RUST_CONFIG_LOADER` | `rust/config-loader` | `parseMajorVersion`                      |
-| `USE_RUST_FORMAT_FLOAT`  | `rust/format-float`  | Newlib-free `%f` / `%g` formatters       |
-| `USE_RUST_ERROR_STORE`   | `rust/error-store`   | Ring-buffer push / getAll / dismissAt    |
-| `USE_RUST_ALERT_ENGINE`  | `rust/alert-engine`  | Per-signal threshold evaluators          |
-| `USE_RUST_TIMER_CORE`    | `rust/timer-core`    | Lap and stopwatch state                  |
-| `USE_RUST_LAYOUT_GRID`   | `rust/layout-grid`   | Grid cell → pixel rect resolution        |
-| `USE_RUST_CONTROL_STATE` | `rust/control-state` | Cruise and button control state machines |
+| Flag                     | Crate                | What lives in Rust                             |
+| ------------------------ | -------------------- | ---------------------------------------------- |
+| `USE_RUST_SIGNAL_MAP`    | `rust/signal-map`    | Name → `SignalId` lookup                       |
+| `USE_RUST_CAN_PARSER`    | `rust/can-parser`    | `decodeBytes` byte-range → f32                 |
+| `USE_RUST_USB_ENVELOPE`  | `rust/usb-envelope`  | `PUT_CONFIG` envelope brace walk               |
+| `USE_RUST_CONFIG_LOADER` | `rust/config-loader` | `parseMajorVersion`                            |
+| `USE_RUST_FORMAT_FLOAT`  | `rust/format-float`  | Newlib-free `%f` / `%g` formatters             |
+| `USE_RUST_ERROR_STORE`   | `rust/error-store`   | Ring-buffer push / getAll / dismissAt          |
+| `USE_RUST_ALERT_ENGINE`  | `rust/alert-engine`  | Per-signal threshold evaluators                |
+| `USE_RUST_TIMER_CORE`    | `rust/timer-core`    | Lap and stopwatch state                        |
+| `USE_RUST_LAYOUT_GRID`   | `rust/layout-grid`   | Grid cell → pixel rect resolution              |
+| `USE_RUST_CONTROL_STATE` | `rust/control-state` | Cruise and button control state machines       |
 | `USE_RUST_UNIT_CONVERT`  | `rust/unit-convert`  | Metric ↔ imperial pairs for the rendered value |
 
 Each flag turns on the matching feature of [`rust/canshift-ffi`](../../rust/canshift-ffi/),
@@ -101,21 +101,21 @@ On hardware LVGL allocates through `LV_MEM_CUSTOM` from one region claimed at
 `lv_init()` (`src/boot/lvgl_pool_alloc.cpp`, an ESP-IDF `multi_heap` over that
 region), so the pool size is decided at run time:
 
-| Module | Pool |
-| --- | --- |
-| PSRAM with a free 512 KB block | 512 KB in PSRAM |
-| no PSRAM (WROOM) | 80 KB of internal RAM, less if the largest free block minus 16 KB headroom is smaller, halving down to a 32 KB floor |
+| Module                         | Pool                                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| PSRAM with a free 512 KB block | 512 KB in PSRAM                                                                                                      |
+| no PSRAM (WROOM)               | 80 KB of internal RAM, less if the largest free block minus 16 KB headroom is smaller, halving down to a 32 KB floor |
 
 Only when not even 32 KB of internal RAM is free does it restart. With the
 rollback gate armed ([Boot sequence](../architecture/boot-sequence.md#ota-mark-valid-placement)),
 an OTA image that dies there rolls back to the previous slot.
 `LVGL_POOL_FORCE_FAIL` exercises the ladder on a board that has PSRAM:
 
-| Value | What refuses | What you should see |
-| ----: | --- | --- |
-| `0` | nothing | `pool: 524288 B in PSRAM` on a PSRAM board, `pool: N B in internal RAM` on a WROOM |
-| `1` | PSRAM | `pool: N B in internal RAM`, the WROOM path on PSRAM hardware |
-| `2` | PSRAM and internal RAM | `no pool: … restarting`, then a reboot loop, or a rollback after an OTA |
+| Value | What refuses           | What you should see                                                                |
+| ----: | ---------------------- | ---------------------------------------------------------------------------------- |
+|   `0` | nothing                | `pool: 524288 B in PSRAM` on a PSRAM board, `pool: N B in internal RAM` on a WROOM |
+|   `1` | PSRAM                  | `pool: N B in internal RAM`, the WROOM path on PSRAM hardware                      |
+|   `2` | PSRAM and internal RAM | `no pool: … restarting`, then a reboot loop, or a rollback after an OTA            |
 
 ```
 PLATFORMIO_BUILD_FLAGS="-DLVGL_POOL_FORCE_FAIL=1" pio run -e waveshare_s3_28 -t upload

@@ -13,14 +13,14 @@ Docs for the other repos: [tuner](https://github.com/CANShift/canshift-tuner/tre
 
 No C++ needed — this is the on-device UI as a driver sees it.
 
-| Doc                                           | What it covers                                               |
-| --------------------------------------------- | ------------------------------------------------------------ |
-| [What is CANShift?](guide/overview.md)        | What the dash does, what it talks to, and what you will need |
-| [First flash](guide/first-flash.md)           | Flash a blank board from a terminal with `esptool`, per chip |
-| [Navigating pages](guide/navigating-pages.md) | Swipe gestures, page reordering, default page on boot        |
-| [Settings panel](guide/settings-panel.md)     | Brightness, BLE toggle, touch calibration                    |
+| Doc                                             | What it covers                                               |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| [What is CANShift?](guide/overview.md)          | What the dash does, what it talks to, and what you will need |
+| [First flash](guide/first-flash.md)             | Flash a blank board from a terminal with `esptool`, per chip |
+| [Navigating pages](guide/navigating-pages.md)   | Swipe gestures, page reordering, default page on boot        |
+| [Settings panel](guide/settings-panel.md)       | Brightness, BLE toggle, touch calibration                    |
 | [Bench: workshop mode](guide/bench-workshop.md) | The first workshop-mode session on a Waveshare, step by step |
-| [Cruise control](guide/cruise-control.md)     | Using the cruise page on the dash                            |
+| [Cruise control](guide/cruise-control.md)       | Using the cruise page on the dash                            |
 
 ## Building one
 

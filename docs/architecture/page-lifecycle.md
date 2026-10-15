@@ -17,11 +17,11 @@ layout shows at boot instead of on the first swipe to it.
 
 What happens next depends on the board:
 
-| Board | Boot | Swipe |
-| --- | --- | --- |
-| PSRAM (S3) | The widget tag pool grows into PSRAM (`kPoolSlots × MAX_PAGES` slots), every page is built and kept, and the fonts are preloaded | Loads a screen that already exists: nothing is allocated or freed |
-| PSRAM, pages do not fit | All-or-nothing: if any page is incomplete, or the LVGL pool keeps less than 64 KB free, every page is released and the board falls back to the row below | Lazy, as below |
-| No PSRAM (WROOM) | Each page is built alone, checked, and released, then the default page is built. Peak use is one page, as on a swipe | Lazy build of the target page, as below |
+| Board                   | Boot                                                                                                                                                     | Swipe                                                             |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| PSRAM (S3)              | The widget tag pool grows into PSRAM (`kPoolSlots × MAX_PAGES` slots), every page is built and kept, and the fonts are preloaded                         | Loads a screen that already exists: nothing is allocated or freed |
+| PSRAM, pages do not fit | All-or-nothing: if any page is incomplete, or the LVGL pool keeps less than 64 KB free, every page is released and the board falls back to the row below | Lazy, as below                                                    |
+| No PSRAM (WROOM)        | Each page is built alone, checked, and released, then the default page is built. Peak use is one page, as on a swipe                                     | Lazy build of the target page, as below                           |
 
 The fallback keeps one page alive because the tag pool holds
 `CONFIG_MAX_WIDGETS_PER_PAGE` tags. On a WROOM the boot check still loads
