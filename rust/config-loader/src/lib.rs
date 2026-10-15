@@ -1,11 +1,8 @@
-// Rust port of pure-logic helpers from config_loader.cpp (#1177 R-10).
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
 mod ffi;
 
-/// Tightened vs C++ strtol: rejects leading whitespace and `+/-` signs.
-/// Production strings ("1.0", "2.3.1") never trigger the divergence.
 #[must_use]
 pub fn parse_major_version(version: &[u8]) -> Option<i32> {
     if version.is_empty() {
@@ -81,7 +78,6 @@ mod tests {
 
     #[test]
     fn rejects_overflow() {
-        // i32::MAX is 2_147_483_647
         assert_eq!(parse_major_version(b"2147483648"), None);
         assert_eq!(parse_major_version(b"99999999999"), None);
     }
@@ -93,14 +89,12 @@ mod tests {
 
     #[test]
     fn embedded_nul_after_digits_stops_at_nul() {
-        // C strings would stop here too — `strtol` reads until a non-digit.
         let v = b"42\0extra";
         assert_eq!(parse_major_version(v), Some(42));
     }
 
     #[test]
     fn no_digits_at_all_after_first_check() {
-        // Unreachable via the first-byte gate, but defensive.
         assert_eq!(parse_major_version(b"abc"), None);
     }
 }

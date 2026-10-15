@@ -1,9 +1,8 @@
+#![allow(clippy::missing_safety_doc)]
+
 use crate::{signal_id_from_name, terminated_name_len, SignalId, SIGNAL_COUNT};
 use core::slice;
 
-/// # Safety
-/// `name` is null or points to a NUL-terminated string. Bytes are read one at a
-/// time up to the NUL, never past it, and never past MAX_NAME_LEN.
 #[no_mangle]
 pub unsafe extern "C" fn signal_id_from_name_rs(name: *const core::ffi::c_char) -> SignalId {
     if name.is_null() {

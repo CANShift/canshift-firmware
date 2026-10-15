@@ -5,14 +5,8 @@ use crate::{dismiss_at, get_all, push, FwError, CODE_LEN, MESSAGE_LEN};
 
 const _: () = assert!(core::mem::size_of::<FwError>() == 1 + CODE_LEN + MESSAGE_LEN);
 
-// Defends against a missing NUL on a hostile input.
 const MAX_INPUT_LEN: usize = 64;
 
-// Caller must hold the portMUX. See lib.rs::push.
-// # Safety
-// - `ring` points to `ring_size` writable entries.
-// - `head`/`count`/`version` are writable.
-// - `code`/`message` are NUL-terminated or null (capped at MAX_INPUT_LEN).
 #[no_mangle]
 pub unsafe extern "C" fn error_store_push_rs(
     ring: *mut FwError,
@@ -41,7 +35,6 @@ pub unsafe extern "C" fn error_store_push_rs(
     );
 }
 
-// # Safety: caller must hold portMUX; `ring` readable, `out` writable for max_count.
 #[no_mangle]
 pub unsafe extern "C" fn error_store_get_all_rs(
     ring: *const FwError,
@@ -59,7 +52,6 @@ pub unsafe extern "C" fn error_store_get_all_rs(
     get_all(ring_slice, head, count, out_slice)
 }
 
-// # Safety: same as error_store_push_rs. Out-of-range row is a no-op.
 #[no_mangle]
 pub unsafe extern "C" fn error_store_dismiss_at_rs(
     ring: *mut FwError,

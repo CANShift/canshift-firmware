@@ -1,11 +1,11 @@
+#![allow(clippy::missing_safety_doc)]
+
 use crate::expr::{EvalContext, RefValue};
 use crate::expr_compile::CompileError;
 use crate::expr_ffi::{compile_error_code, compile_to_ffi, eval_ffi, eval_ffi_checked, FfiTok};
 use crate::{decode_bytes, CAN_FRAME_MAX_BYTES};
 use core::slice;
 
-/// # Safety
-/// `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES; null → 0).
 #[no_mangle]
 pub unsafe extern "C" fn decode_bytes_rs(
     data: *const u8,
@@ -28,8 +28,6 @@ pub unsafe extern "C" fn decode_bytes_rs(
     )
 }
 
-/// # Safety
-/// `expr` readable for `expr_len` bytes; `out` writable for `out_cap` `FfiTok`.
 #[no_mangle]
 #[must_use]
 pub unsafe extern "C" fn compile_expr_rs(
@@ -49,9 +47,6 @@ pub unsafe extern "C" fn compile_expr_rs(
     }
 }
 
-/// # Safety
-/// `data` readable for `data_len` bytes (capped at CAN_FRAME_MAX_BYTES);
-/// `tokens` readable for `n_tokens` `FfiTok` produced by `compile_expr_rs`.
 #[no_mangle]
 pub unsafe extern "C" fn eval_tokens_rs(
     data: *const u8,
@@ -86,9 +81,6 @@ pub unsafe extern "C" fn eval_tokens_rs(
     eval_ffi(toks, &ctx)
 }
 
-/// # Safety
-/// `data`, `tokens` and `refs` must point to at least `data_len`, `n_tokens`
-/// and `n_refs` readable elements; `refs` may be null when `n_refs` is 0.
 #[no_mangle]
 #[must_use]
 #[allow(clippy::too_many_arguments)]

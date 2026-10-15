@@ -12,9 +12,6 @@ const _: () = assert!(Severity::Failure as u8 == SEVERITY_LEVEL_COUNT - 1);
 const _: () = assert!(core::mem::size_of::<BusSilence>() == 8);
 const _: () = assert!(core::mem::align_of::<BusSilence>() == 4);
 
-/// # Safety
-/// `out` must point to a valid, writable `BusSilence` (the C++ mirror struct
-/// `AlertBusSilenceRs` in alert_engine_rs.h — layouts must stay in sync).
 #[no_mangle]
 pub unsafe extern "C" fn alert_bus_silence_rs(
     out: *mut BusSilence,
@@ -97,9 +94,6 @@ pub extern "C" fn alert_eval_battery_rs(
     eval_battery(volts, low_warn_v, low_crit_v, high_warn_v, high_crit_v) as u8
 }
 
-/// # Safety
-/// `health` must point to a valid, writable `SensorHealth` (the C++ mirror
-/// struct in alert_engine_rs.h — layouts must stay in sync).
 #[no_mangle]
 pub unsafe extern "C" fn alert_sensor_health_step_rs(
     health: *mut SensorHealth,
@@ -113,10 +107,6 @@ pub unsafe extern "C" fn alert_sensor_health_step_rs(
     *h = sensor_health_step(*h, valid, now_ms, clear_hold_ms);
 }
 
-/// # Safety
-/// `hold` must point to a valid, writable `LevelHold` (the C++ mirror struct
-/// in alert_engine_rs.h — layouts must stay in sync). Applies to all
-/// `alert_*_step_rs` functions below.
 unsafe fn step_hold(
     hold: *mut LevelHold,
     value: f32,
@@ -132,8 +122,6 @@ unsafe fn step_hold(
     h.level as u8
 }
 
-/// # Safety
-/// See `step_hold`.
 #[no_mangle]
 pub extern "C" fn alert_display_idle_state_rs(
     idle_ms: u32,
@@ -160,8 +148,6 @@ pub unsafe extern "C" fn alert_coolant_temp_step_rs(
     })
 }
 
-/// # Safety
-/// See `step_hold`.
 #[no_mangle]
 pub unsafe extern "C" fn alert_high_side_temp_step_rs(
     hold: *mut LevelHold,
@@ -179,8 +165,6 @@ pub unsafe extern "C" fn alert_high_side_temp_step_rs(
     })
 }
 
-/// # Safety
-/// See `step_hold`.
 #[no_mangle]
 pub unsafe extern "C" fn alert_oil_pressure_step_rs(
     hold: *mut LevelHold,
@@ -203,8 +187,6 @@ pub unsafe extern "C" fn alert_oil_pressure_step_rs(
     )
 }
 
-/// # Safety
-/// See `step_hold`.
 #[no_mangle]
 pub unsafe extern "C" fn alert_battery_step_rs(
     hold: *mut LevelHold,
@@ -232,8 +214,6 @@ pub extern "C" fn alert_severity_for_reading_rs(
     severity_for_reading(value, warn_level, danger_level, danger_below) as u8
 }
 
-/// # Safety
-/// `out` must be a valid, aligned, writable `CrossedLimit`, or null.
 #[no_mangle]
 pub unsafe extern "C" fn alert_crossed_limit_rs(
     out: *mut CrossedLimit,

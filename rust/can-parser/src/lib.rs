@@ -1,6 +1,3 @@
-//! Rust port of can_parser.cpp::detail::decodeBytes (#1177 R-1).
-//! Pure arithmetic on a fixed-size CAN payload — no alloc, no I/O.
-
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 mod decimal;
@@ -12,11 +9,8 @@ pub mod expr_run;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
-// Mirrors kCanFrameMaxBytes — keep in lockstep with app_config.h.
 pub const CAN_FRAME_MAX_BYTES: usize = 8;
 
-/// Returns 0.0 on bad input. When bit_mask != 0, ignores is_signed/scale/offset
-/// and returns 1.0 if the masked bits are set, 0.0 otherwise.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn decode_bytes(
@@ -59,10 +53,6 @@ pub fn decode_bytes(
 
     let physical: f32 = if is_signed {
         let bits = (len as u32) * 8;
-        // For `byte_len == 4` the 32-bit mask is degenerate — `raw` already
-        // holds the correct two's-complement bit pattern and the `i32` cast
-        // does the reinterpret. The `u64` shift below is gated on
-        // `len < 4` so we never invoke 32-or-wider shift UB.
         if len < 4 && raw & (1u32 << (bits - 1)) != 0 {
             raw |= !((1u64 << bits) - 1) as u32;
         }
@@ -142,11 +132,8 @@ mod tests {
 
     #[test]
     fn four_byte_signed_large_negative() {
-        // 0x80000000 big-endian, signed → -2_147_483_648.
         let frame = [0x80, 0x00, 0x00, 0x00, 0, 0, 0, 0];
         let r = decode_bytes(&frame, 0, 4, true, true, 0, 1.0, 0.0);
-        // f32 can't represent -2^31 exactly but the round-to-nearest gives
-        // exactly that value.
         assert!(approx(r, -2_147_483_648.0_f32), "got {r}");
     }
 
@@ -154,7 +141,6 @@ mod tests {
     fn four_byte_unsigned_max() {
         let frame = [0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0];
         let r = decode_bytes(&frame, 0, 4, false, false, 0, 1.0, 0.0);
-        // u32::MAX rounds to 4_294_967_296 in f32 (≈ +2^32).
         assert!(approx(r, 4_294_967_295.0_f32), "got {r}");
     }
 
@@ -169,7 +155,6 @@ mod tests {
     fn little_endian_two_byte_unsigned() {
         let frame = [0xCD, 0xAB, 0, 0, 0, 0, 0, 0];
         let r = decode_bytes(&frame, 0, 2, false, false, 0, 1.0, 0.0);
-        // 0xABCD == 43981.
         assert!(approx(r, 43981.0));
     }
 
@@ -182,7 +167,6 @@ mod tests {
 
     #[test]
     fn mask_dominates_over_signed_flag() {
-        // bit_mask != 0 → returns 0/1 regardless of is_signed.
         let frame = [0xFF, 0, 0, 0, 0, 0, 0, 0];
         let r = decode_bytes(&frame, 0, 1, false, true, 0x80, 1.0, 0.0);
         assert!(approx(r, 1.0));

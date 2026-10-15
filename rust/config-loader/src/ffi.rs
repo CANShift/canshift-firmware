@@ -5,8 +5,6 @@ use crate::parse_major_version;
 
 const MAX_VERSION_LEN: usize = 32;
 
-/// Returns -1 on null/empty/no-NUL/overflow/unparseable.
-/// # Safety: `version` null or NUL-terminated within MAX_VERSION_LEN.
 #[no_mangle]
 pub unsafe extern "C" fn parse_major_version_rs(version: *const c_char) -> i32 {
     if version.is_null() {

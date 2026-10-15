@@ -3,8 +3,6 @@ use core::slice;
 
 use crate::{find_needle, find_payload_slice};
 
-/// # Safety: both pointers null OR readable for their length. Tightens vs C++ —
-/// null returns null instead of dereferencing.
 #[no_mangle]
 pub unsafe extern "C" fn find_needle_rs(
     haystack: *const u8,
@@ -23,7 +21,6 @@ pub unsafe extern "C" fn find_needle_rs(
     }
 }
 
-/// # Safety: `json_line` null or readable for `line_len`; `out_len` may be null.
 #[no_mangle]
 pub unsafe extern "C" fn find_payload_slice_rs(
     json_line: *const u8,

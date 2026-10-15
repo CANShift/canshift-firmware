@@ -1,12 +1,8 @@
-// Rust port of UsbEnvelope::{findNeedle, findPayloadSlice}. Zero-alloc;
-// offsets into the input slice translate to pointers in the FFI shim.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
 mod ffi;
 
-/// Length-bounded substring search. Empty needle → None (matches C++ contract).
-/// Avoids strstr — embedded NUL can't short-circuit (#884).
 #[must_use]
 pub fn find_needle(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
@@ -23,8 +19,6 @@ pub fn find_needle(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     None
 }
 
-/// Brace-balanced slice of `"payload": { ... }`. None on missing key, non-object,
-/// or truncated input. String-aware: `{`/`}` inside strings ignored, `\"` honoured.
 #[must_use]
 pub fn find_payload_slice(json_line: &[u8]) -> Option<(usize, usize)> {
     const NEEDLE: &[u8] = b"\"payload\"";
@@ -41,8 +35,6 @@ pub fn find_payload_slice(json_line: &[u8]) -> Option<(usize, usize)> {
         return None;
     }
 
-    // Brace-balance walk. Strings are honoured so we don't count `{` / `}`
-    // inside JSON string values. Escapes inside strings are skipped verbatim.
     let value_start = cursor;
     let mut depth: i32 = 0;
     let mut in_string = false;
@@ -50,7 +42,6 @@ pub fn find_payload_slice(json_line: &[u8]) -> Option<(usize, usize)> {
         let c = json_line[cursor];
         if in_string {
             if c == b'\\' {
-                // Skip the escape byte AND the next byte (whatever it is).
                 cursor += 1;
                 if cursor < json_line.len() {
                     cursor += 1;
@@ -172,8 +163,6 @@ mod tests {
 
     #[test]
     fn payload_embedded_nul_does_not_short_circuit() {
-        // Build a buffer with an embedded NUL, then the real envelope past it.
-        // strlen() would stop at the NUL; the length-bounded scan must not.
         let mut buf = Vec::new();
         buf.extend_from_slice(b"abc\0");
         buf.extend_from_slice(b"{\"payload\":{\"a\":1}}");
@@ -237,9 +226,6 @@ mod tests {
 
     #[test]
     fn payload_consecutive_escapes() {
-        // `\\` inside a string is a single escaped backslash. The `\\"` that
-        // follows is an escaped quote — must NOT close the string. The trailing
-        // real `"` closes it.
         let line = "{\"payload\":{\"k\":\"\\\\\\\"end\"}}";
         let (off, len) = find_payload_slice(line.as_bytes()).unwrap();
         assert_eq!(slice(line, (off, len)), "{\"k\":\"\\\\\\\"end\"}");

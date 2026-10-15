@@ -56,6 +56,7 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 | [Workshop mode](architecture/workshop-mode.md)     | Planned: the dash serves the tuner over Wi-Fi, with BLE off                 |
 | [ErrorStore](architecture/error-store.md)          | Error ring buffer and its critical-section invariant                        |
 | [Cruise template](architecture/cruise-template.md) | L-shape buttons and the LVGL convex-polygon workaround                      |
+| [Rust modules](architecture/rust-modules.md)       | FFI contracts and invariants of the `rust/` crates                          |
 
 ## Reference
 

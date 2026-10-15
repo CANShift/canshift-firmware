@@ -217,25 +217,23 @@ mod tests {
 
     #[test]
     fn scale_beyond_320x240_hypothetical_resolutions() {
-        // 480x320 landscape target.
         assert_eq!(scale(320, 320, 480), 480);
         assert_eq!(scale(240, 240, 320), 320);
-        assert_eq!(scale(32, 240, 320), 43); // 32*320/240 = 42.67 -> 43
-        assert_eq!(scale(44, 320, 480), 66); // 44*480/320 = 66.0
-                                             // 800x480 (7" class) target.
+        assert_eq!(scale(32, 240, 320), 43);
+        assert_eq!(scale(44, 320, 480), 66);
         assert_eq!(scale(320, 320, 800), 800);
         assert_eq!(scale(240, 240, 480), 480);
-        assert_eq!(scale(18, 320, 800), 45); // 18*800/320 = 45.0
+        assert_eq!(scale(18, 320, 800), 45);
         assert_eq!(scale(220, 240, 480), 440);
     }
 
     #[test]
     fn scale_rounds_half_away_from_zero() {
-        assert_eq!(scale(1, 2, 3), 2); // 1.5 -> 2
-        assert_eq!(scale(3, 8, 4), 2); // 1.5 -> 2
-        assert_eq!(scale(-1, 2, 3), -2); // -1.5 -> -2
-        assert_eq!(scale(5, 3, 1), 2); // 1.667 -> 2
-        assert_eq!(scale(1, 3, 1), 0); // 0.333 -> 0
+        assert_eq!(scale(1, 2, 3), 2);
+        assert_eq!(scale(3, 8, 4), 2);
+        assert_eq!(scale(-1, 2, 3), -2);
+        assert_eq!(scale(5, 3, 1), 2);
+        assert_eq!(scale(1, 3, 1), 0);
     }
 
     #[test]

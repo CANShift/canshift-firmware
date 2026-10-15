@@ -1,6 +1,3 @@
-// Rust port of FloatFormat::{formatFixed, formatFromSpec, formatGeneral} (#1177 R-2).
-// Avoids newlib %f/%g — that path drags ~30 KB flash (#305 / #405).
-// snprintf-style returns: chars-that-would-be-written; truncate-not-round; NaN/inf as literals.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
@@ -56,7 +53,6 @@ pub fn format_fixed(buf: &mut [u8], value: f32, decimals: i32) -> usize {
     let whole = scaled / scale;
     let frac = scaled % scale;
 
-    // Worst case 23 bytes; 32 matches the C++ scratch.
     let mut scratch = [0u8; 32];
     let mut pos = 0usize;
     if negative {
@@ -79,7 +75,6 @@ struct FixedSpec {
     after: usize,
 }
 
-// `.N` after a `%`: None past two digits (malformed); no dot keeps the %.1f default.
 fn parse_precision(spec: &[u8], start: usize) -> (Option<i32>, usize) {
     if start >= spec.len() || spec[start] != b'.' {
         return (Some(1), start);
@@ -98,7 +93,6 @@ fn parse_precision(spec: &[u8], start: usize) -> (Option<i32>, usize) {
     (Some(n), j)
 }
 
-// First `%[.N]f` token; `%%` is the escape — skip both.
 fn find_fixed_spec(spec: &[u8]) -> Option<FixedSpec> {
     let mut i = 0usize;
     while i < spec.len() {
@@ -127,7 +121,6 @@ fn find_fixed_spec(spec: &[u8]) -> Option<FixedSpec> {
     None
 }
 
-// Parses "<prefix>%[.N]f<suffix>" from JSON configs. Falls back to %.1f on bad spec.
 #[must_use]
 pub fn format_from_spec(buf: &mut [u8], value: f32, spec: &[u8]) -> usize {
     if buf.is_empty() {
@@ -157,8 +150,6 @@ pub fn format_from_spec(buf: &mut [u8], value: f32, spec: &[u8]) -> usize {
     total
 }
 
-// printf %g equivalent — fixed notation, trailing zeros dropped. Output is
-// valid JSON numeric (the tuner parses telemetry as JSON).
 #[must_use]
 pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
     if buf.is_empty() {
@@ -180,7 +171,6 @@ pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
         );
     }
 
-    // 12-iteration cap guards +inf-adjacent values; mirrors C++ exactly.
     let abs = value.abs();
     let mut int_digits = 1;
     if abs >= 1.0 {
@@ -195,14 +185,10 @@ pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
 
     let mut scratch = [0u8; 32];
     let len = format_fixed(&mut scratch, value, decimals);
-    // If the scratch overflowed (>= 31 chars rendered + NUL), copy what's
-    // in scratch as-is (it's the same as C++ behaviour — `copyTerminated`
-    // of the scratch).
     if len >= scratch.len() - 1 {
         return copy_terminated(buf, &scratch[..find_nul(&scratch)]);
     }
 
-    // Strip trailing zeros after the decimal point (the %g trick).
     let mut end = len;
     if decimals > 0 {
         while end > 0 && scratch[end - 1] == b'0' {
@@ -221,7 +207,6 @@ fn find_nul(buf: &[u8]) -> usize {
     buf.iter().position(|&b| b == 0).unwrap_or(buf.len())
 }
 
-// snprintf-style — returns src.len(), not copied length.
 fn copy_terminated(buf: &mut [u8], src: &[u8]) -> usize {
     if buf.is_empty() {
         return 0;
@@ -399,7 +384,6 @@ mod tests {
     #[test]
     fn spec_double_percent_is_skip_not_unescape() {
         let mut buf = [0u8; 32];
-        // C++ quirk: %% survives in the prefix verbatim, NOT printf-style.
         assert_eq!(format_from_spec(&mut buf, 9.8, b"%%V%.1f"), 6);
         assert_eq!(as_str(&buf), "%%V9.8");
     }
@@ -422,7 +406,6 @@ mod tests {
     fn general_strips_trailing_zeros() {
         let mut buf = [0u8; 32];
         assert_eq!(format_general(&mut buf, 1.5, 4), 3);
-        // 4 sig digits, 1 int digit → 3 decimals → "1.500" → strip → "1.5"
         assert_eq!(as_str(&buf), "1.5");
     }
 
@@ -437,16 +420,12 @@ mod tests {
     fn general_large_magnitude_no_decimals() {
         let mut buf = [0u8; 32];
         assert_eq!(format_general(&mut buf, 12345.0, 4), 5);
-        // 4 sig digits, 5 int digits → 0 decimals → "12345" (no trailing
-        // strip needed).
         assert_eq!(as_str(&buf), "12345");
     }
 
     #[test]
     fn general_sub_unit_small() {
         let mut buf = [0u8; 32];
-        // abs < 1 → int_digits stays at 1 (the early return path), so
-        // 4 sig digits → 3 decimals → "0.123" with the trailing strip.
         assert_eq!(format_general(&mut buf, 0.123, 4), 5);
         assert_eq!(as_str(&buf), "0.123");
     }
@@ -462,7 +441,6 @@ mod tests {
     fn general_clamps_sig_digits_low() {
         let mut buf = [0u8; 32];
         assert_eq!(format_general(&mut buf, 9.876, 0), 2);
-        // Clamped to 1 → 1 int digit → 0 decimals → "10" after rounding.
         assert_eq!(as_str(&buf), "10");
     }
 

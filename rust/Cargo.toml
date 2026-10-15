@@ -17,9 +17,6 @@ members = [
     "canshift-ffi",
 ]
 
-# Workspace-shared profile knobs — Phase 1 host build only. ESP32 target
-# integration (espup, xtensa-esp32-none-elf) lands in Phase 2 with the
-# PlatformIO pre-build script.
 [profile.release]
 opt-level = "z"
 lto = true

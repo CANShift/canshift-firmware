@@ -1,6 +1,3 @@
-//! Rust port of signal_map.cpp (#1177 R-4). Linear scan over a 22-entry table —
-//! same shape as the C++ original so adding a signal stays a one-line edit.
-
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 #[cfg(feature = "ffi")]
@@ -8,10 +5,8 @@ pub mod ffi;
 
 pub type SignalId = u8;
 
-/// Sentinel for unknown name. Must mirror SignalIds::SIGNAL_COUNT in signal_map.h.
 pub const SIGNAL_COUNT: SignalId = 64;
 
-// Numeric gaps reserve room per band; test/test_signal_map asserts the C++ mirror.
 pub mod ids {
     use super::SignalId;
     pub const RPM: SignalId = 0;
@@ -112,7 +107,6 @@ pub fn terminated_name_len(read: impl Fn(usize) -> u8) -> Option<usize> {
     (0..MAX_NAME_LEN).find(|&i| read(i) == 0)
 }
 
-/// Returns SIGNAL_COUNT on unknown name or empty input.
 #[must_use]
 pub fn signal_id_from_name(name: &str) -> SignalId {
     if name.is_empty() {
