@@ -1,54 +1,55 @@
 # CANShift firmware bench
 
-Latest: `51c8a9b` on 2026-10-15, 8 commits recorded. Trends cover the last 30 commits on `main`; the raw data is `history.json`.
+Latest: `1703a03` on 2026-10-15, 9 commits recorded. Trends cover the last 30 commits on `main`; the raw data is `history.json`.
 
 ## Image sizes
 
 | board | metric | bytes | trend |
 | --- | --- | ---: | --- |
-| crowpanel_28 | flash | 1,272,496 | `▅▅▅▅▅▅▅▅` |
-| crowpanel_28 | dram | 89,644 | `▅▅▅▅▅▅▅▅` |
-| crowpanel_28 | iram | 110,327 | `▅▅▅▅▅▅▅▅` |
-| crowpanel_28 | psram | 0 | `▅▅▅▅▅▅▅▅` |
-| generic_esp32s3 | flash | 1,185,248 | `▅▅▅▅▅▅▅▅` |
-| generic_esp32s3 | dram | 83,400 | `▅▅▅▅▅▅▅▅` |
-| generic_esp32s3 | iram | 77,959 | `▅▅▅▅▅▅▅▅` |
-| generic_esp32s3 | psram | 0 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341 | flash | 1,272,672 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341 | dram | 89,644 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341 | iram | 110,327 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341 | psram | 0 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341_gt911 | flash | 1,272,960 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341_gt911 | dram | 89,644 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341_gt911 | iram | 110,327 | `▅▅▅▅▅▅▅▅` |
-| generic_ili9341_gt911 | psram | 0 | `▅▅▅▅▅▅▅▅` |
-| waveshare_s3_28 | flash | 1,632,112 | `▅▅▅▅▅▅▅▅` |
-| waveshare_s3_28 | dram | 104,844 | `▅▅▅▅▅▅▅▅` |
-| waveshare_s3_28 | iram | 88,963 | `▅▅▅▅▅▅▅▅` |
-| waveshare_s3_28 | psram | 0 | `▅▅▅▅▅▅▅▅` |
+| crowpanel_28 | flash | 1,274,112 | `▁▁▁▁▁▁▁▁█` |
+| crowpanel_28 | dram | 89,964 | `▁▁▁▁▁▁▁▁█` |
+| crowpanel_28 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅` |
+| crowpanel_28 | psram | 0 | `▅▅▅▅▅▅▅▅▅` |
+| generic_esp32s3 | flash | 1,186,912 | `▁▁▁▁▁▁▁▁█` |
+| generic_esp32s3 | dram | 83,720 | `▁▁▁▁▁▁▁▁█` |
+| generic_esp32s3 | iram | 77,959 | `▅▅▅▅▅▅▅▅▅` |
+| generic_esp32s3 | psram | 0 | `▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341 | flash | 1,274,288 | `▁▁▁▁▁▁▁▁█` |
+| generic_ili9341 | dram | 89,964 | `▁▁▁▁▁▁▁▁█` |
+| generic_ili9341 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341 | psram | 0 | `▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341_gt911 | flash | 1,274,592 | `▁▁▁▁▁▁▁▁█` |
+| generic_ili9341_gt911 | dram | 89,964 | `▁▁▁▁▁▁▁▁█` |
+| generic_ili9341_gt911 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341_gt911 | psram | 0 | `▅▅▅▅▅▅▅▅▅` |
+| waveshare_s3_28 | flash | 1,633,776 | `▁▁▁▁▁▁▁▁█` |
+| waveshare_s3_28 | dram | 105,164 | `▁▁▁▁▁▁▁▁█` |
+| waveshare_s3_28 | iram | 88,963 | `▅▅▅▅▅▅▅▅▅` |
+| waveshare_s3_28 | psram | 0 | `▅▅▅▅▅▅▅▅▅` |
 
 ## Hot paths
 
 | case | median ns | trend (÷ calibration) |
 | --- | ---: | --- |
-| calibration | 72.8 | `▅▅▅▅▅▅▅▅` |
-| can_decode | 176.2 | `▁████▅▄█` |
-| expr_eval | 49.3 | `▁█▇██▆▆█` |
-| telemetry_encode | 65.9 | `▁▇▆▇▇██▇` |
-| status_writer | 1,521.4 | `▁█▇▇█▄▄█` |
-| format_float | 23.1 | `▁████▇██` |
-| command/status | 1,866.2 | `▁████▄▄█` |
-| command/ping | 303.2 | `▁█▇▇▇▆▆▇` |
-| command/shared | 262.6 | `▁▆█▆▆▅▆▆` |
-| command/config_get | 9,172.7 | `█████▁▁█` |
-| command/ota_reject | 1,025.9 | `▁████▇▇█` |
-| command/unknown | 297.1 | `▁█▇▇▇▅▅▇` |
-| command/parse_error | 270.3 | `▁███▇▆▆█` |
+| calibration | 81.7 | `▅▅▅▅▅▅▅▅▅` |
+| can_decode | 188.3 | `▁████▅▄█▄` |
+| expr_eval | 47.6 | `▁█▇██▆▆█▆` |
+| telemetry_encode | 72.7 | `▁▇▆▇▇██▇▆` |
+| status_writer | 1,568.7 | `▁█▇▇█▄▄█▆` |
+| format_float | 21.8 | `▁████▇██▄` |
+| command/status | 1,891.5 | `▁████▄▄█▆` |
+| command/ping | 271.7 | `▁█▇▇▇▆▆▇▂` |
+| command/shared | 232.0 | `▂▆█▆▆▅▆▆▁` |
+| command/config_get | 11,288.8 | `▇▇▇▇▇▁▁▇█` |
+| command/ota_reject | 916.6 | `▁████▇▇█▄` |
+| command/unknown | 249.6 | `▁█▇▇▇▅▅▇▂` |
+| command/parse_error | 218.7 | `▂███▇▆▆█▁` |
 
 ## Goldens
 
 | commit | date | behaviour | visual |
 | --- | --- | ---: | ---: |
+| `1703a03` | 2026-10-15 | 6/6 | 30/30 |
 | `51c8a9b` | 2026-10-15 | 6/6 | 30/30 |
 | `f17c9e1` | 2026-10-15 | 6/6 | 30/30 |
 | `59df1cf` | 2026-10-15 | 6/6 | 30/30 |
