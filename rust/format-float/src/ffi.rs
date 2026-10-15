@@ -3,7 +3,6 @@ use core::slice;
 
 use crate::{format_fixed, format_from_spec, format_general};
 
-// # Safety: `buf` writable for `size` bytes (or null → returns 0).
 #[no_mangle]
 pub unsafe extern "C" fn format_fixed_rs(
     buf: *mut c_char,
@@ -18,7 +17,6 @@ pub unsafe extern "C" fn format_fixed_rs(
     format_fixed(out, value, decimals)
 }
 
-// # Safety: `buf` writable for `size`; `spec` null or NUL-terminated.
 #[no_mangle]
 pub unsafe extern "C" fn format_from_spec_rs(
     buf: *mut c_char,
@@ -37,7 +35,6 @@ pub unsafe extern "C" fn format_from_spec_rs(
     format_from_spec(out, value, spec_slice)
 }
 
-// # Safety: `buf` writable for `size` bytes (or null → returns 0).
 #[no_mangle]
 pub unsafe extern "C" fn format_general_rs(
     buf: *mut c_char,

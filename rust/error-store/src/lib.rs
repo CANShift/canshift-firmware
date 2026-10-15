@@ -1,5 +1,3 @@
-// Rust port of error_store.cpp ring-buffer math (#1177 R-5).
-// C++ wrapper holds the portMUX lock across every call — Rust assumes exclusive access.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "ffi")]
@@ -8,7 +6,6 @@ mod ffi;
 pub const CODE_LEN: usize = 12;
 pub const MESSAGE_LEN: usize = 52;
 
-// repr(C) is load-bearing — C++ accesses by pointer at the same offsets.
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct FwError {
@@ -17,8 +14,8 @@ pub struct FwError {
     pub message: [u8; MESSAGE_LEN],
 }
 
-// Updates in-place on dup (source, code); otherwise inserts at next free slot,
-// evicting oldest when full. Always bumps version.
+const _: () = assert!(core::mem::size_of::<FwError>() == 1 + CODE_LEN + MESSAGE_LEN);
+
 pub fn push(
     ring: &mut [FwError],
     head: &mut u8,
@@ -33,7 +30,6 @@ pub fn push(
         return;
     }
 
-    // strncmp semantics — match up to first NUL or CODE_LEN.
     for i in 0..*count {
         let idx = (head.wrapping_add(i)) % ring_size;
         let entry = &mut ring[idx as usize];
@@ -61,7 +57,6 @@ pub fn push(
     *version = version.wrapping_add(1);
 }
 
-// Newest-first copy into `out`; returns number written. Doesn't mutate state.
 #[must_use]
 pub fn get_all(ring: &[FwError], head: u8, count: u8, out: &mut [FwError]) -> u8 {
     let ring_size = ring.len() as u8;
@@ -77,14 +72,12 @@ pub fn get_all(ring: &[FwError], head: u8, count: u8, out: &mut [FwError]) -> u8
     n
 }
 
-// Out-of-range row is a no-op (and doesn't bump version).
 pub fn dismiss_at(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: &mut u32, row: u8) {
     let ring_size = ring.len() as u8;
     if ring_size == 0 || row >= *count {
         return;
     }
 
-    // pos == 0 → oldest (advance head); pos == count-1 → newest (no copy).
     let pos = (*count - 1).wrapping_sub(row);
 
     if pos == 0 {
@@ -103,7 +96,6 @@ pub fn dismiss_at(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: 
     *version = version.wrapping_add(1);
 }
 
-// strncmp-equivalent against the fixed-width `code` field.
 fn code_matches(stored: &[u8], incoming: &[u8]) -> bool {
     for i in 0..stored.len() {
         let a = stored[i];
@@ -124,7 +116,6 @@ fn code_matches(stored: &[u8], incoming: &[u8]) -> bool {
         || incoming.iter().take(stored.len()).all(|&b| b != 0) && incoming.len() == stored.len()
 }
 
-// strncpy semantics — truncate at dst.len()-1, zero-fill the tail.
 fn copy_into_fixed(dst: &mut [u8], src: &[u8]) {
     let max = dst.len() - 1;
     let src_effective = source_until_nul(src, max);

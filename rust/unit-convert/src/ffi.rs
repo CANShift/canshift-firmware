@@ -3,7 +3,6 @@ use core::ptr;
 
 use crate::{display_symbol, display_value, UnitSystem};
 
-// # Safety: `unit` null or NUL-terminated. The returned pointer is static.
 #[no_mangle]
 pub unsafe extern "C" fn unit_display_symbol_rs(unit: *const c_char, system: u8) -> *const c_char {
     if unit.is_null() {
@@ -16,7 +15,6 @@ pub unsafe extern "C" fn unit_display_symbol_rs(unit: *const c_char, system: u8)
     }
 }
 
-// # Safety: `unit` null or NUL-terminated.
 #[no_mangle]
 pub unsafe extern "C" fn unit_display_value_rs(value: f32, unit: *const c_char, system: u8) -> f32 {
     if unit.is_null() {
