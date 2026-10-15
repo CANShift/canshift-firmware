@@ -37,3 +37,6 @@ sim-screenshot.bmp
 
 __pycache__/
 *.pyc
+
+secure-boot/*/sdkconfig
+secure-boot/*/build/

@@ -1,0 +1,15 @@
+# Partition table — 16MB flash, secure boot v2 + flash encryption (Waveshare ESP32-S3 2.8").
+#
+# Same geometry as ota_16mb.csv, so a board moves between the plain and the
+# secure image without relocating any partition. With flash encryption on,
+# the app slots and otadata are always encrypted; coredump is flagged because
+# a panic dump holds RAM. nvs and spiffs stay plaintext: neither library
+# supports flash encryption. See docs/reference/secure-boot-setup.md.
+#
+# Name,   Type, SubType,  Offset,   Size,    Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+otadata,  data, ota,      0xe000,   0x2000,
+app0,     app,  ota_0,    0x10000,  0x400000,
+app1,     app,  ota_1,    0x410000, 0x400000,
+spiffs,   data, spiffs,   0x810000, 0x760000,
+coredump, data, coredump, 0xF70000, 0x20000, encrypted
