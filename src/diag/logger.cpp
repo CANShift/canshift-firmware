@@ -32,9 +32,9 @@ void mirrorLine(const char *line, size_t len) {
 void mirrorLine(const char *, size_t) {}
 #endif
 
-constexpr size_t MSG_BUF_SIZE = 256;
-constexpr size_t ESC_BUF_SIZE = 512;
-constexpr size_t LINE_BUF_SIZE = 640;
+constexpr size_t kMsgBufSize = 256;
+constexpr size_t kEscBufSize = 512;
+constexpr size_t kLineBufSize = 640;
 
 void escapeJson(const char *src, char *dst, size_t dstCap) {
     if (dstCap == 0)
@@ -109,10 +109,10 @@ void kickStalledTxDrain() {
 
 bool Logger::writeAll(const uint8_t *bytes, size_t len) {
     size_t sent = 0;
-    const uint32_t deadline = millis() + USB_TX_WRITE_TIMEOUT_MS;
+    const uint32_t deadline = millis() + kUsbTxWriteTimeoutMs;
     while (sent < len) {
         const size_t remaining = len - sent;
-        const size_t piece = remaining < USB_TX_PIECE_BYTES ? remaining : USB_TX_PIECE_BYTES;
+        const size_t piece = remaining < kUsbTxPieceBytes ? remaining : kUsbTxPieceBytes;
         const bool roomForPiece = static_cast<size_t>(Serial.availableForWrite()) >= piece;
         sent += roomForPiece ? Serial.write(bytes + sent, piece) : 0;
         if (sent >= len) {
@@ -150,14 +150,14 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
 
     if (!s_uartMutex) {
 #ifndef UNIT_TEST
-        configASSERT(xPortGetCoreID() == TASK_CORE_UI);
+        configASSERT(xPortGetCoreID() == kTaskCoreUi);
 #endif
     } else if (xSemaphoreTakeRecursive(s_uartMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
 
         return;
     }
 
-    static char msg[MSG_BUF_SIZE];
+    static char msg[kMsgBufSize];
     if (fmt) {
         va_list ap;
         va_start(ap, fmt);
@@ -168,14 +168,14 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
     }
     msg[sizeof(msg) - 1] = '\0';
 
-    static char escaped[ESC_BUF_SIZE];
+    static char escaped[kEscBufSize];
     escapeJson(msg, escaped, sizeof(escaped));
 
-    static char tagBuf[LOG_TAG_MAX_LEN + 1];
+    static char tagBuf[kLogTagMaxLen + 1];
     {
         size_t w = 0;
         if (tag) {
-            for (size_t r = 0; tag[r] != '\0' && w < LOG_TAG_MAX_LEN; ++r) {
+            for (size_t r = 0; tag[r] != '\0' && w < kLogTagMaxLen; ++r) {
                 const unsigned char c = static_cast<unsigned char>(tag[r]);
                 if (c >= 0x20 && c < 0x7F && c != '"' && c != '\\') {
                     tagBuf[w++] = static_cast<char>(c);
@@ -199,7 +199,7 @@ void Logger::emit(char level, const char *tag, const char *fmt, ...) {
             break;
     }
 
-    char line[LINE_BUF_SIZE];
+    char line[kLineBufSize];
     const int n = snprintf(line, sizeof(line),
                            "{\"log\":1,\"ts\":%lu,\"lvl\":\"%c\",\"tag\":\"%s\",\"msg\":\"%s\"}\n",
                            static_cast<unsigned long>(millis()), lvl, tagBuf, escaped);

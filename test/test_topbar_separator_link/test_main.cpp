@@ -10,13 +10,13 @@ void tearDown() {}
 
 void test_freshTracker_linkedFlagIsNoFlag() {
     Tracker t;
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, linkedFlagForSeparator(t));
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, linkedFlagForSeparator(t));
 }
 
 void test_registerModeFlag_setsLastFlag_noPending_returnsNoFlag() {
     Tracker t;
     const int8_t pending = registerModeFlag(t, 0, 1);
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, pending);
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, pending);
     TEST_ASSERT_EQUAL_INT8(0, linkedFlagForSeparator(t));
 }
 
@@ -34,13 +34,13 @@ void test_registerModeFlag_clearsPendingAfterConsuming() {
     Tracker t;
     registerSeparator(t, 4);
     TEST_ASSERT_EQUAL_INT8(4, registerModeFlag(t, 5, 6));
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, registerModeFlag(t, 7, 8));
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, registerModeFlag(t, 7, 8));
 }
 
 void test_registerModeFlag_pendingOutOfRange_returnsNoFlag() {
     Tracker t;
     registerSeparator(t, 9);
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, registerModeFlag(t, 2, 3));
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, registerModeFlag(t, 2, 3));
 }
 
 void test_resetTracking_clearsBothFields() {
@@ -48,18 +48,18 @@ void test_resetTracking_clearsBothFields() {
     registerModeFlag(t, 0, 1);
     registerSeparator(t, 1);
     resetTracking(t);
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, linkedFlagForSeparator(t));
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, registerModeFlag(t, 3, 4));
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, linkedFlagForSeparator(t));
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, registerModeFlag(t, 3, 4));
 }
 
 void test_separatorWithoutPrecedingFlag_linkedIsNoFlag() {
     Tracker t;
     const int8_t linked = linkedFlagForSeparator(t);
-    TEST_ASSERT_EQUAL_INT8(NO_FLAG, linked);
+    TEST_ASSERT_EQUAL_INT8(kNoFlag, linked);
 }
 
 void test_hasValidLink_boundaries() {
-    TEST_ASSERT_FALSE(hasValidLink(NO_FLAG, 4));
+    TEST_ASSERT_FALSE(hasValidLink(kNoFlag, 4));
     TEST_ASSERT_FALSE(hasValidLink(4, 4));
     TEST_ASSERT_FALSE(hasValidLink(5, 4));
     TEST_ASSERT_TRUE(hasValidLink(0, 4));
@@ -75,7 +75,7 @@ void test_wantsHidden_nextFlagHidden_hides() {
 }
 
 void test_wantsHidden_nextFlagMissing_hides() {
-    TEST_ASSERT_TRUE(wantsHidden(NO_FLAG, 4, false, false));
+    TEST_ASSERT_TRUE(wantsHidden(kNoFlag, 4, false, false));
 }
 
 void test_wantsHidden_nextFlagOutOfRange_hides() {

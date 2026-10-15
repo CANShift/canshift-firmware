@@ -17,16 +17,14 @@ static lv_indev_drv_t s_indevDrv;
 #include <Preferences.h>
 #include <esp_task_wdt.h>
 
-#define s_lcd DisplayDriver::getDisplay()
+static constexpr char kNvsNs[] = "touch";
+static constexpr char kNvsKeyCal[] = "cal";
 
-static constexpr char NVS_NS[] = "touch";
-static constexpr char NVS_KEY_CAL[] = "cal";
-
-static constexpr size_t CAL_DATA_SIZE = 8 * sizeof(uint16_t);
+static constexpr size_t kCalDataSize = 8 * sizeof(uint16_t);
 
 void TouchDriver::readCallback(lv_indev_drv_t *, lv_indev_data_t *data) {
     int32_t x = 0, y = 0;
-    const bool pressed = s_lcd.getTouch(&x, &y);
+    const bool pressed = DisplayDriver::getDisplay().getTouch(&x, &y);
 
     static bool s_wasPressed = false;
     if (pressed && !s_wasPressed) {
@@ -61,7 +59,7 @@ constexpr uint8_t kProbeAttempts = 3;
 constexpr uint32_t kProbeRetryDelayMs = 20;
 
 bool probeController() {
-    lgfx::ITouch *touch = s_lcd.touch();
+    lgfx::ITouch *touch = DisplayDriver::getDisplay().touch();
     if (touch == nullptr)
         return false;
     if (canshift::boards::runtimeBoardProfile().touch.driver ==
@@ -77,12 +75,12 @@ bool probeController() {
 
 void loadOrRunCalibration() {
     Preferences p;
-    p.begin(NVS_NS, true);
-    const bool hasCalibration = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
+    p.begin(kNvsNs, true);
+    const bool hasCalibration = (p.getBytesLength(kNvsKeyCal) == kCalDataSize);
     if (hasCalibration) {
         uint16_t calData[8] = {};
-        p.getBytes(NVS_KEY_CAL, calData, CAL_DATA_SIZE);
-        s_lcd.setTouchCalibrate(calData);
+        p.getBytes(kNvsKeyCal, calData, kCalDataSize);
+        DisplayDriver::getDisplay().setTouchCalibrate(calData);
         LOG_INFO("TOUCH", "Calibration loaded from NVS");
     }
     p.end();
@@ -150,8 +148,8 @@ bool TouchDriver::isCalibrated() {
     if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration)
         return true;
     Preferences p;
-    p.begin(NVS_NS, true);
-    const bool has = (p.getBytesLength(NVS_KEY_CAL) == CAL_DATA_SIZE);
+    p.begin(kNvsNs, true);
+    const bool has = (p.getBytesLength(kNvsKeyCal) == kCalDataSize);
     p.end();
     return has;
 }
@@ -169,8 +167,9 @@ void TouchDriver::calibrate() {
     // a calibration taking longer than TASK_WDT_TIMEOUT_MS does not panic.
     const bool wasWdtSubscribed = (esp_task_wdt_delete(nullptr) == ESP_OK);
 
-    s_lcd.calibrateTouch(calData, TFT_WHITE, TFT_BLACK,
-                         std::max(s_lcd.width(), s_lcd.height()) >> 3);
+    DisplayDriver::getDisplay().calibrateTouch(
+        calData, TFT_WHITE, TFT_BLACK,
+        std::max(DisplayDriver::getDisplay().width(), DisplayDriver::getDisplay().height()) >> 3);
 
     if (wasWdtSubscribed) {
         const esp_err_t err = esp_task_wdt_add(nullptr);
@@ -178,9 +177,9 @@ void TouchDriver::calibrate() {
             LOG_WARN("TOUCH", "WDT re-subscribe failed: %d", static_cast<int>(err));
     }
 
-    s_lcd.setTouchCalibrate(calData);
+    DisplayDriver::getDisplay().setTouchCalibrate(calData);
 
-    if (!NvsStore::putBytes(NVS_NS, NVS_KEY_CAL, calData, CAL_DATA_SIZE)) {
+    if (!NvsStore::putBytes(kNvsNs, kNvsKeyCal, calData, kCalDataSize)) {
         LOG_ERROR("TOUCH", "calibration NVS write failed — lost on reboot");
         ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "touch calibration not persisted");
         return;
@@ -191,7 +190,7 @@ void TouchDriver::calibrate() {
 void TouchDriver::resetCalibration() {
     if (!canshift::boards::runtimeBoardProfile().touch.needs_calibration)
         return;
-    if (!NvsStore::remove(NVS_NS, NVS_KEY_CAL)) {
+    if (!NvsStore::remove(kNvsNs, kNvsKeyCal)) {
         LOG_ERROR("TOUCH", "calibration NVS clear failed");
         ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "touch calibration clear failed");
         return;

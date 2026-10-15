@@ -69,14 +69,14 @@ bool writeText(Print &out, const char *text, size_t len) {
 size_t writeReply(Print &out) {
     if (!writeText(out, kPrefix, kPrefixBytes))
         return 0;
-    const size_t streamed = StorageDriver::streamFileTo(CONFIG_PATH_DASHBOARD, out, true);
+    const size_t streamed = StorageDriver::streamFileTo(kConfigPathDashboard, out, true);
     if (streamed == 0 || !writeText(out, kSuffix, kSuffixBytes))
         return 0;
     return streamed;
 }
 
 void streamConfigToSerial() {
-    if (!Logger::lockUart(pdMS_TO_TICKS(USB_TX_LOCK_TIMEOUT_MS))) {
+    if (!Logger::lockUart(pdMS_TO_TICKS(kUsbTxLockTimeoutMs))) {
         LOG_WARN("USB", "GET_CONFIG: serial busy");
         UsbComm::sendError("busy");
         return;
@@ -117,11 +117,11 @@ void sendConfigToSocket(size_t fileBytes) {
 namespace UsbCommInternal {
 
 void handleGetConfig() {
-    const size_t fileBytes = StorageDriver::fileExists(CONFIG_PATH_DASHBOARD)
-                                 ? StorageDriver::fileSize(CONFIG_PATH_DASHBOARD)
+    const size_t fileBytes = StorageDriver::fileExists(kConfigPathDashboard)
+                                 ? StorageDriver::fileSize(kConfigPathDashboard)
                                  : 0;
     if (fileBytes == 0) {
-        LOG_WARN("USB", "GET_CONFIG: missing / empty %s", CONFIG_PATH_DASHBOARD);
+        LOG_WARN("USB", "GET_CONFIG: missing / empty %s", kConfigPathDashboard);
         UsbComm::sendError("config_not_found");
         return;
     }

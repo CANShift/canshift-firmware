@@ -8,7 +8,7 @@
 #include <freertos/task.h>
 #include <stddef.h>
 
-static_assert(WidgetTagPool::kPoolSlots == CONFIG_MAX_WIDGETS_PER_PAGE,
+static_assert(WidgetTagPool::kPoolSlots == kConfigMaxWidgetsPerPage,
               "Pool capacity must mirror CONFIG_MAX_WIDGETS_PER_PAGE — a page is "
               "bounded to that many widgets total");
 
@@ -26,7 +26,7 @@ bool *s_busy = s_pageBusy;
 size_t s_capacity = WidgetTagPool::kPoolSlots;
 
 inline void assertUiThreadHoldsLvglMutex() {
-    configASSERT(xPortGetCoreID() == TASK_CORE_UI);
+    configASSERT(xPortGetCoreID() == kTaskCoreUi);
     configASSERT(g_lvglMutex != nullptr);
     const TaskHandle_t holder = xSemaphoreGetMutexHolder(g_lvglMutex);
     configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());

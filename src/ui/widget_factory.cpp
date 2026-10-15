@@ -18,9 +18,9 @@
 
 namespace {
 
-static constexpr uint8_t MAX_TRACKED_WIDGETS = CONFIG_MAX_PAGES * CONFIG_MAX_WIDGETS_PER_PAGE;
+static constexpr uint8_t kMaxTrackedWidgets = kConfigMaxPages * kConfigMaxWidgetsPerPage;
 
-static_assert(CONFIG_MAX_WIDGETS_PER_PAGE == canshift::display::kBaseTier.maxWidgetsPerPage,
+static_assert(kConfigMaxWidgetsPerPage == canshift::display::kBaseTier.maxWidgetsPerPage,
               "the per-page cap is the base tier's — a larger tier raises it through its own "
               "entry, not by moving this number");
 
@@ -32,11 +32,10 @@ struct WidgetEntry {
     const CfgWidget *cfg;
 };
 
-static WidgetEntry s_widgets[MAX_TRACKED_WIDGETS];
+static WidgetEntry s_widgets[kMaxTrackedWidgets];
 static uint8_t s_widgetCount = 0;
 
-void updateWidget(WidgetEntry &entry,
-                  const SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS]) {
+void updateWidget(WidgetEntry &entry, const SignalStore::SignalValue snap[kSignalStoreMaxSignals]) {
 
     if (entry.type == WidgetType::BUTTON) {
         ButtonWidget::update(entry.obj);
@@ -48,9 +47,9 @@ void updateWidget(WidgetEntry &entry,
         return;
     }
 
-    if (entry.signalId >= SignalIds::SIGNAL_COUNT)
+    if (entry.signalId >= SignalIds::kSignalCount)
         return;
-    if (entry.signalId >= SIGNAL_STORE_MAX_SIGNALS)
+    if (entry.signalId >= kSignalStoreMaxSignals)
         return;
 
     const SignalStore::SignalValue &sv = snap[entry.signalId];
@@ -92,7 +91,7 @@ void updateWidget(WidgetEntry &entry,
 
 lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     LVGL_ASSERT_LOCKED();
-    if (s_widgetCount >= MAX_TRACKED_WIDGETS) {
+    if (s_widgetCount >= kMaxTrackedWidgets) {
         LOG_ERROR("WF", "Widget registry full — cannot create widget '%s'", cfg.id);
         return nullptr;
     }
@@ -135,7 +134,7 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     }
 
     SignalId resolved = signalIdFromName(cfg.signalId);
-    if (resolved >= SignalIds::SIGNAL_COUNT && cfg.signalId[0] != '\0') {
+    if (resolved >= SignalIds::kSignalCount && cfg.signalId[0] != '\0') {
         LOG_WARN("WF", "Unknown signal name: %s", cfg.signalId);
     }
 

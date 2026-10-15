@@ -130,7 +130,7 @@ bool buildSegments(Layer &layer) {
     if (!layer.segments)
         return false;
     lv_obj_set_height(layer.segments, LayoutScale::y(kSegmentHeightPx));
-    for (uint8_t i = 0; i < CONTROL_STEP_MAX; ++i) {
+    for (uint8_t i = 0; i < kControlStepMax; ++i) {
         lv_obj_t *cell = makeBar(layer.segments, LV_PCT(100), ThemeManager::trackColor());
         if (!cell)
             return false;

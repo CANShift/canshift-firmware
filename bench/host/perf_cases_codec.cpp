@@ -31,7 +31,7 @@ constexpr const char *kExpressions[] = {"V*0.1-40", "(B0<<8|B1)/10", "Round(V/3.
 constexpr size_t kExpressionCount = std::size(kExpressions);
 
 struct CompiledExpr {
-    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
+    FfiTok tokens[kCanshiftExprMaxTokens];
     size_t count;
 };
 
@@ -108,7 +108,7 @@ bool setupExprEval(const char *) {
     for (size_t i = 0; i < kExpressionCount; ++i) {
         const char *expr = kExpressions[i];
         const int32_t n = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr), strlen(expr),
-                                          s_compiled[i].tokens, CANSHIFT_EXPR_MAX_TOKENS);
+                                          s_compiled[i].tokens, kCanshiftExprMaxTokens);
         if (n <= 0)
             return false;
         s_compiled[i].count = static_cast<size_t>(n);
@@ -124,11 +124,11 @@ void runExprEval(uint32_t index) {
 }
 
 void runTelemetryEncode(uint32_t index) {
-    TelemetryFrame::Field fields[TelemetryFrame::MAX_FIELDS];
-    for (size_t i = 0; i < TelemetryFrame::MAX_FIELDS; ++i)
+    TelemetryFrame::Field fields[TelemetryFrame::kMaxFields];
+    for (size_t i = 0; i < TelemetryFrame::kMaxFields; ++i)
         fields[i] = {(index + i) % 5 != 0, static_cast<float>(index + i) * 0.37f};
-    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES];
-    PerfTimer::keep(TelemetryFrame::encode(fields, TelemetryFrame::MAX_FIELDS, buf, sizeof(buf)));
+    uint8_t buf[TelemetryFrame::kMaxFrameBytes];
+    PerfTimer::keep(TelemetryFrame::encode(fields, TelemetryFrame::kMaxFields, buf, sizeof(buf)));
 }
 
 void runStatusWriter(uint32_t index) {

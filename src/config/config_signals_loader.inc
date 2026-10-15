@@ -54,10 +54,10 @@ void parseMapSwitchOut(JsonObjectConst outObj) {
 
 bool parseSignalIdentity(JsonObjectConst sig, CfgSignalDef *s) {
     const char *rawName = sig["name"] | "";
-    const size_t nameLen = strlcpy(s->name, rawName, CFG_MAX_SIGNAL_LEN);
-    if (nameLen >= CFG_MAX_SIGNAL_LEN) {
+    const size_t nameLen = strlcpy(s->name, rawName, kCfgMaxSignalLen);
+    if (nameLen >= kCfgMaxSignalLen) {
         LOG_WARN("CFG", "signals.json: dropping signal — name too long (%u chars, max %u): '%s...'",
-                 static_cast<unsigned>(nameLen), static_cast<unsigned>(CFG_MAX_SIGNAL_LEN - 1),
+                 static_cast<unsigned>(nameLen), static_cast<unsigned>(kCfgMaxSignalLen - 1),
                  s->name);
         return false;
     }
@@ -100,7 +100,7 @@ void parseSignalScaling(JsonObjectConst sig, CfgSignalDef *s) {
     s->highWarningLevel = hwv.isNull() ? NAN : hwv.as<float>();
     JsonVariantConst hdv = sig["highDangerLevel"];
     s->highDangerLevel = hdv.isNull() ? NAN : hdv.as<float>();
-    s->timeoutMs = sig["timeoutMs"] | SIGNAL_DEFAULT_TIMEOUT_MS;
+    s->timeoutMs = sig["timeoutMs"] | kSignalDefaultTimeoutMs;
 }
 
 void parseSignalBitMask(JsonObjectConst sig, CfgSignalDef *s) {
@@ -124,9 +124,9 @@ void parseSignalExprRefs(JsonObjectConst sig, CfgSignalDef *s) {
     JsonArrayConst refs = sig["exprRefs"];
     if (refs.isNull())
         return;
-    if (refs.size() > CFG_MAX_EXPR_REFS) {
+    if (refs.size() > kCfgMaxExprRefs) {
         LOG_WARN("CFG", "signal '%s': %u exprRefs exceed CFG_MAX_EXPR_REFS=%d — expression dropped",
-                 s->name, static_cast<unsigned>(refs.size()), CFG_MAX_EXPR_REFS);
+                 s->name, static_cast<unsigned>(refs.size()), kCfgMaxExprRefs);
         s->expr[0] = '\0';
         return;
     }
@@ -171,7 +171,7 @@ void parseSignalPolling(JsonObjectConst sig, CfgSignalDef *s) {
     const bool modeOk = (mode == 0x01u);
     const bool pidOk = (pid <= 0xFFu);
     const bool intervalOk =
-        (intervalMs >= OBD2_MIN_INTERVAL_MS_FW && intervalMs <= OBD2_MAX_INTERVAL_MS_FW);
+        (intervalMs >= kObd2MinIntervalMsFw && intervalMs <= kObd2MaxIntervalMsFw);
     if (modeOk && pidOk && intervalOk) {
         s->pollMode = static_cast<uint8_t>(mode);
         s->pollPid = static_cast<uint8_t>(pid);
@@ -213,7 +213,7 @@ void parseSignalList(JsonArrayConst signals) {
     s_signals.signalCount = 0;
     uint16_t overCap = 0;
     for (JsonObjectConst sig : signals) {
-        if (s_signals.signalCount >= CONFIG_MAX_SIGNALS) {
+        if (s_signals.signalCount >= kConfigMaxSignals) {
             ++overCap;
             continue;
         }
@@ -225,7 +225,7 @@ void parseSignalList(JsonArrayConst signals) {
     if (overCap == 0)
         return;
     LOG_ERROR("CFG", "signals.json: %u signals past the %u cap were dropped",
-              static_cast<unsigned>(overCap), static_cast<unsigned>(CONFIG_MAX_SIGNALS));
+              static_cast<unsigned>(overCap), static_cast<unsigned>(kConfigMaxSignals));
     ErrorStore::push(ERROR_SRC_CONFIG, "SIG_CAP", "signals.json exceeds the signal cap");
 }
 
@@ -238,7 +238,7 @@ bool loadSignals() {
     }
 
     JsonDocument doc(JsonReader::configAllocator());
-    if (!readAndParseWithBak(CONFIG_PATH_SIGNALS, doc)) {
+    if (!readAndParseWithBak(kConfigPathSignals, doc)) {
         LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
         ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
         if (snapshot) {

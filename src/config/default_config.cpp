@@ -13,7 +13,7 @@
 #include <string.h>
 
 static constexpr const char *kBakSuffix = ".bak";
-static constexpr size_t kBakPathLen = CFG_MAX_PATH_LEN + 5;
+static constexpr size_t kBakPathLen = kCfgMaxPathLen + 5;
 
 extern "C" {
 extern const uint8_t
@@ -32,7 +32,7 @@ struct EmbeddedBlob {
 };
 
 const EmbeddedBlob kEmbedded[] = {
-    {CONFIG_PATH_DASHBOARD, kDefaultDashboardStart, kDefaultDashboardEnd, "dashboard.json"},
+    {kConfigPathDashboard, kDefaultDashboardStart, kDefaultDashboardEnd, "dashboard.json"},
 };
 
 bool buildBakPath(char *out, size_t outLen, const char *base) {

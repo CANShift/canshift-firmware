@@ -7,7 +7,7 @@
 struct CfgRejection {
     bool present;
     uint8_t pageNumber;
-    char widgetId[CFG_MAX_ID_LEN];
+    char widgetId[kCfgMaxIdLen];
     int16_t widgetY;
     int16_t widgetH;
     int16_t maxY;

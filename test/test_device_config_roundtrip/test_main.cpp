@@ -28,7 +28,7 @@ void put(const char *json, void (*handler)(const JsonObjectConst &)) {
 }
 
 void getDevice() {
-    UsbCommInternal::sendTypedConfigGet(CONFIG_PATH_DEVICE, TypedConfigBody::kDeviceConfigKey,
+    UsbCommInternal::sendTypedConfigGet(kConfigPathDevice, TypedConfigBody::kDeviceConfigKey,
                                         TypedConfigBody::device);
 }
 
@@ -80,7 +80,7 @@ void test_pushedDeviceConfigReadsBackOnceWrapped() {
 }
 
 void test_fileWrittenByTheOldFirmwareStillLoadsAndReadsBack() {
-    StorageDriver::fakeWrite(CONFIG_PATH_DEVICE, kLegacyWrappedFile, strlen(kLegacyWrappedFile));
+    StorageDriver::fakeWrite(kConfigPathDevice, kLegacyWrappedFile, strlen(kLegacyWrappedFile));
     assertDeviceLoaded();
     getDevice();
     TEST_ASSERT_EQUAL_STRING(kReadBack, s_lastLine.c_str());
@@ -88,7 +88,7 @@ void test_fileWrittenByTheOldFirmwareStillLoadsAndReadsBack() {
 
 void test_inputBindingsStillRoundTrip() {
     put(kPushedInputs, UsbCommInternal::handlePutInputBindings);
-    UsbCommInternal::sendTypedConfigGet(CONFIG_PATH_INPUTS, TypedConfigBody::kInputBindingsKey,
+    UsbCommInternal::sendTypedConfigGet(kConfigPathInputs, TypedConfigBody::kInputBindingsKey,
                                         TypedConfigBody::inputBindings);
     TEST_ASSERT_EQUAL_STRING(kInputsReadBack, s_lastLine.c_str());
 }

@@ -4,8 +4,8 @@
 
 #include <stdint.h>
 
-#define UNIT_SYSTEM_METRIC 0
-#define UNIT_SYSTEM_IMPERIAL 1
+inline constexpr int kUnitSystemMetric = 0;
+inline constexpr int kUnitSystemImperial = 1;
 
 #ifdef __cplusplus
 extern "C" {

@@ -4,7 +4,7 @@ The dash talks to the outside world over two transports, and a third on the 16 M
 
 ## USB CDC — the primary link
 
-USB is the dash's main host link and it is always available. It is what [canshift-tuner](https://github.com/CANShift/canshift-tuner) speaks to: command/response lines, a telemetry line every 200 ms, and structured log lines. It runs at 115200 baud, through a CH340 UART bridge on the CrowPanel and over native USB on the ESP32-S3, and the protocol version is pinned by `USB_PROTOCOL_VERSION = 2` in `include/app_config.h`.
+USB is the dash's main host link and it is always available. It is what [canshift-tuner](https://github.com/CANShift/canshift-tuner) speaks to: command/response lines, a telemetry line every 200 ms, and structured log lines. It runs at 115200 baud, through a CH340 UART bridge on the CrowPanel and over native USB on the ESP32-S3, and the protocol version is pinned by `kUsbProtocolVersion = 2` in `include/app_config.h`.
 
 Incoming lines land in `handleCommand()` (`src/hal/usb/usb_dispatch.cpp`); replies go back out through `UsbComm::sendLine()` (`src/hal/usb/usb_comm.cpp`). The full command surface, framing and burn flow live on [USB CDC](../architecture/usb-transport.md).
 

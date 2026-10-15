@@ -26,7 +26,7 @@ constexpr int kNoClient = -1;
 constexpr UBaseType_t kLineQueueDepth = 2;
 constexpr UBaseType_t kLogQueueDepth = 16;
 constexpr uint32_t kLineQueueWaitMs = 2000;
-constexpr size_t kMaxLineBytes = USB_RX_BUF_SIZE;
+constexpr size_t kMaxLineBytes = kUsbRxBufSize;
 constexpr char kLineEnd = '\n';
 
 struct HeapFree {

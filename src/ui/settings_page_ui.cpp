@@ -29,9 +29,9 @@ lv_obj_t *makeSlider(lv_obj_t *parent, int32_t vmin, int32_t vmax, int32_t initi
     lv_slider_set_range(slider, vmin, vmax);
     lv_slider_set_value(slider, initial, LV_ANIM_OFF);
 
-    lv_obj_set_style_bg_color(slider, lv_color_hex(CLR_BTN_BDR), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(slider, lv_color_hex(CLR_ACCENT), LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(slider, lv_color_hex(CLR_TEXT), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(kClrBtnBdr), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(kClrAccent), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(kClrText), LV_PART_KNOB);
     lv_obj_set_style_pad_all(slider, 3, LV_PART_KNOB);
 
     lv_obj_add_event_cb(slider, cb, LV_EVENT_VALUE_CHANGED, nullptr);
@@ -41,8 +41,8 @@ lv_obj_t *makeSlider(lv_obj_t *parent, int32_t vmin, int32_t vmax, int32_t initi
 lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_event_cb_t cb,
                         void *userData) {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(active ? CLR_BTN_ACT : CLR_BTN_BG), LV_PART_MAIN);
-    lv_obj_set_style_border_color(btn, lv_color_hex(active ? CLR_ACCENT : CLR_BTN_BDR),
+    lv_obj_set_style_bg_color(btn, lv_color_hex(active ? kClrBtnAct : kClrBtnBg), LV_PART_MAIN);
+    lv_obj_set_style_border_color(btn, lv_color_hex(active ? kClrAccent : kClrBtnBdr),
                                   LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(btn, 3, LV_PART_MAIN);
@@ -52,7 +52,7 @@ lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_eve
     lv_obj_t *lbl = lv_label_create(btn);
     lv_label_set_text(lbl, label);
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(active ? CLR_ACCENT : CLR_MUTED), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(active ? kClrAccent : kClrMuted), 0);
     lv_obj_center(lbl);
 
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, userData);
@@ -92,7 +92,7 @@ lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height) {
     lv_obj_t *panel = lv_obj_create(lv_layer_top());
     lv_obj_set_pos(panel, 0, yOffset);
     lv_obj_set_size(panel, panelW, height);
-    lv_obj_set_style_bg_color(panel, lv_color_hex(CLR_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(kClrBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(panel, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(panel, 0, LV_PART_MAIN);
@@ -107,8 +107,8 @@ lv_obj_t *createPanel(int16_t yOffset, int16_t panelW, int16_t height) {
 
 void buildBrightnessRow(int16_t &y, int16_t rowW) {
     lv_obj_t *row = lv_obj_create(s_panel);
-    lv_obj_set_pos(row, LayoutScale::x(PAD_H), y);
-    lv_obj_set_size(row, rowW, LayoutScale::y(LABEL_H));
+    lv_obj_set_pos(row, LayoutScale::x(kPadH), y);
+    lv_obj_set_size(row, rowW, LayoutScale::y(kLabelH));
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -117,38 +117,38 @@ void buildBrightnessRow(int16_t &y, int16_t rowW) {
     lv_obj_t *lbl = lv_label_create(row);
     lv_label_set_text(lbl, "BRIGHTNESS");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(kClrMuted), 0);
     lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
 
     s_brValue = lv_label_create(row);
     lv_obj_set_style_text_font(s_brValue, FONT_SM(), 0);
-    lv_obj_set_style_text_color(s_brValue, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_set_style_text_color(s_brValue, lv_color_hex(kClrText), 0);
     lv_obj_align(s_brValue, LV_ALIGN_RIGHT_MID, 0, 0);
     updateBrValue();
 
-    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
+    y += LayoutScale::y(kLabelH) + LayoutScale::y(kGapInner);
 
     s_brSlider = makeSlider(s_panel, 10, 100, s_brightness, onBrightnessChanged);
-    lv_obj_set_pos(s_brSlider, LayoutScale::x(PAD_H), y);
-    lv_obj_set_size(s_brSlider, rowW, SLIDER_H);
-    y += SLIDER_H;
+    lv_obj_set_pos(s_brSlider, LayoutScale::x(kPadH), y);
+    lv_obj_set_size(s_brSlider, rowW, kSliderH);
+    y += kSliderH;
 }
 
 void buildCalibrateTouchRow(int16_t &y, int16_t rowW) {
-    lv_obj_t *btn = makeFullButton(s_panel, "CALIBRATE TOUCH", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
+    lv_obj_t *btn = makeFullButton(s_panel, "CALIBRATE TOUCH", kClrBtnBg, kClrBtnBdr, kClrMuted,
                                    onCalibrateTouch);
-    lv_obj_set_pos(btn, LayoutScale::x(PAD_H), y);
-    lv_obj_set_size(btn, rowW, BTN_H);
-    y += BTN_H;
+    lv_obj_set_pos(btn, LayoutScale::x(kPadH), y);
+    lv_obj_set_size(btn, rowW, kBtnH);
+    y += kBtnH;
 }
 
 void buildResetTouchCalRow(int16_t &y, int16_t rowW) {
-    lv_obj_t *btn = makeFullButton(s_panel, "RESET TOUCH CAL", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED,
+    lv_obj_t *btn = makeFullButton(s_panel, "RESET TOUCH CAL", kClrBtnBg, kClrBtnBdr, kClrMuted,
                                    onResetTouchCal);
-    lv_obj_set_pos(btn, LayoutScale::x(PAD_H), y);
-    lv_obj_set_size(btn, rowW, BTN_H);
+    lv_obj_set_pos(btn, LayoutScale::x(kPadH), y);
+    lv_obj_set_size(btn, rowW, kBtnH);
     s_resetTouchCalBtn = btn;
-    y += BTN_H;
+    y += kBtnH;
 }
 
 void buildDayModeRow(int16_t &y, int16_t rowW) {
@@ -159,9 +159,9 @@ void buildDayModeRow(int16_t &y, int16_t rowW) {
     lv_obj_t *lbl = lv_label_create(s_panel);
     lv_label_set_text(lbl, "DISPLAY MODE");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_set_pos(lbl, LayoutScale::x(PAD_H), y);
-    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(kClrMuted), 0);
+    lv_obj_set_pos(lbl, LayoutScale::x(kPadH), y);
+    y += LayoutScale::y(kLabelH) + LayoutScale::y(kGapInner);
 
     const int16_t gap = 4;
     const int16_t btnW = (rowW - gap) / 2;
@@ -171,10 +171,10 @@ void buildDayModeRow(int16_t &y, int16_t rowW) {
     for (uint8_t i = 0; i < 2; ++i) {
         s_dayBtns[i] = makeSegButton(s_panel, dayLabels[i], active[i], onDayModeBtn,
                                      reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-        lv_obj_set_pos(s_dayBtns[i], LayoutScale::x(PAD_H) + i * (btnW + gap), y);
-        lv_obj_set_size(s_dayBtns[i], btnW, BTN_H);
+        lv_obj_set_pos(s_dayBtns[i], LayoutScale::x(kPadH) + i * (btnW + gap), y);
+        lv_obj_set_size(s_dayBtns[i], btnW, kBtnH);
     }
-    y += BTN_H;
+    y += kBtnH;
 }
 
 void buildAboutRow(int16_t &y, int16_t rowW) {
@@ -182,27 +182,27 @@ void buildAboutRow(int16_t &y, int16_t rowW) {
     lv_obj_t *lbl = lv_label_create(s_panel);
     lv_label_set_text(lbl, "ABOUT");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(CLR_MUTED), 0);
-    lv_obj_set_pos(lbl, LayoutScale::x(PAD_H), y);
-    y += LayoutScale::y(LABEL_H) + LayoutScale::y(GAP_INNER);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(kClrMuted), 0);
+    lv_obj_set_pos(lbl, LayoutScale::x(kPadH), y);
+    y += LayoutScale::y(kLabelH) + LayoutScale::y(kGapInner);
 
     lv_obj_t *ver = lv_label_create(s_panel);
     lv_label_set_text(ver, "CANShift v" APP_VERSION_STR);
     lv_obj_set_style_text_font(ver, FONT_SM(), 0);
-    lv_obj_set_style_text_color(ver, lv_color_hex(CLR_TEXT), 0);
-    lv_obj_set_pos(ver, LayoutScale::x(PAD_H), y);
-    y += LayoutScale::y(LABEL_H);
+    lv_obj_set_style_text_color(ver, lv_color_hex(kClrText), 0);
+    lv_obj_set_pos(ver, LayoutScale::x(kPadH), y);
+    y += LayoutScale::y(kLabelH);
 }
 
 void buildRebootRow(int16_t &y, int16_t rowW) {
     lv_obj_t *btn =
-        makeFullButton(s_panel, "HOLD 3 s TO REBOOT", CLR_BTN_BG, CLR_BTN_BDR, CLR_MUTED, nullptr);
-    lv_obj_set_pos(btn, LayoutScale::x(PAD_H), y);
-    lv_obj_set_size(btn, rowW, BTN_H);
+        makeFullButton(s_panel, "HOLD 3 s TO REBOOT", kClrBtnBg, kClrBtnBdr, kClrMuted, nullptr);
+    lv_obj_set_pos(btn, LayoutScale::x(kPadH), y);
+    lv_obj_set_size(btn, rowW, kBtnH);
     lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(btn, onRebootLongPress, LV_EVENT_PRESS_LOST, nullptr);
-    y += BTN_H;
+    y += kBtnH;
 }
 
 void animSetY(void *obj, int32_t v) {
@@ -240,7 +240,7 @@ void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb) {
 
     uint32_t deltaPx = static_cast<uint32_t>(abs(targetY - fromY));
     uint32_t panelH = static_cast<uint32_t>(s_panelHeight > 0 ? s_panelHeight : 1);
-    uint32_t durationMs = (SNAP_ANIM_MS * deltaPx) / panelH;
+    uint32_t durationMs = (kSnapAnimMs * deltaPx) / panelH;
     if (durationMs < 60)
         durationMs = 60;
 

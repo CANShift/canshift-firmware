@@ -106,7 +106,7 @@ to prevent LVGL widget jitter from high-frequency signal noise:
 smoothed = α × raw + (1 - α) × smoothed
 ```
 
-Where `α = SIGNAL_EMA_ALPHA = 0.2` (from `app_config.h`).
+Where `α = kSignalEmaAlpha = 0.2` (from `app_config.h`).
 
 - Lower α = more smoothing (slower response to sudden changes)
 - Higher α = less smoothing (faster response, more jitter)

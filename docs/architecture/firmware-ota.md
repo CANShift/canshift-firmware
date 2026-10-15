@@ -27,22 +27,22 @@ sequenceDiagram
     Note over D: overlay holds "UPDATE COMPLETE", then reboots into the new slot
 ```
 
-1. `CMD_OTA_BEGIN` carries the image size, its SHA-256 and `sig`: the
+1. `kCmdOtaBegin` carries the image size, its SHA-256 and `sig`: the
    release's 64-byte Ed25519 `.sig`, in base64. The dash refuses a size that
    does not fit the slot. It refuses a missing `sig` (`ota_unsigned`) and a
    `sig` that is not 64 bytes of canonical signature (`ota_bad_signature`)
    before touching flash. It opens the slot for sequential writes,
    so `BEGIN` returns at once: each chunk erases the sectors it is about to
    fill, rather than `BEGIN` erasing the whole image up front.
-2. `CMD_OTA_WRITE` streams base64 chunks in order. `offset` must equal the
+2. `kCmdOtaWrite` streams base64 chunks in order. `offset` must equal the
    bytes written so far. A gap, an overrun, or a first chunk that is not an
    app image aborts the transfer. The chunk is decoded in place in the line
    that carried it, so no transport-specific buffer is involved.
-3. `CMD_OTA_END` with `"commit"` hashes what was written. It refuses the slot
+3. `kCmdOtaEnd` with `"commit"` hashes what was written. It refuses the slot
    switch on a SHA-256 mismatch (`sha256_mismatch`) or when the image does not
    verify against the release key (`ota_bad_signature`). Otherwise it replies
    `{"status":"ok","restart":true}`, holds the completion screen for
-   `OTA_COMPLETE_SCREEN_HOLD_MS` and reboots. `"abort"`, the default, discards
+   `kOtaCompleteScreenHoldMs` and reboots. `"abort"`, the default, discards
    the slot.
 
 ## Limits a host must respect

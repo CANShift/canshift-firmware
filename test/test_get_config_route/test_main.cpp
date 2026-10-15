@@ -24,7 +24,7 @@ void captureSocket(const char *line, size_t len) {
 }
 
 void stageDashboard() {
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, kDashboard, strlen(kDashboard));
+    StorageDriver::fakeWrite(kConfigPathDashboard, kDashboard, strlen(kDashboard));
 }
 
 char s_getConfig[] = "{\"cmd\":1}";

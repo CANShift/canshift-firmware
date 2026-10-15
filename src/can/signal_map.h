@@ -8,61 +8,61 @@ using SignalId = uint8_t;
 
 namespace SignalIds {
 
-static constexpr SignalId RPM = 0;
-static constexpr SignalId THROTTLE_POS = 1;
-static constexpr SignalId MAP_KPA = 2;
-static constexpr SignalId BOOST_BAR = 3;
-static constexpr SignalId IAT_C = 4;
+static constexpr SignalId kRpm = 0;
+static constexpr SignalId kThrottlePos = 1;
+static constexpr SignalId kMapKpa = 2;
+static constexpr SignalId kBoostBar = 3;
+static constexpr SignalId kIatC = 4;
 
-static constexpr SignalId COOLANT_TEMP_C = 5;
-static constexpr SignalId OIL_TEMP_C = 6;
+static constexpr SignalId kCoolantTempC = 5;
+static constexpr SignalId kOilTempC = 6;
 
-static constexpr SignalId OIL_PRESS_BAR = 7;
-static constexpr SignalId FUEL_PRESS_BAR = 8;
+static constexpr SignalId kOilPressBar = 7;
+static constexpr SignalId kFuelPressBar = 8;
 
-static constexpr SignalId LAMBDA_1 = 9;
-static constexpr SignalId AFR_1 = 10;
+static constexpr SignalId kLambda1 = 9;
+static constexpr SignalId kAfr1 = 10;
 
-static constexpr SignalId SPEED_KPH = 11;
-static constexpr SignalId GEAR = 12;
+static constexpr SignalId kSpeedKph = 11;
+static constexpr SignalId kGear = 12;
 
-static constexpr SignalId BATTERY_VOLTS = 13;
-static constexpr SignalId FUEL_LEVEL_PCT = 14;
+static constexpr SignalId kBatteryVolts = 13;
+static constexpr SignalId kFuelLevelPct = 14;
 
-static constexpr SignalId EGT_C = 15;
-static constexpr SignalId GEARBOX_TEMP_C = 16;
-static constexpr SignalId DIFF_TEMP_C = 17;
-static constexpr SignalId KNOCK_COUNT = 18;
-static constexpr SignalId KNOCK_CYL = 19;
+static constexpr SignalId kEgtC = 15;
+static constexpr SignalId kGearboxTempC = 16;
+static constexpr SignalId kDiffTempC = 17;
+static constexpr SignalId kKnockCount = 18;
+static constexpr SignalId kKnockCyl = 19;
 
-static constexpr SignalId FLAG_MIL = 20;
-static constexpr SignalId FLAG_LAUNCH_CTRL = 21;
-static constexpr SignalId FLAG_FLAT_SHIFT = 22;
-static constexpr SignalId FLAG_ANTI_LAG = 23;
-static constexpr SignalId FLAG_TRACTION_CUT = 24;
-static constexpr SignalId CLUTCH_STATE = 25;
-static constexpr SignalId FLAG_BRAKE = 26;
-static constexpr SignalId FLAG_PIT_LIMIT = 27;
-static constexpr SignalId FLAG_CRUISE = 28;
-static constexpr SignalId BOOST_TARGET_BAR = 29;
+static constexpr SignalId kFlagMil = 20;
+static constexpr SignalId kFlagLaunchCtrl = 21;
+static constexpr SignalId kFlagFlatShift = 22;
+static constexpr SignalId kFlagAntiLag = 23;
+static constexpr SignalId kFlagTractionCut = 24;
+static constexpr SignalId kClutchState = 25;
+static constexpr SignalId kFlagBrake = 26;
+static constexpr SignalId kFlagPitLimit = 27;
+static constexpr SignalId kFlagCruise = 28;
+static constexpr SignalId kBoostTargetBar = 29;
 
-static constexpr SignalId MAP_NUMBER = 30;
-static constexpr SignalId MAP_NAME_IDX = 31;
+static constexpr SignalId kMapNumber = 30;
+static constexpr SignalId kMapNameIdx = 31;
 
-static constexpr SignalId ODO_KM = 32;
-static constexpr SignalId TRIP_KM = 33;
+static constexpr SignalId kOdoKm = 32;
+static constexpr SignalId kTripKm = 33;
 
-static constexpr SignalId LAP_TIMER_MS = 40;
+static constexpr SignalId kLapTimerMs = 40;
 
-static constexpr SignalId FLAG_BOOST_CUT = 48;
-static constexpr SignalId FLAG_FUEL_CUT = 49;
-static constexpr SignalId FLAG_IGNITION_CUT = 50;
-static constexpr SignalId FLAG_IGNITION_RETARD = 51;
-static constexpr SignalId FLAG_REV_LIMIT = 52;
-static constexpr SignalId FLAG_PIT_LIMIT_CUT = 53;
-static constexpr SignalId FLAG_OVERHEAT_PROTECT = 54;
-static constexpr SignalId FLAG_LIMP_MODE = 55;
+static constexpr SignalId kFlagBoostCut = 48;
+static constexpr SignalId kFlagFuelCut = 49;
+static constexpr SignalId kFlagIgnitionCut = 50;
+static constexpr SignalId kFlagIgnitionRetard = 51;
+static constexpr SignalId kFlagRevLimit = 52;
+static constexpr SignalId kFlagPitLimitCut = 53;
+static constexpr SignalId kFlagOverheatProtect = 54;
+static constexpr SignalId kFlagLimpMode = 55;
 
-static constexpr SignalId SIGNAL_COUNT = 64;
+static constexpr SignalId kSignalCount = 64;
 
 } // namespace SignalIds

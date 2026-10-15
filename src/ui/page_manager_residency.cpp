@@ -50,10 +50,10 @@ bool buildEveryPage() {
 }
 
 bool reserveResidentTags() {
-    if (WidgetTagPool::reserveResidentSlots(WidgetTagPool::kPoolSlots * MAX_PAGES))
+    if (WidgetTagPool::reserveResidentSlots(WidgetTagPool::kPoolSlots * kMaxPages))
         return true;
     LOG_WARN("UI", "No PSRAM for %u widget tags — pages build on swipe instead",
-             static_cast<unsigned>(WidgetTagPool::kPoolSlots * MAX_PAGES));
+             static_cast<unsigned>(WidgetTagPool::kPoolSlots * kMaxPages));
     return false;
 }
 

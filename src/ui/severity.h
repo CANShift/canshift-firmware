@@ -8,13 +8,13 @@
 namespace Severity {
 
 enum class Level : uint8_t {
-    INFORMATION = ALERT_SEVERITY_INFORMATION,
-    WARNING = ALERT_SEVERITY_WARNING,
-    CRITICAL = ALERT_SEVERITY_CRITICAL,
-    FAILURE = ALERT_SEVERITY_FAILURE,
+    INFORMATION = kAlertSeverityInformation,
+    WARNING = kAlertSeverityWarning,
+    CRITICAL = kAlertSeverityCritical,
+    FAILURE = kAlertSeverityFailure,
 };
 
-constexpr uint8_t kLevelCount = ALERT_SEVERITY_LEVEL_COUNT;
+constexpr uint8_t kLevelCount = kAlertSeverityLevelCount;
 
 constexpr uint8_t kRulePrimaryPx = 2;
 constexpr uint8_t kRuleSecondaryPx = 1;

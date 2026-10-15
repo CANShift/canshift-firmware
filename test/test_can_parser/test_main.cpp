@@ -76,16 +76,16 @@ bool errorStoreHolds(const char *code) {
 } // namespace
 
 void test_compileExpr_rejectsOperandStackPastTheCap() {
-    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
+    FfiTok tokens[kCanshiftExprMaxTokens];
     const char expr[] = "1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+(1+V)))))))))))))))";
     const int32_t status = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr),
-                                           sizeof(expr) - 1, tokens, CANSHIFT_EXPR_MAX_TOKENS);
-    TEST_ASSERT_EQUAL_INT32(CANSHIFT_EXPR_ERR_TOO_DEEP, status);
+                                           sizeof(expr) - 1, tokens, kCanshiftExprMaxTokens);
+    TEST_ASSERT_EQUAL_INT32(kCanshiftExprErrTooDeep, status);
 }
 
 void test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, kSignalsWithDeepExpr,
+    StorageDriver::fakeWrite(kConfigPathSignals, kSignalsWithDeepExpr,
                              strlen(kSignalsWithDeepExpr));
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
     SignalStore::init();
@@ -94,8 +94,8 @@ void test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError() {
     CanParser::loadSignalDefinitions();
     CanParser::parseFrame(kExprFrameId, kExprFrame, sizeof(kExprFrame));
 
-    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::RPM));
-    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::COOLANT_TEMP_C));
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::kRpm));
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::kCoolantTempC));
     TEST_ASSERT_TRUE(errorStoreHolds("EXPR_DEPTH"));
 }
 
@@ -103,7 +103,7 @@ void test_loadSignalDefinitions_rejectsExpressionsPastThePool() {
     static char json[4096];
     buildPoolFillingSignals(json, sizeof(json));
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, json, strlen(json));
+    StorageDriver::fakeWrite(kConfigPathSignals, json, strlen(json));
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
     SignalStore::init();
     ErrorStore::clear();
@@ -112,17 +112,17 @@ void test_loadSignalDefinitions_rejectsExpressionsPastThePool() {
     CanParser::parseFrame(kExprFrameId, kExprFrame, sizeof(kExprFrame));
 
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 7.0f * kOperandsPerPoolExpr,
-                             SignalStore::read(SignalIds::RPM));
-    TEST_ASSERT_TRUE(SignalStore::isValid(SignalIds::COOLANT_TEMP_C));
-    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::FUEL_PRESS_BAR));
+                             SignalStore::read(SignalIds::kRpm));
+    TEST_ASSERT_TRUE(SignalStore::isValid(SignalIds::kCoolantTempC));
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::kFuelPressBar));
     TEST_ASSERT_TRUE(errorStoreHolds("EXPR_POOL"));
 }
 
 void test_evalTokensRefs_resolvesReference() {
-    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
+    FfiTok tokens[kCanshiftExprMaxTokens];
     const char expr[] = "ID37+1";
     const int32_t n = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr), sizeof(expr) - 1,
-                                      tokens, CANSHIFT_EXPR_MAX_TOKENS);
+                                      tokens, kCanshiftExprMaxTokens);
     TEST_ASSERT_GREATER_THAN_INT32(0, n);
 
     const RefValueRs refs[] = {{37, 41.0f}};
@@ -138,10 +138,10 @@ void test_evalTokensRefs_resolvesReference() {
 }
 
 void test_evalTokensRefs_missingRefDoesNotReadAsZero() {
-    FfiTok tokens[CANSHIFT_EXPR_MAX_TOKENS];
+    FfiTok tokens[kCanshiftExprMaxTokens];
     const char expr[] = "ID481|ID482";
     const int32_t n = compile_expr_rs(reinterpret_cast<const uint8_t *>(expr), sizeof(expr) - 1,
-                                      tokens, CANSHIFT_EXPR_MAX_TOKENS);
+                                      tokens, kCanshiftExprMaxTokens);
     TEST_ASSERT_GREATER_THAN_INT32(0, n);
 
     const RefValueRs onlyOne[] = {{481, 1.0f}};

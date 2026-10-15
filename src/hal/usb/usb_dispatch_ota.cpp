@@ -50,13 +50,13 @@ bool parseOtaWriteFields(const char *jsonLine, uint32_t *offsetOut, const char *
 
 enum class SignatureField : uint8_t { Missing, Malformed, Present };
 
-SignatureField decodeSignature(const char *b64, uint8_t out[OTA_SIGNATURE_BYTES]) {
+SignatureField decodeSignature(const char *b64, uint8_t out[kOtaSignatureBytes]) {
     if (b64 == nullptr)
         return SignatureField::Missing;
     size_t decoded = 0;
-    const int rc = mbedtls_base64_decode(out, OTA_SIGNATURE_BYTES, &decoded,
+    const int rc = mbedtls_base64_decode(out, kOtaSignatureBytes, &decoded,
                                          reinterpret_cast<const unsigned char *>(b64), strlen(b64));
-    const bool whole = rc == 0 && decoded == OTA_SIGNATURE_BYTES;
+    const bool whole = rc == 0 && decoded == kOtaSignatureBytes;
     return whole ? SignatureField::Present : SignatureField::Malformed;
 }
 
@@ -67,12 +67,12 @@ namespace UsbCommInternal {
 void handleOtaBegin(const JsonObjectConst &obj) {
     const uint32_t total = obj["total"] | 0u;
     const char *shaHex = obj["sha256"];
-    uint8_t sha[UsbDispatchValidation::SHA256_BYTES];
+    uint8_t sha[UsbDispatchValidation::kSha256Bytes];
     if (total == 0 || !UsbDispatchValidation::parseSha256Hex(shaHex, sha)) {
         UsbComm::sendError("bad_args");
         return;
     }
-    uint8_t signature[OTA_SIGNATURE_BYTES];
+    uint8_t signature[kOtaSignatureBytes];
     const SignatureField field = decodeSignature(obj["sig"], signature);
     if (field == SignatureField::Malformed) {
         UsbComm::sendError("ota_bad_signature");
@@ -144,7 +144,7 @@ void handleOtaEnd(const JsonObjectConst &obj) {
         }
         UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
         PendingActions::otaOverlayComplete.store(true, std::memory_order_relaxed);
-        vTaskDelay(pdMS_TO_TICKS(OTA_COMPLETE_SCREEN_HOLD_MS));
+        vTaskDelay(pdMS_TO_TICKS(kOtaCompleteScreenHoldMs));
         UsbComm::flushAndRestart();
         return;
     }

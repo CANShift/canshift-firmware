@@ -1,9 +1,9 @@
 #pragma once
 
-inline constexpr const char CONFIG_PATH_DASHBOARD[] = "/config/dashboard.json";
-inline constexpr const char CONFIG_PATH_SIGNALS[] = "/config/signals.json";
-inline constexpr const char CONFIG_PATH_DEVICE[] = "/config/device.json";
-inline constexpr const char CONFIG_PATH_INPUTS[] = "/config/input_bindings.json";
-inline constexpr const char CONFIG_PATH_ASSETS_DIR[] = "/assets/";
+inline constexpr const char kConfigPathDashboard[] = "/config/dashboard.json";
+inline constexpr const char kConfigPathSignals[] = "/config/signals.json";
+inline constexpr const char kConfigPathDevice[] = "/config/device.json";
+inline constexpr const char kConfigPathInputs[] = "/config/input_bindings.json";
+inline constexpr const char kConfigPathAssetsDir[] = "/assets/";
 
-inline constexpr unsigned long USB_SERIAL_BAUD = 115200;
+inline constexpr unsigned long kUsbSerialBaud = 115200;

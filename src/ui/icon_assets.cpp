@@ -93,22 +93,22 @@ bool exists(const char *lvglPath) {
 
 namespace {
 
-constexpr uint8_t SEEN_CAP = 32;
-constexpr uint8_t SEEN_LEN = 24;
+constexpr uint8_t kSeenCap = 32;
+constexpr uint8_t kSeenLen = 24;
 
-bool rememberSeen(char seen[SEEN_CAP][SEEN_LEN], uint8_t &count, const char *name) {
+bool rememberSeen(char seen[kSeenCap][kSeenLen], uint8_t &count, const char *name) {
     for (uint8_t i = 0; i < count; ++i) {
         if (strcmp(seen[i], name) == 0)
             return false;
     }
-    if (count >= SEEN_CAP)
+    if (count >= kSeenCap)
         return false;
-    strlcpy(seen[count], name, SEEN_LEN);
+    strlcpy(seen[count], name, kSeenLen);
     ++count;
     return true;
 }
 
-void preloadIconNameOnce(char seen[SEEN_CAP][SEEN_LEN], uint8_t &seenCount, const char *iconName) {
+void preloadIconNameOnce(char seen[kSeenCap][kSeenLen], uint8_t &seenCount, const char *iconName) {
     if (!iconName || iconName[0] == '\0')
         return;
     if (!rememberSeen(seen, seenCount, iconName))
@@ -125,7 +125,7 @@ void preload(const char *lvglPath) {
     if (!lvglPath || lvglPath[0] == '\0')
         return;
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    if (largest < LVGL_FS_MIN_HEAP_BYTES) {
+    if (largest < kLvglFsMinHeapBytes) {
         LOG_WARN("ICON", "Skip preload of %s — heap largest=%u too low", lvglPath,
                  static_cast<unsigned>(largest));
         return;
@@ -140,7 +140,7 @@ void preloadDashboardAssets() {
     if (!dash.loaded)
         return;
 
-    char seen[SEEN_CAP][SEEN_LEN] = {{0}};
+    char seen[kSeenCap][kSeenLen] = {{0}};
     uint8_t seenCount = 0;
 
     for (uint8_t p = 0; p < dash.pageCount; ++p) {

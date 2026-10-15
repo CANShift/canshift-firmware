@@ -9,13 +9,13 @@
 #include <lvgl.h>
 #include <Preferences.h>
 
-static constexpr char NVS_NS[] = "theme";
-static constexpr char KEY_DAY_MODE[] = "day_mode";
+static constexpr char kNvsNs[] = "theme";
+static constexpr char kKeyDayMode[] = "day_mode";
 
 static bool s_isDayMode = false;
 
 static void persistDayMode() {
-    if (!NvsStore::putBool(NVS_NS, KEY_DAY_MODE, s_isDayMode)) {
+    if (!NvsStore::putBool(kNvsNs, kKeyDayMode, s_isDayMode)) {
         LOG_ERROR("THEME", "day-mode NVS write failed");
         ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "day mode not persisted");
     }
@@ -37,8 +37,8 @@ void ThemeManager::init() {
     }
 
     Preferences p;
-    p.begin(NVS_NS, true);
-    s_isDayMode = p.getBool(KEY_DAY_MODE, false);
+    p.begin(kNvsNs, true);
+    s_isDayMode = p.getBool(kKeyDayMode, false);
     p.end();
 
     LOG_INFO("THEME", "Day mode: %s", s_isDayMode ? "ON" : "OFF");

@@ -24,7 +24,7 @@ constexpr int16_t kPulseSquarePx = 8;
 constexpr int16_t kRowGapPx = 12;
 
 inline void assertUiThreadHoldsLvglMutex() {
-    configASSERT(xPortGetCoreID() == TASK_CORE_UI);
+    configASSERT(xPortGetCoreID() == kTaskCoreUi);
     configASSERT(g_lvglMutex != nullptr);
     const TaskHandle_t holder = xSemaphoreGetMutexHolder(g_lvglMutex);
     configASSERT(holder == nullptr || holder == xTaskGetCurrentTaskHandle());
@@ -118,7 +118,7 @@ void BurnOverlay::showError(ErrorReason reason) {
 
     s_overlay = root;
 
-    s_errorTimer = lv_timer_create(errorHoldExpiredCb, BURN_OVERLAY_ERROR_HOLD_MS, nullptr);
+    s_errorTimer = lv_timer_create(errorHoldExpiredCb, kBurnOverlayErrorHoldMs, nullptr);
     if (s_errorTimer) {
         lv_timer_set_repeat_count(s_errorTimer, 1);
     }

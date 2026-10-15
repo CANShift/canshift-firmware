@@ -32,7 +32,7 @@
 
 namespace PageManagerInternal {
 
-Page s_pages[MAX_PAGES];
+Page s_pages[kMaxPages];
 uint8_t s_pageCount = 0;
 uint8_t s_currentIdx = 0;
 bool s_rebuildRequested = false;
@@ -147,13 +147,13 @@ void PageManager::releaseAll() {
 
 namespace {
 
-static_assert(WIDGET_REFRESH_PERIOD_MS == LV_DISP_DEF_REFR_PERIOD,
+static_assert(kWidgetRefreshPeriodMs == LV_DISP_DEF_REFR_PERIOD,
               "widgets refresh at the rate LVGL redraws");
 
 bool widgetRefreshDue() {
     static uint32_t s_lastRefreshMs = 0;
     const uint32_t nowMs = millis();
-    if (nowMs - s_lastRefreshMs < WIDGET_REFRESH_PERIOD_MS)
+    if (nowMs - s_lastRefreshMs < kWidgetRefreshPeriodMs)
         return false;
     s_lastRefreshMs = nowMs;
     return true;
@@ -163,7 +163,7 @@ void refreshCurrentPage() {
     using namespace PageManagerInternal;
 
     lv_obj_t *currentScreen = s_pages[s_currentIdx].screen;
-    SignalStore::SignalValue snap[SIGNAL_STORE_MAX_SIGNALS];
+    SignalStore::SignalValue snap[kSignalStoreMaxSignals];
     SignalStore::snapshotAll(snap);
 
     SignalStats::tick(snap);

@@ -118,7 +118,7 @@ void buildSegments(lv_obj_t *box, Surface &surface) {
     lv_obj_set_style_pad_top(row, LayoutScale::y(kSegmentTopGapPx), 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(row, LayoutScale::x(kSegmentGapPx), 0);
-    for (uint8_t i = 0; i < CONTROL_STEP_MAX; ++i) {
+    for (uint8_t i = 0; i < kControlStepMax; ++i) {
         lv_obj_t *cell = lv_obj_create(row);
         WidgetHelpers::resetContainerStyle(cell);
         WidgetHelpers::disableInteract(cell);
@@ -138,7 +138,7 @@ void paintSegments(const Surface &surface, ControlState state, uint8_t level) {
         engaged ? ThemeTokens::kInkNight : ThemeManager::getEffectiveTextColor();
     const lv_opa_t litOpa = engaged ? kSegmentEngagedLitOpa : LV_OPA_COVER;
     const uint32_t unlitRgb = ThemeManager::trackColor();
-    for (uint8_t i = 0; i < CONTROL_STEP_MAX; ++i) {
+    for (uint8_t i = 0; i < kControlStepMax; ++i) {
         const bool lit = i < level;
         lv_obj_set_style_bg_color(surface.segments[i], lv_color_hex(lit ? litRgb : unlitRgb), 0);
         lv_obj_set_style_bg_opa(surface.segments[i], lit ? litOpa : LV_OPA_COVER, 0);

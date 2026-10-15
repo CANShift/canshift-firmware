@@ -6,9 +6,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 
-static constexpr uint8_t RING_SIZE = ERROR_STORE_RING_SIZE;
+static constexpr uint8_t kRingSize = kErrorStoreRingSize;
 
-static FwError s_ring[RING_SIZE];
+static FwError s_ring[kRingSize];
 static uint8_t s_head = 0;
 static uint8_t s_count = 0;
 static uint32_t s_version = 0;
@@ -28,14 +28,14 @@ const char *ErrorStore::sourceLabel(ErrorSource source) {
 
 void ErrorStore::push(ErrorSource source, const char *code, const char *message) {
     portENTER_CRITICAL(&s_mux);
-    error_store_push_rs(s_ring, RING_SIZE, &s_head, &s_count, &s_version,
+    error_store_push_rs(s_ring, kRingSize, &s_head, &s_count, &s_version,
                         static_cast<uint8_t>(source), code, message);
     portEXIT_CRITICAL(&s_mux);
 }
 
 void ErrorStore::getAll(FwError *buf, uint8_t *count, uint8_t maxCount) {
     portENTER_CRITICAL(&s_mux);
-    *count = error_store_get_all_rs(s_ring, RING_SIZE, s_head, s_count, buf, maxCount);
+    *count = error_store_get_all_rs(s_ring, kRingSize, s_head, s_count, buf, maxCount);
     portEXIT_CRITICAL(&s_mux);
 }
 
@@ -59,7 +59,7 @@ bool ErrorStore::peekLast(FwError *out) {
         portEXIT_CRITICAL(&s_mux);
         return false;
     }
-    const uint8_t idx = static_cast<uint8_t>((s_head + s_count - 1) % RING_SIZE);
+    const uint8_t idx = static_cast<uint8_t>((s_head + s_count - 1) % kRingSize);
     *out = s_ring[idx];
     portEXIT_CRITICAL(&s_mux);
     return true;
@@ -76,7 +76,7 @@ void ErrorStore::dismissLatest() {
 
 void ErrorStore::dismissAt(uint8_t row) {
     portENTER_CRITICAL(&s_mux);
-    error_store_dismiss_at_rs(s_ring, RING_SIZE, &s_head, &s_count, &s_version, row);
+    error_store_dismiss_at_rs(s_ring, kRingSize, &s_head, &s_count, &s_version, row);
     portEXIT_CRITICAL(&s_mux);
 }
 

@@ -5,19 +5,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define WORKSHOP_ENTROPY_BYTES 64
-#define WORKSHOP_SSID_CAP 33
-#define WORKSHOP_PASSWORD_CAP 64
-#define WORKSHOP_JOIN_PAYLOAD_CAP 224
-#define WORKSHOP_TUNER_PATH_CAP 32
+inline constexpr int kWorkshopEntropyBytes = 64;
+inline constexpr int kWorkshopSsidCap = 33;
+inline constexpr int kWorkshopPasswordCap = 64;
+inline constexpr int kWorkshopJoinPayloadCap = 224;
+inline constexpr int kWorkshopTunerPathCap = 32;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum { WORKSHOP_STATE_DRIVING = 0, WORKSHOP_STATE_ENTERING = 1, WORKSHOP_STATE_ACTIVE = 2 };
+enum { kWorkshopStateDriving = 0, kWorkshopStateEntering = 1, kWorkshopStateActive = 2 };
 
-enum { WORKSHOP_EVENT_REQUEST = 0, WORKSHOP_EVENT_ENTERED = 1, WORKSHOP_EVENT_FAILED = 2 };
+enum { kWorkshopEventRequest = 0, kWorkshopEventEntered = 1, kWorkshopEventFailed = 2 };
 
 uint8_t workshop_next_state_rs(uint8_t state, uint8_t event, bool is_offered);
 bool workshop_board_supported_rs(uint32_t filesystem_bytes);

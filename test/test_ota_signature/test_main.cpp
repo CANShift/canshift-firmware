@@ -29,16 +29,16 @@ void test_missingSignatureDoesNotBegin() {
 
 void test_nonCanonicalSignatureIsRefusedAtBegin() {
     OtaSignatureSlot slot = clearedSlot();
-    uint8_t signature[OTA_SIGNATURE_BYTES];
+    uint8_t signature[kOtaSignatureBytes];
     memset(signature, 0xff, sizeof(signature));
     TEST_ASSERT_FALSE(ota_signature_begin_rs(&slot, signature));
 }
 
 void test_foreignSignatureFailsAgainstTheReleaseKey() {
     OtaSignatureSlot slot = clearedSlot();
-    uint8_t signature[OTA_SIGNATURE_BYTES];
+    uint8_t signature[kOtaSignatureBytes];
     memset(signature, kForeignSignatureByte, sizeof(signature));
-    signature[OTA_SIGNATURE_BYTES - 1] = 0;
+    signature[kOtaSignatureBytes - 1] = 0;
     TEST_ASSERT_TRUE(ota_signature_begin_rs(&slot, signature));
     ota_signature_update_rs(&slot, kImage, sizeof(kImage));
     TEST_ASSERT_FALSE(ota_signature_finish_rs(&slot));

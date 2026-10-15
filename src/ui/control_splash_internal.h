@@ -49,7 +49,7 @@ struct Layer {
     lv_obj_t *cellKicker[ControlSplashContent::kMaxCells];
     lv_obj_t *cellValue[ControlSplashContent::kMaxCells];
     lv_obj_t *cellUnit[ControlSplashContent::kMaxCells];
-    lv_obj_t *segment[CONTROL_STEP_MAX];
+    lv_obj_t *segment[kControlStepMax];
 };
 
 bool build(Layer &layer);

@@ -34,13 +34,13 @@ CAN decoding owns **core 0**, at the highest priority, so a busy bus is never st
 
 ## Tasks
 
-| Task    | Core | Priority | Stack  | Period                                                  | Entry                                            |
-| ------- | ---- | -------- | ------ | ------------------------------------------------------- | ------------------------------------------------ |
-| `can`   | 0    | 15       | 4096 B | receive loop, yields `CAN_TASK_YIELD_TICKS` (1 tick)    | `taskCAN` — `src/main.cpp`                       |
-| `ui`    | 1    | 10       | 8192 B | `LVGL_HANDLER_PERIOD_MS` (10 ms), woken early by notify | `taskUI` — `src/main.cpp`                        |
-| `usb`   | 1    | 8        | 4096 B | `USB_TASK_TICK_INTERVAL_MS` (20 ms)                     | `taskUSBComm` — `src/main.cpp`                   |
-| `input` | 0    | 7        | 2048 B | 1 ms, only when buttons are bound                       | `taskInput` — `src/runtime/input_buttons.cpp`    |
-| `ble`   | 1    | 6        | 5120 B | `BLE_TELE_INTERVAL_MS` (100 ms)                         | `taskBLE` — `src/main.cpp`, if `APP_BLE_ENABLED` |
+| Task    | Core | Priority | Stack  | Period                                                | Entry                                            |
+| ------- | ---- | -------- | ------ | ----------------------------------------------------- | ------------------------------------------------ |
+| `can`   | 0    | 15       | 4096 B | receive loop, yields `kCanTaskYieldTicks` (1 tick)    | `taskCAN` — `src/main.cpp`                       |
+| `ui`    | 1    | 10       | 8192 B | `kLvglHandlerPeriodMs` (10 ms), woken early by notify | `taskUI` — `src/main.cpp`                        |
+| `usb`   | 1    | 8        | 4096 B | `kUsbTaskTickIntervalMs` (20 ms)                      | `taskUSBComm` — `src/main.cpp`                   |
+| `input` | 0    | 7        | 2048 B | 1 ms, only when buttons are bound                     | `taskInput` — `src/runtime/input_buttons.cpp`    |
+| `ble`   | 1    | 6        | 5120 B | `kBleTeleIntervalMs` (100 ms)                         | `taskBLE` — `src/main.cpp`, if `APP_BLE_ENABLED` |
 
 The `TASK_PRIO_*`, `TASK_STACK_*` and `TASK_CORE_*` constants in [`include/app_config.h`](../../include/app_config.h) are the source; this table only reads them. The `ui`, `can`, `usb` and `ble` stacks are allocated statically before boot; the `input` task is spawned only when [`input_bindings.json`](../reference/physical-buttons.md) binds at least one pin.
 

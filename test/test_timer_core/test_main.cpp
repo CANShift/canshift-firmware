@@ -4,7 +4,7 @@
 
 namespace {
 
-constexpr int64_t SEC = 1000000;
+constexpr int64_t kSec = 1000000;
 
 TimerCoreState makeCore() {
     TimerCoreState core = {};
@@ -15,7 +15,7 @@ TimerCoreState makeCore() {
 void test_start_onlyFromReset() {
     TimerCoreState core = makeCore();
     TEST_ASSERT_TRUE(timer_core_start_rs(&core, 0));
-    TEST_ASSERT_FALSE(timer_core_start_rs(&core, SEC));
+    TEST_ASSERT_FALSE(timer_core_start_rs(&core, kSec));
     TEST_ASSERT_EQUAL_UINT8(1, core.run_state);
     TEST_ASSERT_EQUAL_UINT16(1, core.session);
 }
@@ -23,11 +23,11 @@ void test_start_onlyFromReset() {
 void test_elapsed_accumulatesAcrossPauseResume() {
     TimerCoreState core = makeCore();
     timer_core_start_rs(&core, 0);
-    TEST_ASSERT_EQUAL_UINT32(5000, timer_core_elapsed_ms_rs(&core, 5 * SEC));
-    TEST_ASSERT_TRUE(timer_core_pause_rs(&core, 5 * SEC));
-    TEST_ASSERT_EQUAL_UINT32(5000, timer_core_elapsed_ms_rs(&core, 60 * SEC));
-    TEST_ASSERT_TRUE(timer_core_resume_rs(&core, 60 * SEC));
-    TEST_ASSERT_EQUAL_UINT32(7000, timer_core_elapsed_ms_rs(&core, 62 * SEC));
+    TEST_ASSERT_EQUAL_UINT32(5000, timer_core_elapsed_ms_rs(&core, 5 * kSec));
+    TEST_ASSERT_TRUE(timer_core_pause_rs(&core, 5 * kSec));
+    TEST_ASSERT_EQUAL_UINT32(5000, timer_core_elapsed_ms_rs(&core, 60 * kSec));
+    TEST_ASSERT_TRUE(timer_core_resume_rs(&core, 60 * kSec));
+    TEST_ASSERT_EQUAL_UINT32(7000, timer_core_elapsed_ms_rs(&core, 62 * kSec));
 }
 
 void test_lap_recordsSplitAndTotal() {
@@ -36,13 +36,13 @@ void test_lap_recordsSplitAndTotal() {
 
     TimerCoreLap lap = {};
     bool dropped = true;
-    TEST_ASSERT_TRUE(timer_core_lap_rs(&core, 61 * SEC, &lap, &dropped));
+    TEST_ASSERT_TRUE(timer_core_lap_rs(&core, 61 * kSec, &lap, &dropped));
     TEST_ASSERT_EQUAL_UINT16(1, lap.index);
     TEST_ASSERT_EQUAL_UINT32(61000, lap.lap_ms);
     TEST_ASSERT_EQUAL_UINT32(61000, lap.total_ms);
     TEST_ASSERT_FALSE(dropped);
 
-    TEST_ASSERT_TRUE(timer_core_lap_rs(&core, 100 * SEC, &lap, &dropped));
+    TEST_ASSERT_TRUE(timer_core_lap_rs(&core, 100 * kSec, &lap, &dropped));
     TEST_ASSERT_EQUAL_UINT16(2, lap.index);
     TEST_ASSERT_EQUAL_UINT32(39000, lap.lap_ms);
     TEST_ASSERT_EQUAL_UINT32(100000, lap.total_ms);
@@ -53,18 +53,18 @@ void test_lap_rejectedUnlessRunning() {
     TimerCoreLap lap = {};
     TEST_ASSERT_FALSE(timer_core_lap_rs(&core, 0, &lap, nullptr));
     timer_core_start_rs(&core, 0);
-    timer_core_pause_rs(&core, SEC);
-    TEST_ASSERT_FALSE(timer_core_lap_rs(&core, 2 * SEC, &lap, nullptr));
+    timer_core_pause_rs(&core, kSec);
+    TEST_ASSERT_FALSE(timer_core_lap_rs(&core, 2 * kSec, &lap, nullptr));
 }
 
 void test_reset_keepsPendingLaps() {
     TimerCoreState core = makeCore();
     timer_core_start_rs(&core, 0);
-    timer_core_lap_rs(&core, 10 * SEC, nullptr, nullptr);
+    timer_core_lap_rs(&core, 10 * kSec, nullptr, nullptr);
     TEST_ASSERT_TRUE(timer_core_reset_rs(&core));
     TEST_ASSERT_EQUAL_UINT8(0, core.run_state);
     TEST_ASSERT_EQUAL_UINT16(0, core.lap_count);
-    TEST_ASSERT_EQUAL_UINT32(0, timer_core_elapsed_ms_rs(&core, 99 * SEC));
+    TEST_ASSERT_EQUAL_UINT32(0, timer_core_elapsed_ms_rs(&core, 99 * kSec));
     TEST_ASSERT_EQUAL_UINT8(1, timer_core_pending_count_rs(&core));
     TEST_ASSERT_FALSE(timer_core_reset_rs(&core));
 }
@@ -73,7 +73,7 @@ void test_pendingRing_flushesInOrder() {
     TimerCoreState core = makeCore();
     timer_core_start_rs(&core, 0);
     for (int64_t i = 1; i <= 3; i++) {
-        timer_core_lap_rs(&core, i * SEC, nullptr, nullptr);
+        timer_core_lap_rs(&core, i * kSec, nullptr, nullptr);
     }
 
     TimerCoreLap lap = {};
@@ -89,13 +89,13 @@ void test_pendingRing_dropsOldestOnOverflow() {
     timer_core_start_rs(&core, 0);
 
     bool droppedSeen = false;
-    for (int64_t i = 1; i <= TIMER_CORE_LAP_CAPACITY + 2; i++) {
+    for (int64_t i = 1; i <= kTimerCoreLapCapacity + 2; i++) {
         bool dropped = false;
-        TEST_ASSERT_TRUE(timer_core_lap_rs(&core, i * SEC, nullptr, &dropped));
+        TEST_ASSERT_TRUE(timer_core_lap_rs(&core, i * kSec, nullptr, &dropped));
         droppedSeen |= dropped;
     }
     TEST_ASSERT_TRUE(droppedSeen);
-    TEST_ASSERT_EQUAL_UINT8(TIMER_CORE_LAP_CAPACITY, timer_core_pending_count_rs(&core));
+    TEST_ASSERT_EQUAL_UINT8(kTimerCoreLapCapacity, timer_core_pending_count_rs(&core));
 
     TimerCoreLap lap = {};
     TEST_ASSERT_TRUE(timer_core_pop_pending_rs(&core, &lap));
@@ -106,10 +106,10 @@ void test_session_incrementsOnEachStart() {
     TimerCoreState core = makeCore();
     timer_core_start_rs(&core, 0);
     timer_core_reset_rs(&core);
-    timer_core_start_rs(&core, 10 * SEC);
+    timer_core_start_rs(&core, 10 * kSec);
 
     TimerCoreLap lap = {};
-    TEST_ASSERT_TRUE(timer_core_lap_rs(&core, 11 * SEC, &lap, nullptr));
+    TEST_ASSERT_TRUE(timer_core_lap_rs(&core, 11 * kSec, &lap, nullptr));
     TEST_ASSERT_EQUAL_UINT16(2, lap.session);
     TEST_ASSERT_EQUAL_UINT16(1, lap.index);
 }
@@ -129,7 +129,7 @@ void test_version_bumpsOnMutationsOnly() {
 void test_nullPointers_areNoops() {
     TEST_ASSERT_FALSE(timer_core_start_rs(nullptr, 0));
     TEST_ASSERT_FALSE(timer_core_reset_rs(nullptr));
-    TEST_ASSERT_EQUAL_UINT32(0, timer_core_elapsed_ms_rs(nullptr, SEC));
+    TEST_ASSERT_EQUAL_UINT32(0, timer_core_elapsed_ms_rs(nullptr, kSec));
     TEST_ASSERT_EQUAL_UINT8(0, timer_core_pending_count_rs(nullptr));
 }
 

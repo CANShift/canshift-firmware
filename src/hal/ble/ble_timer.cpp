@@ -12,8 +12,8 @@
 
 namespace {
 
-constexpr size_t TIMER_PAYLOAD_CAP = 96;
-constexpr uint8_t MAX_LAP_NOTIFIES_PER_TICK = 4;
+constexpr size_t kTimerPayloadCap = 96;
+constexpr uint8_t kMaxLapNotifiesPerTick = 4;
 
 uint32_t s_lastNotifiedVersion = 0;
 bool s_versionSeeded = false;
@@ -40,7 +40,7 @@ size_t buildTimerLapPayload(char *buf, size_t bufSize, const TimerService::Lap &
 }
 
 void notifyTimerState(NimBLECharacteristic *pState, const TimerService::Snapshot &snap) {
-    char buf[TIMER_PAYLOAD_CAP];
+    char buf[kTimerPayloadCap];
     const size_t len = buildTimerStatePayload(buf, sizeof(buf), snap);
     if (len == 0) {
         LOG_WARN("BLE", "TIMER state payload truncated — skipping notify");
@@ -55,12 +55,12 @@ void flushPendingLaps(NimBLECharacteristic *pLap) {
     if (pLap->getSubscribedCount() == 0)
         return;
 
-    for (uint8_t i = 0; i < MAX_LAP_NOTIFIES_PER_TICK; i++) {
+    for (uint8_t i = 0; i < kMaxLapNotifiesPerTick; i++) {
         TimerService::Lap lap = {};
         if (!TimerService::popPendingLap(lap))
             return;
 
-        char buf[TIMER_PAYLOAD_CAP];
+        char buf[kTimerPayloadCap];
         const size_t len = buildTimerLapPayload(buf, sizeof(buf), lap);
         if (len == 0) {
             LOG_WARN("BLE", "TIMER lap payload truncated — lap %u lost",
@@ -80,7 +80,7 @@ void refreshTimerStateValue() {
     auto *pState = s_pTimerState;
     if (!pState)
         return;
-    char buf[TIMER_PAYLOAD_CAP];
+    char buf[kTimerPayloadCap];
     const size_t len = buildTimerStatePayload(buf, sizeof(buf), TimerService::snapshot());
     if (len == 0)
         return;

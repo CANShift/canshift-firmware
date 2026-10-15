@@ -20,15 +20,15 @@
 namespace ConfigLoaderInternal {
 
 bool loadDevice() {
-    if (!StorageDriver::fileExists(CONFIG_PATH_DEVICE)) {
+    if (!StorageDriver::fileExists(kConfigPathDevice)) {
         LOG_INFO("CFG", "device.json not found — using board_config.h defaults");
         return false;
     }
 
-    logLargestFreeBlock(CONFIG_PATH_DEVICE);
+    logLargestFreeBlock(kConfigPathDevice);
 
     JsonDocument doc(JsonReader::configAllocator());
-    DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_DEVICE, doc);
+    DeserializationError err = StorageDriver::parseJsonFile(kConfigPathDevice, doc);
     if (err) {
         LOG_WARN("CFG", "device.json parse error: %s — using defaults", err.c_str());
         return false;
@@ -51,13 +51,13 @@ bool loadInputBindings() {
     s_inputs.loaded = false;
     memset(s_inputs.bindings, 0, sizeof(s_inputs.bindings));
 
-    if (!StorageDriver::fileExists(CONFIG_PATH_INPUTS)) {
+    if (!StorageDriver::fileExists(kConfigPathInputs)) {
         LOG_INFO("CFG", "input_bindings.json not found — no physical buttons configured");
         return false;
     }
 
     JsonDocument doc(JsonReader::configAllocator());
-    DeserializationError err = StorageDriver::parseJsonFile(CONFIG_PATH_INPUTS, doc);
+    DeserializationError err = StorageDriver::parseJsonFile(kConfigPathInputs, doc);
     if (err) {
         LOG_WARN("CFG", "input_bindings.json parse error: %s — ignoring file", err.c_str());
         return false;
@@ -70,9 +70,9 @@ bool loadInputBindings() {
     }
 
     for (JsonObjectConst entry : arr) {
-        if (s_inputs.count >= CFG_MAX_INPUT_BINDINGS) {
+        if (s_inputs.count >= kCfgMaxInputBindings) {
             LOG_WARN("CFG", "input_bindings.json: > %u entries — extras dropped",
-                     static_cast<unsigned>(CFG_MAX_INPUT_BINDINGS));
+                     static_cast<unsigned>(kCfgMaxInputBindings));
             break;
         }
         CfgInputBinding &b = s_inputs.bindings[s_inputs.count];

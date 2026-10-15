@@ -30,8 +30,8 @@ constexpr const char *kSignalsMinimal = R"({
 
 void stageDashboard(const char *dashboard) {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, dashboard, strlen(dashboard));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, kSignalsMinimal, strlen(kSignalsMinimal));
+    StorageDriver::fakeWrite(kConfigPathDashboard, dashboard, strlen(dashboard));
+    StorageDriver::fakeWrite(kConfigPathSignals, kSignalsMinimal, strlen(kSignalsMinimal));
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
 }
 

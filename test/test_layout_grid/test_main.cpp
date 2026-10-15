@@ -5,7 +5,7 @@
 
 namespace {
 
-constexpr uint16_t FRAME = 8;
+constexpr uint16_t kFrame = 8;
 
 LayoutGridRectRs resolve(uint8_t col, uint8_t colSpan, uint8_t row, uint8_t rowSpan, uint16_t areaW,
                          uint16_t areaH) {
@@ -51,22 +51,22 @@ void test_degenerateArea_clampsToMin1px() {
 
 void test_garbagePlacement_staysInsideFrame() {
     const LayoutGridRectRs rect = resolve(250, 250, 250, 250, 320, 224);
-    TEST_ASSERT_TRUE(rect.x >= FRAME);
-    TEST_ASSERT_TRUE(rect.y >= FRAME);
-    TEST_ASSERT_TRUE(rect.x + rect.w <= 320 - FRAME);
-    TEST_ASSERT_TRUE(rect.y + rect.h <= 224 - FRAME);
+    TEST_ASSERT_TRUE(rect.x >= kFrame);
+    TEST_ASSERT_TRUE(rect.y >= kFrame);
+    TEST_ASSERT_TRUE(rect.x + rect.w <= 320 - kFrame);
+    TEST_ASSERT_TRUE(rect.y + rect.h <= 224 - kFrame);
 }
 
 void assertInsideFrame(uint16_t areaW, uint16_t areaH) {
-    const int16_t right = static_cast<int16_t>(areaW - FRAME);
-    const int16_t bottom = static_cast<int16_t>(areaH - FRAME);
+    const int16_t right = static_cast<int16_t>(areaW - kFrame);
+    const int16_t bottom = static_cast<int16_t>(areaH - kFrame);
     for (uint8_t colSpan = 1; colSpan <= 12; ++colSpan) {
         for (uint8_t col = 0; col <= 12 - colSpan; ++col) {
             for (uint8_t rowSpan = 1; rowSpan <= 12; ++rowSpan) {
                 for (uint8_t row = 0; row <= 12 - rowSpan; ++row) {
                     const LayoutGridRectRs rect = resolve(col, colSpan, row, rowSpan, areaW, areaH);
-                    TEST_ASSERT_TRUE(rect.x >= FRAME);
-                    TEST_ASSERT_TRUE(rect.y >= FRAME);
+                    TEST_ASSERT_TRUE(rect.x >= kFrame);
+                    TEST_ASSERT_TRUE(rect.y >= kFrame);
                     TEST_ASSERT_TRUE(rect.w >= 1);
                     TEST_ASSERT_TRUE(rect.h >= 1);
                     TEST_ASSERT_TRUE(rect.x + rect.w <= right);

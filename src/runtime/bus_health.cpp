@@ -10,7 +10,7 @@ namespace BusHealth {
 
 State sample() {
     AlertBusSilenceRs out = {};
-    alert_bus_silence_rs(&out, CanManager::msSinceLastRx(), millis(), SIGNAL_DEFAULT_TIMEOUT_MS);
+    alert_bus_silence_rs(&out, CanManager::msSinceLastRx(), millis(), kSignalDefaultTimeoutMs);
     return State{out.silent, out.seconds};
 }
 

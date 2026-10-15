@@ -44,9 +44,9 @@ void fillEntropy(uint8_t *out, size_t len) {
 }
 
 bool generate(WorkshopCredentials &out) {
-    static_assert(WORKSHOP_ENTROPY_BYTES % kRandomWordBytes == 0,
+    static_assert(kWorkshopEntropyBytes % kRandomWordBytes == 0,
                   "entropy is drawn a word at a time");
-    uint8_t entropy[WORKSHOP_ENTROPY_BYTES];
+    uint8_t entropy[kWorkshopEntropyBytes];
     fillEntropy(entropy, sizeof(entropy));
     return workshop_generate_credentials_rs(entropy, sizeof(entropy), out.ssid, sizeof(out.ssid),
                                             out.password, sizeof(out.password));

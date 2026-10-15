@@ -9,7 +9,7 @@ namespace TelemetryFrame {
 namespace {
 
 int32_t scaleValue(float value) {
-    return static_cast<int32_t>(std::lroundf(value * static_cast<float>(SCALE)));
+    return static_cast<int32_t>(std::lroundf(value * static_cast<float>(kScale)));
 }
 
 void writeUint16Le(uint8_t *p, uint16_t value) {
@@ -32,7 +32,7 @@ bool isEmitted(const Field &field) {
 } // namespace
 
 size_t encode(const Field *fields, size_t count, uint8_t *buf, size_t bufSize) {
-    if (fields == nullptr || buf == nullptr || count > MAX_FIELDS)
+    if (fields == nullptr || buf == nullptr || count > kMaxFields)
         return 0;
 
     uint16_t mask = 0;
@@ -44,18 +44,18 @@ size_t encode(const Field *fields, size_t count, uint8_t *buf, size_t bufSize) {
         }
     }
 
-    const size_t total = HEADER_BYTES + present * VALUE_BYTES;
+    const size_t total = kHeaderBytes + present * kValueBytes;
     if (bufSize < total)
         return 0;
 
-    buf[0] = VERSION;
+    buf[0] = kVersion;
     writeUint16Le(buf + 1, mask);
-    size_t offset = HEADER_BYTES;
+    size_t offset = kHeaderBytes;
     for (size_t i = 0; i < count; i++) {
         if (!isEmitted(fields[i]))
             continue;
         writeInt32Le(buf + offset, scaleValue(fields[i].value));
-        offset += VALUE_BYTES;
+        offset += kValueBytes;
     }
     return total;
 }
@@ -66,14 +66,14 @@ void resetDeduper(Deduper &deduper) {
 }
 
 bool shouldSend(Deduper &deduper, const uint8_t *frame, size_t len) {
-    if (frame == nullptr || len == 0 || len > MAX_FRAME_BYTES)
+    if (frame == nullptr || len == 0 || len > kMaxFrameBytes)
         return false;
 
-    if (deduper.ticksSinceSend < KEEPALIVE_TICKS)
+    if (deduper.ticksSinceSend < kKeepaliveTicks)
         deduper.ticksSinceSend++;
 
     const bool changed = len != deduper.lastLen || std::memcmp(frame, deduper.last, len) != 0;
-    const bool keepalive = deduper.ticksSinceSend >= KEEPALIVE_TICKS;
+    const bool keepalive = deduper.ticksSinceSend >= kKeepaliveTicks;
     if (!changed && !keepalive)
         return false;
 

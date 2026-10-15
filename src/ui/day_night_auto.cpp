@@ -5,13 +5,13 @@
 #include "runtime/pending_actions.h"
 #include "runtime/signal_store.h"
 
-static SignalId s_signalId = SignalIds::SIGNAL_COUNT;
+static SignalId s_signalId = SignalIds::kSignalCount;
 static int8_t s_lastHeadlightState = -1;
 
-static constexpr float HEADLIGHTS_ON_THRESHOLD = 0.5f;
+static constexpr float kHeadlightsOnThreshold = 0.5f;
 
 void DayNightAuto::init() {
-    s_signalId = SignalIds::SIGNAL_COUNT;
+    s_signalId = SignalIds::kSignalCount;
     s_lastHeadlightState = -1;
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
@@ -19,7 +19,7 @@ void DayNightAuto::init() {
         return;
 
     const SignalId sid = signalIdFromName(dash.dayNightSignal);
-    if (sid >= SignalIds::SIGNAL_COUNT) {
+    if (sid >= SignalIds::kSignalCount) {
         LOG_WARN("THEME", "dayNightSignal '%s' unknown — auto day/night disabled",
                  dash.dayNightSignal);
         return;
@@ -30,12 +30,12 @@ void DayNightAuto::init() {
 }
 
 void DayNightAuto::tick() {
-    if (s_signalId >= SignalIds::SIGNAL_COUNT)
+    if (s_signalId >= SignalIds::kSignalCount)
         return;
     if (!SignalStore::isValid(s_signalId))
         return;
 
-    const bool headlightsOn = SignalStore::read(s_signalId) >= HEADLIGHTS_ON_THRESHOLD;
+    const bool headlightsOn = SignalStore::read(s_signalId) >= kHeadlightsOnThreshold;
     const int8_t state = headlightsOn ? 1 : 0;
     if (state == s_lastHeadlightState)
         return;

@@ -62,7 +62,7 @@ void addCredential(lv_obj_t *parent, const char *kicker, const char *value) {
 
 void onLeave(lv_event_t *) {
     LOG_INFO("WORKSHOP", "Leaving workshop mode — rebooting");
-    delay(PRE_RESTART_FLUSH_DELAY_MS);
+    delay(kPreRestartFlushDelayMs);
     esp_restart();
 }
 
@@ -79,7 +79,7 @@ void addLeaveButton(lv_obj_t *parent) {
 }
 
 bool addJoinCode(lv_obj_t *parent, const WorkshopCredentials &creds) {
-    char payload[WORKSHOP_JOIN_PAYLOAD_CAP];
+    char payload[kWorkshopJoinPayloadCap];
     const size_t len =
         workshop_join_payload_rs(creds.ssid, creds.password, payload, sizeof(payload));
     lv_obj_t *quiet = lv_obj_create(parent);

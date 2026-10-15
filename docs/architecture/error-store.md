@@ -51,7 +51,7 @@ lock and does not try to acquire one.
 `assert!(core::mem::size_of::<FwError>() == 65)` to guard against C-side
 layout drift.
 
-## Ring sizing — `ERROR_STORE_RING_SIZE = 6`
+## Ring sizing — `kErrorStoreRingSize = 6`
 
 Raising the depth widens `FwError[]` copies inside critical sections —
 keep `≤16` (F-ME-12). 6 is enough that a transient burst (failed CAN

@@ -13,10 +13,10 @@
 
 namespace {
 
-static constexpr size_t LVGL_PATH_LEN = 2 + CFG_MAX_PATH_LEN;
+static constexpr size_t kLvglPathLen = 2 + kCfgMaxPathLen;
 
 struct ImageTag {
-    char lvglPath[LVGL_PATH_LEN];
+    char lvglPath[kLvglPathLen];
 };
 
 } // namespace

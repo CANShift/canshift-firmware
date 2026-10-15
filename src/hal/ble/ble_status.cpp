@@ -26,7 +26,7 @@ void updateStatus() {
     JsonDocument &doc = leased.document();
     doc["ver"] = APP_VERSION_STR;
     doc["board_id"] = canshift::boards::runtimeBoardProfile().board_id;
-    doc["can"] = SignalStore::isValid(SignalIds::RPM) ? 1 : 0;
+    doc["can"] = SignalStore::isValid(SignalIds::kRpm) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
     if (doc.overflowed()) {
         LOG_WARN("BLE", "STATUS arena %s — skipping notify", leased.held() ? "full" : "busy");

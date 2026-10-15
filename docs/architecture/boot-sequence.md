@@ -125,7 +125,7 @@ task returns the whole stack to the heap.
 - **`preloadIconsWithHeapLog` before page widgets allocate**: page-widget
   allocations consume the same LVGL pool as the SPIFFS icon decoder. After
   `PageManager::init` runs, the largest free block drops below the
-  FS-open threshold (`LVGL_FS_MIN_HEAP_BYTES`) and on-demand icon loads
+  FS-open threshold (`kLvglFsMinHeapBytes`) and on-demand icon loads
   fail (#956). Preloaded entries live in the LVGL image cache
   (`LV_IMG_CACHE_DEF_SIZE`) and survive page rebuilds + theme toggles
   without re-touching SPIFFS.
@@ -155,7 +155,7 @@ A freshly OTA-written slot boots as `ESP_OTA_IMG_PENDING_VERIFY`, and the
 prebuilt bootloader rolls back to the previous slot if it resets before the
 image is marked valid. The mark has one home:
 `BootSequence::markOtaSlotValidIfPending()`, called from `taskUI` once
-`UI_OTA_VALID_FRAMES` frames have rendered (`main.cpp`). So a crash anywhere in
+`kUiOtaValidFrames` frames have rendered (`main.cpp`). So a crash anywhere in
 `setup()`, the boot sequence or the first frames rolls back.
 
 arduino-esp32's `initArduino()` would otherwise mark the image valid itself,
@@ -165,7 +165,7 @@ before `setup()` runs: it calls the weak `verifyRollbackLater()`, which returns
 the mark to the gate above (#312). Without that override the gate never sees
 `PENDING_VERIFY` and no crash after an OTA ever rolls back.
 
-The gate sits after `UI_OTA_VALID_FRAMES` rather than right after
+The gate sits after `kUiOtaValidFrames` rather than right after
 `[BOOT] Ready` so that a crash inside the first `lv_task_handler()` calls
 (font decode, page rebuild, theme apply) still rolls back (#1014).
 

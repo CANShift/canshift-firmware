@@ -113,7 +113,7 @@ void paintCells(const Content &content) {
 void paintSegments(const Content &content, const TonePaint &tone) {
     const uint32_t litRgb = tone.hero();
     const uint32_t unlitRgb = ThemeManager::trackColor();
-    for (uint8_t i = 0; i < CONTROL_STEP_MAX; ++i) {
+    for (uint8_t i = 0; i < kControlStepMax; ++i) {
         const bool lit = i < content.segmentsLit;
         lv_obj_set_style_bg_color(s_layer.segment[i], lv_color_hex(lit ? litRgb : unlitRgb),
                                   LV_PART_MAIN);
@@ -171,7 +171,7 @@ void ControlSplash::raiseFor(const ControlVocabulary::Control &control,
     Content content;
     ControlSplashContent::compose(control, state, level, content);
     const uint8_t kind =
-        content.tone == Tone::REFUSE ? CONTROL_SPLASH_KIND_REFUSAL : CONTROL_SPLASH_KIND_CHANGE;
+        content.tone == Tone::REFUSE ? kControlSplashKindRefusal : kControlSplashKindChange;
     paint(content);
     control_splash_raise_rs(&s_timer, kind, millis());
     show(true);

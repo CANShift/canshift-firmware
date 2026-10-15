@@ -13,10 +13,10 @@ namespace OtaReceiver {
 
 namespace {
 
-constexpr uint8_t ESP_IMAGE_MAGIC = 0xe9;
-constexpr uint32_t APP_DESC_MAGIC = 0xabcd5432;
-constexpr size_t APP_DESC_OFFSET = 0x20;
-constexpr size_t APP_HEADER_PROBE_BYTES = APP_DESC_OFFSET + sizeof(uint32_t);
+constexpr uint8_t kEspImageMagic = 0xe9;
+constexpr uint32_t kAppDescMagic = 0xabcd5432;
+constexpr size_t kAppDescOffset = 0x20;
+constexpr size_t kAppHeaderProbeBytes = kAppDescOffset + sizeof(uint32_t);
 
 State s_state = State::Idle;
 const esp_partition_t *s_targetPartition = nullptr;
@@ -25,7 +25,7 @@ size_t s_expectedSize = 0;
 size_t s_writtenSize = 0;
 mbedtls_sha256_context s_shaCtx;
 uint8_t s_expectedSha[32] = {0};
-uint8_t s_headerProbe[APP_HEADER_PROBE_BYTES] = {0};
+uint8_t s_headerProbe[kAppHeaderProbeBytes] = {0};
 size_t s_headerProbeLen = 0;
 OtaSignatureSlot s_signature;
 bool s_signed = false;
@@ -49,22 +49,22 @@ bool signatureAccepted() {
 }
 
 void captureHeaderProbe(const uint8_t *data, size_t len) {
-    if (s_headerProbeLen >= APP_HEADER_PROBE_BYTES)
+    if (s_headerProbeLen >= kAppHeaderProbeBytes)
         return;
-    const size_t room = APP_HEADER_PROBE_BYTES - s_headerProbeLen;
+    const size_t room = kAppHeaderProbeBytes - s_headerProbeLen;
     const size_t take = len < room ? len : room;
     memcpy(s_headerProbe + s_headerProbeLen, data, take);
     s_headerProbeLen += take;
 }
 
 bool headerProbeRejects() {
-    if (s_headerProbeLen < APP_HEADER_PROBE_BYTES)
+    if (s_headerProbeLen < kAppHeaderProbeBytes)
         return false;
-    if (s_headerProbe[0] != ESP_IMAGE_MAGIC)
+    if (s_headerProbe[0] != kEspImageMagic)
         return true;
     uint32_t descMagic = 0;
-    memcpy(&descMagic, s_headerProbe + APP_DESC_OFFSET, sizeof(descMagic));
-    return descMagic != APP_DESC_MAGIC;
+    memcpy(&descMagic, s_headerProbe + kAppDescOffset, sizeof(descMagic));
+    return descMagic != kAppDescMagic;
 }
 
 bool startShaContext() {
@@ -121,7 +121,7 @@ BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32], const uint
         s_state = State::Failed;
         return {false, "no_ota_partition"};
     }
-    if (totalSize < APP_HEADER_PROBE_BYTES || totalSize > target->size) {
+    if (totalSize < kAppHeaderProbeBytes || totalSize > target->size) {
         s_state = State::Failed;
         return {false, "size_out_of_range"};
     }

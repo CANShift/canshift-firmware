@@ -44,8 +44,8 @@ and skip every step below.
   loaded on every later boot. A failed write logs and pushes an `nvs_write`
   error rather than reporting success.
 - **Again, on demand.** The Settings panel's _Calibrate touch_ row (shown only on
-  boards that need it), `CMD_CALIBRATE_TOUCH` (`0x08`) over USB, or
-  `start_calibration` over BLE. `CMD_RESET_TOUCH_CAL` (`0x0A`) / `reset_calibration`
+  boards that need it), `kCmdCalibrateTouch` (`0x08`) over USB, or
+  `start_calibration` over BLE. `kCmdResetTouchCal` (`0x0A`) / `reset_calibration`
   clears the NVS entry, so the next boot calibrates afresh.
 
 `calibrateTouch()` draws through LovyanGFX, not LVGL, and blocks until the last

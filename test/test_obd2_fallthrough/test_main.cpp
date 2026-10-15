@@ -32,7 +32,7 @@ constexpr const char *kObdSignals = R"json({
 
 void loadObdSignals() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, kObdSignals, strlen(kObdSignals));
+    StorageDriver::fakeWrite(kConfigPathSignals, kObdSignals, strlen(kObdSignals));
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
     SignalStore::init();
     CanParser::loadSignalDefinitions();
@@ -48,26 +48,26 @@ void tearDown() {}
 
 void test_unmatchedObdResponseDoesNotDecodeIntoPolledSignals() {
     CanParser::parseFrame(kObdResponseId, kNegativeResponse, sizeof(kNegativeResponse));
-    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::RPM));
-    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::SPEED_KPH));
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::kRpm));
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::kSpeedKph));
 }
 
 void test_polledValueSurvivesAnUnmatchedObdResponse() {
-    SignalStore::update(SignalIds::RPM, kPolledRpm);
+    SignalStore::update(SignalIds::kRpm, kPolledRpm);
     CanParser::parseFrame(kObdResponseId, kNegativeResponse, sizeof(kNegativeResponse));
-    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kPolledRpm, SignalStore::read(SignalIds::RPM));
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kPolledRpm, SignalStore::read(SignalIds::kRpm));
 }
 
 void test_broadcastSignalsStillDecode() {
     CanParser::parseFrame(kBroadcastId, kBroadcastFrame, sizeof(kBroadcastFrame));
-    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::BATTERY_VOLTS));
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::kBatteryVolts));
 }
 
 void test_expressionsStillReadAPolledSignalByTargetId() {
-    SignalStore::update(SignalIds::RPM, kPolledRpm);
+    SignalStore::update(SignalIds::kRpm, kPolledRpm);
     CanParser::parseFrame(kBroadcastId, kBroadcastFrame, sizeof(kBroadcastFrame));
-    TEST_ASSERT_TRUE(SignalStore::isValid(SignalIds::GEAR));
-    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kPolledRpm / 1000.0f, SignalStore::read(SignalIds::GEAR));
+    TEST_ASSERT_TRUE(SignalStore::isValid(SignalIds::kGear));
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kPolledRpm / 1000.0f, SignalStore::read(SignalIds::kGear));
 }
 
 int main(int, char **) {

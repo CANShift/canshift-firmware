@@ -75,7 +75,7 @@ void handleSetBoardProfile(const JsonObjectConst &doc) {
 void sendStatusResponse() {
     char resp[160];
     const UsbStatusLine::Fields fields = {
-        APP_VERSION_STR, static_cast<unsigned>(USB_PROTOCOL_VERSION), ThemeManager::isDayMode(),
+        APP_VERSION_STR, static_cast<unsigned>(kUsbProtocolVersion), ThemeManager::isDayMode(),
         canshift::boards::runtimeBoardProfile().board_id};
     if (UsbStatusLine::format(fields, resp, sizeof(resp)) == 0) {
         LOG_ERROR("USB", "GET_STATUS payload does not fit %u B",
@@ -112,7 +112,7 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     JsonVariantConst brightnessVar = obj["brightness"];
     if (!brightnessVar.isNull()) {
         const uint8_t brightness = brightnessVar.as<uint8_t>();
-        LvglLock lock(pdMS_TO_TICKS(USB_SCREEN_SETTINGS_MUTEX_TIMEOUT_MS));
+        LvglLock lock(pdMS_TO_TICKS(kUsbScreenSettingsMutexTimeoutMs));
         if (!lock.held()) {
             LOG_WARN("USB", "Screen settings: could not acquire LVGL mutex");
             UsbComm::sendError("busy");
@@ -183,15 +183,15 @@ bool parseOrFail(const char *jsonLine, size_t jsonLen, JsonDocument &doc, const 
 // PUT_CONFIG and OTA_WRITE read their payload straight off the raw line; PUT_FILE
 // parses first but must abort an open chunk transfer when that fails.
 bool consumeRawPayloadCommand(uint8_t cmd, char *jsonLine, size_t jsonLen) {
-    if (cmd == UsbComm::CMD_PUT_CONFIG) {
+    if (cmd == UsbComm::kCmdPutConfig) {
         handlePutConfig(jsonLine);
         return true;
     }
-    if (cmd == UsbComm::CMD_OTA_WRITE) {
+    if (cmd == UsbComm::kCmdOtaWrite) {
         handleOtaWriteRaw(jsonLine);
         return true;
     }
-    if (cmd != UsbComm::CMD_PUT_FILE) {
+    if (cmd != UsbComm::kCmdPutFile) {
         return false;
     }
     JsonDocument doc;
@@ -218,11 +218,11 @@ void runGetConfig(const JsonObjectConst &) {
     handleGetConfig();
 }
 void runGetDeviceConfig(const JsonObjectConst &) {
-    sendTypedConfigGet(CONFIG_PATH_DEVICE, TypedConfigBody::kDeviceConfigKey,
+    sendTypedConfigGet(kConfigPathDevice, TypedConfigBody::kDeviceConfigKey,
                        TypedConfigBody::device);
 }
 void runGetInputBindings(const JsonObjectConst &) {
-    sendTypedConfigGet(CONFIG_PATH_INPUTS, TypedConfigBody::kInputBindingsKey,
+    sendTypedConfigGet(kConfigPathInputs, TypedConfigBody::kInputBindingsKey,
                        TypedConfigBody::inputBindings);
 }
 void runCanScanStart(const JsonObjectConst &) {
@@ -239,22 +239,22 @@ void runObdClearDtc(const JsonObjectConst &) {
 }
 
 constexpr UsbCommand kUsbCommands[] = {
-    {UsbComm::CMD_GET_STATUS, &runGetStatus},
-    {UsbComm::CMD_PING, &runPing},
-    {UsbComm::CMD_GET_CONFIG, &runGetConfig},
-    {UsbComm::CMD_GET_DEVICE_CONFIG, &runGetDeviceConfig},
-    {UsbComm::CMD_PUT_DEVICE_CONFIG, &handlePutDeviceConfig},
-    {UsbComm::CMD_GET_INPUT_BINDINGS, &runGetInputBindings},
-    {UsbComm::CMD_PUT_INPUT_BINDINGS, &handlePutInputBindings},
-    {UsbComm::CMD_SCREEN_SETTINGS, &handleScreenSettings},
-    {UsbComm::CMD_SET_BOARD_PROFILE, &handleSetBoardProfile},
-    {UsbComm::CMD_PUT_CONFIG_CHUNK, &handlePutConfigChunk},
-    {UsbComm::CMD_OTA_BEGIN, &handleOtaBegin},
-    {UsbComm::CMD_OTA_END, &handleOtaEnd},
-    {UsbComm::CMD_CAN_SCAN_START, &runCanScanStart},
-    {UsbComm::CMD_CAN_SCAN_STOP, &runCanScanStop},
-    {UsbComm::CMD_OBD_READ_DTC, &runObdReadDtc},
-    {UsbComm::CMD_OBD_CLEAR_DTC, &runObdClearDtc},
+    {UsbComm::kCmdGetStatus, &runGetStatus},
+    {UsbComm::kCmdPing, &runPing},
+    {UsbComm::kCmdGetConfig, &runGetConfig},
+    {UsbComm::kCmdGetDeviceConfig, &runGetDeviceConfig},
+    {UsbComm::kCmdPutDeviceConfig, &handlePutDeviceConfig},
+    {UsbComm::kCmdGetInputBindings, &runGetInputBindings},
+    {UsbComm::kCmdPutInputBindings, &handlePutInputBindings},
+    {UsbComm::kCmdScreenSettings, &handleScreenSettings},
+    {UsbComm::kCmdSetBoardProfile, &handleSetBoardProfile},
+    {UsbComm::kCmdPutConfigChunk, &handlePutConfigChunk},
+    {UsbComm::kCmdOtaBegin, &handleOtaBegin},
+    {UsbComm::kCmdOtaEnd, &handleOtaEnd},
+    {UsbComm::kCmdCanScanStart, &runCanScanStart},
+    {UsbComm::kCmdCanScanStop, &runCanScanStop},
+    {UsbComm::kCmdObdReadDtc, &runObdReadDtc},
+    {UsbComm::kCmdObdClearDtc, &runObdClearDtc},
 };
 
 const UsbCommand *findUsbCommand(uint8_t code) {

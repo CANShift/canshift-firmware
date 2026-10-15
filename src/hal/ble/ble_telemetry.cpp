@@ -15,31 +15,22 @@
 
 namespace {
 
-constexpr SignalId BLE_TELE_SIGNALS[] = {
-    SignalIds::RPM,
-    SignalIds::THROTTLE_POS,
-    SignalIds::MAP_KPA,
-    SignalIds::MAP_NUMBER,
-    SignalIds::BOOST_BAR,
-    SignalIds::IAT_C,
-    SignalIds::COOLANT_TEMP_C,
-    SignalIds::OIL_TEMP_C,
-    SignalIds::OIL_PRESS_BAR,
-    SignalIds::FUEL_PRESS_BAR,
-    SignalIds::LAMBDA_1,
-    SignalIds::SPEED_KPH,
-    SignalIds::GEAR,
-    SignalIds::BATTERY_VOLTS,
+constexpr SignalId kBleTeleSignals[] = {
+    SignalIds::kRpm,          SignalIds::kThrottlePos,  SignalIds::kMapKpa,
+    SignalIds::kMapNumber,    SignalIds::kBoostBar,     SignalIds::kIatC,
+    SignalIds::kCoolantTempC, SignalIds::kOilTempC,     SignalIds::kOilPressBar,
+    SignalIds::kFuelPressBar, SignalIds::kLambda1,      SignalIds::kSpeedKph,
+    SignalIds::kGear,         SignalIds::kBatteryVolts,
 };
 
-constexpr size_t BLE_TELE_SIGNAL_COUNT = sizeof(BLE_TELE_SIGNALS) / sizeof(BLE_TELE_SIGNALS[0]);
+constexpr size_t kBleTeleSignalCount = sizeof(kBleTeleSignals) / sizeof(kBleTeleSignals[0]);
 
 size_t buildTelemetryPayload(uint8_t *buf, size_t bufSize) {
-    TelemetryFrame::Field fields[BLE_TELE_SIGNAL_COUNT];
-    for (size_t i = 0; i < BLE_TELE_SIGNAL_COUNT; i++) {
-        fields[i].present = SignalStore::tryRead(BLE_TELE_SIGNALS[i], &fields[i].value);
+    TelemetryFrame::Field fields[kBleTeleSignalCount];
+    for (size_t i = 0; i < kBleTeleSignalCount; i++) {
+        fields[i].present = SignalStore::tryRead(kBleTeleSignals[i], &fields[i].value);
     }
-    return TelemetryFrame::encode(fields, BLE_TELE_SIGNAL_COUNT, buf, bufSize);
+    return TelemetryFrame::encode(fields, kBleTeleSignalCount, buf, bufSize);
 }
 
 uint8_t s_statusDiv = 0;
@@ -66,7 +57,7 @@ void emitTelemetry() {
         TelemetryFrame::resetDeduper(s_dedup);
     s_lastSubCount = subs;
 
-    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES];
+    uint8_t buf[TelemetryFrame::kMaxFrameBytes];
     const size_t len = buildTelemetryPayload(buf, sizeof(buf));
     if (len == 0) {
         LOG_WARN("BLE", "TELE payload would overflow %u B buffer — skipping notify",

@@ -4,11 +4,11 @@
 
 namespace TopBarSeparatorLink {
 
-constexpr int8_t NO_FLAG = -1;
+constexpr int8_t kNoFlag = -1;
 
 struct Tracker {
-    int8_t lastModeFlagIdx = NO_FLAG;
-    int8_t pendingSepNeedingNext = NO_FLAG;
+    int8_t lastModeFlagIdx = kNoFlag;
+    int8_t pendingSepNeedingNext = kNoFlag;
 };
 
 int8_t linkedFlagForSeparator(const Tracker &tracker);

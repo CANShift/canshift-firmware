@@ -216,13 +216,13 @@ void parseButtonActionsArray(JsonArrayConst actionsArr, const char *widgetId,
     if (actionsArr.isNull())
         return;
     const size_t total = actionsArr.size();
-    if (total > CFG_MAX_BUTTON_ACTIONS) {
+    if (total > kCfgMaxButtonActions) {
         LOG_WARN("BTN", "button '%s': %u actions exceed CFG_MAX_BUTTON_ACTIONS=%u — extras ignored",
                  widgetId, static_cast<unsigned>(total),
-                 static_cast<unsigned>(CFG_MAX_BUTTON_ACTIONS));
+                 static_cast<unsigned>(kCfgMaxButtonActions));
     }
     for (JsonObjectConst a : actionsArr) {
-        if (out->actionsCount >= CFG_MAX_BUTTON_ACTIONS)
+        if (out->actionsCount >= kCfgMaxButtonActions)
             break;
         CfgButtonAction parsed{};
         parseButtonAction(a, &parsed);
@@ -252,7 +252,7 @@ void applyLegacyTargetPageId(JsonObjectConst cfg, CfgButtonParams *out) {
 
 void parseButtonState(JsonObjectConst stateJson, const char *widgetId, uint8_t stateIndex,
                       CfgButtonState *out) {
-    strlcpy(out->label, stateJson["label"] | "", CFG_MAX_NAME_LEN);
+    strlcpy(out->label, stateJson["label"] | "", kCfgMaxNameLen);
 
     JsonObjectConst colors = stateJson["colors"];
     out->hasColors = !colors.isNull();
@@ -278,13 +278,13 @@ void parseCycleStates(JsonArrayConst statesArr, const char *widgetId, CfgButtonP
     if (statesArr.isNull())
         return;
     const size_t total = statesArr.size();
-    if (total > CFG_MAX_CYCLE_STATES) {
-        LOG_WARN(
-            "BTN", "cycle button '%s': %u states exceed CFG_MAX_CYCLE_STATES=%u — extras ignored",
-            widgetId, static_cast<unsigned>(total), static_cast<unsigned>(CFG_MAX_CYCLE_STATES));
+    if (total > kCfgMaxCycleStates) {
+        LOG_WARN("BTN",
+                 "cycle button '%s': %u states exceed CFG_MAX_CYCLE_STATES=%u — extras ignored",
+                 widgetId, static_cast<unsigned>(total), static_cast<unsigned>(kCfgMaxCycleStates));
     }
     for (JsonObjectConst stateJson : statesArr) {
-        if (out->statesCount >= CFG_MAX_CYCLE_STATES)
+        if (out->statesCount >= kCfgMaxCycleStates)
             break;
         parseButtonState(stateJson, widgetId, out->statesCount, &out->states[out->statesCount]);
         out->statesCount++;
@@ -292,8 +292,8 @@ void parseCycleStates(JsonArrayConst statesArr, const char *widgetId, CfgButtonP
 }
 
 void parseButtonWidget(JsonObjectConst cfg, const char *widgetId, CfgButtonParams *out) {
-    strlcpy(out->label, cfg["label"] | "", CFG_MAX_NAME_LEN);
-    strlcpy(out->kicker, cfg["kicker"] | "", CFG_MAX_NAME_LEN);
+    strlcpy(out->label, cfg["label"] | "", kCfgMaxNameLen);
+    strlcpy(out->kicker, cfg["kicker"] | "", kCfgMaxNameLen);
     out->isToggle = cfg["isToggle"] | false;
     out->showLabel = cfg["showLabel"] | true;
     parseButtonColors(cfg, out);
@@ -330,7 +330,7 @@ void parseTimerWidget(JsonObjectConst cfg, CfgTimerParams *out) {
 }
 
 void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
-    strlcpy(out->imagePath, cfg["imagePath"] | "", CFG_MAX_PATH_LEN);
+    strlcpy(out->imagePath, cfg["imagePath"] | "", kCfgMaxPathLen);
 }
 
 void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
@@ -342,8 +342,8 @@ void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
 } // namespace
 
 void parseWidget(JsonObjectConst src, CfgWidget *w) {
-    strlcpy(w->id, src["id"] | "", CFG_MAX_ID_LEN);
-    strlcpy(w->signalId, src["signal"] | "", CFG_MAX_SIGNAL_LEN);
+    strlcpy(w->id, src["id"] | "", kCfgMaxIdLen);
+    strlcpy(w->signalId, src["signal"] | "", kCfgMaxSignalLen);
     w->type = parseWidgetType(src["type"] | "");
 
     parseWidgetLayout(src["layout"], &w->layout);

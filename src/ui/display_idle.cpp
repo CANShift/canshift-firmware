@@ -13,15 +13,14 @@ namespace {
 
 constexpr uint8_t kBacklightMax = 255;
 
-uint8_t s_state = ALERT_DISPLAY_IDLE_LIVE;
+uint8_t s_state = kAlertDisplayIdleLive;
 
 uint8_t backlightFor(uint8_t state) {
     const uint16_t userPercent = SettingsPage::getBrightness();
-    if (state == ALERT_DISPLAY_IDLE_OFF)
+    if (state == kAlertDisplayIdleOff)
         return 0;
-    const uint16_t percent = (state == ALERT_DISPLAY_IDLE_DIM)
-                                 ? (userPercent * DISPLAY_DIM_PERCENT) / 100u
-                                 : userPercent;
+    const uint16_t percent =
+        (state == kAlertDisplayIdleDim) ? (userPercent * kDisplayDimPercent) / 100u : userPercent;
     return static_cast<uint8_t>((percent * kBacklightMax) / 100u);
 }
 
@@ -38,9 +37,9 @@ void suppressTouchThatWokeThePanel() {
 }
 
 const char *stateName(uint8_t state) {
-    if (state == ALERT_DISPLAY_IDLE_OFF)
+    if (state == kAlertDisplayIdleOff)
         return "off";
-    if (state == ALERT_DISPLAY_IDLE_DIM)
+    if (state == kAlertDisplayIdleDim)
         return "dim";
     return "live";
 }
@@ -50,16 +49,16 @@ const char *stateName(uint8_t state) {
 namespace DisplayIdle {
 
 void init() {
-    s_state = ALERT_DISPLAY_IDLE_LIVE;
+    s_state = kAlertDisplayIdleLive;
 }
 
 void update() {
     const uint8_t next =
-        alert_display_idle_state_rs(idleMs(), DISPLAY_DIM_AFTER_IDLE_MS, DISPLAY_OFF_AFTER_IDLE_MS);
+        alert_display_idle_state_rs(idleMs(), kDisplayDimAfterIdleMs, kDisplayOffAfterIdleMs);
     if (next == s_state)
         return;
 
-    if (s_state == ALERT_DISPLAY_IDLE_OFF && next == ALERT_DISPLAY_IDLE_LIVE)
+    if (s_state == kAlertDisplayIdleOff && next == kAlertDisplayIdleLive)
         suppressTouchThatWokeThePanel();
 
     s_state = next;
@@ -69,7 +68,7 @@ void update() {
 }
 
 bool isPanelOff() {
-    return s_state == ALERT_DISPLAY_IDLE_OFF;
+    return s_state == kAlertDisplayIdleOff;
 }
 
 } // namespace DisplayIdle

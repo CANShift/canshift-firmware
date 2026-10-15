@@ -6,15 +6,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
-inline constexpr int CANSHIFT_EXPR_MAX_TOKENS = 64;
-inline constexpr int CANSHIFT_EXPR_MAX_STACK_DEPTH = 16;
-inline constexpr int CANSHIFT_EXPR_MAX_REFS = 8;
+inline constexpr int kCanshiftExprMaxTokens = 64;
+inline constexpr int kCanshiftExprMaxStackDepth = 16;
+inline constexpr int kCanshiftExprMaxRefs = 8;
 
-inline constexpr int32_t CANSHIFT_EXPR_ERR_LEX = -1;
-inline constexpr int32_t CANSHIFT_EXPR_ERR_TOO_LONG = -2;
-inline constexpr int32_t CANSHIFT_EXPR_ERR_SYNTAX = -3;
-inline constexpr int32_t CANSHIFT_EXPR_ERR_TOO_DEEP = -4;
-inline constexpr int32_t CANSHIFT_EXPR_ERR_NO_ROOM = -5;
+inline constexpr int32_t kCanshiftExprErrLex = -1;
+inline constexpr int32_t kCanshiftExprErrTooLong = -2;
+inline constexpr int32_t kCanshiftExprErrSyntax = -3;
+inline constexpr int32_t kCanshiftExprErrTooDeep = -4;
+inline constexpr int32_t kCanshiftExprErrNoRoom = -5;
 
 #ifdef __cplusplus
 extern "C" {

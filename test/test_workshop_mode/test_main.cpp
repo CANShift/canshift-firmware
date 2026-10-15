@@ -16,22 +16,22 @@ void fillCounting(uint8_t *entropy, size_t len) {
 
 void test_entryWalksDrivingEnteringActive() {
     const uint8_t entering =
-        workshop_next_state_rs(WORKSHOP_STATE_DRIVING, WORKSHOP_EVENT_REQUEST, true);
-    TEST_ASSERT_EQUAL_UINT8(WORKSHOP_STATE_ENTERING, entering);
-    TEST_ASSERT_EQUAL_UINT8(WORKSHOP_STATE_ACTIVE,
-                            workshop_next_state_rs(entering, WORKSHOP_EVENT_ENTERED, false));
+        workshop_next_state_rs(kWorkshopStateDriving, kWorkshopEventRequest, true);
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopStateEntering, entering);
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopStateActive,
+                            workshop_next_state_rs(entering, kWorkshopEventEntered, false));
 }
 
 void test_requestIsRefusedWhenNotOffered() {
     TEST_ASSERT_EQUAL_UINT8(
-        WORKSHOP_STATE_DRIVING,
-        workshop_next_state_rs(WORKSHOP_STATE_DRIVING, WORKSHOP_EVENT_REQUEST, false));
+        kWorkshopStateDriving,
+        workshop_next_state_rs(kWorkshopStateDriving, kWorkshopEventRequest, false));
 }
 
 void test_failedEntryReturnsToDriving() {
     TEST_ASSERT_EQUAL_UINT8(
-        WORKSHOP_STATE_DRIVING,
-        workshop_next_state_rs(WORKSHOP_STATE_ENTERING, WORKSHOP_EVENT_FAILED, false));
+        kWorkshopStateDriving,
+        workshop_next_state_rs(kWorkshopStateEntering, kWorkshopEventFailed, false));
 }
 
 void test_onlyTheSixteenMegabyteLayoutIsSupported() {
@@ -47,16 +47,16 @@ void test_offeredWhileStoppedOrUnmapped() {
 }
 
 void test_generatedCredentialsAreValidAndJoinable() {
-    uint8_t entropy[WORKSHOP_ENTROPY_BYTES];
+    uint8_t entropy[kWorkshopEntropyBytes];
     fillCounting(entropy, sizeof(entropy));
-    char ssid[WORKSHOP_SSID_CAP];
-    char password[WORKSHOP_PASSWORD_CAP];
+    char ssid[kWorkshopSsidCap];
+    char password[kWorkshopPasswordCap];
     TEST_ASSERT_TRUE(workshop_generate_credentials_rs(entropy, sizeof(entropy), ssid, sizeof(ssid),
                                                       password, sizeof(password)));
     TEST_ASSERT_EQUAL_STRING("CANShift-ABCD", ssid);
     TEST_ASSERT_TRUE(workshop_credentials_valid_rs(ssid, password));
 
-    char payload[WORKSHOP_JOIN_PAYLOAD_CAP];
+    char payload[kWorkshopJoinPayloadCap];
     const size_t len = workshop_join_payload_rs(ssid, password, payload, sizeof(payload));
     TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:CANShift-ABCD;P:efghjkmnpqrs;;", payload);
     TEST_ASSERT_EQUAL_size_t(strlen(payload), len);

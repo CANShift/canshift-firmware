@@ -10,18 +10,18 @@
 #include <Preferences.h>
 #include <esp_system.h>
 
-static constexpr char NVS_NS[] = "display_cfg";
-static constexpr char NVS_KEY_OFFSET[] = "rot_offset";
+static constexpr char kNvsNs[] = "display_cfg";
+static constexpr char kNvsKeyOffset[] = "rot_offset";
 
-static constexpr char TOUCH_NVS_NS[] = "touch";
-static constexpr char TOUCH_NVS_KEY_CAL[] = "cal";
+static constexpr char kTouchNvsNs[] = "touch";
+static constexpr char kTouchNvsKeyCal[] = "cal";
 
 namespace RotationConfig {
 
 uint16_t getOffsetDeg() {
     Preferences p;
-    p.begin(NVS_NS, true);
-    uint16_t v = p.getUShort(NVS_KEY_OFFSET, 0);
+    p.begin(kNvsNs, true);
+    uint16_t v = p.getUShort(kNvsKeyOffset, 0);
     p.end();
     return (v == 180) ? 180 : 0;
 }
@@ -36,19 +36,19 @@ uint8_t computeLgfxRotation() {
 void applyAndReboot(uint16_t offsetDeg) {
     const uint16_t normalized = (offsetDeg == 180) ? 180 : 0;
 
-    if (!NvsStore::putUShort(NVS_NS, NVS_KEY_OFFSET, normalized)) {
+    if (!NvsStore::putUShort(kNvsNs, kNvsKeyOffset, normalized)) {
         LOG_ERROR("Rotation", "offset write failed — touch cal kept, rebooting unchanged");
         ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "rotation offset not persisted");
-        delay(PRE_RESTART_FLUSH_DELAY_MS);
+        delay(kPreRestartFlushDelayMs);
         esp_restart();
     }
 
-    if (!NvsStore::remove(TOUCH_NVS_NS, TOUCH_NVS_KEY_CAL)) {
+    if (!NvsStore::remove(kTouchNvsNs, kTouchNvsKeyCal)) {
         LOG_WARN("Rotation", "touch cal invalidation failed — recalibrate manually if skewed");
     }
 
     LOG_INFO("Rotation", "Saved offset=%u° — invalidated touch cal — rebooting", normalized);
-    delay(PRE_RESTART_FLUSH_DELAY_MS);
+    delay(kPreRestartFlushDelayMs);
     esp_restart();
 }
 

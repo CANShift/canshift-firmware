@@ -41,8 +41,8 @@ void test_neverReceivedBeforeThresholdIsNotSilent() {
 void test_onlyFourDigitValuesWidenThePlaceholder() {
     TEST_ASSERT_EQUAL_UINT8(2, alert_stale_dash_groups_rs(16.0f));
     TEST_ASSERT_EQUAL_UINT8(2, alert_stale_dash_groups_rs(300.0f));
-    TEST_ASSERT_EQUAL_UINT8(ALERT_STALE_DASH_GROUPS_MAX, alert_stale_dash_groups_rs(7200.0f));
-    TEST_ASSERT_EQUAL_UINT8(ALERT_STALE_DASH_GROUPS_MAX, alert_stale_dash_groups_rs(12000.0f));
+    TEST_ASSERT_EQUAL_UINT8(kAlertStaleDashGroupsMax, alert_stale_dash_groups_rs(7200.0f));
+    TEST_ASSERT_EQUAL_UINT8(kAlertStaleDashGroupsMax, alert_stale_dash_groups_rs(12000.0f));
 }
 
 } // namespace

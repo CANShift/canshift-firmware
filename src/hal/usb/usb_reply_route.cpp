@@ -18,7 +18,7 @@ void serialSink(const char *data, size_t len) {
     if (!data || len == 0)
         return;
     const bool needsNewline = data[len - 1] != '\n';
-    if (!Logger::lockUart(pdMS_TO_TICKS(USB_TX_LOCK_TIMEOUT_MS))) {
+    if (!Logger::lockUart(pdMS_TO_TICKS(kUsbTxLockTimeoutMs))) {
         return;
     }
     static constexpr uint8_t kNewline = '\n';

@@ -37,7 +37,7 @@ void addReason(const SystemScreen::Frame &frame, const CfgRejection &rejection) 
 }
 
 void addDetail(const SystemScreen::Frame &frame, const CfgRejection &rejection) {
-    char name[CFG_MAX_ID_LEN];
+    char name[kCfgMaxIdLen];
     WidgetHelpers::formatSignalLabel(rejection.widgetId, name, sizeof(name));
     const int overBy = rejection.widgetY + rejection.widgetH - rejection.maxY;
     char text[96];

@@ -15,7 +15,7 @@ constexpr float kEpsilon = 0.01f;
 
 void stageDashboard(const char *json) {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, json, strlen(json));
+    StorageDriver::fakeWrite(kConfigPathDashboard, json, strlen(json));
     const ConfigLoader::LoadResult result = ConfigLoader::loadAll();
     TEST_ASSERT_TRUE(result.dashboardOk);
 }

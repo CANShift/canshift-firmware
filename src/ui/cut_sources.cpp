@@ -9,7 +9,7 @@
 
 namespace {
 
-constexpr SignalId kNoSignal = SignalIds::SIGNAL_COUNT;
+constexpr SignalId kNoSignal = SignalIds::kSignalCount;
 constexpr float kFlagOnLevel = 0.5f;
 constexpr size_t kClauseBufLen = 48;
 constexpr size_t kValueBufLen = 16;
@@ -60,21 +60,21 @@ bool flagIsAsserted(SignalId flag, const SignalStore::SignalValue *snap) {
 } // namespace
 
 const CutSources::Source CutSources::kSources[CutSources::kSourceCount] = {
-    {SignalIds::FLAG_BOOST_CUT,
-     {"OVERBOOST", SignalIds::BOOST_BAR, 2, nullptr},
-     {"LIMIT", SignalIds::BOOST_TARGET_BAR, 2, nullptr}},
-    {SignalIds::FLAG_FUEL_CUT,
-     {"OIL PRESS", SignalIds::OIL_PRESS_BAR, 1, nullptr},
+    {SignalIds::kFlagBoostCut,
+     {"OVERBOOST", SignalIds::kBoostBar, 2, nullptr},
+     {"LIMIT", SignalIds::kBoostTargetBar, 2, nullptr}},
+    {SignalIds::kFlagFuelCut,
+     {"OIL PRESS", SignalIds::kOilPressBar, 1, nullptr},
      {"ENGINE PROTECT", kNoSignal, 0, nullptr}},
-    {SignalIds::FLAG_IGNITION_CUT, {"RPM", SignalIds::RPM, 0, nullptr}, kNoClause},
-    {SignalIds::FLAG_IGNITION_RETARD,
-     {"KNOCK CYL", SignalIds::KNOCK_CYL, 0, nullptr},
-     {nullptr, SignalIds::KNOCK_COUNT, 0, "EVENTS"}},
-    {SignalIds::FLAG_REV_LIMIT, {"RPM", SignalIds::RPM, 0, nullptr}, kNoClause},
-    {SignalIds::FLAG_TRACTION_CUT, kNoClause, kNoClause},
-    {SignalIds::FLAG_PIT_LIMIT_CUT, {"SPEED", SignalIds::SPEED_KPH, 0, nullptr}, kNoClause},
-    {SignalIds::FLAG_OVERHEAT_PROTECT, {"WATER", SignalIds::COOLANT_TEMP_C, 0, nullptr}, kNoClause},
-    {SignalIds::FLAG_LIMP_MODE,
+    {SignalIds::kFlagIgnitionCut, {"RPM", SignalIds::kRpm, 0, nullptr}, kNoClause},
+    {SignalIds::kFlagIgnitionRetard,
+     {"KNOCK CYL", SignalIds::kKnockCyl, 0, nullptr},
+     {nullptr, SignalIds::kKnockCount, 0, "EVENTS"}},
+    {SignalIds::kFlagRevLimit, {"RPM", SignalIds::kRpm, 0, nullptr}, kNoClause},
+    {SignalIds::kFlagTractionCut, kNoClause, kNoClause},
+    {SignalIds::kFlagPitLimitCut, {"SPEED", SignalIds::kSpeedKph, 0, nullptr}, kNoClause},
+    {SignalIds::kFlagOverheatProtect, {"WATER", SignalIds::kCoolantTempC, 0, nullptr}, kNoClause},
+    {SignalIds::kFlagLimpMode,
      {"ECU FAULT", kNoSignal, 0, nullptr},
      {"ENGINE PROTECT", kNoSignal, 0, nullptr}},
 };

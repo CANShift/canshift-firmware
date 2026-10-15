@@ -57,8 +57,8 @@ points (skipping `i=0` because the previous polyline endpoint already sits
 there). Four segments per corner is the lowest count that still reads as
 smooth against the 320×240 panel.
 
-The notch corners use a smaller radius (`CRUISE_INNER_R = 5`) than the
-outer rounded corners (`CRUISE_BUTTON_RADIUS = 8`) so the inset reads as
+The notch corners use a smaller radius (`kCruiseInnerR = 5`) than the
+outer rounded corners (`kCruiseButtonRadius = 8`) so the inset reads as
 intentional rather than a draft artifact.
 
 Per-corner build functions live in
@@ -83,9 +83,9 @@ The labels use bigger fonts than the rest of the dashboard:
 
 ## State-aware visual
 
-- Idle: dark fill (`CRUISE_BUTTON_FILL_RGB = 0x1A1A1A`), red 2-px stroke
-  (`CRUISE_BUTTON_STROKE_RGB = 0xE03030`).
-- Pressed: lighter fill (`CRUISE_BUTTON_FILL_PRESSED_RGB = 0x3A3A3A`),
+- Idle: dark fill (`kCruiseButtonFillRgb = 0x1A1A1A`), red 2-px stroke
+  (`kCruiseButtonStrokeRgb = 0xE03030`).
+- Pressed: lighter fill (`kCruiseButtonFillPressedRgb = 0x3A3A3A`),
   same stroke.
 
 The fill colour is recomputed inside `cruiseLDrawCb` based on
@@ -112,19 +112,19 @@ not worth the extra complexity.
 ## Layout constants
 
 ```
-CRUISE_BUTTON_W      140
-CRUISE_BUTTON_H      85
-CRUISE_GAP_X         12
-CRUISE_GAP_Y         10
-CRUISE_OUTER_PAD     8
-CRUISE_CENTER_W      100
-CRUISE_CENTER_H      76
-CRUISE_NOTCH_MARGIN  6
-CRUISE_NOTCH_W       CRUISE_CENTER_W / 2 + CRUISE_NOTCH_MARGIN
-CRUISE_NOTCH_H       CRUISE_CENTER_H / 2 + CRUISE_NOTCH_MARGIN
-CRUISE_BUTTON_RADIUS 8     // outer rounded corners
-CRUISE_INNER_R       5     // notch corners (smaller)
-CRUISE_BUTTON_BORDER_W 2
+kCruiseButtonW      140
+kCruiseButtonH      85
+kCruiseGapX         12
+kCruiseGapY         10
+kCruiseOuterPad     8
+kCruiseCenterW      100
+kCruiseCenterH      76
+kCruiseNotchMargin  6
+kCruiseNotchW       kCruiseCenterW / 2 + kCruiseNotchMargin
+kCruiseNotchH       kCruiseCenterH / 2 + kCruiseNotchMargin
+kCruiseButtonRadius 8     // outer rounded corners
+kCruiseInnerR       5     // notch corners (smaller)
+kCruiseButtonBorderW 2
 CRUISE_BEZIER_SEGS   4     // segments per corner
 CRUISE_L_MAX_PTS     40    // polyline buffer cap
 ```

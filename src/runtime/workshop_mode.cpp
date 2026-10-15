@@ -22,7 +22,7 @@ constexpr char kSpeedSignalName[] = "speed_kph";
 constexpr uint32_t kNoSpaceInfo = 0;
 constexpr float kSpeedWhenUnread = 0.0f;
 
-std::atomic<uint8_t> s_state{WORKSHOP_STATE_DRIVING};
+std::atomic<uint8_t> s_state{kWorkshopStateDriving};
 
 uint32_t filesystemBytes() {
     if (StorageDriver::getStatus() != StorageDriver::InitStatus::Ok)
@@ -46,29 +46,29 @@ bool boardSupported() {
 
 bool offered() {
     const bool speedMapped = ConfigLoader::findSignal(kSpeedSignalName) != nullptr;
-    const bool speedValid = SignalStore::isValid(SignalIds::SPEED_KPH);
-    const float speedKph = SignalStore::read(SignalIds::SPEED_KPH, kSpeedWhenUnread);
+    const bool speedValid = SignalStore::isValid(SignalIds::kSpeedKph);
+    const float speedKph = SignalStore::read(SignalIds::kSpeedKph, kSpeedWhenUnread);
     return workshop_offered_rs(filesystemBytes(), speedMapped, speedValid, speedKph);
 }
 
 bool request() {
-    const bool entering = advance(WORKSHOP_EVENT_REQUEST, offered()) == WORKSHOP_STATE_ENTERING;
+    const bool entering = advance(kWorkshopEventRequest, offered()) == kWorkshopStateEntering;
     if (entering)
         LOG_INFO("WORKSHOP", "Workshop mode requested");
     return entering;
 }
 
 bool isEntering() {
-    return s_state.load() == WORKSHOP_STATE_ENTERING;
+    return s_state.load() == kWorkshopStateEntering;
 }
 
 bool isActive() {
-    return s_state.load() == WORKSHOP_STATE_ACTIVE;
+    return s_state.load() == kWorkshopStateActive;
 }
 
 void settleEntry(bool entered) {
-    const uint8_t event = entered ? WORKSHOP_EVENT_ENTERED : WORKSHOP_EVENT_FAILED;
-    if (advance(event, false) == WORKSHOP_STATE_ACTIVE)
+    const uint8_t event = entered ? kWorkshopEventEntered : kWorkshopEventFailed;
+    if (advance(event, false) == kWorkshopStateActive)
         LOG_INFO("WORKSHOP", "Workshop mode active — dash disabled");
 }
 

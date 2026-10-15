@@ -17,29 +17,29 @@ namespace CruiseControlWidget {
 
 namespace {
 
-constexpr int16_t CRUISE_BUTTON_W = 140;
-constexpr int16_t CRUISE_BUTTON_H = 85;
-constexpr int16_t CRUISE_GAP_X = 12;
-constexpr int16_t CRUISE_GAP_Y = 10;
-constexpr int16_t CRUISE_OUTER_PAD = 8;
-constexpr int16_t CRUISE_CENTER_W = 100;
-constexpr int16_t CRUISE_CENTER_H = 76;
-constexpr int16_t CRUISE_NOTCH_MARGIN = 6;
-constexpr int16_t CRUISE_NOTCH_W = CRUISE_CENTER_W / 2 + CRUISE_NOTCH_MARGIN;
-constexpr int16_t CRUISE_NOTCH_H = CRUISE_CENTER_H / 2 + CRUISE_NOTCH_MARGIN;
-constexpr int16_t CRUISE_BUTTON_RADIUS = 8;
-constexpr int16_t CRUISE_INNER_R = 5;
-constexpr int16_t CRUISE_BUTTON_BORDER_W = 2;
-constexpr uint32_t CRUISE_BUTTON_FILL_RGB = 0x1A1A1Au;
-constexpr uint32_t CRUISE_BUTTON_FILL_PRESSED_RGB = 0x3A3A3Au;
-constexpr uint32_t CRUISE_BUTTON_STROKE_RGB = 0xE03030u;
-constexpr uint32_t CRUISE_CENTER_DIM_RGB = 0x888888u;
-constexpr uint32_t CRUISE_CENTER_VALUE_RGB = 0xFFFFFFu;
-constexpr uint8_t CRUISE_LABEL_FONT_PX = 22;
-constexpr int16_t CRUISE_LABEL_SYMBOL_HALF_W = 12;
-constexpr int16_t CRUISE_LABEL_SYMBOL_HALF_H = 16;
-constexpr int16_t CRUISE_LABEL_WORD_HALF_W = 24;
-constexpr int16_t CRUISE_LABEL_WORD_HALF_H = 12;
+constexpr int16_t kCruiseButtonW = 140;
+constexpr int16_t kCruiseButtonH = 85;
+constexpr int16_t kCruiseGapX = 12;
+constexpr int16_t kCruiseGapY = 10;
+constexpr int16_t kCruiseOuterPad = 8;
+constexpr int16_t kCruiseCenterW = 100;
+constexpr int16_t kCruiseCenterH = 76;
+constexpr int16_t kCruiseNotchMargin = 6;
+constexpr int16_t kCruiseNotchW = kCruiseCenterW / 2 + kCruiseNotchMargin;
+constexpr int16_t kCruiseNotchH = kCruiseCenterH / 2 + kCruiseNotchMargin;
+constexpr int16_t kCruiseButtonRadius = 8;
+constexpr int16_t kCruiseInnerR = 5;
+constexpr int16_t kCruiseButtonBorderW = 2;
+constexpr uint32_t kCruiseButtonFillRgb = 0x1A1A1Au;
+constexpr uint32_t kCruiseButtonFillPressedRgb = 0x3A3A3Au;
+constexpr uint32_t kCruiseButtonStrokeRgb = 0xE03030u;
+constexpr uint32_t kCruiseCenterDimRgb = 0x888888u;
+constexpr uint32_t kCruiseCenterValueRgb = 0xFFFFFFu;
+constexpr uint8_t kCruiseLabelFontPx = 22;
+constexpr int16_t kCruiseLabelSymbolHalfW = 12;
+constexpr int16_t kCruiseLabelSymbolHalfH = 16;
+constexpr int16_t kCruiseLabelWordHalfW = 24;
+constexpr int16_t kCruiseLabelWordHalfH = 12;
 
 struct CruiseToggleCtx {
     bool active;
@@ -53,7 +53,7 @@ struct CruiseButtonSpec {
     CfgCruiseOp op;
 };
 
-constexpr CruiseButtonSpec CRUISE_BUTTONS[4] = {
+constexpr CruiseButtonSpec kCruiseButtons[4] = {
     {"cruise_minus", "-", CfgCruiseOp::DECREMENT},
     {"cruise_plus", "+", CfgCruiseOp::INCREMENT},
     {"cruise_set", "SET", CfgCruiseOp::SET},
@@ -70,8 +70,8 @@ struct CruiseGrid {
 };
 
 CruiseLShape::Geometry cruiseGeometry() {
-    return {LayoutScale::square(CRUISE_BUTTON_RADIUS), LayoutScale::square(CRUISE_INNER_R),
-            LayoutScale::x(CRUISE_NOTCH_W), LayoutScale::y(CRUISE_NOTCH_H)};
+    return {LayoutScale::square(kCruiseButtonRadius), LayoutScale::square(kCruiseInnerR),
+            LayoutScale::x(kCruiseNotchW), LayoutScale::y(kCruiseNotchH)};
 }
 
 CruiseLShape::Corner cornerFor(uint8_t index) {
@@ -97,7 +97,7 @@ void cruiseLDrawCb(lv_event_t *e) {
     const bool active = (state & (LV_STATE_PRESSED | LV_STATE_CHECKED)) != 0;
     lv_draw_rect_dsc_t fill;
     lv_draw_rect_dsc_init(&fill);
-    fill.bg_color = lv_color_hex(active ? CRUISE_BUTTON_FILL_PRESSED_RGB : CRUISE_BUTTON_FILL_RGB);
+    fill.bg_color = lv_color_hex(active ? kCruiseButtonFillPressedRgb : kCruiseButtonFillRgb);
     fill.bg_opa = LV_OPA_COVER;
     fill.border_width = 0;
     fill.radius = 0;
@@ -110,8 +110,8 @@ void cruiseLDrawCb(lv_event_t *e) {
     const uint8_t n = CruiseLShape::buildOutline(pts, area, corner, geom);
     lv_draw_line_dsc_t stroke;
     lv_draw_line_dsc_init(&stroke);
-    stroke.color = lv_color_hex(CRUISE_BUTTON_STROKE_RGB);
-    stroke.width = CRUISE_BUTTON_BORDER_W;
+    stroke.color = lv_color_hex(kCruiseButtonStrokeRgb);
+    stroke.width = kCruiseButtonBorderW;
     stroke.opa = LV_OPA_COVER;
     stroke.round_start = 1;
     stroke.round_end = 1;
@@ -162,21 +162,21 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, int16_t x, int16_t y,
     CfgWidget w = {};
     w.button = storage;
     *storage = CfgButtonParams{};
-    strlcpy(w.id, spec.id, CFG_MAX_ID_LEN);
+    strlcpy(w.id, spec.id, kCfgMaxIdLen);
     w.type = WidgetType::BUTTON;
     w.signalId[0] = '\0';
     w.layout.x = x;
     w.layout.y = y;
-    w.layout.w = CRUISE_BUTTON_W;
-    w.layout.h = CRUISE_BUTTON_H;
+    w.layout.w = kCruiseButtonW;
+    w.layout.h = kCruiseButtonH;
     w.layout.zOrder = 0;
 
-    w.style.primaryColor = CfgColor{CRUISE_BUTTON_FILL_RGB};
-    w.style.textColor = CfgColor{CRUISE_CENTER_VALUE_RGB};
-    w.style.fontSize = CRUISE_LABEL_FONT_PX;
+    w.style.primaryColor = CfgColor{kCruiseButtonFillRgb};
+    w.style.textColor = CfgColor{kCruiseCenterValueRgb};
+    w.style.fontSize = kCruiseLabelFontPx;
 
     CfgButtonParams &p = *w.button;
-    strlcpy(p.label, spec.label, CFG_MAX_NAME_LEN);
+    strlcpy(p.label, spec.label, kCfgMaxNameLen);
     p.isToggle = false;
     p.showLabel = true;
     p.hasColors = false;
@@ -198,12 +198,12 @@ CfgWidget makeCruiseButton(const CruiseButtonSpec &spec, int16_t x, int16_t y,
 
 CruiseGrid computeCruiseGrid(int16_t contentY) {
     CruiseGrid g;
-    g.buttonW = LayoutScale::x(CRUISE_BUTTON_W);
-    g.buttonH = LayoutScale::y(CRUISE_BUTTON_H);
-    g.gapX = LayoutScale::x(CRUISE_GAP_X);
-    g.gapY = LayoutScale::y(CRUISE_GAP_Y);
-    const int16_t outerPadX = LayoutScale::x(CRUISE_OUTER_PAD);
-    const int16_t outerPadY = LayoutScale::y(CRUISE_OUTER_PAD);
+    g.buttonW = LayoutScale::x(kCruiseButtonW);
+    g.buttonH = LayoutScale::y(kCruiseButtonH);
+    g.gapX = LayoutScale::x(kCruiseGapX);
+    g.gapY = LayoutScale::y(kCruiseGapY);
+    const int16_t outerPadX = LayoutScale::x(kCruiseOuterPad);
+    const int16_t outerPadY = LayoutScale::y(kCruiseOuterPad);
     const int16_t gridW = g.buttonW * 2 + g.gapX;
     const int16_t gridH = g.buttonH * 2 + g.gapY;
     const int16_t contentH = LV_VER_RES - contentY;
@@ -232,7 +232,7 @@ void initCruiseButtonShell(lv_obj_t *btn, int16_t x, int16_t y, const CruiseGrid
         lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
         lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | st);
         lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | st);
-        lv_obj_set_style_text_color(btn, lv_color_hex(CRUISE_CENTER_VALUE_RGB), LV_PART_MAIN | st);
+        lv_obj_set_style_text_color(btn, lv_color_hex(kCruiseCenterValueRgb), LV_PART_MAIN | st);
     }
 }
 
@@ -258,21 +258,21 @@ lv_obj_t *makeCruiseFloatingLabel(lv_obj_t *btn, lv_obj_t *screen, uint8_t i, in
         }
     }
     lv_obj_t *label = lv_label_create(screen);
-    lv_label_set_text(label, CRUISE_BUTTONS[i].label);
-    lv_obj_set_style_text_color(label, lv_color_hex(CRUISE_CENTER_VALUE_RGB), 0);
+    lv_label_set_text(label, kCruiseButtons[i].label);
+    lv_obj_set_style_text_color(label, lv_color_hex(kCruiseCenterValueRgb), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_font(label, FontManager::value(CRUISE_LABEL_FONT_PX), 0);
+    lv_obj_set_style_text_font(label, FontManager::value(kCruiseLabelFontPx), 0);
 
     const uint8_t col = i % 2;
     const uint8_t row = i / 2;
-    const int16_t offX = LayoutScale::x(CRUISE_NOTCH_W) / 2;
-    const int16_t offY = LayoutScale::y(CRUISE_NOTCH_H) / 2;
+    const int16_t offX = LayoutScale::x(kCruiseNotchW) / 2;
+    const int16_t offY = LayoutScale::y(kCruiseNotchH) / 2;
     const int16_t cx = x + g.buttonW / 2 + (col == 0 ? -offX : offX);
     const int16_t cy = y + g.buttonH / 2 + (row == 0 ? -offY : offY);
     const bool isSymbol = i == static_cast<uint8_t>(CruiseLShape::Corner::kTL) ||
                           i == static_cast<uint8_t>(CruiseLShape::Corner::kTR);
-    const int16_t halfW = isSymbol ? CRUISE_LABEL_SYMBOL_HALF_W : CRUISE_LABEL_WORD_HALF_W;
-    const int16_t halfH = isSymbol ? CRUISE_LABEL_SYMBOL_HALF_H : CRUISE_LABEL_WORD_HALF_H;
+    const int16_t halfW = isSymbol ? kCruiseLabelSymbolHalfW : kCruiseLabelWordHalfW;
+    const int16_t halfH = isSymbol ? kCruiseLabelSymbolHalfH : kCruiseLabelWordHalfH;
     lv_obj_set_pos(label, cx - halfW, cy - halfH);
     return label;
 }
@@ -300,7 +300,7 @@ bool buildCruiseCorner(lv_obj_t *screen, const CfgPage &cfg, const CruiseGrid &g
 
     static CfgButtonParams s_cruiseParams[4];
     static CfgWidget s_cruiseWidgets[4];
-    s_cruiseWidgets[i] = makeCruiseButton(CRUISE_BUTTONS[i], x, y, &s_cruiseParams[i]);
+    s_cruiseWidgets[i] = makeCruiseButton(kCruiseButtons[i], x, y, &s_cruiseParams[i]);
     lv_obj_t *btn = WidgetFactory::create(screen, s_cruiseWidgets[i], 0);
     if (!btn)
         return false;
@@ -329,8 +329,8 @@ lv_obj_t *makeCenterLabel(lv_obj_t *center, const char *text, const lv_font_t *f
 
 void buildCenterReadout(lv_obj_t *screen, int16_t contentY) {
     const int16_t contentH = LV_VER_RES - contentY;
-    const int16_t centerW = LayoutScale::x(CRUISE_CENTER_W);
-    const int16_t centerH = LayoutScale::y(CRUISE_CENTER_H);
+    const int16_t centerW = LayoutScale::x(kCruiseCenterW);
+    const int16_t centerH = LayoutScale::y(kCruiseCenterH);
 
     lv_obj_t *center = lv_obj_create(screen);
     lv_obj_set_pos(center, (LV_HOR_RES - centerW) / 2, contentY + (contentH - centerH) / 2);
@@ -341,11 +341,11 @@ void buildCenterReadout(lv_obj_t *screen, int16_t contentY) {
     lv_obj_clear_flag(center, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(center, LV_OBJ_FLAG_CLICKABLE);
 
-    makeCenterLabel(center, "SET", FontManager::label(12), CRUISE_CENTER_DIM_RGB, LayoutScale::y(4),
+    makeCenterLabel(center, "SET", FontManager::label(12), kCruiseCenterDimRgb, LayoutScale::y(4),
                     centerW);
-    makeCenterLabel(center, "0", FontManager::value(24), CRUISE_CENTER_VALUE_RGB,
-                    (centerH - 24) / 2, centerW);
-    makeCenterLabel(center, "km/h", FontManager::label(12), CRUISE_CENTER_DIM_RGB,
+    makeCenterLabel(center, "0", FontManager::value(24), kCruiseCenterValueRgb, (centerH - 24) / 2,
+                    centerW);
+    makeCenterLabel(center, "km/h", FontManager::label(12), kCruiseCenterDimRgb,
                     centerH - LayoutScale::y(16), centerW);
 }
 

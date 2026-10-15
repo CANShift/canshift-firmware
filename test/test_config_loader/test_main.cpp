@@ -16,9 +16,9 @@ namespace {
 
 void stageMinimalFiles() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
                              strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 }
 
@@ -50,9 +50,9 @@ void test_loadDashboard_minimalValidJson_populatesStruct() {
 
 void test_loadDashboard_invalidSchemaVersion_logsAndUsesFallback() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWrongVersion,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardWrongVersion,
                              strlen(fixtures::kDashboardWrongVersion));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     // The loader logs ERROR + pushes to ErrorStore on schema mismatch, but
@@ -79,9 +79,9 @@ void test_reload_picks_up_new_dashboard() {
     // Fixture B — two pages, distinct name. Replace the on-disk file and call
     // reloadAll(); observable struct change confirms reload picked up B.
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimalReload,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimalReload,
                              strlen(fixtures::kDashboardMinimalReload));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     TEST_ASSERT_TRUE(ConfigLoader::reloadAll());
@@ -96,9 +96,9 @@ void test_reload_picks_up_new_dashboard() {
 
 void test_reload_returns_false_on_invalid_dashboard() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardCorrupt,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardCorrupt,
                              strlen(fixtures::kDashboardCorrupt));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     TEST_ASSERT_FALSE(ConfigLoader::reloadAll());
@@ -124,9 +124,9 @@ void test_reloadAll_invalidJson_preservesPriorState() {
 
     // Step 2: stage corrupt JSON and reload — must fail.
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardCorrupt,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardCorrupt,
                              strlen(fixtures::kDashboardCorrupt));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
     TEST_ASSERT_FALSE(ConfigLoader::reloadAll());
 
@@ -148,9 +148,9 @@ void test_reloadAll_validJson_replacesPriorState() {
     TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
 
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimalReload,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimalReload,
                              strlen(fixtures::kDashboardMinimalReload));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
     TEST_ASSERT_TRUE(ConfigLoader::reloadAll());
 
@@ -179,9 +179,9 @@ void test_reloadAll_invalidSignals_preservesSignalState() {
     // because dashboardOk drives the return value, but the key invariant we
     // assert here is that s_signals stayed identical to fixture A.
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
                              strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsCorrupt,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsCorrupt,
                              strlen(fixtures::kSignalsCorrupt));
     // Dashboard parses fine, signals fail — reloadAll only gates on dashboard.
     TEST_ASSERT_TRUE(ConfigLoader::reloadAll());
@@ -208,9 +208,9 @@ void test_loadDashboard_targetProfile_defaultsToCrowpanel28WhenAbsent() {
 // the same code path without further parser changes.
 void test_loadDashboard_targetProfile_roundTripsExplicitValue() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithProfile,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardWithProfile,
                              strlen(fixtures::kDashboardWithProfile));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
     TEST_ASSERT_EQUAL_STRING("crowpanel-28", ConfigLoader::getDashboardConfig().targetProfile);
@@ -220,9 +220,9 @@ void test_loadDashboard_targetProfile_roundTripsExplicitValue() {
 // all other signals intact. A bare strtoul would have silently produced 0.
 void test_loadSignals_malformedCanFrameId_dropsSignal() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
                              strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMalformedCanFrameId,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMalformedCanFrameId,
                              strlen(fixtures::kSignalsMalformedCanFrameId));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
@@ -239,9 +239,9 @@ void test_loadSignals_malformedCanFrameId_dropsSignal() {
 // must survive intact.
 void test_loadSignals_threeByteValue_isAccepted() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
                              strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsThreeByteValue,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsThreeByteValue,
                              strlen(fixtures::kSignalsThreeByteValue));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
@@ -255,9 +255,9 @@ void test_loadSignals_threeByteValue_isAccepted() {
 
 void test_loadSignals_nameTooLong_dropsSignal() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
                              strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsNameTooLong,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsNameTooLong,
                              strlen(fixtures::kSignalsNameTooLong));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
@@ -272,9 +272,9 @@ void test_loadSignals_nameTooLong_dropsSignal() {
 // rather than truncated silently. The signal itself must survive.
 void test_loadSignals_unitTooLong_resetsUnitToEmpty() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardMinimal,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
                              strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsUnitTooLong,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsUnitTooLong,
                              strlen(fixtures::kSignalsUnitTooLong));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
@@ -288,9 +288,9 @@ void test_loadSignals_unitTooLong_resetsUnitToEmpty() {
 
 void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithTemplates,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardWithTemplates,
                              strlen(fixtures::kDashboardWithTemplates));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
@@ -307,9 +307,9 @@ void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
 
 void test_loadDashboard_outOfRangeLayout_clampsToGrid() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardLayoutOutOfRange,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardLayoutOutOfRange,
                              strlen(fixtures::kDashboardLayoutOutOfRange));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
@@ -344,9 +344,9 @@ void test_loadDashboard_outOfRangeLayout_clampsToGrid() {
 
 void test_loadDashboard_themePalette_parsesTextColorsAndDayNightSignal() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardWithThemes,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardWithThemes,
                              strlen(fixtures::kDashboardWithThemes));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
@@ -376,9 +376,9 @@ void test_loadDashboard_noThemes_leavesDayNightSignalEmpty() {
 
 void test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely() {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(CONFIG_PATH_DASHBOARD, fixtures::kDashboardThemeEdgeCases,
+    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardThemeEdgeCases,
                              strlen(fixtures::kDashboardThemeEdgeCases));
-    StorageDriver::fakeWrite(CONFIG_PATH_SIGNALS, fixtures::kSignalsMinimal,
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);

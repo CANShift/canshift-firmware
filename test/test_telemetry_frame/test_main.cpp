@@ -22,7 +22,7 @@ void clearFields(TelemetryFrame::Field *fields, size_t count) {
 void test_encode_emptyFrame_headerOnly() {
     TelemetryFrame::Field fields[14];
     clearFields(fields, 14);
-    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES] = {0};
+    uint8_t buf[TelemetryFrame::kMaxFrameBytes] = {0};
     const size_t len = TelemetryFrame::encode(fields, 14, buf, sizeof(buf));
     TEST_ASSERT_EQUAL_size_t(3, len);
     const uint8_t expected[] = {0x01, 0x00, 0x00};
@@ -41,7 +41,7 @@ void test_encode_canonicalVector_matchesCore() {
     fields[12].present = true;
     fields[12].value = -1.0f;
 
-    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES] = {0};
+    uint8_t buf[TelemetryFrame::kMaxFrameBytes] = {0};
     const size_t len = TelemetryFrame::encode(fields, 14, buf, sizeof(buf));
 
     const uint8_t expected[] = {0x01, 0x03, 0x10, 0xe0, 0x67, 0x35, 0x00, 0xbc,
@@ -58,7 +58,7 @@ void test_encode_skipsNonFinite() {
     fields[1].present = true;
     fields[1].value = 40.0f;
 
-    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES] = {0};
+    uint8_t buf[TelemetryFrame::kMaxFrameBytes] = {0};
     const size_t len = TelemetryFrame::encode(fields, 14, buf, sizeof(buf));
 
     const uint8_t expected[] = {0x01, 0x02, 0x00, 0x40, 0x9c, 0x00, 0x00};
@@ -79,7 +79,7 @@ void test_encode_rejectsTooSmallBuffer() {
 void test_encode_rejectsNullAndOverCount() {
     TelemetryFrame::Field fields[14];
     clearFields(fields, 14);
-    uint8_t buf[TelemetryFrame::MAX_FRAME_BYTES] = {0};
+    uint8_t buf[TelemetryFrame::kMaxFrameBytes] = {0};
     TEST_ASSERT_EQUAL_size_t(0, TelemetryFrame::encode(nullptr, 14, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_size_t(0, TelemetryFrame::encode(fields, 14, nullptr, sizeof(buf)));
     TEST_ASSERT_EQUAL_size_t(0, TelemetryFrame::encode(fields, 15, buf, sizeof(buf)));
@@ -95,7 +95,7 @@ void test_dedup_skipsUnchangedWithinKeepalive() {
     TelemetryFrame::Deduper dedup = {};
     const uint8_t frame[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
     TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
-    for (uint16_t i = 1; i < TelemetryFrame::KEEPALIVE_TICKS; i++)
+    for (uint16_t i = 1; i < TelemetryFrame::kKeepaliveTicks; i++)
         TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
 }
 
@@ -103,7 +103,7 @@ void test_dedup_resendsOnKeepaliveTick() {
     TelemetryFrame::Deduper dedup = {};
     const uint8_t frame[] = {0x01, 0x01, 0x00, 0x10, 0x27, 0x00, 0x00};
     TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
-    for (uint16_t i = 1; i < TelemetryFrame::KEEPALIVE_TICKS; i++)
+    for (uint16_t i = 1; i < TelemetryFrame::kKeepaliveTicks; i++)
         TelemetryFrame::shouldSend(dedup, frame, sizeof(frame));
     TEST_ASSERT_TRUE(TelemetryFrame::shouldSend(dedup, frame, sizeof(frame)));
 }
@@ -138,8 +138,7 @@ void test_dedup_rejectsInvalidFrame() {
     const uint8_t frame[] = {0x01, 0x00, 0x00};
     TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, nullptr, sizeof(frame)));
     TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, 0));
-    TEST_ASSERT_FALSE(
-        TelemetryFrame::shouldSend(dedup, frame, TelemetryFrame::MAX_FRAME_BYTES + 1));
+    TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, TelemetryFrame::kMaxFrameBytes + 1));
 }
 
 int main(int /*argc*/, char ** /*argv*/) {

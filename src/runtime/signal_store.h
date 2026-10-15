@@ -5,7 +5,7 @@
 #include "can/signal_map.h"
 #include "app_config.h"
 
-static_assert(SIGNAL_STORE_MAX_SIGNALS >= SignalIds::SIGNAL_COUNT,
+static_assert(kSignalStoreMaxSignals >= SignalIds::kSignalCount,
               "signal store must hold every id the catalogue can hand out");
 
 namespace SignalStore {
@@ -32,7 +32,7 @@ void set(SignalId id, float value);
 
 [[nodiscard]] bool anyValid(const SignalId *ids, size_t count);
 
-void snapshotAll(SignalValue out[SIGNAL_STORE_MAX_SIGNALS]);
+void snapshotAll(SignalValue out[kSignalStoreMaxSignals]);
 
 void setTimeout(SignalId id, uint32_t timeoutMs);
 

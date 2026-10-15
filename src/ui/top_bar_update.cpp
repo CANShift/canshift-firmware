@@ -25,31 +25,31 @@
 
 using namespace TopBarInternal;
 
-static constexpr uint32_t COLOR_DOT_OK = 0x33CC44;
-static constexpr uint32_t COLOR_DOT_STALE = ThemeTokens::kWarn;
-static constexpr uint32_t COLOR_MODE_IDLE = 0x1C1C1C;
+static constexpr uint32_t kColorDotOk = 0x33CC44;
+static constexpr uint32_t kColorDotStale = ThemeTokens::kWarn;
+static constexpr uint32_t kColorModeIdle = 0x1C1C1C;
 
-static constexpr uint32_t COLOR_BLE_CONN_NIGHT = 0x4499FF;
-static constexpr uint32_t COLOR_BLE_CONN_DAY = 0x0044BB;
-static constexpr uint32_t COLOR_BLE_ADV_NIGHT = 0x66AACC;
-static constexpr uint32_t COLOR_BLE_ADV_DAY = 0x336699;
+static constexpr uint32_t kColorBleConnNight = 0x4499FF;
+static constexpr uint32_t kColorBleConnDay = 0x0044BB;
+static constexpr uint32_t kColorBleAdvNight = 0x66AACC;
+static constexpr uint32_t kColorBleAdvDay = 0x336699;
 
-static constexpr const char *STALE_PLACEHOLDER = "- -";
+static constexpr const char *kStalePlaceholder = "- -";
 
-static constexpr uint32_t CAN_BUS_LIVE_THRESHOLD_MS = 2000;
+static constexpr uint32_t kCanBusLiveThresholdMs = 2000;
 
 static bool anySignalValid() {
-    static constexpr SignalId kAnyIds[] = {SignalIds::RPM, SignalIds::COOLANT_TEMP_C,
-                                           SignalIds::BATTERY_VOLTS};
-    if (CanManager::msSinceLastRx() > CAN_BUS_LIVE_THRESHOLD_MS)
+    static constexpr SignalId kAnyIds[] = {SignalIds::kRpm, SignalIds::kCoolantTempC,
+                                           SignalIds::kBatteryVolts};
+    if (CanManager::msSinceLastRx() > kCanBusLiveThresholdMs)
         return false;
     return SignalStore::anyValid(kAnyIds, sizeof(kAnyIds) / sizeof(kAnyIds[0]));
 }
 
 static uint32_t statusDotColor(bool valid, bool everSeen) {
     if (valid)
-        return COLOR_DOT_OK;
-    return everSeen ? COLOR_DOT_STALE : COLOR_DOT_DOWN;
+        return kColorDotOk;
+    return everSeen ? kColorDotStale : kColorDotDown;
 }
 
 static void updateDynStatusDot(uint8_t idx, DynItem &d) {
@@ -58,7 +58,7 @@ static void updateDynStatusDot(uint8_t idx, DynItem &d) {
         valid = anySignalValid();
     } else {
         SignalId sid = signalIdFromName(d.signalId);
-        valid = (sid < SignalIds::SIGNAL_COUNT) && SignalStore::isValid(sid);
+        valid = (sid < SignalIds::kSignalCount) && SignalStore::isValid(sid);
     }
     if (valid)
         s_dynEverSeen[idx] = true;
@@ -79,7 +79,7 @@ static void applyDynTextColor(DynItem &d, uint32_t color) {
 static void updateDynSignalLabel(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
 
-    if (sid >= SignalIds::SIGNAL_COUNT) {
+    if (sid >= SignalIds::kSignalCount) {
         WidgetHelpers::setVisibleIfChanged(d.obj, false);
         return;
     }
@@ -90,9 +90,9 @@ static void updateDynSignalLabel(DynItem &d) {
             applyDynTextColor(d, ThemeManager::getStaleTextColor());
             return;
         }
-        if (strcmp(STALE_PLACEHOLDER, d.lastText) != 0) {
-            lv_label_set_text(d.obj, STALE_PLACEHOLDER);
-            strlcpy(d.lastText, STALE_PLACEHOLDER, sizeof(d.lastText));
+        if (strcmp(kStalePlaceholder, d.lastText) != 0) {
+            lv_label_set_text(d.obj, kStalePlaceholder);
+            strlcpy(d.lastText, kStalePlaceholder, sizeof(d.lastText));
         }
         applyDynTextColor(d, ThemeManager::getStaleTextColor());
         return;
@@ -100,7 +100,7 @@ static void updateDynSignalLabel(DynItem &d) {
     d.lastSeenValid = true;
 
     const char *fmt = d.format[0] ? d.format : "%.1f";
-    char buf[DYN_TEXT_CAP];
+    char buf[kDynTextCap];
     const float v = SignalStore::read(sid, 0.0f);
     FloatFormat::formatFromSpec(buf, sizeof(buf), v, fmt);
     if (strcmp(buf, d.lastText) != 0) {
@@ -112,18 +112,18 @@ static void updateDynSignalLabel(DynItem &d) {
 
 static void updateDynSignalMax(DynItem &d) {
     const SignalId sid = signalIdFromName(d.signalId);
-    if (sid >= SignalIds::SIGNAL_COUNT) {
+    if (sid >= SignalIds::kSignalCount) {
         WidgetHelpers::setVisibleIfChanged(d.obj, false);
         return;
     }
     WidgetHelpers::setVisibleIfChanged(d.obj, true);
     const bool known = SignalStats::hasMax(sid);
-    char buf[DYN_TEXT_CAP];
+    char buf[kDynTextCap];
     if (!known) {
-        snprintf(buf, sizeof(buf), "%s %s", d.prefix, STALE_PLACEHOLDER);
+        snprintf(buf, sizeof(buf), "%s %s", d.prefix, kStalePlaceholder);
     } else {
         const char *fmt = d.format[0] ? d.format : "%.0f";
-        char value[DYN_TEXT_CAP];
+        char value[kDynTextCap];
         FloatFormat::formatFromSpec(value, sizeof(value), SignalStats::maxValue(sid), fmt);
         snprintf(buf, sizeof(buf), "%s %s", d.prefix, value);
     }
@@ -144,10 +144,10 @@ static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
 #endif
 
     const char *text = connected ? "• BLE" : "BLE";
-    const uint32_t color =
-        connected     ? ThemeManager::pickColor(COLOR_BLE_CONN_NIGHT, COLOR_BLE_CONN_DAY)
-        : advertising ? ThemeManager::pickColor(COLOR_BLE_ADV_NIGHT, COLOR_BLE_ADV_DAY)
-                      : ThemeManager::getStaleTextColor();
+    const uint32_t color = connected ? ThemeManager::pickColor(kColorBleConnNight, kColorBleConnDay)
+                           : advertising
+                               ? ThemeManager::pickColor(kColorBleAdvNight, kColorBleAdvDay)
+                               : ThemeManager::getStaleTextColor();
 
     if (d != nullptr && color == d->lastColor && strcmp(d->lastText, text) == 0)
         return;
@@ -163,7 +163,7 @@ static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
 static void updateModeFlag(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
     bool active = false;
-    if (sid < SignalIds::SIGNAL_COUNT && SignalStore::isValid(sid)) {
+    if (sid < SignalIds::kSignalCount && SignalStore::isValid(sid)) {
         active = SignalStore::read(sid, 0.0f) != 0.0f;
     }
     const bool wantHidden = !active;
@@ -171,7 +171,7 @@ static void updateModeFlag(DynItem &d) {
         WidgetHelpers::setVisible(d.obj, active);
         d.hidden = wantHidden;
     }
-    applyDynTextColor(d, active ? COLOR_MODE_ACTIVE : COLOR_MODE_IDLE);
+    applyDynTextColor(d, active ? kColorModeActive : kColorModeIdle);
 }
 
 static uint32_t busFieldColor(bool silent) {
@@ -185,9 +185,9 @@ static uint32_t staticLabelColor(const DynItem &d, bool silent) {
 }
 
 static void updateCanRate(DynItem &d, bool silent) {
-    char buf[DYN_TEXT_CAP];
+    char buf[kDynTextCap];
     if (silent) {
-        strlcpy(buf, BUS_RATE_SILENT, sizeof(buf));
+        strlcpy(buf, kBusRateSilent, sizeof(buf));
     } else {
         snprintf(buf, sizeof(buf), "%lu Hz", static_cast<unsigned long>(CanManager::busRateHz()));
     }
@@ -199,7 +199,7 @@ static void updateCanRate(DynItem &d, bool silent) {
 }
 
 static void updateTrackBadge(DynItem &d) {
-    const bool active = TrackStore::isActiveWithin(TRACK_TELEMETRY_TIMEOUT_MS);
+    const bool active = TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs);
     const bool wantHidden = !active;
     if (wantHidden != d.hidden) {
         WidgetHelpers::setVisible(d.obj, active);

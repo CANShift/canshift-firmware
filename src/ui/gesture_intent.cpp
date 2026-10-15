@@ -20,7 +20,7 @@ Decision decide(int16_t travelXSigned, int16_t travelY, bool startedOnClickable)
     const int16_t travel = travelX > travelY ? travelX : travelY;
     const bool swipeLeft = travelXSigned < 0;
 
-    if (travelX < SWIPE_CANCEL_THRESHOLD_PX)
+    if (travelX < kSwipeCancelThresholdPx)
         return {travel >= kTapTravelLimitPx, false, swipeLeft};
 
     // Both branches require the travel to be horizontally dominated before a

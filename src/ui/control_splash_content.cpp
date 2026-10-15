@@ -88,7 +88,7 @@ void composeStateWordSub(const Ingredients &in, Content &out) {
 void composeLevelNote(const Ingredients &in, Content &out) {
     out.sub = Sub::LEVEL_NOTE;
     char lead[12];
-    snprintf(lead, sizeof(lead), "OF %u", static_cast<unsigned>(CONTROL_STEP_MAX));
+    snprintf(lead, sizeof(lead), "OF %u", static_cast<unsigned>(kControlStepMax));
     ControlVocabulary::joinPhrase(lead, ControlVocabulary::kSeparator, in.copy.note, 0, out.subText,
                                   sizeof(out.subText));
 }

@@ -71,11 +71,11 @@ Outcome applyTrackState(const JsonObjectConst &obj) {
 }
 
 constexpr Command kCommands[] = {
-    {UsbComm::CMD_TOGGLE_DAY_NIGHT, "toggle_day_night", &toggleDayNight},
-    {UsbComm::CMD_SET_DAY_NIGHT, "set_day_night", &setDayNight},
-    {UsbComm::CMD_CALIBRATE_TOUCH, "start_calibration", &startCalibration},
-    {UsbComm::CMD_RESET_TOUCH_CAL, "reset_calibration", &resetCalibration},
-    {UsbComm::CMD_REBOOT, "reboot", &requestReboot},
+    {UsbComm::kCmdToggleDayNight, "toggle_day_night", &toggleDayNight},
+    {UsbComm::kCmdSetDayNight, "set_day_night", &setDayNight},
+    {UsbComm::kCmdCalibrateTouch, "start_calibration", &startCalibration},
+    {UsbComm::kCmdResetTouchCal, "reset_calibration", &resetCalibration},
+    {UsbComm::kCmdReboot, "reboot", &requestReboot},
     {kNoUsbCode, "track_state", &applyTrackState},
     {kNoUsbCode, "ack_alert", &acknowledgeAlert},
 };
