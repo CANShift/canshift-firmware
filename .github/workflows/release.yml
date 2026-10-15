@@ -224,6 +224,99 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
+  secure-release:
+    name: Secure boot images (esp32s3)
+    needs: [check-version, create-release]
+    if: needs.check-version.outputs.should_release == 'true' && vars.SECURE_BOOT_RELEASE == 'true'
+    environment: secure-boot-signing
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PIO_ENV: waveshare_s3_28_secure
+      EXPECTED_KEY_DIGEST: ${{ vars.SECURE_BOOT_KEY_DIGEST }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/pio-setup
+        with:
+          espup: 'true'
+          espup-targets: esp32s3
+          cache-suffix: release-secure-esp32s3
+
+      - name: Build the secure app
+        run: platformio run -e "$PIO_ENV"
+
+      - name: Build the secure bootloader (ESP-IDF v4.4.6)
+        run: scripts/secure_boot_bootloader.sh esp32s3 "$RUNNER_TEMP/secure/unsigned"
+
+      - name: Install esptool
+        run: pip install "esptool==${ESPTOOL_VERSION}" "cryptography==${CRYPTOGRAPHY_VERSION}"
+
+      - name: Sign with the secure boot key
+        env:
+          SECURE_BOOT_SIGNING_KEY: ${{ secrets.SECURE_BOOT_SIGNING_KEY }}
+        run: |
+          if [ -z "${SECURE_BOOT_SIGNING_KEY:-}" ] || [ -z "${EXPECTED_KEY_DIGEST:-}" ]; then
+            echo "::error title=secure boot::SECURE_BOOT_SIGNING_KEY and SECURE_BOOT_KEY_DIGEST must both be set on the secure-boot-signing environment"
+            exit 1
+          fi
+          install -d -m 700 "$RUNNER_TEMP/key"
+          printf '%s' "$SECURE_BOOT_SIGNING_KEY" | base64 -d > "$RUNNER_TEMP/key/secure-boot.pem"
+          scripts/secure_boot_sign.sh "$RUNNER_TEMP/key/secure-boot.pem" \
+            "$RUNNER_TEMP/secure/unsigned/bootloader.bin" \
+            ".pio/build/${PIO_ENV}/firmware.bin" \
+            "$RUNNER_TEMP/secure/signed"
+
+      - name: Destroy the decoded key
+        if: ${{ always() }}
+        run: rm -rf "$RUNNER_TEMP/key"
+
+      - name: Signing key matches the digest the chips are fused with
+        run: |
+          ACTUAL=$(od -An -tx1 -v "$RUNNER_TEMP/secure/signed/secure-boot-key-digest.bin" | tr -d ' \n')
+          if [ "$ACTUAL" != "$EXPECTED_KEY_DIGEST" ]; then
+            echo "::error title=secure boot::signing key digest ${ACTUAL} is not SECURE_BOOT_KEY_DIGEST"
+            exit 1
+          fi
+
+      - name: Stage secure release assets
+        run: |
+          PREFIX="canshift-esp32s3-secure-${{ needs.check-version.outputs.tag }}"
+          cp "$RUNNER_TEMP/secure/signed/bootloader.bin" "${PREFIX}-bootloader.bin"
+          cp ".pio/build/${PIO_ENV}/partitions.bin" "${PREFIX}-partitions.bin"
+          cp "$RUNNER_TEMP/secure/signed/firmware.bin" "${PREFIX}-firmware.bin"
+          echo "PREFIX=${PREFIX}" >> "$GITHUB_ENV"
+
+      - name: Sign the secure-boot-signed images with Ed25519
+        run: |
+          python3 scripts/sign_release_artifacts.py \
+            "${PREFIX}-bootloader.bin" "${PREFIX}-partitions.bin" "${PREFIX}-firmware.bin"
+          python3 scripts/verify_release_signatures.py keys/firmware-signing-public.pem \
+            "${PREFIX}-bootloader.bin" "${PREFIX}-partitions.bin" "${PREFIX}-firmware.bin"
+        env:
+          FIRMWARE_SIGNING_PRIVATE_KEY: ${{ secrets.FIRMWARE_SIGNING_PRIVATE_KEY }}
+
+      - name: Attach secure images to GitHub Release
+        run: |
+          FILES=()
+          for kind in bootloader partitions firmware; do
+            FILES+=("${PREFIX}-${kind}.bin" "${PREFIX}-${kind}.bin.sig")
+          done
+          for i in 1 2 3 4 5; do
+            gh release upload "${{ needs.check-version.outputs.tag }}" "${FILES[@]}" --clobber && break
+            if [ $i -eq 5 ]; then exit 1; fi
+            echo "Attempt ${i}: release not ready, retrying in 30s..."
+            sleep 30
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
   manifest:
     name: Publish firmware + board manifest
     needs: [check-version, firmware-release]
