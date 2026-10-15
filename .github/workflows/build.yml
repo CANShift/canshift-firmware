@@ -395,14 +395,15 @@ jobs:
           actionlint
       - name: shellcheck
         run: |
-          shellcheck -S error scripts/*.sh scripts/hooks/*.sh
-          shellcheck -S error -s sh .husky/pre-commit
+          shellcheck -S warning scripts/*.sh scripts/hooks/*.sh
+          shellcheck -S warning -s sh .husky/pre-commit
       - name: ruff
         run: |
           pip install "ruff==${RUFF_VERSION}"
           ruff check .
-      - name: prettier (yaml)
-        run: npx --yes "prettier@${PRETTIER_VERSION}" --check "**/*.{yml,yaml}"
+          ruff format --check .
+      - name: prettier (yaml, markdown, json)
+        run: npx --yes "prettier@${PRETTIER_VERSION}" --check "**/*.{yml,yaml,md,json}"
 
   bench-stats:
     name: bench stats
