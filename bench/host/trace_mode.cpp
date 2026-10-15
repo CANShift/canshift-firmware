@@ -8,7 +8,7 @@
 #include "can/can_rx_route.h"
 #include "can/obd2_poller.h"
 #include "runtime/signal_store.h"
-#include "sim_clock.h"
+#include "bench_clock.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -31,7 +31,7 @@ struct TraceFrame {
 FILE *s_out = nullptr;
 
 uint32_t elapsedMs() {
-    return SimClock::nowMs() - kEpochMs;
+    return BenchClock::nowMs() - kEpochMs;
 }
 
 void recordTx(uint32_t id, const uint8_t *data, uint8_t length) {
@@ -39,7 +39,7 @@ void recordTx(uint32_t id, const uint8_t *data, uint8_t length) {
 }
 
 void tickFirmware() {
-    Obd2Poller::tick(SimClock::nowMs());
+    Obd2Poller::tick(BenchClock::nowMs());
     SignalStore::checkTimeouts();
     SignalTimeline::writeChanges(s_out, elapsedMs());
 }
@@ -47,7 +47,7 @@ void tickFirmware() {
 void advanceTo(uint32_t atMs) {
     while (elapsedMs() < atMs) {
         const uint32_t step = atMs - elapsedMs() < kTickMs ? atMs - elapsedMs() : kTickMs;
-        SimClock::advanceMs(step);
+        BenchClock::advanceMs(step);
         tickFirmware();
     }
 }
@@ -108,7 +108,7 @@ bool replay(FILE *trace) {
 }
 
 bool bootTimeline(const char *dataRoot) {
-    SimClock::useManual(kEpochMs);
+    BenchClock::useManual(kEpochMs);
     if (!BenchRuntime::boot(dataRoot))
         return false;
     Obd2Poller::init();
