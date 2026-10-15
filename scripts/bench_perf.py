@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 PROGRAM = Path(".pio/build/bench/program")
+ACCEPT_FILE = Path("bench/perf-accept.json")
+ACCEPT_FIELDS = ("case", "max_delta_pct", "pr", "reason")
 REGRESSION_LIMIT = 1.10
 IMPROVEMENT_LIMIT = 0.90
 DEFAULT_ROUNDS = 5
@@ -96,6 +98,26 @@ def confirm(base: Side, head: Side, names: list[str], samples: int) -> None:
         run_rounds([base, head], CONFIRM_ROUNDS, samples, name)
 
 
+def load_acceptances(path: Path, pr: int | None) -> dict[str, dict]:
+    if pr is None or not path.exists():
+        return {}
+    entries = json.loads(path.read_text())["accepted"]
+    for entry in entries:
+        missing = [name for name in ACCEPT_FIELDS if name not in entry]
+        if missing:
+            raise BenchError(f"{path}: entry {entry} lacks {', '.join(missing)}")
+    return {entry["case"]: entry for entry in entries if entry["pr"] == pr}
+
+
+def apply_acceptance(row: dict, acceptances: dict[str, dict]) -> dict:
+    entry = acceptances.get(row["name"])
+    if row["verdict"] != "regression" or entry is None:
+        return row
+    if (row["ratio"] - 1) * 100 > entry["max_delta_pct"]:
+        return row
+    return {**row, "verdict": f"accepted ({entry['reason']})"}
+
+
 def format_row(row: dict) -> str:
     base = f"{row['base_ns']:,.1f}" if "base_ns" in row else "—"
     ratio = f"{(row['ratio'] - 1) * 100:+.1f} %" if "ratio" in row else "—"
@@ -133,6 +155,8 @@ def run_compare(args: argparse.Namespace) -> int:
     if suspects:
         confirm(base, head, suspects, args.samples)
         rows = compare_rows(base, head)
+    acceptances = load_acceptances(args.accept, args.pr)
+    rows = [apply_acceptance(row, acceptances) for row in rows]
     write_outputs(args, rows, baseline)
     regressions = flagged(rows)
     for name in regressions:
@@ -149,6 +173,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--samples", type=int, default=DEFAULT_SAMPLES)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--summary", type=Path)
+    parser.add_argument("--accept", type=Path, default=ACCEPT_FILE)
+    parser.add_argument("--pr", type=int)
     return parser.parse_args(argv)
 
 
