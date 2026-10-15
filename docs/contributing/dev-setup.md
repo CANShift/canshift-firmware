@@ -137,17 +137,21 @@ Every repository shares the same workflow:
 
 Checks run in the repository you push to — there is no shared pipeline:
 
-| Repository          | Required checks                             |
-| ------------------- | ------------------------------------------- |
-| `canshift-core`     | `lint`, `test`, `build`, `firmware-parity`  |
-| `canshift-firmware` | `lint` (clang-format), native build + tests |
-| `canshift-tuner`    | `lint`, `typecheck`, `test`, `build`        |
-| `canshift-mobile`   | `lint`, `typecheck`, `test`                 |
+Every repository requires `ci-success` (one job that aggregates every check in its
+CI workflow), `dependency-review` and the CodeQL code-scanning rule.
+
+Cross-repository parity is checked once, by the repository that lands second:
+
+| Pair                                      | Checked by                                      | Lands first |
+| ----------------------------------------- | ----------------------------------------------- | ----------- |
+| schema pin, bundled config, board catalog | core `firmware-parity`, against firmware `main` | firmware    |
+| display tiers (`include/display_tiers.h`) | firmware `core parity`, against core `main`     | core        |
 
 `firmware-parity` checks out `canshift-firmware` alongside `canshift-core` and
 fails the PR if the schema the firmware pins in `core-schema-version.txt` has
-drifted from what core exports — so a schema change and its firmware pin land
-together, not a release apart.
+drifted from what core exports, or if core's board catalog differs from the
+firmware's releasable boards. `core parity` does the mirror image for the display
+tier catalog. Neither skips in CI.
 
 See [Testing](../contributing/testing.md) for the test harnesses and
 [Release process](../contributing/release-process.md) for how firmware
