@@ -45,8 +45,10 @@ EOF
     exit 1
 fi
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly FIRMWARE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+FIRMWARE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly FIRMWARE_DIR
 readonly SECRETS_DIR="${FIRMWARE_DIR}/secrets"
 readonly SIGNING_KEY="${SECRETS_DIR}/secure_boot_signing_key.pem"
 readonly GITIGNORE="${FIRMWARE_DIR}/.gitignore"
