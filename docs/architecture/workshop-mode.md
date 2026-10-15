@@ -21,11 +21,11 @@ partition in `ota_16mb.csv` is 7.5 MB, and the gzipped tuner is about 0.5 MB.
 
 ## The three ways to touch a dash
 
-| Moment | Tool | Link |
-| --- | --- | --- |
-| First flash of a blank board | `esptool` from a terminal, documented step by step | USB, once |
-| Configuration and firmware updates | The tuner, served by the dash in workshop mode | Wi-Fi access point |
-| Driving | The mobile app, unchanged | BLE |
+| Moment                             | Tool                                               | Link               |
+| ---------------------------------- | -------------------------------------------------- | ------------------ |
+| First flash of a blank board       | `esptool` from a terminal, documented step by step | USB, once          |
+| Configuration and firmware updates | The tuner, served by the dash in workshop mode     | Wi-Fi access point |
+| Driving                            | The mobile app, unchanged                          | BLE                |
 
 After the first flash, the USB cable is only for recovery.
 
@@ -48,14 +48,14 @@ stateDiagram-v2
 
 ## What runs in workshop mode
 
-| Subsystem | State | Reason |
-| --- | --- | --- |
-| BLE | Stopped, controller memory released | Wi-Fi and BLE share one radio; the RAM goes to the web server |
-| Dashboard pages | Released, only the workshop card is drawn | The LVGL page trees are the largest heap user after BLE |
-| CAN decode | Running | The tuner shows live values while you map signals |
-| USB | Running | Recovery path stays open |
-| Wi-Fi | Access point, WPA2 | — |
-| HTTP + WebSocket server | Running | Serves the tuner and carries its commands |
+| Subsystem               | State                                     | Reason                                                        |
+| ----------------------- | ----------------------------------------- | ------------------------------------------------------------- |
+| BLE                     | Stopped, controller memory released       | Wi-Fi and BLE share one radio; the RAM goes to the web server |
+| Dashboard pages         | Released, only the workshop card is drawn | The LVGL page trees are the largest heap user after BLE       |
+| CAN decode              | Running                                   | The tuner shows live values while you map signals             |
+| USB                     | Running                                   | Recovery path stays open                                      |
+| Wi-Fi                   | Access point, WPA2                        | —                                                             |
+| HTTP + WebSocket server | Running                                   | Serves the tuner and carries its commands                     |
 
 The access point is never open. Its password is generated per board on first
 entry, stored in NVS and shown on the workshop card, so a stranger in the same
@@ -89,11 +89,11 @@ The dash canvas keeps full fidelity against the
 [dash design system](../design/DASH_DESIGN_SYSTEM.md); it is the reason the
 tuner exists. Everything around it is plain forms, as simple as possible.
 
-| Tab | Holds |
-| --- | --- |
-| **Dash** | Page strip, canvas, widget properties |
-| **Vehicle** | ECU profile, signals, live values, CAN bus settings |
-| **Device** | Units, brightness, board, firmware upload, config backup and restore |
+| Tab         | Holds                                                                |
+| ----------- | -------------------------------------------------------------------- |
+| **Dash**    | Page strip, canvas, widget properties                                |
+| **Vehicle** | ECU profile, signals, live values, CAN bus settings                  |
+| **Device**  | Units, brightness, board, firmware upload, config backup and restore |
 
 Removed: Welcome, Home, Contact, analytics, and the Web Serial flasher.
 

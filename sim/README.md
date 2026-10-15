@@ -60,24 +60,24 @@ frame (e.g. both phases of the 6 Hz rev-limit blink) without touching the keyboa
 
 ## Keys
 
-| Key | Effect |
-| --- | --- |
-| `C` | cruise scenario (default) — sweeping rpm/speed/boost |
-| `R` | rev limiter held at the limit |
-| `O` | oil pressure 0.4 bar at 5200 rpm — critical takeover after the 2 s hold |
-| `W` | coolant, oil temp and IAT in their warning bands |
-| — | `water` scenario only: coolant 118 °C at 4100 rpm — the high-side takeover |
-| `1` | boost cut band — warning severity, elapsed counter |
-| `2` | ignition retard band — warning severity, `HOLDING` |
-| `3` | fuel cut band — danger severity, ink detail |
-| `4` | limp mode band — danger severity, `LATCHED` |
-| `X` | stop feeding — everything goes stale (`- -` at 500 ms) |
-| `B` | D04: feed for 1 s, then drop the bus while battery keeps reading |
-| `F` | fake OTA progress overlay (toggle) |
-| `←` / `→` | previous / next page |
-| `D` | dump the LVGL object tree to stdout |
-| `S` | write `sim-screenshot.bmp` |
-| `ESC` | quit |
+| Key       | Effect                                                                     |
+| --------- | -------------------------------------------------------------------------- |
+| `C`       | cruise scenario (default) — sweeping rpm/speed/boost                       |
+| `R`       | rev limiter held at the limit                                              |
+| `O`       | oil pressure 0.4 bar at 5200 rpm — critical takeover after the 2 s hold    |
+| `W`       | coolant, oil temp and IAT in their warning bands                           |
+| —         | `water` scenario only: coolant 118 °C at 4100 rpm — the high-side takeover |
+| `1`       | boost cut band — warning severity, elapsed counter                         |
+| `2`       | ignition retard band — warning severity, `HOLDING`                         |
+| `3`       | fuel cut band — danger severity, ink detail                                |
+| `4`       | limp mode band — danger severity, `LATCHED`                                |
+| `X`       | stop feeding — everything goes stale (`- -` at 500 ms)                     |
+| `B`       | D04: feed for 1 s, then drop the bus while battery keeps reading           |
+| `F`       | fake OTA progress overlay (toggle)                                         |
+| `←` / `→` | previous / next page                                                       |
+| `D`       | dump the LVGL object tree to stdout                                        |
+| `S`       | write `sim-screenshot.bmp`                                                 |
+| `ESC`     | quit                                                                       |
 
 Mouse clicks are the touch input.
 
@@ -99,7 +99,6 @@ LVGL  pool after first page build: used=69696/524288 B (13%) frag=1% largest=...
 
 To see the WROOM budget in the sim, build it without `BOARD_HAS_PSRAM`: the
 pool drops to the 80 KB a no-PSRAM board gets.
-
 
 ## How it works
 

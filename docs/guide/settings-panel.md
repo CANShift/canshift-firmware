@@ -44,10 +44,10 @@ navigate to reboot.
 Turns the dash into its own configurator ([design](../architecture/workshop-mode.md)).
 The button sits at the bottom of the panel and only appears when both hold:
 
-| Condition | Why |
-| --- | --- |
+| Condition                                                                                                                           | Why                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | The firmware is built with `APP_WORKSHOP_ENABLED` (only `waveshare_s3_28`) and runs the 16 MB layout (a filesystem of 4 MB or more) | The tuner ships in flash; the 4 MB boards keep USB configuration and carry none of this code |
-| The car is stationary: `speed_kph` reads 0, or no speed signal is mapped, or the speed signal has gone stale | Workshop mode switches the dash off |
+| The car is stationary: `speed_kph` reads 0, or no speed signal is mapped, or the speed signal has gone stale                        | Workshop mode switches the dash off                                                          |
 
 Whether it is offered is decided each time the panel opens, and checked again on
 the tap, so a car that starts moving with the panel open gets the button hidden
@@ -61,7 +61,7 @@ Entering:
    characters (no `0`/`o`, `1`/`l`/`i`). The same pair is reused on every later
    entry. If they cannot be stored, the dash stays on the dashboard and reports
    the error.
-2. The screen switches to the workshop card: *Workshop mode — dash disabled*,
+2. The screen switches to the workshop card: _Workshop mode — dash disabled_,
    the network name, the password, a QR code that joins the network in one
    scan, and a **Leave** button. Nothing else on the card reacts to touch.
 3. The dashboard pages are released and the top bar, banners and Settings

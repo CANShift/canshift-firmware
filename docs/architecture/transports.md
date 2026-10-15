@@ -24,10 +24,10 @@ access point with the stored credentials (`192.168.4.1`, also answering as
 `canshift.local` over mDNS) and an `esp_http_server` on port 80. Nothing runs
 on the radio outside workshop mode, and leaving reboots.
 
-| Route | Serves |
-| --- | --- |
+| Route     | Serves                                 |
+| --------- | -------------------------------------- |
 | `GET /ws` | WebSocket into the USB command handler |
-| `GET /*` | the tuner from SPIFFS `/tuner/` |
+| `GET /*`  | the tuner from SPIFFS `/tuner/`        |
 
 **The socket is the USB protocol, framed differently.** Each text frame
 carries exactly one JSON line in either direction, with no trailing newline.
@@ -41,18 +41,17 @@ only link: `Logger::emit` hands each line to a hook that copies it into a
 the count later. Every socket write happens on `taskUSB`, so frames never
 interleave.
 
-| Rule | Value |
-| --- | --- |
-| Clients | one; a new connection replaces the previous one |
-| Frame | text, final, under `USB_RX_BUF_SIZE` (16 KB + 256); anything else closes the socket |
-| Queue | two lines; a third waits up to 2 s, then the socket closes |
-| Send timeout | 1 s per frame, so a stalled phone cannot hold `taskUSB` longer |
+| Rule         | Value                                                                               |
+| ------------ | ----------------------------------------------------------------------------------- |
+| Clients      | one; a new connection replaces the previous one                                     |
+| Frame        | text, final, under `USB_RX_BUF_SIZE` (16 KB + 256); anything else closes the socket |
+| Queue        | two lines; a third waits up to 2 s, then the socket closes                          |
+| Send timeout | 1 s per frame, so a stalled phone cannot hold `taskUSB` longer                      |
 
 **Static files.** A request for `/x` serves `/tuner/x.gz` with
 `Content-Encoding: gzip` when it exists, else `/tuner/x`. `/` is
 `index.html`. A missing path without an extension falls back to `index.html`
-so the tuner's client-side routes load; a missing file with an extension is a
-404. Every response carries `Content-Security-Policy: default-src 'self'`,
+so the tuner's client-side routes load; a missing file with an extension is a 404. Every response carries `Content-Security-Policy: default-src 'self'`,
 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: no-referrer` and `Cache-Control: no-cache`.
 
@@ -67,11 +66,11 @@ for `buildfs` and `uploadfs`. On every env without `APP_WORKSHOP_ENABLED` it
 leaves `tuner/` out, so the 4 MB boards' 832 KB image never carries the bundle.
 On the workshop envs it fills `tuner/` from the first of:
 
-| Source | When |
-| --- | --- |
-| `../canshift-tuner/dist-tuner/` | a sibling checkout has run `npm run bundle:dash` |
-| the release pinned in `tuner-version.txt` | `tag` is a `vX.Y.Z` |
-| `data/tuner/` as committed | nothing is pinned (`tag=none`) |
+| Source                                    | When                                             |
+| ----------------------------------------- | ------------------------------------------------ |
+| `../canshift-tuner/dist-tuner/`           | a sibling checkout has run `npm run bundle:dash` |
+| the release pinned in `tuner-version.txt` | `tag` is a `vX.Y.Z`                              |
+| `data/tuner/` as committed                | nothing is pinned (`tag=none`)                   |
 
 The pinned release is
 `canshift-tuner-dash-<tag>.tar.gz` from CANShift/canshift-tuner's Releases,

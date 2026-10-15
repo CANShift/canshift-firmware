@@ -8,20 +8,20 @@ what lets the release profile's LTO apply, and it owns the only panic handler.
 
 ## Member crates
 
-| Crate               | Header                             |
-| ------------------- | ---------------------------------- |
-| `signal-map`        | `include/signal_map_rs.h`          |
-| `can-parser`        | `include/can_parser_rs.h`          |
-| `usb-envelope`      | `include/usb_envelope_rs.h`        |
-| `config-loader`     | `include/config_loader_rs.h`       |
-| `format-float`      | `include/format_float_rs.h`        |
-| `error-store`       | `include/error_store_rs.h`         |
-| `alert-engine`      | `include/alert_engine_rs.h`        |
-| `sensor-color-ramp` | `include/sensor_color_ramp_rs.h`   |
-| `timer-core`        | `include/timer_core_rs.h`          |
-| `layout-grid`       | `include/layout_grid_rs.h`         |
-| `workshop-mode`     | `include/workshop_mode_rs.h`       |
-| `ota-signature`     | `include/ota_signature_rs.h`       |
+| Crate               | Header                           |
+| ------------------- | -------------------------------- |
+| `signal-map`        | `include/signal_map_rs.h`        |
+| `can-parser`        | `include/can_parser_rs.h`        |
+| `usb-envelope`      | `include/usb_envelope_rs.h`      |
+| `config-loader`     | `include/config_loader_rs.h`     |
+| `format-float`      | `include/format_float_rs.h`      |
+| `error-store`       | `include/error_store_rs.h`       |
+| `alert-engine`      | `include/alert_engine_rs.h`      |
+| `sensor-color-ramp` | `include/sensor_color_ramp_rs.h` |
+| `timer-core`        | `include/timer_core_rs.h`        |
+| `layout-grid`       | `include/layout_grid_rs.h`       |
+| `workshop-mode`     | `include/workshop_mode_rs.h`     |
+| `ota-signature`     | `include/ota_signature_rs.h`     |
 
 ## Running
 

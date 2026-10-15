@@ -47,25 +47,25 @@ sequenceDiagram
 
 ## Limits a host must respect
 
-| Limit | Value | Why |
-| --- | --- | --- |
-| One command in flight | wait for each `status` before the next | the tuner's `AckQueue` resolves on the next `status` line |
-| Line or frame size | under `USB_RX_BUF_SIZE` (16 640 B) | the USB line buffer; the socket closes on a bigger frame |
-| Chunk size | 12 KB of raw data or less (16 KB of base64) | fits the line with its JSON envelope |
-| Reply time | well under the 5 s default ack timeout | a 12 KB chunk erases three sectors and writes them, roughly 0.2 s |
+| Limit                 | Value                                       | Why                                                               |
+| --------------------- | ------------------------------------------- | ----------------------------------------------------------------- |
+| One command in flight | wait for each `status` before the next      | the tuner's `AckQueue` resolves on the next `status` line         |
+| Line or frame size    | under `USB_RX_BUF_SIZE` (16 640 B)          | the USB line buffer; the socket closes on a bigger frame          |
+| Chunk size            | 12 KB of raw data or less (16 KB of base64) | fits the line with its JSON envelope                              |
+| Reply time            | well under the 5 s default ack timeout      | a 12 KB chunk erases three sectors and writes them, roughly 0.2 s |
 
 ## What the dash checks, and what it does not
 
 Every image is checked against the release signing key on both links, with no
 exception in any shipped build:
 
-| Check | Where | Refusal |
-| --- | --- | --- |
-| `sig` present | `BEGIN` | `ota_unsigned` |
-| `sig` is 64 bytes, canonical | `BEGIN` | `ota_bad_signature` |
-| app-image header | first chunk | `not_app_image` |
-| SHA-256 of the whole image | commit | `sha256_mismatch` |
-| Ed25519 over the whole image, against the embedded release key | commit | `ota_bad_signature` |
+| Check                                                          | Where       | Refusal             |
+| -------------------------------------------------------------- | ----------- | ------------------- |
+| `sig` present                                                  | `BEGIN`     | `ota_unsigned`      |
+| `sig` is 64 bytes, canonical                                   | `BEGIN`     | `ota_bad_signature` |
+| app-image header                                               | first chunk | `not_app_image`     |
+| SHA-256 of the whole image                                     | commit      | `sha256_mismatch`   |
+| Ed25519 over the whole image, against the embedded release key | commit      | `ota_bad_signature` |
 
 The signature is verified as the chunks stream in (`rust/ota-signature`, built on
 `ed25519-dalek`'s incremental verifier), so the image never has to fit in RAM, and
