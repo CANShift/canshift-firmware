@@ -1,9 +1,5 @@
 # Workshop mode
 
-> [!NOTE]
-> **Planned, not built yet.** This page is the design the work is built
-> against. Each delivery slice below links its issue once filed.
-
 Workshop mode turns the dash into its own configurator. One button in the
 Settings panel stops the dashboard, switches the radio from Bluetooth to a
 Wi-Fi access point, and serves the tuner from flash. Any browser on any
@@ -35,6 +31,7 @@ After the first flash, the USB cable is only for recovery.
 stateDiagram-v2
     Driving --> Workshop: Settings → Workshop mode (stationary only)
     Workshop --> Driving: Leave workshop → reboot
+    Workshop --> Workshop: Firmware update over Wi-Fi → reboot, resumed once
 ```
 
 - **The button sits in the Settings panel** and is only offered while the car
@@ -42,6 +39,17 @@ stateDiagram-v2
 - **Leaving is a reboot.** Freeing the Bluetooth controller's memory cannot be
   undone without a restart, and a reboot returns every subsystem to a known
   state. No partial teardown to get wrong.
+- **A firmware update over Wi-Fi comes back to workshop mode, once.** The
+  update reboots the dash too, and the tuner on the phone needs the access
+  point back to reconnect and confirm the new version. So an OTA that arrives
+  over the workshop socket arms a one-shot `resume` flag in the `workshop` NVS
+  namespace before the reboot. The next boot clears it before anything else
+  and re-enters workshop mode, with the same card and credentials, only when
+  the board supports workshop mode and the running image is the new one still
+  pending verification. The stationary rule is skipped for that entry: the car
+  was already stationary when the driver entered workshop mode. A crash loop or
+  a rollback therefore lands in driving mode, and an OTA over USB never arms
+  the flag.
 - **The screen locks to a workshop card**: "Workshop mode, dash disabled", the
   network name, its password, and a QR code that joins the network in one scan.
   Touch does nothing on that card except the Leave button.

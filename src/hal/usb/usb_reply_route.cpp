@@ -94,6 +94,10 @@ bool UsbCommInternal::replyReachesSocket() {
     return kRouteSinks[static_cast<uint8_t>(currentRoute())].socket;
 }
 
+bool UsbCommInternal::commandFromSocket() {
+    return currentRoute() == ReplyRoute::Socket;
+}
+
 void UsbCommInternal::sendToSocket(const char *line, size_t len) {
     socketSink(line, len);
 }
@@ -123,6 +127,10 @@ bool UsbCommInternal::replyReachesSerial() {
 }
 
 bool UsbCommInternal::replyReachesSocket() {
+    return false;
+}
+
+bool UsbCommInternal::commandFromSocket() {
     return false;
 }
 

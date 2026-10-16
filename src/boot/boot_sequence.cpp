@@ -16,6 +16,7 @@
 #include "runtime/signal_store.h"
 #include "runtime/timer_service.h"
 #include "runtime/track_store.h"
+#include "runtime/workshop_mode.h"
 #include "ui/boot_screens.h"
 #include "ui/page_manager.h"
 #include "ui/screen_profile.h"
@@ -179,18 +180,23 @@ extern "C" bool verifyRollbackLater() {
     return true;
 }
 
-void BootSequence::markOtaSlotValidIfPending() {
+namespace {
+
+bool runningImagePendingVerify() {
     const esp_partition_t *running = esp_ota_get_running_partition();
-    if (!running) {
-        return;
-    }
+    if (!running)
+        return false;
     esp_ota_img_states_t state;
-    if (esp_ota_get_state_partition(running, &state) != ESP_OK) {
+    if (esp_ota_get_state_partition(running, &state) != ESP_OK)
+        return false;
+    return state == ESP_OTA_IMG_PENDING_VERIFY;
+}
+
+} // namespace
+
+void BootSequence::markOtaSlotValidIfPending() {
+    if (!runningImagePendingVerify())
         return;
-    }
-    if (state != ESP_OTA_IMG_PENDING_VERIFY) {
-        return;
-    }
     const esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
     if (err == ESP_OK) {
         LOG_INFO("OTA", "Marked running app valid — rollback cancelled");
@@ -225,6 +231,7 @@ void prepareUiAssets(bool storageOk) {
 void BootSequence::run() {
     BootPhases::silenceFrameworkLogNoise();
     BoardProfileStore::loadAndApply();
+    const bool resumeWorkshop = WorkshopMode::takeResumeRequest();
     const uint32_t bootStartMs = millis();
     BootPhases::initPsramAndLogEntry();
     BootPhases::initTaskWatchdog();
@@ -244,6 +251,7 @@ void BootSequence::run() {
     startCanTaskAndListen();
     showSelfTestScreen(checks);
     buildUiWithHeapBracket();
+    WorkshopMode::resumeAfterUpdate(resumeWorkshop, runningImagePendingVerify());
 
     logBootCompleteAndReady(bootStartMs);
 }

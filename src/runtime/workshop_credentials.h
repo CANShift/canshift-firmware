@@ -2,6 +2,8 @@
 
 #include "workshop_mode_rs.h"
 
+inline constexpr char kWorkshopNvsNamespace[] = "workshop";
+
 struct WorkshopCredentials {
     char ssid[kWorkshopSsidCap];
     char password[kWorkshopPasswordCap];
