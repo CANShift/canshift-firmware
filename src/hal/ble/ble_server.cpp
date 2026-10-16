@@ -36,6 +36,7 @@ static constexpr char kCmdUuid[] = "4fa0b6a0-0000-0000-0000-000000000005";
 static constexpr char kTimerCmdUuid[] = "4fa0b6a0-0000-0000-0000-000000000006";
 static constexpr char kTimerStateUuid[] = "4fa0b6a0-0000-0000-0000-000000000007";
 static constexpr char kTimerLapUuid[] = "4fa0b6a0-0000-0000-0000-000000000008";
+static constexpr char kAlertUuid[] = "4fa0b6a0-0000-0000-0000-000000000009";
 
 static constexpr size_t kBleMinHeap = kBleMinHeapBytes;
 
@@ -49,6 +50,7 @@ NimBLECharacteristic *s_pTele = nullptr;
 NimBLECharacteristic *s_pStatus = nullptr;
 NimBLECharacteristic *s_pTimerState = nullptr;
 NimBLECharacteristic *s_pTimerLap = nullptr;
+NimBLECharacteristic *s_pAlert = nullptr;
 bool s_connected = false;
 bool s_stackInited = false;
 bool s_gattInited = false;
@@ -294,17 +296,22 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
         requireChar(pSvc, kTimerStateUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
     BleServerInternal::s_pTimerLap =
         requireChar(pSvc, kTimerLapUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
+    BleServerInternal::s_pAlert =
+        requireChar(pSvc, kAlertUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
 
     if (!BleServerInternal::s_pTele || !BleServerInternal::s_pStatus || !pSettings || !pCmd ||
-        !pTimerCmd || !BleServerInternal::s_pTimerState || !BleServerInternal::s_pTimerLap) {
+        !pTimerCmd || !BleServerInternal::s_pTimerState || !BleServerInternal::s_pTimerLap ||
+        !BleServerInternal::s_pAlert) {
         return false;
     }
 
     BleServerInternal::s_pTele->setValue("{}");
+    BleServerInternal::emitAlert();
     BleServerInternal::updateStatus();
     BleServerInternal::s_pTele->setCallbacks(&s_subscribeCb);
     BleServerInternal::s_pStatus->setCallbacks(&s_subscribeCb);
     BleServerInternal::s_pTimerLap->setCallbacks(&s_subscribeCb);
+    BleServerInternal::s_pAlert->setCallbacks(&s_subscribeCb);
     pSettings->setCallbacks(&s_settingsCb);
     pCmd->setCallbacks(&s_cmdCb);
     pTimerCmd->setCallbacks(&s_timerCmdCb);
@@ -443,6 +450,7 @@ void BleServer::tick() {
         return;
     }
     BleServerInternal::emitTelemetry();
+    BleServerInternal::emitAlert();
     BleServerInternal::emitTimerSync();
 }
 

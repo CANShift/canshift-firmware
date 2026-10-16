@@ -7,11 +7,12 @@ in only when `APP_BLE_ENABLED` is set. Phone-side `canshift-mobile` reads
 telemetry and status over GATT notify and writes settings, commands, and
 timer ops over GATT write. Sources: `src/hal/ble/ble_server.cpp`,
 `src/hal/ble/ble_status.cpp`, `src/hal/ble/ble_telemetry.cpp`,
-`src/hal/ble/telemetry_frame.cpp`, `src/hal/ble/ble_timer.cpp`.
+`src/hal/ble/telemetry_frame.cpp`, `src/hal/ble/ble_alert.cpp`,
+`src/hal/ble/alert_frame.cpp`, `src/hal/ble/ble_timer.cpp`.
 
 ## GATT layout
 
-A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with seven
+A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with eight
 characteristics. Every read/write property is an **authenticated** variant
 (`READ_AUTHEN` / `WRITE_AUTHEN`), so the client must hold a passkey-authenticated
 bond before it can read telemetry, receive a notification or issue a command.
@@ -26,6 +27,7 @@ An encrypted-but-unauthenticated link (Just Works) is refused at the ATT layer.
 | TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR    | `{"op":<1–5>}` timer operation                           |
 | TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY       | `{"st","el","lc","sid","ver"}` JSON                      |
 | TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY       | lap notification                                         |
+| ALERT          | `0009`    | READ_AUTHEN, NOTIFY       | binary critical-alert frame (see below), on change + 1 s |
 
 There is no PASSKEY characteristic — the pairing code is shown on the dash
 itself (see below), not exposed over GATT.
@@ -40,6 +42,8 @@ each to a runtime action; writes are capped at `kBleMaxWriteLen` (256 B):
 - `start_calibration` / `reset_calibration` → `PendingActions`
 - `track_state` → `TrackStore::setTelemetry` (lap timer + delta fields)
 - `reboot` → `esp_restart()`
+- `ack_alert` → acknowledges the critical alert on screen, or the one named by
+  an optional `"source"` (the ALERT source id)
 
 Unknown commands are logged and ignored. `TIMER_CMD` is a second, separate
 dispatcher (`TimerCmdCallbacks::onWrite`): `{"op":N}` maps `1–5` to
@@ -102,6 +106,30 @@ or order requires updating both sides.
 last one is not notified, but a keepalive is forced every `kKeepaliveTicks`
 (10 ≈ 1 s) so a subscriber that joins mid-stream still receives a full
 frame. The deduper is reset when the subscriber count rises.
+
+## Alert payload — binary frame
+
+ALERT carries the takeover state so the phone mirrors the dash instead of
+judging thresholds itself. The format is canonical in `@canshift/core`
+(`docs/ble-alert-frame.md`, `encodeAlertFrame` / `decodeAlertFrame`);
+`AlertFrame::encode` (`alert_frame.cpp`) mirrors it and pins the same byte
+vectors in `test/test_alert_frame/`.
+
+Every `AlertTakeover::update` (100 ms, UI task) hands the critical and
+acknowledged source masks and the source on screen to
+`AlertTakeoverBroadcast::publish`, which lists each critical source — reading,
+crossed limit, acknowledged and on-screen flags, seconds since it turned
+critical, signal key — with the on-screen one first, and stores the encoded
+bytes in `AlertBroadcast` behind a spinlock. The store bumps a generation only
+when the bytes change. The BLE task copies the latest frame each tick and
+notifies on a new generation, or every `kKeepaliveTicks` as a keepalive; a new
+subscriber forces a send. Whole entries that do not fit the 244-byte notify
+payload are dropped, never the on-screen one. With no critical source the frame
+is `01 00`.
+
+The source id is the takeover's source index: `AlertSources::kSources` in
+order, then the configured `criticalAlert`. core's parity test checks that
+order against its `ALERT_SOURCES`.
 
 ## Early init and heap gating
 
