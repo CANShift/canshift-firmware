@@ -7,6 +7,7 @@ mod credentials;
 mod join_payload;
 mod motion;
 mod origin;
+mod socket_admission;
 mod tuner_assets;
 
 pub use credentials::{
@@ -18,6 +19,10 @@ pub use motion::{
     motion_exit_due, moving, MotionWatch, WORKSHOP_MOTION_EXIT_KPH, WORKSHOP_MOTION_EXIT_MS,
 };
 pub use origin::origin_allowed;
+pub use socket_admission::{
+    socket_admission, Admission, WORKSHOP_ADMIT_ADOPT, WORKSHOP_ADMIT_REFUSE_BUSY,
+    WORKSHOP_ADMIT_REPLACE_STALE, WORKSHOP_SOCKET_BUSY_WINDOW_MS,
+};
 pub use tuner_assets::{
     content_type, spa_route, tuner_path, DEFAULT_CONTENT_TYPE, WORKSHOP_TUNER_PATH_CAP,
 };

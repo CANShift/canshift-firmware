@@ -280,7 +280,10 @@ void UsbComm::tick() {
     }
 
     UsbCommInternal::tickChunkTransferTimeout();
-    UsbCommInternal::tickOtaSessionWatch();
+    const bool socketClosed = UsbCommInternal::takeSocketClosed();
+    if (socketClosed)
+        UsbCommInternal::abortSocketTransfers("tuner socket closed");
+    UsbCommInternal::tickOtaSessionWatch(socketClosed);
     UsbCommInternal::tickObdDtc();
 
     if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > kUsbRxLineTimeoutMs) {

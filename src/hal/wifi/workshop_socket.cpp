@@ -8,6 +8,7 @@
     #include "util/mem_alloc.h"
     #include "workshop_mode_rs.h"
 
+    #include <Arduino.h>
     #include <WiFi.h>
     #include <esp_heap_caps.h>
     #include <esp_http_server.h>
@@ -33,6 +34,12 @@ constexpr char kLineEnd = '\n';
 constexpr char kOriginHeader[] = "Origin";
 constexpr size_t kOriginCap = 64;
 constexpr uint16_t kClosePolicyViolation = 1008;
+constexpr uint16_t kBusyCloseCode = 4001;
+constexpr char kBusyCloseReason[] = "busy";
+constexpr size_t kCloseCodeBytes = 2;
+constexpr size_t kBusyCloseReasonLen = sizeof(kBusyCloseReason) - 1;
+constexpr unsigned kByteBits = 8;
+constexpr uint16_t kByteMask = 0xFF;
 
 struct HeapFree {
     void operator()(char *line) const {
@@ -46,6 +53,7 @@ httpd_handle_t s_server = nullptr;
 std::atomic<QueueHandle_t> s_lines{nullptr};
 std::atomic<QueueHandle_t> s_logLines{nullptr};
 std::atomic<int> s_clientFd{kNoClient};
+std::atomic<uint32_t> s_lastActivityMs{0};
 std::atomic<uint32_t> s_droppedLogs{0};
 
 void dropClient(int fd, esp_err_t err) {
@@ -113,7 +121,7 @@ void closeSession(int fd) {
         LOG_WARN("WORKSHOP", "Previous tuner socket %d could not be closed", fd);
         return;
     }
-    LOG_INFO("WORKSHOP", "Previous tuner socket %d replaced", fd);
+    LOG_INFO("WORKSHOP", "Stale tuner socket %d replaced", fd);
 }
 
 bool originAllowed(httpd_req_t *req) {
@@ -142,15 +150,59 @@ esp_err_t refuseClient(httpd_req_t *req) {
     return ESP_FAIL;
 }
 
+void sendBusyClose(httpd_req_t *req) {
+    uint8_t payload[kCloseCodeBytes + kBusyCloseReasonLen];
+    payload[0] = static_cast<uint8_t>(kBusyCloseCode >> kByteBits);
+    payload[1] = static_cast<uint8_t>(kBusyCloseCode & kByteMask);
+    memcpy(payload + kCloseCodeBytes, kBusyCloseReason, kBusyCloseReasonLen);
+    httpd_ws_frame_t frame = {};
+    frame.final = true;
+    frame.type = HTTPD_WS_TYPE_CLOSE;
+    frame.payload = payload;
+    frame.len = sizeof(payload);
+    if (httpd_ws_send_frame(req, &frame) != ESP_OK)
+        LOG_WARN("WORKSHOP", "Busy close frame not sent");
+}
+
+esp_err_t adopt(httpd_req_t *, int fd, int) {
+    s_lastActivityMs.store(millis());
+    s_clientFd.store(fd);
+    LOG_INFO("WORKSHOP", "Tuner connected on socket %d", fd);
+    return ESP_OK;
+}
+
+esp_err_t replaceStale(httpd_req_t *req, int fd, int previous) {
+    closeSession(previous);
+    UsbComm::noteSocketClosed();
+    return adopt(req, fd, previous);
+}
+
+esp_err_t refuseBusy(httpd_req_t *req, int fd, int current) {
+    LOG_WARN("WORKSHOP", "Second tuner on socket %d refused — socket %d is active", fd, current);
+    sendBusyClose(req);
+    if (httpd_sess_trigger_close(s_server, fd) != ESP_OK)
+        LOG_WARN("WORKSHOP", "Refused socket %d could not be closed", fd);
+    return ESP_OK;
+}
+
+using AdmissionHandler = esp_err_t (*)(httpd_req_t *req, int fd, int current);
+
+constexpr AdmissionHandler kAdmissionHandlers[] = {adopt, replaceStale, refuseBusy};
+
+static_assert(sizeof(kAdmissionHandlers) / sizeof(kAdmissionHandlers[0]) ==
+                  kWorkshopAdmitRefuseBusy + 1,
+              "every socket admission needs a handler");
+
 esp_err_t adoptClient(httpd_req_t *req) {
     if (!originAllowed(req))
         return refuseClient(req);
     const int fd = httpd_req_to_sockfd(req);
-    const int previous = s_clientFd.exchange(fd);
-    if (previous != kNoClient && previous != fd)
-        closeSession(previous);
-    LOG_INFO("WORKSHOP", "Tuner connected on socket %d", fd);
-    return ESP_OK;
+    const int current = s_clientFd.load();
+    const uint8_t admission = workshop_socket_admission_rs(current != kNoClient, current == fd,
+                                                           s_lastActivityMs.load(), millis());
+    if (admission > kWorkshopAdmitRefuseBusy)
+        return ESP_FAIL;
+    return kAdmissionHandlers[admission](req, fd, current);
 }
 
 bool frameAcceptable(const httpd_ws_frame_t &frame) {
@@ -179,6 +231,11 @@ esp_err_t queueLine(httpd_req_t *req, httpd_ws_frame_t &frame) {
 }
 
 esp_err_t receiveLine(httpd_req_t *req) {
+    if (httpd_req_to_sockfd(req) != s_clientFd.load()) {
+        LOG_WARN("WORKSHOP", "Frame from a socket that is not the tuner — closing");
+        return ESP_FAIL;
+    }
+    s_lastActivityMs.store(millis());
     httpd_ws_frame_t frame = {};
     if (httpd_ws_recv_frame(req, &frame, 0) != ESP_OK || !frameAcceptable(frame)) {
         LOG_WARN("WORKSHOP", "Socket frame refused (type %d, %u B) — closing",

@@ -137,7 +137,8 @@ ws.onopen = () => ws.send(JSON.stringify({ cmd: 48, total: 1296592, sha256: '00'
 | `{"status":"error","message":"ota_unsigned"}`             | `OTA: begin refused: ota_unsigned` |
 | Nothing on the card changes, and the dash does not reboot | —                                  |
 
-This socket replaces the tuner's. Reload the tuner afterwards.
+Close the tuner's tab first and wait 5 s: while the tuner is active, a second
+socket is refused with close code `4001` `busy`. Reload the tuner afterwards.
 
 ### 8b. Wrong signature
 

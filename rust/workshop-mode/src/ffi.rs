@@ -3,8 +3,9 @@ use core::slice;
 
 use crate::{
     board_supported, content_type, credentials_valid, generate_credentials, join_payload,
-    motion_exit_due, next_state, offered, origin_allowed, resume_after_reboot, spa_route,
-    tuner_path, MotionWatch, ResumeReason, WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
+    motion_exit_due, next_state, offered, origin_allowed, resume_after_reboot, socket_admission,
+    spa_route, tuner_path, MotionWatch, ResumeReason, WorkshopEvent, WorkshopState,
+    DEFAULT_CONTENT_TYPE,
 };
 
 #[no_mangle]
@@ -55,6 +56,16 @@ pub unsafe extern "C" fn workshop_motion_exit_due_rs(
         return false;
     };
     motion_exit_due(watch, speed_valid, speed_kph, now_ms)
+}
+
+#[no_mangle]
+pub extern "C" fn workshop_socket_admission_rs(
+    has_client: bool,
+    same_client: bool,
+    last_activity_ms: u32,
+    now_ms: u32,
+) -> u8 {
+    socket_admission(has_client, same_client, last_activity_ms, now_ms) as u8
 }
 
 unsafe fn copy_out(src: &[u8], dst: *mut c_char, cap: usize) -> bool {

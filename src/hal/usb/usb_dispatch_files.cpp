@@ -35,13 +35,15 @@ struct ChunkTransfer {
     uint32_t expectedIdx;
     uint32_t total;
     uint32_t lastActivityMs;
+    bool fromSocket;
 };
-ChunkTransfer s_chunk = {{0}, 0, 0, 0};
+ChunkTransfer s_chunk = {{0}, 0, 0, 0, false};
 
 void resetChunkState() {
     s_chunk.path[0] = '\0';
     s_chunk.expectedIdx = 0;
     s_chunk.total = 0;
+    s_chunk.fromSocket = false;
 }
 
 } // namespace
@@ -107,6 +109,7 @@ void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
         strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
         s_chunk.total = total;
         s_chunk.expectedIdx = 0;
+        s_chunk.fromSocket = UsbCommInternal::commandFromSocket();
     } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
                strcmp(s_chunk.path, path) != 0) {
         failChunk("out_of_sequence");
@@ -150,6 +153,7 @@ struct ConfigChunkState {
     char firstByte;
     char lastByte;
     bool open;
+    bool fromSocket;
 };
 
 ConfigChunkState s_configChunk = {};
@@ -209,6 +213,7 @@ void handlePutConfigChunk(const JsonObjectConst &obj) {
         s_configChunk.lastActivityMs = millis();
         s_configChunk.declaredBytes = obj["bytes"] | 0u;
         s_configChunk.open = true;
+        s_configChunk.fromSocket = UsbCommInternal::commandFromSocket();
         UsbCommInternal::invokeBurnOverlayShow();
     } else if (!s_configChunk.open || s_configChunk.expectedIdx != idx ||
                s_configChunk.total != total) {
@@ -301,6 +306,13 @@ void handlePutConfig(const char *jsonLine) {
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading live", written);
     PendingActions::configReload.store(true, std::memory_order_relaxed);
     UsbComm::sendOk();
+}
+
+void abortSocketTransfers(const char *reason) {
+    if (s_chunk.total > 0 && s_chunk.fromSocket)
+        abortChunkTransfer(reason);
+    if (s_configChunk.fromSocket)
+        abortConfigChunk(reason);
 }
 
 void tickChunkTransferTimeout() {

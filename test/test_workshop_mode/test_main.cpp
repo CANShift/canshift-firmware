@@ -151,6 +151,35 @@ void test_socketOriginAllowsTheDashAndNonBrowserClientsOnly() {
     TEST_ASSERT_FALSE(workshop_origin_allowed_rs("", apIp, host));
 }
 
+constexpr uint32_t kSeenMs = 10000;
+
+uint8_t admit(bool hasClient, bool sameClient, uint32_t nowMs) {
+    return workshop_socket_admission_rs(hasClient, sameClient, kSeenMs, nowMs);
+}
+
+void test_aFirstTunerIsAdopted() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitAdopt, admit(false, false, kSeenMs));
+}
+
+void test_aSecondTunerIsRefusedWhileTheFirstIsActive() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitRefuseBusy,
+                            admit(true, false, kSeenMs + kWorkshopSocketBusyWindowMs - 1));
+}
+
+void test_aStaleTunerIsReplaced() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitReplaceStale,
+                            admit(true, false, kSeenMs + kWorkshopSocketBusyWindowMs));
+}
+
+void test_theSameSocketIsReadopted() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitAdopt, admit(true, true, kSeenMs + 1));
+}
+
+void test_theBusyWindowSurvivesAMillisWrap() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitRefuseBusy,
+                            workshop_socket_admission_rs(true, false, UINT32_MAX - 100, 100));
+}
+
 } // namespace
 
 void setUp() {}
@@ -176,5 +205,10 @@ int main() {
     RUN_TEST(test_aStaleSpeedNeverLeaves);
     RUN_TEST(test_aNullWatchNeverLeaves);
     RUN_TEST(test_socketOriginAllowsTheDashAndNonBrowserClientsOnly);
+    RUN_TEST(test_aFirstTunerIsAdopted);
+    RUN_TEST(test_aSecondTunerIsRefusedWhileTheFirstIsActive);
+    RUN_TEST(test_aStaleTunerIsReplaced);
+    RUN_TEST(test_theSameSocketIsReadopted);
+    RUN_TEST(test_theBusyWindowSurvivesAMillisWrap);
     return UNITY_END();
 }
