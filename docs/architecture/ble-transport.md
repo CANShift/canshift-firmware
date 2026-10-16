@@ -12,19 +12,20 @@ timer ops over GATT write. Sources: `src/hal/ble/ble_server.cpp`,
 ## GATT layout
 
 A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with seven
-characteristics. Every read/write property is an **encrypted** variant
-(`READ_ENC` / `WRITE_ENC`), so the client must be paired before it can read
-telemetry or issue a command.
+characteristics. Every read/write property is an **authenticated** variant
+(`READ_AUTHEN` / `WRITE_AUTHEN`), so the client must hold a passkey-authenticated
+bond before it can read telemetry, receive a notification or issue a command.
+An encrypted-but-unauthenticated link (Just Works) is refused at the ATT layer.
 
-| Characteristic | UUID tail | Properties          | Payload                                                  |
-| -------------- | --------- | ------------------- | -------------------------------------------------------- |
-| TELE           | `0002`    | READ_ENC, NOTIFY    | binary telemetry frame (see below), ~10 Hz               |
-| STATUS         | `0003`    | READ_ENC, NOTIFY    | `{"ver","board_id","can","is_day"}` JSON, ~2 s           |
-| SETTINGS       | `0004`    | READ_ENC, WRITE_ENC | read `{"brightness"}`; write `{"brightness","rotation"}` |
-| CMD            | `0005`    | WRITE_ENC, WRITE_NR | `{"cmd":"<name>",…}` JSON command                        |
-| TIMER_CMD      | `0006`    | WRITE_ENC, WRITE_NR | `{"op":<1–5>}` timer operation                           |
-| TIMER_STATE    | `0007`    | READ_ENC, NOTIFY    | `{"st","el","lc","sid","ver"}` JSON                      |
-| TIMER_LAP      | `0008`    | NOTIFY              | lap notification                                         |
+| Characteristic | UUID tail | Properties                | Payload                                                  |
+| -------------- | --------- | ------------------------- | -------------------------------------------------------- |
+| TELE           | `0002`    | READ_AUTHEN, NOTIFY       | binary telemetry frame (see below), ~10 Hz               |
+| STATUS         | `0003`    | READ_AUTHEN, NOTIFY       | `{"ver","board_id","can","is_day"}` JSON, ~2 s           |
+| SETTINGS       | `0004`    | READ_AUTHEN, WRITE_AUTHEN | read `{"brightness"}`; write `{"brightness","rotation"}` |
+| CMD            | `0005`    | WRITE_AUTHEN, WRITE_NR    | `{"cmd":"<name>",…}` JSON command                        |
+| TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR    | `{"op":<1–5>}` timer operation                           |
+| TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY       | `{"st","el","lc","sid","ver"}` JSON                      |
+| TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY       | lap notification                                         |
 
 There is no PASSKEY characteristic — the pairing code is shown on the dash
 itself (see below), not exposed over GATT.
@@ -52,8 +53,33 @@ true, true)` (bonding + MITM + secure connections) with
 `BLE_HS_IO_DISPLAY_ONLY`. On `onPassKeyRequest` the dash draws a random
 6-digit passkey — `esp_random()` with rejection sampling to avoid modulo
 bias — and hands it to the UI via `PendingActions::blePasskeyShow` for the
-`PasskeyOverlay`. Because the characteristics are `*_ENC`, an unbonded
-client cannot read telemetry or write commands.
+`PasskeyOverlay`. Because the characteristics are `*_AUTHEN`, only a client
+that entered the passkey can read telemetry, subscribe or write commands.
+
+The IO capability pair decides whether a pairing is authenticated: a
+`KeyboardDisplay` initiator (the iPhone) against the dash's `DisplayOnly`
+yields passkey entry, while a `NoInputNoOutput`, `DisplayOnly` or
+`DisplayYesNo` initiator resolves to Just Works, which NimBLE completes with an
+encrypted but unauthenticated link and no passkey card. The firmware does not
+rely on the ATT flags alone to keep such a peer out; the admission policy lives
+in `rust/ble-link` (`ble_link_rs.h`) and `src/hal/ble/ble_link_guard.cpp`
+applies it:
+
+| Moment                     | Rule                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `onAuthenticationComplete` | a link that is not both encrypted and authenticated is dropped; if it bonded, the bond is deleted first so it cannot evict the phone's |
+| `onSubscribe`              | a subscriber whose link is encrypted without authentication is dropped the same way; an unencrypted subscriber is left to pair         |
+| `BleServer::tick`          | nothing is notified until the link is admitted; a peer still unauthenticated `PAIRING_DEADLINE_MS` (20 s) after connecting is dropped  |
+| `pushStatusNotify`         | gated on the same admission check                                                                                                      |
+
+Dropping the peer restarts advertising through `onDisconnect`, so a rogue or
+idle central cannot hold the single connection slot (`CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1`).
+
+The passkey card is never drawn over an active critical alert: `main.cpp`
+drops the request while `AlertTakeover::isActive()`, and the takeover root is
+raised to the foreground each time it shows, so a card already on screen goes
+behind it. The phone's pairing attempt then times out and is retried once the
+alert clears.
 
 ## Telemetry payload — binary frame
 

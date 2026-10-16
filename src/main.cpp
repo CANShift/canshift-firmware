@@ -30,6 +30,7 @@
 #include "runtime/pending_actions.h"
 #include "runtime/task_spawn.h"
 #include "runtime/workshop_mode.h"
+#include "ui/alert_takeover.h"
 #include "ui/burn_overlay.h"
 #include "ui/day_night_auto.h"
 #include "ui/ota_overlay.h"
@@ -200,9 +201,13 @@ inline void uiDrainPasskeyActions() {
         PasskeyOverlay::hide();
     }
     const uint32_t passkey = PendingActions::takeBlePasskeyShow();
-    if (passkey != 0u) {
-        PasskeyOverlay::show(passkey);
+    if (passkey == 0u)
+        return;
+    if (AlertTakeover::isActive()) {
+        LOG_WARN("BLE", "Passkey card deferred — a critical alert owns the screen");
+        return;
     }
+    PasskeyOverlay::show(passkey);
 }
 
 inline void uiDrainBurnOverlayActions() {

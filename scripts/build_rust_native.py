@@ -24,6 +24,7 @@ FEATURES = (
     "unit-convert",
     "workshop-mode",
     "ota-signature",
+    "ble-link",
 )
 
 

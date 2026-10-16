@@ -34,6 +34,9 @@ passed next to it.
   false against NaN. The coolant caution band is `warn - 5 °C`. The low side
   of oil pressure and battery is primary, and a low-side critical
   short-circuits the high side.
+- `ble-link` owns the BLE admission policy and its one constant,
+  `PAIRING_DEADLINE_MS`; the C++ guard passes the link's `encrypted` and
+  `authenticated` bits and the milliseconds since the connection, nothing else.
 - `format-float` exists to keep newlib's `%f`/`%g` out of the image, which
   costs about 30 KB of flash. It returns `snprintf`-style lengths, truncates
   rather than rounds, and prints NaN and infinity as literals. `format_general`

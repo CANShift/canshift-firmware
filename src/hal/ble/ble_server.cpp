@@ -5,6 +5,7 @@
     #include "ble_json_arena.h"
     #include "ble_json_budget.h"
     #include "ble_server_internal.h"
+    #include "ble_link_rs.h"
 
     #include "config/json_reader.h"
     #include "config/rotation_config.h"
@@ -70,6 +71,7 @@ constexpr uint16_t kConnSupervisionTimeout = 400;
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override {
         BleServerInternal::s_connected = true;
+        BleServerInternal::noteConnected();
         pServer->updateConnParams(desc->conn_handle, kConnMinInterval, kConnMaxInterval,
                                   kConnSlaveLatency, kConnSupervisionTimeout);
         LOG_INFO("BLE", "Client connected: %s",
@@ -99,13 +101,25 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     }
 
     void onAuthenticationComplete(ble_gap_conn_desc *desc) override {
-        const bool encrypted = (desc != nullptr) && desc->sec_state.encrypted;
-        if (encrypted) {
-            LOG_INFO("BLE", "Pairing complete — link encrypted");
-        } else {
-            LOG_WARN("BLE", "Pairing did not produce an encrypted link");
-        }
         PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
+        if (desc == nullptr)
+            return;
+        if (ble_link_admitted_rs(desc->sec_state.encrypted, desc->sec_state.authenticated)) {
+            LOG_INFO("BLE", "Pairing complete — link authenticated");
+            return;
+        }
+        BleServerInternal::dropUnauthenticatedLink(*desc, "Pairing finished without the passkey");
+    }
+};
+
+class AuthenticatedSubscribeCallbacks : public NimBLECharacteristicCallbacks {
+    void onSubscribe(NimBLECharacteristic *, ble_gap_conn_desc *desc, uint16_t subValue) override {
+        if (subValue == 0 || desc == nullptr)
+            return;
+        if (!ble_link_subscription_refused_rs(desc->sec_state.encrypted,
+                                              desc->sec_state.authenticated))
+            return;
+        BleServerInternal::dropUnauthenticatedLink(*desc, "Subscriber bonded without the passkey");
     }
 };
 
@@ -245,7 +259,7 @@ class TimerCmdCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
-class TimerStateCallbacks : public NimBLECharacteristicCallbacks {
+class TimerStateCallbacks : public AuthenticatedSubscribeCallbacks {
     void onRead(NimBLECharacteristic *) override {
         BleServerInternal::refreshTimerStateValue();
     }
@@ -264,20 +278,22 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
     static CmdCallbacks s_cmdCb;
     static TimerCmdCallbacks s_timerCmdCb;
     static TimerStateCallbacks s_timerStateCb;
+    static AuthenticatedSubscribeCallbacks s_subscribeCb;
 
     BleServerInternal::s_pTele =
-        requireChar(pSvc, kTeleUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
+        requireChar(pSvc, kTeleUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
     BleServerInternal::s_pStatus =
-        requireChar(pSvc, kStatusUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    NimBLECharacteristic *pSettings =
-        requireChar(pSvc, kSettingsUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
+        requireChar(pSvc, kStatusUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
+    NimBLECharacteristic *pSettings = requireChar(
+        pSvc, kSettingsUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::WRITE_AUTHEN);
     NimBLECharacteristic *pCmd =
-        requireChar(pSvc, kCmdUuid, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+        requireChar(pSvc, kCmdUuid, NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR);
     NimBLECharacteristic *pTimerCmd =
-        requireChar(pSvc, kTimerCmdUuid, NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_NR);
+        requireChar(pSvc, kTimerCmdUuid, NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR);
     BleServerInternal::s_pTimerState =
-        requireChar(pSvc, kTimerStateUuid, NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pTimerLap = requireChar(pSvc, kTimerLapUuid, NIMBLE_PROPERTY::NOTIFY);
+        requireChar(pSvc, kTimerStateUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
+    BleServerInternal::s_pTimerLap =
+        requireChar(pSvc, kTimerLapUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
 
     if (!BleServerInternal::s_pTele || !BleServerInternal::s_pStatus || !pSettings || !pCmd ||
         !pTimerCmd || !BleServerInternal::s_pTimerState || !BleServerInternal::s_pTimerLap) {
@@ -286,6 +302,9 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
 
     BleServerInternal::s_pTele->setValue("{}");
     BleServerInternal::updateStatus();
+    BleServerInternal::s_pTele->setCallbacks(&s_subscribeCb);
+    BleServerInternal::s_pStatus->setCallbacks(&s_subscribeCb);
+    BleServerInternal::s_pTimerLap->setCallbacks(&s_subscribeCb);
     pSettings->setCallbacks(&s_settingsCb);
     pCmd->setCallbacks(&s_cmdCb);
     pTimerCmd->setCallbacks(&s_timerCmdCb);
@@ -419,6 +438,10 @@ void BleServer::start() {
 void BleServer::tick() {
     if (!BleServerInternal::s_connected)
         return;
+    if (!BleServerInternal::linkAdmitted()) {
+        BleServerInternal::dropOverduePeer();
+        return;
+    }
     BleServerInternal::emitTelemetry();
     BleServerInternal::emitTimerSync();
 }
