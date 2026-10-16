@@ -1,5 +1,7 @@
 #include "usb_comm.h"
 
+#include "can_scan_line.h"
+
 #include <esp_system.h>
 #include "usb_comm_internal.h"
 
@@ -22,6 +24,9 @@
 #include <string.h>
 
 namespace {
+
+constexpr uint8_t kCanScanDrainPerTick = 32;
+constexpr size_t kCanScanLineCap = 96;
 
 struct TeleEntry {
     SignalId id;
@@ -147,31 +152,16 @@ void sendTelemetry() {
 void drainCanScanQueue() {
     UsbComm::CanScanFrame frame;
     uint8_t drained = 0;
-    while (drained < 32 && UsbCommInternal::canScanQueueTryReceive(frame)) {
-        char buf[96];
-        char *p = buf;
-        const char *limit = buf + sizeof(buf) - 4;
-
-        p += snprintf(p, static_cast<size_t>(limit - p), "{\"can\":1,\"id\":%lu,\"len\":%u,\"d\":[",
-                      static_cast<unsigned long>(frame.id), static_cast<unsigned>(frame.len));
-
-        for (uint8_t i = 0; i < frame.len && p < limit; i++) {
-            if (i > 0 && p < limit)
-                *p++ = ',';
-            p += snprintf(p, static_cast<size_t>(limit - p), "%u",
-                          static_cast<unsigned>(frame.data[i]));
-        }
-
-        if (p < limit)
-            *p++ = ']';
-        if (p < limit)
-            *p++ = '}';
-        if (p < limit)
-            *p++ = '\n';
-        *p = '\0';
-
-        UsbComm::sendLine(buf);
+    while (drained < kCanScanDrainPerTick && UsbCommInternal::canScanQueueTryReceive(frame)) {
         drained++;
+        char line[kCanScanLineCap];
+        if (CanScanLine::format(frame.id, frame.len, frame.data, line, sizeof(line)) == 0) {
+            LOG_ERROR("USB", "can scan line truncated (id=%lu)",
+                      static_cast<unsigned long>(frame.id));
+            ErrorStore::push(ERROR_SRC_SYSTEM, "USB_TRUNC", "can scan line truncated");
+            continue;
+        }
+        UsbComm::sendLine(line);
     }
 }
 
