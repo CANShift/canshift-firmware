@@ -6,7 +6,9 @@
     #include "diag/logger.h"
     #include "hal/usb/usb_comm.h"
     #include "util/mem_alloc.h"
+    #include "workshop_mode_rs.h"
 
+    #include <WiFi.h>
     #include <esp_heap_caps.h>
     #include <esp_http_server.h>
     #include <freertos/FreeRTOS.h>
@@ -28,6 +30,9 @@ constexpr UBaseType_t kLogQueueDepth = 16;
 constexpr uint32_t kLineQueueWaitMs = 2000;
 constexpr size_t kMaxLineBytes = kUsbRxBufSize;
 constexpr char kLineEnd = '\n';
+constexpr char kOriginHeader[] = "Origin";
+constexpr size_t kOriginCap = 64;
+constexpr uint16_t kClosePolicyViolation = 1008;
 
 struct HeapFree {
     void operator()(char *line) const {
@@ -111,7 +116,35 @@ void closeSession(int fd) {
     LOG_INFO("WORKSHOP", "Previous tuner socket %d replaced", fd);
 }
 
+bool originAllowed(httpd_req_t *req) {
+    const size_t len = httpd_req_get_hdr_value_len(req, kOriginHeader);
+    if (len == 0)
+        return workshop_origin_allowed_rs(nullptr, nullptr, kHostName);
+    char origin[kOriginCap];
+    if (len >= sizeof(origin) ||
+        httpd_req_get_hdr_value_str(req, kOriginHeader, origin, sizeof(origin)) != ESP_OK)
+        return false;
+    const String apIp = WiFi.softAPIP().toString();
+    return workshop_origin_allowed_rs(origin, apIp.c_str(), kHostName);
+}
+
+esp_err_t refuseClient(httpd_req_t *req) {
+    LOG_WARN("WORKSHOP", "Socket %d refused — foreign Origin", httpd_req_to_sockfd(req));
+    uint8_t reason[] = {static_cast<uint8_t>(kClosePolicyViolation >> 8),
+                        static_cast<uint8_t>(kClosePolicyViolation & 0xFF)};
+    httpd_ws_frame_t frame = {};
+    frame.final = true;
+    frame.type = HTTPD_WS_TYPE_CLOSE;
+    frame.payload = reason;
+    frame.len = sizeof(reason);
+    if (httpd_ws_send_frame(req, &frame) != ESP_OK)
+        LOG_WARN("WORKSHOP", "Close frame not sent to the refused socket");
+    return ESP_FAIL;
+}
+
 esp_err_t adoptClient(httpd_req_t *req) {
+    if (!originAllowed(req))
+        return refuseClient(req);
     const int fd = httpd_req_to_sockfd(req);
     const int previous = s_clientFd.exchange(fd);
     if (previous != kNoClient && previous != fd)

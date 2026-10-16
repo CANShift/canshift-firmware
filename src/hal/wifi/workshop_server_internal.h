@@ -4,6 +4,8 @@
 
 namespace WorkshopServerInternal {
 
+inline constexpr char kHostName[] = "canshift";
+
 [[nodiscard]] bool startHttp();
 
 esp_err_t handleTunerAsset(httpd_req_t *req);

@@ -3,8 +3,8 @@ use core::slice;
 
 use crate::{
     board_supported, content_type, credentials_valid, generate_credentials, join_payload,
-    motion_exit_due, next_state, offered, resume_after_reboot, spa_route, tuner_path, MotionWatch,
-    ResumeReason, WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
+    motion_exit_due, next_state, offered, origin_allowed, resume_after_reboot, spa_route,
+    tuner_path, MotionWatch, ResumeReason, WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
 };
 
 #[no_mangle]
@@ -128,6 +128,18 @@ pub unsafe extern "C" fn workshop_join_payload_rs(
     }
     let out = unsafe { slice::from_raw_parts_mut(out.cast::<u8>(), out_cap) };
     join_payload(ssid, password, out).unwrap_or(0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn workshop_origin_allowed_rs(
+    origin: *const c_char,
+    ap_ip: *const c_char,
+    host_name: *const c_char,
+) -> bool {
+    let origin = unsafe { bytes_of(origin) };
+    let ap_ip = unsafe { bytes_of(ap_ip) }.unwrap_or(b"");
+    let host_name = unsafe { bytes_of(host_name) }.unwrap_or(b"");
+    origin_allowed(origin, ap_ip, host_name)
 }
 
 #[no_mangle]
@@ -280,6 +292,39 @@ mod tests {
             assert_eq!(len, 43);
         }
         assert_eq!(text(&out), "WIFI:T:WPA;S:CANShift-K7QX;P:abcdefgh2345;;");
+    }
+
+    #[test]
+    fn ffi_origin_check_treats_null_as_absent_and_refuses_foreign_pages() {
+        let ap_ip = c"192.168.4.1";
+        let host = c"canshift";
+        unsafe {
+            assert!(workshop_origin_allowed_rs(
+                ptr::null(),
+                ap_ip.as_ptr(),
+                host.as_ptr()
+            ));
+            assert!(workshop_origin_allowed_rs(
+                c"http://192.168.4.1".as_ptr(),
+                ap_ip.as_ptr(),
+                host.as_ptr()
+            ));
+            assert!(workshop_origin_allowed_rs(
+                c"http://canshift.local".as_ptr(),
+                ap_ip.as_ptr(),
+                host.as_ptr()
+            ));
+            assert!(!workshop_origin_allowed_rs(
+                c"http://evil.example".as_ptr(),
+                ap_ip.as_ptr(),
+                host.as_ptr()
+            ));
+            assert!(!workshop_origin_allowed_rs(
+                c"http://192.168.4.1".as_ptr(),
+                ptr::null(),
+                ptr::null()
+            ));
+        }
     }
 
     #[test]

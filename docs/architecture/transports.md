@@ -41,12 +41,21 @@ only link: `Logger::emit` hands each line to a hook that copies it into a
 the count later. Every socket write happens on `taskUSB`, so frames never
 interleave.
 
-| Rule         | Value                                                                               |
-| ------------ | ----------------------------------------------------------------------------------- |
-| Clients      | one; a new connection replaces the previous one                                     |
-| Frame        | text, final, under `USB_RX_BUF_SIZE` (16 KB + 256); anything else closes the socket |
-| Queue        | two lines; a third waits up to 2 s, then the socket closes                          |
-| Send timeout | 1 s per frame, so a stalled phone cannot hold `taskUSB` longer                      |
+The handshake is checked before the socket is adopted. `esp_http_server`
+answers the `101` before it calls the route handler, so a page served from
+anywhere but the dash (the browser's `Origin` header names it) gets a close
+frame with status 1008 right after the upgrade and the connection is dropped;
+the dash's own tuner carries the dash host as its origin, and a client that
+sends no `Origin` (curl, a script) is let through. The decision is
+`origin_allowed` in `rust/workshop-mode/src/origin.rs`.
+
+| Rule         | Value                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| Origin       | absent, `http://192.168.4.1` or `http://canshift.local`; any other page is closed with 1008 |
+| Clients      | one; a new connection replaces the previous one                                             |
+| Frame        | text, final, under `USB_RX_BUF_SIZE` (16 KB + 256); anything else closes the socket         |
+| Queue        | two lines; a third waits up to 2 s, then the socket closes                                  |
+| Send timeout | 1 s per frame, so a stalled phone cannot hold `taskUSB` longer                              |
 
 **Static files.** A request for `/x` serves `/tuner/x.gz` with
 `Content-Encoding: gzip` when it exists, else `/tuner/x`. `/` is
