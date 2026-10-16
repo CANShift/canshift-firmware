@@ -110,12 +110,23 @@ Each case calibrates its batch to about 2 ms, warms up, then takes 31 batches
 and reports the median and quartiles in ns per operation.
 
 `scripts/bench_perf.py` runs the head binary and the baseline binary five
-times each, alternating, and compares the median of the five medians. A case
-fails only when it is more than 10 % slower **and** every head round is slower
-than every baseline round; a slower median whose rounds overlap is reported as
-`noisy` and does not fail. A suspected regression gets five more rounds of each
-side before the verdict. The `noise` column is the largest run-to-run spread
-(max − min over median) of either side.
+times each, alternating, and compares the median of the five medians. The
+`noise` column is the largest run-to-run spread (max − min over median) of
+either side. A case fails only when every head round is slower than every
+baseline round **and** its median is slower by more than
+`max(10 %, 2.5 × noise)`, capped at 50 %; any other slowdown past 10 % is
+reported as `noisy` and does not fail. A suspected regression gets five more
+rounds of each side before the verdict.
+
+The factor 2.5 comes from the `perf-report` artifacts of 102 CI runs on
+`ubuntu-latest`. Four failures were runner noise that a re-run cleared:
+`command/shared` +22.6 % at 13.3 % noise, +13.9 % at 9.7 %, +10.4 % at 10.8 %,
+and `command/ping` +16.6 % at 7.0 %; the last one needs a factor above 2.37. The
+regressions that reproduced on two branches, before the bench got its own host
+fakes, were `command/status` +14.8 % at 3.2–3.4 % noise and `status_writer`
++13.6 % at 5.3 %, which a factor up to 2.57 still fails. The cost is
+sensitivity on noisy cases: a case with 8 % noise has to regress by 20 % before
+the gate fails, and the 50 % cap keeps a doubling failing whatever the noise.
 
 In CI the `perf bench` job checks out the PR's base commit next to the head,
 builds the bench in both, and compares them on the same runner, so runner
