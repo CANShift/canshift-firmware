@@ -199,6 +199,7 @@ esp_err_t adoptClient(httpd_req_t *req) {
     const int fd = httpd_req_to_sockfd(req);
     const int current = s_clientFd.load();
     const uint8_t admission = workshop_socket_admission_rs(current != kNoClient, current == fd,
+                                                           UsbComm::socketTransferInFlight(),
                                                            s_lastActivityMs.load(), millis());
     if (admission > kWorkshopAdmitRefuseBusy)
         return ESP_FAIL;

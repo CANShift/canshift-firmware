@@ -49,13 +49,13 @@ the dash's own tuner carries the dash host as its origin, and a client that
 sends no `Origin` (curl, a script) is let through. The decision is
 `origin_allowed` in `rust/workshop-mode/src/origin.rs`.
 
-| Rule         | Value                                                                                                                                                                                                 |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Origin       | absent, `http://192.168.4.1` or `http://canshift.local`; any other page is closed with 1008                                                                                                           |
-| Clients      | one; a newcomer gets close code `4001` `busy` while the current tuner sent a frame in the last 5 s, else it replaces the stale tuner and that tuner's open file, config and OTA transfers are aborted |
-| Frame        | text, final, under `USB_RX_BUF_SIZE` (16 KB + 256); anything else closes the socket                                                                                                                   |
-| Queue        | two lines; a third waits up to 2 s, then the socket closes                                                                                                                                            |
-| Send timeout | 1 s per frame, so a stalled phone cannot hold `taskUSB` longer                                                                                                                                        |
+| Rule         | Value                                                                                                                                                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origin       | absent, `http://192.168.4.1` or `http://canshift.local`; any other page is closed with 1008                                                                                                                                                        |
+| Clients      | one; a newcomer gets close code `4001` `busy` while the current tuner sent a frame in the last 5 s or owns an open file, config or OTA transfer, else it replaces the stale tuner and that tuner's open file, config and OTA transfers are aborted |
+| Frame        | text, final, under `USB_RX_BUF_SIZE` (16 KB + 256); anything else closes the socket                                                                                                                                                                |
+| Queue        | two lines; a third waits up to 2 s, then the socket closes                                                                                                                                                                                         |
+| Send timeout | 1 s per frame, so a stalled phone cannot hold `taskUSB` longer                                                                                                                                                                                     |
 
 **Static files.** A request for `/x` serves `/tuner/x.gz` with
 `Content-Encoding: gzip` when it exists, else `/tuner/x`. `/` is

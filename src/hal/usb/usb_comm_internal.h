@@ -75,6 +75,10 @@ void tickOtaSessionWatch(bool socketClosed);
 
 void abortSocketTransfers(const char *reason);
 
+[[nodiscard]] bool socketFileTransferOpen();
+[[nodiscard]] bool socketOtaSessionOpen();
+void publishSocketTransfer(bool inFlight);
+
 void invokeBurnOverlayShow();
 void invokeBurnOverlayShowError(int reason);
 

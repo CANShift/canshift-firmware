@@ -284,6 +284,8 @@ void UsbComm::tick() {
     if (socketClosed)
         UsbCommInternal::abortSocketTransfers("tuner socket closed");
     UsbCommInternal::tickOtaSessionWatch(socketClosed);
+    UsbCommInternal::publishSocketTransfer(UsbCommInternal::socketFileTransferOpen() ||
+                                           UsbCommInternal::socketOtaSessionOpen());
     UsbCommInternal::tickObdDtc();
 
     if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > kUsbRxLineTimeoutMs) {

@@ -51,8 +51,8 @@ bool workshop_tuner_spa_route_rs(const char *uri);
 const char *workshop_tuner_content_type_rs(const char *uri);
 bool workshop_motion_exit_due_rs(WorkshopMotionRs *watch, bool speed_valid, float speed_kph,
                                  uint32_t now_ms);
-uint8_t workshop_socket_admission_rs(bool has_client, bool same_client, uint32_t last_activity_ms,
-                                     uint32_t now_ms);
+uint8_t workshop_socket_admission_rs(bool has_client, bool same_client, bool transfer_in_flight,
+                                     uint32_t last_activity_ms, uint32_t now_ms);
 
 #ifdef __cplusplus
 }
