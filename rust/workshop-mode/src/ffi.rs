@@ -62,10 +62,17 @@ pub unsafe extern "C" fn workshop_motion_exit_due_rs(
 pub extern "C" fn workshop_socket_admission_rs(
     has_client: bool,
     same_client: bool,
+    transfer_in_flight: bool,
     last_activity_ms: u32,
     now_ms: u32,
 ) -> u8 {
-    socket_admission(has_client, same_client, last_activity_ms, now_ms) as u8
+    socket_admission(
+        has_client,
+        same_client,
+        transfer_in_flight,
+        last_activity_ms,
+        now_ms,
+    ) as u8
 }
 
 unsafe fn copy_out(src: &[u8], dst: *mut c_char, cap: usize) -> bool {

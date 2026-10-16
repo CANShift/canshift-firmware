@@ -47,6 +47,7 @@ static_assert(static_cast<uint8_t>(ReplyRoute::Socket) + 1 == kRouteCount,
 
 std::atomic<UsbComm::LineSink> s_socketSink{nullptr};
 std::atomic<bool> s_socketClosed{false};
+std::atomic<bool> s_socketTransfer{false};
 std::atomic<TaskHandle_t> s_routeTask{nullptr};
 ReplyRoute s_route = ReplyRoute::Broadcast;
 
@@ -125,6 +126,14 @@ bool UsbCommInternal::takeSocketClosed() {
     return s_socketClosed.exchange(false, std::memory_order_relaxed);
 }
 
+void UsbCommInternal::publishSocketTransfer(bool inFlight) {
+    s_socketTransfer.store(inFlight, std::memory_order_relaxed);
+}
+
+bool UsbComm::socketTransferInFlight() {
+    return s_socketTransfer.load(std::memory_order_relaxed);
+}
+
 #else
 
 void UsbCommInternal::routeLine(const char *line, size_t len) {
@@ -146,6 +155,8 @@ bool UsbCommInternal::commandFromSocket() {
 bool UsbCommInternal::takeSocketClosed() {
     return false;
 }
+
+void UsbCommInternal::publishSocketTransfer(bool) {}
 
 void UsbCommInternal::sendToSocket(const char *, size_t) {}
 

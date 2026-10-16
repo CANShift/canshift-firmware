@@ -154,7 +154,11 @@ void test_socketOriginAllowsTheDashAndNonBrowserClientsOnly() {
 constexpr uint32_t kSeenMs = 10000;
 
 uint8_t admit(bool hasClient, bool sameClient, uint32_t nowMs) {
-    return workshop_socket_admission_rs(hasClient, sameClient, kSeenMs, nowMs);
+    return workshop_socket_admission_rs(hasClient, sameClient, false, kSeenMs, nowMs);
+}
+
+uint8_t admitMidTransfer(bool sameClient, uint32_t nowMs) {
+    return workshop_socket_admission_rs(true, sameClient, true, kSeenMs, nowMs);
 }
 
 void test_aFirstTunerIsAdopted() {
@@ -176,8 +180,24 @@ void test_theSameSocketIsReadopted() {
 }
 
 void test_theBusyWindowSurvivesAMillisWrap() {
+    TEST_ASSERT_EQUAL_UINT8(
+        kWorkshopAdmitRefuseBusy,
+        workshop_socket_admission_rs(true, false, false, UINT32_MAX - 100, 100));
+}
+
+void test_aSilentTunerMidTransferKeepsTheSocket() {
     TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitRefuseBusy,
-                            workshop_socket_admission_rs(true, false, UINT32_MAX - 100, 100));
+                            admitMidTransfer(false, kSeenMs + kWorkshopSocketBusyWindowMs * 4));
+}
+
+void test_theTransferOwnerIsReadoptedMidTransfer() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitAdopt,
+                            admitMidTransfer(true, kSeenMs + kWorkshopSocketBusyWindowMs * 4));
+}
+
+void test_aTransferWithoutATunerDoesNotBlockAdoption() {
+    TEST_ASSERT_EQUAL_UINT8(kWorkshopAdmitAdopt,
+                            workshop_socket_admission_rs(false, false, true, kSeenMs, kSeenMs));
 }
 
 } // namespace
@@ -210,5 +230,8 @@ int main() {
     RUN_TEST(test_aStaleTunerIsReplaced);
     RUN_TEST(test_theSameSocketIsReadopted);
     RUN_TEST(test_theBusyWindowSurvivesAMillisWrap);
+    RUN_TEST(test_aSilentTunerMidTransferKeepsTheSocket);
+    RUN_TEST(test_theTransferOwnerIsReadoptedMidTransfer);
+    RUN_TEST(test_aTransferWithoutATunerDoesNotBlockAdoption);
     return UNITY_END();
 }

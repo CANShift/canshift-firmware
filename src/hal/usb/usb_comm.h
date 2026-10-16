@@ -82,6 +82,8 @@ void dispatchFromSocket(char *jsonLine);
 
 void noteSocketClosed();
 
+[[nodiscard]] bool socketTransferInFlight();
+
 #endif
 
 using BurnOverlayShowCb = void (*)();

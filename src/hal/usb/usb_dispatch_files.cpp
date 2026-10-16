@@ -315,6 +315,11 @@ void abortSocketTransfers(const char *reason) {
         abortConfigChunk(reason);
 }
 
+bool socketFileTransferOpen() {
+    return (s_chunk.total > 0 && s_chunk.fromSocket) ||
+           (s_configChunk.open && s_configChunk.fromSocket);
+}
+
 void tickChunkTransferTimeout() {
     if (s_chunk.total > 0 && StorageDriver::isChunkedWriteOpen() &&
         (millis() - s_chunk.lastActivityMs) > kChunkTimeoutMs) {

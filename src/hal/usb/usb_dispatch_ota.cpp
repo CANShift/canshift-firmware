@@ -202,6 +202,10 @@ void handleOtaEnd(const JsonObjectConst &obj) {
 
 } // namespace UsbCommInternal
 
+bool UsbCommInternal::socketOtaSessionOpen() {
+    return s_sessionFromSocket && OtaReceiver::state() == OtaReceiver::State::Receiving;
+}
+
 void UsbCommInternal::tickOtaSessionWatch(bool socketClosed) {
     const OtaSessionWatch::Session session{OtaReceiver::state() == OtaReceiver::State::Receiving,
                                            s_sessionFromSocket, s_sessionActivityMs};
