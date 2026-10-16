@@ -1,5 +1,6 @@
 #include "can_manager.h"
 #include "can_parser.h"
+#include "can_parser_rs.h"
 #include "can_rx_route.h"
 #include "obd2_poller.h"
 #include "board.h"
@@ -260,19 +261,6 @@ static void routeFrame(const twai_message_t &message) {
     UsbComm::pushCanFrame(sf);
 }
 
-static void maybeInitiateBusOffRecovery() {
-    twai_status_info_t status;
-    if (twai_get_status_info(&status) != ESP_OK || status.state != TWAI_STATE_BUS_OFF)
-        return;
-    LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
-    ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
-    const esp_err_t recoveryErr = twai_initiate_recovery();
-    if (recoveryErr != ESP_OK) {
-        LOG_ERROR("CAN", "recovery initiation failed: %s", esp_err_to_name(recoveryErr));
-        ErrorStore::push(ERROR_SRC_CAN, "REC_FAIL", "bus-off recovery not started");
-    }
-}
-
 static void handleRxError(esp_err_t err) {
     s_errorCount++;
     const uint32_t nowMs = millis();
@@ -281,7 +269,6 @@ static void handleRxError(esp_err_t err) {
                  s_errorCount);
         s_lastErrLogMs = nowMs;
     }
-    maybeInitiateBusOffRecovery();
     if (nowMs - s_lastErrPushMs >= kRxErrorReportIntervalMs) {
         char msg[52];
         snprintf(msg, sizeof(msg), "%s (total: %lu)", esp_err_to_name(err),
@@ -295,21 +282,8 @@ static void handleRxError(esp_err_t err) {
     vTaskDelay(pdMS_TO_TICKS(kTwaiRxErrorBackoffMs));
 }
 
-static bool readRxDropped(uint32_t *dropped) {
-    twai_status_info_t status;
-    const esp_err_t err = twai_get_status_info(&status);
-    if (err != ESP_OK) {
-        LOG_WARN("CAN", "TWAI status read failed: %s", esp_err_to_name(err));
-        return false;
-    }
-    *dropped = status.rx_missed_count + status.rx_overrun_count;
-    return true;
-}
-
-static void reportRxDrops() {
-    uint32_t dropped = 0;
-    if (!readRxDropped(&dropped))
-        return;
+static void reportRxDrops(const twai_status_info_t &status) {
+    const uint32_t dropped = status.rx_missed_count + status.rx_overrun_count;
     const uint32_t previous = s_rxDropped;
     s_rxDropped = dropped;
     if (dropped <= previous)
@@ -322,6 +296,59 @@ static void reportRxDrops() {
     ErrorStore::push(ERROR_SRC_CAN, "RX_DROPPED", "frames lost: RX queue or FIFO overrun");
 }
 
+static_assert(TWAI_STATE_STOPPED == kCanBusStateStopped, "TWAI stopped state drifted");
+static_assert(TWAI_STATE_RUNNING == kCanBusStateRunning, "TWAI running state drifted");
+static_assert(TWAI_STATE_BUS_OFF == kCanBusStateBusOff, "TWAI bus-off state drifted");
+static_assert(TWAI_STATE_RECOVERING == kCanBusStateRecovering, "TWAI recovering state drifted");
+
+static void leaveBusAlone() {}
+
+static void recoverFromBusOff() {
+    LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
+    ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
+    const esp_err_t err = twai_initiate_recovery();
+    if (err != ESP_OK) {
+        LOG_ERROR("CAN", "recovery initiation failed: %s", esp_err_to_name(err));
+        ErrorStore::push(ERROR_SRC_CAN, "REC_FAIL", "bus-off recovery not started");
+    }
+}
+
+static void restartAfterRecovery() {
+    const esp_err_t err = twai_start();
+    if (err != ESP_OK) {
+        LOG_ERROR("CAN", "TWAI restart after recovery failed: %s", esp_err_to_name(err));
+        ErrorStore::push(ERROR_SRC_CAN, "RESTART_FAIL", "bus-off recovered, restart failed");
+        return;
+    }
+    LOG_INFO("CAN", "TWAI recovered from bus-off and restarted");
+}
+
+using BusActionHandler = void (*)();
+
+static constexpr BusActionHandler kBusActionHandlers[] = {
+    leaveBusAlone,
+    recoverFromBusOff,
+    restartAfterRecovery,
+};
+
+static_assert(sizeof(kBusActionHandlers) / sizeof(kBusActionHandlers[0]) ==
+                  kCanBusActionRestart + 1,
+              "every CAN bus action needs a handler");
+
+static void superviseBus() {
+    twai_status_info_t status;
+    const esp_err_t err = twai_get_status_info(&status);
+    if (err != ESP_OK) {
+        LOG_WARN("CAN", "TWAI status read failed: %s", esp_err_to_name(err));
+        return;
+    }
+    reportRxDrops(status);
+    const uint8_t action = can_bus_action_rs(static_cast<uint8_t>(status.state));
+    if (action > kCanBusActionRestart)
+        return;
+    kBusActionHandlers[action]();
+}
+
 static void updateStatsWindow(uint32_t nowMs) {
     if (s_lastStatMs == 0) {
         s_lastStatMs = nowMs;
@@ -332,7 +359,7 @@ static void updateStatsWindow(uint32_t nowMs) {
     const uint32_t elapsed = nowMs - s_lastStatMs;
     const uint32_t fpsX10 = elapsed > 0 ? (s_windowFrames * 10000UL) / elapsed : 0;
     s_lastBusRateX10 = fpsX10;
-    reportRxDrops();
+    superviseBus();
     UsbComm::updateCanStats(fpsX10, s_errorCount, s_rxDropped);
     s_windowFrames = 0;
     s_lastStatMs = nowMs;

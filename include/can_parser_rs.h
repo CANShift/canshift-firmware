@@ -20,6 +20,17 @@ inline constexpr int32_t kCanshiftExprErrNoRoom = -5;
 extern "C" {
 #endif
 
+enum {
+    kCanBusStateStopped = 0,
+    kCanBusStateRunning = 1,
+    kCanBusStateBusOff = 2,
+    kCanBusStateRecovering = 3
+};
+
+enum { kCanBusActionNone = 0, kCanBusActionRecover = 1, kCanBusActionRestart = 2 };
+
+uint8_t can_bus_action_rs(uint8_t driver_state);
+
 typedef struct {
     uint8_t kind;
     uint8_t aux;

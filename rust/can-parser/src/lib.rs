@@ -1,5 +1,6 @@
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+pub mod bus_recovery;
 mod decimal;
 pub mod expr;
 pub mod expr_compile;
