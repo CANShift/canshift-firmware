@@ -333,25 +333,39 @@ bool StorageDriver::appendChunk(const uint8_t *data, size_t length) {
 }
 
 bool StorageDriver::endChunkedWrite() {
-    if (!s_chunkOpen)
-        return true;
+    return endChunkedWriteChecked(nullptr) == ChunkCommit::Committed;
+}
 
-    s_chunkFile.close();
-    s_chunkOpen = false;
+namespace {
 
-    bool ok = true;
-    if (s_chunkAtomic) {
-        ok = finalizeAtomicSwap(s_chunkAtomicPath);
-        if (!ok) {
-
-            LOG_ERROR("STORAGE", "Atomic chunked finalize failed: %s", s_chunkAtomicPath);
-        }
-    }
-
+void resetChunkPaths() {
     s_chunkAtomic = false;
     s_chunkAtomicPath[0] = '\0';
     s_chunkActualPath[0] = '\0';
-    return ok;
+}
+
+StorageDriver::ChunkCommit commitStagedChunk(StorageDriver::StagedFileCheck check) {
+    if (check != nullptr && !check(s_chunkActualPath)) {
+        LOG_WARN("STORAGE", "Staged %s refused — keeping %s", s_chunkActualPath, s_chunkAtomicPath);
+        SPIFFS.remove(s_chunkActualPath);
+        return StorageDriver::ChunkCommit::Rejected;
+    }
+    if (finalizeAtomicSwap(s_chunkAtomicPath))
+        return StorageDriver::ChunkCommit::Committed;
+    LOG_ERROR("STORAGE", "Atomic chunked finalize failed: %s", s_chunkAtomicPath);
+    return StorageDriver::ChunkCommit::Failed;
+}
+
+} // namespace
+
+StorageDriver::ChunkCommit StorageDriver::endChunkedWriteChecked(StagedFileCheck check) {
+    if (!s_chunkOpen)
+        return ChunkCommit::Committed;
+    s_chunkFile.close();
+    s_chunkOpen = false;
+    const ChunkCommit result = s_chunkAtomic ? commitStagedChunk(check) : ChunkCommit::Committed;
+    resetChunkPaths();
+    return result;
 }
 
 void StorageDriver::abortChunkedWrite() {

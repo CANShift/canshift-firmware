@@ -6,6 +6,7 @@
 
 #include <ArduinoJson.h>
 #include <string.h>
+#include <string>
 
 namespace StorageDriver {
 
@@ -190,6 +191,23 @@ bool endChunkedWrite() {
         return true;
     s_chunk.open = false;
     return stageFileBytes(s_chunk.path, s_chunk.data, s_chunk.size);
+}
+ChunkCommit endChunkedWriteChecked(StagedFileCheck check) {
+    if (!s_chunk.open)
+        return ChunkCommit::Committed;
+    s_chunk.open = false;
+    const std::string staged = std::string(s_chunk.path) + ".tmp";
+    const std::string backup = std::string(s_chunk.path) + ".bak";
+    if (!stageFileBytes(staged.c_str(), s_chunk.data, s_chunk.size))
+        return ChunkCommit::Failed;
+    if (check != nullptr && !check(staged.c_str())) {
+        removeFile(staged.c_str());
+        return ChunkCommit::Rejected;
+    }
+    if (fileExists(s_chunk.path))
+        renameFile(s_chunk.path, backup.c_str());
+    renameFile(staged.c_str(), s_chunk.path);
+    return ChunkCommit::Committed;
 }
 void abortChunkedWrite() {
     s_chunk.open = false;

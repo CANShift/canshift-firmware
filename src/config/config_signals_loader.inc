@@ -8,6 +8,7 @@
 #include "diag/logger.h"
 
 #include "json_reader.h"
+#include "signals_source.h"
 
 #include <ArduinoJson.h>
 #include <cmath>
@@ -17,6 +18,8 @@
 namespace ConfigLoaderInternal {
 
 namespace {
+
+constexpr uint32_t kDefaultCanSpeedKbps = 500;
 
 uint32_t parseMapSwitchId(JsonVariantConst idv) {
     uint32_t id = 0;
@@ -38,18 +41,18 @@ uint32_t parseMapSwitchId(JsonVariantConst idv) {
     return id;
 }
 
-void parseMapSwitchOut(JsonObjectConst outObj) {
-    s_signals.out.mapSwitchFrameId = 0;
-    s_signals.out.mapSwitchExtended = false;
+void parseMapSwitchOut(JsonObjectConst outObj, CfgSignalsOut &out) {
+    out.mapSwitchFrameId = 0;
+    out.mapSwitchExtended = false;
     if (outObj.isNull())
         return;
     JsonObjectConst mapSwitch = outObj["map_switch"];
     if (mapSwitch.isNull())
         return;
     const uint32_t id = parseMapSwitchId(mapSwitch["id"]);
-    s_signals.out.mapSwitchFrameId = id;
+    out.mapSwitchFrameId = id;
     const bool extendedFlag = mapSwitch["extended"] | false;
-    s_signals.out.mapSwitchExtended = extendedFlag || (id > kCanStandardIdMax);
+    out.mapSwitchExtended = extendedFlag || (id > kCanStandardIdMax);
 }
 
 bool parseSignalIdentity(JsonObjectConst sig, CfgSignalDef *s) {
@@ -209,55 +212,76 @@ bool parseSignalDef(JsonObjectConst sig, CfgSignalDef *s) {
     return signalLayoutValid(*s);
 }
 
-void parseSignalList(JsonArrayConst signals) {
-    s_signals.signalCount = 0;
-    uint16_t overCap = 0;
+struct SignalListTally {
+    uint16_t accepted;
+    uint16_t rejected;
+    uint16_t overCap;
+};
+
+void keepSignal(CfgSignalConfig *into, const CfgSignalDef &def, uint16_t index) {
+    if (into == nullptr)
+        return;
+    into->signals[index] = def;
+    into->signalCount = static_cast<uint8_t>(index + 1);
+}
+
+SignalListTally parseSignalList(JsonArrayConst signals, CfgSignalConfig *into) {
+    SignalListTally tally = {};
+    if (into != nullptr)
+        into->signalCount = 0;
     for (JsonObjectConst sig : signals) {
-        if (s_signals.signalCount >= kConfigMaxSignals) {
-            ++overCap;
+        if (tally.accepted >= kConfigMaxSignals) {
+            ++tally.overCap;
             continue;
         }
         CfgSignalDef tmp{};
-        if (!parseSignalDef(sig, &tmp))
+        if (!parseSignalDef(sig, &tmp)) {
+            ++tally.rejected;
             continue;
-        s_signals.signals[s_signals.signalCount++] = tmp;
+        }
+        keepSignal(into, tmp, tally.accepted++);
     }
-    if (overCap == 0)
+    return tally;
+}
+
+void reportOverCap(const SignalListTally &tally) {
+    if (tally.overCap == 0)
         return;
     LOG_ERROR("CFG", "signals.json: %u signals past the %u cap were dropped",
-              static_cast<unsigned>(overCap), static_cast<unsigned>(kConfigMaxSignals));
+              static_cast<unsigned>(tally.overCap), static_cast<unsigned>(kConfigMaxSignals));
     ErrorStore::push(ERROR_SRC_CONFIG, "SIG_CAP", "signals.json exceeds the signal cap");
+}
+
+SignalsSource::Verdict verdictOf(const SignalListTally &tally) {
+    if (tally.overCap > 0)
+        return SignalsSource::Verdict::TooMany;
+    if (tally.rejected > 0)
+        return SignalsSource::Verdict::SignalRejected;
+    return SignalsSource::Verdict::Ok;
+}
+
+void fillSignalHeader(JsonDocument &doc, CfgSignalConfig &into) {
+    strlcpy(into.version, doc["version"] | "", sizeof(into.version));
+    checkSchemaVersion("signals.json", into.version);
+    strlcpy(into.protocol, doc["protocol"] | "", sizeof(into.protocol));
+    into.canSpeedKbps = doc["canSpeedKbps"] | kDefaultCanSpeedKbps;
+    parseMapSwitchOut(doc["out"], into.out);
 }
 
 } // namespace
 
-bool loadSignals() {
-    uint8_t *snapshot = acquireRollbackSnapshot();
-    if (snapshot) {
-        memcpy(snapshot, &s_signals, sizeof(CfgSignalConfig));
-    }
-
-    JsonDocument doc(JsonReader::configAllocator());
-    if (!readAndParseWithBak(kConfigPathSignals, doc)) {
-        LOG_ERROR("CFG", "signals.json unreadable (primary + .bak)");
-        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", "signals.json unreadable");
-        if (snapshot) {
-            memcpy(&s_signals, snapshot, sizeof(CfgSignalConfig));
-        }
-        return false;
-    }
-
-    strlcpy(s_signals.version, doc["version"] | "", sizeof(s_signals.version));
-    checkSchemaVersion("signals.json", s_signals.version);
-    strlcpy(s_signals.protocol, doc["protocol"] | "", sizeof(s_signals.protocol));
-    s_signals.canSpeedKbps = doc["canSpeedKbps"] | 500;
-
-    parseMapSwitchOut(doc["out"]);
-    parseSignalList(doc["signals"]);
-
-    s_signals.loaded = true;
-    LOG_INFO("CFG", "signals.json loaded: %d signals", s_signals.signalCount);
-    return true;
+SignalsSource::Verdict parseSignalsDocument(JsonDocument &doc, CfgSignalConfig *into) {
+    JsonArrayConst list = doc["signals"].as<JsonArrayConst>();
+    if (list.isNull())
+        return SignalsSource::Verdict::NoSignalList;
+    if (into == nullptr)
+        return verdictOf(parseSignalList(list, nullptr));
+    fillSignalHeader(doc, *into);
+    const SignalListTally tally = parseSignalList(list, into);
+    reportOverCap(tally);
+    into->loaded = true;
+    LOG_INFO("CFG", "signals.json loaded: %d signals", into->signalCount);
+    return verdictOf(tally);
 }
 
 } // namespace ConfigLoaderInternal

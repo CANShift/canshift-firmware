@@ -32,7 +32,7 @@ stateDiagram-v2
     Driving --> Workshop: Settings → Workshop mode (stationary only)
     Workshop --> Driving: Leave workshop → reboot
     Workshop --> Workshop: Firmware update over Wi-Fi → reboot, resumed once
-    Workshop --> Workshop: Device config or input bindings saved over Wi-Fi → reboot, resumed once
+    Workshop --> Workshop: Device config, input bindings or signals.json saved over Wi-Fi → reboot, resumed once
 ```
 
 - **The button sits in the Settings panel** and is only offered while the car
@@ -41,8 +41,8 @@ stateDiagram-v2
   undone without a restart, and a reboot returns every subsystem to a known
   state. No partial teardown to get wrong.
 - **A reboot asked for by the workshop tuner comes back to workshop mode,
-  once.** A firmware update and a saved device config or input bindings all
-  reboot the dash, and the tuner on the phone needs the access point back to
+  once.** A firmware update, a saved device config or input bindings, and an
+  accepted `signals.json` upload all reboot the dash, and the tuner on the phone needs the access point back to
   reconnect. So a command that arrives over the workshop socket stores a
   one-shot `resume` reason (`update` or `config`) in the `workshop` NVS
   namespace before the reboot. The next boot clears it before anything else

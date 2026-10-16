@@ -94,3 +94,26 @@ invalidates entries older than `SIGNAL_DEFAULT_TIMEOUT_MS = 1000` (default;
 per-signal override in `signals.json`).
 
 Details in [SignalStore](../architecture/signal-store.md).
+
+## Loading signals.json
+
+The loader grades a `signals.json` before it touches the live table:
+
+| Verdict          | Meaning                                                      |
+| ---------------- | ------------------------------------------------------------ |
+| `Ok`             | valid JSON, a `signals` array, every entry kept              |
+| `SignalRejected` | at least one entry the loader drops (bad id, layout, length) |
+| `TooMany`        | more entries than the signal cap                             |
+| `NoSignalList`   | valid JSON without a `signals` array                         |
+| `Unreadable`     | missing, or not valid JSON                                   |
+
+At boot the dash loads `signals.json` when it is `Ok`. Otherwise it reads
+`signals.json.bak`, the previous file kept by every atomic write, and takes a
+clean backup over a flawed primary. A primary that still yields a table
+(`SignalRejected`, `TooMany`) beats a backup that does not. Falling back logs
+an error, pushes `SIG_BAK` to the error store and promotes the backup to
+`signals.json`. When neither file yields a table, the boot pushes `READ_FAIL`
+and CAN parsing stays off.
+
+An upload is stricter: only `Ok` replaces the live file. See
+[USB transport](../architecture/usb-transport.md#signalsjson-over-put_file).

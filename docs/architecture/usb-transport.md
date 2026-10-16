@@ -185,6 +185,28 @@ device that took such a push still has a wrapped file, so
 `TypedConfigBody::device` reads a top-level `device_config` object when there
 is one, and the next push rewrites the file flat.
 
+## signals.json over PUT_FILE
+
+`PUT_FILE` to `/config/signals.json` is the one chunked file write the
+firmware checks before it lands. The last chunk closes the staged
+`signals.json.tmp`, and `StorageDriver::endChunkedWriteChecked` hands it to
+`ConfigLoader::inspectSignalsFile`, a dry run of the boot loader that never
+writes the live table:
+
+- **Anything but a clean verdict** (see
+  [Loading signals.json](../reference/signals.md#loading-signalsjson)) deletes
+  the staged file and answers one line, `{"status":"error","message":"invalid_signals"}`.
+  The live file and its `.bak` are untouched.
+- **A clean file** is swapped in atomically, which rotates the previous file
+  to `signals.json.bak`. Then the dash answers
+  `{"status":"ok","rebooting":true}` and restarts, the same reboot-to-apply
+  model as the typed config PUTs. A write that reached the dash over the
+  workshop socket stores the `config` resume reason first, so the reboot
+  comes back to workshop mode.
+
+The signal table is never reloaded in place. The CAN task reads it without a
+lock, and rewriting it while frames decode would tear.
+
 ## Firmware OTA
 
 `kCmdOtaBegin`, `kCmdOtaWrite` and `kCmdOtaEnd` are transport-neutral; the
