@@ -70,13 +70,17 @@ void persistTypedConfigAndReboot(const char *path, const char *wrapKey, JsonVari
     }
 
     LOG_INFO("USB", "PUT %s: %u bytes written — rebooting", path, static_cast<unsigned>(written));
-    if (UsbCommInternal::commandFromSocket())
+    UsbCommInternal::rebootIntoSavedConfig();
+}
+
+} // namespace
+
+void UsbCommInternal::rebootIntoSavedConfig() {
+    if (commandFromSocket())
         WorkshopMode::armResumeAfterConfigChange();
     UsbComm::sendOkRebooting();
     UsbComm::flushAndRestart();
 }
-
-} // namespace
 
 namespace UsbCommInternal {
 

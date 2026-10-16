@@ -27,6 +27,10 @@ void routeLine(const char *line, size_t len);
 
 [[nodiscard]] bool commandFromSocket();
 
+void rebootIntoSavedConfig();
+
+void commitSignalsUpload();
+
 void sendToSocket(const char *line, size_t len);
 
 void dispatchFromSerial(char *jsonLine);

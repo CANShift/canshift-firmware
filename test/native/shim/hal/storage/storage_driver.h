@@ -31,6 +31,16 @@ void getSpaceInfo(size_t *totalBytes, size_t *usedBytes);
 bool beginChunkedWriteAtomic(const char *path);
 bool appendChunk(const uint8_t *data, size_t length);
 bool endChunkedWrite();
+
+enum class ChunkCommit : uint8_t {
+    Committed = 0,
+    Rejected,
+    Failed,
+};
+
+using StagedFileCheck = bool (*)(const char *stagedPath);
+
+ChunkCommit endChunkedWriteChecked(StagedFileCheck check);
 void abortChunkedWrite();
 bool isChunkedWriteOpen();
 bool ensureParentDirs(const char *path);

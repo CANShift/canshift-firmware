@@ -56,6 +56,31 @@ void abortChunkTransfer(const char *reason) {
     resetChunkState();
 }
 
+namespace {
+
+void finishPlainFile() {
+    const bool finalized = StorageDriver::endChunkedWrite();
+    if (!finalized) {
+        UsbComm::sendError("write_failed");
+        resetChunkState();
+        return;
+    }
+    LOG_INFO("USB", "PUT_FILE done: %s (%u chunks)", s_chunk.path, s_chunk.total);
+    resetChunkState();
+    UsbComm::sendOk();
+}
+
+void finishChunkTransfer() {
+    if (strcmp(s_chunk.path, kConfigPathSignals) == 0) {
+        resetChunkState();
+        UsbCommInternal::commitSignalsUpload();
+        return;
+    }
+    finishPlainFile();
+}
+
+} // namespace
+
 void failChunk(const char *reason) {
     UsbComm::sendError(reason);
     abortChunkTransfer(reason);
@@ -106,17 +131,9 @@ void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
     s_chunk.lastActivityMs = millis();
 
     if (idx == total - 1) {
-        const bool finalized = StorageDriver::endChunkedWrite();
-        if (!finalized) {
-            // endChunkedWrite already closed the handle, so this is a reset, not an abort.
-            UsbComm::sendError("write_failed");
-            resetChunkState();
-            return;
-        }
-        LOG_INFO("USB", "PUT_FILE done: %s (%u chunks)", s_chunk.path, total);
-        resetChunkState();
+        finishChunkTransfer();
+        return;
     }
-
     UsbComm::sendOk();
 }
 

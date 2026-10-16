@@ -2,6 +2,7 @@
 
 #include "config_rejection.h"
 #include "config_types.h"
+#include "signals_source.h"
 
 #include <ArduinoJson.h>
 #include <cstddef>
@@ -15,11 +16,10 @@ extern CfgDeviceConfig s_device;
 extern CfgInputBindings s_inputs;
 extern CfgRejection s_rejection;
 
-[[nodiscard]] uint8_t *acquireRollbackSnapshot();
-
 [[nodiscard]] bool loadDashboard();
 [[nodiscard]] bool resolvePageLayouts(CfgDashboard *out);
 [[nodiscard]] bool loadSignals();
+[[nodiscard]] SignalsSource::Verdict parseSignalsDocument(JsonDocument &doc, CfgSignalConfig *into);
 [[nodiscard]] bool loadDevice();
 [[nodiscard]] bool loadInputBindings();
 

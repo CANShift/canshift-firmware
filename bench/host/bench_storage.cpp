@@ -11,6 +11,7 @@ namespace {
 std::string s_root = "data";
 FILE *s_chunked = nullptr;
 std::string s_chunkedFinalPath;
+std::string s_chunkedLogicalPath;
 
 std::string resolve(const char *path) {
     std::string p = s_root;
@@ -111,6 +112,7 @@ bool beginChunkedWriteAtomic(const char *path) {
     if (s_chunked)
         return false;
     s_chunkedFinalPath = resolve(path);
+    s_chunkedLogicalPath = path;
     s_chunked = fopen((s_chunkedFinalPath + ".tmp").c_str(), "wb");
     return s_chunked != nullptr;
 }
@@ -127,6 +129,21 @@ bool endChunkedWrite() {
     fclose(s_chunked);
     s_chunked = nullptr;
     return rename((s_chunkedFinalPath + ".tmp").c_str(), s_chunkedFinalPath.c_str()) == 0;
+}
+
+ChunkCommit endChunkedWriteChecked(StagedFileCheck check) {
+    if (!s_chunked)
+        return ChunkCommit::Failed;
+    fclose(s_chunked);
+    s_chunked = nullptr;
+    const std::string staged = s_chunkedFinalPath + ".tmp";
+    if (check != nullptr && !check((s_chunkedLogicalPath + ".tmp").c_str())) {
+        remove(staged.c_str());
+        return ChunkCommit::Rejected;
+    }
+    if (rename(staged.c_str(), s_chunkedFinalPath.c_str()) != 0)
+        return ChunkCommit::Failed;
+    return ChunkCommit::Committed;
 }
 
 void abortChunkedWrite() {

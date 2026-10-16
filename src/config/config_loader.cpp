@@ -9,11 +9,6 @@
 #include <cstdint>
 #include <cstring>
 
-#ifdef ARDUINO
-    #include "hal/memory/psram.h"
-    #include <esp_heap_caps.h>
-#endif
-
 namespace ConfigLoaderInternal {
 
 CfgDashboard *s_dashboard = nullptr;
@@ -21,43 +16,6 @@ CfgSignalConfig s_signals = {};
 CfgDeviceConfig s_device = {};
 CfgInputBindings s_inputs = {};
 CfgRejection s_rejection = {};
-
-namespace {
-constexpr size_t kRollbackSnapshotSize = sizeof(CfgSignalConfig);
-
-#if !APP_RUNTIME_PSRAM_DETECT
-alignas(CfgSignalConfig) uint8_t s_rollback_snapshot_bss[kRollbackSnapshotSize];
-#endif
-} // namespace
-
-uint8_t *acquireRollbackSnapshot() {
-#if APP_RUNTIME_PSRAM_DETECT
-    static uint8_t *s_rollback_snapshot_psram = nullptr;
-    static bool s_psram_alloc_attempted = false;
-    if (!s_psram_alloc_attempted) {
-        s_psram_alloc_attempted = true;
-    #ifdef ARDUINO
-        if (canshift::hal::memory::isPsramAvailable()) {
-            s_rollback_snapshot_psram =
-                static_cast<uint8_t *>(heap_caps_malloc(kRollbackSnapshotSize, MALLOC_CAP_SPIRAM));
-            if (s_rollback_snapshot_psram) {
-                LOG_INFO("CFG", "rollback snapshot (%u B) allocated in PSRAM",
-                         static_cast<unsigned>(kRollbackSnapshotSize));
-            } else {
-                LOG_WARN("CFG", "rollback snapshot PSRAM alloc (%u B) failed — rollback disabled",
-                         static_cast<unsigned>(kRollbackSnapshotSize));
-            }
-        } else {
-            LOG_WARN("CFG", "no PSRAM detected — rollback snapshot disabled (WROOM variant; "
-                            "parse-failure restore will no-op)");
-        }
-    #endif
-    }
-    return s_rollback_snapshot_psram;
-#else
-    return s_rollback_snapshot_bss;
-#endif
-}
 
 } // namespace ConfigLoaderInternal
 
@@ -115,3 +73,4 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
 #include "config_signals_loader.inc"
 #include "config_validators.inc"
 #include "json_helpers.inc"
+#include "config_signals_file.inc"

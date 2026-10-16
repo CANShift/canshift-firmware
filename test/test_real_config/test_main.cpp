@@ -67,6 +67,18 @@ void test_real_six_page_dashboard_loads() {
     free(sigs);
 }
 
+void test_the_bundled_signals_pass_the_upload_check() {
+    size_t sigLen = 0;
+    char *sigs = readFile("data/config/signals.json", &sigLen);
+    TEST_ASSERT_NOT_NULL(sigs);
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(kConfigPathSignals, sigs, sigLen);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(SignalsSource::Verdict::Ok),
+        static_cast<uint8_t>(ConfigLoader::inspectSignalsFile(kConfigPathSignals)));
+    free(sigs);
+}
+
 static bool signalIsDeclared(const CfgSignalConfig &s, const char *name) {
     for (uint8_t i = 0; i < s.signalCount; ++i) {
         if (strcmp(s.signals[i].name, name) == 0)
@@ -96,5 +108,6 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_real_six_page_dashboard_loads);
     RUN_TEST(test_every_bound_signal_is_declared);
+    RUN_TEST(test_the_bundled_signals_pass_the_upload_check);
     return UNITY_END();
 }

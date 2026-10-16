@@ -2,6 +2,7 @@
 
 #include "config_rejection.h"
 #include "config_types.h"
+#include "signals_source.h"
 
 namespace ConfigLoader {
 
@@ -27,5 +28,7 @@ struct LoadResult {
 [[nodiscard]] bool reloadAll();
 
 [[nodiscard]] const CfgSignalDef *findSignal(const char *name);
+
+[[nodiscard]] SignalsSource::Verdict inspectSignalsFile(const char *path);
 
 } // namespace ConfigLoader
