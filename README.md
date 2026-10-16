@@ -1,54 +1,55 @@
 # CANShift firmware bench
 
-Latest: `b635303` on 2026-10-16, 21 commits recorded. Trends cover the last 30 commits on `main`; the raw data is `history.json`.
+Latest: `bf13ce0` on 2026-10-16, 22 commits recorded. Trends cover the last 30 commits on `main`; the raw data is `history.json`.
 
 ## Image sizes
 
 | board | metric | bytes | trend |
 | --- | --- | ---: | --- |
-| crowpanel_28 | flash | 1,279,808 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅███` |
-| crowpanel_28 | dram | 90,316 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▅▅▅▅███` |
-| crowpanel_28 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| crowpanel_28 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| generic_esp32s3 | flash | 1,192,752 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅███` |
-| generic_esp32s3 | dram | 84,072 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▅▅▅███` |
-| generic_esp32s3 | iram | 77,959 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| generic_esp32s3 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| generic_ili9341 | flash | 1,279,984 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅███` |
-| generic_ili9341 | dram | 90,316 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▅▅▅▅███` |
-| generic_ili9341 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| generic_ili9341 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| generic_ili9341_gt911 | flash | 1,280,288 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅███` |
-| generic_ili9341_gt911 | dram | 90,316 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▅▅▅▅███` |
-| generic_ili9341_gt911 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| generic_ili9341_gt911 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| waveshare_s3_28 | flash | 1,642,064 | `▁▁▁▁▁▁▁▁▂▂▃▃▃▃▄▅▅▆▇██` |
-| waveshare_s3_28 | dram | 105,524 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▅▅▅███` |
-| waveshare_s3_28 | iram | 88,963 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| waveshare_s3_28 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| crowpanel_28 | flash | 1,279,968 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅████` |
+| crowpanel_28 | dram | 90,348 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▄▄▄████` |
+| crowpanel_28 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| crowpanel_28 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| generic_esp32s3 | flash | 1,192,880 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅████` |
+| generic_esp32s3 | dram | 84,088 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▅▅▅████` |
+| generic_esp32s3 | iram | 77,959 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| generic_esp32s3 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341 | flash | 1,280,144 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅████` |
+| generic_ili9341 | dram | 90,348 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▄▄▄████` |
+| generic_ili9341 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341_gt911 | flash | 1,280,448 | `▁▁▁▁▁▁▁▁▃▃▃▃▃▃▄▅▅▅████` |
+| generic_ili9341_gt911 | dram | 90,348 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▄▄▄████` |
+| generic_ili9341_gt911 | iram | 110,327 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| generic_ili9341_gt911 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| waveshare_s3_28 | flash | 1,642,192 | `▁▁▁▁▁▁▁▁▂▂▃▃▃▃▄▅▅▅▇███` |
+| waveshare_s3_28 | dram | 105,540 | `▁▁▁▁▁▁▁▁▄▄▄▄▄▄▄▅▅▅████` |
+| waveshare_s3_28 | iram | 88,963 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| waveshare_s3_28 | psram | 0 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
 
 ## Hot paths
 
 | case | median ns | trend (÷ calibration) |
 | --- | ---: | --- |
-| calibration | 57.6 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
-| can_decode | 130.4 | `▅█▇█▇▆▆█▆█▆█▇▆▆█▁▅█▅▅` |
-| expr_eval | 23.4 | `▁█▇██▆▆█▆█▆▇▇▄▄▇▄▁▇▁▁` |
-| telemetry_encode | 35.7 | `▁▇▆▇▇██▇▆▇▆▇▇▆▆▇▅▁▇▁▁` |
-| status_writer | 755.0 | `▁█▇▇█▄▄█▆█▇▇▇▇▇▇▃▂▇▁▁` |
-| format_float | 13.3 | `▁▆▆▆▆▅▆▆▃▆▃▆▆▃▃▆█▁▆▁▁` |
-| command/status | 927.8 | `▁████▄▅█▆█▆▇▇▆▆▇▄▁█▁▁` |
-| command/ping | 188.7 | `▂▇▆▆▆▅▆▆▂█▁██▂▂▇▆▂▇▂▂` |
-| command/shared | 168.8 | `▂▆█▆▆▅▆▆▁▆▁▅▆▁▁▅▆▄▅▂▂` |
-| command/config_get | 7,247.6 | `▇▇▇▇▇▁▁▇█▇█▇▇▇█▇▁▇▇▇▇` |
-| command/ota_reject | 561.3 | `▁████▇▇█▄█▃▇█▄▄▇▇▁▇▁▁` |
-| command/unknown | 168.3 | `▁█▇▇▇▅▅▇▂▇▁▆▇▂▂█▆▁▅▁▂` |
-| command/parse_error | 161.2 | `▂▇▇▇▇▅▆▇▁▇▁▇▇▁▂█▇▂▅▂▂` |
+| calibration | 72.8 | `▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅` |
+| can_decode | 178.3 | `▅█▇█▇▆▆█▆█▆█▇▆▆█▁▅█▅▅█` |
+| expr_eval | 47.6 | `▁█▇██▆▆█▆█▆▇▇▄▄▇▄▁▇▁▁▇` |
+| telemetry_encode | 66.5 | `▁▇▆▇▇██▇▆▇▆▇▇▆▆▇▅▁▇▁▁▇` |
+| status_writer | 1,462.7 | `▁█▇▇█▄▄█▆█▇▇▇▇▇▇▃▂▇▁▁▇` |
+| format_float | 23.1 | `▁▆▆▆▆▅▆▆▃▆▃▆▆▃▃▆█▁▆▁▁▆` |
+| command/status | 1,834.1 | `▁████▄▅█▆█▆▇▇▆▆▇▄▁█▁▁█` |
+| command/ping | 308.9 | `▂▇▆▆▆▅▆▆▂█▁██▂▂▇▆▂▇▂▂▇` |
+| command/shared | 270.0 | `▂▆█▆▆▅▆▆▁▆▁▅▆▁▁▅▆▄▅▂▂▆` |
+| command/config_get | 9,238.3 | `▇▇▇▇▇▁▁▇█▇█▇▇▇█▇▁▇▇▇▇▇` |
+| command/ota_reject | 1,011.2 | `▁████▇▇█▄█▃▇█▄▄▇▇▁▇▁▁█` |
+| command/unknown | 273.5 | `▁█▇▇▇▅▅▇▂▇▁▆▇▂▂█▆▁▅▁▂▆` |
+| command/parse_error | 252.5 | `▂▇▇▇▇▅▆▇▁▇▁▇▇▁▂█▇▂▅▂▂▆` |
 
 ## Goldens
 
 | commit | date | behaviour | visual |
 | --- | --- | ---: | ---: |
+| `bf13ce0` | 2026-10-16 | 6/6 | 30/30 |
 | `b635303` | 2026-10-16 | 6/6 | 30/30 |
 | `7d19727` | 2026-10-16 | 6/6 | 30/30 |
 | `083ca2e` | 2026-10-16 | 6/6 | 30/30 |
@@ -58,4 +59,3 @@ Latest: `b635303` on 2026-10-16, 21 commits recorded. Trends cover the last 30 c
 | `b21d6e9` | 2026-10-16 | 6/6 | 30/30 |
 | `168b33d` | 2026-10-16 | 6/6 | 30/30 |
 | `ff4acd8` | 2026-10-16 | 6/6 | 30/30 |
-| `33534f3` | 2026-10-16 | 6/6 | 30/30 |
