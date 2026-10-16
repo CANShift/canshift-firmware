@@ -1,4 +1,5 @@
 #include "alert_takeover.h"
+#include "alert_engine_rs.h"
 #include "can/signal_map.h"
 #include "runtime/alert_engine.h"
 #include "runtime/signal_store.h"
@@ -19,12 +20,12 @@
 namespace {
 
 constexpr uint32_t kUpdatePeriodMs = 100;
-constexpr int kNoActiveSource = -1;
+constexpr int kNoActiveSource = kAlertCriticalNoSource;
 constexpr const char *kLimitWord[] = {"MAX", "MIN"};
 
 uint32_t s_lastUpdateMs = 0;
 int s_activeSource = kNoActiveSource;
-int s_acknowledgedSource = kNoActiveSource;
+uint32_t s_acknowledgedSources = 0;
 std::atomic<bool> s_activeFlag{false};
 std::atomic<bool> s_ackRequested{false};
 char s_lastValueText[16] = "";
@@ -36,16 +37,34 @@ void ackClickCb(lv_event_t *e) {
     s_ackRequested.store(true, std::memory_order_relaxed);
 }
 
-int pickCriticalSource(const AlertEngine::AlertState &state) {
+static_assert(AlertSources::kSourceCount + 1 <= kAlertCriticalSourceCapacity);
+
+bool isShowable(const AlertEngine::AlertState &state, const AlertSources::CriticalSource &src) {
+    if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
+        return false;
+    return !(state.*(src.sensorLost) && !SignalStore::isValid(src.id));
+}
+
+uint32_t criticalSources(const AlertEngine::AlertState &state) {
+    uint32_t critical = 0;
     for (size_t i = 0; i < AlertSources::count(); ++i) {
-        const AlertSources::CriticalSource &src = AlertSources::at(i);
-        if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
-            continue;
-        if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
-            continue;
-        return static_cast<int>(i);
+        if (isShowable(state, AlertSources::at(i)))
+            critical |= 1u << i;
     }
-    return kNoActiveSource;
+    return critical;
+}
+
+int pickCriticalSource(const AlertEngine::AlertState &state) {
+    const uint32_t critical = OtaOverlay::isActive() ? 0 : criticalSources(state);
+    s_acknowledgedSources = alert_critical_retain_rs(s_acknowledgedSources, critical);
+    return alert_critical_first_unacknowledged_rs(critical, s_acknowledgedSources);
+}
+
+void consumeAcknowledge() {
+    if (!s_ackRequested.exchange(false, std::memory_order_relaxed))
+        return;
+    s_acknowledgedSources =
+        alert_critical_acknowledge_rs(s_acknowledgedSources, static_cast<int8_t>(s_activeSource));
 }
 
 void showFor(int sourceIndex) {
@@ -104,7 +123,7 @@ void AlertTakeover::init() {
     AlertTakeoverView::build(ackClickCb);
     s_lastUpdateMs = 0;
     s_activeSource = kNoActiveSource;
-    s_acknowledgedSource = kNoActiveSource;
+    s_acknowledgedSources = 0;
 }
 
 void AlertTakeover::update() {
@@ -116,21 +135,9 @@ void AlertTakeover::update() {
         return;
     s_lastUpdateMs = now;
 
-    if (s_ackRequested.exchange(false, std::memory_order_relaxed) &&
-        s_activeSource != kNoActiveSource) {
-        s_acknowledgedSource = s_activeSource;
-    }
-
-    const AlertEngine::AlertState state = AlertEngine::getState();
-    const int critical = OtaOverlay::isActive() ? kNoActiveSource : pickCriticalSource(state);
-
+    consumeAcknowledge();
+    const int critical = pickCriticalSource(AlertEngine::getState());
     if (critical == kNoActiveSource) {
-        s_acknowledgedSource = kNoActiveSource;
-        hideLayer();
-        return;
-    }
-
-    if (critical == s_acknowledgedSource) {
         hideLayer();
         return;
     }

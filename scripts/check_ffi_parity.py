@@ -176,6 +176,20 @@ PAIRS = (
         "kAlertCutMinVisibleMs",
     ),
     (
+        "critical no source",
+        "rust/alert-engine/src/critical_ack.rs",
+        "CRITICAL_NO_SOURCE",
+        "include/alert_engine_rs.h",
+        "kAlertCriticalNoSource",
+    ),
+    (
+        "critical source capacity",
+        "rust/alert-engine/src/critical_ack.rs",
+        "CRITICAL_SOURCE_CAPACITY",
+        "include/alert_engine_rs.h",
+        "kAlertCriticalSourceCapacity",
+    ),
+    (
         "CAN frame width",
         "rust/can-parser/src/lib.rs",
         "CAN_FRAME_MAX_BYTES",
