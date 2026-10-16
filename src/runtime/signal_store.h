@@ -26,6 +26,8 @@ void set(SignalId id, float value);
 
 [[nodiscard]] float read(SignalId id, float defaultValue = 0.0f);
 
+[[nodiscard]] float readRaw(SignalId id, float defaultValue = 0.0f);
+
 [[nodiscard]] bool isValid(SignalId id);
 
 [[nodiscard]] bool tryRead(SignalId id, float *smoothed);

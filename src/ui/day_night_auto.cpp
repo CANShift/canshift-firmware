@@ -35,7 +35,7 @@ void DayNightAuto::tick() {
     if (!SignalStore::isValid(s_signalId))
         return;
 
-    const bool headlightsOn = SignalStore::read(s_signalId) >= kHeadlightsOnThreshold;
+    const bool headlightsOn = SignalStore::readRaw(s_signalId) >= kHeadlightsOnThreshold;
     const int8_t state = headlightsOn ? 1 : 0;
     if (state == s_lastHeadlightState)
         return;

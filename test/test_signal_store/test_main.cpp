@@ -119,6 +119,19 @@ void test_set_ignoresNonFiniteValues() {
     TEST_ASSERT_FALSE(SignalStore::isValid(kTestSignalId));
 }
 
+void test_readRaw_returnsTheLastFrameWhileReadLags() {
+    SignalStore::update(kTestSignalId, 1.0f);
+    SignalStore::update(kTestSignalId, 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, SignalStore::readRaw(kTestSignalId, kReadDefault));
+    TEST_ASSERT_TRUE(SignalStore::read(kTestSignalId, kReadDefault) > 0.0f);
+}
+
+void test_readRaw_returnsDefaultWhenInvalid() {
+    TEST_ASSERT_EQUAL_FLOAT(kReadDefault, SignalStore::readRaw(kUnwrittenSignalId, kReadDefault));
+    TEST_ASSERT_EQUAL_FLOAT(kReadDefault,
+                            SignalStore::readRaw(SignalIds::kSignalCount, kReadDefault));
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_set_then_get_returnsValue_andValid);
@@ -130,5 +143,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_tryRead_rejectsOutOfRangeIdAndNullOut);
     RUN_TEST(test_update_ignoresNonFiniteValues);
     RUN_TEST(test_set_ignoresNonFiniteValues);
+    RUN_TEST(test_readRaw_returnsTheLastFrameWhileReadLags);
+    RUN_TEST(test_readRaw_returnsDefaultWhenInvalid);
     return UNITY_END();
 }

@@ -193,7 +193,7 @@ void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
         alert_sensor_health_step_rs(&src.health, snap[src.id].valid, now,
                                     kAlertSensorLostClearHoldMs);
         s_state.*(src.lost) = src.health.lost;
-        const float value = snap[src.id].valid ? snap[src.id].smoothed : 0.0f;
+        const float value = snap[src.id].valid ? snap[src.id].raw : 0.0f;
         const auto level = static_cast<AlertEngine::AlertLevel>(
             alert_high_side_temp_step_rs(&src.hold, value, src.warnC, src.critC, NAN, NAN, now,
                                          kAlertHysteresisPct, kAlertMinActiveMs));
@@ -301,9 +301,9 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     updateSensorHealth(snap, now);
 
     const auto readSnap = [&snap](SignalId id, float def) {
-        return snap[id].valid ? snap[id].smoothed : def;
+        return snap[id].valid ? snap[id].raw : def;
     };
-    float rpm = readSnap(SignalIds::kRpm, 0.0f);
+    const float rpm = snap[SignalIds::kRpm].valid ? snap[SignalIds::kRpm].smoothed : 0.0f;
     float coolant = readSnap(SignalIds::kCoolantTempC, 0.0f);
     float oilTemp = readSnap(SignalIds::kOilTempC, 0.0f);
     float oilPres = readSnap(SignalIds::kOilPressBar, 5.0f);

@@ -10,13 +10,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#define LOG_ERROR(tag, fmt, ...) ((void)0)
-#define LOG_WARN(tag, fmt, ...) ((void)0)
-#define LOG_INFO(tag, fmt, ...) ((void)0)
-#define LOG_DEBUG(tag, fmt, ...) ((void)0)
-#define LOG_VDEBUG(tag, fmt, ...) ((void)0)
-#define LOG_VERBOSE(tag, fmt, ...) ((void)0)
-
 namespace Logger {
 inline void init() {}
 inline void emit(char /*level*/, const char * /*tag*/, const char * /*fmt*/, ...) {}
@@ -26,3 +19,15 @@ inline bool lockUart(TickType_t /*timeout*/) {
 }
 inline void unlockUart() {}
 } // namespace Logger
+
+#define LOG_DISCARD(tag, fmt, ...)                                                                 \
+    do {                                                                                           \
+        if (false)                                                                                 \
+            Logger::emit('D', tag, fmt, ##__VA_ARGS__);                                            \
+    } while (0)
+#define LOG_ERROR(tag, fmt, ...) LOG_DISCARD(tag, fmt, ##__VA_ARGS__)
+#define LOG_WARN(tag, fmt, ...) LOG_DISCARD(tag, fmt, ##__VA_ARGS__)
+#define LOG_INFO(tag, fmt, ...) LOG_DISCARD(tag, fmt, ##__VA_ARGS__)
+#define LOG_DEBUG(tag, fmt, ...) LOG_DISCARD(tag, fmt, ##__VA_ARGS__)
+#define LOG_VDEBUG(tag, fmt, ...) LOG_DISCARD(tag, fmt, ##__VA_ARGS__)
+#define LOG_VERBOSE(tag, fmt, ...) LOG_DISCARD(tag, fmt, ##__VA_ARGS__)
