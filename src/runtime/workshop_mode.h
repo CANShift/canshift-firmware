@@ -2,6 +2,8 @@
 
 #include "app_config.h"
 
+#include <stdint.h>
+
 namespace WorkshopMode {
 
 #if APP_WORKSHOP_ENABLED
@@ -23,6 +25,8 @@ void armResumeAfterUpdate();
 [[nodiscard]] bool takeResumeRequest();
 
 void resumeAfterUpdate(bool requested, bool imagePendingVerify);
+
+void leaveOnMotion(uint32_t nowMs);
 
 #else
 
@@ -55,6 +59,8 @@ inline void armResumeAfterUpdate() {}
 }
 
 inline void resumeAfterUpdate(bool, bool) {}
+
+inline void leaveOnMotion(uint32_t) {}
 
 #endif
 

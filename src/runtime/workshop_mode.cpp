@@ -13,6 +13,9 @@
     #include "runtime/workshop_credentials.h"
     #include "workshop_mode_rs.h"
 
+    #include <Arduino.h>
+    #include <esp_system.h>
+
     #include <atomic>
     #include <stddef.h>
     #include <stdint.h>
@@ -29,6 +32,7 @@ constexpr uint8_t kResumeArmed = 1;
 constexpr uint8_t kResumeUnset = 0;
 
 std::atomic<uint8_t> s_state{kWorkshopStateDriving};
+WorkshopMotionRs s_motion = {};
 
 uint32_t filesystemBytes() {
     if (StorageDriver::getStatus() != StorageDriver::InitStatus::Ok)
@@ -42,6 +46,20 @@ uint8_t advance(uint8_t event, bool isOffered) {
     const uint8_t next = workshop_next_state_rs(s_state.load(), event, isOffered);
     s_state.store(next);
     return next;
+}
+
+bool disarmResume() {
+    if (NvsStore::remove(kWorkshopNvsNamespace, kResumeKey))
+        return true;
+    LOG_ERROR("WORKSHOP", "Resume flag not cleared — booting into the dash");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not cleared");
+    return false;
+}
+
+bool motionExitDue(uint32_t nowMs) {
+    const bool speedValid = SignalStore::isValid(SignalIds::kSpeedKph);
+    const float speedKph = SignalStore::read(SignalIds::kSpeedKph, kSpeedWhenUnread);
+    return workshop_motion_exit_due_rs(&s_motion, speedValid, speedKph, nowMs);
 }
 
 } // namespace
@@ -92,11 +110,7 @@ bool takeResumeRequest() {
         NvsStore::getUChar(kWorkshopNvsNamespace, kResumeKey, kResumeUnset) == kResumeArmed;
     if (!armed)
         return false;
-    if (NvsStore::remove(kWorkshopNvsNamespace, kResumeKey))
-        return true;
-    LOG_ERROR("WORKSHOP", "Resume flag not cleared — booting into the dash");
-    ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not cleared");
-    return false;
+    return disarmResume();
 }
 
 void resumeAfterUpdate(bool requested, bool imagePendingVerify) {
@@ -104,6 +118,17 @@ void resumeAfterUpdate(bool requested, bool imagePendingVerify) {
         return;
     if (advance(kWorkshopEventResume, false) == kWorkshopStateEntering)
         LOG_INFO("WORKSHOP", "Workshop mode resumed after the update");
+}
+
+void leaveOnMotion(uint32_t nowMs) {
+    if (!isActive() || !motionExitDue(nowMs))
+        return;
+    LOG_WARN("WORKSHOP", "Car moving in workshop mode — rebooting into the dash");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "WS_MOTION", "workshop left: car moving");
+    if (!disarmResume())
+        LOG_WARN("WORKSHOP", "Resume flag kept — it only applies to a pending update image");
+    delay(kPreRestartFlushDelayMs);
+    esp_restart();
 }
 
 } // namespace WorkshopMode

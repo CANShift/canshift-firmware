@@ -10,6 +10,7 @@ inline constexpr int kWorkshopSsidCap = 33;
 inline constexpr int kWorkshopPasswordCap = 64;
 inline constexpr int kWorkshopJoinPayloadCap = 224;
 inline constexpr int kWorkshopTunerPathCap = 32;
+inline constexpr uint32_t kWorkshopMotionExitMs = 3000;
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +25,11 @@ enum {
     kWorkshopEventResume = 3
 };
 
+typedef struct {
+    uint32_t moving_since_ms;
+    bool moving;
+} WorkshopMotionRs;
+
 uint8_t workshop_next_state_rs(uint8_t state, uint8_t event, bool is_offered);
 bool workshop_board_supported_rs(uint32_t filesystem_bytes);
 bool workshop_resume_after_update_rs(bool requested, uint32_t filesystem_bytes,
@@ -37,9 +43,13 @@ size_t workshop_join_payload_rs(const char *ssid, const char *password, char *ou
 size_t workshop_tuner_path_rs(const char *uri, bool gzip, char *out, size_t out_cap);
 bool workshop_tuner_spa_route_rs(const char *uri);
 const char *workshop_tuner_content_type_rs(const char *uri);
+bool workshop_motion_exit_due_rs(WorkshopMotionRs *watch, bool speed_valid, float speed_kph,
+                                 uint32_t now_ms);
 
 #ifdef __cplusplus
 }
+
+static_assert(sizeof(WorkshopMotionRs) == 8, "WorkshopMotionRs layout must match rust MotionWatch");
 #endif
 
 #endif

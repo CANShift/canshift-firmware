@@ -287,6 +287,7 @@ inline void uiRunLvTaskHandler() {
 constexpr uint32_t kUiLvglLockTimeoutMs = 10;
 
 inline void uiRunWorkshopFrame() {
+    WorkshopMode::leaveOnMotion(millis());
     uiDrainBurnOverlayActions();
     uiDrainOtaOverlayActions();
     uiDrainWorkshopConfigReload();

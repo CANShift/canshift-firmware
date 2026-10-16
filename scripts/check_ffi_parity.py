@@ -267,6 +267,13 @@ PAIRS = (
         "kWorkshopEventResume",
     ),
     (
+        "workshop motion exit window",
+        "rust/workshop-mode/src/motion.rs",
+        "WORKSHOP_MOTION_EXIT_MS",
+        "include/workshop_mode_rs.h",
+        "kWorkshopMotionExitMs",
+    ),
+    (
         "OTA signature bytes",
         "rust/ota-signature/src/lib.rs",
         "OTA_SIGNATURE_BYTES",

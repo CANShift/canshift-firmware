@@ -3,8 +3,8 @@ use core::slice;
 
 use crate::{
     board_supported, content_type, credentials_valid, generate_credentials, join_payload,
-    next_state, offered, resume_after_update, spa_route, tuner_path, WorkshopEvent, WorkshopState,
-    DEFAULT_CONTENT_TYPE,
+    motion_exit_due, next_state, offered, resume_after_update, spa_route, tuner_path, MotionWatch,
+    WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
 };
 
 #[no_mangle]
@@ -38,6 +38,19 @@ pub extern "C" fn workshop_offered_rs(
     speed_kph: f32,
 ) -> bool {
     offered(filesystem_bytes, speed_mapped, speed_valid, speed_kph)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn workshop_motion_exit_due_rs(
+    watch: *mut MotionWatch,
+    speed_valid: bool,
+    speed_kph: f32,
+    now_ms: u32,
+) -> bool {
+    let Some(watch) = (unsafe { watch.as_mut() }) else {
+        return false;
+    };
+    motion_exit_due(watch, speed_valid, speed_kph, now_ms)
 }
 
 unsafe fn copy_out(src: &[u8], dst: *mut c_char, cap: usize) -> bool {

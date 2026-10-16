@@ -83,6 +83,47 @@ void test_storedGarbageIsRejected() {
     TEST_ASSERT_FALSE(workshop_credentials_valid_rs("CANShift-ABCD", "short"));
 }
 
+WorkshopMotionRs stillWatch() {
+    WorkshopMotionRs watch = {};
+    return watch;
+}
+
+bool driveFor(WorkshopMotionRs &watch, float speedKph, uint32_t fromMs, uint32_t untilMs) {
+    bool due = false;
+    for (uint32_t nowMs = fromMs; nowMs <= untilMs; nowMs += 100)
+        due = workshop_motion_exit_due_rs(&watch, true, speedKph, nowMs);
+    return due;
+}
+
+void test_sustainedMotionLeavesWorkshopMode() {
+    WorkshopMotionRs watch = stillWatch();
+    TEST_ASSERT_FALSE(driveFor(watch, 20.0f, 1000, 1000 + kWorkshopMotionExitMs - 100));
+    TEST_ASSERT_TRUE(
+        workshop_motion_exit_due_rs(&watch, true, 20.0f, 1000 + kWorkshopMotionExitMs));
+}
+
+void test_aBriefRollDoesNotLeave() {
+    WorkshopMotionRs watch = stillWatch();
+    TEST_ASSERT_FALSE(driveFor(watch, 20.0f, 1000, 2000));
+    TEST_ASSERT_FALSE(workshop_motion_exit_due_rs(&watch, true, 0.0f, 2100));
+    TEST_ASSERT_FALSE(driveFor(watch, 20.0f, 2200, 2200 + kWorkshopMotionExitMs - 100));
+}
+
+void test_crawlingBelowTheThresholdStays() {
+    WorkshopMotionRs watch = stillWatch();
+    TEST_ASSERT_FALSE(driveFor(watch, 4.0f, 1000, 1000 + 4 * kWorkshopMotionExitMs));
+}
+
+void test_aStaleSpeedNeverLeaves() {
+    WorkshopMotionRs watch = stillWatch();
+    for (uint32_t nowMs = 1000; nowMs <= 1000 + 4 * kWorkshopMotionExitMs; nowMs += 100)
+        TEST_ASSERT_FALSE(workshop_motion_exit_due_rs(&watch, false, 80.0f, nowMs));
+}
+
+void test_aNullWatchNeverLeaves() {
+    TEST_ASSERT_FALSE(workshop_motion_exit_due_rs(nullptr, true, 80.0f, 1000));
+}
+
 } // namespace
 
 void setUp() {}
@@ -100,5 +141,10 @@ int main() {
     RUN_TEST(test_offeredWhileStoppedOrUnmapped);
     RUN_TEST(test_generatedCredentialsAreValidAndJoinable);
     RUN_TEST(test_storedGarbageIsRejected);
+    RUN_TEST(test_sustainedMotionLeavesWorkshopMode);
+    RUN_TEST(test_aBriefRollDoesNotLeave);
+    RUN_TEST(test_crawlingBelowTheThresholdStays);
+    RUN_TEST(test_aStaleSpeedNeverLeaves);
+    RUN_TEST(test_aNullWatchNeverLeaves);
     return UNITY_END();
 }
