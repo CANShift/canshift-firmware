@@ -43,11 +43,25 @@ void test_resumeEntersWithoutTheStationaryGate() {
         workshop_next_state_rs(kWorkshopStateActive, kWorkshopEventResume, true));
 }
 
+bool resumes(uint8_t reason, uint32_t filesystemBytes, bool imagePendingVerify) {
+    return workshop_resume_after_reboot_rs(reason, filesystemBytes, imagePendingVerify);
+}
+
 void test_updateResumesOnlyOnItsFirstBootOnASupportedBoard() {
-    TEST_ASSERT_TRUE(workshop_resume_after_update_rs(true, kSixteenMbFilesystem, true));
-    TEST_ASSERT_FALSE(workshop_resume_after_update_rs(false, kSixteenMbFilesystem, true));
-    TEST_ASSERT_FALSE(workshop_resume_after_update_rs(true, kSixteenMbFilesystem, false));
-    TEST_ASSERT_FALSE(workshop_resume_after_update_rs(true, kFourMbFilesystem, true));
+    TEST_ASSERT_TRUE(resumes(kWorkshopResumeUpdate, kSixteenMbFilesystem, true));
+    TEST_ASSERT_FALSE(resumes(kWorkshopResumeNone, kSixteenMbFilesystem, true));
+    TEST_ASSERT_FALSE(resumes(kWorkshopResumeUpdate, kSixteenMbFilesystem, false));
+    TEST_ASSERT_FALSE(resumes(kWorkshopResumeUpdate, kFourMbFilesystem, true));
+}
+
+void test_configRestartResumesWithoutAPendingImage() {
+    TEST_ASSERT_TRUE(resumes(kWorkshopResumeConfig, kSixteenMbFilesystem, false));
+    TEST_ASSERT_TRUE(resumes(kWorkshopResumeConfig, kSixteenMbFilesystem, true));
+    TEST_ASSERT_FALSE(resumes(kWorkshopResumeConfig, kFourMbFilesystem, false));
+}
+
+void test_anUnknownReasonNeverResumes() {
+    TEST_ASSERT_FALSE(resumes(9, kSixteenMbFilesystem, true));
 }
 
 void test_onlyTheSixteenMegabyteLayoutIsSupported() {
@@ -137,6 +151,8 @@ int main() {
     RUN_TEST(test_failedEntryReturnsToDriving);
     RUN_TEST(test_resumeEntersWithoutTheStationaryGate);
     RUN_TEST(test_updateResumesOnlyOnItsFirstBootOnASupportedBoard);
+    RUN_TEST(test_configRestartResumesWithoutAPendingImage);
+    RUN_TEST(test_anUnknownReasonNeverResumes);
     RUN_TEST(test_onlyTheSixteenMegabyteLayoutIsSupported);
     RUN_TEST(test_offeredWhileStoppedOrUnmapped);
     RUN_TEST(test_generatedCredentialsAreValidAndJoinable);

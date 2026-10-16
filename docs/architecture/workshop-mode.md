@@ -32,6 +32,7 @@ stateDiagram-v2
     Driving --> Workshop: Settings → Workshop mode (stationary only)
     Workshop --> Driving: Leave workshop → reboot
     Workshop --> Workshop: Firmware update over Wi-Fi → reboot, resumed once
+    Workshop --> Workshop: Device config or input bindings saved over Wi-Fi → reboot, resumed once
 ```
 
 - **The button sits in the Settings panel** and is only offered while the car
@@ -39,17 +40,25 @@ stateDiagram-v2
 - **Leaving is a reboot.** Freeing the Bluetooth controller's memory cannot be
   undone without a restart, and a reboot returns every subsystem to a known
   state. No partial teardown to get wrong.
-- **A firmware update over Wi-Fi comes back to workshop mode, once.** The
-  update reboots the dash too, and the tuner on the phone needs the access
-  point back to reconnect and confirm the new version. So an OTA that arrives
-  over the workshop socket arms a one-shot `resume` flag in the `workshop` NVS
+- **A reboot asked for by the workshop tuner comes back to workshop mode,
+  once.** A firmware update and a saved device config or input bindings all
+  reboot the dash, and the tuner on the phone needs the access point back to
+  reconnect. So a command that arrives over the workshop socket stores a
+  one-shot `resume` reason (`update` or `config`) in the `workshop` NVS
   namespace before the reboot. The next boot clears it before anything else
-  and re-enters workshop mode, with the same card and credentials, only when
-  the board supports workshop mode and the running image is the new one still
-  pending verification. The stationary rule is skipped for that entry: the car
-  was already stationary when the driver entered workshop mode. A crash loop or
-  a rollback therefore lands in driving mode, and an OTA over USB never arms
-  the flag.
+  and re-enters workshop mode, with the same card and credentials, when the
+  board supports workshop mode and the reason still holds:
+
+  | Reason   | Also requires                                    | Why                                                        |
+  | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+  | `update` | the running image is the new one, pending verify | a rollback lands in driving mode, not on a broken workshop |
+  | `config` | nothing                                          | the image did not change                                   |
+
+  The stationary rule is skipped for that entry: the car was already
+  stationary when the driver entered workshop mode. Because the flag is
+  cleared before the resume, a crash loop lands in driving mode, and the same
+  commands over USB never store it.
+
 - **The screen locks to a workshop card**: "Workshop mode, dash disabled", the
   network name, its password, and a QR code that joins the network in one scan.
   Touch does nothing on that card except the Leave button.

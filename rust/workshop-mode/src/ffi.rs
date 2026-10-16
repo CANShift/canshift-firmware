@@ -3,8 +3,8 @@ use core::slice;
 
 use crate::{
     board_supported, content_type, credentials_valid, generate_credentials, join_payload,
-    motion_exit_due, next_state, offered, resume_after_update, spa_route, tuner_path, MotionWatch,
-    WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
+    motion_exit_due, next_state, offered, resume_after_reboot, spa_route, tuner_path, MotionWatch,
+    ResumeReason, WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
 };
 
 #[no_mangle]
@@ -22,12 +22,16 @@ pub extern "C" fn workshop_board_supported_rs(filesystem_bytes: u32) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn workshop_resume_after_update_rs(
-    requested: bool,
+pub extern "C" fn workshop_resume_after_reboot_rs(
+    reason: u8,
     filesystem_bytes: u32,
     image_pending_verify: bool,
 ) -> bool {
-    resume_after_update(requested, filesystem_bytes, image_pending_verify)
+    resume_after_reboot(
+        ResumeReason::from_u8(reason),
+        filesystem_bytes,
+        image_pending_verify,
+    )
 }
 
 #[no_mangle]

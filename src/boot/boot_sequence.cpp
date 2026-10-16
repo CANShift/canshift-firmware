@@ -231,7 +231,7 @@ void prepareUiAssets(bool storageOk) {
 void BootSequence::run() {
     BootPhases::silenceFrameworkLogNoise();
     BoardProfileStore::loadAndApply();
-    const bool resumeWorkshop = WorkshopMode::takeResumeRequest();
+    const uint8_t resumeReason = WorkshopMode::takeResumeRequest();
     const uint32_t bootStartMs = millis();
     BootPhases::initPsramAndLogEntry();
     BootPhases::initTaskWatchdog();
@@ -251,7 +251,7 @@ void BootSequence::run() {
     startCanTaskAndListen();
     showSelfTestScreen(checks);
     buildUiWithHeapBracket();
-    WorkshopMode::resumeAfterUpdate(resumeWorkshop, runningImagePendingVerify());
+    WorkshopMode::resumeAfterReboot(resumeReason, runningImagePendingVerify());
 
     logBootCompleteAndReady(bootStartMs);
 }

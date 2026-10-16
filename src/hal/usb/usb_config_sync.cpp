@@ -5,6 +5,7 @@
 #include "board_config.h"
 #include "diag/logger.h"
 #include "hal/storage/storage_driver.h"
+#include "runtime/workshop_mode.h"
 #include "util/mem_alloc.h"
 #include "util/json_writer.h"
 
@@ -69,6 +70,8 @@ void persistTypedConfigAndReboot(const char *path, const char *wrapKey, JsonVari
     }
 
     LOG_INFO("USB", "PUT %s: %u bytes written — rebooting", path, static_cast<unsigned>(written));
+    if (UsbCommInternal::commandFromSocket())
+        WorkshopMode::armResumeAfterConfigChange();
     UsbComm::sendOkRebooting();
     UsbComm::flushAndRestart();
 }

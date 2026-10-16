@@ -6,6 +6,8 @@
 
 namespace WorkshopMode {
 
+inline constexpr uint8_t kNoResumeReason = 0;
+
 #if APP_WORKSHOP_ENABLED
 
 [[nodiscard]] bool boardSupported();
@@ -22,9 +24,11 @@ void settleEntry(bool entered);
 
 void armResumeAfterUpdate();
 
-[[nodiscard]] bool takeResumeRequest();
+void armResumeAfterConfigChange();
 
-void resumeAfterUpdate(bool requested, bool imagePendingVerify);
+[[nodiscard]] uint8_t takeResumeRequest();
+
+void resumeAfterReboot(uint8_t reason, bool imagePendingVerify);
 
 void leaveOnMotion(uint32_t nowMs);
 
@@ -54,11 +58,13 @@ inline void settleEntry(bool) {}
 
 inline void armResumeAfterUpdate() {}
 
-[[nodiscard]] inline bool takeResumeRequest() {
-    return false;
+inline void armResumeAfterConfigChange() {}
+
+[[nodiscard]] inline uint8_t takeResumeRequest() {
+    return kNoResumeReason;
 }
 
-inline void resumeAfterUpdate(bool, bool) {}
+inline void resumeAfterReboot(uint8_t, bool) {}
 
 inline void leaveOnMotion(uint32_t) {}
 
