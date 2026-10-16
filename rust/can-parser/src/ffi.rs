@@ -1,5 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
+use crate::bus_recovery::bus_action;
 use crate::expr::{EvalContext, RefValue};
 use crate::expr_compile::CompileError;
 use crate::expr_ffi::{compile_error_code, compile_to_ffi, eval_ffi, eval_ffi_checked, FfiTok};
@@ -116,6 +117,12 @@ pub unsafe extern "C" fn eval_tokens_refs_rs(
         refs: ref_slice,
     };
     eval_ffi_checked(toks, &ctx)
+}
+
+#[no_mangle]
+#[must_use]
+pub extern "C" fn can_bus_action_rs(driver_state: u8) -> u8 {
+    bus_action(driver_state) as u8
 }
 
 #[cfg(test)]
