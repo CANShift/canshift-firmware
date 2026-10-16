@@ -13,16 +13,29 @@ typedef int portMUX_TYPE;
     #define portEXIT_CRITICAL(mux) ((void)(mux))
 #endif
 #include <atomic>
+#include <cmath>
 #include <string.h>
 
 static SignalStore::SignalValue s_signals[kSignalStoreMaxSignals];
 static portMUX_TYPE s_signalsMux = portMUX_INITIALIZER_UNLOCKED;
 static std::atomic<bool> s_anyValid{false};
+static std::atomic<bool> s_nonFiniteReported{false};
 
 namespace {
 
 inline bool idValid(SignalId id) {
     return id < kSignalStoreMaxSignals;
+}
+
+bool acceptsValue(SignalId id, float value) {
+    if (!idValid(id))
+        return false;
+    if (std::isfinite(value))
+        return true;
+    if (!s_nonFiniteReported.exchange(true, std::memory_order_relaxed))
+        LOG_WARN("STORE", "Non-finite value for signal %u dropped (reported once)",
+                 static_cast<unsigned>(id));
+    return false;
 }
 
 } // namespace
@@ -44,7 +57,7 @@ void SignalStore::init() {
 }
 
 void SignalStore::update(SignalId id, float value) {
-    if (!idValid(id))
+    if (!acceptsValue(id, value))
         return;
 
     uint32_t now = millis();
@@ -62,7 +75,7 @@ void SignalStore::update(SignalId id, float value) {
 }
 
 void SignalStore::set(SignalId id, float value) {
-    if (!idValid(id))
+    if (!acceptsValue(id, value))
         return;
 
     uint32_t now = millis();

@@ -38,6 +38,17 @@ constexpr const char *kSignalsWithDeepExpr = R"json({
   ]
 })json";
 
+constexpr const char *kSignalsWithRatioExpr = R"json({
+  "version": "1.0.0",
+  "signals": [
+    {"name": "oil_press_bar", "canFrameId": "0x370", "startByte": 0, "byteLength": 1,
+     "expr": "V/B3"}
+  ]
+})json";
+constexpr uint8_t kRatioFrame[] = {0x05, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
+constexpr uint8_t kZeroDivisorFrame[] = {0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+constexpr float kRatioExpected = 2.5f;
+
 constexpr const char *kPoolSignalNames[] = {
     "rpm",        "throttle_pos",   "map_kpa",       "boost_bar",     "iat_c",
     "oil_temp_c", "coolant_temp_c", "oil_press_bar", "fuel_press_bar"};
@@ -97,6 +108,33 @@ void test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError() {
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 14.0f, SignalStore::read(SignalIds::kRpm));
     TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::kCoolantTempC));
     TEST_ASSERT_TRUE(errorStoreHolds("EXPR_DEPTH"));
+}
+
+void loadRatioSignal() {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(kConfigPathSignals, kSignalsWithRatioExpr,
+                             strlen(kSignalsWithRatioExpr));
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+    SignalStore::init();
+    CanParser::loadSignalDefinitions();
+}
+
+void test_parseFrame_divisionByAZeroByteIsNotAZeroReading() {
+    loadRatioSignal();
+
+    CanParser::parseFrame(kExprFrameId, kZeroDivisorFrame, sizeof(kZeroDivisorFrame));
+
+    TEST_ASSERT_FALSE(SignalStore::isValid(SignalIds::kOilPressBar));
+}
+
+void test_parseFrame_divisionByAZeroByteKeepsTheLastReading() {
+    loadRatioSignal();
+
+    CanParser::parseFrame(kExprFrameId, kRatioFrame, sizeof(kRatioFrame));
+    CanParser::parseFrame(kExprFrameId, kZeroDivisorFrame, sizeof(kZeroDivisorFrame));
+
+    TEST_ASSERT_TRUE(SignalStore::isValid(SignalIds::kOilPressBar));
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kRatioExpected, SignalStore::read(SignalIds::kOilPressBar));
 }
 
 void test_loadSignalDefinitions_rejectsExpressionsPastThePool() {
@@ -198,5 +236,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_compileExpr_rejectsOperandStackPastTheCap);
     RUN_TEST(test_loadSignalDefinitions_dropsTooDeepExpressionWithConfigError);
     RUN_TEST(test_loadSignalDefinitions_rejectsExpressionsPastThePool);
+    RUN_TEST(test_parseFrame_divisionByAZeroByteIsNotAZeroReading);
+    RUN_TEST(test_parseFrame_divisionByAZeroByteKeepsTheLastReading);
     return UNITY_END();
 }
