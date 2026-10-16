@@ -65,6 +65,7 @@ bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame);
 bool canScanQueueTryReceive(UsbComm::CanScanFrame &out);
 
 void tickChunkTransferTimeout();
+void tickOtaSessionWatch();
 
 void invokeBurnOverlayShow();
 void invokeBurnOverlayShowError(int reason);

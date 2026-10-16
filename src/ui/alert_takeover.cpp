@@ -55,7 +55,7 @@ uint32_t criticalSources(const AlertEngine::AlertState &state) {
 }
 
 int pickCriticalSource(const AlertEngine::AlertState &state) {
-    const uint32_t critical = OtaOverlay::isActive() ? 0 : criticalSources(state);
+    const uint32_t critical = OtaOverlay::suspendsDash() ? 0 : criticalSources(state);
     s_acknowledgedSources = alert_critical_retain_rs(s_acknowledgedSources, critical);
     return alert_critical_first_unacknowledged_rs(critical, s_acknowledgedSources);
 }

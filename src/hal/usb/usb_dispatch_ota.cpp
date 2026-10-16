@@ -4,7 +4,9 @@
 #include "app_config.h"
 #include "diag/logger.h"
 #include "ota_signature_rs.h"
+#include "diag/error_store.h"
 #include "runtime/ota_receiver.h"
+#include "runtime/ota_session_watch.h"
 #include "runtime/pending_actions.h"
 #include "runtime/workshop_mode.h"
 #include "ui/ota_overlay.h"
@@ -25,6 +27,42 @@
 #include <string.h>
 
 namespace {
+
+bool s_sessionFromSocket = false;
+uint32_t s_sessionActivityMs = 0;
+std::atomic<bool> s_socketClosed{false};
+
+void startSessionClock() {
+    s_sessionFromSocket = UsbCommInternal::commandFromSocket();
+    s_sessionActivityMs = millis();
+}
+
+struct VerdictText {
+    OtaSessionWatch::Verdict verdict;
+    const char *reason;
+};
+
+constexpr VerdictText kVerdictTexts[] = {
+    {OtaSessionWatch::Verdict::IdleTimeout, "idle timeout"},
+    {OtaSessionWatch::Verdict::LinkClosed, "tuner socket closed"},
+};
+
+const char *abortReasonFor(OtaSessionWatch::Verdict verdict) {
+    for (const VerdictText &entry : kVerdictTexts) {
+        if (entry.verdict == verdict)
+            return entry.reason;
+    }
+    return nullptr;
+}
+
+void abortInterruptedSession(const char *reason) {
+    LOG_ERROR("OTA", "Update interrupted: %s — keeping the running image", reason);
+    ErrorStore::push(ERROR_SRC_SYSTEM, "OTA_STALL", reason);
+    OtaReceiver::abort(reason);
+    PendingActions::requestOtaOverlayFailed(
+        static_cast<int8_t>(OtaOverlay::FailReason::Interrupted),
+        static_cast<uint32_t>(OtaReceiver::writtenSize()));
+}
 
 bool parseOtaWriteFields(const char *jsonLine, uint32_t *offsetOut, const char **b64Out,
                          size_t *b64LenOut) {
@@ -94,6 +132,7 @@ void handleOtaBegin(const JsonObjectConst &obj) {
         UsbComm::sendError(result.error != nullptr ? result.error : "begin_failed");
         return;
     }
+    startSessionClock();
     PendingActions::requestOtaOverlayShow(total, obj["version"] | "");
     UsbComm::sendOk();
 }
@@ -129,6 +168,7 @@ void handleOtaWriteRaw(char *jsonLine) {
                                                 static_cast<uint32_t>(result.writtenTotal));
         return;
     }
+    s_sessionActivityMs = millis();
     OtaOverlay::setProgress(result.writtenTotal);
     char resp[64];
     snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"written\":%u}",
@@ -162,3 +202,20 @@ void handleOtaEnd(const JsonObjectConst &obj) {
 }
 
 } // namespace UsbCommInternal
+
+#if APP_WORKSHOP_ENABLED
+
+void UsbComm::noteSocketClosed() {
+    s_socketClosed.store(true, std::memory_order_relaxed);
+}
+
+#endif
+
+void UsbCommInternal::tickOtaSessionWatch() {
+    const bool socketClosed = s_socketClosed.exchange(false, std::memory_order_relaxed);
+    const OtaSessionWatch::Session session{OtaReceiver::state() == OtaReceiver::State::Receiving,
+                                           s_sessionFromSocket, s_sessionActivityMs};
+    const char *reason = abortReasonFor(OtaSessionWatch::judge(session, socketClosed, millis()));
+    if (reason != nullptr)
+        abortInterruptedSession(reason);
+}

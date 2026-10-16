@@ -9,6 +9,7 @@ enum class FailReason : int8_t {
     Write = 0,
     Commit,
     Aborted,
+    Interrupted,
 };
 
 void show(size_t totalBytes, const char *targetVersion);
@@ -22,6 +23,8 @@ void showFailed(FailReason reason, uint32_t detailCode);
 void hide();
 
 [[nodiscard]] bool isActive();
+
+[[nodiscard]] bool suspendsDash();
 
 namespace Detail {
 void tick();
