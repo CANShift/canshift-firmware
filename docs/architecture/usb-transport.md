@@ -190,6 +190,7 @@ is one, and the next push rewrites the file flat.
 `PUT_FILE` to `/config/signals.json` is the one chunked file write the
 firmware checks before it lands. The last chunk closes the staged
 `signals.json.tmp`, and `StorageDriver::endChunkedWriteChecked` hands it to
+`ConfigLoader::acceptSignalsUpload`. It grades the file with
 `ConfigLoader::inspectSignalsFile`, a dry run of the boot loader that never
 writes the live table:
 
@@ -197,6 +198,13 @@ writes the live table:
   [Loading signals.json](../reference/signals.md#loading-signalsjson)) deletes
   the staged file and answers one line, `{"status":"error","message":"invalid_signals"}`.
   The live file and its `.bak` are untouched.
+- **A clean file without an `out` block** takes the `out` block of the current
+  `signals.json` before the swap. The tuner cannot read the file back, so a
+  catalog push would otherwise drop the outbound frame IDs set on the device.
+  An upload that carries `out` replaces it. With no current file, or no `out`
+  in it, the upload lands as sent and the baked defaults in
+  `include/can_signals_out.h` apply. When the merge cannot be written, the
+  upload is refused like an invalid one and `SIG_OUT` goes to the error store.
 - **A clean file** is swapped in atomically, which rotates the previous file
   to `signals.json.bak`. Then the dash answers
   `{"status":"ok","rebooting":true}` and restarts, the same reboot-to-apply
