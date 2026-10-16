@@ -61,17 +61,14 @@ pub unsafe extern "C" fn eval_tokens_rs(
     tokens: *const FfiTok,
     n_tokens: usize,
 ) -> f32 {
-    if data.is_null() {
-        return 0.0;
+    if data.is_null() || tokens.is_null() || n_tokens == 0 {
+        return f32::NAN;
     }
     let len = data_len.min(CAN_FRAME_MAX_BYTES);
     let frame = unsafe { slice::from_raw_parts(data, len) };
     let v = decode_bytes(
         frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
     );
-    if tokens.is_null() || n_tokens == 0 {
-        return 0.0;
-    }
     let toks = unsafe { slice::from_raw_parts(tokens, n_tokens) };
     let ctx = EvalContext {
         v,
@@ -132,6 +129,33 @@ mod tests {
             decode_bytes_rs(frame.as_ptr(), 0, 2, false, false, 0, 0.1, 0.0, frame.len())
         };
         assert!((r - 466.0).abs() < 1e-4, "got {r}");
+    }
+
+    #[test]
+    fn ffi_expr_division_by_a_zero_byte_is_rejected() {
+        let frame = [10, 0, 0, 0, 0, 0, 0, 0];
+        let mut toks = [FfiTok {
+            kind: 0,
+            aux: 0,
+            num: 0.0,
+        }; 8];
+        let n = compile_to_ffi(b"V/B3", &mut toks).expect("compiles");
+        let r = unsafe {
+            eval_tokens_rs(
+                frame.as_ptr(),
+                0,
+                1,
+                false,
+                false,
+                0,
+                1.0,
+                0.0,
+                frame.len(),
+                toks.as_ptr(),
+                n,
+            )
+        };
+        assert!(r.is_nan(), "got {r}");
     }
 
     #[test]

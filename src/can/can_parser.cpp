@@ -66,6 +66,12 @@ bool resolveRefs(const RuntimeSignal &sig, RefValueRs *out) {
     return true;
 }
 
+void storeReading(SignalId id, float value) {
+    if (!std::isfinite(value))
+        return;
+    SignalStore::update(id, value);
+}
+
 void evalCrossSignal(const RuntimeSignal &sig, const uint8_t *data, uint8_t length) {
     RefValueRs refs[kCfgMaxExprRefs] = {};
     if (!resolveRefs(sig, refs))
@@ -73,9 +79,7 @@ void evalCrossSignal(const RuntimeSignal &sig, const uint8_t *data, uint8_t leng
     const float val = eval_tokens_refs_rs(
         data, sig.startByte, sig.byteLength, sig.bigEndian, sig.isSigned, sig.bitMask, sig.scale,
         sig.offset, length, s_exprPool + sig.tokenOffset, sig.tokenCount, refs, sig.refCount);
-    if (std::isnan(val))
-        return;
-    SignalStore::update(sig.signalId, val);
+    storeReading(sig.signalId, val);
 }
 
 struct ExprRejection {
@@ -207,7 +211,7 @@ void CanParser::parseFrame(uint32_t frameId, const uint8_t *data, uint8_t length
                          : eval_tokens_rs(data, sig.startByte, sig.byteLength, sig.bigEndian,
                                           sig.isSigned, sig.bitMask, sig.scale, sig.offset, length,
                                           s_exprPool + sig.tokenOffset, sig.tokenCount);
-        SignalStore::update(sig.signalId, val);
+        storeReading(sig.signalId, val);
     }
 
     for (; it != end && it->canFrameId == frameId; ++it) {

@@ -111,7 +111,7 @@ fn run_ffi(tokens: &[FfiTok], ctx: &EvalContext, missing: MissingRef) -> Option<
 
 #[must_use]
 pub fn eval_ffi(tokens: &[FfiTok], ctx: &EvalContext) -> f32 {
-    run_ffi(tokens, ctx, MissingRef::ReadsNan).unwrap_or(0.0)
+    run_ffi(tokens, ctx, MissingRef::ReadsNan).unwrap_or(f32::NAN)
 }
 
 #[must_use]
@@ -170,6 +170,20 @@ mod tests {
     }
 
     #[test]
+    fn division_by_a_zero_byte_is_rejected() {
+        let bytes = [0u8, 0, 0, 0, 0, 0, 0, 0];
+        let c = EvalContext {
+            refs: &[],
+            v: 42.0,
+            bytes: &bytes,
+        };
+        let (toks, n) = compiled(b"V/B3").expect("compiles");
+        assert!(eval_ffi(&toks[..n], &c).is_nan());
+        let (toks, n) = compiled(b"B3/B3").expect("compiles");
+        assert!(eval_ffi(&toks[..n], &c).is_nan());
+    }
+
+    #[test]
     fn corrupt_tokens_evaluate_to_the_failure_value() {
         let c = EvalContext {
             refs: &[],
@@ -177,11 +191,11 @@ mod tests {
             bytes: &[],
         };
         let bad_op = [ffi_tok(STEP_V, 0, 0.0), ffi_tok(STEP_UNARY, 99, 0.0)];
-        assert_eq!(eval_ffi(&bad_op, &c), 0.0);
+        assert!(eval_ffi(&bad_op, &c).is_nan());
         assert!(eval_ffi_checked(&bad_op, &c).is_nan());
         let underflow = [ffi_tok(STEP_BINARY, Binary::Add as u8, 0.0)];
-        assert_eq!(eval_ffi(&underflow, &c), 0.0);
-        assert_eq!(eval_ffi(&[], &c), 0.0);
+        assert!(eval_ffi(&underflow, &c).is_nan());
+        assert!(eval_ffi(&[], &c).is_nan());
     }
 
     #[test]

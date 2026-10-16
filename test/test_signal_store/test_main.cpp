@@ -2,6 +2,7 @@
 #include "runtime/signal_store.h"
 
 #include <Arduino.h>
+#include <cmath>
 #include <unity.h>
 
 namespace {
@@ -100,6 +101,24 @@ void test_tryRead_rejectsOutOfRangeIdAndNullOut() {
     TEST_ASSERT_FALSE(SignalStore::tryRead(kTestSignalId, nullptr));
 }
 
+void test_update_ignoresNonFiniteValues() {
+    SignalStore::update(kTestSignalId, NAN);
+    TEST_ASSERT_FALSE(SignalStore::isValid(kTestSignalId));
+
+    SignalStore::update(kTestSignalId, kTestSignalValue);
+    SignalStore::update(kTestSignalId, INFINITY);
+    SignalStore::update(kTestSignalId, -INFINITY);
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kTestSignalValue, SignalStore::read(kTestSignalId));
+    SignalStore::SignalValue snap[kSignalStoreMaxSignals];
+    SignalStore::snapshotAll(snap);
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kTestSignalValue, snap[kTestSignalId].smoothed);
+}
+
+void test_set_ignoresNonFiniteValues() {
+    SignalStore::set(kTestSignalId, NAN);
+    TEST_ASSERT_FALSE(SignalStore::isValid(kTestSignalId));
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_set_then_get_returnsValue_andValid);
@@ -109,5 +128,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_set_repeated_toggles_stay_binary);
     RUN_TEST(test_tryRead_reportsValidityAndValue);
     RUN_TEST(test_tryRead_rejectsOutOfRangeIdAndNullOut);
+    RUN_TEST(test_update_ignoresNonFiniteValues);
+    RUN_TEST(test_set_ignoresNonFiniteValues);
     return UNITY_END();
 }
