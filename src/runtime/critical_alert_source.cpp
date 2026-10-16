@@ -53,7 +53,7 @@ AlertEngine::AlertLevel CriticalAlertSource::step(const SignalStore::SignalValue
     if (!reading.valid)
         return AlertEngine::AlertLevel::NORMAL;
     return static_cast<AlertEngine::AlertLevel>(
-        alert_critical_alert_step_rs(&s_hold, reading.smoothed, s_armed.firesAt, s_armed.below, now,
+        alert_critical_alert_step_rs(&s_hold, reading.raw, s_armed.firesAt, s_armed.below, now,
                                      kAlertHysteresisPct, kAlertMinActiveMs));
 }
 

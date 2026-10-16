@@ -96,7 +96,7 @@ void refreshValue(const AlertSources::CriticalSource &src) {
 
 void formatContext(char *out, size_t outLen, const AlertSources::CriticalSource &src) {
     const int rpm = static_cast<int>(lroundf(SignalStore::read(SignalIds::kRpm)));
-    const AlertEngine::CriticalLimit limit = src.limitFor(src.id, SignalStore::read(src.id));
+    const AlertEngine::CriticalLimit limit = src.limitFor(src.id, SignalStore::readRaw(src.id));
     if (!limit.valid) {
         snprintf(out, outLen, "AT %d rpm", rpm);
         return;

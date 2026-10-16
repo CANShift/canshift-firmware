@@ -38,6 +38,16 @@ bool acceptsValue(SignalId id, float value) {
     return false;
 }
 
+float readField(SignalId id, float SignalStore::SignalValue::*field, float defaultValue) {
+    if (!idValid(id))
+        return defaultValue;
+
+    portENTER_CRITICAL(&s_signalsMux);
+    const float result = s_signals[id].valid ? s_signals[id].*field : defaultValue;
+    portEXIT_CRITICAL(&s_signalsMux);
+    return result;
+}
+
 } // namespace
 
 void SignalStore::init() {
@@ -91,13 +101,11 @@ void SignalStore::set(SignalId id, float value) {
 }
 
 float SignalStore::read(SignalId id, float defaultValue) {
-    if (!idValid(id))
-        return defaultValue;
+    return readField(id, &SignalValue::smoothed, defaultValue);
+}
 
-    portENTER_CRITICAL(&s_signalsMux);
-    float result = s_signals[id].valid ? s_signals[id].smoothed : defaultValue;
-    portEXIT_CRITICAL(&s_signalsMux);
-    return result;
+float SignalStore::readRaw(SignalId id, float defaultValue) {
+    return readField(id, &SignalValue::raw, defaultValue);
 }
 
 bool SignalStore::isValid(SignalId id) {

@@ -50,7 +50,7 @@ void syncSharedSignal(const CfgInputBinding &b) {
     const SignalId sid = signalIdFromName(b.signal);
     if (sid >= SignalIds::kSignalCount)
         return;
-    const float current = SignalStore::read(sid, 0.0f);
+    const float current = SignalStore::readRaw(sid, 0.0f);
     SignalStore::set(sid, current != 0.0f ? 0.0f : 1.0f);
 }
 

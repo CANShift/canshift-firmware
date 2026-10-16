@@ -29,7 +29,7 @@ microseconds at most.
 ```cpp
 struct SignalValue {
     float raw;                // last sample as decoded by CanParser
-    float smoothed;           // EMA-filtered value (gauges read this)
+    float smoothed;           // EMA-filtered value (visual-only readers)
     uint32_t lastUpdateMs;    // millis() at last update()
     bool valid;               // false until the first sample arrives
 };
@@ -54,9 +54,17 @@ new_smoothed = valid
 ```
 
 The first sample seeds `smoothed = value` to avoid a slow climb from 0.
-The gauge widget reads `smoothed`; the label widget and warning widget
-read `raw` so threshold crossings fire on the actual sample, not the
-filtered tail.
+
+Every decision reads `raw` — `SignalStore::readRaw()` or `.raw` on a
+snapshot: ECU flags, levels and control guards (`control_status.cpp`,
+top-bar mode flags, day/night, workshop-mode speed gate, input-binding
+toggles) and the alert engine, built-in and user critical alert alike.
+`smoothed` decays as 0.8ⁿ and never returns to exactly 0, so a `!= 0`
+test on it keeps a dropped flag lit, and a threshold on it delays a real
+fault and filters a short one. Debouncing belongs to the alert hold
+(hysteresis band + minimum active time), not to the EMA. `smoothed` is
+left only where it is purely visual, such as the shift-light strip and
+the rev-limiter blink.
 
 ## `set(id, value)` — bypass the EMA
 
@@ -70,9 +78,8 @@ same value without EMA blending. Used by:
   immediately instead of waiting for the ECU echo (#1285).
 - Input bindings that target a signal directly (#833).
 
-The EMA path was wrong for boolean signals — `read()` returned
-fractional values like 0.3 after a few EMA steps, and `!= 0.0` was
-always true → the toggle got stuck pushing 0.
+Flag readers use `readRaw()`, so a toggle written by `set()` and a flag
+echoed by the ECU through `update()` both read back exactly.
 
 ## `checkTimeouts()` — stale invalidation
 
