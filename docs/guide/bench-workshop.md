@@ -89,14 +89,15 @@ memory budget.
 
 ## 5. The tuner over Wi-Fi
 
-| Do                                               | Observe                                                                                                                                   | Log |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| Open `http://canshift.local` on the laptop       | the tuner loads (or the probe page, if the release pinned no tuner bundle)                                                                | —   |
-| Open `http://192.168.4.1` on the iPhone          | the same                                                                                                                                  | —   |
-| Open devtools → Network on the laptop and reload | every asset `200`, with `Content-Encoding: gzip` and the right `Content-Type`; no CSP errors in the console                               | —   |
-| Reload on `/vehicle`                             | the tuner comes back on that tab                                                                                                          | —   |
-| `curl -sI http://192.168.4.1/nope.js`            | `404`                                                                                                                                     | —   |
-| `curl -sI http://192.168.4.1/`                   | `Content-Security-Policy: default-src 'self'`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` | —   |
+| Do                                                              | Observe                                                                                                                                   | Log                                           |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Open `http://canshift.local` on the laptop                      | the tuner loads (or the probe page, if the release pinned no tuner bundle)                                                                | —                                             |
+| Open `http://192.168.4.1` on the iPhone                         | the same                                                                                                                                  | —                                             |
+| Open devtools → Network on the laptop and reload                | every asset `200`, with `Content-Encoding: gzip` and the right `Content-Type`; no CSP errors in the console                               | —                                             |
+| Reload on `/vehicle`                                            | the tuner comes back on that tab                                                                                                          | —                                             |
+| `curl -sI http://192.168.4.1/nope.js`                           | `404`                                                                                                                                     | —                                             |
+| `curl -sI http://192.168.4.1/`                                  | `Content-Security-Policy: default-src 'self'`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` | —                                             |
+| `websocat -H 'Origin: http://evil.example' ws://192.168.4.1/ws` | the connection is closed at once with status 1008; the tuner page itself stays connected                                                  | `WORKSHOP: Socket N refused — foreign Origin` |
 
 ## 6. The socket
 

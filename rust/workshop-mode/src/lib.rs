@@ -6,6 +6,7 @@ mod ffi;
 mod credentials;
 mod join_payload;
 mod motion;
+mod origin;
 mod tuner_assets;
 
 pub use credentials::{
@@ -16,6 +17,7 @@ pub use join_payload::{join_payload, WORKSHOP_JOIN_PAYLOAD_CAP};
 pub use motion::{
     motion_exit_due, moving, MotionWatch, WORKSHOP_MOTION_EXIT_KPH, WORKSHOP_MOTION_EXIT_MS,
 };
+pub use origin::origin_allowed;
 pub use tuner_assets::{
     content_type, spa_route, tuner_path, DEFAULT_CONTENT_TYPE, WORKSHOP_TUNER_PATH_CAP,
 };

@@ -23,7 +23,6 @@ namespace {
 constexpr uint8_t kChannel = 6;
 constexpr uint8_t kMaxStations = 2;
 constexpr bool kHiddenNetwork = false;
-constexpr char kHostName[] = "canshift";
 constexpr uint16_t kHttpPort = 80;
 constexpr uint32_t kStartStackBytes = 8192;
 constexpr UBaseType_t kStartPriority = 2;
@@ -39,12 +38,13 @@ bool startAccessPoint(const WorkshopCredentials &creds) {
 }
 
 void startMdns() {
-    if (!MDNS.begin(kHostName) || !MDNS.addService(String("http"), String("tcp"), kHttpPort)) {
+    if (!MDNS.begin(WorkshopServerInternal::kHostName) ||
+        !MDNS.addService(String("http"), String("tcp"), kHttpPort)) {
         LOG_WARN("WORKSHOP", "mDNS unavailable — the tuner is at http://%s",
                  WiFi.softAPIP().toString().c_str());
         return;
     }
-    LOG_INFO("WORKSHOP", "Answering as http://%s.local", kHostName);
+    LOG_INFO("WORKSHOP", "Answering as http://%s.local", WorkshopServerInternal::kHostName);
 }
 
 void start() {

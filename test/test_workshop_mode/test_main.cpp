@@ -138,6 +138,19 @@ void test_aNullWatchNeverLeaves() {
     TEST_ASSERT_FALSE(workshop_motion_exit_due_rs(nullptr, true, 80.0f, 1000));
 }
 
+void test_socketOriginAllowsTheDashAndNonBrowserClientsOnly() {
+    const char *apIp = "192.168.4.1";
+    const char *host = "canshift";
+    TEST_ASSERT_TRUE(workshop_origin_allowed_rs(nullptr, apIp, host));
+    TEST_ASSERT_TRUE(workshop_origin_allowed_rs("http://192.168.4.1", apIp, host));
+    TEST_ASSERT_TRUE(workshop_origin_allowed_rs("http://canshift.local", apIp, host));
+    TEST_ASSERT_FALSE(workshop_origin_allowed_rs("http://evil.example", apIp, host));
+    TEST_ASSERT_FALSE(workshop_origin_allowed_rs("http://localhost:5173", apIp, host));
+    TEST_ASSERT_FALSE(workshop_origin_allowed_rs("https://192.168.4.1", apIp, host));
+    TEST_ASSERT_FALSE(workshop_origin_allowed_rs("null", apIp, host));
+    TEST_ASSERT_FALSE(workshop_origin_allowed_rs("", apIp, host));
+}
+
 } // namespace
 
 void setUp() {}
@@ -162,5 +175,6 @@ int main() {
     RUN_TEST(test_crawlingBelowTheThresholdStays);
     RUN_TEST(test_aStaleSpeedNeverLeaves);
     RUN_TEST(test_aNullWatchNeverLeaves);
+    RUN_TEST(test_socketOriginAllowsTheDashAndNonBrowserClientsOnly);
     return UNITY_END();
 }
