@@ -157,6 +157,14 @@ void AlertTakeover::update() {
     refreshContext(AlertSources::at(static_cast<size_t>(critical)));
 }
 
+void AlertTakeover::reset() {
+    s_ackRequested.store(false, std::memory_order_relaxed);
+    s_ackRequestedSources.store(0, std::memory_order_relaxed);
+    s_criticalSources = 0;
+    s_acknowledgedSources = 0;
+    hideLayer();
+}
+
 bool AlertTakeover::isActive() {
     return s_activeFlag.load(std::memory_order_relaxed);
 }

@@ -1,12 +1,14 @@
 
 #include "page_manager_internal.h"
 
+#include "alert_takeover.h"
 #include "bus_silent_line.h"
 #include "burn_overlay.h"
 #include "cut_band.h"
 #include "error_bar.h"
 #include "icon_assets.h"
 #include "dash_metrics.h"
+#include "day_night_auto.h"
 #include "theme_manager.h"
 #include "theme_tokens.h"
 #include "top_bar.h"
@@ -16,6 +18,7 @@
 #include "widgets/cruise_control_widget.h"
 
 #include "config/config_loader.h"
+#include "runtime/alert_engine.h"
 #include "diag/logger.h"
 
 #include <esp_heap_caps.h>
@@ -223,6 +226,17 @@ void reapplyThemeAllPages() {
 
 } // namespace PageManagerInternal
 
+namespace {
+
+void rearmConfigConsumers() {
+    AlertEngine::init();
+    AlertTakeover::reset();
+    ThemeManager::init();
+    DayNightAuto::init();
+}
+
+} // namespace
+
 void PageManager::reloadFromStorage() {
     using namespace PageManagerInternal;
 
@@ -244,7 +258,7 @@ void PageManager::reloadFromStorage() {
         return;
     }
 
-    ThemeManager::init();
+    rearmConfigConsumers();
     TopBar::rebuild();
     buildPageList();
 
