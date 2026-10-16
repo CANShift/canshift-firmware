@@ -8,6 +8,8 @@ void init();
 
 void update();
 
+void reset();
+
 bool isActive();
 
 void requestAcknowledge();

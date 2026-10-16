@@ -7,6 +7,7 @@
 #include "diag/logger.h"
 #include "alert_engine_rs.h"
 #include "critical_alert_source.h"
+#include "util/format_float.h"
 
 #include <Arduino.h>
 #include <cmath>
@@ -16,24 +17,38 @@ static AlertEngine::AlertState s_state = {};
 static uint32_t s_revLimiterSinceMs = 0;
 static bool s_revLimiterEngaged = false;
 
-static float s_revLimitRpm = 7200.0f;
+struct Thresholds {
+    float warn;
+    float crit;
+    float highWarn;
+    float highCrit;
+};
 
-static float s_coolantWarnC = 100.0f;
-static float s_coolantCritC = 110.0f;
-static float s_coolantHighWarnC = NAN;
-static float s_coolantHighCritC = NAN;
-static float s_oilTempWarnC = 120.0f;
-static float s_oilTempCritC = 135.0f;
-static float s_oilTempHighWarnC = NAN;
-static float s_oilTempHighCritC = NAN;
-static float s_oilPressWarnBar = 1.5f;
-static float s_oilPressCritBar = 1.0f;
-static float s_oilPressHighWarnBar = NAN;
-static float s_oilPressHighCritBar = NAN;
-static float s_batteryLowWarnV = kBatteryDefaultLowWarnV;
-static float s_batteryLowCritV = kBatteryDefaultLowCritV;
-static float s_batteryHighWarnV = kBatteryDefaultHighWarnV;
-static float s_batteryHighCritV = kBatteryDefaultHighCritV;
+constexpr float kDefaultRevLimitRpm = 7200.0f;
+constexpr Thresholds kCoolantDefaults = {100.0f, 110.0f, NAN, NAN};
+constexpr Thresholds kOilTempDefaults = {120.0f, 135.0f, NAN, NAN};
+constexpr Thresholds kOilPressureDefaults = {1.5f, 1.0f, NAN, NAN};
+constexpr Thresholds kBatteryDefaults = {kBatteryDefaultLowWarnV, kBatteryDefaultLowCritV,
+                                         kBatteryDefaultHighWarnV, kBatteryDefaultHighCritV};
+
+static float s_revLimitRpm = kDefaultRevLimitRpm;
+
+static float s_coolantWarnC = kCoolantDefaults.warn;
+static float s_coolantCritC = kCoolantDefaults.crit;
+static float s_coolantHighWarnC = kCoolantDefaults.highWarn;
+static float s_coolantHighCritC = kCoolantDefaults.highCrit;
+static float s_oilTempWarnC = kOilTempDefaults.warn;
+static float s_oilTempCritC = kOilTempDefaults.crit;
+static float s_oilTempHighWarnC = kOilTempDefaults.highWarn;
+static float s_oilTempHighCritC = kOilTempDefaults.highCrit;
+static float s_oilPressWarnBar = kOilPressureDefaults.warn;
+static float s_oilPressCritBar = kOilPressureDefaults.crit;
+static float s_oilPressHighWarnBar = kOilPressureDefaults.highWarn;
+static float s_oilPressHighCritBar = kOilPressureDefaults.highCrit;
+static float s_batteryLowWarnV = kBatteryDefaults.warn;
+static float s_batteryLowCritV = kBatteryDefaults.crit;
+static float s_batteryHighWarnV = kBatteryDefaults.highWarn;
+static float s_batteryHighCritV = kBatteryDefaults.highCrit;
 
 namespace {
 
@@ -65,13 +80,18 @@ SensorHealthSlot s_sensorHealth[] = {
     {"battery", SignalIds::kBatteryVolts, &AlertEngine::AlertState::batterySensorLost, {}},
 };
 
+struct TempLimits {
+    float warnC;
+    float critC;
+};
+
 struct DeclaredTempSource {
     const char *name;
     SignalId id;
     AlertEngine::AlertLevel AlertEngine::AlertState::*level;
     bool AlertEngine::AlertState::*lost;
-    float warnC;
-    float critC;
+    TempLimits defaults;
+    TempLimits limits;
     AlertLevelHoldRs hold;
     AlertSensorHealthRs health;
     bool declared;
@@ -82,8 +102,8 @@ DeclaredTempSource s_declaredTemps[] = {
      SignalIds::kGearboxTempC,
      &AlertEngine::AlertState::gearboxTemp,
      &AlertEngine::AlertState::gearboxSensorLost,
-     120.0f,
-     140.0f,
+     {120.0f, 140.0f},
+     {},
      {},
      {},
      false},
@@ -91,8 +111,8 @@ DeclaredTempSource s_declaredTemps[] = {
      SignalIds::kDiffTempC,
      &AlertEngine::AlertState::diffTemp,
      &AlertEngine::AlertState::diffSensorLost,
-     120.0f,
-     140.0f,
+     {120.0f, 140.0f},
+     {},
      {},
      {},
      false},
@@ -100,8 +120,8 @@ DeclaredTempSource s_declaredTemps[] = {
      SignalIds::kEgtC,
      &AlertEngine::AlertState::exhaustTemp,
      &AlertEngine::AlertState::exhaustSensorLost,
-     950.0f,
-     1000.0f,
+     {950.0f, 1000.0f},
+     {},
      {},
      {},
      false},
@@ -179,9 +199,9 @@ void bindDeclaredTemp(const CfgSignalDef &def) {
             continue;
         src.declared = true;
         if (!std::isnan(def.warningLevel))
-            src.warnC = def.warningLevel;
+            src.limits.warnC = def.warningLevel;
         if (!std::isnan(def.dangerLevel))
-            src.critC = def.dangerLevel;
+            src.limits.critC = def.dangerLevel;
         return;
     }
 }
@@ -195,10 +215,91 @@ void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
         s_state.*(src.lost) = src.health.lost;
         const float value = snap[src.id].valid ? snap[src.id].raw : 0.0f;
         const auto level = static_cast<AlertEngine::AlertLevel>(
-            alert_high_side_temp_step_rs(&src.hold, value, src.warnC, src.critC, NAN, NAN, now,
-                                         kAlertHysteresisPct, kAlertMinActiveMs));
+            alert_high_side_temp_step_rs(&src.hold, value, src.limits.warnC, src.limits.critC, NAN,
+                                         NAN, now, kAlertHysteresisPct, kAlertMinActiveMs));
         s_state.*(src.level) = withSensorLost(level, src.health.lost);
     }
+}
+
+struct ThresholdBinding {
+    const char *name;
+    float *warn;
+    float *crit;
+    float *highWarn;
+    float *highCrit;
+    Thresholds defaults;
+};
+
+constexpr ThresholdBinding kBindings[] = {
+    {"coolant_temp_c", &s_coolantWarnC, &s_coolantCritC, &s_coolantHighWarnC, &s_coolantHighCritC,
+     kCoolantDefaults},
+    {"oil_temp_c", &s_oilTempWarnC, &s_oilTempCritC, &s_oilTempHighWarnC, &s_oilTempHighCritC,
+     kOilTempDefaults},
+    {"oil_press_bar", &s_oilPressWarnBar, &s_oilPressCritBar, &s_oilPressHighWarnBar,
+     &s_oilPressHighCritBar, kOilPressureDefaults},
+    {"battery_volts", &s_batteryLowWarnV, &s_batteryLowCritV, &s_batteryHighWarnV,
+     &s_batteryHighCritV, kBatteryDefaults},
+};
+
+void resetSignalBindings() {
+    for (const ThresholdBinding &b : kBindings) {
+        *b.warn = b.defaults.warn;
+        *b.crit = b.defaults.crit;
+        *b.highWarn = b.defaults.highWarn;
+        *b.highCrit = b.defaults.highCrit;
+    }
+    for (DeclaredTempSource &src : s_declaredTemps) {
+        src.limits = src.defaults;
+        src.declared = false;
+        src.hold = {};
+        src.health = {};
+    }
+}
+
+void overrideIfSet(float *slot, float configured) {
+    if (!std::isnan(configured))
+        *slot = configured;
+}
+
+void bindThresholds(const CfgSignalDef &def) {
+    for (const ThresholdBinding &b : kBindings) {
+        if (strcmp(def.name, b.name) != 0)
+            continue;
+        overrideIfSet(b.warn, def.warningLevel);
+        overrideIfSet(b.crit, def.dangerLevel);
+        overrideIfSet(b.highWarn, def.highWarningLevel);
+        overrideIfSet(b.highCrit, def.highDangerLevel);
+        return;
+    }
+}
+
+constexpr int kWholeDecimals = 0;
+constexpr int kHundredthsDecimals = 2;
+
+struct FixedText {
+    char text[16];
+};
+
+FixedText fixed(float value, int decimals) {
+    FixedText out = {};
+    FloatFormat::formatFixed(out.text, sizeof(out.text), value, decimals);
+    return out;
+}
+
+void logThresholds() {
+    LOG_INFO("ALERT",
+             "Alert engine initialized (revLimit=%s RPM, coolant warn=%s crit=%s, "
+             "oilT warn=%s crit=%s, oilP warn=%s crit=%s, "
+             "batt lowWarn=%s lowCrit=%s highWarn=%s highCrit=%s)",
+             fixed(s_revLimitRpm, kWholeDecimals).text, fixed(s_coolantWarnC, kWholeDecimals).text,
+             fixed(s_coolantCritC, kWholeDecimals).text, fixed(s_oilTempWarnC, kWholeDecimals).text,
+             fixed(s_oilTempCritC, kWholeDecimals).text,
+             fixed(s_oilPressWarnBar, kHundredthsDecimals).text,
+             fixed(s_oilPressCritBar, kHundredthsDecimals).text,
+             fixed(s_batteryLowWarnV, kHundredthsDecimals).text,
+             fixed(s_batteryLowCritV, kHundredthsDecimals).text,
+             fixed(s_batteryHighWarnV, kHundredthsDecimals).text,
+             fixed(s_batteryHighCritV, kHundredthsDecimals).text);
 }
 
 AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
@@ -221,78 +322,25 @@ void AlertEngine::init() {
     s_batteryHold = {};
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
-    if (dash.loaded && dash.revLimitRpm > 0.0f)
-        s_revLimitRpm = dash.revLimitRpm;
+    s_revLimitRpm = dash.loaded && dash.revLimitRpm > 0.0f ? dash.revLimitRpm : kDefaultRevLimitRpm;
     CriticalAlertSource::init(dash.criticalAlert);
 
-    struct ThresholdBinding {
-        const char *name;
-        float *warn;
-        float *crit;
-        float *highWarn;
-        float *highCrit;
-    };
-    static constexpr ThresholdBinding kBindings[] = {
-        {"coolant_temp_c", &s_coolantWarnC, &s_coolantCritC, &s_coolantHighWarnC,
-         &s_coolantHighCritC},
-        {"oil_temp_c", &s_oilTempWarnC, &s_oilTempCritC, &s_oilTempHighWarnC, &s_oilTempHighCritC},
-        {"oil_press_bar", &s_oilPressWarnBar, &s_oilPressCritBar, &s_oilPressHighWarnBar,
-         &s_oilPressHighCritBar},
-        {"battery_volts", &s_batteryLowWarnV, &s_batteryLowCritV, &s_batteryHighWarnV,
-         &s_batteryHighCritV},
-    };
-
+    resetSignalBindings();
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
-    for (DeclaredTempSource &src : s_declaredTemps) {
-        src.declared = false;
-        src.hold = {};
-        src.health = {};
-    }
     for (uint8_t i = 0; i < sigCfg.signalCount; i++) {
-        const CfgSignalDef &def = sigCfg.signals[i];
-        bindDeclaredTemp(def);
-        for (const ThresholdBinding &b : kBindings) {
-            if (strcmp(def.name, b.name) != 0)
-                continue;
-            if (!std::isnan(def.warningLevel))
-                *b.warn = def.warningLevel;
-            if (!std::isnan(def.dangerLevel))
-                *b.crit = def.dangerLevel;
-            if (!std::isnan(def.highWarningLevel))
-                *b.highWarn = def.highWarningLevel;
-            if (!std::isnan(def.highDangerLevel))
-                *b.highCrit = def.highDangerLevel;
-            break;
-        }
+        bindDeclaredTemp(sigCfg.signals[i]);
+        bindThresholds(sigCfg.signals[i]);
     }
 
-    auto x100 = [](float v) { return static_cast<int>(lroundf(v * 100.0f)); };
-    const int revLimit = static_cast<int>(lroundf(s_revLimitRpm));
-    const int coolantWarn = static_cast<int>(lroundf(s_coolantWarnC));
-    const int coolantCrit = static_cast<int>(lroundf(s_coolantCritC));
-    const int oilTempWarn = static_cast<int>(lroundf(s_oilTempWarnC));
-    const int oilTempCrit = static_cast<int>(lroundf(s_oilTempCritC));
-    const int oilPressWarn100 = x100(s_oilPressWarnBar);
-    const int oilPressCrit100 = x100(s_oilPressCritBar);
-    const int battLow100 = x100(s_batteryLowWarnV);
-    const int battLowCrit100 = x100(s_batteryLowCritV);
-    const int battHigh100 = x100(s_batteryHighWarnV);
-    const int battHighCrit100 = x100(s_batteryHighCritV);
-    LOG_INFO("ALERT",
-             "Alert engine initialized (revLimit=%d RPM, coolant warn=%d crit=%d, "
-             "oilT warn=%d crit=%d, oilP warn=%d.%02d crit=%d.%02d, "
-             "batt lowWarn=%d.%02d lowCrit=%d.%02d highWarn=%d.%02d highCrit=%d.%02d)",
-             revLimit, coolantWarn, coolantCrit, oilTempWarn, oilTempCrit, oilPressWarn100 / 100,
-             oilPressWarn100 % 100, oilPressCrit100 / 100, oilPressCrit100 % 100, battLow100 / 100,
-             battLow100 % 100, battLowCrit100 / 100, battLowCrit100 % 100, battHigh100 / 100,
-             battHigh100 % 100, battHighCrit100 / 100, battHighCrit100 % 100);
+    logThresholds();
     for (const DeclaredTempSource &src : s_declaredTemps) {
         if (!src.declared) {
             LOG_INFO("ALERT", "%s not in the signal catalogue — no alert armed", src.name);
             continue;
         }
-        LOG_INFO("ALERT", "%s armed (warn=%d crit=%d)", src.name,
-                 static_cast<int>(lroundf(src.warnC)), static_cast<int>(lroundf(src.critC)));
+        LOG_INFO("ALERT", "%s armed (warn=%s crit=%s)", src.name,
+                 fixed(src.limits.warnC, kWholeDecimals).text,
+                 fixed(src.limits.critC, kWholeDecimals).text);
     }
 }
 
@@ -341,7 +389,7 @@ AlertEngine::CriticalLimit AlertEngine::criticalLimitFor(SignalId id, float read
         if (src.id != id || !src.declared)
             continue;
         AlertCrossedLimitRs out = {};
-        alert_crossed_limit_rs(&out, reading, src.critC, false, NAN);
+        alert_crossed_limit_rs(&out, reading, src.limits.critC, false, NAN);
         return {out.limit, out.below, out.valid};
     }
     for (const CriticalLimitBinding &b : kCriticalLimits) {
