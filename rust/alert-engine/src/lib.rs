@@ -3,6 +3,8 @@
 pub mod cuts;
 
 #[cfg(feature = "ffi")]
+mod critical_ack_ffi;
+#[cfg(feature = "ffi")]
 mod cuts_ffi;
 #[cfg(feature = "ffi")]
 mod ffi;
@@ -10,6 +12,8 @@ mod ffi;
 pub mod bus_silence;
 
 pub mod critical_alert;
+
+pub mod critical_ack;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]

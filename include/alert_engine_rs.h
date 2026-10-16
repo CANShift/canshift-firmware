@@ -140,6 +140,15 @@ uint8_t cut_band_rows_rs(const CutBandStateRs *state, uint32_t now_ms, CutRowRs 
 
 const char *cut_kind_name_rs(uint8_t kind);
 
+enum { kAlertCriticalNoSource = -1 };
+enum { kAlertCriticalSourceCapacity = 32 };
+
+uint32_t alert_critical_acknowledge_rs(uint32_t acknowledged, int8_t source);
+
+uint32_t alert_critical_retain_rs(uint32_t acknowledged, uint32_t critical);
+
+int8_t alert_critical_first_unacknowledged_rs(uint32_t critical, uint32_t acknowledged);
+
 #ifdef __cplusplus
 }
 #endif
