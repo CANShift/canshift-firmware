@@ -21,6 +21,16 @@ constexpr const char *kRpmTable = R"({"version":"1.0.0","signals":[
 constexpr const char *kBoostTable = R"({"version":"1.0.0","signals":[
   {"name":"boost","canFrameId":"0x371","startByte":0,"byteLength":2,"timeoutMs":1000}]})";
 
+constexpr const char *kRpmTableOut610 = R"({"version":"1.0.0","out":{"map_switch":{"id":"0x610"}},
+  "signals":[{"name":"rpm","canFrameId":"0x370","startByte":0,"byteLength":2,"timeoutMs":1000}]})";
+
+constexpr const char *kBoostTableOut620 = R"({"version":"1.0.0","out":{"map_switch":{"id":"0x620"}},
+  "signals":[{"name":"boost","canFrameId":"0x371","startByte":0,"byteLength":2,"timeoutMs":1000}]})";
+
+constexpr uint32_t kCurrentMapSwitchId = 0x610;
+constexpr uint32_t kIncomingMapSwitchId = 0x620;
+constexpr uint32_t kBakedDefaultMapSwitchId = 0;
+
 constexpr const char *kTruncated = R"({"version":"1.0.0","signals":[{"name":"rpm")";
 
 constexpr const char *kNoSignalList = R"({"version":"1.0.0","signals":"rpm"})";
@@ -64,15 +74,16 @@ const char *firstSignalName() {
     return ConfigLoader::getSignalConfig().signals[0].name;
 }
 
-bool acceptSignals(const char *stagedPath) {
-    return ConfigLoader::inspectSignalsFile(stagedPath) == Verdict::Ok;
+uint32_t loadedMapSwitchId() {
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
+    return ConfigLoader::getSignalConfig().out.mapSwitchFrameId;
 }
 
 StorageDriver::ChunkCommit upload(const char *json) {
     TEST_ASSERT_TRUE(StorageDriver::beginChunkedWriteAtomic(kConfigPathSignals));
     TEST_ASSERT_TRUE(
         StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(json), strlen(json)));
-    return StorageDriver::endChunkedWriteChecked(acceptSignals);
+    return StorageDriver::endChunkedWriteChecked(ConfigLoader::acceptSignalsUpload);
 }
 
 } // namespace
@@ -188,6 +199,36 @@ void test_anAcceptedUploadRotatesThePreviousFileToTheBackup() {
     TEST_ASSERT_TRUE(fileHolds(kSignalsBakPath, kRpmTable));
 }
 
+void test_anUploadWithoutOutKeepsTheCurrentOut() {
+    stage(kConfigPathSignals, kRpmTableOut610);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StorageDriver::ChunkCommit::Committed),
+                            static_cast<uint8_t>(upload(kBoostTable)));
+    TEST_ASSERT_EQUAL_HEX32(kCurrentMapSwitchId, loadedMapSwitchId());
+    TEST_ASSERT_EQUAL_STRING("boost", firstSignalName());
+}
+
+void test_anUploadWithOutReplacesTheCurrentOut() {
+    stage(kConfigPathSignals, kRpmTableOut610);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StorageDriver::ChunkCommit::Committed),
+                            static_cast<uint8_t>(upload(kBoostTableOut620)));
+    TEST_ASSERT_TRUE(fileHolds(kConfigPathSignals, kBoostTableOut620));
+    TEST_ASSERT_EQUAL_HEX32(kIncomingMapSwitchId, loadedMapSwitchId());
+}
+
+void test_anUploadWithoutOutOverNoFileKeepsTheBakedDefault() {
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StorageDriver::ChunkCommit::Committed),
+                            static_cast<uint8_t>(upload(kBoostTable)));
+    TEST_ASSERT_TRUE(fileHolds(kConfigPathSignals, kBoostTable));
+    TEST_ASSERT_EQUAL_HEX32(kBakedDefaultMapSwitchId, loadedMapSwitchId());
+}
+
+void test_anUploadWithoutOutOverACurrentFileWithoutOutIsKeptAsSent() {
+    stage(kConfigPathSignals, kRpmTable);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StorageDriver::ChunkCommit::Committed),
+                            static_cast<uint8_t>(upload(kBoostTable)));
+    TEST_ASSERT_TRUE(fileHolds(kConfigPathSignals, kBoostTable));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_aCleanTableIsAccepted);
@@ -205,5 +246,9 @@ int main(int, char **) {
     RUN_TEST(test_bootFailsWhenNeitherFileLoads);
     RUN_TEST(test_aRejectedUploadKeepsTheLiveFileAndItsBackup);
     RUN_TEST(test_anAcceptedUploadRotatesThePreviousFileToTheBackup);
+    RUN_TEST(test_anUploadWithoutOutKeepsTheCurrentOut);
+    RUN_TEST(test_anUploadWithOutReplacesTheCurrentOut);
+    RUN_TEST(test_anUploadWithoutOutOverNoFileKeepsTheBakedDefault);
+    RUN_TEST(test_anUploadWithoutOutOverACurrentFileWithoutOutIsKeptAsSent);
     return UNITY_END();
 }

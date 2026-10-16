@@ -31,4 +31,6 @@ struct LoadResult {
 
 [[nodiscard]] SignalsSource::Verdict inspectSignalsFile(const char *path);
 
+[[nodiscard]] bool acceptSignalsUpload(const char *stagedPath);
+
 } // namespace ConfigLoader

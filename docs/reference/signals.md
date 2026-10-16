@@ -115,5 +115,6 @@ an error, pushes `SIG_BAK` to the error store and promotes the backup to
 `signals.json`. When neither file yields a table, the boot pushes `READ_FAIL`
 and CAN parsing stays off.
 
-An upload is stricter: only `Ok` replaces the live file. See
+An upload is stricter: only `Ok` replaces the live file, and an upload without
+an `out` block keeps the one already on the device. See
 [USB transport](../architecture/usb-transport.md#signalsjson-over-put_file).
