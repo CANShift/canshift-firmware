@@ -13,6 +13,7 @@ extern NimBLECharacteristic *s_pTele;
 extern NimBLECharacteristic *s_pStatus;
 extern NimBLECharacteristic *s_pTimerState;
 extern NimBLECharacteristic *s_pTimerLap;
+extern NimBLECharacteristic *s_pAlert;
 
 extern bool s_connected;
 extern bool s_stackInited;
@@ -23,6 +24,8 @@ extern bool s_released;
 void updateStatus();
 
 void emitTelemetry();
+
+void emitAlert();
 
 void refreshTimerStateValue();
 

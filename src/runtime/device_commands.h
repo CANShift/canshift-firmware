@@ -10,6 +10,7 @@ enum class Outcome : uint8_t {
     Ok,
     MissingDayField,
     RebootRequested,
+    InvalidAlertSource,
 };
 
 inline constexpr uint8_t kNoUsbCode = 0;

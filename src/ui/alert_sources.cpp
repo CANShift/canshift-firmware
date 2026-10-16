@@ -33,6 +33,7 @@ const AlertSources::CriticalSource &userSource(const CriticalAlertSource::Armed 
     s_user = {s_userName,
               s_userName,
               armed.id,
+              signalName,
               s_userUnit,
               decimalsFor(armed.firesAt),
               &AlertEngine::AlertState::userCritical,

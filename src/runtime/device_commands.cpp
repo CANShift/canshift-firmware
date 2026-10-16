@@ -1,6 +1,7 @@
 #include "device_commands.h"
 
 #include "diag/logger.h"
+#include "hal/ble/alert_frame.h"
 #include "hal/usb/usb_comm.h"
 #include "runtime/pending_actions.h"
 #include "runtime/track_store.h"
@@ -49,9 +50,20 @@ Outcome requestReboot(const JsonObjectConst &) {
     return Outcome::RebootRequested;
 }
 
-Outcome acknowledgeAlert(const JsonObjectConst &) {
-    AlertTakeover::requestAcknowledge();
-    LOG_INFO("CMD", "critical alert acknowledged");
+Outcome acknowledgeAlert(const JsonObjectConst &obj) {
+    JsonVariantConst sourceVar = obj["source"];
+    if (sourceVar.isNull()) {
+        AlertTakeover::requestAcknowledge();
+        LOG_INFO("CMD", "critical alert acknowledged");
+        return Outcome::Ok;
+    }
+    const int source = sourceVar.is<int>() ? sourceVar.as<int>() : -1;
+    if (source < 0 || source >= AlertFrame::kSourceCount) {
+        LOG_WARN("CMD", "ack_alert 'source' is not a known alert source");
+        return Outcome::InvalidAlertSource;
+    }
+    AlertTakeover::requestAcknowledgeSource(static_cast<uint8_t>(source));
+    LOG_INFO("CMD", "critical alert acknowledged on source %d", source);
     return Outcome::Ok;
 }
 

@@ -4,6 +4,7 @@
 #include "runtime/alert_engine.h"
 #include "runtime/signal_store.h"
 #include "ui/alert_sources.h"
+#include "ui/alert_takeover_broadcast.h"
 #include "ui/alert_takeover_view.h"
 #include "ui/ota_overlay.h"
 #include "ui/unit_display.h"
@@ -25,9 +26,11 @@ constexpr const char *kLimitWord[] = {"MAX", "MIN"};
 
 uint32_t s_lastUpdateMs = 0;
 int s_activeSource = kNoActiveSource;
+uint32_t s_criticalSources = 0;
 uint32_t s_acknowledgedSources = 0;
 std::atomic<bool> s_activeFlag{false};
 std::atomic<bool> s_ackRequested{false};
+std::atomic<uint32_t> s_ackRequestedSources{0};
 char s_lastValueText[16] = "";
 char s_lastContextText[56] = "";
 
@@ -55,12 +58,13 @@ uint32_t criticalSources(const AlertEngine::AlertState &state) {
 }
 
 int pickCriticalSource(const AlertEngine::AlertState &state) {
-    const uint32_t critical = OtaOverlay::suspendsDash() ? 0 : criticalSources(state);
-    s_acknowledgedSources = alert_critical_retain_rs(s_acknowledgedSources, critical);
-    return alert_critical_first_unacknowledged_rs(critical, s_acknowledgedSources);
+    s_criticalSources = OtaOverlay::suspendsDash() ? 0 : criticalSources(state);
+    s_acknowledgedSources = alert_critical_retain_rs(s_acknowledgedSources, s_criticalSources);
+    return alert_critical_first_unacknowledged_rs(s_criticalSources, s_acknowledgedSources);
 }
 
 void consumeAcknowledge() {
+    s_acknowledgedSources |= s_ackRequestedSources.exchange(0, std::memory_order_relaxed);
     if (!s_ackRequested.exchange(false, std::memory_order_relaxed))
         return;
     s_acknowledgedSources =
@@ -123,6 +127,7 @@ void AlertTakeover::init() {
     AlertTakeoverView::build(ackClickCb);
     s_lastUpdateMs = 0;
     s_activeSource = kNoActiveSource;
+    s_criticalSources = 0;
     s_acknowledgedSources = 0;
 }
 
@@ -137,6 +142,7 @@ void AlertTakeover::update() {
 
     consumeAcknowledge();
     const int critical = pickCriticalSource(AlertEngine::getState());
+    AlertTakeoverBroadcast::publish(s_criticalSources, s_acknowledgedSources, critical, now);
     if (critical == kNoActiveSource) {
         hideLayer();
         return;
@@ -157,4 +163,10 @@ bool AlertTakeover::isActive() {
 
 void AlertTakeover::requestAcknowledge() {
     s_ackRequested.store(true, std::memory_order_relaxed);
+}
+
+void AlertTakeover::requestAcknowledgeSource(uint8_t source) {
+    if (source >= kAlertCriticalSourceCapacity)
+        return;
+    s_ackRequestedSources.fetch_or(1u << source, std::memory_order_relaxed);
 }
