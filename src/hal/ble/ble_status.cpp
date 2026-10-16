@@ -48,8 +48,9 @@ void updateStatus() {
 void BleServer::pushStatusNotify() {
     BleServerInternal::updateStatus();
     auto *pStatus = BleServerInternal::s_pStatus;
-    if (pStatus && pStatus->getSubscribedCount() > 0)
-        pStatus->notify();
+    if (!pStatus || pStatus->getSubscribedCount() == 0 || !BleServerInternal::linkAdmitted())
+        return;
+    pStatus->notify();
 }
 
 #endif

@@ -162,6 +162,8 @@ bool isBuilt() {
 
 void setHidden(bool hidden) {
     WidgetHelpers::setVisible(s_field.root, !hidden);
+    if (!hidden)
+        lv_obj_move_foreground(s_field.root);
 }
 
 void setSignalName(const char *text) {

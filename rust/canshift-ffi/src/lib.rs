@@ -2,6 +2,8 @@
 
 #[cfg(feature = "alert-engine")]
 extern crate alert_engine;
+#[cfg(feature = "ble-link")]
+extern crate ble_link;
 #[cfg(feature = "can-parser")]
 extern crate can_parser;
 #[cfg(feature = "config-loader")]

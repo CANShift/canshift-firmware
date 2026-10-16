@@ -28,6 +28,14 @@ void refreshTimerStateValue();
 
 void emitTimerSync();
 
+void noteConnected();
+
+bool linkAdmitted();
+
+void dropUnauthenticatedLink(const ble_gap_conn_desc &desc, const char *reason);
+
+void dropOverduePeer();
+
 } // namespace BleServerInternal
 
 #endif

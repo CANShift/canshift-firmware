@@ -22,6 +22,7 @@ what lets the release profile's LTO apply, and it owns the only panic handler.
 | `layout-grid`       | `include/layout_grid_rs.h`       |
 | `workshop-mode`     | `include/workshop_mode_rs.h`     |
 | `ota-signature`     | `include/ota_signature_rs.h`     |
+| `ble-link`          | `include/ble_link_rs.h`          |
 
 ## Running
 
