@@ -317,7 +317,7 @@ static void restartAfterRecovery() {
     const esp_err_t err = twai_start();
     if (err != ESP_OK) {
         LOG_ERROR("CAN", "TWAI restart after recovery failed: %s", esp_err_to_name(err));
-        ErrorStore::push(ERROR_SRC_CAN, "RESTART_FAIL", "bus-off recovered, restart failed");
+        ErrorStore::push(ERROR_SRC_CAN, "RESTART_ERR", "bus-off recovered, restart failed");
         return;
     }
     LOG_INFO("CAN", "TWAI recovered from bus-off and restarted");
