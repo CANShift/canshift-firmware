@@ -31,6 +31,8 @@ void rebootIntoSavedConfig();
 
 void commitSignalsUpload();
 
+[[nodiscard]] bool takeSocketClosed();
+
 void sendToSocket(const char *line, size_t len);
 
 void dispatchFromSerial(char *jsonLine);
@@ -69,7 +71,9 @@ bool canScanQueueTrySend(const UsbComm::CanScanFrame &frame);
 bool canScanQueueTryReceive(UsbComm::CanScanFrame &out);
 
 void tickChunkTransferTimeout();
-void tickOtaSessionWatch();
+void tickOtaSessionWatch(bool socketClosed);
+
+void abortSocketTransfers(const char *reason);
 
 void invokeBurnOverlayShow();
 void invokeBurnOverlayShowError(int reason);

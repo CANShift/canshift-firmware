@@ -11,6 +11,7 @@ inline constexpr int kWorkshopPasswordCap = 64;
 inline constexpr int kWorkshopJoinPayloadCap = 224;
 inline constexpr int kWorkshopTunerPathCap = 32;
 inline constexpr uint32_t kWorkshopMotionExitMs = 3000;
+inline constexpr uint32_t kWorkshopSocketBusyWindowMs = 5000;
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +33,8 @@ typedef struct {
     bool moving;
 } WorkshopMotionRs;
 
+enum { kWorkshopAdmitAdopt = 0, kWorkshopAdmitReplaceStale = 1, kWorkshopAdmitRefuseBusy = 2 };
+
 uint8_t workshop_next_state_rs(uint8_t state, uint8_t event, bool is_offered);
 bool workshop_board_supported_rs(uint32_t filesystem_bytes);
 bool workshop_resume_after_reboot_rs(uint8_t reason, uint32_t filesystem_bytes,
@@ -48,6 +51,8 @@ bool workshop_tuner_spa_route_rs(const char *uri);
 const char *workshop_tuner_content_type_rs(const char *uri);
 bool workshop_motion_exit_due_rs(WorkshopMotionRs *watch, bool speed_valid, float speed_kph,
                                  uint32_t now_ms);
+uint8_t workshop_socket_admission_rs(bool has_client, bool same_client, uint32_t last_activity_ms,
+                                     uint32_t now_ms);
 
 #ifdef __cplusplus
 }

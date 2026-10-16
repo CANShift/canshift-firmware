@@ -30,7 +30,6 @@ namespace {
 
 bool s_sessionFromSocket = false;
 uint32_t s_sessionActivityMs = 0;
-std::atomic<bool> s_socketClosed{false};
 
 void startSessionClock() {
     s_sessionFromSocket = UsbCommInternal::commandFromSocket();
@@ -203,16 +202,7 @@ void handleOtaEnd(const JsonObjectConst &obj) {
 
 } // namespace UsbCommInternal
 
-#if APP_WORKSHOP_ENABLED
-
-void UsbComm::noteSocketClosed() {
-    s_socketClosed.store(true, std::memory_order_relaxed);
-}
-
-#endif
-
-void UsbCommInternal::tickOtaSessionWatch() {
-    const bool socketClosed = s_socketClosed.exchange(false, std::memory_order_relaxed);
+void UsbCommInternal::tickOtaSessionWatch(bool socketClosed) {
     const OtaSessionWatch::Session session{OtaReceiver::state() == OtaReceiver::State::Receiving,
                                            s_sessionFromSocket, s_sessionActivityMs};
     const char *reason = abortReasonFor(OtaSessionWatch::judge(session, socketClosed, millis()));

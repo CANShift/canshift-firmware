@@ -46,6 +46,7 @@ static_assert(static_cast<uint8_t>(ReplyRoute::Socket) + 1 == kRouteCount,
               "every reply route needs one sink row");
 
 std::atomic<UsbComm::LineSink> s_socketSink{nullptr};
+std::atomic<bool> s_socketClosed{false};
 std::atomic<TaskHandle_t> s_routeTask{nullptr};
 ReplyRoute s_route = ReplyRoute::Broadcast;
 
@@ -116,6 +117,14 @@ void UsbComm::setSocketSink(LineSink sink) {
     s_socketSink.store(sink, std::memory_order_release);
 }
 
+void UsbComm::noteSocketClosed() {
+    s_socketClosed.store(true, std::memory_order_relaxed);
+}
+
+bool UsbCommInternal::takeSocketClosed() {
+    return s_socketClosed.exchange(false, std::memory_order_relaxed);
+}
+
 #else
 
 void UsbCommInternal::routeLine(const char *line, size_t len) {
@@ -131,6 +140,10 @@ bool UsbCommInternal::replyReachesSocket() {
 }
 
 bool UsbCommInternal::commandFromSocket() {
+    return false;
+}
+
+bool UsbCommInternal::takeSocketClosed() {
     return false;
 }
 
