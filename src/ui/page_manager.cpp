@@ -205,7 +205,7 @@ void PageManager::updateWidgets() {
     using namespace PageManagerInternal;
 
     LVGL_ASSERT_LOCKED();
-    if (OtaOverlay::isActive())
+    if (OtaOverlay::suspendsDash())
         return;
 
     if (s_pageCount == 0)

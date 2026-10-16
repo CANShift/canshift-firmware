@@ -165,8 +165,10 @@ esp_err_t handleSocket(httpd_req_t *req) {
 
 void onSessionClosed(httpd_handle_t, int sockfd) {
     int expected = sockfd;
-    if (s_clientFd.compare_exchange_strong(expected, kNoClient))
+    if (s_clientFd.compare_exchange_strong(expected, kNoClient)) {
         LOG_INFO("WORKSHOP", "Tuner disconnected");
+        UsbComm::noteSocketClosed();
+    }
     if (close(sockfd) != 0)
         LOG_WARN("WORKSHOP", "Socket %d close failed", sockfd);
 }

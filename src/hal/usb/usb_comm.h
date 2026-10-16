@@ -80,6 +80,8 @@ void setSocketSink(LineSink sink);
 
 void dispatchFromSocket(char *jsonLine);
 
+void noteSocketClosed();
+
 #endif
 
 using BurnOverlayShowCb = void (*)();

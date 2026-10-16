@@ -30,6 +30,7 @@ constexpr int16_t kUnplugTrackingPx = 1;
 constexpr size_t kVersionLineLen = 40;
 
 lv_obj_t *s_overlay = nullptr;
+bool s_showingFailure = false;
 lv_obj_t *s_progressFill = nullptr;
 lv_obj_t *s_percentLabel = nullptr;
 
@@ -46,7 +47,8 @@ struct FailText {
 
 constexpr FailText kFailTexts[] = {{OtaOverlay::FailReason::Write, "WRITE FAILED"},
                                    {OtaOverlay::FailReason::Commit, "UPDATE FAILED"},
-                                   {OtaOverlay::FailReason::Aborted, "UPDATE ABORTED"}};
+                                   {OtaOverlay::FailReason::Aborted, "UPDATE ABORTED"},
+                                   {OtaOverlay::FailReason::Interrupted, "UPDATE INTERRUPTED"}};
 
 const char *failKicker(OtaOverlay::FailReason reason) {
     for (const FailText &entry : kFailTexts) {
@@ -65,6 +67,7 @@ int16_t contentWidthPx() {
 }
 
 void teardownOverlay() {
+    s_showingFailure = false;
     if (s_overlay) {
         lv_obj_del(s_overlay);
         s_overlay = nullptr;
@@ -252,6 +255,7 @@ void showFailed(FailReason reason, uint32_t detailCode) {
     buildFootLine(root, kept, ThemeManager::dimColor());
 
     s_overlay = root;
+    s_showingFailure = true;
     lv_refr_now(nullptr);
 }
 
@@ -263,6 +267,10 @@ void hide() {
 
 bool isActive() {
     return s_overlay != nullptr;
+}
+
+bool suspendsDash() {
+    return isActive() && !s_showingFailure;
 }
 
 namespace Detail {

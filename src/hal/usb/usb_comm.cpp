@@ -280,6 +280,7 @@ void UsbComm::tick() {
     }
 
     UsbCommInternal::tickChunkTransferTimeout();
+    UsbCommInternal::tickOtaSessionWatch();
     UsbCommInternal::tickObdDtc();
 
     if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > kUsbRxLineTimeoutMs) {
