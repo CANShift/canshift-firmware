@@ -178,9 +178,9 @@ void bindDeclaredTemp(const CfgSignalDef &def) {
         if (signalIdFromName(def.name) != src.id)
             continue;
         src.declared = true;
-        if (!isnan(def.warningLevel))
+        if (!std::isnan(def.warningLevel))
             src.warnC = def.warningLevel;
-        if (!isnan(def.dangerLevel))
+        if (!std::isnan(def.dangerLevel))
             src.critC = def.dangerLevel;
         return;
     }
@@ -254,13 +254,13 @@ void AlertEngine::init() {
         for (const ThresholdBinding &b : kBindings) {
             if (strcmp(def.name, b.name) != 0)
                 continue;
-            if (!isnan(def.warningLevel))
+            if (!std::isnan(def.warningLevel))
                 *b.warn = def.warningLevel;
-            if (!isnan(def.dangerLevel))
+            if (!std::isnan(def.dangerLevel))
                 *b.crit = def.dangerLevel;
-            if (!isnan(def.highWarningLevel))
+            if (!std::isnan(def.highWarningLevel))
                 *b.highWarn = def.highWarningLevel;
-            if (!isnan(def.highDangerLevel))
+            if (!std::isnan(def.highDangerLevel))
                 *b.highCrit = def.highDangerLevel;
             break;
         }
