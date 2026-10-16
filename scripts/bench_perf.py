@@ -10,7 +10,9 @@ from pathlib import Path
 PROGRAM = Path(".pio/build/bench/program")
 ACCEPT_FILE = Path("bench/perf-accept.json")
 ACCEPT_FIELDS = ("case", "max_delta_pct", "pr", "reason")
-REGRESSION_LIMIT = 1.10
+MIN_REGRESSION = 0.10
+NOISE_FACTOR = 2.5
+MAX_REGRESSION = 0.50
 IMPROVEMENT_LIMIT = 0.90
 DEFAULT_ROUNDS = 5
 CONFIRM_ROUNDS = 5
@@ -71,13 +73,20 @@ def spread(values: list[float]) -> float:
     return (max(values) - min(values)) / center(values)
 
 
+def regression_limit(base: list[float], head: list[float]) -> float:
+    noise = max(spread(base), spread(head))
+    return 1 + min(max(MIN_REGRESSION, NOISE_FACTOR * noise), MAX_REGRESSION)
+
+
 def verdict(base: list[float], head: list[float]) -> str:
     ratio = center(head) / center(base)
     if ratio < IMPROVEMENT_LIMIT:
         return "faster"
-    if ratio <= REGRESSION_LIMIT:
+    if ratio <= 1 + MIN_REGRESSION:
         return "ok"
-    return "regression" if min(head) > max(base) else "noisy"
+    if ratio <= regression_limit(base, head) or min(head) <= max(base):
+        return "noisy"
+    return "regression"
 
 
 def case_row(name: str, base: Side, head: Side) -> dict:
@@ -183,7 +192,7 @@ def run_compare(args: argparse.Namespace) -> int:
     regressions = flagged(rows)
     for name in regressions:
         sys.stderr.write(
-            f"[perf] {name}: median regressed past {REGRESSION_LIMIT:.0%} of the baseline\n"
+            f"[perf] {name}: median regressed past max({MIN_REGRESSION:.0%}, {NOISE_FACTOR} x noise)\n"
         )
     return 1 if regressions else 0
 
