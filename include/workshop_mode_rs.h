@@ -17,10 +17,17 @@ extern "C" {
 
 enum { kWorkshopStateDriving = 0, kWorkshopStateEntering = 1, kWorkshopStateActive = 2 };
 
-enum { kWorkshopEventRequest = 0, kWorkshopEventEntered = 1, kWorkshopEventFailed = 2 };
+enum {
+    kWorkshopEventRequest = 0,
+    kWorkshopEventEntered = 1,
+    kWorkshopEventFailed = 2,
+    kWorkshopEventResume = 3
+};
 
 uint8_t workshop_next_state_rs(uint8_t state, uint8_t event, bool is_offered);
 bool workshop_board_supported_rs(uint32_t filesystem_bytes);
+bool workshop_resume_after_update_rs(bool requested, uint32_t filesystem_bytes,
+                                     bool image_pending_verify);
 bool workshop_offered_rs(uint32_t filesystem_bytes, bool speed_mapped, bool speed_valid,
                          float speed_kph);
 bool workshop_generate_credentials_rs(const uint8_t *entropy, size_t entropy_len, char *ssid,

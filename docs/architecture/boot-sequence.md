@@ -157,6 +157,9 @@ image is marked valid. The mark has one home:
 `BootSequence::markOtaSlotValidIfPending()`, called from `taskUI` once
 `kUiOtaValidFrames` frames have rendered (`main.cpp`). So a crash anywhere in
 `setup()`, the boot sequence or the first frames rolls back.
+Workshop frames count too, so an update that resumes workshop mode
+([Workshop mode](workshop-mode.md#entering-and-leaving)) is marked valid the same
+way.
 
 arduino-esp32's `initArduino()` would otherwise mark the image valid itself,
 before `setup()` runs: it calls the weak `verifyRollbackLater()`, which returns

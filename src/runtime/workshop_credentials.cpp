@@ -16,7 +16,6 @@ namespace WorkshopCredentialStore {
 
 namespace {
 
-constexpr char kNamespace[] = "workshop";
 constexpr char kSsidKey[] = "ssid";
 constexpr char kPasswordKey[] = "pass";
 constexpr size_t kRandomWordBytes = sizeof(uint32_t);
@@ -28,7 +27,7 @@ void readString(Preferences &prefs, const char *key, char *out, size_t cap) {
 
 bool load(WorkshopCredentials &out) {
     Preferences prefs;
-    if (!prefs.begin(kNamespace, true))
+    if (!prefs.begin(kWorkshopNvsNamespace, true))
         return false;
     readString(prefs, kSsidKey, out.ssid, sizeof(out.ssid));
     readString(prefs, kPasswordKey, out.password, sizeof(out.password));
@@ -53,8 +52,9 @@ bool generate(WorkshopCredentials &out) {
 }
 
 bool persist(const WorkshopCredentials &creds) {
-    return NvsStore::putString(kNamespace, kSsidKey, creds.ssid, strlen(creds.ssid)) &&
-           NvsStore::putString(kNamespace, kPasswordKey, creds.password, strlen(creds.password));
+    return NvsStore::putString(kWorkshopNvsNamespace, kSsidKey, creds.ssid, strlen(creds.ssid)) &&
+           NvsStore::putString(kWorkshopNvsNamespace, kPasswordKey, creds.password,
+                               strlen(creds.password));
 }
 
 bool create(WorkshopCredentials &out) {

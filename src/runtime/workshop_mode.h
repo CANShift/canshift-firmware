@@ -18,6 +18,12 @@ namespace WorkshopMode {
 
 void settleEntry(bool entered);
 
+void armResumeAfterUpdate();
+
+[[nodiscard]] bool takeResumeRequest();
+
+void resumeAfterUpdate(bool requested, bool imagePendingVerify);
+
 #else
 
 [[nodiscard]] inline bool boardSupported() {
@@ -41,6 +47,14 @@ void settleEntry(bool entered);
 }
 
 inline void settleEntry(bool) {}
+
+inline void armResumeAfterUpdate() {}
+
+[[nodiscard]] inline bool takeResumeRequest() {
+    return false;
+}
+
+inline void resumeAfterUpdate(bool, bool) {}
 
 #endif
 

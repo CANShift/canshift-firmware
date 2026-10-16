@@ -23,6 +23,7 @@ pub const WORKSHOP_STATE_ACTIVE: u8 = 2;
 pub const WORKSHOP_EVENT_REQUEST: u8 = 0;
 pub const WORKSHOP_EVENT_ENTERED: u8 = 1;
 pub const WORKSHOP_EVENT_FAILED: u8 = 2;
+pub const WORKSHOP_EVENT_RESUME: u8 = 3;
 
 pub const WORKSHOP_MIN_FILESYSTEM_BYTES: u32 = 4 * 1024 * 1024;
 
@@ -54,6 +55,7 @@ pub enum WorkshopEvent {
     Request = WORKSHOP_EVENT_REQUEST,
     Entered = WORKSHOP_EVENT_ENTERED,
     Failed = WORKSHOP_EVENT_FAILED,
+    Resume = WORKSHOP_EVENT_RESUME,
 }
 
 impl WorkshopEvent {
@@ -63,6 +65,7 @@ impl WorkshopEvent {
             WORKSHOP_EVENT_REQUEST => Some(Self::Request),
             WORKSHOP_EVENT_ENTERED => Some(Self::Entered),
             WORKSHOP_EVENT_FAILED => Some(Self::Failed),
+            WORKSHOP_EVENT_RESUME => Some(Self::Resume),
             _ => None,
         }
     }
@@ -72,6 +75,7 @@ impl WorkshopEvent {
 pub fn next_state(state: WorkshopState, event: WorkshopEvent, offered: bool) -> WorkshopState {
     match (state, event) {
         (WorkshopState::Driving, WorkshopEvent::Request) if offered => WorkshopState::Entering,
+        (WorkshopState::Driving, WorkshopEvent::Resume) => WorkshopState::Entering,
         (WorkshopState::Entering, WorkshopEvent::Entered) => WorkshopState::Active,
         (WorkshopState::Entering, WorkshopEvent::Failed) => WorkshopState::Driving,
         _ => state,
@@ -99,6 +103,15 @@ pub fn offered(
     speed_kph: f32,
 ) -> bool {
     board_supported(filesystem_bytes) && stationary(speed_mapped, speed_valid, speed_kph)
+}
+
+#[must_use]
+pub fn resume_after_update(
+    requested: bool,
+    filesystem_bytes: u32,
+    image_pending_verify: bool,
+) -> bool {
+    requested && image_pending_verify && board_supported(filesystem_bytes)
 }
 
 #[cfg(test)]
@@ -164,6 +177,41 @@ mod tests {
             next_state(WorkshopState::Driving, WorkshopEvent::Failed, true),
             WorkshopState::Driving
         );
+    }
+
+    #[test]
+    fn a_resume_enters_from_driving_without_the_stationary_gate() {
+        assert_eq!(
+            next_state(WorkshopState::Driving, WorkshopEvent::Resume, false),
+            WorkshopState::Entering
+        );
+    }
+
+    #[test]
+    fn a_resume_never_reenters_an_entry_already_under_way() {
+        for state in [WorkshopState::Entering, WorkshopState::Active] {
+            assert_eq!(next_state(state, WorkshopEvent::Resume, true), state);
+        }
+    }
+
+    #[test]
+    fn an_update_resumes_only_on_its_first_boot_on_a_supported_board() {
+        assert!(resume_after_update(
+            true,
+            SIXTEEN_MB_LAYOUT_FILESYSTEM,
+            true
+        ));
+        assert!(!resume_after_update(
+            false,
+            SIXTEEN_MB_LAYOUT_FILESYSTEM,
+            true
+        ));
+        assert!(!resume_after_update(
+            true,
+            SIXTEEN_MB_LAYOUT_FILESYSTEM,
+            false
+        ));
+        assert!(!resume_after_update(true, FOUR_MB_LAYOUT_FILESYSTEM, true));
     }
 
     #[test]

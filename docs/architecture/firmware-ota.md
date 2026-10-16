@@ -104,10 +104,17 @@ the streaming hashes and `verifyRollbackLater()` stay as they are.
 
 - The overlay shows over the workshop card. A failed update can be dismissed
   back to the card.
-- The reboot drops the socket, and the dash boots back to the dashboard, not
-  into workshop mode. The tuner's reconnect therefore fails until the driver
-  enters workshop mode again. That is expected: leaving workshop mode is a
-  reboot.
+- The reboot drops the socket, and the dash boots back into workshop mode,
+  once, so the tuner reconnects to the same access point and sees the new
+  version. A successful commit over the socket arms a one-shot NVS flag; the
+  next boot clears it first and resumes workshop mode only on a board that
+  supports it and only while the new image is still pending verification
+  ([Workshop mode](workshop-mode.md#entering-and-leaving)). A rollback, a crash
+  loop or any later reboot lands in driving mode. An update over USB does not
+  arm the flag.
+- The resumed boot still marks the new slot valid: the mark counts frames in
+  `taskUI`, and workshop frames count like dash frames
+  ([Boot sequence](boot-sequence.md#ota-mark-valid-placement)).
 - The restart only waits for the USB serial buffer to drain when a USB host has
   sent bytes in the last 5 s. With no host reading, the native-USB S3's
   `Serial.flush()` never returns, which used to hang the reboot until the task

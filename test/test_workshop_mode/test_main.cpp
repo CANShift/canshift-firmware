@@ -34,6 +34,22 @@ void test_failedEntryReturnsToDriving() {
         workshop_next_state_rs(kWorkshopStateEntering, kWorkshopEventFailed, false));
 }
 
+void test_resumeEntersWithoutTheStationaryGate() {
+    TEST_ASSERT_EQUAL_UINT8(
+        kWorkshopStateEntering,
+        workshop_next_state_rs(kWorkshopStateDriving, kWorkshopEventResume, false));
+    TEST_ASSERT_EQUAL_UINT8(
+        kWorkshopStateActive,
+        workshop_next_state_rs(kWorkshopStateActive, kWorkshopEventResume, true));
+}
+
+void test_updateResumesOnlyOnItsFirstBootOnASupportedBoard() {
+    TEST_ASSERT_TRUE(workshop_resume_after_update_rs(true, kSixteenMbFilesystem, true));
+    TEST_ASSERT_FALSE(workshop_resume_after_update_rs(false, kSixteenMbFilesystem, true));
+    TEST_ASSERT_FALSE(workshop_resume_after_update_rs(true, kSixteenMbFilesystem, false));
+    TEST_ASSERT_FALSE(workshop_resume_after_update_rs(true, kFourMbFilesystem, true));
+}
+
 void test_onlyTheSixteenMegabyteLayoutIsSupported() {
     TEST_ASSERT_TRUE(workshop_board_supported_rs(kSixteenMbFilesystem));
     TEST_ASSERT_FALSE(workshop_board_supported_rs(kFourMbFilesystem));
@@ -78,6 +94,8 @@ int main() {
     RUN_TEST(test_entryWalksDrivingEnteringActive);
     RUN_TEST(test_requestIsRefusedWhenNotOffered);
     RUN_TEST(test_failedEntryReturnsToDriving);
+    RUN_TEST(test_resumeEntersWithoutTheStationaryGate);
+    RUN_TEST(test_updateResumesOnlyOnItsFirstBootOnASupportedBoard);
     RUN_TEST(test_onlyTheSixteenMegabyteLayoutIsSupported);
     RUN_TEST(test_offeredWhileStoppedOrUnmapped);
     RUN_TEST(test_generatedCredentialsAreValidAndJoinable);

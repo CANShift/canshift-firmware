@@ -6,6 +6,7 @@
 #include "ota_signature_rs.h"
 #include "runtime/ota_receiver.h"
 #include "runtime/pending_actions.h"
+#include "runtime/workshop_mode.h"
 #include "ui/ota_overlay.h"
 
 #include <ArduinoJson.h>
@@ -58,6 +59,15 @@ SignatureField decodeSignature(const char *b64, uint8_t out[kOtaSignatureBytes])
                                          reinterpret_cast<const unsigned char *>(b64), strlen(b64));
     const bool whole = rc == 0 && decoded == kOtaSignatureBytes;
     return whole ? SignatureField::Present : SignatureField::Malformed;
+}
+
+void restartIntoCommittedImage() {
+    if (UsbCommInternal::commandFromSocket())
+        WorkshopMode::armResumeAfterUpdate();
+    UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
+    PendingActions::otaOverlayComplete.store(true, std::memory_order_relaxed);
+    vTaskDelay(pdMS_TO_TICKS(kOtaCompleteScreenHoldMs));
+    UsbComm::flushAndRestart();
 }
 
 } // namespace
@@ -142,10 +152,7 @@ void handleOtaEnd(const JsonObjectConst &obj) {
                 static_cast<uint32_t>(result.detailCode));
             return;
         }
-        UsbComm::sendLine("{\"status\":\"ok\",\"restart\":true}");
-        PendingActions::otaOverlayComplete.store(true, std::memory_order_relaxed);
-        vTaskDelay(pdMS_TO_TICKS(kOtaCompleteScreenHoldMs));
-        UsbComm::flushAndRestart();
+        restartIntoCommittedImage();
         return;
     }
     OtaReceiver::abort("host_requested");

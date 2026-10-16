@@ -5,9 +5,12 @@
 
     #include "can/signal_map.h"
     #include "config/config_loader.h"
+    #include "diag/error_store.h"
     #include "diag/logger.h"
+    #include "hal/storage/nvs_store.h"
     #include "hal/storage/storage_driver.h"
     #include "runtime/signal_store.h"
+    #include "runtime/workshop_credentials.h"
     #include "workshop_mode_rs.h"
 
     #include <atomic>
@@ -21,6 +24,9 @@ namespace {
 constexpr char kSpeedSignalName[] = "speed_kph";
 constexpr uint32_t kNoSpaceInfo = 0;
 constexpr float kSpeedWhenUnread = 0.0f;
+constexpr char kResumeKey[] = "resume";
+constexpr uint8_t kResumeArmed = 1;
+constexpr uint8_t kResumeUnset = 0;
 
 std::atomic<uint8_t> s_state{kWorkshopStateDriving};
 
@@ -70,6 +76,34 @@ void settleEntry(bool entered) {
     const uint8_t event = entered ? kWorkshopEventEntered : kWorkshopEventFailed;
     if (advance(event, false) == kWorkshopStateActive)
         LOG_INFO("WORKSHOP", "Workshop mode active — dash disabled");
+}
+
+void armResumeAfterUpdate() {
+    if (NvsStore::putUChar(kWorkshopNvsNamespace, kResumeKey, kResumeArmed)) {
+        LOG_INFO("WORKSHOP", "Workshop mode resumes after the update reboot");
+        return;
+    }
+    LOG_ERROR("WORKSHOP", "Resume flag not stored — the update reboots into the dash");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not stored");
+}
+
+bool takeResumeRequest() {
+    const bool armed =
+        NvsStore::getUChar(kWorkshopNvsNamespace, kResumeKey, kResumeUnset) == kResumeArmed;
+    if (!armed)
+        return false;
+    if (NvsStore::remove(kWorkshopNvsNamespace, kResumeKey))
+        return true;
+    LOG_ERROR("WORKSHOP", "Resume flag not cleared — booting into the dash");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not cleared");
+    return false;
+}
+
+void resumeAfterUpdate(bool requested, bool imagePendingVerify) {
+    if (!workshop_resume_after_update_rs(requested, filesystemBytes(), imagePendingVerify))
+        return;
+    if (advance(kWorkshopEventResume, false) == kWorkshopStateEntering)
+        LOG_INFO("WORKSHOP", "Workshop mode resumed after the update");
 }
 
 } // namespace WorkshopMode

@@ -25,6 +25,8 @@ void routeLine(const char *line, size_t len);
 
 [[nodiscard]] bool replyReachesSocket();
 
+[[nodiscard]] bool commandFromSocket();
+
 void sendToSocket(const char *line, size_t len);
 
 void dispatchFromSerial(char *jsonLine);

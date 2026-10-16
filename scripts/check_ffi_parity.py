@@ -260,6 +260,13 @@ PAIRS = (
         "kWorkshopEventFailed",
     ),
     (
+        "workshop event resume",
+        "rust/workshop-mode/src/lib.rs",
+        "WORKSHOP_EVENT_RESUME",
+        "include/workshop_mode_rs.h",
+        "kWorkshopEventResume",
+    ),
+    (
         "OTA signature bytes",
         "rust/ota-signature/src/lib.rs",
         "OTA_SIGNATURE_BYTES",

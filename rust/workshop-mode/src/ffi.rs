@@ -3,7 +3,8 @@ use core::slice;
 
 use crate::{
     board_supported, content_type, credentials_valid, generate_credentials, join_payload,
-    next_state, offered, spa_route, tuner_path, WorkshopEvent, WorkshopState, DEFAULT_CONTENT_TYPE,
+    next_state, offered, resume_after_update, spa_route, tuner_path, WorkshopEvent, WorkshopState,
+    DEFAULT_CONTENT_TYPE,
 };
 
 #[no_mangle]
@@ -18,6 +19,15 @@ pub extern "C" fn workshop_next_state_rs(state: u8, event: u8, is_offered: bool)
 #[no_mangle]
 pub extern "C" fn workshop_board_supported_rs(filesystem_bytes: u32) -> bool {
     board_supported(filesystem_bytes)
+}
+
+#[no_mangle]
+pub extern "C" fn workshop_resume_after_update_rs(
+    requested: bool,
+    filesystem_bytes: u32,
+    image_pending_verify: bool,
+) -> bool {
+    resume_after_update(requested, filesystem_bytes, image_pending_verify)
 }
 
 #[no_mangle]
