@@ -60,6 +60,10 @@ void UsbComm::sendOkRebooting() {
 
 void UsbComm::flushAndRestart() {}
 
+bool UsbCommInternal::commandFromSocket() {
+    return false;
+}
+
 void setUp() {
     StorageDriver::fakeReset();
     s_lastLine.clear();

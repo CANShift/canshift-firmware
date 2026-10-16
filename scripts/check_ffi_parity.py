@@ -288,6 +288,27 @@ PAIRS = (
         "kWorkshopMotionExitMs",
     ),
     (
+        "workshop resume none",
+        "rust/workshop-mode/src/lib.rs",
+        "WORKSHOP_RESUME_NONE",
+        "include/workshop_mode_rs.h",
+        "kWorkshopResumeNone",
+    ),
+    (
+        "workshop resume update",
+        "rust/workshop-mode/src/lib.rs",
+        "WORKSHOP_RESUME_UPDATE",
+        "include/workshop_mode_rs.h",
+        "kWorkshopResumeUpdate",
+    ),
+    (
+        "workshop resume config",
+        "rust/workshop-mode/src/lib.rs",
+        "WORKSHOP_RESUME_CONFIG",
+        "include/workshop_mode_rs.h",
+        "kWorkshopResumeConfig",
+    ),
+    (
         "OTA signature bytes",
         "rust/ota-signature/src/lib.rs",
         "OTA_SIGNATURE_BYTES",

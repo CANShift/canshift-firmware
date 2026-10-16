@@ -29,6 +29,10 @@ pub const WORKSHOP_EVENT_ENTERED: u8 = 1;
 pub const WORKSHOP_EVENT_FAILED: u8 = 2;
 pub const WORKSHOP_EVENT_RESUME: u8 = 3;
 
+pub const WORKSHOP_RESUME_NONE: u8 = 0;
+pub const WORKSHOP_RESUME_UPDATE: u8 = 1;
+pub const WORKSHOP_RESUME_CONFIG: u8 = 2;
+
 pub const WORKSHOP_MIN_FILESYSTEM_BYTES: u32 = 4 * 1024 * 1024;
 
 const STATIONARY_ROUNDING_KPH: f32 = 0.5;
@@ -109,13 +113,36 @@ pub fn offered(
     board_supported(filesystem_bytes) && stationary(speed_mapped, speed_valid, speed_kph)
 }
 
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ResumeReason {
+    Update = WORKSHOP_RESUME_UPDATE,
+    Config = WORKSHOP_RESUME_CONFIG,
+}
+
+impl ResumeReason {
+    #[must_use]
+    pub fn from_u8(raw: u8) -> Option<Self> {
+        match raw {
+            WORKSHOP_RESUME_UPDATE => Some(Self::Update),
+            WORKSHOP_RESUME_CONFIG => Some(Self::Config),
+            _ => None,
+        }
+    }
+}
+
 #[must_use]
-pub fn resume_after_update(
-    requested: bool,
+pub fn resume_after_reboot(
+    reason: Option<ResumeReason>,
     filesystem_bytes: u32,
     image_pending_verify: bool,
 ) -> bool {
-    requested && image_pending_verify && board_supported(filesystem_bytes)
+    let reason_holds = match reason {
+        Some(ResumeReason::Update) => image_pending_verify,
+        Some(ResumeReason::Config) => true,
+        None => false,
+    };
+    reason_holds && board_supported(filesystem_bytes)
 }
 
 #[cfg(test)]
@@ -200,22 +227,61 @@ mod tests {
 
     #[test]
     fn an_update_resumes_only_on_its_first_boot_on_a_supported_board() {
-        assert!(resume_after_update(
-            true,
+        let update = Some(ResumeReason::Update);
+        assert!(resume_after_reboot(
+            update,
             SIXTEEN_MB_LAYOUT_FILESYSTEM,
             true
         ));
-        assert!(!resume_after_update(
-            false,
+        assert!(!resume_after_reboot(
+            None,
             SIXTEEN_MB_LAYOUT_FILESYSTEM,
             true
         ));
-        assert!(!resume_after_update(
-            true,
+        assert!(!resume_after_reboot(
+            update,
             SIXTEEN_MB_LAYOUT_FILESYSTEM,
             false
         ));
-        assert!(!resume_after_update(true, FOUR_MB_LAYOUT_FILESYSTEM, true));
+        assert!(!resume_after_reboot(
+            update,
+            FOUR_MB_LAYOUT_FILESYSTEM,
+            true
+        ));
+    }
+
+    #[test]
+    fn a_config_restart_resumes_without_a_pending_image() {
+        let config = Some(ResumeReason::Config);
+        assert!(resume_after_reboot(
+            config,
+            SIXTEEN_MB_LAYOUT_FILESYSTEM,
+            false
+        ));
+        assert!(resume_after_reboot(
+            config,
+            SIXTEEN_MB_LAYOUT_FILESYSTEM,
+            true
+        ));
+        assert!(!resume_after_reboot(
+            config,
+            FOUR_MB_LAYOUT_FILESYSTEM,
+            false
+        ));
+    }
+
+    #[test]
+    fn resume_reasons_decode_safely() {
+        assert_eq!(ResumeReason::from_u8(WORKSHOP_RESUME_NONE), None);
+        assert_eq!(
+            ResumeReason::from_u8(WORKSHOP_RESUME_UPDATE),
+            Some(ResumeReason::Update)
+        );
+        assert_eq!(
+            ResumeReason::from_u8(WORKSHOP_RESUME_CONFIG),
+            Some(ResumeReason::Config)
+        );
+        assert_eq!(ResumeReason::from_u8(9), None);
     }
 
     #[test]

@@ -25,6 +25,8 @@ enum {
     kWorkshopEventResume = 3
 };
 
+enum { kWorkshopResumeNone = 0, kWorkshopResumeUpdate = 1, kWorkshopResumeConfig = 2 };
+
 typedef struct {
     uint32_t moving_since_ms;
     bool moving;
@@ -32,7 +34,7 @@ typedef struct {
 
 uint8_t workshop_next_state_rs(uint8_t state, uint8_t event, bool is_offered);
 bool workshop_board_supported_rs(uint32_t filesystem_bytes);
-bool workshop_resume_after_update_rs(bool requested, uint32_t filesystem_bytes,
+bool workshop_resume_after_reboot_rs(uint8_t reason, uint32_t filesystem_bytes,
                                      bool image_pending_verify);
 bool workshop_offered_rs(uint32_t filesystem_bytes, bool speed_mapped, bool speed_valid,
                          float speed_kph);

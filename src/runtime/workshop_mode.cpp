@@ -22,14 +22,14 @@
 
 namespace WorkshopMode {
 
+static_assert(kNoResumeReason == kWorkshopResumeNone, "no-resume reason drifted");
+
 namespace {
 
 constexpr char kSpeedSignalName[] = "speed_kph";
 constexpr uint32_t kNoSpaceInfo = 0;
 constexpr float kSpeedWhenUnread = 0.0f;
 constexpr char kResumeKey[] = "resume";
-constexpr uint8_t kResumeArmed = 1;
-constexpr uint8_t kResumeUnset = 0;
 
 std::atomic<uint8_t> s_state{kWorkshopStateDriving};
 WorkshopMotionRs s_motion = {};
@@ -60,6 +60,15 @@ bool motionExitDue(uint32_t nowMs) {
     const bool speedValid = SignalStore::isValid(SignalIds::kSpeedKph);
     const float speedKph = SignalStore::read(SignalIds::kSpeedKph, kSpeedWhenUnread);
     return workshop_motion_exit_due_rs(&s_motion, speedValid, speedKph, nowMs);
+}
+
+void armResume(uint8_t reason) {
+    if (NvsStore::putUChar(kWorkshopNvsNamespace, kResumeKey, reason)) {
+        LOG_INFO("WORKSHOP", "Workshop mode resumes after the reboot");
+        return;
+    }
+    LOG_ERROR("WORKSHOP", "Resume flag not stored — the reboot lands in the dash");
+    ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not stored");
 }
 
 } // namespace
@@ -97,27 +106,26 @@ void settleEntry(bool entered) {
 }
 
 void armResumeAfterUpdate() {
-    if (NvsStore::putUChar(kWorkshopNvsNamespace, kResumeKey, kResumeArmed)) {
-        LOG_INFO("WORKSHOP", "Workshop mode resumes after the update reboot");
-        return;
-    }
-    LOG_ERROR("WORKSHOP", "Resume flag not stored — the update reboots into the dash");
-    ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not stored");
+    armResume(kWorkshopResumeUpdate);
 }
 
-bool takeResumeRequest() {
-    const bool armed =
-        NvsStore::getUChar(kWorkshopNvsNamespace, kResumeKey, kResumeUnset) == kResumeArmed;
-    if (!armed)
-        return false;
-    return disarmResume();
+void armResumeAfterConfigChange() {
+    armResume(kWorkshopResumeConfig);
 }
 
-void resumeAfterUpdate(bool requested, bool imagePendingVerify) {
-    if (!workshop_resume_after_update_rs(requested, filesystemBytes(), imagePendingVerify))
+uint8_t takeResumeRequest() {
+    const uint8_t reason =
+        NvsStore::getUChar(kWorkshopNvsNamespace, kResumeKey, kWorkshopResumeNone);
+    if (reason == kWorkshopResumeNone)
+        return kWorkshopResumeNone;
+    return disarmResume() ? reason : kWorkshopResumeNone;
+}
+
+void resumeAfterReboot(uint8_t reason, bool imagePendingVerify) {
+    if (!workshop_resume_after_reboot_rs(reason, filesystemBytes(), imagePendingVerify))
         return;
     if (advance(kWorkshopEventResume, false) == kWorkshopStateEntering)
-        LOG_INFO("WORKSHOP", "Workshop mode resumed after the update");
+        LOG_INFO("WORKSHOP", "Workshop mode resumed after the reboot");
 }
 
 void leaveOnMotion(uint32_t nowMs) {
@@ -126,7 +134,8 @@ void leaveOnMotion(uint32_t nowMs) {
     LOG_WARN("WORKSHOP", "Car moving in workshop mode — rebooting into the dash");
     ErrorStore::push(ERROR_SRC_SYSTEM, "WS_MOTION", "workshop left: car moving");
     if (!disarmResume())
-        LOG_WARN("WORKSHOP", "Resume flag kept — it only applies to a pending update image");
+        LOG_WARN("WORKSHOP",
+                 "Resume flag kept — the next boot may resume until the watchdog trips again");
     delay(kPreRestartFlushDelayMs);
     esp_restart();
 }
