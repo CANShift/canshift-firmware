@@ -1,7 +1,7 @@
 use crate::{TimerCore, TimerLap, LAP_CAPACITY};
 
 const _: () = assert!(core::mem::size_of::<TimerLap>() == 12);
-const _: () = assert!(core::mem::size_of::<TimerCore>() == 40 + LAP_CAPACITY * 12);
+const _: () = assert!(core::mem::size_of::<TimerCore>() == 48 + LAP_CAPACITY * 12);
 
 #[no_mangle]
 pub unsafe extern "C" fn timer_core_init_rs(core: *mut TimerCore) {
@@ -76,6 +76,14 @@ pub unsafe extern "C" fn timer_core_elapsed_ms_rs(core: *const TimerCore, now_us
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn timer_core_current_lap_ms_rs(core: *const TimerCore, now_us: i64) -> u32 {
+    if core.is_null() {
+        return 0;
+    }
+    unsafe { &*core }.current_lap_ms(now_us)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn timer_core_pending_count_rs(core: *const TimerCore) -> u8 {
     if core.is_null() {
         return 0;
@@ -125,6 +133,7 @@ mod tests {
             assert_eq!(lap.index, 1);
             assert_eq!(lap.lap_ms, 3_000);
             assert!(!dropped);
+            assert_eq!(timer_core_current_lap_ms_rs(&core, 5 * SEC), 2_000);
 
             assert!(timer_core_pause_rs(&mut core, 4 * SEC));
             assert!(timer_core_resume_rs(&mut core, 10 * SEC));
@@ -145,6 +154,7 @@ mod tests {
             assert!(!timer_core_start_rs(core::ptr::null_mut(), 0));
             assert!(!timer_core_reset_rs(core::ptr::null_mut()));
             assert_eq!(timer_core_elapsed_ms_rs(core::ptr::null(), SEC), 0);
+            assert_eq!(timer_core_current_lap_ms_rs(core::ptr::null(), SEC), 0);
             assert_eq!(timer_core_pending_count_rs(core::ptr::null()), 0);
 
             let mut core_state = TimerCore::new();

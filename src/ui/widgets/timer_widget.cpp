@@ -213,10 +213,7 @@ namespace {
 TimerSources::Inputs gatherInputs(const TimerService::Snapshot &snap) {
     TrackStore::State track;
     TrackStore::snapshot(&track);
-    return {snap.elapsedMs,     snap.lapCount,
-            track.currentLapMs, track.lastLapMs,
-            track.bestLapMs,    track.lapNumber,
-            track.deltaMs,      TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs)};
+    return TimerSources::select(snap, track, TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs));
 }
 
 void updateReadout(TimerTag *tag, const TimerService::Snapshot &snap) {

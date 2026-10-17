@@ -21,6 +21,9 @@ struct Lap {
 struct Snapshot {
     State state;
     uint32_t elapsedMs;
+    uint32_t currentLapMs;
+    uint32_t lastLapMs;
+    uint32_t bestLapMs;
     uint32_t version;
     uint16_t lapCount;
     uint16_t sessionId;

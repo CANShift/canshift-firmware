@@ -48,6 +48,23 @@ void test_lap_recordsSplitAndTotal() {
     TEST_ASSERT_EQUAL_UINT32(100000, lap.total_ms);
 }
 
+void test_splits_trackLastBestAndCurrentLap() {
+    TimerCoreState core = makeCore();
+    timer_core_start_rs(&core, 0);
+    TEST_ASSERT_EQUAL_UINT32(30000, timer_core_current_lap_ms_rs(&core, 30 * kSec));
+
+    timer_core_lap_rs(&core, 62 * kSec, nullptr, nullptr);
+    timer_core_lap_rs(&core, 120 * kSec, nullptr, nullptr);
+    timer_core_lap_rs(&core, 181 * kSec, nullptr, nullptr);
+    TEST_ASSERT_EQUAL_UINT32(61000, core.last_lap_ms);
+    TEST_ASSERT_EQUAL_UINT32(58000, core.best_lap_ms);
+    TEST_ASSERT_EQUAL_UINT32(9000, timer_core_current_lap_ms_rs(&core, 190 * kSec));
+
+    timer_core_reset_rs(&core);
+    TEST_ASSERT_EQUAL_UINT32(0, core.last_lap_ms);
+    TEST_ASSERT_EQUAL_UINT32(0, core.best_lap_ms);
+}
+
 void test_lap_rejectedUnlessRunning() {
     TimerCoreState core = makeCore();
     TimerCoreLap lap = {};
@@ -140,6 +157,7 @@ int main(int, char **) {
     RUN_TEST(test_start_onlyFromReset);
     RUN_TEST(test_elapsed_accumulatesAcrossPauseResume);
     RUN_TEST(test_lap_recordsSplitAndTotal);
+    RUN_TEST(test_splits_trackLastBestAndCurrentLap);
     RUN_TEST(test_lap_rejectedUnlessRunning);
     RUN_TEST(test_reset_keepsPendingLaps);
     RUN_TEST(test_pendingRing_flushesInOrder);

@@ -23,6 +23,8 @@ typedef struct TimerCoreState {
     int64_t accumulated_us;
     int64_t last_lap_total_us;
     uint32_t version;
+    uint32_t last_lap_ms;
+    uint32_t best_lap_ms;
     uint16_t lap_count;
     uint16_t session;
     uint8_t run_state;
@@ -40,6 +42,7 @@ bool timer_core_reset_rs(TimerCoreState *core);
 bool timer_core_lap_rs(TimerCoreState *core, int64_t now_us, TimerCoreLap *out_lap,
                        bool *out_dropped_oldest);
 uint32_t timer_core_elapsed_ms_rs(const TimerCoreState *core, int64_t now_us);
+uint32_t timer_core_current_lap_ms_rs(const TimerCoreState *core, int64_t now_us);
 uint8_t timer_core_pending_count_rs(const TimerCoreState *core);
 bool timer_core_pop_pending_rs(TimerCoreState *core, TimerCoreLap *out_lap);
 
@@ -47,7 +50,7 @@ bool timer_core_pop_pending_rs(TimerCoreState *core, TimerCoreLap *out_lap);
 }
 
 static_assert(sizeof(TimerCoreLap) == 12, "TimerCoreLap layout must match rust/timer-core");
-static_assert(sizeof(TimerCoreState) == 40 + kTimerCoreLapCapacity * 12,
+static_assert(sizeof(TimerCoreState) == 48 + kTimerCoreLapCapacity * 12,
               "TimerCoreState layout must match rust/timer-core");
 #endif
 

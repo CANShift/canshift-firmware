@@ -5,12 +5,46 @@
 
 namespace {
 
+TimerService::Snapshot stopwatchRunning() {
+    TimerService::Snapshot snap{};
+    snap.state = TimerService::State::Running;
+    snap.elapsedMs = 185432;
+    snap.currentLapMs = 5432;
+    snap.lastLapMs = 61250;
+    snap.bestLapMs = 58730;
+    snap.lapCount = 3;
+    return snap;
+}
+
+TimerService::Snapshot stopwatchWithoutLaps() {
+    TimerService::Snapshot snap{};
+    snap.state = TimerService::State::Running;
+    snap.elapsedMs = 65432;
+    snap.currentLapMs = 65432;
+    return snap;
+}
+
+TrackStore::State trackTelemetry() {
+    TrackStore::State track{};
+    track.trackMode = true;
+    track.currentLapMs = 98420;
+    track.lastLapMs = 97190;
+    track.bestLapMs = 96080;
+    track.lapNumber = 4;
+    track.deltaMs = -420;
+    return track;
+}
+
 TimerSources::Inputs trackRunning() {
-    return {12345, 2, 98420, 97190, 96080, 4, -420, true};
+    return TimerSources::select(stopwatchRunning(), trackTelemetry(), true);
 }
 
 TimerSources::Inputs stopwatchOnly() {
-    return {65432, 3, 0, 0, 0, 0, 0, false};
+    return TimerSources::select(stopwatchRunning(), trackTelemetry(), false);
+}
+
+TimerSources::Inputs stopwatchBeforeTheFirstLap() {
+    return TimerSources::select(stopwatchWithoutLaps(), TrackStore::State{}, false);
 }
 
 const char *rendered(CfgTimerSource source, const TimerSources::Inputs &in, char *buf, size_t cap) {
@@ -47,16 +81,25 @@ void test_deltaIsBlankWithoutTrackTelemetry() {
     TEST_ASSERT_EQUAL_STRING("--", rendered(CfgTimerSource::Delta, in, buf, sizeof(buf)));
 }
 
-void test_lapFallsBackToTheStopwatchWhenTrackIsIdle() {
+void test_splitsComeFromTheStopwatchWhenTrackIsIdle() {
     char buf[TimerSources::kTextCapacity];
     const TimerSources::Inputs in = stopwatchOnly();
+    TEST_ASSERT_EQUAL_STRING("0:05.43", rendered(CfgTimerSource::Lap, in, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("1:01.25", rendered(CfgTimerSource::Last, in, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("0:58.73", rendered(CfgTimerSource::Best, in, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("3:05.43", rendered(CfgTimerSource::Elapsed, in, buf, sizeof(buf)));
+}
+
+void test_lapRunsTheWholeElapsedTimeBeforeTheFirstSplit() {
+    char buf[TimerSources::kTextCapacity];
+    const TimerSources::Inputs in = stopwatchBeforeTheFirstLap();
     TEST_ASSERT_EQUAL_STRING("1:05.43", rendered(CfgTimerSource::Lap, in, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_STRING("1:05.43", rendered(CfgTimerSource::Elapsed, in, buf, sizeof(buf)));
 }
 
 void test_unsetLapTimesShowAPlaceholderRatherThanZero() {
     char buf[TimerSources::kTextCapacity];
-    const TimerSources::Inputs in = stopwatchOnly();
+    const TimerSources::Inputs in = stopwatchBeforeTheFirstLap();
     TEST_ASSERT_EQUAL_STRING("--:--", rendered(CfgTimerSource::Best, in, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_STRING("--:--", rendered(CfgTimerSource::Last, in, buf, sizeof(buf)));
 }
@@ -101,7 +144,8 @@ int main(int, char **) {
     RUN_TEST(test_lapTimeFormatsAsMinutesSecondsHundredths);
     RUN_TEST(test_deltaCarriesItsSign);
     RUN_TEST(test_deltaIsBlankWithoutTrackTelemetry);
-    RUN_TEST(test_lapFallsBackToTheStopwatchWhenTrackIsIdle);
+    RUN_TEST(test_splitsComeFromTheStopwatchWhenTrackIsIdle);
+    RUN_TEST(test_lapRunsTheWholeElapsedTimeBeforeTheFirstSplit);
     RUN_TEST(test_unsetLapTimesShowAPlaceholderRatherThanZero);
     RUN_TEST(test_lapCountPrefersTrackTelemetry);
     RUN_TEST(test_deltaClampsRatherThanOverflowingItsBuffer);
