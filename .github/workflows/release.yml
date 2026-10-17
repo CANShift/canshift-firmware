@@ -24,6 +24,8 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.event == 'push'
       && github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -41,25 +43,51 @@ jobs:
         id: ver
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::package.json version is not MAJOR.MINOR.PATCH"
+            exit 1
+          fi
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Check if release already exists
         id: check
         run: |
-          if gh release view "${{ steps.ver.outputs.tag }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+          if gh release view "$TAG" > /dev/null 2>&1; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
-            echo "Release ${{ steps.ver.outputs.tag }} already exists — skipping."
+            echo "Release ${TAG} already exists, published or draft — skipping."
           else
             echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "New version ${{ steps.ver.outputs.tag }} — will release."
+            echo "New version ${TAG} — will release."
           fi
         env:
+          TAG: ${{ steps.ver.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+  audit:
+    name: No RustSec advisory at release time
+    needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        working-directory: rust
+        run: cargo audit --deny warnings
 
   set-matrix:
     name: Resolve chip matrix
-    needs: [check-version]
+    needs: [check-version, audit]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -76,12 +104,16 @@ jobs:
 
   create-release:
     name: Create draft release
-    needs: [check-version]
+    needs: [check-version, audit]
     if: needs.check-version.outputs.should_release == 'true'
     permissions:
       contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      TAG: ${{ needs.check-version.outputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,24 +122,17 @@ jobs:
 
       - name: Create GitHub Release if missing
         run: |
-          TAG=${{ needs.check-version.outputs.tag }}
-          if ! gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+          if ! gh release view "${TAG}" > /dev/null 2>&1; then
             gh release create "${TAG}" \
-              --repo "${{ github.repository }}" \
               --title "${TAG}" \
               --target "${HEAD_SHA}" \
               --notes "Firmware-only release. See README.md for the bundled changes." \
               --draft
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Flag 0.x releases as pre-release
         if: startsWith(needs.check-version.outputs.tag, 'v0.')
-        run: gh release edit "${{ needs.check-version.outputs.tag }}" --prerelease
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+        run: gh release edit "${TAG}" --prerelease
 
   firmware-build:
     name: Firmware — build
@@ -115,6 +140,9 @@ jobs:
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      TAG: ${{ needs.check-version.outputs.tag }}
+      VERSION: ${{ needs.check-version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -136,7 +164,6 @@ jobs:
 
       - name: Assert APP_VERSION_STR was injected into firmware binary
         run: |
-          VERSION=${{ needs.check-version.outputs.version }}
           ELF=.pio/build/${{ matrix.pio_env }}/firmware.elf
           # The boot banner LOG_INFO is compiled out in prod (APP_LOG_LEVEL=1)
           # so we can't rely on its string. The splash label literal
@@ -162,7 +189,6 @@ jobs:
 
       - name: Stage release assets (firmware partition, merged image, SPIFFS)
         run: |
-          TAG=${{ needs.check-version.outputs.tag }}
           CHIP=${{ matrix.chip }}
           PIO_ENV=${{ matrix.pio_env }}
           pip install --require-hashes -r .github/requirements/esptool.txt
@@ -190,7 +216,7 @@ jobs:
 
   secure-build:
     name: Secure boot images — build (esp32s3)
-    needs: [check-version]
+    needs: [check-version, audit]
     if: needs.check-version.outputs.should_release == 'true' && vars.SECURE_BOOT_RELEASE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -235,6 +261,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      TAG: ${{ needs.check-version.outputs.tag }}
       EXPECTED_KEY_DIGEST: ${{ vars.SECURE_BOOT_KEY_DIGEST }}
       UNSIGNED_DIR: ${{ github.workspace }}/secure-unsigned
       SIGNED_DIR: ${{ github.workspace }}/secure-signed
@@ -288,7 +315,7 @@ jobs:
 
       - name: Stage secure release assets
         run: |
-          PREFIX="dist/canshift-esp32s3-secure-${{ needs.check-version.outputs.tag }}"
+          PREFIX="dist/canshift-esp32s3-secure-${TAG}"
           mkdir -p dist
           cp "$SIGNED_DIR/bootloader.bin" "${PREFIX}-bootloader.bin"
           cp "$UNSIGNED_DIR/partitions.bin" "${PREFIX}-partitions.bin"
@@ -369,12 +396,13 @@ jobs:
       - name: Upload images and signatures to the GitHub Release
         run: |
           for i in 1 2 3 4 5; do
-            gh release upload "${{ needs.check-version.outputs.tag }}" dist/* --clobber && break
+            gh release upload "$TAG" dist/* --clobber && break
             if [ $i -eq 5 ]; then exit 1; fi
             echo "Attempt ${i}: release not ready, retrying in 30s..."
             sleep 30
           done
         env:
+          TAG: ${{ needs.check-version.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
@@ -386,6 +414,9 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      TAG: ${{ needs.check-version.outputs.tag }}
+      VERSION: ${{ needs.check-version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -394,7 +425,6 @@ jobs:
 
       - name: Download release binaries
         run: |
-          TAG=${{ needs.check-version.outputs.tag }}
           mkdir -p dist
           for i in 1 2 3 4 5; do
             gh release download "${TAG}" --dir dist --pattern 'canshift-*.bin' --clobber && break
@@ -409,14 +439,11 @@ jobs:
 
       - name: Build manifest.json
         run: |
-          TAG=${{ needs.check-version.outputs.tag }}
-          VERSION=${{ needs.check-version.outputs.version }}
           python3 scripts/build_manifest.py "$TAG" "$VERSION" dist > manifest.json
           cat manifest.json
 
       - name: Attach manifest.json to GitHub Release
         run: |
-          TAG=${{ needs.check-version.outputs.tag }}
           for i in 1 2 3 4 5; do
             gh release upload "${TAG}" manifest.json --clobber && break
             if [ $i -eq 5 ]; then exit 1; fi
