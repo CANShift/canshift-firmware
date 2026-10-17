@@ -15,6 +15,14 @@ JSON lines plus a telemetry line every 200 ms. Sources: `src/hal/usb/usb_comm.cp
 - **Framing**: newline-delimited JSON lines, no other framing.
 - **Command shape**: `{"cmd":<int>, …}`. Replies are command-specific JSON;
   errors are always `{"status":"error","message":"<code>"}` (`UsbComm::sendError`).
+- **Request id**: a command may carry `"seq":<uint32>` as the key right
+  after `cmd` (`{"cmd":16,"seq":7}`), so finding it costs one compare and a
+  multi-kilobyte payload is never scanned. While it runs, every
+  `{"status":…}` reply it sends comes back with the same `"seq"` appended
+  (`usb_seq_echo.cpp`), so the host can tell a late reply from the one it is
+  waiting for. A reply longer than `kMaxTaggedLine` (256 B), such as
+  GET_CONFIG, goes out untagged, and a command without `seq` gets the replies it
+  always got.
 - **Telemetry**: `{"tele":1,"v":{…signals…}}` every `kTelePeriodTicks` (10) USB
   ticks of `kUsbTaskTickIntervalMs` (20 ms), so every 200 ms, from
   `usb_comm.cpp::sendTelemetry`.
