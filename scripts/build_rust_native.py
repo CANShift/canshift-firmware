@@ -41,6 +41,7 @@ cmd = [
     "cargo",
     "build",
     "--release",
+    "--locked",
     "--manifest-path",
     MANIFEST,
     "--features",
