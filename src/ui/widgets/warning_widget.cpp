@@ -95,7 +95,7 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     lv_obj_set_pos(root, px, py);
     lv_obj_set_size(root, ScreenProfile::scaleXVal(cfg.layout.w),
                     ScreenProfile::scaleYVal(cfg.layout.h));
-    lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+    WidgetHelpers::disableInteract(root);
     lv_obj_set_style_bg_color(root, lv_color_hex(cfg.style.criticalColor.rgb), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(root, 0x18, LV_PART_MAIN);
     lv_obj_set_style_border_width(root, 0, LV_PART_MAIN);

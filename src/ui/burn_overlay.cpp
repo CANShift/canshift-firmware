@@ -125,3 +125,7 @@ void BurnOverlay::showError(ErrorReason reason) {
 
     lv_refr_now(nullptr);
 }
+
+bool BurnOverlay::isActive() {
+    return s_overlay != nullptr;
+}

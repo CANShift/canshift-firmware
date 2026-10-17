@@ -5,6 +5,9 @@
 using GestureIntent::closesSettings;
 using GestureIntent::decide;
 using GestureIntent::Decision;
+using GestureIntent::kTapTravelLimitPx;
+using GestureIntent::TapTurn;
+using GestureIntent::tapTurn;
 
 void setUp() {}
 void tearDown() {}
@@ -96,6 +99,41 @@ void test_decide_horizontalSwipeOffClickableStillTurnsThePage() {
     TEST_ASSERT_TRUE(decide(20, 5, false).fireSwipe);
 }
 
+constexpr int16_t kScreenWidthPx = 320;
+
+void test_tapTurn_rightThirdTurnsToTheNextPage() {
+    TEST_ASSERT_TRUE(tapTurn(300, kScreenWidthPx, 0) == TapTurn::Next);
+    TEST_ASSERT_TRUE(tapTurn(214, kScreenWidthPx, 0) == TapTurn::Next);
+    TEST_ASSERT_TRUE(tapTurn(319, kScreenWidthPx, 0) == TapTurn::Next);
+}
+
+void test_tapTurn_leftThirdTurnsToThePreviousPage() {
+    TEST_ASSERT_TRUE(tapTurn(0, kScreenWidthPx, 0) == TapTurn::Previous);
+    TEST_ASSERT_TRUE(tapTurn(105, kScreenWidthPx, 0) == TapTurn::Previous);
+}
+
+void test_tapTurn_middleThirdDoesNothing() {
+    TEST_ASSERT_TRUE(tapTurn(106, kScreenWidthPx, 0) == TapTurn::None);
+    TEST_ASSERT_TRUE(tapTurn(160, kScreenWidthPx, 0) == TapTurn::None);
+    TEST_ASSERT_TRUE(tapTurn(213, kScreenWidthPx, 0) == TapTurn::None);
+}
+
+void test_tapTurn_travelAtTheTapLimitIsNotATap() {
+    TEST_ASSERT_TRUE(tapTurn(300, kScreenWidthPx, kTapTravelLimitPx - 1) == TapTurn::Next);
+    TEST_ASSERT_TRUE(tapTurn(300, kScreenWidthPx, kTapTravelLimitPx) == TapTurn::None);
+    TEST_ASSERT_TRUE(tapTurn(10, kScreenWidthPx, 80) == TapTurn::None);
+}
+
+void test_tapTurn_followsTheScreenWidth() {
+    TEST_ASSERT_TRUE(tapTurn(300, 480, 0) == TapTurn::None);
+    TEST_ASSERT_TRUE(tapTurn(400, 480, 0) == TapTurn::Next);
+}
+
+void test_tapTurn_degenerateWidthNeverTurns() {
+    TEST_ASSERT_TRUE(tapTurn(0, 0, 0) == TapTurn::None);
+    TEST_ASSERT_TRUE(tapTurn(1, 2, 0) == TapTurn::None);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_aTapIsNeitherCancelledNorASwipe);
@@ -112,5 +150,11 @@ int main(int, char **) {
     RUN_TEST(test_decide_verticalSwipeOffClickableDoesNotTurnThePage);
     RUN_TEST(test_decide_verticalSwipeOffClickableStillCancelsTheClick);
     RUN_TEST(test_decide_horizontalSwipeOffClickableStillTurnsThePage);
+    RUN_TEST(test_tapTurn_rightThirdTurnsToTheNextPage);
+    RUN_TEST(test_tapTurn_leftThirdTurnsToThePreviousPage);
+    RUN_TEST(test_tapTurn_middleThirdDoesNothing);
+    RUN_TEST(test_tapTurn_travelAtTheTapLimitIsNotATap);
+    RUN_TEST(test_tapTurn_followsTheScreenWidth);
+    RUN_TEST(test_tapTurn_degenerateWidthNeverTurns);
     return UNITY_END();
 }

@@ -1,22 +1,30 @@
 # Navigating pages
 
 The dash supports up to **5 pages** in a horizontal carousel. You navigate
-between them with swipe gestures.
+between them with swipe gestures or by tapping the screen edges.
 
 The tuner's **Live data** route mirrors what the dash is currently showing —
 useful to verify a page reads the right signals before you burn.
 
 ## Gestures
 
-| Gesture                            | Action              |
-| ---------------------------------- | ------------------- |
-| Swipe **left** anywhere on a page  | Next page           |
-| Swipe **right** anywhere on a page | Previous page       |
-| Swipe **down** from the top edge   | Open Settings panel |
+| Gesture                               | Action              |
+| ------------------------------------- | ------------------- |
+| Swipe **left** anywhere on a page     | Next page           |
+| Swipe **right** anywhere on a page    | Previous page       |
+| Tap the **right third** of the screen | Next page           |
+| Tap the **left third** of the screen  | Previous page       |
+| Swipe **down** from the top edge      | Open Settings panel |
 
-Swipes that start on a button widget are filtered — a finger drift across a
-button does not navigate. This avoids the "I tried to tap and ended up on the
-wrong page" frustration.
+A tap in the middle third does nothing. Both the swipe and the tap wrap from
+the last page back to the first, and the other way round.
+
+Swipes and taps that start on a button widget are filtered — a finger drift
+across a button does not navigate, and a tap on a button, the timer or an
+alert keeps its own action. This avoids the "I tried to tap and ended up on
+the wrong page" frustration. Taps never turn the page while Settings is open,
+from the top bar, during an alert takeover or a control splash, while a
+config or update is being written, or in workshop mode.
 
 ## The default page
 

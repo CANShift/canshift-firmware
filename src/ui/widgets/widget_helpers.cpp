@@ -131,7 +131,7 @@ void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool h
     lv_obj_set_pos(cont, px, py);
     lv_obj_set_size(cont, ScreenProfile::scaleXVal(cfg.layout.w),
                     ScreenProfile::scaleYVal(cfg.layout.h));
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    disableInteract(cont);
     WidgetStyles::applyContainerBase(cont, hasBorder, borderRgb);
 }
 
