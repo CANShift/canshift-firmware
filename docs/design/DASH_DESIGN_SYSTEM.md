@@ -246,14 +246,14 @@ Never a fourth field, never an icon, never a coloured status. The left field is 
 
 Nothing else on the dash moves.
 
-| Behaviour                           | Rule                                                                                                                                |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Value update                        | **snap**. Never tween a numeral.                                                                                                    |
-| Bar gauge / arc                     | catch up in 120 ms **linear**                                                                                                       |
-| Rev limit                           | hard on/off blink at 6 Hz, no easing                                                                                                |
-| **Armed** state                     | 1 s ease-in-out pulse, 100 % → 35 % opacity. The pulse belongs to armed and to armed only — active is steady, warnings never blink. |
-| Stale signal (500 ms with no frame) | value drops to Dim and renders `- -`, unit kept                                                                                     |
-| Page change                         | instant cut — no slide, no fade                                                                                                     |
+| Behaviour       | Rule                                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Value update    | **snap**. Never tween a numeral.                                                                                                    |
+| Bar gauge / arc | catch up in 120 ms **linear**                                                                                                       |
+| Rev limit       | hard on/off blink at 6 Hz, no easing                                                                                                |
+| **Armed** state | 1 s ease-in-out pulse, 100 % → 35 % opacity. The pulse belongs to armed and to armed only — active is steady, warnings never blink. |
+| Stale signal    | after the signal's `timeoutMs` with no frame (500 ms by default), value drops to Dim and renders `- -`, unit kept                   |
+| Page change     | instant cut — no slide, no fade                                                                                                     |
 
 `- -` means **the sensor went quiet**. It is not the "no device" state, not a placeholder, and must never
 appear in a preview or a demo.

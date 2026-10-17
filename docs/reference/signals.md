@@ -2,16 +2,16 @@
 
 Source: [`src/can/signal_map.h`](../../src/can/signal_map.h)
 
-The `SignalId` enum is the integer key into `SignalStore`. Every signal the
+A `SignalId` is the integer key into `SignalStore`. Every signal the
 firmware understands has a stable id; the on-disk `signals.json` maps frame
 bytes onto these ids.
 
-Adding a new signal: bump the enum in
-`canshift-firmware/include/signal_map.h`, add the name → id row in
-`canshift-firmware/src/can/signal_map.cpp::kNameToId`, mirror the entry in the
-Rust crate (`rust/signal-map/src/lib.rs`), and add the visual mapping in
-`canshift-core`. Source of truth across both languages — Unity tests pin the
-ids; cargo tests pin them on the Rust side.
+Adding a new signal: add the id and its `NAME_TO_ID` row in the Rust crate
+(`rust/signal-map/src/lib.rs`), which resolves names for the firmware
+(`signalIdFromName` calls it). Mirror the id as a `SignalIds::k…` constant in
+`src/can/signal_map.h`, and add the visual mapping in `canshift-core`. Cargo
+tests pin the table on the Rust side and `test_signal_map` pins the ids on the
+C++ side.
 
 ## Engine
 
@@ -102,9 +102,9 @@ for future signals in each semantic band without renumbering existing ids.
 ## Signal lifecycle
 
 Every signal goes through `SignalStore`, which holds the latest raw value, an
-EMA-smoothed value, a last-update timestamp, and a valid flag. The store
-invalidates entries older than `SIGNAL_DEFAULT_TIMEOUT_MS = 1000` (default;
-per-signal override in `signals.json`).
+EMA-smoothed value, a last-update timestamp, a valid flag and a stale timeout.
+The store marks a signal stale once it has gone quiet for longer than its
+`timeoutMs` in `signals.json`, 500 ms by default (`kSignalDefaultTimeoutMs`).
 
 Details in [SignalStore](../architecture/signal-store.md).
 

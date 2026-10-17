@@ -40,23 +40,23 @@ No C++ needed — this is the on-device UI as a driver sees it.
 
 How the firmware is put together — read [Overview](architecture/overview.md) first.
 
-| Doc                                                | What it covers                                                              |
-| -------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Overview](architecture/overview.md)               | What runs in which task, against which heap budget                          |
-| [Boot sequence](architecture/boot-sequence.md)     | Heap reservation ordering that makes the boot path work on a no-PSRAM WROOM |
-| [Board profile](architecture/board-profile.md)     | How the firmware resolves which board it is running on, at run time         |
-| [Layout scale](architecture/layout-scale.md)       | One 320×240 design space scaled to every panel, and the display tiers       |
-| [SignalStore](architecture/signal-store.md)        | Runtime signal table — taskCAN writes, taskUI reads                         |
-| [Page lifecycle](architecture/page-lifecycle.md)   | Build, lazy build, release — the dashboard page state machine               |
-| [LVGL ownership](architecture/lvgl-ownership.md)   | Mutex and thread rules for every `lv_*` call                                |
-| [Transports](architecture/transports.md)           | The two host links — USB always, BLE GATT when compiled in                  |
-| [USB transport](architecture/usb-transport.md)     | The command table, the `PUT_CONFIG` burn flow                               |
-| [Firmware OTA](architecture/firmware-ota.md)       | The OTA commands over USB or the workshop socket, and their limits          |
-| [BLE transport](architecture/ble-transport.md)     | NimBLE topology, encrypted GATT layout, binary telemetry frame              |
-| [Workshop mode](architecture/workshop-mode.md)     | Planned: the dash serves the tuner over Wi-Fi, with BLE off                 |
-| [ErrorStore](architecture/error-store.md)          | Error ring buffer and its critical-section invariant                        |
-| [Cruise template](architecture/cruise-template.md) | L-shape buttons and the LVGL convex-polygon workaround                      |
-| [Rust modules](architecture/rust-modules.md)       | FFI contracts and invariants of the `rust/` crates                          |
+| Doc                                                | What it covers                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------- |
+| [Overview](architecture/overview.md)               | What runs in which task, against which heap budget                    |
+| [Boot sequence](architecture/boot-sequence.md)     | Boot phase order and the heap reservations it protects                |
+| [Board profile](architecture/board-profile.md)     | How the firmware resolves which board it is running on, at run time   |
+| [Layout scale](architecture/layout-scale.md)       | One 320×240 design space scaled to every panel, and the display tiers |
+| [SignalStore](architecture/signal-store.md)        | Runtime signal table — taskCAN writes, taskUI reads                   |
+| [Page lifecycle](architecture/page-lifecycle.md)   | Build, lazy build, release — the dashboard page state machine         |
+| [LVGL ownership](architecture/lvgl-ownership.md)   | Mutex and thread rules for every `lv_*` call                          |
+| [Transports](architecture/transports.md)           | The two host links — USB always, BLE GATT when compiled in            |
+| [USB transport](architecture/usb-transport.md)     | The command table, the `PUT_CONFIG` burn flow                         |
+| [Firmware OTA](architecture/firmware-ota.md)       | The OTA commands over USB or the workshop socket, and their limits    |
+| [BLE transport](architecture/ble-transport.md)     | NimBLE topology, encrypted GATT layout, binary telemetry frame        |
+| [Workshop mode](architecture/workshop-mode.md)     | The dash serves the tuner over Wi-Fi, with BLE off                    |
+| [ErrorStore](architecture/error-store.md)          | Error ring buffer and its critical-section invariant                  |
+| [Cruise template](architecture/cruise-template.md) | L-shape buttons and the LVGL convex-polygon workaround                |
+| [Rust modules](architecture/rust-modules.md)       | FFI contracts and invariants of the `rust/` crates                    |
 
 ## Reference
 
