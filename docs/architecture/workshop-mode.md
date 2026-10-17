@@ -21,7 +21,8 @@ partition in `ota_16mb.csv` is 7.5 MB, and the gzipped tuner is about 0.5 MB.
 | ---------------------------------- | -------------------------------------------------- | ------------------ |
 | First flash of a blank board       | `esptool` from a terminal, documented step by step | USB, once          |
 | Configuration and firmware updates | The tuner, served by the dash in workshop mode     | Wi-Fi access point |
-| Driving                            | The mobile app, unchanged                          | BLE                |
+| Firmware updates from the phone    | The mobile app, Device tab                         | Wi-Fi access point |
+| Driving                            | The mobile app                                     | BLE                |
 
 After the first flash, the USB cable is only for recovery.
 
@@ -161,6 +162,16 @@ Each slice ships and is verified on its own, in this order:
 
 ## Mobile
 
-The mobile app is unchanged. Pushing a dashboard update from the app over BLE
-remains possible later, but it is not part of this work. Today BLE carries only
-a fixed command set ([BLE transport](ble-transport.md)).
+The mobile app drives in BLE and updates the firmware over the workshop
+socket, like the tuner. It downloads the signed release while the phone still
+has internet, joins the access point, and sends the same `BEGIN` / `WRITE` /
+`END` lines ([Firmware OTA](firmware-ota.md)). So the dash runs the same
+checks whichever app sends the image. After the resumed boot, the app sends
+`reboot` over the socket, so the dash comes back in driving mode and BLE
+reconnects with the new version
+([mobile firmware update](https://github.com/CANShift/canshift-mobile/blob/main/docs/firmware-update.md)).
+
+React Native's WebSocket sends `Origin: http://192.168.4.1`, which the origin
+check already allows, so the app needs no exception to the browser rule.
+Entering workshop mode stays a tap on the dash: BLE has no command for it, and
+it still carries only a fixed command set ([BLE transport](ble-transport.md)).
