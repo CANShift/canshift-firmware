@@ -63,19 +63,19 @@ bool guardTripped(ControlId id) {
     const bool valid = signalValid(guard.signal);
     if (guard.blockWhenInvalid)
         return !valid;
-    return valid && SignalStore::readRaw(guard.signal, 0.0f) > guard.threshold;
+    return valid && SignalStore::read(guard.signal, 0.0f) > guard.threshold;
 }
 
 int readRounded(SignalId sid) {
     if (!signalValid(sid))
         return 0;
-    return static_cast<int>(lroundf(SignalStore::readRaw(sid, 0.0f)));
+    return static_cast<int>(lroundf(SignalStore::read(sid, 0.0f)));
 }
 
 } // namespace
 
 bool isConfirming(SignalId signal) {
-    return signalValid(signal) && SignalStore::readRaw(signal, 0.0f) != 0.0f;
+    return signalValid(signal) && SignalStore::read(signal, 0.0f) != 0.0f;
 }
 
 ControlState evaluate(const ControlVocabulary::Control &control, SignalId signal,
@@ -102,7 +102,7 @@ int paramValue(ControlParam param, uint8_t level) {
 GuardReading guardReading(ControlId id) {
     const Guard &guard = kGuards[static_cast<uint8_t>(id)];
     const bool valid = signalValid(guard.signal);
-    return {valid ? SignalStore::readRaw(guard.signal, 0.0f) : 0.0f, guard.threshold, valid};
+    return {valid ? SignalStore::read(guard.signal, 0.0f) : 0.0f, guard.threshold, valid};
 }
 
 bool levelFromSignal(ControlId id, uint8_t *outLevel) {

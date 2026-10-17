@@ -27,7 +27,6 @@ mid-frame. The lock is held for microseconds.
 ```cpp
 struct SignalValue {
     float raw;             // last sample as decoded
-    float smoothed;        // EMA of the samples
     uint32_t lastUpdateMs; // millis() at the last write
     bool valid;            // false until the first sample, and again once stale
     uint32_t timeoutMs;    // stale threshold for this signal
@@ -41,50 +40,47 @@ one per `SignalId`; a `static_assert` in `signal_store.h` keeps it at least
 crate (`rust/signal-map/src/lib.rs`); the ids are mirrored as constants in
 `src/can/signal_map.h`. See [Signal map](../reference/signals.md).
 
-Non-finite values are dropped at the door: `update()` and `set()` refuse
-NaN and infinity, and log the first refusal once.
+Non-finite values are dropped at the door: `update()` refuses NaN and
+infinity, and logs the first refusal once.
 
-## Raw and smoothed
+## One value per signal
 
-`update(id, value)` stores the sample in `raw` and folds it into `smoothed`
-with `kSignalEmaAlpha = 0.2f`:
+The store keeps the last decoded sample and nothing else. `update(id, value)`
+overwrites it; `read()`, `tryRead()` and the `raw` field of a snapshot all
+return it. There is no filtered copy.
 
-```cpp
-smoothed = valid ? (kSignalEmaAlpha * value + (1.0f - kSignalEmaAlpha) * smoothed)
-                 : value;
-```
+**Surface policy: every reader gets the decoded value.**
 
-The first sample after a stale period seeds `smoothed = value`, so it does not
-climb from 0. The EMA advances once per sample, so how far it lags depends
-on the signal's frame rate.
+| Surface                                                                     | Reads |
+| --------------------------------------------------------------------------- | ----- |
+| Gauge, label, warning, gear, timer and shift-light widgets                  | raw   |
+| Alert engine: thresholds, MIL, rev limiter, user critical alerts            | raw   |
+| Alert banner value, takeover card value and its RPM context                 | raw   |
+| Top-bar metric values and mode flags                                        | raw   |
+| Signal stats, cut band, page buttons, control guards, input-binding toggles | raw   |
+| Workshop-mode offer gate and motion exit                                    | raw   |
+| BLE `TELE` and `ALERT`, USB telemetry                                       | raw   |
+| Inputs of cross-signal expressions (`can_parser.cpp`)                       | raw   |
 
-`read()` and `tryRead()` return `smoothed`; `readRaw()` and the `raw` field
-of a snapshot return the sample. `smoothed` decays as 0.8ⁿ and never
-returns to exactly 0, so a `!= 0` test on it keeps a dropped flag lit and a
-threshold on it delays a real fault and filters a short one.
+Why one rule:
 
-Which value each surface reads today:
+- **One number per signal on one screen.** The takeover card, the banner,
+  the top bar and the widget show the same reading of the same frame.
+- **Decisions see the fault when it happens.** A threshold, a flag or a
+  guard on a filtered value fires late, filters a short dip and, on a
+  per-sample filter, lags by an amount that depends on the frame rate.
+  The alert engine already debounces in Rust (hysteresis plus a minimum
+  active time), so it needs no second filter in front of it.
+- **Derived signals are filtered zero times.** A cross-signal expression
+  reads its inputs as decoded, so its output is the expression of the
+  current frame, not of a lagged one.
 
-| Reads `raw`                                                               | Reads `smoothed`                                               |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Gauge, label, warning, gear and timer widgets (`widget_factory.cpp`)      | Shift-light strip                                              |
-| Alert engine thresholds: coolant, oil, battery, MIL, user critical alerts | Rev-limiter level and its blink (the alert engine's RPM input) |
-| Signal stats, cut band, page buttons                                      | Top-bar metric values                                          |
-| Top-bar mode flags, input-binding toggles                                 | Alert banner value; takeover card value and its RPM context    |
-| Workshop-mode offer gate                                                  | Workshop-mode motion exit                                      |
-|                                                                           | BLE `TELE` and `ALERT`, USB telemetry                          |
-|                                                                           | Inputs of cross-signal expressions (`can_parser.cpp`)          |
+A surface that ever needs a steadier picture filters locally, by time
+(`α = 1 − exp(−dt/τ)`), and documents its τ here. Nothing does today.
 
-A derived signal therefore smooths an already smoothed input once more when
-it is written through `update()`.
-
-## `set(id, value)` — bypass the EMA
-
-`SignalStore::set(id, value)` writes `raw` and `smoothed` to the same value.
-Input bindings that toggle a signal use it (`input_buttons.cpp`), so every
-reader sees the new state at once instead of waiting for the ECU echo. Flag
-readers use `readRaw()`, so a toggle written by `set()` and a flag echoed by
-the ECU through `update()` both read back exactly.
+Input bindings that toggle a signal (`input_buttons.cpp`) write through
+`update()` like the CAN parser, so the toggle and an ECU echo read back the
+same way.
 
 ## `checkTimeouts()` — stale invalidation
 

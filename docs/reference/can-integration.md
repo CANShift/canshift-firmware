@@ -97,21 +97,12 @@ to at least 3× the expected update period to avoid false "signal lost" warnings
 
 ---
 
-## Signal Smoothing Strategy
+## Signal Smoothing
 
-Gauges (RPM, boost, oil pressure) use EMA (Exponential Moving Average) smoothing
-to prevent LVGL widget jitter from high-frequency signal noise:
-
-```
-smoothed = α × raw + (1 - α) × smoothed
-```
-
-Where `α = kSignalEmaAlpha = 0.2` (from `app_config.h`).
-
-- Lower α = more smoothing (slower response to sudden changes)
-- Higher α = less smoothing (faster response, more jitter)
-
-Labels showing temperature, voltage, gear use raw values (no smoothing needed).
+None. The store keeps the last decoded sample and every surface reads it:
+widgets, alerts, the top bar, the takeover card and telemetry show the same
+reading of the same frame. See
+[SignalStore](../architecture/signal-store.md#one-value-per-signal).
 
 ---
 

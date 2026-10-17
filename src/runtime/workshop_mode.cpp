@@ -80,7 +80,7 @@ bool boardSupported() {
 bool offered() {
     const bool speedMapped = ConfigLoader::findSignal(kSpeedSignalName) != nullptr;
     const bool speedValid = SignalStore::isValid(SignalIds::kSpeedKph);
-    const float speedKph = SignalStore::readRaw(SignalIds::kSpeedKph, kSpeedWhenUnread);
+    const float speedKph = SignalStore::read(SignalIds::kSpeedKph, kSpeedWhenUnread);
     return workshop_offered_rs(filesystemBytes(), speedMapped, speedValid, speedKph);
 }
 
