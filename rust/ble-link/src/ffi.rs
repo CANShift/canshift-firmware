@@ -1,4 +1,4 @@
-use crate::{pairing_overdue, subscription_refused, LinkSecurity};
+use crate::{pairing_overdue, subscription_refused, LinkSecurity, PasskeyPromptBudget};
 
 #[no_mangle]
 pub extern "C" fn ble_link_admitted_rs(encrypted: bool, authenticated: bool) -> bool {
@@ -19,10 +19,21 @@ pub extern "C" fn ble_link_pairing_overdue_rs(
     pairing_overdue(LinkSecurity::new(encrypted, authenticated), connected_ms)
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn ble_link_passkey_prompt_admit_rs(
+    budget: *mut PasskeyPromptBudget,
+    now_ms: u32,
+) -> bool {
+    if budget.is_null() {
+        return false;
+    }
+    unsafe { &mut *budget }.admit(now_ms)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PAIRING_DEADLINE_MS;
+    use crate::{PAIRING_DEADLINE_MS, PASSKEY_PROMPTS_PER_WINDOW};
 
     #[test]
     fn ffi_admits_only_the_authenticated_link() {
@@ -51,5 +62,19 @@ mod tests {
             PAIRING_DEADLINE_MS
         ));
         assert!(!ble_link_pairing_overdue_rs(true, true, u32::MAX));
+    }
+
+    #[test]
+    fn ffi_refuses_a_null_budget() {
+        assert!(!unsafe { ble_link_passkey_prompt_admit_rs(core::ptr::null_mut(), 0) });
+    }
+
+    #[test]
+    fn ffi_prompt_budget_matches_the_rule() {
+        let mut budget = PasskeyPromptBudget::default();
+        for _ in 0..PASSKEY_PROMPTS_PER_WINDOW {
+            assert!(unsafe { ble_link_passkey_prompt_admit_rs(&mut budget, 0) });
+        }
+        assert!(!unsafe { ble_link_passkey_prompt_admit_rs(&mut budget, 0) });
     }
 }

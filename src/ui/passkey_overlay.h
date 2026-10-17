@@ -5,7 +5,9 @@
 
 namespace PasskeyOverlay {
 
-void show(uint32_t passkey);
+void request(uint32_t passkey);
+
+void update(bool screenClaimed);
 
 void hide();
 
