@@ -54,27 +54,26 @@ void updateWidget(WidgetEntry &entry, const SignalStore::SignalValue snap[kSigna
 
     const SignalStore::SignalValue &sv = snap[entry.signalId];
     const bool valid = sv.valid;
-    const float value = valid ? sv.smoothed : 0.0f;
-    const float rawValue = valid ? sv.raw : 0.0f;
+    const float value = valid ? sv.raw : 0.0f;
 
     switch (entry.type) {
         case WidgetType::GAUGE:
-            GaugeWidget::update(entry.obj, rawValue, valid, *entry.cfg);
+            GaugeWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::LABEL:
-            LabelWidget::update(entry.obj, rawValue, valid, *entry.cfg);
+            LabelWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::WARNING:
-            WarningWidget::update(entry.obj, rawValue, valid, *entry.cfg);
+            WarningWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::BUTTON:
 
             break;
         case WidgetType::GEAR_IND:
-            GearWidget::update(entry.obj, rawValue, valid, *entry.cfg);
+            GearWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::TIMER:
-            TimerWidget::update(entry.obj, rawValue, valid, *entry.cfg);
+            TimerWidget::update(entry.obj, value, valid, *entry.cfg);
             break;
         case WidgetType::SHIFT_LIGHT:
             ShiftLightWidget::update(entry.obj, value, valid, *entry.cfg);
