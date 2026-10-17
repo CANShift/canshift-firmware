@@ -99,14 +99,14 @@ void test_a_held_critical_does_not_survive_a_reload() {
 
 void test_a_critical_alert_armed_by_a_reload_is_armed() {
     loadConfig(s_dashboard, s_signals);
-    TEST_ASSERT_FALSE(CriticalAlertSource::armed().armed);
+    TEST_ASSERT_FALSE(CriticalAlertSource::armed(0).armed);
 
     loadConfig(withCriticalAlert(s_dashboard), s_signals);
-    TEST_ASSERT_TRUE(CriticalAlertSource::armed().armed);
-    TEST_ASSERT_EQUAL(SignalIds::kOilTempC, CriticalAlertSource::armed().id);
+    TEST_ASSERT_TRUE(CriticalAlertSource::armed(0).armed);
+    TEST_ASSERT_EQUAL(SignalIds::kOilTempC, CriticalAlertSource::armed(0).id);
 
     loadConfig(s_dashboard, s_signals);
-    TEST_ASSERT_FALSE(CriticalAlertSource::armed().armed);
+    TEST_ASSERT_FALSE(CriticalAlertSource::armed(0).armed);
 }
 
 int main(int /*argc*/, char ** /*argv*/) {

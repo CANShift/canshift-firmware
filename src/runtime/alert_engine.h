@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "app_config.h"
 #include "runtime/signal_store.h"
 
 namespace AlertEngine {
@@ -20,7 +21,7 @@ struct AlertState {
     AlertLevel gearboxTemp;
     AlertLevel diffTemp;
     AlertLevel exhaustTemp;
-    AlertLevel userCritical;
+    AlertLevel userCritical[kConfigMaxCriticalAlerts];
     AlertLevel global;
     bool coolantSensorLost;
     bool oilTempSensorLost;
@@ -29,7 +30,7 @@ struct AlertState {
     bool gearboxSensorLost;
     bool diffSensorLost;
     bool exhaustSensorLost;
-    bool userSensorLost;
+    bool userSensorLost[kConfigMaxCriticalAlerts];
 };
 
 struct CriticalLimit {

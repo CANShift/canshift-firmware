@@ -25,8 +25,10 @@ constexpr const char *kDashboard = R"({
   "defaultPageId": "main",
   "revLimitRpm": 7000,
   "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
-  "criticalAlert": {"signal": "oil_press_bar", "firesAt": 1.0, "direction": "below",
-                    "acknowledgeOn": "dash"},
+  "criticalAlerts": [
+    {"signal": "oil_press_bar", "firesAt": 1.0, "direction": "below", "acknowledgeOn": "dash"},
+    {"signal": "oil_press_bar", "firesAt": 8.5, "direction": "above", "acknowledgeOn": "dash"}
+  ],
   "pages": [
     {
       "id": "main",
@@ -48,6 +50,31 @@ constexpr const char *kDashboard = R"({
       ]
     }
   ]
+})";
+
+constexpr const char *kDashboardLegacyAlert = R"({
+  "version": "1.42.0",
+  "name": "Legacy alert",
+  "defaultPageId": "main",
+  "revLimitRpm": 7000,
+  "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
+  "criticalAlert": {"signal": "oil_press_bar", "firesAt": 1.0, "direction": "below",
+                    "acknowledgeOn": "dash"},
+  "pages": [{"id": "main", "backgroundColor": "#000000", "showTopBar": true, "widgets": []}]
+})";
+
+constexpr const char *kDashboardTooManyAlerts = R"({
+  "version": "1.43.0",
+  "name": "Too many alerts",
+  "defaultPageId": "main",
+  "revLimitRpm": 7000,
+  "topBar": {"height": 24, "bgColor": "#111111", "textColor": "#FFFFFF"},
+  "criticalAlerts": [
+    {"signal": "oil_press_bar", "firesAt": 1.0}, {"signal": "oil_press_bar", "firesAt": 2.0},
+    {"signal": "oil_press_bar", "firesAt": 3.0}, {"signal": "oil_press_bar", "firesAt": 4.0},
+    {"signal": "oil_press_bar", "firesAt": 5.0}
+  ],
+  "pages": [{"id": "main", "backgroundColor": "#000000", "showTopBar": true, "widgets": []}]
 })";
 
 constexpr const char *kDashboardNoAlert = R"({
@@ -95,18 +122,36 @@ void test_gear_readsKicker() {
     TEST_ASSERT_EQUAL_STRING("BOX", gear.label.kicker);
 }
 
-void test_criticalAlert_isArmedFromTheDashboard() {
-    const CfgCriticalAlert &alert = load(kDashboard).criticalAlert;
+void assertLowOilPressureAlert(const CfgCriticalAlert &alert) {
     TEST_ASSERT_TRUE(alert.armed);
     TEST_ASSERT_EQUAL_STRING("oil_press_bar", alert.signalId);
     TEST_ASSERT_EQUAL_FLOAT(1.0f, alert.firesAt);
     TEST_ASSERT_TRUE(alert.below);
 }
 
-void test_criticalAlert_absent_armsNothing() {
-    const CfgCriticalAlert &alert = load(kDashboardNoAlert).criticalAlert;
-    TEST_ASSERT_FALSE(alert.armed);
-    TEST_ASSERT_TRUE(std::isnan(alert.firesAt));
+void test_criticalAlerts_armEveryEntryInOrder() {
+    const CfgDashboard &dashboard = load(kDashboard);
+    TEST_ASSERT_EQUAL_UINT8(2, dashboard.criticalAlertCount);
+    assertLowOilPressureAlert(dashboard.criticalAlerts[0]);
+    TEST_ASSERT_TRUE(dashboard.criticalAlerts[1].armed);
+    TEST_ASSERT_EQUAL_FLOAT(8.5f, dashboard.criticalAlerts[1].firesAt);
+    TEST_ASSERT_FALSE(dashboard.criticalAlerts[1].below);
+}
+
+void test_legacyCriticalAlert_isReadAsAOneEntryList() {
+    const CfgDashboard &dashboard = load(kDashboardLegacyAlert);
+    TEST_ASSERT_EQUAL_UINT8(1, dashboard.criticalAlertCount);
+    assertLowOilPressureAlert(dashboard.criticalAlerts[0]);
+}
+
+void test_criticalAlerts_pastTheCap_keepTheFirstEntries() {
+    const CfgDashboard &dashboard = load(kDashboardTooManyAlerts);
+    TEST_ASSERT_EQUAL_UINT8(kConfigMaxCriticalAlerts, dashboard.criticalAlertCount);
+    TEST_ASSERT_EQUAL_FLOAT(4.0f, dashboard.criticalAlerts[kConfigMaxCriticalAlerts - 1].firesAt);
+}
+
+void test_criticalAlerts_absent_armNothing() {
+    TEST_ASSERT_EQUAL_UINT8(0, load(kDashboardNoAlert).criticalAlertCount);
 }
 
 int main(int /*argc*/, char ** /*argv*/) {
@@ -114,7 +159,9 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_arcGauge_readsKickerAndWarnLevel);
     RUN_TEST(test_numericGauge_withoutWarnLevel_leavesItUnset);
     RUN_TEST(test_gear_readsKicker);
-    RUN_TEST(test_criticalAlert_isArmedFromTheDashboard);
-    RUN_TEST(test_criticalAlert_absent_armsNothing);
+    RUN_TEST(test_criticalAlerts_armEveryEntryInOrder);
+    RUN_TEST(test_legacyCriticalAlert_isReadAsAOneEntryList);
+    RUN_TEST(test_criticalAlerts_pastTheCap_keepTheFirstEntries);
+    RUN_TEST(test_criticalAlerts_absent_armNothing);
     return UNITY_END();
 }

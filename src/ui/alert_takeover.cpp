@@ -40,18 +40,19 @@ void ackClickCb(lv_event_t *e) {
     s_ackRequested.store(true, std::memory_order_relaxed);
 }
 
-static_assert(AlertSources::kSourceCount + 1 <= kAlertCriticalSourceCapacity);
+static_assert(AlertSources::kMaxSourceCount <= kAlertCriticalSourceCapacity);
 
-bool isShowable(const AlertEngine::AlertState &state, const AlertSources::CriticalSource &src) {
-    if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
+bool isShowable(const AlertEngine::AlertState &state, size_t index) {
+    if (AlertSources::levelAt(state, index) != AlertEngine::AlertLevel::CRITICAL)
         return false;
-    return !(state.*(src.sensorLost) && !SignalStore::isValid(src.id));
+    return !(AlertSources::sensorLostAt(state, index) &&
+             !SignalStore::isValid(AlertSources::at(index).id));
 }
 
 uint32_t criticalSources(const AlertEngine::AlertState &state) {
     uint32_t critical = 0;
     for (size_t i = 0; i < AlertSources::count(); ++i) {
-        if (isShowable(state, AlertSources::at(i)))
+        if (isShowable(state, i))
             critical |= 1u << i;
     }
     return critical;
@@ -98,9 +99,11 @@ void refreshValue(const AlertSources::CriticalSource &src) {
     AlertTakeoverView::setValue(text);
 }
 
-void formatContext(char *out, size_t outLen, const AlertSources::CriticalSource &src) {
+void formatContext(char *out, size_t outLen, size_t index) {
+    const AlertSources::CriticalSource &src = AlertSources::at(index);
     const int rpm = static_cast<int>(lroundf(SignalStore::read(SignalIds::kRpm)));
-    const AlertEngine::CriticalLimit limit = src.limitFor(src.id, SignalStore::readRaw(src.id));
+    const AlertEngine::CriticalLimit limit =
+        AlertSources::limitAt(index, SignalStore::readRaw(src.id));
     if (!limit.valid) {
         snprintf(out, outLen, "AT %d rpm", rpm);
         return;
@@ -112,9 +115,9 @@ void formatContext(char *out, size_t outLen, const AlertSources::CriticalSource 
              UnitDisplay::symbolFor(src.unit), TextJoin::kSeparator, rpm);
 }
 
-void refreshContext(const AlertSources::CriticalSource &src) {
+void refreshContext(size_t index) {
     char text[56];
-    formatContext(text, sizeof(text), src);
+    formatContext(text, sizeof(text), index);
     if (strcmp(text, s_lastContextText) == 0)
         return;
     strlcpy(s_lastContextText, text, sizeof(s_lastContextText));
@@ -154,7 +157,7 @@ void AlertTakeover::update() {
         showFor(critical);
     }
     refreshValue(AlertSources::at(static_cast<size_t>(critical)));
-    refreshContext(AlertSources::at(static_cast<size_t>(critical)));
+    refreshContext(static_cast<size_t>(critical));
 }
 
 void AlertTakeover::reset() {

@@ -27,9 +27,9 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
     buf[0] = '\0';
     for (size_t i = 0; i < AlertSources::count(); ++i) {
         const AlertSources::CriticalSource &src = AlertSources::at(i);
-        if (state.*(src.level) != AlertEngine::AlertLevel::CRITICAL)
+        if (AlertSources::levelAt(state, i) != AlertEngine::AlertLevel::CRITICAL)
             continue;
-        if (state.*(src.sensorLost) && !SignalStore::isValid(src.id))
+        if (AlertSources::sensorLostAt(state, i) && !SignalStore::isValid(src.id))
             continue;
         char valBuf[16];
         FloatFormat::formatFixed(valBuf, sizeof(valBuf),
@@ -49,10 +49,9 @@ void composeSensorLostText(const AlertEngine::AlertState &state, char *buf, size
     if (BusHealth::sample().silent)
         return;
     for (size_t i = 0; i < AlertSources::count(); ++i) {
-        const AlertSources::CriticalSource &src = AlertSources::at(i);
-        if (!(state.*(src.sensorLost)))
+        if (!AlertSources::sensorLostAt(state, i))
             continue;
-        if (!TextJoin::append(buf, len, used, src.chipLabel))
+        if (!TextJoin::append(buf, len, used, AlertSources::at(i).chipLabel))
             return;
     }
 }

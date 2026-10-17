@@ -57,7 +57,7 @@ void parseButtonAction(JsonObjectConst src, CfgButtonAction *out);
 
 void parseWidget(JsonObjectConst src, CfgWidget *w);
 
-void parseCriticalAlert(JsonObjectConst src, CfgCriticalAlert *out);
+void parseCriticalAlerts(const JsonDocument &doc, CfgDashboard *out);
 
 void parsePageButtons(JsonObjectConst src, CfgPageButtons *out);
 

@@ -221,6 +221,12 @@ void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
     }
 }
 
+void stepCriticalAlerts(const SignalStore::SignalValue *snap, uint32_t now) {
+    for (size_t i = 0; i < kConfigMaxCriticalAlerts; ++i)
+        s_state.userCritical[i] =
+            CriticalAlertSource::step(i, snap, now, &s_state.userSensorLost[i]);
+}
+
 struct ThresholdBinding {
     const char *name;
     float *warn;
@@ -323,7 +329,7 @@ void AlertEngine::init() {
 
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     s_revLimitRpm = dash.loaded && dash.revLimitRpm > 0.0f ? dash.revLimitRpm : kDefaultRevLimitRpm;
-    CriticalAlertSource::init(dash.criticalAlert);
+    CriticalAlertSource::init(dash.criticalAlerts, dash.criticalAlertCount);
 
     resetSignalBindings();
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
@@ -366,7 +372,7 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     s_state.milActive = (mil > 0.5f);
     s_state.batteryVoltage = withSensorLost(stepBattery(volts, now), s_state.batterySensorLost);
     stepDeclaredTemps(snap, now);
-    s_state.userCritical = CriticalAlertSource::step(snap, now, &s_state.userSensorLost);
+    stepCriticalAlerts(snap, now);
 
     s_state.global = s_state.revLimiter;
     s_state.global = maxLevel(s_state.global, s_state.coolantTemp);
@@ -375,7 +381,8 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     s_state.global = maxLevel(s_state.global, s_state.batteryVoltage);
     for (const DeclaredTempSource &src : s_declaredTemps)
         s_state.global = maxLevel(s_state.global, s_state.*(src.level));
-    s_state.global = maxLevel(s_state.global, s_state.userCritical);
+    for (const AlertLevel level : s_state.userCritical)
+        s_state.global = maxLevel(s_state.global, level);
 
     stepRevLimitBlink(s_state.revLimiter == AlertLevel::CRITICAL, now);
 }
