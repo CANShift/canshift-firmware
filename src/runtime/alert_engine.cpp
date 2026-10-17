@@ -357,7 +357,7 @@ void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     const auto readSnap = [&snap](SignalId id, float def) {
         return snap[id].valid ? snap[id].raw : def;
     };
-    const float rpm = snap[SignalIds::kRpm].valid ? snap[SignalIds::kRpm].smoothed : 0.0f;
+    const float rpm = readSnap(SignalIds::kRpm, 0.0f);
     float coolant = readSnap(SignalIds::kCoolantTempC, 0.0f);
     float oilTemp = readSnap(SignalIds::kOilTempC, 0.0f);
     float oilPres = readSnap(SignalIds::kOilPressBar, 5.0f);

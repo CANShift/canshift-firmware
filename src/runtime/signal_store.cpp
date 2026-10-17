@@ -38,27 +38,14 @@ bool acceptsValue(SignalId id, float value) {
     return false;
 }
 
-float readField(SignalId id, float SignalStore::SignalValue::*field, float defaultValue) {
-    if (!idValid(id))
-        return defaultValue;
-
-    portENTER_CRITICAL(&s_signalsMux);
-    const float result = s_signals[id].valid ? s_signals[id].*field : defaultValue;
-    portEXIT_CRITICAL(&s_signalsMux);
-    return result;
-}
-
 } // namespace
 
 void SignalStore::init() {
 
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < kSignalStoreMaxSignals; ++i) {
-        s_signals[i] = {.raw = 0.0f,
-                        .smoothed = 0.0f,
-                        .lastUpdateMs = 0,
-                        .valid = false,
-                        .timeoutMs = kSignalDefaultTimeoutMs};
+        s_signals[i] = {
+            .raw = 0.0f, .lastUpdateMs = 0, .valid = false, .timeoutMs = kSignalDefaultTimeoutMs};
     }
     portEXIT_CRITICAL(&s_signalsMux);
     s_anyValid.store(false, std::memory_order_relaxed);
@@ -74,26 +61,7 @@ void SignalStore::update(SignalId id, float value) {
 
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
-    const float new_smoothed =
-        sig.valid ? (kSignalEmaAlpha * value + (1.0f - kSignalEmaAlpha) * sig.smoothed) : value;
     sig.raw = value;
-    sig.smoothed = new_smoothed;
-    sig.lastUpdateMs = now;
-    sig.valid = true;
-    portEXIT_CRITICAL(&s_signalsMux);
-    s_anyValid.store(true, std::memory_order_relaxed);
-}
-
-void SignalStore::set(SignalId id, float value) {
-    if (!acceptsValue(id, value))
-        return;
-
-    uint32_t now = millis();
-
-    portENTER_CRITICAL(&s_signalsMux);
-    SignalValue &sig = s_signals[id];
-    sig.raw = value;
-    sig.smoothed = value;
     sig.lastUpdateMs = now;
     sig.valid = true;
     portEXIT_CRITICAL(&s_signalsMux);
@@ -101,11 +69,13 @@ void SignalStore::set(SignalId id, float value) {
 }
 
 float SignalStore::read(SignalId id, float defaultValue) {
-    return readField(id, &SignalValue::smoothed, defaultValue);
-}
+    if (!idValid(id))
+        return defaultValue;
 
-float SignalStore::readRaw(SignalId id, float defaultValue) {
-    return readField(id, &SignalValue::raw, defaultValue);
+    portENTER_CRITICAL(&s_signalsMux);
+    const float result = s_signals[id].valid ? s_signals[id].raw : defaultValue;
+    portEXIT_CRITICAL(&s_signalsMux);
+    return result;
 }
 
 bool SignalStore::isValid(SignalId id) {
@@ -118,13 +88,13 @@ bool SignalStore::isValid(SignalId id) {
     return result;
 }
 
-bool SignalStore::tryRead(SignalId id, float *smoothed) {
-    if (!idValid(id) || smoothed == nullptr)
+bool SignalStore::tryRead(SignalId id, float *value) {
+    if (!idValid(id) || value == nullptr)
         return false;
 
     portENTER_CRITICAL(&s_signalsMux);
     const bool valid = s_signals[id].valid;
-    *smoothed = s_signals[id].smoothed;
+    *value = s_signals[id].raw;
     portEXIT_CRITICAL(&s_signalsMux);
     return valid;
 }

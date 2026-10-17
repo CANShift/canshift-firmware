@@ -164,7 +164,7 @@ static void updateModeFlag(DynItem &d) {
     SignalId sid = signalIdFromName(d.signalId);
     bool active = false;
     if (sid < SignalIds::kSignalCount && SignalStore::isValid(sid)) {
-        active = SignalStore::readRaw(sid, 0.0f) != 0.0f;
+        active = SignalStore::read(sid, 0.0f) != 0.0f;
     }
     const bool wantHidden = !active;
     if (wantHidden != d.hidden) {

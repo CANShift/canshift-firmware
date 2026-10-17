@@ -103,7 +103,7 @@ void formatContext(char *out, size_t outLen, size_t index) {
     const AlertSources::CriticalSource &src = AlertSources::at(index);
     const int rpm = static_cast<int>(lroundf(SignalStore::read(SignalIds::kRpm)));
     const AlertEngine::CriticalLimit limit =
-        AlertSources::limitAt(index, SignalStore::readRaw(src.id));
+        AlertSources::limitAt(index, SignalStore::read(src.id));
     if (!limit.valid) {
         snprintf(out, outLen, "AT %d rpm", rpm);
         return;
