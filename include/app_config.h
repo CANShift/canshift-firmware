@@ -85,8 +85,6 @@ inline constexpr int kSignalStoreMaxSignals = 64;
 
 inline constexpr int kSignalDefaultTimeoutMs = 500;
 
-inline constexpr float kSignalEmaAlpha = 0.2f;
-
 inline constexpr uint8_t kCanFrameMaxBytes = 8;
 
 inline constexpr int kCanRxQueueDepth = 32;

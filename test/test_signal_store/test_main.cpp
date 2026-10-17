@@ -1,4 +1,3 @@
-
 #include "runtime/signal_store.h"
 
 #include <Arduino.h>
@@ -12,24 +11,22 @@ constexpr SignalId kUnwrittenSignalId = SignalIds::kOilPressBar;
 constexpr float kTestSignalValue = 1234.0f;
 constexpr float kReadDefault = -1.0f;
 constexpr float kEpsilon = 1e-4f;
-
-// 5 ms past SIGNAL_DEFAULT_TIMEOUT_MS — guaranteed to exceed the staleness
-// window without sitting exactly on the boundary.
 constexpr uint32_t kPastTimeoutMs = kSignalDefaultTimeoutMs + 5;
+constexpr int kToggleCycles = 10;
+constexpr float kRampStartRpm = 3000.0f;
+constexpr float kRampStepRpm = 500.0f;
+constexpr int kRampFrames = 8;
 
 } // namespace
 
 void setUp() {
-    // Reset the millis counter and rebuild the store mutex so each test
-    // starts from a known baseline. SignalStore::init() also clears all
-    // slots back to invalid.
     mockSetMillis(0);
     SignalStore::init();
 }
 
 void tearDown() {}
 
-void test_set_then_get_returnsValue_andValid() {
+void test_update_then_read_returnsValue_andValid() {
     SignalStore::update(kTestSignalId, kTestSignalValue);
 
     TEST_ASSERT_TRUE(SignalStore::isValid(kTestSignalId));
@@ -37,7 +34,7 @@ void test_set_then_get_returnsValue_andValid() {
                              SignalStore::read(kTestSignalId, kReadDefault));
 }
 
-void test_get_unwritten_signal_isInvalid() {
+void test_read_unwritten_signal_isInvalid() {
     TEST_ASSERT_FALSE(SignalStore::isValid(kUnwrittenSignalId));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kReadDefault,
                              SignalStore::read(kUnwrittenSignalId, kReadDefault));
@@ -53,30 +50,29 @@ void test_timeout_invalidates_after_threshold() {
     TEST_ASSERT_FALSE(SignalStore::isValid(kTestSignalId));
 }
 
-// Regression: synthetic toggle writes via SignalStore::set must bypass EMA
-// so read() returns exactly the written value (#1285). Anything fuzzier
-// than exact equality re-creates the button-stuck symptom.
-void test_set_writes_exact_value() {
-    SignalStore::set(kTestSignalId, 1.0f);
-    TEST_ASSERT_TRUE(SignalStore::isValid(kTestSignalId));
-    TEST_ASSERT_EQUAL_FLOAT(1.0f, SignalStore::read(kTestSignalId, kReadDefault));
-
-    SignalStore::set(kTestSignalId, 0.0f);
+void test_read_returnsTheLastFrameExactly() {
+    SignalStore::update(kTestSignalId, 1.0f);
+    SignalStore::update(kTestSignalId, 0.0f);
     TEST_ASSERT_EQUAL_FLOAT(0.0f, SignalStore::read(kTestSignalId, kReadDefault));
 }
 
-// Regression: 10 alternating set() calls — read() must report exactly 0 or
-// 1 on every cycle, even though the signal already has a previous smoothed
-// value sitting in the slot from earlier updates.
-void test_set_repeated_toggles_stay_binary() {
-    // Seed with a non-binary smoothed value so the bug from #1285 would
-    // surface immediately if set() ever fell back to the EMA path.
+void test_repeated_toggles_stay_binary() {
     SignalStore::update(kTestSignalId, 0.7f);
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < kToggleCycles; ++i) {
         const float target = (i % 2 == 0) ? 1.0f : 0.0f;
-        SignalStore::set(kTestSignalId, target);
+        SignalStore::update(kTestSignalId, target);
         TEST_ASSERT_EQUAL_FLOAT(target, SignalStore::read(kTestSignalId, kReadDefault));
+    }
+}
+
+void test_snapshot_followsARampFrameByFrame() {
+    SignalStore::SignalValue snap[kSignalStoreMaxSignals];
+    for (int i = 0; i < kRampFrames; ++i) {
+        const float rpm = kRampStartRpm + kRampStepRpm * static_cast<float>(i);
+        SignalStore::update(kTestSignalId, rpm);
+        SignalStore::snapshotAll(snap);
+        TEST_ASSERT_EQUAL_FLOAT(rpm, snap[kTestSignalId].raw);
     }
 }
 
@@ -84,7 +80,8 @@ void test_tryRead_reportsValidityAndValue() {
     float value = kReadDefault;
     TEST_ASSERT_FALSE(SignalStore::tryRead(kUnwrittenSignalId, &value));
 
-    SignalStore::set(kTestSignalId, kTestSignalValue);
+    SignalStore::update(kTestSignalId, 1.0f);
+    SignalStore::update(kTestSignalId, kTestSignalValue);
     TEST_ASSERT_TRUE(SignalStore::tryRead(kTestSignalId, &value));
     TEST_ASSERT_EQUAL_FLOAT(kTestSignalValue, value);
 
@@ -97,7 +94,7 @@ void test_tryRead_rejectsOutOfRangeIdAndNullOut() {
     float value = kReadDefault;
     TEST_ASSERT_FALSE(SignalStore::tryRead(SignalIds::kSignalCount, &value));
     TEST_ASSERT_EQUAL_FLOAT(kReadDefault, value);
-    SignalStore::set(kTestSignalId, kTestSignalValue);
+    SignalStore::update(kTestSignalId, kTestSignalValue);
     TEST_ASSERT_FALSE(SignalStore::tryRead(kTestSignalId, nullptr));
 }
 
@@ -111,39 +108,25 @@ void test_update_ignoresNonFiniteValues() {
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kTestSignalValue, SignalStore::read(kTestSignalId));
     SignalStore::SignalValue snap[kSignalStoreMaxSignals];
     SignalStore::snapshotAll(snap);
-    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kTestSignalValue, snap[kTestSignalId].smoothed);
+    TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kTestSignalValue, snap[kTestSignalId].raw);
 }
 
-void test_set_ignoresNonFiniteValues() {
-    SignalStore::set(kTestSignalId, NAN);
-    TEST_ASSERT_FALSE(SignalStore::isValid(kTestSignalId));
-}
-
-void test_readRaw_returnsTheLastFrameWhileReadLags() {
-    SignalStore::update(kTestSignalId, 1.0f);
-    SignalStore::update(kTestSignalId, 0.0f);
-    TEST_ASSERT_EQUAL_FLOAT(0.0f, SignalStore::readRaw(kTestSignalId, kReadDefault));
-    TEST_ASSERT_TRUE(SignalStore::read(kTestSignalId, kReadDefault) > 0.0f);
-}
-
-void test_readRaw_returnsDefaultWhenInvalid() {
-    TEST_ASSERT_EQUAL_FLOAT(kReadDefault, SignalStore::readRaw(kUnwrittenSignalId, kReadDefault));
-    TEST_ASSERT_EQUAL_FLOAT(kReadDefault,
-                            SignalStore::readRaw(SignalIds::kSignalCount, kReadDefault));
+void test_read_returnsDefaultWhenInvalidOrOutOfRange() {
+    TEST_ASSERT_EQUAL_FLOAT(kReadDefault, SignalStore::read(kUnwrittenSignalId, kReadDefault));
+    TEST_ASSERT_EQUAL_FLOAT(kReadDefault, SignalStore::read(SignalIds::kSignalCount, kReadDefault));
 }
 
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
-    RUN_TEST(test_set_then_get_returnsValue_andValid);
-    RUN_TEST(test_get_unwritten_signal_isInvalid);
+    RUN_TEST(test_update_then_read_returnsValue_andValid);
+    RUN_TEST(test_read_unwritten_signal_isInvalid);
     RUN_TEST(test_timeout_invalidates_after_threshold);
-    RUN_TEST(test_set_writes_exact_value);
-    RUN_TEST(test_set_repeated_toggles_stay_binary);
+    RUN_TEST(test_read_returnsTheLastFrameExactly);
+    RUN_TEST(test_repeated_toggles_stay_binary);
+    RUN_TEST(test_snapshot_followsARampFrameByFrame);
     RUN_TEST(test_tryRead_reportsValidityAndValue);
     RUN_TEST(test_tryRead_rejectsOutOfRangeIdAndNullOut);
     RUN_TEST(test_update_ignoresNonFiniteValues);
-    RUN_TEST(test_set_ignoresNonFiniteValues);
-    RUN_TEST(test_readRaw_returnsTheLastFrameWhileReadLags);
-    RUN_TEST(test_readRaw_returnsDefaultWhenInvalid);
+    RUN_TEST(test_read_returnsDefaultWhenInvalidOrOutOfRange);
     return UNITY_END();
 }

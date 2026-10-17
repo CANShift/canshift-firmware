@@ -101,8 +101,9 @@ for future signals in each semantic band without renumbering existing ids.
 
 ## Signal lifecycle
 
-Every signal goes through `SignalStore`, which holds the latest raw value, an
-EMA-smoothed value, a last-update timestamp, a valid flag and a stale timeout.
+Every signal goes through `SignalStore`, which holds the latest decoded value,
+a last-update timestamp, a valid flag and a stale timeout. Every surface reads
+that value as decoded; nothing is smoothed.
 The store marks a signal stale once it has gone quiet for longer than its
 `timeoutMs` in `signals.json`, 500 ms by default (`kSignalDefaultTimeoutMs`).
 
