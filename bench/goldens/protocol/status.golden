@@ -2,7 +2,7 @@
 > {"cmd":16}
 < {"status":"ok","version":"0.0.0-unset","protocol":2,"is_day":0,"board_id":"crowpanel_28"}
 > {"cmd":17}
-< {"status":"ok","uptime_ms":1011}
+< {"status":"ok","uptime_ms":1011,"config_reload":"idle"}
 > {"cmd":9}
 < {"status":"error","message":"missing_day"}
 > {"cmd":9,"day":false}
@@ -30,7 +30,7 @@
 > {"cmd":16}
 < {"status":"ok","version":"0.0.0-unset","protocol":2,"is_day":0,"board_id":"crowpanel_28"}
 > {"cmd":17}
-< {"status":"ok","uptime_ms":1010}
+< {"status":"ok","uptime_ms":1010,"config_reload":"idle"}
 > {"cmd":9}
 < {"status":"error","message":"missing_day"}
 > {"cmd":9,"day":false}
