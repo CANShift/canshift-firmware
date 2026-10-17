@@ -39,6 +39,7 @@ inline constexpr uint32_t kCanStandardIdMax = 0x7FFu;
 inline constexpr uint32_t kCanExtendedIdMax = 0x1FFFFFFFu;
 
 void checkSchemaVersion(const char *fileLabel, const char *fileVersion);
+void checkDashboardSchemaFloor(const char *fileVersion);
 
 [[nodiscard]] TopBarItemKind parseTopBarItemKind(const char *str);
 [[nodiscard]] TopBarItemPos parseTopBarItemPos(const char *str);

@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 int32_t parse_major_version_rs(const char *version);
+int32_t parse_minor_version_rs(const char *version);
 
 #ifdef __cplusplus
 }

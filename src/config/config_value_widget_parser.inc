@@ -58,6 +58,7 @@ void parseGaugeWidget(JsonObjectConst cfg, CfgWidget *w) {
 }
 
 void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
+    out->big = cfg["big"] | 0;
     out->decimalPlaces = 0;
     out->warnLevel = NAN;
     out->dangerLevel = NAN;

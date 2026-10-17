@@ -25,8 +25,23 @@ void checkSchemaVersion(const char *fileLabel, const char *fileVersion) {
         char detail[52];
         snprintf(detail, sizeof(detail), "%s file=%s fw=%s", fileLabel, fileVersion,
                  CONFIG_SCHEMA_VERSION);
-        ErrorStore::push(ERROR_SRC_CONFIG, "VER_MISMATCH", detail);
+        ErrorStore::push(ERROR_SRC_CONFIG, "VER_MAJOR", detail);
     }
+}
+
+void checkDashboardSchemaFloor(const char *fileVersion) {
+    constexpr int kOldestRenderableMinor = 25;
+    const int firmwareMajor = parseMajorVersion(CONFIG_SCHEMA_VERSION);
+    if (parseMajorVersion(fileVersion) != firmwareMajor)
+        return;
+    if (parseMinorVersion(fileVersion) >= kOldestRenderableMinor)
+        return;
+    LOG_ERROR("CFG", "dashboard.json schema %s predates grid layouts — re-send it from the tuner",
+              fileVersion);
+    char detail[52];
+    snprintf(detail, sizeof(detail), "dashboard.json file=%s min=%d.%d", fileVersion, firmwareMajor,
+             kOldestRenderableMinor);
+    ErrorStore::push(ERROR_SRC_CONFIG, "VER_OLD", detail);
 }
 
 TopBarItemKind parseTopBarItemKind(const char *str) {

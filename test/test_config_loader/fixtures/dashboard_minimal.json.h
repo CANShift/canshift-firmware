@@ -4,7 +4,7 @@
 // Two payloads:
 //   - kDashboardMinimal: schema major 1 → matches the firmware build, parses
 //     cleanly, populates a single page with no widgets.
-//   - kDashboardWrongVersion: schema major 99 → triggers the "VER_MISMATCH"
+//   - kDashboardWrongVersion: schema major 99 → triggers the "VER_MAJOR"
 //     warning path. The loader still parses successfully and exposes the
 //     content; the mismatch is observable through the version field on the
 //     loaded struct.
@@ -173,6 +173,33 @@ constexpr const char *kDashboardThemeEdgeCases = R"({
   "pages": [
     {"id": "main", "backgroundColor": "#1A1A1A", "showTopBar": true, "widgets": []}
   ]
+})";
+
+constexpr const char *kDashboardGearBig = R"({
+  "version": "1.42.0",
+  "name": "Gear Big",
+  "defaultPageId": "main",
+  "pages": [
+    {"id": "main", "widgets": [
+      {"id": "gear", "type": "gear", "signal": "gear", "style": {},
+       "config": {"type": "gear", "big": 96},
+       "layout": {"col": 0, "colSpan": 6, "row": 0, "rowSpan": 6}}
+    ]}
+  ]
+})";
+
+constexpr const char *kDashboardPreGrid = R"({
+  "version": "1.24.0",
+  "name": "Pre Grid",
+  "defaultPageId": "main",
+  "pages": [{"id": "main", "widgets": []}]
+})";
+
+constexpr const char *kDashboardGridFloor = R"({
+  "version": "1.25.0",
+  "name": "Grid Floor",
+  "defaultPageId": "main",
+  "pages": [{"id": "main", "widgets": []}]
 })";
 
 } // namespace fixtures
