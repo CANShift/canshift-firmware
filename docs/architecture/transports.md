@@ -75,20 +75,39 @@ for `buildfs` and `uploadfs`. On every env without `APP_WORKSHOP_ENABLED` it
 leaves `tuner/` out, so the 4 MB boards' 832 KB image never carries the bundle.
 On the workshop envs it fills `tuner/` from the first of:
 
-| Source                                    | When                                             |
-| ----------------------------------------- | ------------------------------------------------ |
-| `../canshift-tuner/dist-tuner/`           | a sibling checkout has run `npm run bundle:dash` |
-| the release pinned in `tuner-version.txt` | `tag` is a `vX.Y.Z`                              |
-| `data/tuner/` as committed                | nothing is pinned (`tag=none`)                   |
+| Source                                    | When                                                 |
+| ----------------------------------------- | ---------------------------------------------------- |
+| `../canshift-tuner/dist-tuner/`           | `CANSHIFT_TUNER_SIBLING=1` is set in the environment |
+| the release pinned in `tuner-version.txt` | `tag` is a `vX.Y.Z`                                  |
+| `data/tuner/` as committed                | nothing is pinned (`tag=none`)                       |
 
 The pinned release is
 `canshift-tuner-dash-<tag>.tar.gz` from CANShift/canshift-tuner's Releases,
 cached under `.pio/tuner-cache/`. Its sha256 must match the pin or the build
 fails. Its entries must be flat files whose names fit the SPIFFS path above,
 and it must hold `index.html.gz`. `python3 scripts/pin_tuner.py vX.Y.Z` writes
-the pin from the release's `.sha256` asset. Like the core schema pin, a sibling
-checkout wins so local work never needs a release; release builds run in CI,
-where there is none.
+the pin from the release's `.sha256` asset.
+
+The sibling bundle is opt-in: without `CANSHIFT_TUNER_SIBLING=1` a sibling
+checkout is ignored, so a stale local `dist-tuner/` never replaces the pin
+unnoticed. With the flag set and no sibling `index.html.gz`, the build fails.
+Run `CANSHIFT_TUNER_SIBLING=1 pio run -e waveshare_s3_28 -t buildfs` to test
+local tuner work without a release.
+
+**Schema gate.** Every bundle holds `manifest.json.gz`, written by the tuner's
+`npm run bundle:dash`, with the `schema_version` of `@canshift/core` it was
+built against. The build reads it from the pinned release and from the
+sibling alike, and fails when it is below `core-schema-version.txt`, or when
+the manifest is missing or malformed. A tuner older than the firmware's
+schema cannot read the config of the dash that serves it, so it never ships.
+
+The `buildfs` step of the `build` workflow sets
+`CANSHIFT_TUNER_SCHEMA_GATE=warn`, which turns only the "older schema" failure
+into a warning. The schema pin must land on firmware `main` before core can
+merge and publish, and a tuner built on that schema can only follow, so a
+strict gate there would deadlock the merge order. The release workflow builds
+the SPIFFS image without the flag: a firmware release fails until the tuner is
+released on the new schema and re-pinned.
 
 The committed `data/tuner/` is a probe page that opens the socket and sends
 `PING` and `GET_STATUS`, so a board can be bench-tested before any tuner
