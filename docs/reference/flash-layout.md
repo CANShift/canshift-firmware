@@ -80,7 +80,7 @@ a zlib stream with a 4 KB window, and checks the round trip. The firmware inflat
 it with the tinfl in the chip ROM ([`embedded_asset.cpp`](../../src/boot/embedded_asset.cpp)),
 streaming through a 4 KB ring into an atomic chunked write, so provisioning needs
 about 15 KB of heap whatever the file size. The zlib Adler-32 and the length are
-checked before the write is committed: a damaged copy reports `EMBED_CORRUPT` and
+checked before the write is committed: a damaged copy reports `EMBED_BAD` and
 leaves nothing on SPIFFS.
 Icons have no embedded copy, so flash the `-spiffs.bin` too.
 

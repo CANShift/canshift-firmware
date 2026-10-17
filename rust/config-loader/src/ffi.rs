@@ -1,14 +1,13 @@
 use core::ffi::c_char;
 use core::slice;
 
-use crate::parse_major_version;
+use crate::{parse_major_version, parse_minor_version};
 
 const MAX_VERSION_LEN: usize = 32;
 
-#[no_mangle]
-pub unsafe extern "C" fn parse_major_version_rs(version: *const c_char) -> i32 {
+unsafe fn bounded_version<'a>(version: *const c_char) -> Option<&'a [u8]> {
     if version.is_null() {
-        return -1;
+        return None;
     }
 
     let bytes = version as *const u8;
@@ -20,11 +19,24 @@ pub unsafe extern "C" fn parse_major_version_rs(version: *const c_char) -> i32 {
         len += 1;
     }
     if len == MAX_VERSION_LEN {
-        return -1;
+        return None;
     }
 
-    let slice = unsafe { slice::from_raw_parts(bytes, len) };
-    parse_major_version(slice).unwrap_or(-1)
+    Some(unsafe { slice::from_raw_parts(bytes, len) })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn parse_major_version_rs(version: *const c_char) -> i32 {
+    unsafe { bounded_version(version) }
+        .and_then(parse_major_version)
+        .unwrap_or(-1)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn parse_minor_version_rs(version: *const c_char) -> i32 {
+    unsafe { bounded_version(version) }
+        .and_then(parse_minor_version)
+        .unwrap_or(-1)
 }
 
 #[cfg(test)]
@@ -92,6 +104,15 @@ mod tests {
                     *expected
                 );
             }
+        }
+    }
+
+    #[test]
+    fn ffi_minor_parse() {
+        let s = c_str(b"1.24.0");
+        unsafe {
+            assert_eq!(parse_minor_version_rs(s.as_ptr() as *const c_char), 24);
+            assert_eq!(parse_minor_version_rs(ptr::null()), -1);
         }
     }
 }

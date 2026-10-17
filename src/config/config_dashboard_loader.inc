@@ -41,6 +41,7 @@ CfgUnitSystem parseUnitSystem(const char *raw) {
 void parseDashboardHeader(const JsonDocument &doc, CfgDashboard *out) {
     strlcpy(out->version, doc["version"] | "", sizeof(out->version));
     checkSchemaVersion("dashboard.json", out->version);
+    checkDashboardSchemaFloor(out->version);
     strlcpy(out->name, doc["name"] | "", sizeof(out->name));
     strlcpy(out->defaultPageId, doc["defaultPageId"] | "", sizeof(out->defaultPageId));
     out->revLimitRpm = doc["revLimitRpm"] | 7200.0f;

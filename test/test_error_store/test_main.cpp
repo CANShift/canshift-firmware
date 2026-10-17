@@ -111,6 +111,16 @@ void test_dismissAt_versionAdvancesOnSuccess_notOnNoOp() {
     TEST_ASSERT_NOT_EQUAL_UINT32(before, ErrorStore::getVersion());
 }
 
+void test_push_codeAtFieldWidth_dedupesOnStoredKey() {
+    resetStore();
+    pushCode("CODE_AT_12CH");
+    pushCode("CODE_AT_12CH");
+    pushCode("CODE_AT_12CH");
+
+    const char *expected[] = {"CODE_AT_12C"};
+    assertOrder(expected, 1);
+}
+
 } // namespace
 
 int main(int, char **) {
@@ -122,5 +132,6 @@ int main(int, char **) {
     RUN_TEST(test_dismissAt_emptyStore_isNoOp);
     RUN_TEST(test_dismissAt_acrossRingWrap);
     RUN_TEST(test_dismissAt_versionAdvancesOnSuccess_notOnNoOp);
+    RUN_TEST(test_push_codeAtFieldWidth_dedupesOnStoredKey);
     return UNITY_END();
 }

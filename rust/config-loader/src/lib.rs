@@ -5,16 +5,24 @@ mod ffi;
 
 #[must_use]
 pub fn parse_major_version(version: &[u8]) -> Option<i32> {
-    if version.is_empty() {
-        return None;
-    }
+    parse_leading_number(version).map(|(value, _)| value)
+}
 
-    if !version[0].is_ascii_digit() {
+#[must_use]
+pub fn parse_minor_version(version: &[u8]) -> Option<i32> {
+    let (_, major_len) = parse_leading_number(version)?;
+    let after_dot = version.get(major_len..)?.strip_prefix(b".")?;
+    parse_leading_number(after_dot).map(|(value, _)| value)
+}
+
+fn parse_leading_number(digits: &[u8]) -> Option<(i32, usize)> {
+    if !digits.first()?.is_ascii_digit() {
         return None;
     }
 
     let mut acc: i64 = 0;
-    for &b in version {
+    let mut len = 0usize;
+    for &b in digits {
         if !b.is_ascii_digit() {
             break;
         }
@@ -22,8 +30,9 @@ pub fn parse_major_version(version: &[u8]) -> Option<i32> {
         if acc > i32::MAX as i64 {
             return None;
         }
+        len += 1;
     }
-    Some(acc as i32)
+    Some((acc as i32, len))
 }
 
 #[cfg(test)]
@@ -96,5 +105,27 @@ mod tests {
     #[test]
     fn no_digits_at_all_after_first_check() {
         assert_eq!(parse_major_version(b"abc"), None);
+    }
+
+    #[test]
+    fn minor_parses_second_component() {
+        assert_eq!(parse_minor_version(b"1.42.0"), Some(42));
+        assert_eq!(parse_minor_version(b"1.0.0"), Some(0));
+        assert_eq!(parse_minor_version(b"12.24"), Some(24));
+    }
+
+    #[test]
+    fn minor_rejects_missing_or_malformed_component() {
+        assert_eq!(parse_minor_version(b"1"), None);
+        assert_eq!(parse_minor_version(b"1."), None);
+        assert_eq!(parse_minor_version(b"1.x"), None);
+        assert_eq!(parse_minor_version(b"1-25"), None);
+        assert_eq!(parse_minor_version(b""), None);
+        assert_eq!(parse_minor_version(b"v1.25"), None);
+    }
+
+    #[test]
+    fn minor_rejects_overflow() {
+        assert_eq!(parse_minor_version(b"1.2147483648"), None);
     }
 }

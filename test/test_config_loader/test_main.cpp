@@ -1,6 +1,7 @@
 
 #include "board_config.h"
 #include "config/config_loader.h"
+#include "diag/error_store.h"
 #include "hal/storage/storage_driver.h"
 
 #include "fixtures/dashboard_minimal.json.h"
@@ -20,6 +21,24 @@ void stageMinimalFiles() {
                              strlen(fixtures::kDashboardMinimal));
     StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
+}
+
+void stageDashboard(const char *json) {
+    StorageDriver::fakeReset();
+    StorageDriver::fakeWrite(kConfigPathDashboard, json, strlen(json));
+    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
+                             strlen(fixtures::kSignalsMinimal));
+}
+
+bool errorStoreHolds(const char *code) {
+    FwError rows[8];
+    uint8_t count = 0;
+    ErrorStore::getAll(rows, &count, 8);
+    for (uint8_t i = 0; i < count; i++) {
+        if (strcmp(rows[i].code, code) == 0)
+            return true;
+    }
+    return false;
 }
 
 } // namespace
@@ -390,6 +409,33 @@ void test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely() {
     TEST_ASSERT_EQUAL_STRING("", dashboard.dayNightSignal);
 }
 
+void test_loadDashboard_gearBig_isParsed() {
+    stageDashboard(fixtures::kDashboardGearBig);
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    const CfgWidget &gear = ConfigLoader::getDashboardConfig().pages[0].widgets[0];
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(WidgetType::GEAR_IND),
+                            static_cast<uint8_t>(gear.type));
+    TEST_ASSERT_EQUAL_UINT8(96, gear.label.big);
+}
+
+void test_loadDashboard_belowGridFloor_reportsVersionTooOld() {
+    ErrorStore::clear();
+    stageDashboard(fixtures::kDashboardPreGrid);
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    TEST_ASSERT_TRUE(errorStoreHolds("VER_OLD"));
+}
+
+void test_loadDashboard_atGridFloor_reportsNothing() {
+    ErrorStore::clear();
+    stageDashboard(fixtures::kDashboardGridFloor);
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    TEST_ASSERT_FALSE(errorStoreHolds("VER_OLD"));
+}
+
 int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_loadDashboard_minimalValidJson_populatesStruct);
@@ -410,5 +456,8 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadSignals_threeByteValue_isAccepted);
     RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);
     RUN_TEST(test_loadSignals_unitTooLong_resetsUnitToEmpty);
+    RUN_TEST(test_loadDashboard_gearBig_isParsed);
+    RUN_TEST(test_loadDashboard_belowGridFloor_reportsVersionTooOld);
+    RUN_TEST(test_loadDashboard_atGridFloor_reportsNothing);
     return UNITY_END();
 }

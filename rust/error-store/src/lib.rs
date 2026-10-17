@@ -96,24 +96,10 @@ pub fn dismiss_at(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: 
     *version = version.wrapping_add(1);
 }
 
-fn code_matches(stored: &[u8], incoming: &[u8]) -> bool {
-    for i in 0..stored.len() {
-        let a = stored[i];
-        let b = if i < incoming.len() {
-            incoming[i]
-        } else {
-            0
-        };
-        if a != b {
-            return false;
-        }
-        if a == 0 {
-            return true;
-        }
-    }
-    incoming.len() <= stored.len()
-        || incoming[stored.len()] == 0
-        || incoming.iter().take(stored.len()).all(|&b| b != 0) && incoming.len() == stored.len()
+fn code_matches(stored: &[u8; CODE_LEN], incoming: &[u8]) -> bool {
+    let mut key = [0u8; CODE_LEN];
+    copy_into_fixed(&mut key, incoming);
+    *stored == key
 }
 
 fn copy_into_fixed(dst: &mut [u8], src: &[u8]) {
@@ -491,5 +477,29 @@ mod tests {
         dismiss_at(&mut ring, &mut head, &mut count, &mut version, 0);
         assert_eq!(count, 0);
         assert_eq!(version, 0);
+    }
+
+    #[test]
+    fn push_long_code_dedupes_on_truncated_key() {
+        let mut ring = blank_ring();
+        let mut head = 0u8;
+        let mut count = 0u8;
+        let mut version = 0u32;
+
+        for (code, message) in [("VER_MISMATCH", "first"), ("VER_MISMATCH", "second")] {
+            push_one(
+                &mut ring,
+                &mut head,
+                &mut count,
+                &mut version,
+                1,
+                code,
+                message,
+            );
+        }
+
+        assert_eq!(count, 1);
+        assert_eq!(code_of(&ring[0]), "VER_MISMATC");
+        assert_eq!(message_of(&ring[0]), "second");
     }
 }

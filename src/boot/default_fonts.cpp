@@ -62,11 +62,7 @@ const EmbeddedFont kEmbeddedFonts[] = {
 };
 
 constexpr const char *kFailureCodes[EmbeddedAsset::kOutcomeCount] = {
-    nullptr,
-    "FONT_EMBED_EMPTY",
-    "FONT_EMBED_NO_MEMORY",
-    "FONT_EMBED_CORRUPT",
-    "FONT_PROVISION_FAIL",
+    nullptr, "FONT_EMPTY", "FONT_OOM", "FONT_BAD", "FONT_WRITE",
 };
 
 bool writeOne(const EmbeddedFont &font) {
@@ -125,7 +121,7 @@ FontState refresh(const EmbeddedFont &font) {
     uint32_t embedded = 0;
     if (!EmbeddedAsset::contentStamp(font.start, font.end, embedded)) {
         LOG_ERROR("FONT", "Embedded default %s is empty — build misconfigured", font.label);
-        ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_EMBED_EMPTY", font.label);
+        ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_EMPTY", font.label);
         return FontState::Failed;
     }
     if (isCurrent(font, embedded))

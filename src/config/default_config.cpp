@@ -62,7 +62,7 @@ bool needsProvision(const char *path) {
 }
 
 constexpr const char *kFailureCodes[EmbeddedAsset::kOutcomeCount] = {
-    nullptr, "EMBED_EMPTY", "EMBED_NO_MEMORY", "EMBED_CORRUPT", "PROVISION_FAIL",
+    nullptr, "EMBED_EMPTY", "EMBED_OOM", "EMBED_BAD", "EMBED_WRITE",
 };
 
 bool writeOne(const EmbeddedBlob &blob) {

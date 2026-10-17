@@ -128,7 +128,7 @@ bool poolHasRoomFor(const char *spiffsPath, const char *family, const char *weig
                   static_cast<unsigned>(mon.free), static_cast<unsigned>(mon.total));
         char detail[60];
         snprintf(detail, sizeof(detail), "pool too small for %s_%u", weight, size);
-        ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_POOL_OOM", detail);
+        ErrorStore::push(ERROR_SRC_SYSTEM, "FONT_POOL", detail);
         return false;
     }
     return true;
