@@ -345,13 +345,18 @@ Two jobs sign secure images, and neither touches a chip.
   Then it deletes the keys and the images, and uploads nothing. An image signed
   by a key that no longer exists must never reach a chip: the chip would accept
   that image and nothing after it.
-- `secure-release` in `release.yml` signs the release with the real key and
-  attaches `canshift-esp32s3-secure-vX.Y.Z-{bootloader,partitions,firmware}.bin`
-  plus their `.sig`. **It is off.** It runs only when the repository variable
-  `SECURE_BOOT_RELEASE` is `true`. It runs in the `secure-boot-signing`
-  environment, and it fails unless the key it decodes matches
-  `SECURE_BOOT_KEY_DIGEST`. The secure assets stay out of `manifest.json`, so
-  the tuner never offers them to a plain dash. There is no merged secure image:
+- `secure-build` and `secure-sign` in `release.yml` sign the release with the
+  real key and attach
+  `canshift-esp32s3-secure-vX.Y.Z-{bootloader,partitions,firmware}.bin` plus
+  their `.sig`. **They are off.** They run only when the repository variable
+  `SECURE_BOOT_RELEASE` is `true`. `secure-build` compiles with no secret;
+  `secure-sign` receives the unsigned images as an artifact, runs in the
+  `secure-boot-signing` environment, installs only the hash-locked esptool, and
+  fails unless the key it decodes matches `SECURE_BOOT_KEY_DIGEST`. The Ed25519
+  `.sig` files come from `ota-sign`, like every other release image
+  ([firmware signing](firmware-signing.md)). The secure assets stay out of
+  `manifest.json`, so the tuner never offers them to a plain dash. There is no
+  merged secure image:
   flashing one onto a virgin chip would fuse it on the next boot.
 
 Putting the key in CI is a custody decision. Signing offline with
@@ -361,9 +366,10 @@ trades that for a second copy held by GitHub, behind an environment approval.
 external signing (`--pub-key` with `--signature`), if the key should move onto
 a hardware token later.
 
-To enable the release job, once the bench has passed. First, in **Settings →
+To enable the release jobs, once the bench has passed. First, in **Settings →
 Environments**, create `secure-boot-signing`, with yourself as a required
-reviewer and **Deployment branches** limited to `main`. Then:
+reviewer and **Deployment branches and tags** limited to `main` and the `v*`
+tags. Then:
 
 ```sh
 REPO=CANShift/canshift-firmware
