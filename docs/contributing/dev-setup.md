@@ -87,7 +87,9 @@ pio run -e debug   # dev build
 pio test -e native # native test suite
 ```
 
-There is no `npm install` step here; PlatformIO manages dependencies. When a
+There is no `npm install` step here; PlatformIO manages dependencies.
+`platformio.ini` pins every library to an exact version: a bump is its own PR,
+so the size budget and perf bench show what it moved. When a
 `../canshift-core` checkout exists as a sibling it wins for schema parity;
 otherwise the firmware falls back to the version pinned in
 `core-schema-version.txt`. Update that pin on every schema bump. clang-format

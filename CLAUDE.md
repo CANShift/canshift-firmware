@@ -1,6 +1,6 @@
 # canshift-firmware — Project Rules
 
-ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · Arduino · PlatformIO · LVGL 8.3, with Rust modules under `rust/` (FFI via hand-written `include/*_rs.h`).
+ESP32 firmware for the CANShift dashboard (org: github.com/CANShift). C++17 · Arduino · PlatformIO · LVGL 8.4, with Rust modules under `rust/` (FFI via hand-written `include/*_rs.h`).
 
 ## Commands
 

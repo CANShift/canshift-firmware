@@ -28,6 +28,7 @@ runs:
         path: |
           ~/.platformio/.cache
           ~/.platformio/.packages
+          .pio/libdeps
         key: pio-${{ runner.os }}-${{ inputs.cache-suffix }}-${{ hashFiles('platformio.ini') }}
         restore-keys: |
           pio-${{ runner.os }}-${{ inputs.cache-suffix }}-
@@ -39,6 +40,7 @@ runs:
         path: |
           ~/.platformio/.cache
           ~/.platformio/.packages
+          .pio/libdeps
         key: pio-${{ runner.os }}-${{ inputs.cache-suffix }}-${{ hashFiles('platformio.ini') }}
         restore-keys: |
           pio-${{ runner.os }}-${{ inputs.cache-suffix }}-
