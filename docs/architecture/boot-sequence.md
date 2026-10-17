@@ -1,95 +1,114 @@
 # Boot sequence
 
 Source: [`src/boot/boot_sequence.cpp`](../../src/boot/boot_sequence.cpp)
+(`BootSequence::run`), [`src/boot/boot_phases.cpp`](../../src/boot/boot_phases.cpp)
+(the individual phases) and `src/main.cpp::setup` (the reservations made
+before `BootSequence::run`).
 
-This file documents the ordering constraints that make the boot path work on a
-no-PSRAM ESP32 WROOM. Re-ordering the early stages will OOM the largest
-contiguous block needed by NimBLE, the LVGL pool, or `USB_RX_BUF_SIZE`, and the
-device will brick at boot. Source: `src/boot/boot_sequence.cpp` (steady state)
-and `src/main.cpp::setup` (pre-`BootSequence::run` reservations).
+This file documents the ordering constraints of the boot path. Most of them
+exist for boards without PSRAM, where every large consumer competes for
+contiguous internal DRAM: re-ordering the early stages starves NimBLE, the
+LVGL pool or the USB receive buffer, and the device boots degraded or not at
+all.
 
 ## The contiguous-block budget
 
-On the production WROOM board, the largest free DRAM block after Arduino init
-is ~120 KB. Several boot consumers each need a large contiguous chunk:
+| Consumer                              | Reservation                                    | Notes                                                                |
+| ------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| Task stacks (`preallocateTaskStacks`) | `TASK_STACK_UI`, `_USB`, `_BLE` + the CAN task | allocated first; boot halts if any of them fails                     |
+| USB rxBuf (`USB_RX_BUF_SIZE`)         | ~16 KB                                         | doubles as the PUT_CONFIG receive buffer                             |
+| TWAI driver init stack                | ~4 KB                                          | pre-reserved in `CanManager`                                         |
+| LVGL pool (`lv_init`)                 | 512 KB PSRAM, else up to 80 KB internal        | sized at run time, see below                                         |
+| ArduinoJson dashboard parse           | ~20 KB, transient                              | runs during `ConfigLoader::loadAll`                                  |
+| NimBLE early init                     | `kBleMinHeapBytes` (50 KB) contiguous          | `BleServer::earlyInit()` skips BLE when the largest block is smaller |
 
-| Consumer                      | Reservation | Notes                                                   |
-| ----------------------------- | ----------- | ------------------------------------------------------- |
-| NimBLE early init             | ~50 KB      | `BleServer::earlyInit()` — fails ~16 KB after `lv_init` |
-| LVGL pool (`lv_init`)         | ~80 KB      | once claimed, fragments the remainder                   |
-| USB rxBuf (`USB_RX_BUF_SIZE`) | ~16 KB      | doubles as PUT_CONFIG receive buffer                    |
-| TWAI driver init stack        | ~4 KB       | static stack pre-reserved in `CanManager`               |
-| ArduinoJson dashboard parse   | ~20 KB      | runs during `ConfigLoader::loadAll`                     |
-
-If any of these is requested AFTER `lv_init` has claimed its 80 KB pool, the
-allocation fails because the residual heap has dropped below the requested
-contiguous size. The recovery path on each failure is degraded — BLE silently
-won't advertise, USB receive disables, CAN won't install — so the policy is
-fail-loud at boot rather than silently degrade.
+The LVGL pool is claimed on LVGL's first allocation, inside `lv_init()`
+(`src/boot/lvgl_pool_alloc.cpp`). It takes 512 KB of PSRAM when the board has
+it. Without PSRAM it takes the largest internal block minus 16 KB of
+headroom, capped at 80 KB, and halves the request down to 32 KB if the
+allocation fails. If not even 32 KB is free, the device restarts so a pending
+OTA image can roll back.
 
 ## Required ordering
 
 ```
 setup()                                             // main.cpp
-  ├─ Serial.begin                                   // UART up so logs land
-  ├─ UsbComm::reserveRxBuf()                        // ~16 KB BEFORE lv_init
-  ├─ CanManager::reserveInitTaskStack()             // ~4 KB BEFORE lv_init
-  └─ BootSequence::run()                            // boot_sequence.cpp
-       ├─ silenceNvsLogNoise                        // demote nvs ERR → WARN
-       ├─ initPsramAndLogEntry                      // probe PSRAM if present
-       ├─ initTaskWatchdog                          // WDT armed
-       ├─ initBleEarlyIfEnabled                     // NimBLE ~50 KB
-       ├─ mountStorageOrLogError                    // SPIFFS
-       ├─ provisionDefaultConfigsIfNeeded           // first-boot embed→FS
-       ├─ loadConfigWithHeapBracket                 // ArduinoJson ~20 KB
-       ├─ initDisplayAndLVGL                        // lv_init claims ~80 KB
-       │    └─ DisplayDriver::init + register        // backlight held off, panel init retried once
-       ├─ initTouchHardware                         // controller probed before calibration
-       ├─ initLvglFsIfStorageOk                     // needs lv_init done
-       ├─ provisionDefaultFontsIfNeeded             // before FontManager
-       ├─ initFontManagerWithHeapLog
-       ├─ preloadIconsWithHeapLog                   // SPIFFS reads while heap large
-       ├─ showSplashWithInitialUpdates              // logo at full size from frame 1
-       ├─ initRuntimeServices                       // TimerService → SignalStore → …
-       ├─ initCanHardwarePhase                      // installs TWAI on reserved stack
-       ├─ initUsbCommPhase
-       ├─ startCanTaskAndListen                     // taskCAN runs; waits ≤1 s for a frame
-       ├─ showSelfTestScreen                        // CAN BUS row reads the listen window
-       ├─ buildUiWithHeapBracket                    // PageManager::init
-       ├─ holdSplashUntilMin (2000 ms)              // user can read version
-       └─ logBootCompleteAndReady                   // "[BOOT] Ready" marker
+  ├─ Serial.begin, Logger::init
+  ├─ LVGL mutex
+  ├─ preallocateTaskStacks()                        // UI, CAN, USB, BLE stacks
+  ├─ UsbComm::reserveRxBuf()                        // ~16 KB before lv_init
+  ├─ CanManager::reserveInitTaskStack()             // ~4 KB before lv_init
+  ├─ BootSequence::run()                            // boot_sequence.cpp
+  │    ├─ silenceFrameworkLogNoise                  // nvs ERR → WARN; release: ESP-IDF logs off
+  │    ├─ BoardProfileStore::loadAndApply           // provisioned board, else the build default
+  │    ├─ WorkshopMode::takeResumeRequest           // reads and disarms the one-shot resume flag
+  │    ├─ initPsramAndLogEntry                      // probe PSRAM if present
+  │    ├─ initTaskWatchdog
+  │    ├─ initLvglMemoryPool                        // lv_init claims the LVGL pool
+  │    ├─ loadStorageAndConfig
+  │    │    ├─ mountStorageOrLogError               // SPIFFS
+  │    │    ├─ provisionDefaultConfigsIfNeeded      // first-boot embed → FS
+  │    │    ├─ loadConfigWithHeapBracket            // ArduinoJson ~20 KB
+  │    │    ├─ ScreenProfile::initFromDashboard
+  │    │    └─ initBleEarlyIfEnabled                // NimBLE ≥ 50 KB contiguous
+  │    ├─ initDisplayHardware                       // DisplayDriver::init + registerWithLVGL
+  │    ├─ initTouchHardware                         // controller probed before calibration
+  │    ├─ prepareUiAssets
+  │    │    ├─ initLvglFsIfStorageOk
+  │    │    ├─ provisionDefaultFontsIfNeeded        // before FontManager
+  │    │    ├─ initFontManagerWithHeapLog
+  │    │    └─ preloadIconsWithHeapLog              // SPIFFS reads before page widgets
+  │    ├─ showBootScreen                            // D01 boot screen, then backlight on
+  │    ├─ initRuntimeServices                       // TimerService → SignalStore → TrackStore → AlertEngine
+  │    ├─ initCanHardwarePhase                      // installs TWAI on the reserved stack
+  │    ├─ initUsbCommPhase
+  │    ├─ startCanTaskAndListen                     // taskCAN runs; waits ≤ 1 s for a frame
+  │    ├─ showSelfTestScreen                        // D02 self-test, after ≥ 400 ms of boot screen
+  │    ├─ buildUiWithHeapBracket                    // after ≥ 2 s of self-test; PageManager::init
+  │    ├─ WorkshopMode::resumeAfterReboot           // re-enters workshop mode when armed
+  │    └─ logBootCompleteAndReady                   // "[BOOT] Ready" marker
+  ├─ createAllTasks()                               // ui, usb, ble on the preallocated stacks
+  ├─ InputButtons::init()
+  └─ vTaskDelete(nullptr)
 ```
-
-`setup()` calls `reserveRxBuf` and `reserveInitTaskStack` **before**
-`BootSequence::run` so those allocations happen against the still-clean
-post-Arduino heap.
 
 `setup()` runs on the Arduino `loopTask`, whose 16 KB stack
 (`ARDUINO_LOOP_STACK_SIZE`) the boot path needs. Once the tasks are started,
-`setup()` ends with `vTaskDelete(nullptr)`: `loop()` has no work, and the idle
-task returns the whole stack to the heap.
+`setup()` deletes its own task: `loop()` has no work, and the idle task
+returns the whole stack to the heap.
 
 ## Why each ordering matters
 
-- **`reserveRxBuf` / `reserveInitTaskStack` before `lv_init`**: After
-  `lv_init` claims its 80 KB pool, the largest contiguous block on WROOM
-  drops to ~13–18 KB. `USB_RX_BUF_SIZE` is `CONFIG_JSON_DOC_DASHBOARD +
-256` ≈ 16 KB and the TWAI stack is ~4 KB — both at the cliff. PR #1374
-  and #1376 fixed the boot OOM that surfaced when these moved after
-  `lv_init`.
+- **Task stacks, `reserveRxBuf` and `reserveInitTaskStack` before
+  `BootSequence::run`**: they are allocated against the still-clean
+  post-Arduino heap. `USB_RX_BUF_SIZE` is `CONFIG_JSON_DOC_DASHBOARD + 256`
+  ≈ 16 KB and the TWAI stack ~4 KB; once the LVGL pool is claimed on a
+  board without PSRAM, neither fits any more.
 
-- **`initBleEarlyIfEnabled` before `initDisplayAndLVGL`**: NimBLE needs
-  ~50 KB contiguous DRAM. After LovyanGFX init the largest free block
-  shrinks to ~16 KB, making BLE impossible. The `BleServer::earlyInit()`
-  path reserves NimBLE's stack while the heap is still large and
-  unfragmented; subsequent BLE start/stop cycles reuse that arena rather
-  than re-allocating.
+- **`lv_init` before storage and config**: the pool is sized from the
+  largest free block at that moment. Mounting SPIFFS and parsing the
+  dashboard first would fragment the heap and shrink the pool.
 
-- **`mountStorageOrLogError` + `loadConfigWithHeapBracket` before
-  `lv_init`**: ArduinoJson's stream parser needs ~20 KB contiguous heap
-  to parse `dashboard.json`. After `lv_init` the largest free block drops
-  to ~15 KB, causing `NoMemory` parse failures. At this point the heap
-  has ~120 KB contiguous — ample.
+- **Config before BLE**: the transient `JsonDocument` for a full dashboard
+  needs its ~20 KB while NimBLE has not yet claimed its share of internal
+  heap.
+
+- **`initBleEarlyIfEnabled` before `initDisplayHardware`**: NimBLE needs
+  `kBleMinHeapBytes` of contiguous DRAM, and LovyanGFX's panel init
+  fragments the heap. Early init reserves NimBLE while a block that size
+  still exists; later start/stop cycles reuse it.
+
+- **The display stays separate from `lv_init`**: LovyanGFX's `s_lcd.init()`
+  fragments the heap, so the pool is claimed first and the display is
+  registered with LVGL afterwards.
+
+- **Board profile first**: `BoardProfileStore::loadAndApply` selects the
+  pins, panel and touch controller every later phase uses.
+
+- **Workshop resume read at the start, applied at the end**: the resume
+  flag is disarmed before anything can crash, so a boot that fails does not
+  loop back into workshop mode; it is applied only once the dashboard is
+  built ([Workshop mode](workshop-mode.md#entering-and-leaving)).
 
 - **The DISPLAY and TOUCH rows are measured**: `DisplayDriver::init()`
   returns whether the draw buffers were allocated and `s_lcd.init()`
@@ -104,10 +123,6 @@ task returns the whole stack to the heap.
   `s_lcd.init()`, which applies it, and `DisplayDriver::backlightOn()` runs
   after the boot screen's first `lv_refr_now()`, so the panel never shows
   its power-on garbage.
-
-- **`lv_init()` before `DisplayDriver::init()`**: LovyanGFX's
-  `s_lcd.init()` fragments the heap such that LVGL's pool malloc no
-  longer fits. `lv_init` first; display registration afterwards.
 
 - **`initLvglFsIfStorageOk` after `lv_init`**: registers `lv_fs_drv` —
   the call only makes sense once LVGL has booted.
@@ -130,10 +145,6 @@ task returns the whole stack to the heap.
   (`LV_IMG_CACHE_DEF_SIZE`) and survive page rebuilds + theme toggles
   without re-touching SPIFFS.
 
-- **`updateSplash("Ready", 100)` before `buildUI()`**: `PageManager::init`
-  calls `lv_obj_clean(lv_scr_act())` which frees the splash objects.
-  Any call to `updateSplash` after that point would deref freed objects.
-
 - **`startCanTaskAndListen` before `showSelfTestScreen`**: the CAN BUS
   row reports whether a frame arrived, and only `taskCAN` drains the TWAI
   queue and stamps the last-RX time. The task starts here, not with the
@@ -143,11 +154,15 @@ task returns the whole stack to the heap.
   to say anything true. Started later, the row always read NO FRAMES and
   the 32-deep RX queue overflowed during the holds.
 
-- **`holdSplashUntilMin` uses a yielding `vTaskDelay` loop**: boot tends
-  to finish in <1 s, which feels twitchy and gives the user no time to
-  read the version. The 2 s hold is required UX. Uses `vTaskDelay` rather
-  than the Arduino `delay()` shim so the scheduler keeps running other
-  tasks during the hold and the granularity is visible to readers (#1207).
+- **Boot screen and self-test holds**: boot tends to finish in under a
+  second. The boot screen stays up at least `kBootHoldMs` (400 ms) and the
+  self-test at least `kSelfTestHoldMs` (2 s) so the version and the check
+  rows can be read. The holds use `vTaskDelay`, so the scheduler keeps
+  running other tasks.
+
+- **`showSelfTestScreen` and `buildUI` clean the screen first**: each calls
+  `lv_obj_clean(lv_scr_act())`, which frees the previous screen's objects;
+  nothing may touch them afterwards.
 
 ## OTA mark-valid placement
 

@@ -1,12 +1,12 @@
 # SignalStore
 
-Source: [`src/runtime/signal_store.cpp`](../../src/runtime/signal_store.cpp)
+Source: [`src/runtime/signal_store.cpp`](../../src/runtime/signal_store.cpp),
+[`src/runtime/signal_store.h`](../../src/runtime/signal_store.h)
 
-SignalStore is the firmware's shared snapshot of every decoded CAN signal +
-synthesized derived values. It is written by taskCAN (and the OBD-II
-poller, and the button widget's optimistic-write path) and read by
-taskUI, taskUSB (telemetry), taskBLE (telemetry), and the alert engine.
-Sources: `src/runtime/signal_store.cpp`, `src/runtime/signal_store.h`.
+SignalStore is the firmware's shared table of every decoded CAN signal and
+every derived value. taskCAN writes it (the CAN parser, the OBD-II poller and
+cross-signal expressions), and so do input bindings. taskUI reads it (widgets,
+top bar, alerts), as do taskUSB and taskBLE for telemetry.
 
 The tuner's **CAN bus** route taps the same raw stream that feeds SignalStore
 on the device — useful to confirm an ID is on the wire before chasing a
@@ -14,105 +14,105 @@ decoder bug.
 
 ## Critical-section invariant
 
-Same rule as ErrorStore (see `error-store.md`): all public mutations and
-reads hold a `portMUX_TYPE` for the RMW window. **No LOG / no ALLOC / no
-LOCK inside `portENTER_CRITICAL`.** The file header in
-`signal_store.cpp` documents the invariant.
+Same rule as ErrorStore (see `error-store.md`): every public mutation and read
+holds a `portMUX_TYPE` for the read-modify-write window. **No LOG, no ALLOC,
+no LOCK inside `portENTER_CRITICAL`.**
 
-The portMUX rather than a FreeRTOS semaphore was chosen so the writes
-from taskCAN (high prio, time-sensitive) don't block on priority
-inversion when taskUI is mid-frame. The lock is held for tens of
-microseconds at most.
+A portMUX rather than a FreeRTOS semaphore keeps taskCAN (high priority,
+time-sensitive) from blocking on priority inversion while taskUI is
+mid-frame. The lock is held for microseconds.
 
 ## Storage layout
 
 ```cpp
 struct SignalValue {
-    float raw;                // last sample as decoded by CanParser
-    float smoothed;           // EMA-filtered value (visual-only readers)
-    uint32_t lastUpdateMs;    // millis() at last update()
-    bool valid;               // false until the first sample arrives
+    float raw;             // last sample as decoded
+    float smoothed;        // EMA of the samples
+    uint32_t lastUpdateMs; // millis() at the last write
+    bool valid;            // false until the first sample, and again once stale
+    uint32_t timeoutMs;    // stale threshold for this signal
 };
 SignalValue s_signals[kSignalStoreMaxSignals];
 ```
 
-The table is indexed by `SignalId` (a `uint8_t` enum). Adding a signal
-means: bump the enum in `include/signal_map.h`, add the name → id
-mapping row in `src/can/signal_map.cpp::kNameToId`, and ensure
-`kSignalStoreMaxSignals` is large enough (currently 32 — matches
-`kConfigMaxSignals`).
+The table has `kSignalStoreMaxSignals = 64` slots (`include/app_config.h`),
+one per `SignalId`; a `static_assert` in `signal_store.h` keeps it at least
+`SignalIds::kSignalCount`. Ids and names come from the Rust `signal-map`
+crate (`rust/signal-map/src/lib.rs`); the ids are mirrored as constants in
+`src/can/signal_map.h`. See [Signal map](../reference/signals.md).
 
-## EMA smoothing
+Non-finite values are dropped at the door: `update()` and `set()` refuse
+NaN and infinity, and log the first refusal once.
 
-`update(id, value)` writes the raw sample AND updates `smoothed` via
-`kSignalEmaAlpha = 0.2f`:
+## Raw and smoothed
+
+`update(id, value)` stores the sample in `raw` and folds it into `smoothed`
+with `kSignalEmaAlpha = 0.2f`:
 
 ```cpp
-new_smoothed = valid
-    ? (kSignalEmaAlpha * value + (1.0f - kSignalEmaAlpha) * smoothed)
-    : value;
+smoothed = valid ? (kSignalEmaAlpha * value + (1.0f - kSignalEmaAlpha) * smoothed)
+                 : value;
 ```
 
-The first sample seeds `smoothed = value` to avoid a slow climb from 0.
+The first sample after a stale period seeds `smoothed = value`, so it does not
+climb from 0. The EMA advances once per sample, so how far it lags depends
+on the signal's frame rate.
 
-Every decision reads `raw` — `SignalStore::readRaw()` or `.raw` on a
-snapshot: ECU flags, levels and control guards (`control_status.cpp`,
-top-bar mode flags, day/night, workshop-mode speed gate, input-binding
-toggles) and the alert engine, built-in and user critical alert alike.
-`smoothed` decays as 0.8ⁿ and never returns to exactly 0, so a `!= 0`
-test on it keeps a dropped flag lit, and a threshold on it delays a real
-fault and filters a short one. Debouncing belongs to the alert hold
-(hysteresis band + minimum active time), not to the EMA. `smoothed` is
-left only where it is purely visual, such as the shift-light strip and
-the rev-limiter blink.
+`read()` and `tryRead()` return `smoothed`; `readRaw()` and the `raw` field
+of a snapshot return the sample. `smoothed` decays as 0.8ⁿ and never
+returns to exactly 0, so a `!= 0` test on it keeps a dropped flag lit and a
+threshold on it delays a real fault and filters a short one.
+
+Which value each surface reads today:
+
+| Reads `raw`                                                               | Reads `smoothed`                                               |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Gauge, label, warning, gear and timer widgets (`widget_factory.cpp`)      | Shift-light strip                                              |
+| Alert engine thresholds: coolant, oil, battery, MIL, user critical alerts | Rev-limiter level and its blink (the alert engine's RPM input) |
+| Signal stats, cut band, page buttons                                      | Top-bar metric values                                          |
+| Top-bar mode flags, input-binding toggles                                 | Alert banner value; takeover card value and its RPM context    |
+| Workshop-mode offer gate                                                  | Workshop-mode motion exit                                      |
+|                                                                           | BLE `TELE` and `ALERT`, USB telemetry                          |
+|                                                                           | Inputs of cross-signal expressions (`can_parser.cpp`)          |
+
+A derived signal therefore smooths an already smoothed input once more when
+it is written through `update()`.
 
 ## `set(id, value)` — bypass the EMA
 
-`SignalStore::set(id, value)` writes both `raw` and `smoothed` to the
-same value without EMA blending. Used by:
-
-- The button widget's optimistic-write path. A toggle button binds to a
-  flag signal; on click the button updates the local visual AND writes
-  the new value to SignalStore so any other widget watching that signal
-  (top bar mode badge) reflects the press
-  immediately instead of waiting for the ECU echo (#1285).
-- Input bindings that target a signal directly (#833).
-
-Flag readers use `readRaw()`, so a toggle written by `set()` and a flag
-echoed by the ECU through `update()` both read back exactly.
+`SignalStore::set(id, value)` writes `raw` and `smoothed` to the same value.
+Input bindings that toggle a signal use it (`input_buttons.cpp`), so every
+reader sees the new state at once instead of waiting for the ECU echo. Flag
+readers use `readRaw()`, so a toggle written by `set()` and a flag echoed by
+the ECU through `update()` both read back exactly.
 
 ## `checkTimeouts()` — stale invalidation
 
-`SignalStore::checkTimeouts()` walks the table and clears `valid` for
-any entry whose `lastUpdateMs` is older than the configured timeout
-(`SIGNAL_DEFAULT_TIMEOUT_MS = 1000` by default; per-signal override in
-signals.json). Called from `PageManager::updateWidgets()` every ~100 ms.
+`SignalStore::checkTimeouts()` clears `valid` for every entry whose last
+write is older than its `timeoutMs`. The default is
+`kSignalDefaultTimeoutMs = 500`; a signal's `timeoutMs` in `signals.json`
+overrides it, applied through `setTimeout()` when the parser loads the
+definitions. `PageManager` calls it about every 100 ms; it returns at once
+when nothing is valid.
 
-Stale invalidation is what drives the gauge widget's placeholder render
-(top bar shows the dot as orange/red, gauges show "0"). Without
-timeouts, a disconnected sensor would keep displaying the last value
-indefinitely.
+A stale signal renders as the stale placeholder (`- -` on gauges and the top
+bar, `-` on the gear) instead of keeping its last value.
 
 ## `anyValid(ids, count)` — batched lock
 
-The top bar uses status dots that turn green when "any of \{RPM, COOLANT,
-BATTERY\}" is valid. Calling `isValid()` three times pays three IRQ-disable
-round-trips per UI frame. `anyValid(ids, count)` takes the lock once and
-checks all three under a single portMUX (#1342). Used by
-`top_bar.cpp::anySignalValid`.
+The top bar's live check asks whether any of RPM, coolant or battery is
+valid. `anyValid(ids, count)` answers under one lock instead of one per
+id (`top_bar_update.cpp::anySignalValid`).
 
-## `getAllValuesSnapshot()` — telemetry-side batched read
+## `snapshotAll()` — one consistent frame
 
-Both USB telemetry and BLE telemetry need a consistent snapshot of every
-signal value per emit. Calling `read(id)` per signal under the lock is
-~30 µs per call; the batched snapshot copies the whole table under one
-lock acquire and returns a `const SignalValue[]` for the emitter to walk.
-This is what taskUSB and taskBLE both use; it's also what the F1 path in
-`PageManager::updateWidgets` uses to drive widget redraws.
+`PageManager` copies the whole table under one lock acquire every widget
+refresh and hands the copy to the alert engine, signal stats, cut band,
+widgets and page buttons, so one frame never mixes two states of the
+table. Telemetry reads per signal with `tryRead()`.
 
 ## Why this lives in BSS
 
-`s_signals` is a static array, not a `Vec`. The runtime cannot tolerate
-heap allocation in the hot RX path (taskCAN at kTaskPrioCan=15, decoding
-1000+ frames/sec on a busy bus). The fixed-size table is sized for the
-worst case and indexed by integer; lookup is O(1).
+`s_signals` is a static array. The hot RX path (taskCAN at `kTaskPrioCan`,
+decoding thousands of frames per second on a busy bus) cannot allocate, and
+an id-indexed table makes every lookup O(1).
