@@ -70,6 +70,20 @@ constexpr uint16_t kConnMaxInterval = 24;
 constexpr uint16_t kConnSlaveLatency = 4;
 constexpr uint16_t kConnSupervisionTimeout = 400;
 
+uint32_t drawPasskey() {
+    constexpr uint32_t kPasskeyRange = 1000000u;
+    constexpr uint32_t kRejectionLimit = UINT32_MAX - (UINT32_MAX % kPasskeyRange);
+    uint32_t passkey;
+    do {
+        uint32_t draw = esp_random();
+        while (draw >= kRejectionLimit) {
+            draw = esp_random();
+        }
+        passkey = draw % kPasskeyRange;
+    } while (passkey == 0u);
+    return passkey;
+}
+
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override {
         BleServerInternal::s_connected = true;
@@ -87,16 +101,11 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     }
 
     uint32_t onPassKeyRequest() override {
-        constexpr uint32_t kPasskeyRange = 1000000u;
-        constexpr uint32_t kRejectionLimit = UINT32_MAX - (UINT32_MAX % kPasskeyRange);
-        uint32_t passkey;
-        do {
-            uint32_t draw = esp_random();
-            while (draw >= kRejectionLimit) {
-                draw = esp_random();
-            }
-            passkey = draw % kPasskeyRange;
-        } while (passkey == 0u);
+        const uint32_t passkey = drawPasskey();
+        if (!BleServerInternal::admitPasskeyPrompt()) {
+            BleServerInternal::dropCurrentPeer("Pairing attempts exceed the prompt budget");
+            return passkey;
+        }
         LOG_INFO("BLE", "Pairing requested — passkey %06u", static_cast<unsigned>(passkey));
         PendingActions::blePasskeyShow.store(passkey, std::memory_order_relaxed);
         return passkey;

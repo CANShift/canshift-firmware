@@ -201,13 +201,13 @@ inline void uiDrainPasskeyActions() {
         PasskeyOverlay::hide();
     }
     const uint32_t passkey = PendingActions::takeBlePasskeyShow();
-    if (passkey == 0u)
-        return;
-    if (AlertTakeover::isActive()) {
-        LOG_WARN("BLE", "Passkey card deferred — a critical alert owns the screen");
-        return;
+    const bool takeoverActive = AlertTakeover::isActive();
+    if (passkey != 0u) {
+        PasskeyOverlay::request(passkey);
+        if (takeoverActive)
+            LOG_WARN("BLE", "Passkey card held — a critical alert owns the screen");
     }
-    PasskeyOverlay::show(passkey);
+    PasskeyOverlay::update(takeoverActive);
 }
 
 inline void uiDrainBurnOverlayActions() {

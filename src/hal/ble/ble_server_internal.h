@@ -37,6 +37,10 @@ bool linkAdmitted();
 
 void dropUnauthenticatedLink(const ble_gap_conn_desc &desc, const char *reason);
 
+bool admitPasskeyPrompt();
+
+void dropCurrentPeer(const char *reason);
+
 void dropOverduePeer();
 
 } // namespace BleServerInternal

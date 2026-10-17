@@ -15,6 +15,7 @@ namespace BleServerInternal {
 namespace {
 
 uint32_t s_connectedAtMs = 0;
+BleLinkPasskeyBudgetRs s_passkeyBudget = {};
 
 struct Peer {
     bool present;
@@ -65,6 +66,18 @@ void dropUnauthenticatedLink(const ble_gap_conn_desc &desc, const char *reason) 
         return;
     }
     terminate(desc.conn_handle);
+}
+
+bool admitPasskeyPrompt() {
+    return ble_link_passkey_prompt_admit_rs(&s_passkeyBudget, millis());
+}
+
+void dropCurrentPeer(const char *reason) {
+    const Peer peer = currentPeer();
+    if (!peer.present)
+        return;
+    LOG_WARN("BLE", "%s — dropping the link", reason);
+    terminate(peer.handle);
 }
 
 void dropOverduePeer() {

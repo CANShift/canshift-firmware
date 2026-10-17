@@ -8,6 +8,7 @@
 namespace {
 
 lv_obj_t *s_overlay = nullptr;
+uint32_t s_pendingPasskey = 0;
 constexpr uint32_t kPasskeyBackdropRgb = ThemeTokens::kGroundNight;
 
 void teardown() {
@@ -17,9 +18,7 @@ void teardown() {
     }
 }
 
-} // namespace
-
-void PasskeyOverlay::show(uint32_t passkey) {
+void show(uint32_t passkey) {
     teardown();
 
     lv_obj_t *root = OverlayScaffold::createRoot(kPasskeyBackdropRgb);
@@ -50,7 +49,21 @@ void PasskeyOverlay::show(uint32_t passkey) {
     lv_refr_now(nullptr);
 }
 
+} // namespace
+
+void PasskeyOverlay::request(uint32_t passkey) {
+    s_pendingPasskey = passkey;
+}
+
+void PasskeyOverlay::update(bool screenClaimed) {
+    if (s_pendingPasskey == 0u || screenClaimed)
+        return;
+    show(s_pendingPasskey);
+    s_pendingPasskey = 0;
+}
+
 void PasskeyOverlay::hide() {
+    s_pendingPasskey = 0;
     if (!s_overlay)
         return;
     teardown();

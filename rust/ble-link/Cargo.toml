@@ -3,7 +3,7 @@ name = "ble-link"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "BLE link admission policy: which pairing outcome a peer may keep, which subscription is refused and when an unauthenticated peer has overstayed. NimBLE and the GATT tree stay C++."
+description = "BLE link admission policy: which pairing outcome a peer may keep, which subscription is refused, when an unauthenticated peer has overstayed and how many passkey prompts a window allows. NimBLE and the GATT tree stay C++."
 license = "UNLICENSED"
 
 [features]
