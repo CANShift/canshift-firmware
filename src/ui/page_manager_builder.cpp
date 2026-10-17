@@ -7,6 +7,7 @@
 #include "cut_band.h"
 #include "error_bar.h"
 #include "icon_assets.h"
+#include "page_buttons.h"
 #include "dash_metrics.h"
 #include "day_night_auto.h"
 #include "theme_manager.h"
@@ -233,6 +234,7 @@ void rearmConfigConsumers() {
     AlertTakeover::reset();
     ThemeManager::init();
     DayNightAuto::init();
+    PageButtons::init();
 }
 
 } // namespace

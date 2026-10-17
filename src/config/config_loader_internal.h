@@ -58,4 +58,6 @@ void parseWidget(JsonObjectConst src, CfgWidget *w);
 
 void parseCriticalAlert(JsonObjectConst src, CfgCriticalAlert *out);
 
+void parsePageButtons(JsonObjectConst src, CfgPageButtons *out);
+
 } // namespace ConfigLoaderInternal

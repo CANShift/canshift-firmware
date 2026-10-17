@@ -53,6 +53,7 @@ void parseDashboardHeader(const JsonDocument &doc, CfgDashboard *out) {
         out->dayNightSignal[0] = '\0';
     }
     parseCriticalAlert(doc["criticalAlert"], &out->criticalAlert);
+    parsePageButtons(doc["pageButtons"], &out->pageButtons);
 }
 
 void applyDefaultTopBarLayout(CfgTopBar *bar) {
