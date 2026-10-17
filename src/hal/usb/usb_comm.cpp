@@ -51,6 +51,10 @@ const TeleEntry kTeleSignals[] = {
     {SignalIds::kFlagMil, "flag_mil"},
     {SignalIds::kFlagLaunchCtrl, "flag_launch_ctrl"},
     {SignalIds::kMapNumber, "map_number"},
+    {SignalIds::kWheelButton1, "wheel_button_1"},
+    {SignalIds::kWheelButton2, "wheel_button_2"},
+    {SignalIds::kWheelButton3, "wheel_button_3"},
+    {SignalIds::kWheelButton4, "wheel_button_4"},
 };
 
 constexpr size_t kTeleSignalCount = sizeof(kTeleSignals) / sizeof(kTeleSignals[0]);
