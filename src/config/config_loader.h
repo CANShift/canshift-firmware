@@ -2,6 +2,7 @@
 
 #include "config_rejection.h"
 #include "config_types.h"
+#include "dashboard_outcome.h"
 #include "signals_source.h"
 
 namespace ConfigLoader {
@@ -26,6 +27,10 @@ struct LoadResult {
 [[nodiscard]] const CfgRejection &getRejection();
 
 [[nodiscard]] bool reloadAll();
+
+[[nodiscard]] DashboardOutcome lastDashboardOutcome();
+
+[[nodiscard]] DashboardOutcome vetDashboard();
 
 [[nodiscard]] const CfgSignalDef *findSignal(const char *name);
 

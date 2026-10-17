@@ -91,6 +91,13 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     return true;
 }
 
+bool promoteBackup(const char *path) {
+    char bakPath[kBakPathLen];
+    if (!buildBakPath(bakPath, sizeof(bakPath), path) || !StorageDriver::fileExists(bakPath))
+        return false;
+    return StorageDriver::removeFile(path) && StorageDriver::renameFile(bakPath, path);
+}
+
 void parseColor(const char *hex, CfgColor *out) {
     if (!hex || hex[0] != '#') {
         out->rgb = 0x000000;

@@ -74,4 +74,5 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
 #include "config_signals_loader.inc"
 #include "config_validators.inc"
 #include "json_helpers.inc"
+#include "config_dashboard_stage.inc"
 #include "config_signals_file.inc"

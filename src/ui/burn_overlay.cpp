@@ -53,20 +53,22 @@ void teardownOverlay() {
     }
 }
 
-const char *errorTitleFor(BurnOverlay::ErrorReason reason) {
-    switch (reason) {
-        case BurnOverlay::ErrorReason::WriteFailed:
-            return "STORAGE WRITE FAILED";
-    }
-    return "SAVE FAILED";
-}
+struct ErrorCopy {
+    const char *title;
+    const char *hint;
+};
 
-const char *errorHintFor(BurnOverlay::ErrorReason reason) {
-    switch (reason) {
-        case BurnOverlay::ErrorReason::WriteFailed:
-            return "RETRY FROM THE TUNER";
-    }
-    return "RETRY FROM THE TUNER";
+constexpr ErrorCopy kErrorCopy[] = {
+    {"STORAGE WRITE FAILED", "RETRY FROM THE TUNER"},
+    {"CONFIG REFUSED", "CHECK THE TUNER"},
+};
+
+constexpr ErrorCopy kUnknownErrorCopy = {"SAVE FAILED", "RETRY FROM THE TUNER"};
+
+const ErrorCopy &errorCopyFor(BurnOverlay::ErrorReason reason) {
+    const size_t index = static_cast<size_t>(reason);
+    return index < sizeof(kErrorCopy) / sizeof(kErrorCopy[0]) ? kErrorCopy[index]
+                                                              : kUnknownErrorCopy;
 }
 
 void errorHoldExpiredCb(lv_timer_t *timer) {
@@ -113,8 +115,9 @@ void BurnOverlay::showError(ErrorReason reason) {
     lv_obj_t *col = OverlayScaffold::createCenterColumn(root, kRowGapPx);
 
     makeLine(col, "SAVING CONFIG", ThemeTokens::kDimNight, kKickerFontPx);
-    makeLine(col, errorTitleFor(reason), ThemeTokens::kDanger, kStateFontPx);
-    makeLine(col, errorHintFor(reason), ThemeTokens::kDimNight, kKickerFontPx);
+    const ErrorCopy &copy = errorCopyFor(reason);
+    makeLine(col, copy.title, ThemeTokens::kDanger, kStateFontPx);
+    makeLine(col, copy.hint, ThemeTokens::kDimNight, kKickerFontPx);
 
     s_overlay = root;
 

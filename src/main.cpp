@@ -16,6 +16,7 @@
 #include "boot/boot_sequence.h"
 #include "can/can_manager.h"
 #include "can/can_task.h"
+#include "config/config_loader.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "diag/lvgl_hold_timer.h"
@@ -27,6 +28,7 @@
 #include "runtime/alert_engine.h"
 #include "runtime/input_buttons.h"
 #include "runtime/lvgl_lock.h"
+#include "runtime/config_reload_status.h"
 #include "runtime/pending_actions.h"
 #include "runtime/task_spawn.h"
 #include "runtime/workshop_mode.h"
@@ -220,11 +222,17 @@ inline void uiDrainBurnOverlayActions() {
     }
 }
 
+inline void uiSettleConfigReload(ConfigLoader::DashboardOutcome outcome) {
+    ConfigReloadStatus::settle(outcome);
+    if (ConfigReloadStatus::refused())
+        BurnOverlay::showError(BurnOverlay::ErrorReason::Refused);
+}
+
 inline void uiDrainConfigReload() {
     if (!PendingActions::takeConfigReload()) {
         return;
     }
-    PageManager::reloadFromStorage();
+    uiSettleConfigReload(PageManager::reloadFromStorage());
 }
 
 inline void uiDrainNavActions() {
@@ -270,8 +278,10 @@ inline void uiDrainWorkshopEntry() {
 }
 
 inline void uiDrainWorkshopConfigReload() {
-    if (PendingActions::takeConfigReload())
-        BurnOverlay::hide();
+    if (!PendingActions::takeConfigReload())
+        return;
+    BurnOverlay::hide();
+    uiSettleConfigReload(ConfigLoader::vetDashboard());
 }
 
 inline void uiRunLvTaskHandler() {

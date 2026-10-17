@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config/config_types.h"
+#include "runtime/config_reload_status.h"
 
 #include <string.h>
 
@@ -68,8 +69,13 @@ inline bool takeBlePasskeyHide() {
     return blePasskeyHide.exchange(false, std::memory_order_relaxed);
 }
 
+inline void requestConfigReload() {
+    ConfigReloadStatus::markPending();
+    configReload.store(true, std::memory_order_release);
+}
+
 inline bool takeConfigReload() {
-    return configReload.exchange(false, std::memory_order_relaxed);
+    return configReload.exchange(false, std::memory_order_acquire);
 }
 
 inline bool takeBurnOverlayShow() {

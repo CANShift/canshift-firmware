@@ -27,7 +27,6 @@
 
 namespace {
 
-constexpr uint32_t kChunkTimeoutMs = 10000;
 constexpr uint32_t kBurnOverlayRenderGraceMs = 20;
 
 struct ChunkTransfer {
@@ -35,14 +34,16 @@ struct ChunkTransfer {
     uint32_t expectedIdx;
     uint32_t total;
     uint32_t lastActivityMs;
+    uint32_t writtenBytes;
     bool fromSocket;
 };
-ChunkTransfer s_chunk = {{0}, 0, 0, 0, false};
+ChunkTransfer s_chunk = {{0}, 0, 0, 0, 0, false};
 
 void resetChunkState() {
     s_chunk.path[0] = '\0';
     s_chunk.expectedIdx = 0;
     s_chunk.total = 0;
+    s_chunk.writtenBytes = 0;
     s_chunk.fromSocket = false;
 }
 
@@ -88,6 +89,41 @@ void failChunk(const char *reason) {
     abortChunkTransfer(reason);
 }
 
+namespace {
+
+bool beginPutFile(const char *path, uint32_t total) {
+    abortChunkTransfer("new transfer");
+    if (!StorageDriver::beginChunkedWriteAtomic(path)) {
+        UsbComm::sendError("open_failed");
+        return false;
+    }
+    strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
+    s_chunk.total = total;
+    s_chunk.expectedIdx = 0;
+    s_chunk.fromSocket = UsbCommInternal::commandFromSocket();
+    return true;
+}
+
+bool continuesPutFile(const char *path, uint32_t idx) {
+    return StorageDriver::isChunkedWriteOpen() && s_chunk.expectedIdx == idx &&
+           strcmp(s_chunk.path, path) == 0;
+}
+
+const char *appendPutFileChunk(const char *b64, const DecodeScratch &scratch) {
+    size_t decoded = 0;
+    if (mbedtls_base64_decode(reinterpret_cast<unsigned char *>(scratch.buf), scratch.cap, &decoded,
+                              reinterpret_cast<const unsigned char *>(b64), strlen(b64)) != 0)
+        return "b64_decode";
+    if (s_chunk.writtenBytes + decoded > kUsbPutFileMaxBytes)
+        return "too_large";
+    if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(scratch.buf), decoded))
+        return "write_failed";
+    s_chunk.writtenBytes += decoded;
+    return nullptr;
+}
+
+} // namespace
+
 void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
     const char *path = obj["path"];
     const uint32_t total = obj["total"] | 0u;
@@ -98,174 +134,22 @@ void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
         failChunk("bad_args");
         return;
     }
-
-    if (idx == 0) {
-        abortChunkTransfer("new transfer");
-        if (!StorageDriver::beginChunkedWriteAtomic(path)) {
-            // No abort: the call above already cleared state and nothing is open.
-            UsbComm::sendError("open_failed");
-            return;
-        }
-        strlcpy(s_chunk.path, path, sizeof(s_chunk.path));
-        s_chunk.total = total;
-        s_chunk.expectedIdx = 0;
-        s_chunk.fromSocket = UsbCommInternal::commandFromSocket();
-    } else if (!StorageDriver::isChunkedWriteOpen() || s_chunk.expectedIdx != idx ||
-               strcmp(s_chunk.path, path) != 0) {
+    if (idx == 0 && !beginPutFile(path, total))
+        return;
+    if (idx != 0 && !continuesPutFile(path, idx)) {
         failChunk("out_of_sequence");
         return;
     }
-
-    size_t decoded = 0;
-    const int rc =
-        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(scratch.buf), scratch.cap, &decoded,
-                              reinterpret_cast<const unsigned char *>(b64), strlen(b64));
-    if (rc != 0) {
-        failChunk("b64_decode");
+    if (const char *failure = appendPutFileChunk(b64, scratch)) {
+        failChunk(failure);
         return;
     }
-
-    if (!StorageDriver::appendChunk(reinterpret_cast<const uint8_t *>(scratch.buf), decoded)) {
-        failChunk("write_failed");
-        return;
-    }
-
     s_chunk.expectedIdx = idx + 1;
     s_chunk.lastActivityMs = millis();
-
     if (idx == total - 1) {
         finishChunkTransfer();
         return;
     }
-    UsbComm::sendOk();
-}
-
-namespace {
-
-constexpr size_t kConfigChunkMaxRawBytes = 1024;
-
-struct ConfigChunkState {
-    uint32_t total;
-    uint32_t expectedIdx;
-    uint32_t lastActivityMs;
-    uint32_t declaredBytes;
-    uint32_t writtenBytes;
-    char firstByte;
-    char lastByte;
-    bool open;
-    bool fromSocket;
-};
-
-ConfigChunkState s_configChunk = {};
-
-void abortConfigChunk(const char *reason) {
-    if (!s_configChunk.open) {
-        return;
-    }
-    LOG_WARN("USB", "PUT_CONFIG_CHUNK aborted: %s", reason);
-    StorageDriver::abortChunkedWrite();
-    s_configChunk = {};
-    UsbCommInternal::invokeBurnOverlayShowError(0);
-}
-
-bool configChunkIdleExpired() {
-    return s_configChunk.open && (millis() - s_configChunk.lastActivityMs) > kChunkTimeoutMs;
-}
-
-// Parsing a 16 KB config would overflow the USB task's 4 KB stack, so integrity
-// is checked from what passed through: exact byte count, and the JSON delimiters.
-bool receivedConfigLooksComplete() {
-    if (s_configChunk.declaredBytes == 0 ||
-        s_configChunk.writtenBytes != s_configChunk.declaredBytes) {
-        LOG_ERROR("USB", "PUT_CONFIG_CHUNK: %u bytes received, %u announced",
-                  static_cast<unsigned>(s_configChunk.writtenBytes),
-                  static_cast<unsigned>(s_configChunk.declaredBytes));
-        return false;
-    }
-    if (s_configChunk.firstByte != '{' || s_configChunk.lastByte != '}') {
-        LOG_ERROR("USB", "PUT_CONFIG_CHUNK: payload is not a JSON object");
-        return false;
-    }
-    return true;
-}
-
-} // namespace
-
-void handlePutConfigChunk(const JsonObjectConst &obj) {
-    const uint32_t total = obj["total"] | 0u;
-    const uint32_t idx = obj["idx"] | 0u;
-    const char *b64 = obj["data"];
-
-    if (b64 == nullptr || total == 0 || idx >= total) {
-        abortConfigChunk("bad_args");
-        UsbComm::sendError("bad_args");
-        return;
-    }
-
-    if (idx == 0) {
-        abortConfigChunk("new transfer");
-        if (!StorageDriver::beginChunkedWriteAtomic(kConfigPathDashboard)) {
-            UsbComm::sendError("open_failed");
-            return;
-        }
-        s_configChunk = {};
-        s_configChunk.total = total;
-        s_configChunk.lastActivityMs = millis();
-        s_configChunk.declaredBytes = obj["bytes"] | 0u;
-        s_configChunk.open = true;
-        s_configChunk.fromSocket = UsbCommInternal::commandFromSocket();
-        UsbCommInternal::invokeBurnOverlayShow();
-    } else if (!s_configChunk.open || s_configChunk.expectedIdx != idx ||
-               s_configChunk.total != total) {
-        abortConfigChunk("out_of_sequence");
-        UsbComm::sendError("out_of_sequence");
-        return;
-    }
-
-    uint8_t raw[kConfigChunkMaxRawBytes];
-    size_t decoded = 0;
-    if (mbedtls_base64_decode(raw, sizeof(raw), &decoded,
-                              reinterpret_cast<const unsigned char *>(b64), strlen(b64)) != 0) {
-        abortConfigChunk("b64_decode");
-        UsbComm::sendError("b64_decode");
-        return;
-    }
-
-    if (!StorageDriver::appendChunk(raw, decoded)) {
-        abortConfigChunk("write_failed");
-        UsbComm::sendError("write_failed");
-        return;
-    }
-    if (decoded > 0) {
-        if (idx == 0) {
-            s_configChunk.firstByte = static_cast<char>(raw[0]);
-        }
-        s_configChunk.lastByte = static_cast<char>(raw[decoded - 1]);
-        s_configChunk.writtenBytes += decoded;
-    }
-    s_configChunk.expectedIdx = idx + 1;
-    s_configChunk.lastActivityMs = millis();
-
-    if (idx + 1 < total) {
-        UsbComm::sendOk();
-        return;
-    }
-
-    const bool complete = receivedConfigLooksComplete();
-    const bool committed = complete && StorageDriver::endChunkedWrite();
-    if (!complete) {
-        StorageDriver::abortChunkedWrite();
-    }
-    s_configChunk = {};
-    if (!committed) {
-        UsbCommInternal::invokeBurnOverlayShowError(0);
-        UsbComm::sendError("write_failed");
-        return;
-    }
-
-    LOG_INFO("USB", "PUT_CONFIG_CHUNK: config replaced from %u chunks — reloading live",
-             static_cast<unsigned>(total));
-    PendingActions::configReload.store(true, std::memory_order_relaxed);
     UsbComm::sendOk();
 }
 
@@ -304,31 +188,27 @@ void handlePutConfig(const char *jsonLine) {
     }
 
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading live", written);
-    PendingActions::configReload.store(true, std::memory_order_relaxed);
+    PendingActions::requestConfigReload();
     UsbComm::sendOk();
 }
 
 void abortSocketTransfers(const char *reason) {
     if (s_chunk.total > 0 && s_chunk.fromSocket)
         abortChunkTransfer(reason);
-    if (s_configChunk.fromSocket)
-        abortConfigChunk(reason);
+    abortSocketConfigChunk(reason);
 }
 
 bool socketFileTransferOpen() {
-    return (s_chunk.total > 0 && s_chunk.fromSocket) ||
-           (s_configChunk.open && s_configChunk.fromSocket);
+    return (s_chunk.total > 0 && s_chunk.fromSocket) || socketConfigChunkOpen();
 }
 
 void tickChunkTransferTimeout() {
     if (s_chunk.total > 0 && StorageDriver::isChunkedWriteOpen() &&
-        (millis() - s_chunk.lastActivityMs) > kChunkTimeoutMs) {
+        (millis() - s_chunk.lastActivityMs) > kUsbChunkIdleTimeoutMs) {
         abortChunkTransfer("idle timeout");
         return;
     }
-    if (configChunkIdleExpired()) {
-        abortConfigChunk("idle timeout");
-    }
+    tickConfigChunkTimeout();
 }
 
 } // namespace UsbCommInternal

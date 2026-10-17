@@ -32,32 +32,32 @@ the command table shared with BLE
 ([`device_commands.cpp`](../../src/runtime/device_commands.cpp)), then to the
 USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 
-| Code   | Name                    | Request                                               | Reply and effect                                                                                    |
-| ------ | ----------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `0x01` | `kCmdGetConfig`         | `{"cmd":1}`                                           | `{"status":"ok","config":{…}}`, the on-disk `dashboard.json`                                        |
-| `0x02` | `kCmdPutConfig`         | `{"cmd":2,"payload":{…}}`                             | Atomic write of `dashboard.json`, then reboot (see below)                                           |
-| `0x03` | `kCmdGetDeviceConfig`   | `{"cmd":3}`                                           | `device.json`, or `config_not_found`                                                                |
-| `0x04` | `kCmdPutDeviceConfig`   | `{"cmd":4,"device_config":{…}}`                       | Atomic write of `device.json`, then reboot                                                          |
-| `0x05` | `kCmdScreenSettings`    | `{"cmd":5,"brightness":80,"rotation":0}`              | Applies brightness; a `rotation` of 0 or 180 that differs from the current one persists and reboots |
-| `0x06` | `kCmdPutFile`           | `{"cmd":6,"path":…,"total":N,"idx":i,"data":"<b64>"}` | Chunked write under `/assets/` or `/fonts/` only; an out-of-order chunk aborts the transfer         |
-| `0x07` | `kCmdToggleDayNight`    | `{"cmd":7}`                                           | Flips the theme on the next UI tick                                                                 |
-| `0x08` | `kCmdCalibrateTouch`    | `{"cmd":8}`                                           | Runs touch calibration (resistive boards only)                                                      |
-| `0x09` | `kCmdSetDayNight`       | `{"cmd":9,"day":true}`                                | Sets the theme; `missing_day` without the bool                                                      |
-| `0x0A` | `kCmdResetTouchCal`     | `{"cmd":10}`                                          | Clears the saved calibration                                                                        |
-| `0x0B` | `kCmdGetInputBindings`  | `{"cmd":11}`                                          | `input_bindings.json`, or `config_not_found`                                                        |
-| `0x0C` | `kCmdPutInputBindings`  | `{"cmd":12,"payload":{…}}`                            | Atomic write of `input_bindings.json`, then reboot                                                  |
-| `0x0D` | `CMD_SET_BOARD_PROFILE` | `{"cmd":13,"payload":{…}}`                            | Stores a board id or profile blob in NVS, then reboots ([Board profile](board-profile.md))          |
-| `0x0E` | `kCmdPutConfigChunk`    | `{"cmd":14,"total":N,"idx":i,"data":"<b64>"}`         | `dashboard.json` in chunks; the last one commits and reloads the config live, without a reboot      |
-| `0x10` | `kCmdGetStatus`         | `{"cmd":16}`                                          | `{"status":"ok","version":…,"protocol":2,"is_day":0,"board_id":…}`                                  |
-| `0x11` | `kCmdPing`              | `{"cmd":17}`                                          | `{"status":"ok","uptime_ms":…}`                                                                     |
-| `0x20` | `kCmdCanScanStart`      | `{"cmd":32}`                                          | Starts forwarding raw frames                                                                        |
-| `0x21` | `kCmdCanScanStop`       | `{"cmd":33}`                                          | Stops forwarding; the ack carries `drops`                                                           |
-| `0x22` | `kCmdObdReadDtc`        | `{"cmd":34}`                                          | OBD-II mode 03; replies `{"status":"ok","dtc_bytes":[…]}` when the ECU answers                      |
-| `0x23` | `kCmdObdClearDtc`       | `{"cmd":35}`                                          | OBD-II mode 04                                                                                      |
-| `0x30` | `kCmdOtaBegin`          | `{"cmd":48,"total":N,"sha256":"<hex>","sig":"<b64>"}` | Opens the inactive app slot (see [Firmware OTA](firmware-ota.md))                                   |
-| `0x31` | `kCmdOtaWrite`          | `{"cmd":49,"offset":O,"data":"<b64>"}`                | Writes one chunk; `{"status":"ok","written":N}`                                                     |
-| `0x32` | `kCmdOtaEnd`            | `{"cmd":50,"action":"commit"}`                        | `commit` verifies and reboots into the new slot; `abort`, the default, discards                     |
-| `0xF0` | `kCmdReboot`            | `{"cmd":240}`                                         | `{"status":"ok","restart":true}`, then restarts                                                     |
+| Code   | Name                    | Request                                               | Reply and effect                                                                                                                                                                           |
+| ------ | ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0x01` | `kCmdGetConfig`         | `{"cmd":1}`                                           | `{"status":"ok","config":{…}}`, the on-disk `dashboard.json`                                                                                                                               |
+| `0x02` | `kCmdPutConfig`         | `{"cmd":2,"payload":{…}}`                             | Atomic write of `dashboard.json`, then reboot (see below)                                                                                                                                  |
+| `0x03` | `kCmdGetDeviceConfig`   | `{"cmd":3}`                                           | `device.json`, or `config_not_found`                                                                                                                                                       |
+| `0x04` | `kCmdPutDeviceConfig`   | `{"cmd":4,"device_config":{…}}`                       | Atomic write of `device.json`, then reboot                                                                                                                                                 |
+| `0x05` | `kCmdScreenSettings`    | `{"cmd":5,"brightness":80,"rotation":0}`              | Applies brightness; a `rotation` of 0 or 180 that differs from the current one persists and reboots                                                                                        |
+| `0x06` | `kCmdPutFile`           | `{"cmd":6,"path":…,"total":N,"idx":i,"data":"<b64>"}` | Chunked write under `/assets/` or `/fonts/`, or to `/config/signals.json`; at most 128 KB (`too_large`); an out-of-order chunk aborts the transfer                                         |
+| `0x07` | `kCmdToggleDayNight`    | `{"cmd":7}`                                           | Flips the theme on the next UI tick                                                                                                                                                        |
+| `0x08` | `kCmdCalibrateTouch`    | `{"cmd":8}`                                           | Runs touch calibration (resistive boards only)                                                                                                                                             |
+| `0x09` | `kCmdSetDayNight`       | `{"cmd":9,"day":true}`                                | Sets the theme; `missing_day` without the bool                                                                                                                                             |
+| `0x0A` | `kCmdResetTouchCal`     | `{"cmd":10}`                                          | Clears the saved calibration                                                                                                                                                               |
+| `0x0B` | `kCmdGetInputBindings`  | `{"cmd":11}`                                          | `input_bindings.json`, or `config_not_found`                                                                                                                                               |
+| `0x0C` | `kCmdPutInputBindings`  | `{"cmd":12,"payload":{…}}`                            | Atomic write of `input_bindings.json`, then reboot                                                                                                                                         |
+| `0x0D` | `CMD_SET_BOARD_PROFILE` | `{"cmd":13,"payload":{…}}`                            | Stores a board id or profile blob in NVS, then reboots ([Board profile](board-profile.md))                                                                                                 |
+| `0x0E` | `kCmdPutConfigChunk`    | `{"cmd":14,"total":N,"idx":i,"data":"<b64>"}`         | `dashboard.json` in chunks; chunk 0 announces `bytes`, at most 64 KB (`too_large`); the last one commits and reloads the config live, without a reboot ([Reload verdict](#reload-verdict)) |
+| `0x10` | `kCmdGetStatus`         | `{"cmd":16}`                                          | `{"status":"ok","version":…,"protocol":2,"is_day":0,"board_id":…}`                                                                                                                         |
+| `0x11` | `kCmdPing`              | `{"cmd":17}`                                          | `{"status":"ok","uptime_ms":…,"config_reload":…}` ([Reload verdict](#reload-verdict))                                                                                                      |
+| `0x20` | `kCmdCanScanStart`      | `{"cmd":32}`                                          | Starts forwarding raw frames                                                                                                                                                               |
+| `0x21` | `kCmdCanScanStop`       | `{"cmd":33}`                                          | Stops forwarding; the ack carries `drops`                                                                                                                                                  |
+| `0x22` | `kCmdObdReadDtc`        | `{"cmd":34}`                                          | OBD-II mode 03; replies `{"status":"ok","dtc_bytes":[…]}` when the ECU answers                                                                                                             |
+| `0x23` | `kCmdObdClearDtc`       | `{"cmd":35}`                                          | OBD-II mode 04                                                                                                                                                                             |
+| `0x30` | `kCmdOtaBegin`          | `{"cmd":48,"total":N,"sha256":"<hex>","sig":"<b64>"}` | Opens the inactive app slot (see [Firmware OTA](firmware-ota.md))                                                                                                                          |
+| `0x31` | `kCmdOtaWrite`          | `{"cmd":49,"offset":O,"data":"<b64>"}`                | Writes one chunk; `{"status":"ok","written":N}`                                                                                                                                            |
+| `0x32` | `kCmdOtaEnd`            | `{"cmd":50,"action":"commit"}`                        | `commit` verifies and reboots into the new slot; `abort`, the default, discards                                                                                                            |
+| `0xF0` | `kCmdReboot`            | `{"cmd":240}`                                         | `{"status":"ok","restart":true}`, then restarts                                                                                                                                            |
 
 ## Device-to-host lines
 
@@ -184,6 +184,29 @@ as `{"device_config":{…}}`, and the loader read nothing from that file. A
 device that took such a push still has a wrapped file, so
 `TypedConfigBody::device` reads a top-level `device_config` object when there
 is one, and the next push rewrites the file flat.
+
+## Reload verdict
+
+The last `PUT_CONFIG_CHUNK` ack means the file is committed, not that the dash
+accepts it: the USB task cannot parse a full dashboard on its stack. The UI
+task loads it on its next frame, with the boot loader. In workshop mode the
+dash is not running, so the UI task runs the same loader as a dry run and the
+file takes effect at the reboot that leaves workshop mode.
+
+`PING` carries the verdict in `config_reload`, so the tuner polls until it
+leaves `pending`:
+
+| Value       | Meaning                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| `idle`      | No config was sent since boot                                                               |
+| `pending`   | Committed, not loaded yet                                                                   |
+| `applied`   | Loaded                                                                                      |
+| `refused`   | Did not load; when a `.bak` was there, it replaced the refused file and the dash runs on it |
+| `unchecked` | The dash ran out of memory before it could judge the file; the next boot loads it           |
+
+A refusal also shows `CONFIG REFUSED` on the burn overlay, and the error bar
+says why (`OVERFLOW`, `BUDGET`, `READ_FAIL`) next to `CFG_BAK` when the
+previous file came back.
 
 ## signals.json over PUT_FILE
 

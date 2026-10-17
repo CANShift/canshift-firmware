@@ -229,40 +229,8 @@ void reapplyThemeAllPages() {
 
 namespace {
 
-void rearmConfigConsumers() {
-    AlertEngine::init();
-    AlertTakeover::reset();
-    ThemeManager::init();
-    DayNightAuto::init();
-    PageButtons::init();
-}
-
-} // namespace
-
-void PageManager::reloadFromStorage() {
+void showReloadedDefaultPage() {
     using namespace PageManagerInternal;
-
-    LVGL_ASSERT_LOCKED();
-
-    lv_obj_t *blank = lv_obj_create(nullptr);
-    if (!blank) {
-        LOG_ERROR("UI", "Config reload: placeholder alloc failed — keeping the running pages");
-        return;
-    }
-    lv_obj_set_style_bg_color(blank, lv_color_hex(ThemeTokens::kGroundNight), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(blank, LV_OPA_COVER, LV_PART_MAIN);
-    lv_scr_load(blank);
-    releaseAllPages();
-
-    if (!ConfigLoader::reloadAll()) {
-        LOG_ERROR("UI", "Config reload: dashboard.json unusable — showing the failure screen");
-        showConfigFailure();
-        return;
-    }
-
-    rearmConfigConsumers();
-    TopBar::rebuild();
-    buildPageList();
 
     const uint8_t target = defaultPageIndex();
     if (target >= s_pageCount || !s_pages[target].screen) {
@@ -279,4 +247,42 @@ void PageManager::reloadFromStorage() {
     BurnOverlay::hide();
     LOG_INFO("UI", "Config reloaded live: %u page(s), showing '%s'",
              static_cast<unsigned>(s_pageCount), s_pages[target].id);
+}
+
+void rearmConfigConsumers() {
+    AlertEngine::init();
+    AlertTakeover::reset();
+    ThemeManager::init();
+    DayNightAuto::init();
+    PageButtons::init();
+}
+
+} // namespace
+
+ConfigLoader::DashboardOutcome PageManager::reloadFromStorage() {
+    using namespace PageManagerInternal;
+
+    LVGL_ASSERT_LOCKED();
+
+    lv_obj_t *blank = lv_obj_create(nullptr);
+    if (!blank) {
+        LOG_ERROR("UI", "Config reload: placeholder alloc failed — keeping the running pages");
+        return ConfigLoader::DashboardOutcome::NoMemory;
+    }
+    lv_obj_set_style_bg_color(blank, lv_color_hex(ThemeTokens::kGroundNight), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(blank, LV_OPA_COVER, LV_PART_MAIN);
+    lv_scr_load(blank);
+    releaseAllPages();
+
+    if (!ConfigLoader::reloadAll()) {
+        LOG_ERROR("UI", "Config reload: dashboard.json unusable — showing the failure screen");
+        showConfigFailure();
+        return ConfigLoader::lastDashboardOutcome();
+    }
+
+    rearmConfigConsumers();
+    TopBar::rebuild();
+    buildPageList();
+    showReloadedDefaultPage();
+    return ConfigLoader::lastDashboardOutcome();
 }

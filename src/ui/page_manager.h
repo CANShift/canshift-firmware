@@ -4,12 +4,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "config/config_types.h"
+#include "config/dashboard_outcome.h"
 
 namespace PageManager {
 
 void init();
 
-void reloadFromStorage();
+[[nodiscard]] ConfigLoader::DashboardOutcome reloadFromStorage();
 
 bool navigateTo(const char *pageId);
 

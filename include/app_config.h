@@ -104,6 +104,10 @@ inline constexpr unsigned kObd2MaxIntervalMsFw = 60000U;
 
 inline constexpr int kConfigJsonDocDashboard = 16384;
 
+inline constexpr uint32_t kUsbPutConfigMaxBytes = 64u * 1024u;
+inline constexpr uint32_t kUsbPutFileMaxBytes = 128u * 1024u;
+inline constexpr uint32_t kUsbChunkIdleTimeoutMs = 10000u;
+
 inline constexpr int kConfigMaxPages = 8;
 inline constexpr int kConfigMaxWidgetsPerPage = 12;
 inline constexpr unsigned kConfigDashboardHeapBudgetBytes = (48u * 1024u);

@@ -17,6 +17,15 @@ void test_isPathSafe_allowedFontsPrefix_returnsTrue() {
     TEST_ASSERT_TRUE(isPathSafe("/fonts/orbitron.bin"));
 }
 
+void test_isPathSafe_signalsFile_returnsTrue() {
+    TEST_ASSERT_TRUE(isPathSafe("/config/signals.json"));
+}
+
+void test_isPathSafe_otherConfigFile_returnsFalse() {
+    TEST_ASSERT_FALSE(isPathSafe("/config/dashboard.json"));
+    TEST_ASSERT_FALSE(isPathSafe("/config/signals.json.bak"));
+}
+
 void test_isPathSafe_pathTraversal_returnsFalse() {
     TEST_ASSERT_FALSE(isPathSafe("/assets/../secret.bin"));
 }
@@ -88,6 +97,8 @@ int main(int /*argc*/, char ** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_isPathSafe_allowedAssetsPrefix_returnsTrue);
     RUN_TEST(test_isPathSafe_allowedFontsPrefix_returnsTrue);
+    RUN_TEST(test_isPathSafe_signalsFile_returnsTrue);
+    RUN_TEST(test_isPathSafe_otherConfigFile_returnsFalse);
     RUN_TEST(test_isPathSafe_pathTraversal_returnsFalse);
     RUN_TEST(test_isPathSafe_absolutePathOutsideAllowlist_returnsFalse);
     RUN_TEST(test_isPathSafe_doubleSlash_returnsFalse);
