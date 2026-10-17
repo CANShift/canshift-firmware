@@ -69,6 +69,10 @@ bool receivedConfigLooksComplete() {
 bool beginConfigChunk(const JsonObjectConst &obj, uint32_t total) {
     abortConfigChunk("new transfer");
     const uint32_t declaredBytes = obj["bytes"] | 0u;
+    if (declaredBytes == 0) {
+        UsbComm::sendError("bad_args");
+        return false;
+    }
     if (declaredBytes > kUsbPutConfigMaxBytes) {
         LOG_WARN("USB", "PUT_CONFIG_CHUNK: %u bytes announced, cap is %u",
                  static_cast<unsigned>(declaredBytes),
