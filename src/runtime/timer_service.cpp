@@ -132,8 +132,12 @@ TimerService::Snapshot TimerService::snapshot() {
     if (!lk.held())
         return snap;
 
+    const int64_t nowUs = esp_timer_get_time();
     snap.state = static_cast<State>(g_state.core.run_state);
-    snap.elapsedMs = timer_core_elapsed_ms_rs(&g_state.core, esp_timer_get_time());
+    snap.elapsedMs = timer_core_elapsed_ms_rs(&g_state.core, nowUs);
+    snap.currentLapMs = timer_core_current_lap_ms_rs(&g_state.core, nowUs);
+    snap.lastLapMs = g_state.core.last_lap_ms;
+    snap.bestLapMs = g_state.core.best_lap_ms;
     snap.version = g_state.core.version;
     snap.lapCount = g_state.core.lap_count;
     snap.sessionId = g_state.core.session;

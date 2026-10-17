@@ -29,7 +29,7 @@ void renderElapsed(const TimerSources::Inputs &in, char *buf, size_t cap) {
 }
 
 void renderLap(const TimerSources::Inputs &in, char *buf, size_t cap) {
-    writeLapTime(in.trackActive ? in.currentLapMs : in.elapsedMs, buf, cap);
+    writeLapTime(in.currentLapMs, buf, cap);
 }
 
 void renderBest(const TimerSources::Inputs &in, char *buf, size_t cap) {
@@ -41,8 +41,7 @@ void renderLast(const TimerSources::Inputs &in, char *buf, size_t cap) {
 }
 
 void renderLapCount(const TimerSources::Inputs &in, char *buf, size_t cap) {
-    snprintf(buf, cap, "%u",
-             static_cast<unsigned>(in.trackActive ? in.trackLapNumber : in.stopwatchLaps));
+    snprintf(buf, cap, "%u", static_cast<unsigned>(in.lapCount));
 }
 
 void renderDelta(const TimerSources::Inputs &in, char *buf, size_t cap) {
@@ -85,6 +84,26 @@ const SourceRenderer *rendererFor(CfgTimerSource source) {
 } // namespace
 
 namespace TimerSources {
+
+Inputs select(const TimerService::Snapshot &stopwatch, const TrackStore::State &track,
+              bool trackActive) {
+    if (trackActive) {
+        return {stopwatch.elapsedMs,
+                track.currentLapMs,
+                track.lastLapMs,
+                track.bestLapMs,
+                track.lapNumber,
+                track.deltaMs,
+                true};
+    }
+    return {stopwatch.elapsedMs,
+            stopwatch.currentLapMs,
+            stopwatch.lastLapMs,
+            stopwatch.bestLapMs,
+            stopwatch.lapCount,
+            0,
+            false};
+}
 
 void render(CfgTimerSource source, const Inputs &in, char *buf, size_t cap) {
     if (buf == nullptr || cap == 0)

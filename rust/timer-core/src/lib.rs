@@ -24,6 +24,8 @@ pub struct TimerCore {
     pub accumulated_us: i64,
     pub last_lap_total_us: i64,
     pub version: u32,
+    pub last_lap_ms: u32,
+    pub best_lap_ms: u32,
     pub lap_count: u16,
     pub session: u16,
     pub run_state: u8,
@@ -45,6 +47,8 @@ impl TimerCore {
             accumulated_us: 0,
             last_lap_total_us: 0,
             version: 0,
+            last_lap_ms: 0,
+            best_lap_ms: 0,
             lap_count: 0,
             session: 0,
             run_state: RUN_STATE_RESET,
@@ -70,8 +74,7 @@ impl TimerCore {
         }
         self.last_start_us = now_us;
         self.accumulated_us = 0;
-        self.last_lap_total_us = 0;
-        self.lap_count = 0;
+        self.clear_splits();
         self.session = self.session.wrapping_add(1);
         self.run_state = RUN_STATE_RUNNING;
         self.bump_version();
@@ -105,8 +108,7 @@ impl TimerCore {
         self.run_state = RUN_STATE_RESET;
         self.last_start_us = 0;
         self.accumulated_us = 0;
-        self.last_lap_total_us = 0;
-        self.lap_count = 0;
+        self.clear_splits();
         self.bump_version();
         true
     }
@@ -122,6 +124,7 @@ impl TimerCore {
         let lap_us = total_us.saturating_sub(self.last_lap_total_us);
         self.last_lap_total_us = total_us;
         self.lap_count += 1;
+        self.record_split(us_to_ms(lap_us));
 
         let lap = TimerLap {
             lap_ms: us_to_ms(lap_us),
@@ -139,6 +142,13 @@ impl TimerCore {
 
     pub fn elapsed_ms(&self, now_us: i64) -> u32 {
         us_to_ms(self.elapsed_us(now_us))
+    }
+
+    pub fn current_lap_ms(&self, now_us: i64) -> u32 {
+        us_to_ms(
+            self.elapsed_us(now_us)
+                .saturating_sub(self.last_lap_total_us),
+        )
     }
 
     pub fn pending_count(&self) -> u8 {
@@ -177,6 +187,20 @@ impl TimerCore {
         dropped
     }
 
+    fn clear_splits(&mut self) {
+        self.last_lap_total_us = 0;
+        self.last_lap_ms = 0;
+        self.best_lap_ms = 0;
+        self.lap_count = 0;
+    }
+
+    fn record_split(&mut self, lap_ms: u32) {
+        self.last_lap_ms = lap_ms;
+        if self.best_lap_ms == 0 || lap_ms < self.best_lap_ms {
+            self.best_lap_ms = lap_ms;
+        }
+    }
+
     fn bump_version(&mut self) {
         self.version = self.version.wrapping_add(1);
     }
@@ -206,7 +230,7 @@ mod tests {
     #[test]
     fn struct_layout_matches_cxx_header() {
         assert_eq!(core::mem::size_of::<TimerLap>(), 12);
-        assert_eq!(core::mem::size_of::<TimerCore>(), 424);
+        assert_eq!(core::mem::size_of::<TimerCore>(), 432);
         assert_eq!(core::mem::align_of::<TimerCore>(), 8);
     }
 
@@ -279,6 +303,48 @@ mod tests {
         let lap = t.lap(55 * SEC).unwrap();
         assert_eq!(lap.lap.lap_ms, 15_000);
         assert_eq!(lap.lap.total_ms, 15_000);
+    }
+
+    #[test]
+    fn splits_track_last_and_best_lap() {
+        let mut t = TimerCore::new();
+        t.start(0);
+        assert_eq!(t.last_lap_ms, 0);
+        assert_eq!(t.best_lap_ms, 0);
+        t.lap(62 * SEC);
+        assert_eq!(t.last_lap_ms, 62_000);
+        assert_eq!(t.best_lap_ms, 62_000);
+        t.lap(120 * SEC);
+        assert_eq!(t.last_lap_ms, 58_000);
+        assert_eq!(t.best_lap_ms, 58_000);
+        t.lap(181 * SEC);
+        assert_eq!(t.last_lap_ms, 61_000);
+        assert_eq!(t.best_lap_ms, 58_000);
+    }
+
+    #[test]
+    fn current_lap_runs_from_the_last_split() {
+        let mut t = TimerCore::new();
+        t.start(0);
+        assert_eq!(t.current_lap_ms(30 * SEC), 30_000);
+        t.lap(60 * SEC);
+        assert_eq!(t.current_lap_ms(75 * SEC), 15_000);
+        t.pause(80 * SEC);
+        assert_eq!(t.current_lap_ms(500 * SEC), 20_000);
+    }
+
+    #[test]
+    fn reset_and_new_session_clear_the_splits() {
+        let mut t = TimerCore::new();
+        t.start(0);
+        t.lap(60 * SEC);
+        t.reset();
+        assert_eq!(t.last_lap_ms, 0);
+        assert_eq!(t.best_lap_ms, 0);
+        assert_eq!(t.current_lap_ms(99 * SEC), 0);
+        t.start(100 * SEC);
+        assert_eq!(t.best_lap_ms, 0);
+        assert_eq!(t.current_lap_ms(110 * SEC), 10_000);
     }
 
     #[test]

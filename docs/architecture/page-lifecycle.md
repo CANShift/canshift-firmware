@@ -131,19 +131,24 @@ deterministically. After `tagSlot.commit()` LVGL owns destruction.
 A `timer` widget carries a `source` that decides what it reads and whether it is
 interactive:
 
-| Source              | Reads                                                             | Renders                                                                |
-| ------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `elapsed` (default) | `TimerService`                                                    | the stopwatch, `MM:SS` or `SS.mmm` — the only touch-interactive source |
-| `lap`               | `TrackStore.currentLapMs`, falling back to the stopwatch          | `M:SS.hh`                                                              |
-| `best` / `last`     | `TrackStore`                                                      | `M:SS.hh`, or `--:--` when unset                                       |
-| `lapCount`          | `TrackStore.lapNumber`, falling back to the stopwatch's lap count | an integer                                                             |
-| `delta`             | `TrackStore.deltaMs`                                              | `-0.42` / `+0.31`, or `--` without track telemetry                     |
+| Source              | Reads (track telemetry live / otherwise)                  | Renders                                                                |
+| ------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `elapsed` (default) | `TimerService`                                            | the stopwatch, `MM:SS` or `SS.mmm` — the only touch-interactive source |
+| `lap`               | `TrackStore.currentLapMs` / the stopwatch's running split | `M:SS.hh`                                                              |
+| `best` / `last`     | `TrackStore` / the stopwatch's best and last lap          | `M:SS.hh`, or `--:--` when unset                                       |
+| `lapCount`          | `TrackStore.lapNumber` / the stopwatch's lap count        | an integer                                                             |
+| `delta`             | `TrackStore.deltaMs` / nothing                            | `-0.42` / `+0.31`, or `--` without track telemetry                     |
+
+`TimerSources::select` picks one side for every field at once, so a widget never
+mixes a phone lap with a stopwatch lap.
 
 **Track telemetry is not on the bus.** `TrackStore` is fed by the companion app
-through `applyTrackState`, so on a bench with no phone the track sources show their
-placeholders. `kTrackTelemetryTimeoutMs` decides when that data has gone stale;
-past it, `lap` and `lapCount` fall back to the on-device stopwatch and `delta`
-blanks out, because a delta against a stale reference is worse than no delta.
+through `applyTrackState`. `kTrackTelemetryTimeoutMs` decides when that data has
+gone stale; past it, or with no phone at all, every split comes from the on-device
+stopwatch: `TimerCore` keeps the last and best lap and the running split since the
+last lap press, and clears them on reset and on a new session. `delta` blanks
+out, because the stopwatch has no reference lap to predict against and a delta
+against a stale one is worse than no delta.
 
 Only `elapsed` binds touch handlers. The other sources are readouts — they carry no
 state border and no lap badge, and the timer is driven from buttons instead.
