@@ -14,4 +14,6 @@ void hide();
 
 void showError(ErrorReason reason);
 
+[[nodiscard]] bool isActive();
+
 } // namespace BurnOverlay

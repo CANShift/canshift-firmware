@@ -187,3 +187,7 @@ void ControlSplash::update() {
     }
     show(control_splash_poll_rs(&s_timer, millis()));
 }
+
+bool ControlSplash::isVisible() {
+    return s_visible;
+}

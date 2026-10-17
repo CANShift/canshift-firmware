@@ -41,4 +41,15 @@ bool closesSettings(int16_t travelYSigned, int16_t travelX) {
     return travelY > kSwipeThroughAxisRatio * magnitude(travelX);
 }
 
+TapTurn tapTurn(int16_t releaseX, int16_t screenWidth, int16_t travel) {
+    if (travel >= kTapTravelLimitPx || screenWidth < kTapZoneCount)
+        return TapTurn::None;
+    const int16_t zoneWidth = static_cast<int16_t>(screenWidth / kTapZoneCount);
+    if (releaseX < zoneWidth)
+        return TapTurn::Previous;
+    if (releaseX >= screenWidth - zoneWidth)
+        return TapTurn::Next;
+    return TapTurn::None;
+}
+
 } // namespace GestureIntent

@@ -28,7 +28,7 @@ lv_obj_t *ImageWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_pos(cont, px, py);
     lv_obj_set_size(cont, ScreenProfile::scaleXVal(cfg.layout.w),
                     ScreenProfile::scaleYVal(cfg.layout.h));
-    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    WidgetHelpers::disableInteract(cont);
     WidgetStyles::applyContainerBaseNoBorder(cont);
 
     if (cfg.image.imagePath[0] == '\0') {

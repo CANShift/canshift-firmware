@@ -11,4 +11,6 @@ void raiseFor(const ControlVocabulary::Control &control, ControlVocabulary::Cont
 
 void update();
 
+[[nodiscard]] bool isVisible();
+
 } // namespace ControlSplash
