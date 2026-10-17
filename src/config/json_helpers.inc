@@ -19,6 +19,7 @@ namespace {
 constexpr const char *kBakSuffix = ".bak";
 
 const char *s_lastParseError = "file missing";
+DeserializationError::Code s_lastParseCode = DeserializationError::Ok;
 
 constexpr size_t kBakPathLen = kCfgMaxPathLen + 5;
 
@@ -49,15 +50,21 @@ const char *lastParseError() {
     return s_lastParseError;
 }
 
+bool lastParseOutOfMemory() {
+    return s_lastParseCode == DeserializationError::NoMemory;
+}
+
 bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     logLargestFreeBlock(path);
     s_lastParseError = "file missing";
+    s_lastParseCode = DeserializationError::Ok;
 
     if (StorageDriver::fileExists(path)) {
         DeserializationError err = StorageDriver::parseJsonFile(path, doc);
         if (!err)
             return true;
         s_lastParseError = err.c_str();
+        s_lastParseCode = err.code();
 
         // NOLINTNEXTLINE(bugprone-branch-clone)
         if (err == DeserializationError::EmptyInput) {
@@ -79,6 +86,7 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     DeserializationError bakErr = StorageDriver::parseJsonFile(bakPath, doc);
     if (bakErr) {
         s_lastParseError = bakErr.c_str();
+        s_lastParseCode = bakErr.code();
         LOG_ERROR("CFG", "%s also failed to parse: %s", bakPath, bakErr.c_str());
         return false;
     }
