@@ -4,6 +4,7 @@
 
 #include <esp_system.h>
 #include "usb_comm_internal.h"
+#include "usb_seq_echo.h"
 
 #include "app_config.h"
 #include "board_config.h"
@@ -203,10 +204,27 @@ void UsbComm::init() {
     LOG_INFO("USB", "USB comm initialized");
 }
 
+namespace {
+
+bool sendTagged(const char *line, size_t len, UsbSeqEcho::Seq seq) {
+    char tagged[UsbSeqEcho::kMaxTaggedLine];
+    const size_t taggedLen = UsbSeqEcho::tag(line, len, seq, tagged, sizeof(tagged));
+    if (taggedLen == 0)
+        return false;
+    UsbCommInternal::routeLine(tagged, taggedLen);
+    return true;
+}
+
+} // namespace
+
 void UsbComm::sendLine(const char *line) {
     if (!line)
         return;
-    UsbCommInternal::routeLine(line, strlen(line));
+    const size_t len = strlen(line);
+    const UsbSeqEcho::Seq seq = UsbSeqEcho::active();
+    if (seq.present && sendTagged(line, len, seq))
+        return;
+    UsbCommInternal::routeLine(line, len);
 }
 
 void UsbComm::sendOk() {
