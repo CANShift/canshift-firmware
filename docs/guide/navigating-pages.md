@@ -36,8 +36,9 @@ config or update is being written, or in workshop mode.
 
 Both keys are optional. A press is the signal going from `0` to any non-zero
 value. A second press within 150 ms is ignored as a bounce. A stale or absent
-signal does nothing, and the signal has to read `0` again before the next
-press counts. Button presses turn the page the same way a swipe does, but not
+signal does nothing. The dash remembers the last value it saw, so a button
+frame sent only on change still works after a long silence, and a button held
+through a silence does not fire twice. Button presses turn the page the same way a swipe does, but not
 during an alert takeover, a control splash, a config or update write, or in
 workshop mode.
 

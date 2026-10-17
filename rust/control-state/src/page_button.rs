@@ -17,7 +17,6 @@ impl PageButtonEdge {
 
     pub fn sample(&mut self, valid: bool, raw: f32, now_ms: u32) -> bool {
         if !valid || raw.is_nan() {
-            self.released_seen = false;
             return false;
         }
         if raw == 0.0 {
@@ -96,20 +95,37 @@ mod tests {
     }
 
     #[test]
-    fn a_stale_signal_does_nothing_and_needs_a_fresh_release() {
+    fn a_stale_signal_does_nothing_while_stale() {
         let mut edge = PageButtonEdge::new();
         assert!(!edge.sample(true, 0.0, 0));
         assert!(!edge.sample(false, 1.0, 100));
-        assert!(!edge.sample(true, 1.0, 500));
-        assert!(released_then_pressed(&mut edge, 900));
+        assert!(!edge.sample(false, 1.0, 5_000));
+    }
+
+    #[test]
+    fn a_press_after_a_silent_gap_still_fires_when_last_seen_released() {
+        let mut edge = PageButtonEdge::new();
+        assert!(!edge.sample(true, 0.0, 0));
+        assert!(!edge.sample(false, 0.0, 30_000));
+        assert!(edge.sample(true, 1.0, 60_000));
+    }
+
+    #[test]
+    fn a_button_held_through_a_silent_gap_does_not_fire_again() {
+        let mut edge = PageButtonEdge::new();
+        assert!(released_then_pressed(&mut edge, 0));
+        assert!(!edge.sample(false, 1.0, 1_000));
+        assert!(!edge.sample(true, 1.0, 2_000));
     }
 
     #[test]
     fn nan_reads_as_stale() {
         let mut edge = PageButtonEdge::new();
-        assert!(!edge.sample(true, 0.0, 0));
-        assert!(!edge.sample(true, f32::NAN, 100));
-        assert!(!edge.sample(true, 1.0, 500));
+        assert!(!edge.sample(true, f32::NAN, 0));
+        assert!(!edge.sample(true, 1.0, 100));
+        assert!(!edge.sample(true, 0.0, 200));
+        assert!(!edge.sample(true, f32::NAN, 300));
+        assert!(edge.sample(true, 1.0, 400));
     }
 
     #[test]
