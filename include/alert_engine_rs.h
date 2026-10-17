@@ -63,8 +63,8 @@ enum {
     kAlertSeverityFailure = 3
 };
 
-float alert_warn_level_for_rs(float danger_level, bool danger_below, float sig_warn,
-                              float sig_high_warn);
+uint8_t alert_severity_for_signal_rs(float value, float warn_level, float danger_level,
+                                     float high_warn_level, float high_danger_level);
 
 uint8_t alert_severity_for_reading_rs(float value, float warn_level, float danger_level,
                                       bool danger_below);

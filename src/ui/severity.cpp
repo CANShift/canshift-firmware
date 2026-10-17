@@ -111,6 +111,11 @@ Level forReading(float value, float warnLevel, float dangerLevel, bool dangerBel
     return fromRaw(alert_severity_for_reading_rs(value, warnLevel, dangerLevel, dangerBelow));
 }
 
+Level forSignal(float value, const SignalLimits &limits) {
+    return fromRaw(alert_severity_for_signal_rs(value, limits.warn, limits.danger, limits.highWarn,
+                                                limits.highDanger));
+}
+
 uint32_t inkFor(Level level) {
     return kInkFns[indexOf(level)]();
 }

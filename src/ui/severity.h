@@ -2,6 +2,7 @@
 
 #include "alert_engine_rs.h"
 
+#include <cmath>
 #include <lvgl.h>
 #include <stdint.h>
 
@@ -29,6 +30,15 @@ constexpr int16_t kRightInsetPx = 8;
 [[nodiscard]] Level strongerOf(Level a, Level b);
 
 [[nodiscard]] Level forReading(float value, float warnLevel, float dangerLevel, bool dangerBelow);
+
+struct SignalLimits {
+    float warn = NAN;
+    float danger = NAN;
+    float highWarn = NAN;
+    float highDanger = NAN;
+};
+
+[[nodiscard]] Level forSignal(float value, const SignalLimits &limits);
 
 [[nodiscard]] uint32_t inkFor(Level level);
 

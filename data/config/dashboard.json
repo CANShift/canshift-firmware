@@ -1,5 +1,4 @@
 {
- "_comment": "CANShift default dashboard \u2014 the six restyle pages: street, track, engine, tuning, timing, controls (#1823). Shift-light strip pending its own widget type.",
  "version": "1.43.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
@@ -129,7 +128,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 7200,
-      "dangerLevel": 7000,
+      "dangerLevel": 7200,
       "decimalPlaces": 0,
       "showBar": true,
       "big": 44
@@ -187,7 +186,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 100,
-      "dangerLevel": 10,
+      "dangerLevel": 8,
       "decimalPlaces": 0,
       "dangerBelow": true,
       "showBar": true
@@ -217,7 +216,7 @@
       "displayStyle": "numeric",
       "minValue": 8,
       "maxValue": 16,
-      "dangerLevel": 15.5,
+      "dangerLevel": 16,
       "decimalPlaces": 1
      }
     },
@@ -306,7 +305,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 7200,
-      "dangerLevel": 7000,
+      "dangerLevel": 7200,
       "decimalPlaces": 0,
       "revFlash": true,
       "big": 88
@@ -390,7 +389,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 8,
-      "dangerLevel": 1.5,
+      "dangerLevel": 1,
       "dangerBelow": true,
       "decimalPlaces": 1,
       "big": 44
@@ -504,7 +503,7 @@
       "displayStyle": "numeric",
       "minValue": 8,
       "maxValue": 16,
-      "dangerLevel": 15.5,
+      "dangerLevel": 16,
       "decimalPlaces": 1
      }
     }
@@ -609,7 +608,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 8,
-      "dangerLevel": 1.5,
+      "dangerLevel": 1,
       "dangerBelow": true,
       "decimalPlaces": 1,
       "showBar": true,
@@ -726,7 +725,7 @@
       "displayStyle": "numeric",
       "minValue": 8,
       "maxValue": 16,
-      "dangerLevel": 15.5,
+      "dangerLevel": 16,
       "decimalPlaces": 1
      }
     }
@@ -830,7 +829,7 @@
       "displayStyle": "numeric",
       "minValue": 0.6,
       "maxValue": 1.4,
-      "dangerLevel": 1.25,
+      "dangerLevel": 1.4,
       "decimalPlaces": 2,
       "big": 64
      }
@@ -889,7 +888,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 90,
-      "dangerLevel": 70,
+      "dangerLevel": 65,
       "decimalPlaces": 0
      }
     },
@@ -1184,7 +1183,7 @@
       "displayStyle": "numeric",
       "minValue": 0,
       "maxValue": 7200,
-      "dangerLevel": 7000,
+      "dangerLevel": 7200,
       "decimalPlaces": 0,
       "big": 44
      }
