@@ -2,6 +2,7 @@
 
 #include "config_rejection.h"
 #include "config_types.h"
+#include "dashboard_outcome.h"
 #include "signals_source.h"
 
 #include <ArduinoJson.h>
@@ -24,6 +25,7 @@ extern CfgRejection s_rejection;
 [[nodiscard]] bool loadInputBindings();
 
 [[nodiscard]] bool readAndParseWithBak(const char *path, JsonDocument &doc);
+[[nodiscard]] bool promoteBackup(const char *path);
 const char *lastParseError();
 
 void logLargestFreeBlock(const char *where);

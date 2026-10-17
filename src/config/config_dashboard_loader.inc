@@ -12,12 +12,13 @@
 #include <ArduinoJson.h>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <new>
 
 namespace ConfigLoaderInternal {
 
 namespace {
+
+using ConfigLoader::DashboardOutcome;
 
 struct UnitSystemName {
     const char *name;
@@ -193,7 +194,7 @@ void parsePageMeta(JsonObjectConst page, CfgPage *p) {
     p->templateKind = CfgPageTemplate::CUSTOM;
 }
 
-bool allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) {
+DashboardOutcome allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) {
     if (totalWidgets > kConfigMaxWidgetsPerPage) {
         LOG_WARN("CFG",
                  "page '%s': %u widgets exceed CONFIG_MAX_WIDGETS_PER_PAGE=%u — extras ignored",
@@ -202,7 +203,7 @@ bool allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) 
     const size_t cap =
         totalWidgets > kConfigMaxWidgetsPerPage ? kConfigMaxWidgetsPerPage : totalWidgets;
     if (cap == 0)
-        return true;
+        return DashboardOutcome::Loaded;
     const size_t allocBytes = cap * sizeof(CfgWidget);
     if (*totalAllocBytes + allocBytes > kConfigDashboardHeapBudgetBytes) {
         LOG_ERROR("CFG",
@@ -211,21 +212,21 @@ bool allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) 
                   static_cast<unsigned>(kConfigDashboardHeapBudgetBytes), p->id,
                   static_cast<unsigned>(*totalAllocBytes), static_cast<unsigned>(allocBytes));
         ErrorStore::push(ERROR_SRC_CONFIG, "BUDGET", "payload_too_large");
-        return false;
+        return DashboardOutcome::Refused;
     }
     p->widgets = new (std::nothrow) CfgWidget[cap]{};
     if (!p->widgets) {
         LOG_ERROR("CFG", "page '%s': widgets alloc (%u × %u B) failed", p->id,
                   static_cast<unsigned>(cap), static_cast<unsigned>(sizeof(CfgWidget)));
         ErrorStore::push(ERROR_SRC_CONFIG, "OOM", "widgets alloc failed");
-        return false;
+        return DashboardOutcome::NoMemory;
     }
     p->widgetCapacity = static_cast<uint8_t>(cap);
     *totalAllocBytes += allocBytes;
-    return true;
+    return DashboardOutcome::Loaded;
 }
 
-bool parsePages(JsonArrayConst pages, CfgDashboard *out) {
+DashboardOutcome parsePages(JsonArrayConst pages, CfgDashboard *out) {
     out->pageCount = 0;
     if (pages.size() > kConfigMaxPages) {
         LOG_WARN("CFG", "dashboard.json: %u pages exceed CONFIG_MAX_PAGES=%u — extras ignored",
@@ -241,52 +242,28 @@ bool parsePages(JsonArrayConst pages, CfgDashboard *out) {
         p.widgetCapacity = 0;
         p.widgets = nullptr;
         JsonArrayConst widgets = page["widgets"];
-        if (!allocPageWidgets(widgets.size(), &p, &totalAllocBytes))
-            return false;
+        const DashboardOutcome alloc = allocPageWidgets(widgets.size(), &p, &totalAllocBytes);
+        if (alloc != DashboardOutcome::Loaded)
+            return alloc;
         for (JsonObjectConst w : widgets) {
             if (p.widgetCount >= p.widgetCapacity)
                 break;
             parseWidget(w, &p.widgets[p.widgetCount++]);
         }
     }
-    return true;
+    return DashboardOutcome::Loaded;
+}
+
+DashboardOutcome buildDashboard(const JsonDocument &doc, CfgDashboard *out) {
+    parseDashboardHeader(doc, out);
+    parseTopBar(doc["topBar"], &out->topBar);
+    parseThemes(doc, out);
+    const DashboardOutcome pages = parsePages(doc["pages"], out);
+    if (pages != DashboardOutcome::Loaded)
+        return pages;
+    return resolvePageLayouts(out) ? DashboardOutcome::Loaded : DashboardOutcome::Refused;
 }
 
 } // namespace
-
-bool loadDashboard() {
-    s_rejection = {};
-    std::unique_ptr<CfgDashboard> out(new (std::nothrow) CfgDashboard{});
-    if (!out) {
-        LOG_ERROR("CFG", "loadDashboard: staging alloc (%u B) failed",
-                  static_cast<unsigned>(sizeof(CfgDashboard)));
-        ErrorStore::push(ERROR_SRC_CONFIG, "OOM", "dashboard staging alloc failed");
-        return false;
-    }
-
-    JsonDocument doc(JsonReader::configAllocator());
-    if (!readAndParseWithBak(kConfigPathDashboard, doc)) {
-        LOG_ERROR("CFG", "dashboard.json unreadable (primary + .bak)");
-        char msg[48];
-        snprintf(msg, sizeof(msg), "dashboard.json: %s", lastParseError());
-        ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", msg);
-        return false;
-    }
-
-    parseDashboardHeader(doc, out.get());
-    parseTopBar(doc["topBar"], &out->topBar);
-    parseThemes(doc, out.get());
-    if (!parsePages(doc["pages"], out.get()))
-        return false;
-    if (!resolvePageLayouts(out.get()))
-        return false;
-
-    out->loaded = true;
-    LOG_INFO("CFG", "dashboard.json loaded: %d pages", out->pageCount);
-    CfgDashboard *prev = s_dashboard;
-    s_dashboard = out.release();
-    delete prev;
-    return true;
-}
 
 } // namespace ConfigLoaderInternal

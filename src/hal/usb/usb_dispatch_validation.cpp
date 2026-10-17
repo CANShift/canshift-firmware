@@ -1,5 +1,6 @@
 #include "usb_dispatch_validation.h"
 
+#include "board_config.h"
 #include "config/config_types.h"
 
 #include <string.h>
@@ -18,6 +19,15 @@ const char *const kAllowedPutPrefixes[] = {
     "/assets/",
     "/fonts/",
 };
+
+bool isAllowedPutTarget(const char *path, size_t len) {
+    for (const char *prefix : kAllowedPutPrefixes) {
+        const size_t plen = strlen(prefix);
+        if (len > plen && strncmp(path, prefix, plen) == 0)
+            return true;
+    }
+    return strcmp(path, kConfigPathSignals) == 0;
+}
 
 int hexNibble(char c) {
     if (c >= '0' && c <= '9')
@@ -47,12 +57,7 @@ bool isPathSafe(const char *path) {
         return false;
     if (strstr(path, ".."))
         return false;
-    for (const char *prefix : kAllowedPutPrefixes) {
-        const size_t plen = strlen(prefix);
-        if (len > plen && strncmp(path, prefix, plen) == 0)
-            return true;
-    }
-    return false;
+    return isAllowedPutTarget(path, len);
 }
 
 bool parseSha256Hex(const char *hex, uint8_t out[kSha256Bytes]) {

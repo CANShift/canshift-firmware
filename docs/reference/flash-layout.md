@@ -90,4 +90,6 @@ Config writes go through `StorageDriver::writeFileAtomic`, which keeps a
 `<file>.bak` companion. At boot, `readAndParseWithBak`
 ([`json_helpers.inc`](../../src/config/json_helpers.inc)) falls back to the `.bak`
 when the primary file is missing or fails to parse, so an interrupted burn costs
-the last change rather than the whole config.
+the last change rather than the whole config. A `dashboard.json` that parses but that the loader
+refuses (a widget past the screen, the widget budget) is replaced by its `.bak`
+the same way, with `CFG_BAK` in the error store.

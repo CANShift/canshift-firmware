@@ -11,6 +11,7 @@
 #include "diag/lvgl_hold_timer.h"
 #include "runtime/lvgl_lock.h"
 #include "runtime/device_commands.h"
+#include "runtime/config_reload_status.h"
 #include "runtime/pending_actions.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
@@ -87,12 +88,15 @@ void sendStatusResponse() {
 }
 
 void sendPingResponse() {
-    char resp[48];
-    const int n = snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"uptime_ms\":%lu}",
-                           static_cast<unsigned long>(millis()));
-    if (n > 0 && static_cast<size_t>(n) < sizeof(resp)) {
-        UsbComm::sendLine(resp);
+    char resp[96];
+    const int n = snprintf(resp, sizeof(resp),
+                           "{\"status\":\"ok\",\"uptime_ms\":%lu,\"config_reload\":\"%s\"}",
+                           static_cast<unsigned long>(millis()), ConfigReloadStatus::wireName());
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof(resp)) {
+        UsbComm::sendError("status_too_long");
+        return;
     }
+    UsbComm::sendLine(resp);
 }
 
 void renderSharedOutcome(DeviceCommands::Outcome outcome) {

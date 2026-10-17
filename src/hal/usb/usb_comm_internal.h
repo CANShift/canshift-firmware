@@ -54,6 +54,9 @@ void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch);
 void handlePutConfig(const char *jsonLine);
 
 void handlePutConfigChunk(const JsonObjectConst &obj);
+void abortSocketConfigChunk(const char *reason);
+[[nodiscard]] bool socketConfigChunkOpen();
+void tickConfigChunkTimeout();
 void handleGetConfig();
 void abortChunkTransfer(const char *reason);
 

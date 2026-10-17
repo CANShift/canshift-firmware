@@ -39,15 +39,10 @@ bool loadPrimarySignals(const char *) {
     return SignalsSource::usable(readSignalsFile(kConfigPathSignals, &s_signals));
 }
 
-bool promoteSignalsBackup(const char *bakPath) {
-    return StorageDriver::removeFile(kConfigPathSignals) &&
-           StorageDriver::renameFile(bakPath, kConfigPathSignals);
-}
-
 bool loadBackupSignals(const char *bakPath) {
     LOG_ERROR("CFG", "signals.json does not load — falling back to %s", bakPath);
     ErrorStore::push(ERROR_SRC_CONFIG, "SIG_BAK", "signals.json restored from .bak");
-    if (promoteSignalsBackup(bakPath))
+    if (promoteBackup(kConfigPathSignals))
         return loadPrimarySignals(nullptr);
     LOG_WARN("CFG", "%s could not replace signals.json — loading it in place", bakPath);
     return SignalsSource::usable(readSignalsFile(bakPath, &s_signals));

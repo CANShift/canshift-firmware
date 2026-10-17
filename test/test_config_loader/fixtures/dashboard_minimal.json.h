@@ -188,6 +188,19 @@ constexpr const char *kDashboardGearBig = R"({
   ]
 })";
 
+constexpr const char *kDashboardOverflow = R"({
+  "version": "1.42.0",
+  "name": "Overflow",
+  "defaultPageId": "main",
+  "topBar": {"height": 250},
+  "pages": [
+    {"id": "main", "showTopBar": true, "widgets": [
+      {"id": "rpm", "type": "label", "signal": "rpm", "style": {}, "config": {},
+       "layout": {"col": 0, "colSpan": 6, "row": 0, "rowSpan": 6}}
+    ]}
+  ]
+})";
+
 constexpr const char *kDashboardPreGrid = R"({
   "version": "1.24.0",
   "name": "Pre Grid",

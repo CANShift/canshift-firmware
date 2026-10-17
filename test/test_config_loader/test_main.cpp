@@ -23,9 +23,14 @@ void stageMinimalFiles() {
                              strlen(fixtures::kSignalsMinimal));
 }
 
-void stageDashboard(const char *json) {
+constexpr const char kDashboardBakPath[] = "/config/dashboard.json.bak";
+
+void stageDashboard(const char *primary, const char *backup) {
     StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(kConfigPathDashboard, json, strlen(json));
+    ErrorStore::clear();
+    StorageDriver::fakeWrite(kConfigPathDashboard, primary, strlen(primary));
+    if (backup)
+        StorageDriver::fakeWrite(kDashboardBakPath, backup, strlen(backup));
     StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
                              strlen(fixtures::kSignalsMinimal));
 }
@@ -39,6 +44,10 @@ bool errorStoreHolds(const char *code) {
             return true;
     }
     return false;
+}
+
+bool outcomeIs(ConfigLoader::DashboardOutcome expected, ConfigLoader::DashboardOutcome actual) {
+    return static_cast<uint8_t>(expected) == static_cast<uint8_t>(actual);
 }
 
 } // namespace
@@ -410,7 +419,7 @@ void test_loadDashboard_partialPaletteAndOverlongSignal_fallBackSafely() {
 }
 
 void test_loadDashboard_gearBig_isParsed() {
-    stageDashboard(fixtures::kDashboardGearBig);
+    stageDashboard(fixtures::kDashboardGearBig, nullptr);
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
 
@@ -421,19 +430,78 @@ void test_loadDashboard_gearBig_isParsed() {
 }
 
 void test_loadDashboard_belowGridFloor_reportsVersionTooOld() {
-    ErrorStore::clear();
-    stageDashboard(fixtures::kDashboardPreGrid);
+    stageDashboard(fixtures::kDashboardPreGrid, nullptr);
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
     TEST_ASSERT_TRUE(errorStoreHolds("VER_OLD"));
 }
 
 void test_loadDashboard_atGridFloor_reportsNothing() {
-    ErrorStore::clear();
-    stageDashboard(fixtures::kDashboardGridFloor);
+    stageDashboard(fixtures::kDashboardGridFloor, nullptr);
 
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
     TEST_ASSERT_FALSE(errorStoreHolds("VER_OLD"));
+}
+
+void test_loadDashboard_refusedWithBackup_restoresPrevious() {
+    stageDashboard(fixtures::kDashboardOverflow, fixtures::kDashboardMinimal);
+
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+
+    TEST_ASSERT_TRUE(outcomeIs(ConfigLoader::DashboardOutcome::RestoredPrevious,
+                               ConfigLoader::lastDashboardOutcome()));
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
+    TEST_ASSERT_EQUAL_UINT32(strlen(fixtures::kDashboardMinimal),
+                             StorageDriver::fileSize(kConfigPathDashboard));
+    TEST_ASSERT_FALSE(StorageDriver::fileExists(kDashboardBakPath));
+    TEST_ASSERT_FALSE(ConfigLoader::getRejection().present);
+    TEST_ASSERT_TRUE(errorStoreHolds("OVERFLOW"));
+    TEST_ASSERT_TRUE(errorStoreHolds("CFG_BAK"));
+}
+
+void test_loadDashboard_refusedWithoutBackup_isRefused() {
+    stageDashboard(fixtures::kDashboardOverflow, nullptr);
+
+    TEST_ASSERT_FALSE(ConfigLoader::loadAll().dashboardOk);
+
+    TEST_ASSERT_TRUE(
+        outcomeIs(ConfigLoader::DashboardOutcome::Refused, ConfigLoader::lastDashboardOutcome()));
+    TEST_ASSERT_TRUE(ConfigLoader::getRejection().present);
+    TEST_ASSERT_FALSE(errorStoreHolds("CFG_BAK"));
+}
+
+void test_vetDashboard_refused_restoresFileAndKeepsLiveConfig() {
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    stageDashboard(fixtures::kDashboardOverflow, fixtures::kDashboardMinimalReload);
+
+    TEST_ASSERT_TRUE(
+        outcomeIs(ConfigLoader::DashboardOutcome::RestoredPrevious, ConfigLoader::vetDashboard()));
+
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
+    TEST_ASSERT_EQUAL_UINT32(strlen(fixtures::kDashboardMinimalReload),
+                             StorageDriver::fileSize(kConfigPathDashboard));
+}
+
+void test_vetDashboard_valid_isLoadedAndKeepsLiveConfig() {
+    stageMinimalFiles();
+    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
+    stageDashboard(fixtures::kDashboardMinimalReload, fixtures::kDashboardMinimal);
+
+    TEST_ASSERT_TRUE(
+        outcomeIs(ConfigLoader::DashboardOutcome::Loaded, ConfigLoader::vetDashboard()));
+
+    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
+    TEST_ASSERT_TRUE(StorageDriver::fileExists(kDashboardBakPath));
+}
+
+void test_loadDashboard_unparsable_isUnreadable() {
+    stageDashboard(fixtures::kDashboardCorrupt, nullptr);
+
+    TEST_ASSERT_FALSE(ConfigLoader::loadAll().dashboardOk);
+
+    TEST_ASSERT_TRUE(outcomeIs(ConfigLoader::DashboardOutcome::Unreadable,
+                               ConfigLoader::lastDashboardOutcome()));
 }
 
 int main(int /*argc*/, char ** /*argv*/) {
@@ -459,5 +527,10 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_loadDashboard_gearBig_isParsed);
     RUN_TEST(test_loadDashboard_belowGridFloor_reportsVersionTooOld);
     RUN_TEST(test_loadDashboard_atGridFloor_reportsNothing);
+    RUN_TEST(test_loadDashboard_refusedWithBackup_restoresPrevious);
+    RUN_TEST(test_loadDashboard_refusedWithoutBackup_isRefused);
+    RUN_TEST(test_vetDashboard_refused_restoresFileAndKeepsLiveConfig);
+    RUN_TEST(test_vetDashboard_valid_isLoadedAndKeepsLiveConfig);
+    RUN_TEST(test_loadDashboard_unparsable_isUnreadable);
     return UNITY_END();
 }
