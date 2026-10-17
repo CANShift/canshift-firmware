@@ -8,6 +8,7 @@
 #include "cut_band.h"
 #include "day_night_auto.h"
 #include "ota_overlay.h"
+#include "page_buttons.h"
 #include "rev_limit_flash.h"
 #include "error_bar.h"
 #include "ui/display_idle.h"
@@ -77,6 +78,7 @@ void PageManager::init() {
     DisplayIdle::init();
 
     buildPageList();
+    PageButtons::init();
 
     CutBand::init();
     AlertBanner::init();
@@ -173,6 +175,10 @@ void refreshCurrentPage() {
     CutBand::update(snap);
     PERF_SCOPE(::PerfCounters::WIDGETS);
     WidgetFactory::updateAll(currentScreen, snap);
+
+    const lv_dir_t buttonTurn = PageButtons::tick(snap, millis());
+    if (buttonTurn != LV_DIR_NONE)
+        onSwipe(buttonTurn);
 }
 
 void refreshChrome() {

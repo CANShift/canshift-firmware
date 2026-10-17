@@ -70,6 +70,7 @@ const CfgSignalDef *ConfigLoader::findSignal(const char *name) {
 #include "config_value_widget_parser.inc"
 #include "config_parser.inc"
 #include "config_critical_alert_parser.inc"
+#include "config_page_buttons_parser.inc"
 #include "config_signals_loader.inc"
 #include "config_validators.inc"
 #include "json_helpers.inc"

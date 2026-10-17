@@ -155,6 +155,13 @@ PAIRS = (
         "kControlSplashKindCount",
     ),
     (
+        "page button debounce",
+        "rust/control-state/src/page_button.rs",
+        "PAGE_BUTTON_DEBOUNCE_MS",
+        "include/control_state_rs.h",
+        "kPageButtonDebounceMs",
+    ),
+    (
         "cut kind count",
         "rust/alert-engine/src/cuts.rs",
         "CUT_KIND_COUNT",

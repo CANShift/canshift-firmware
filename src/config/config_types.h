@@ -299,6 +299,11 @@ struct CfgCriticalAlert {
     bool below;
 };
 
+struct CfgPageButtons {
+    char next[kCfgMaxSignalLen];
+    char previous[kCfgMaxSignalLen];
+};
+
 struct CfgDashboard {
     char version[16];
     char name[kCfgMaxNameLen];
@@ -312,6 +317,7 @@ struct CfgDashboard {
     CfgTheme nightFace;
     char dayNightSignal[kCfgMaxIdLen];
     CfgCriticalAlert criticalAlert;
+    CfgPageButtons pageButtons;
     uint8_t pageCount;
     CfgPage pages[kConfigMaxPages];
     bool loaded;

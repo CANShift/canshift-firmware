@@ -3,8 +3,10 @@
 #[cfg(feature = "ffi")]
 mod ffi;
 
+mod page_button;
 mod splash;
 
+pub use page_button::{PageButtonEdge, PAGE_BUTTON_DEBOUNCE_MS};
 pub use splash::{
     SplashKind, SplashTimer, CONTROL_SPLASH_CHANGE_MS, CONTROL_SPLASH_KIND_COUNT,
     CONTROL_SPLASH_REFUSAL_MS,

@@ -26,6 +26,24 @@ the wrong page" frustration. Taps never turn the page while Settings is open,
 from the top bar, during an alert takeover or a control splash, while a
 config or update is being written, or in workshop mode.
 
+## Steering-wheel buttons
+
+`dashboard.json` can bind two CAN signals to page turns:
+
+```json
+"pageButtons": { "next": "<signal>", "previous": "<signal>" }
+```
+
+Both keys are optional. A press is the signal going from `0` to any non-zero
+value. A second press within 150 ms is ignored as a bounce. A stale or absent
+signal does nothing, and the signal has to read `0` again before the next
+press counts. Button presses turn the page the same way a swipe does, but not
+during an alert takeover, a control splash, a config or update write, or in
+workshop mode.
+
+The signal has to be one the dash reads (the signal catalog in
+`rust/signal-map`). A name outside it is logged and the button stays unbound.
+
 ## The default page
 
 The dash boots into the page whose `id` matches `dashboard.json`'s

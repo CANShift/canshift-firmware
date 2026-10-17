@@ -1,7 +1,8 @@
-use crate::{resolve, step_tap, SplashKind, SplashTimer, Stepper};
+use crate::{resolve, step_tap, PageButtonEdge, SplashKind, SplashTimer, Stepper};
 
 const _: () = assert!(core::mem::size_of::<Stepper>() == 8);
 const _: () = assert!(core::mem::size_of::<SplashTimer>() == 12);
+const _: () = assert!(core::mem::size_of::<PageButtonEdge>() == 8);
 
 #[no_mangle]
 pub extern "C" fn control_state_resolve_rs(
@@ -87,6 +88,19 @@ pub unsafe extern "C" fn control_splash_preempt_rs(timer: *mut SplashTimer) -> b
     unsafe { &mut *timer }.preempt()
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn control_page_button_sample_rs(
+    edge: *mut PageButtonEdge,
+    valid: bool,
+    raw: f32,
+    now_ms: u32,
+) -> bool {
+    if edge.is_null() {
+        return false;
+    }
+    unsafe { &mut *edge }.sample(valid, raw, now_ms)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,6 +108,22 @@ mod tests {
         ControlState, CONTROL_LONG_PRESS_MS, CONTROL_SPLASH_CHANGE_MS, CONTROL_SPLASH_REFUSAL_MS,
         CONTROL_STEP_MAX,
     };
+
+    #[test]
+    fn ffi_page_button_fires_once_per_rising_edge() {
+        let mut edge = PageButtonEdge::new();
+        unsafe {
+            assert!(!control_page_button_sample_rs(
+                core::ptr::null_mut(),
+                true,
+                1.0,
+                0
+            ));
+            assert!(!control_page_button_sample_rs(&mut edge, true, 0.0, 0));
+            assert!(control_page_button_sample_rs(&mut edge, true, 1.0, 10));
+            assert!(!control_page_button_sample_rs(&mut edge, true, 1.0, 400));
+        }
+    }
 
     #[test]
     fn ffi_resolve_matches_the_enum() {

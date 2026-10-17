@@ -11,6 +11,7 @@ inline constexpr int kControlLongPressMs = 600;
 inline constexpr int kControlSplashChangeMs = 800;
 inline constexpr int kControlSplashRefusalMs = 1200;
 inline constexpr int kControlSplashKindCount = 2;
+inline constexpr int kPageButtonDebounceMs = 150;
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,13 @@ typedef struct {
     uint8_t _pad[3];
 } ControlSplashRs;
 
+typedef struct {
+    uint32_t last_press_ms;
+    bool released_seen;
+    bool has_pressed;
+    uint8_t _pad[2];
+} PageButtonEdgeRs;
+
 uint8_t control_state_resolve_rs(bool blocked, bool acting, bool requested, bool has_armed);
 uint8_t control_step_tap_rs(uint8_t level);
 void control_stepper_init_rs(ControlStepperRs *stepper, uint8_t level);
@@ -51,6 +59,7 @@ uint32_t control_splash_hold_ms_rs(uint8_t kind);
 void control_splash_raise_rs(ControlSplashRs *timer, uint8_t kind, uint32_t now_ms);
 bool control_splash_poll_rs(ControlSplashRs *timer, uint32_t now_ms);
 bool control_splash_preempt_rs(ControlSplashRs *timer);
+bool control_page_button_sample_rs(PageButtonEdgeRs *edge, bool valid, float raw, uint32_t now_ms);
 
 #ifdef __cplusplus
 }
@@ -59,6 +68,8 @@ static_assert(sizeof(ControlStepperRs) == 8,
               "ControlStepperRs layout must match rust/control-state");
 static_assert(sizeof(ControlSplashRs) == 12,
               "ControlSplashRs layout must match rust/control-state");
+static_assert(sizeof(PageButtonEdgeRs) == 8,
+              "PageButtonEdgeRs layout must match rust/control-state");
 #endif
 
 #endif
