@@ -1,4 +1,6 @@
+import gzip
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -8,6 +10,12 @@ import urllib.request
 
 PIN_FILE = "tuner-version.txt"
 SIBLING_BUNDLE = os.path.join("..", "canshift-tuner", "dist-tuner")
+SIBLING_FLAG = "CANSHIFT_TUNER_SIBLING"
+SCHEMA_GATE_FLAG = "CANSHIFT_TUNER_SCHEMA_GATE"
+SCHEMA_GATE_WARN = "warn"
+SCHEMA_PIN_FILE = "core-schema-version.txt"
+MANIFEST_FILE = "manifest.json.gz"
+SCHEMA_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 RELEASE_URL = (
     "https://github.com/CANShift/canshift-tuner/releases/download/{tag}/{asset}"
 )
@@ -145,13 +153,63 @@ def copy_sibling(sibling, target, project_dir):
     return len(names)
 
 
-def fill(project_dir, target):
-    sibling = os.path.normpath(os.path.join(project_dir, SIBLING_BUNDLE))
-    if os.path.isfile(os.path.join(sibling, ENTRY_FILE)):
-        log(
-            f"using the sibling bundle {sibling} ({copy_sibling(sibling, target, project_dir)} files)"
+def schema_tuple(version, source):
+    match = SCHEMA_PATTERN.match(version) if isinstance(version, str) else None
+    if match is None:
+        raise BundleError(f"{source}: schema version '{version}' is not X.Y.Z")
+    return tuple(int(part) for part in match.groups())
+
+
+def bundle_schema(bundle_dir):
+    path = os.path.join(bundle_dir, MANIFEST_FILE)
+    if not os.path.isfile(path):
+        raise BundleError(
+            f"bundle has no {MANIFEST_FILE}, so its core schema is unknown; "
+            "use a bundle from canshift-tuner v0.2.0 or later"
         )
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    if not isinstance(manifest, dict):
+        raise BundleError(f"{MANIFEST_FILE} is not a JSON object")
+    return manifest.get("schema_version")
+
+
+def check_schema(bundle_dir, project_dir, label):
+    with open(
+        os.path.join(project_dir, SCHEMA_PIN_FILE), "r", encoding="utf-8"
+    ) as handle:
+        pinned = handle.read().strip()
+    built = bundle_schema(bundle_dir)
+    if schema_tuple(built, MANIFEST_FILE) >= schema_tuple(pinned, SCHEMA_PIN_FILE):
+        log(f"{label} built against core schema {built} (firmware pins {pinned})")
         return
+    lag = (
+        f"{label} was built against core schema {built}, older than "
+        f"{SCHEMA_PIN_FILE} ({pinned}); it cannot read this firmware's "
+        "config. Release and pin a newer tuner."
+    )
+    if os.environ.get(SCHEMA_GATE_FLAG) != SCHEMA_GATE_WARN:
+        raise BundleError(lag)
+    log(f"WARNING: {lag} Allowed only because {SCHEMA_GATE_FLAG}={SCHEMA_GATE_WARN}.")
+
+
+def sibling_requested():
+    return os.environ.get(SIBLING_FLAG) == "1"
+
+
+def fill_from_sibling(project_dir, target):
+    sibling = os.path.normpath(os.path.join(project_dir, SIBLING_BUNDLE))
+    if not os.path.isfile(os.path.join(sibling, ENTRY_FILE)):
+        raise BundleError(
+            f"{SIBLING_FLAG}=1 but {sibling} has no {ENTRY_FILE}; "
+            "run npm run bundle:dash in canshift-tuner"
+        )
+    count = copy_sibling(sibling, target, project_dir)
+    log(f"using the sibling bundle {sibling} ({count} files)")
+    check_schema(target, project_dir, "the sibling bundle")
+
+
+def fill_from_pin(project_dir, target):
     tag, sha256 = read_pin(project_dir)
     if tag == UNPINNED:
         log(f"no tuner release pinned in {PIN_FILE} — keeping the probe page")
@@ -159,11 +217,19 @@ def fill(project_dir, target):
     validate_pin(tag, sha256)
     count = unpack(cached_archive(project_dir, tag, sha256), target, project_dir)
     log(f"unpacked tuner {tag} ({count} files)")
+    check_schema(target, project_dir, f"tuner {tag}")
+
+
+def fill(project_dir, target):
+    if sibling_requested():
+        fill_from_sibling(project_dir, target)
+        return
+    fill_from_pin(project_dir, target)
 
 
 def fill_or_exit(project_dir, target):
     try:
         fill(project_dir, target)
-    except (BundleError, OSError, tarfile.TarError) as err:
+    except (BundleError, OSError, tarfile.TarError, ValueError) as err:
         sys.stderr.write(f"[tuner] ERROR: {err}\n")
         sys.exit(1)

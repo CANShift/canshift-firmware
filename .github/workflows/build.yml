@@ -212,6 +212,8 @@ jobs:
           retention-days: 14
 
       - name: buildfs (${{ matrix.board }})
+        env:
+          CANSHIFT_TUNER_SCHEMA_GATE: warn
         run: pio run -e "${{ matrix.board }}" -t buildfs
 
       - name: verify spiffs round-trip

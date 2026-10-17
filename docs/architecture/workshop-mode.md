@@ -125,6 +125,15 @@ and the firmware build pins a tuner version and copies that bundle into
 `data/tuner/` before `uploadfs`. This works like the schema pin, which is
 already the firmware's only link to core.
 
+`tuner-version.txt` holds the tuner release tag and the sha256 of its
+`canshift-tuner-dash-<tag>.tar.gz`; `python3 scripts/pin_tuner.py vX.Y.Z`
+rewrites it. The bundle records the core schema it was built against, and
+`scripts/tuner_bundle.py` refuses one older than `core-schema-version.txt`,
+so a schema bump needs a tuner release and a re-pin before the next firmware
+release. A sibling `../canshift-tuner/dist-tuner/` is used only with
+`CANSHIFT_TUNER_SIBLING=1`, and the same gate applies to it
+([Transports](transports.md)).
+
 ## Boards
 
 Workshop mode needs the 16 MB layout, so today that means
