@@ -7,6 +7,7 @@
 #include "config/json_reader.h"
 #include "config/rotation_config.h"
 #include "diag/logger.h"
+#include "hal/usb/usb_seq_echo.h"
 #include "hal/usb/usb_status_line.h"
 #include "diag/lvgl_hold_timer.h"
 #include "runtime/lvgl_lock.h"
@@ -161,7 +162,8 @@ struct CmdHeapGuard {
     }
 };
 
-uint8_t extractCmdByte(const char *jsonLine) {
+uint8_t extractCmdByte(const char *jsonLine, const char **afterCmd) {
+    *afterCmd = nullptr;
     const char *cmdKey = strstr(jsonLine, "\"cmd\":");
     if (cmdKey == nullptr)
         return 0;
@@ -169,6 +171,7 @@ uint8_t extractCmdByte(const char *jsonLine) {
     const long parsed = strtol(cmdKey + 6, &endPtr, 10);
     if (endPtr == cmdKey + 6 || parsed < 0 || parsed > 0xFF)
         return 0;
+    *afterCmd = endPtr;
     return static_cast<uint8_t>(parsed);
 }
 
@@ -273,8 +276,10 @@ void handleCommand(char *jsonLine) {
     LOG_VDEBUG("USB", "Received command: %.40s...", jsonLine);
 
     const size_t jsonLen = strlen(jsonLine);
-    const uint8_t cmd = extractCmdByte(jsonLine);
+    const char *afterCmd = nullptr;
+    const uint8_t cmd = extractCmdByte(jsonLine, &afterCmd);
     CmdHeapGuard heapGuard{cmd};
+    const UsbSeqEcho::Scope seqScope(UsbSeqEcho::parseAfterCmd(afterCmd));
 
     if (consumeRawPayloadCommand(cmd, jsonLine, jsonLen))
         return;
