@@ -100,6 +100,7 @@ def build_umbrella(objcopy):
         "cargo",
         "build",
         "--release",
+        "--locked",
         "--manifest-path",
         MANIFEST,
         "--no-default-features",

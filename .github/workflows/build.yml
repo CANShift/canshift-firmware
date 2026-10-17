@@ -425,10 +425,10 @@ jobs:
           key: rust-host-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml', 'rust/**/Cargo.lock') }}
           restore-keys: rust-host-${{ runner.os }}-
       - name: cargo test
-        run: cargo test --workspace --all-features
+        run: cargo test --locked --workspace --all-features
         working-directory: rust
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
         working-directory: rust
       - name: cargo fmt
         run: cargo fmt --all --check
