@@ -27,6 +27,7 @@ extern CfgRejection s_rejection;
 [[nodiscard]] bool readAndParseWithBak(const char *path, JsonDocument &doc);
 [[nodiscard]] bool promoteBackup(const char *path);
 const char *lastParseError();
+[[nodiscard]] bool lastParseOutOfMemory();
 
 void logLargestFreeBlock(const char *where);
 

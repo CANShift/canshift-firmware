@@ -24,7 +24,7 @@ DashboardOutcome reportUnreadable() {
     char msg[48];
     snprintf(msg, sizeof(msg), "dashboard.json: %s", lastParseError());
     ErrorStore::push(ERROR_SRC_CONFIG, "READ_FAIL", msg);
-    return DashboardOutcome::Unreadable;
+    return lastParseOutOfMemory() ? DashboardOutcome::NoMemory : DashboardOutcome::Unreadable;
 }
 
 DashboardOutcome stageDashboard(StagedDashboard &out) {
