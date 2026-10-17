@@ -15,6 +15,34 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # (label, rust file, rust const, c++ file, c++ symbol)
 PAIRS = (
     (
+        "wheel button slot 1",
+        "rust/signal-map/src/lib.rs",
+        "WHEEL_BUTTON_1",
+        "src/can/signal_map.h",
+        "kWheelButton1",
+    ),
+    (
+        "wheel button slot 2",
+        "rust/signal-map/src/lib.rs",
+        "WHEEL_BUTTON_2",
+        "src/can/signal_map.h",
+        "kWheelButton2",
+    ),
+    (
+        "wheel button slot 3",
+        "rust/signal-map/src/lib.rs",
+        "WHEEL_BUTTON_3",
+        "src/can/signal_map.h",
+        "kWheelButton3",
+    ),
+    (
+        "wheel button slot 4",
+        "rust/signal-map/src/lib.rs",
+        "WHEEL_BUTTON_4",
+        "src/can/signal_map.h",
+        "kWheelButton4",
+    ),
+    (
         "display idle live",
         "rust/alert-engine/src/lib.rs",
         "DISPLAY_IDLE_LIVE",

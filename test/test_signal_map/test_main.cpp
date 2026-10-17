@@ -70,6 +70,13 @@ void test_known_map_and_lap_signals() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kLapTimerMs, signalIdFromName("lap_timer_ms"));
 }
 
+void test_wheel_button_slots() {
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::kWheelButton1, signalIdFromName("wheel_button_1"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::kWheelButton2, signalIdFromName("wheel_button_2"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::kWheelButton3, signalIdFromName("wheel_button_3"));
+    TEST_ASSERT_EQUAL_UINT8(SignalIds::kWheelButton4, signalIdFromName("wheel_button_4"));
+}
+
 void test_unknown_returns_sentinel() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName("not_a_signal"));
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName(""));
@@ -99,6 +106,7 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_known_flag_signals);
     RUN_TEST(test_known_cut_flag_signals);
     RUN_TEST(test_known_map_and_lap_signals);
+    RUN_TEST(test_wheel_button_slots);
     RUN_TEST(test_unknown_returns_sentinel);
     RUN_TEST(test_null_returns_sentinel);
     RUN_TEST(test_sentinel_value_locked);

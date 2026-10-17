@@ -63,6 +63,11 @@ static constexpr SignalId kFlagPitLimitCut = 53;
 static constexpr SignalId kFlagOverheatProtect = 54;
 static constexpr SignalId kFlagLimpMode = 55;
 
+static constexpr SignalId kWheelButton1 = 56;
+static constexpr SignalId kWheelButton2 = 57;
+static constexpr SignalId kWheelButton3 = 58;
+static constexpr SignalId kWheelButton4 = 59;
+
 static constexpr SignalId kSignalCount = 64;
 
 } // namespace SignalIds

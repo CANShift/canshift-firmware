@@ -52,6 +52,11 @@ pub mod ids {
     pub const FLAG_PIT_LIMIT_CUT: SignalId = 53;
     pub const FLAG_OVERHEAT_PROTECT: SignalId = 54;
     pub const FLAG_LIMP_MODE: SignalId = 55;
+
+    pub const WHEEL_BUTTON_1: SignalId = 56;
+    pub const WHEEL_BUTTON_2: SignalId = 57;
+    pub const WHEEL_BUTTON_3: SignalId = 58;
+    pub const WHEEL_BUTTON_4: SignalId = 59;
 }
 
 const NAME_TO_ID: &[(&str, SignalId)] = &[
@@ -98,6 +103,10 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
     ("flag_pit_limit_cut", ids::FLAG_PIT_LIMIT_CUT),
     ("flag_overheat_protect", ids::FLAG_OVERHEAT_PROTECT),
     ("flag_limp_mode", ids::FLAG_LIMP_MODE),
+    ("wheel_button_1", ids::WHEEL_BUTTON_1),
+    ("wheel_button_2", ids::WHEEL_BUTTON_2),
+    ("wheel_button_3", ids::WHEEL_BUTTON_3),
+    ("wheel_button_4", ids::WHEEL_BUTTON_4),
 ];
 
 pub const MAX_NAME_LEN: usize = 32;
@@ -145,6 +154,15 @@ mod tests {
         assert_eq!(signal_id_from_name("rpm"), ids::RPM);
         assert_eq!(signal_id_from_name("coolant_temp_c"), ids::COOLANT_TEMP_C);
         assert_eq!(signal_id_from_name("lap_timer_ms"), ids::LAP_TIMER_MS);
+    }
+
+    #[test]
+    fn wheel_button_slots_resolve_in_order() {
+        assert_eq!(signal_id_from_name("wheel_button_1"), ids::WHEEL_BUTTON_1);
+        assert_eq!(signal_id_from_name("wheel_button_2"), ids::WHEEL_BUTTON_2);
+        assert_eq!(signal_id_from_name("wheel_button_3"), ids::WHEEL_BUTTON_3);
+        assert_eq!(signal_id_from_name("wheel_button_4"), ids::WHEEL_BUTTON_4);
+        assert_eq!(signal_id_from_name("wheel_button_5"), SIGNAL_COUNT);
     }
 
     #[test]
@@ -201,6 +219,10 @@ mod tests {
             ids::FLAG_PIT_LIMIT_CUT,
             ids::FLAG_OVERHEAT_PROTECT,
             ids::FLAG_LIMP_MODE,
+            ids::WHEEL_BUTTON_1,
+            ids::WHEEL_BUTTON_2,
+            ids::WHEEL_BUTTON_3,
+            ids::WHEEL_BUTTON_4,
         ];
         for id in known_ids {
             assert!(

@@ -41,8 +41,10 @@ press counts. Button presses turn the page the same way a swipe does, but not
 during an alert takeover, a control splash, a config or update write, or in
 workshop mode.
 
-The signal has to be one the dash reads (the signal catalog in
-`rust/signal-map`). A name outside it is logged and the button stays unbound.
+Map each button on the bus to one of the four generic slots `wheel_button_1`
+to `wheel_button_4` (see [Signal map](../reference/signals.md)), then bind
+the slots here. A name the dash does not read is logged and the button stays
+unbound.
 
 ## The default page
 
