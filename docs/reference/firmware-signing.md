@@ -49,10 +49,22 @@ base64 -i firmware-signing-private.pem
 
 ## Configuring CI
 
-1. In the repo's **Settings → Secrets and variables → Actions → New repository secret**, add a secret named `FIRMWARE_SIGNING_PRIVATE_KEY` and paste the base64 blob from the previous step.
-2. Restrict the workflow that consumes it (see `.github/workflows/release.yml`) — already pinned to `branches: [main]` plus `permissions: { contents: write }`.
+1. In **Settings → Environments**, create `firmware-signing` with yourself as a
+   required reviewer and **Deployment branches and tags** limited to `main` and
+   the `v*` tags.
+2. Add the base64 blob from the previous step as an environment secret:
+   `gh secret set FIRMWARE_SIGNING_PRIVATE_KEY --env firmware-signing -R CANShift/canshift-firmware`.
+   Keep no repository-level copy: any job of any workflow can read those.
 
-The release workflow's `Sign firmware artifacts with Ed25519` step:
+The release workflow keeps the key away from build-time code. The build jobs
+compile, merge and stage the images with no secret and hand them over as
+workflow artifacts. Only `ota-sign` runs in the `firmware-signing`
+environment: it checks out `scripts/`, `keys/` and `.github/requirements/`
+alone, installs `cryptography` from a hash-locked requirements file, signs
+every image, and passes the signed set to `attach`, the one job allowed to
+write to the release.
+
+`ota-sign`:
 
 - Fails when the secret is missing or malformed. A release without `.sig`
   files could not be installed over the air.
@@ -60,6 +72,10 @@ The release workflow's `Sign firmware artifacts with Ed25519` step:
   (`scripts/verify_release_signatures.py`), so a secret that does not match the
   key the firmware embeds fails the release instead of shipping images every
   dash would refuse.
+
+`.github/requirements/*.txt` are generated with
+`uv pip compile --universal --python-version 3.12 --generate-hashes`; bump them
+the same way, never by hand.
 
 ## Where the public key lives
 

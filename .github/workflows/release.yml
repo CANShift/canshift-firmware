@@ -15,8 +15,7 @@ permissions:
 
 env:
   HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-  ESPTOOL_VERSION: 5.5.0
-  CRYPTOGRAPHY_VERSION: 50.0.2
+  ARTIFACT_RETENTION_DAYS: 1
 
 jobs:
   check-version:
@@ -110,12 +109,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
-  firmware-release:
-    name: Firmware — build & attach
-    needs: [check-version, set-matrix, create-release]
+  firmware-build:
+    name: Firmware — build
+    needs: [check-version, set-matrix]
     if: needs.check-version.outputs.should_release == 'true'
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -168,74 +165,38 @@ jobs:
           TAG=${{ needs.check-version.outputs.tag }}
           CHIP=${{ matrix.chip }}
           PIO_ENV=${{ matrix.pio_env }}
-          pip install "esptool==${ESPTOOL_VERSION}"
+          pip install --require-hashes -r .github/requirements/esptool.txt
           case "$CHIP" in
             esp32)                   BOOTLOADER_ADDR=0x1000 ;;
             esp32s2|esp32s3|esp32c3) BOOTLOADER_ADDR=0x0 ;;
             *) echo "::error title=unknown chip::no bootloader offset known for '$CHIP'"; exit 1 ;;
           esac
           echo "Merging ${CHIP} (built from ${PIO_ENV}) with bootloader at ${BOOTLOADER_ADDR}"
-          # Merged factory image — USB esptool flashing only (bootloader + partitions + firmware).
+          mkdir -p dist
           python -m esptool --chip "$CHIP" merge_bin \
-            -o "canshift-${CHIP}-${TAG}-merged.bin" \
+            -o "dist/canshift-${CHIP}-${TAG}-merged.bin" \
             "$BOOTLOADER_ADDR" ".pio/build/${PIO_ENV}/bootloader.bin" \
             0x8000 ".pio/build/${PIO_ENV}/partitions.bin" \
             0x10000 ".pio/build/${PIO_ENV}/firmware.bin"
-          # Firmware-partition image — what mobile / tuner OTA must consume.
-          cp ".pio/build/${PIO_ENV}/firmware.bin" "canshift-${CHIP}-${TAG}-firmware.bin"
-          # SPIFFS image — flashed to the data partition.
-          cp ".pio/build/${PIO_ENV}/spiffs.bin" "canshift-${CHIP}-${TAG}-spiffs.bin"
+          cp ".pio/build/${PIO_ENV}/firmware.bin" "dist/canshift-${CHIP}-${TAG}-firmware.bin"
+          cp ".pio/build/${PIO_ENV}/spiffs.bin" "dist/canshift-${CHIP}-${TAG}-spiffs.bin"
 
-      - name: Sign firmware artifacts with Ed25519
-        run: |
-          if [ -z "${FIRMWARE_SIGNING_PRIVATE_KEY:-}" ]; then
-            echo "::error::FIRMWARE_SIGNING_PRIVATE_KEY is not set — the dash refuses unsigned OTA images"
-            exit 1
-          fi
-          TAG=${{ needs.check-version.outputs.tag }}
-          CHIP=${{ matrix.chip }}
-          pip install --quiet "cryptography==${CRYPTOGRAPHY_VERSION}"
-          python3 scripts/sign_release_artifacts.py \
-            "canshift-${CHIP}-${TAG}-merged.bin" \
-            "canshift-${CHIP}-${TAG}-firmware.bin" \
-            "canshift-${CHIP}-${TAG}-spiffs.bin"
-          python3 scripts/verify_release_signatures.py keys/firmware-signing-public.pem \
-            "canshift-${CHIP}-${TAG}-merged.bin" \
-            "canshift-${CHIP}-${TAG}-firmware.bin" \
-            "canshift-${CHIP}-${TAG}-spiffs.bin"
-        env:
-          FIRMWARE_SIGNING_PRIVATE_KEY: ${{ secrets.FIRMWARE_SIGNING_PRIVATE_KEY }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-${{ matrix.chip }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
-      - name: Attach firmware, OTA partition image and SPIFFS to GitHub Release
-        run: |
-          TAG=${{ needs.check-version.outputs.tag }}
-          CHIP=${{ matrix.chip }}
-          MERGED="canshift-${CHIP}-${TAG}-merged.bin"
-          OTA="canshift-${CHIP}-${TAG}-firmware.bin"
-          FS="canshift-${CHIP}-${TAG}-spiffs.bin"
-          SIGS=("${MERGED}.sig" "${OTA}.sig" "${FS}.sig")
-          for i in 1 2 3 4 5; do
-            gh release upload "${TAG}" "${MERGED}" "${OTA}" "${FS}" "${SIGS[@]}" --clobber && break
-            if [ $i -eq 5 ]; then exit 1; fi
-            echo "Attempt ${i}: release not ready, retrying in 30s..."
-            sleep 30
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-
-  secure-release:
-    name: Secure boot images (esp32s3)
-    needs: [check-version, create-release]
+  secure-build:
+    name: Secure boot images — build (esp32s3)
+    needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true' && vars.SECURE_BOOT_RELEASE == 'true'
-    environment: secure-boot-signing
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       PIO_ENV: waveshare_s3_28_secure
-      EXPECTED_KEY_DIGEST: ${{ vars.SECURE_BOOT_KEY_DIGEST }}
+      UNSIGNED_DIR: ${{ github.workspace }}/secure-unsigned
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -252,10 +213,51 @@ jobs:
         run: platformio run -e "$PIO_ENV"
 
       - name: Build the secure bootloader (ESP-IDF v4.4.6)
-        run: scripts/secure_boot_bootloader.sh esp32s3 "$RUNNER_TEMP/secure/unsigned"
+        run: scripts/secure_boot_bootloader.sh esp32s3 "$UNSIGNED_DIR"
+
+      - name: Stage the unsigned images
+        run: cp ".pio/build/${PIO_ENV}/firmware.bin" ".pio/build/${PIO_ENV}/partitions.bin" "$UNSIGNED_DIR/"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: secure-unsigned
+          path: |
+            secure-unsigned/bootloader.bin
+            secure-unsigned/firmware.bin
+            secure-unsigned/partitions.bin
+          if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+  secure-sign:
+    name: Secure boot images — sign (esp32s3)
+    needs: [check-version, secure-build]
+    environment: secure-boot-signing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_KEY_DIGEST: ${{ vars.SECURE_BOOT_KEY_DIGEST }}
+      UNSIGNED_DIR: ${{ github.workspace }}/secure-unsigned
+      SIGNED_DIR: ${{ github.workspace }}/secure-signed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/requirements
+            scripts
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
 
       - name: Install esptool
-        run: pip install "esptool==${ESPTOOL_VERSION}" "cryptography==${CRYPTOGRAPHY_VERSION}"
+        run: pip install --require-hashes -r .github/requirements/esptool.txt
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: secure-unsigned
+          path: secure-unsigned
 
       - name: Sign with the secure boot key
         env:
@@ -268,9 +270,9 @@ jobs:
           install -d -m 700 "$RUNNER_TEMP/key"
           printf '%s' "$SECURE_BOOT_SIGNING_KEY" | base64 -d > "$RUNNER_TEMP/key/secure-boot.pem"
           scripts/secure_boot_sign.sh "$RUNNER_TEMP/key/secure-boot.pem" \
-            "$RUNNER_TEMP/secure/unsigned/bootloader.bin" \
-            ".pio/build/${PIO_ENV}/firmware.bin" \
-            "$RUNNER_TEMP/secure/signed"
+            "$UNSIGNED_DIR/bootloader.bin" \
+            "$UNSIGNED_DIR/firmware.bin" \
+            "$SIGNED_DIR"
 
       - name: Destroy the decoded key
         if: ${{ always() }}
@@ -278,7 +280,7 @@ jobs:
 
       - name: Signing key matches the digest the chips are fused with
         run: |
-          ACTUAL=$(od -An -tx1 -v "$RUNNER_TEMP/secure/signed/secure-boot-key-digest.bin" | tr -d ' \n')
+          ACTUAL=$(od -An -tx1 -v "$SIGNED_DIR/secure-boot-key-digest.bin" | tr -d ' \n')
           if [ "$ACTUAL" != "$EXPECTED_KEY_DIGEST" ]; then
             echo "::error title=secure boot::signing key digest ${ACTUAL} is not SECURE_BOOT_KEY_DIGEST"
             exit 1
@@ -286,29 +288,88 @@ jobs:
 
       - name: Stage secure release assets
         run: |
-          PREFIX="canshift-esp32s3-secure-${{ needs.check-version.outputs.tag }}"
-          cp "$RUNNER_TEMP/secure/signed/bootloader.bin" "${PREFIX}-bootloader.bin"
-          cp ".pio/build/${PIO_ENV}/partitions.bin" "${PREFIX}-partitions.bin"
-          cp "$RUNNER_TEMP/secure/signed/firmware.bin" "${PREFIX}-firmware.bin"
-          echo "PREFIX=${PREFIX}" >> "$GITHUB_ENV"
+          PREFIX="dist/canshift-esp32s3-secure-${{ needs.check-version.outputs.tag }}"
+          mkdir -p dist
+          cp "$SIGNED_DIR/bootloader.bin" "${PREFIX}-bootloader.bin"
+          cp "$UNSIGNED_DIR/partitions.bin" "${PREFIX}-partitions.bin"
+          cp "$SIGNED_DIR/firmware.bin" "${PREFIX}-firmware.bin"
 
-      - name: Sign the secure-boot-signed images with Ed25519
-        run: |
-          python3 scripts/sign_release_artifacts.py \
-            "${PREFIX}-bootloader.bin" "${PREFIX}-partitions.bin" "${PREFIX}-firmware.bin"
-          python3 scripts/verify_release_signatures.py keys/firmware-signing-public.pem \
-            "${PREFIX}-bootloader.bin" "${PREFIX}-partitions.bin" "${PREFIX}-firmware.bin"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: secure-signed
+          path: dist/
+          if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+  ota-sign:
+    name: Sign release assets with Ed25519
+    needs: [check-version, firmware-build, secure-sign]
+    if: >-
+      always()
+      && needs.check-version.outputs.should_release == 'true'
+      && needs.firmware-build.result == 'success'
+      && contains(fromJSON('["success", "skipped"]'), needs.secure-sign.result)
+    environment: firmware-signing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/requirements
+            keys
+            scripts
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install cryptography
+        run: pip install --require-hashes -r .github/requirements/cryptography.txt
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Sign and verify every release image
         env:
           FIRMWARE_SIGNING_PRIVATE_KEY: ${{ secrets.FIRMWARE_SIGNING_PRIVATE_KEY }}
-
-      - name: Attach secure images to GitHub Release
         run: |
-          FILES=()
-          for kind in bootloader partitions firmware; do
-            FILES+=("${PREFIX}-${kind}.bin" "${PREFIX}-${kind}.bin.sig")
-          done
+          if [ -z "${FIRMWARE_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "::error::FIRMWARE_SIGNING_PRIVATE_KEY is not set — the dash refuses unsigned OTA images"
+            exit 1
+          fi
+          python3 scripts/sign_release_artifacts.py dist/*.bin
+          python3 scripts/verify_release_signatures.py keys/firmware-signing-public.pem dist/*.bin
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+  attach:
+    name: Attach release assets
+    needs: [check-version, create-release, ota-sign]
+    if: always() && needs.create-release.result == 'success' && needs.ota-sign.result == 'success'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: dist
+
+      - name: Upload images and signatures to the GitHub Release
+        run: |
           for i in 1 2 3 4 5; do
-            gh release upload "${{ needs.check-version.outputs.tag }}" "${FILES[@]}" --clobber && break
+            gh release upload "${{ needs.check-version.outputs.tag }}" dist/* --clobber && break
             if [ $i -eq 5 ]; then exit 1; fi
             echo "Attempt ${i}: release not ready, retrying in 30s..."
             sleep 30
@@ -319,7 +380,7 @@ jobs:
 
   manifest:
     name: Publish firmware + board manifest
-    needs: [check-version, firmware-release]
+    needs: [check-version, attach]
     if: needs.check-version.outputs.should_release == 'true'
     permissions:
       contents: write
