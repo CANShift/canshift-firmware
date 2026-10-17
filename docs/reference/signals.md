@@ -80,9 +80,22 @@ ids; cargo tests pin them on the Rust side.
 | --: | -------------- | ---- | --------------------------------- |
 |  40 | `lap_timer_ms` | ms   | broadcast or canshift-mobile push |
 
+## Steering-wheel buttons
+
+|  id | Name             | Source    |
+| --: | ---------------- | --------- |
+|  56 | `wheel_button_1` | broadcast |
+|  57 | `wheel_button_2` | broadcast |
+|  58 | `wheel_button_3` | broadcast |
+|  59 | `wheel_button_4` | broadcast |
+
+Generic slots for buttons on the bus: map any CAN frame, byte and bit onto one
+in `signals.json`, then bind a slot in `dashboard.json`'s `pageButtons`. A
+pressed button reads non-zero, a released one `0`.
+
 ## Numeric gaps
 
-The gaps (15..19, 25..29, 32..39, 41..63) are intentional — they reserve room
+The unused ids (34..39, 41..47, 60..63) are intentional — they reserve room
 for future signals in each semantic band without renumbering existing ids.
 `SIGNAL_COUNT = 64` is the sentinel for unknown name.
 
