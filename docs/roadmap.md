@@ -22,7 +22,7 @@ exists at all, right now.
 
 ### Firmware
 
-- LVGL 8.3 dashboard — up to 8 pages, 12 widgets each, lazy page build, swipe
+- LVGL 8.4 dashboard — up to 8 pages, 12 widgets each, lazy page build, swipe
   navigation, day and night theme faces.
 - Seven widget types: gauge, warning, button, timer, gear, image, shift light.
   Every one is editable from the tuner.

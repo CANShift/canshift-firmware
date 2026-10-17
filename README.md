@@ -14,7 +14,7 @@ flashing and using a dash lives in [`docs/`](docs/README.md).
 
 | Repository                                                     | Role                                                                                                   |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **canshift-firmware** (here)                                   | ESP32 firmware: C++17, Arduino, LVGL 8.3, Rust modules. Releases and project docs.                     |
+| **canshift-firmware** (here)                                   | ESP32 firmware: C++17, Arduino, LVGL 8.4, Rust modules. Releases and project docs.                     |
 | [canshift-core](https://github.com/CANShift/canshift-core)     | The shared contracts: config schemas, migrations, wire protocol. Published as `@canshift/core` on npm. |
 | [canshift-tuner](https://github.com/CANShift/canshift-tuner)   | The configurator: page editor, ECU profiles, signals, live values, firmware upload.                    |
 | [canshift-mobile](https://github.com/CANShift/canshift-mobile) | The iPhone companion: telemetry and lap timing over BLE while driving.                                 |
