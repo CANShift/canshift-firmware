@@ -316,7 +316,8 @@ struct CfgDashboard {
     CfgTheme dayFace;
     CfgTheme nightFace;
     char dayNightSignal[kCfgMaxIdLen];
-    CfgCriticalAlert criticalAlert;
+    uint8_t criticalAlertCount;
+    CfgCriticalAlert criticalAlerts[kConfigMaxCriticalAlerts];
     CfgPageButtons pageButtons;
     uint8_t pageCount;
     CfgPage pages[kConfigMaxPages];

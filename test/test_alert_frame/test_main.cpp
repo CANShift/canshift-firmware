@@ -16,8 +16,8 @@ AlertFrame::Entry oilPressureEntry() {
     return {0, 0.4f, true, 1.0f, true, false, true, 12, "oil_press_bar"};
 }
 
-AlertFrame::Entry configuredEgtEntry() {
-    return {7, 951.5f, true, 950.0f, false, false, true, 3, "egt_c"};
+AlertFrame::Entry secondConfiguredEgtEntry() {
+    return {8, 951.5f, true, 950.0f, false, false, true, 3, "egt_c"};
 }
 
 AlertFrame::Entry acknowledgedCoolantEntry() {
@@ -29,7 +29,7 @@ AlertFrame::Entry acknowledgedCoolantEntry() {
 void test_encode_noAlert_versionAndZeroCount() {
     uint8_t buf[AlertFrame::kMaxFrameBytes] = {0};
     const size_t len = AlertFrame::encode(nullptr, 0, buf, sizeof(buf));
-    const uint8_t expected[] = {0x01, 0x00};
+    const uint8_t expected[] = {0x02, 0x00};
     TEST_ASSERT_EQUAL_size_t(sizeof(expected), len);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, buf, sizeof(expected));
 }
@@ -39,7 +39,7 @@ void test_encode_oilPressureVector_matchesCore() {
     uint8_t buf[AlertFrame::kMaxFrameBytes] = {0};
     const size_t len = AlertFrame::encode(entries, 1, buf, sizeof(buf));
 
-    const uint8_t expected[] = {0x01, 0x01, 0x00, 0x0b, 0x90, 0x01, 0x00, 0x00, 0xe8, 0x03,
+    const uint8_t expected[] = {0x02, 0x01, 0x00, 0x0b, 0x90, 0x01, 0x00, 0x00, 0xe8, 0x03,
                                 0x00, 0x00, 0x0c, 0x00, 0x0d, 0x6f, 0x69, 0x6c, 0x5f, 0x70,
                                 0x72, 0x65, 0x73, 0x73, 0x5f, 0x62, 0x61, 0x72};
     TEST_ASSERT_EQUAL_size_t(sizeof(expected), len);
@@ -47,11 +47,11 @@ void test_encode_oilPressureVector_matchesCore() {
 }
 
 void test_encode_configuredAndCoolantVector_matchesCore() {
-    const AlertFrame::Entry entries[] = {configuredEgtEntry(), acknowledgedCoolantEntry()};
+    const AlertFrame::Entry entries[] = {secondConfiguredEgtEntry(), acknowledgedCoolantEntry()};
     uint8_t buf[AlertFrame::kMaxFrameBytes] = {0};
     const size_t len = AlertFrame::encode(entries, 2, buf, sizeof(buf));
 
-    const uint8_t expected[] = {0x01, 0x02, 0x07, 0x09, 0xcc, 0x84, 0x0e, 0x00, 0xf0, 0x7e,
+    const uint8_t expected[] = {0x02, 0x02, 0x08, 0x09, 0xcc, 0x84, 0x0e, 0x00, 0xf0, 0x7e,
                                 0x0e, 0x00, 0x03, 0x00, 0x05, 0x65, 0x67, 0x74, 0x5f, 0x63,
                                 0x01, 0x05, 0x80, 0xb5, 0x01, 0x00, 0xb0, 0xad, 0x01, 0x00,
                                 0x5f, 0x00, 0x0e, 0x63, 0x6f, 0x6f, 0x6c, 0x61, 0x6e, 0x74,
@@ -92,7 +92,7 @@ void test_encode_skipsUnencodableEntries() {
     nan.value = std::nanf("");
     AlertFrame::Entry unnamed = acknowledgedCoolantEntry();
     unnamed.signal = "";
-    AlertFrame::Entry unknownSource = configuredEgtEntry();
+    AlertFrame::Entry unknownSource = secondConfiguredEgtEntry();
     unknownSource.source = AlertFrame::kSourceCount;
     const AlertFrame::Entry entries[] = {nan, unnamed, unknownSource};
     uint8_t buf[AlertFrame::kMaxFrameBytes] = {0};

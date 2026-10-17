@@ -109,6 +109,8 @@ inline constexpr int kConfigMaxWidgetsPerPage = 12;
 inline constexpr unsigned kConfigDashboardHeapBudgetBytes = (48u * 1024u);
 inline constexpr int kConfigMaxSignals = 48;
 
+inline constexpr int kConfigMaxCriticalAlerts = 4;
+
 inline constexpr int kObd2MaxPollSlots = kConfigMaxSignals;
 
 #ifndef DEFAULT_CONFIG_PROVISION_ENABLED

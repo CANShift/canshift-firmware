@@ -125,11 +125,13 @@ when the bytes change. The BLE task copies the latest frame each tick and
 notifies on a new generation, or every `kKeepaliveTicks` as a keepalive; a new
 subscriber forces a send. Whole entries that do not fit the 244-byte notify
 payload are dropped, never the on-screen one. With no critical source the frame
-is `01 00`.
+is `02 00`.
 
 The source id is the takeover's source index: `AlertSources::kSources` in
-order, then the configured `criticalAlert`. core's parity test checks that
-order against its `ALERT_SOURCES`.
+order, then one id per `criticalAlerts` entry in list order, so the phone can
+name the entry that fired. An entry the dash cannot arm keeps its id and never
+turns critical. core's parity test checks the built-in order against its
+`ALERT_SOURCES` and the id count against `ALERT_SOURCE_ID_COUNT`.
 
 ## Early init and heap gating
 

@@ -52,7 +52,7 @@ void parseDashboardHeader(const JsonDocument &doc, CfgDashboard *out) {
         LOG_WARN("CFG", "dashboard.json: dayNightSignal too long — auto day/night disabled");
         out->dayNightSignal[0] = '\0';
     }
-    parseCriticalAlert(doc["criticalAlert"], &out->criticalAlert);
+    parseCriticalAlerts(doc, out);
     parsePageButtons(doc["pageButtons"], &out->pageButtons);
 }
 

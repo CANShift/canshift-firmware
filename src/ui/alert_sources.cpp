@@ -12,44 +12,62 @@ namespace {
 constexpr float kWholeNumbersFrom = 10.0f;
 constexpr size_t kUnitLen = 16;
 
-char s_userName[WidgetLabelOverlay::kKickerBufLen] = "";
-char s_userUnit[kUnitLen] = "";
-AlertSources::CriticalSource s_user = {};
+struct ConfiguredSource {
+    char name[WidgetLabelOverlay::kKickerBufLen];
+    char unit[kUnitLen];
+    AlertSources::CriticalSource source;
+};
 
-AlertEngine::CriticalLimit userLimitFor(SignalId, float) {
-    const CriticalAlertSource::Armed armed = CriticalAlertSource::armed();
-    return {armed.firesAt, armed.below, armed.armed};
-}
+ConfiguredSource s_configured[kConfigMaxCriticalAlerts] = {};
 
 int decimalsFor(float firesAt) {
     return fabsf(firesAt) < kWholeNumbersFrom ? 1 : 0;
 }
 
-const AlertSources::CriticalSource &userSource(const CriticalAlertSource::Armed &armed) {
-    const char *signalName = ConfigLoader::getDashboardConfig().criticalAlert.signalId;
-    WidgetLabelOverlay::signalKicker(signalName, s_userName, sizeof(s_userName));
+const AlertSources::CriticalSource &configuredSource(size_t slot) {
+    const CriticalAlertSource::Armed armed = CriticalAlertSource::armed(slot);
+    const char *signalName = ConfigLoader::getDashboardConfig().criticalAlerts[slot].signalId;
+    ConfiguredSource &out = s_configured[slot];
+    WidgetLabelOverlay::signalKicker(signalName, out.name, sizeof(out.name));
     const CfgSignalDef *def = ConfigLoader::findSignal(signalName);
-    strlcpy(s_userUnit, def ? def->unit : "", sizeof(s_userUnit));
-    s_user = {s_userName,
-              s_userName,
-              armed.id,
-              signalName,
-              s_userUnit,
-              decimalsFor(armed.firesAt),
-              &AlertEngine::AlertState::userCritical,
-              &AlertEngine::AlertState::userSensorLost,
-              userLimitFor};
-    return s_user;
+    strlcpy(out.unit, def ? def->unit : "", sizeof(out.unit));
+    out.source = {out.name, out.name, armed.id, signalName, out.unit, decimalsFor(armed.firesAt)};
+    return out.source;
+}
+
+bool isConfigured(size_t index) {
+    return index >= AlertSources::kSourceCount && index < AlertSources::count();
 }
 
 } // namespace
 
 size_t AlertSources::count() {
-    return kSourceCount + (CriticalAlertSource::armed().armed ? 1 : 0);
+    return kSourceCount + CriticalAlertSource::count();
 }
 
 const AlertSources::CriticalSource &AlertSources::at(size_t index) {
     if (index < kSourceCount)
-        return kSources[index];
-    return userSource(CriticalAlertSource::armed());
+        return kSources[index].info;
+    return configuredSource(index - kSourceCount);
+}
+
+AlertEngine::AlertLevel AlertSources::levelAt(const AlertEngine::AlertState &state, size_t index) {
+    if (index < kSourceCount)
+        return state.*(kSources[index].level);
+    if (!isConfigured(index))
+        return AlertEngine::AlertLevel::NORMAL;
+    return state.userCritical[index - kSourceCount];
+}
+
+bool AlertSources::sensorLostAt(const AlertEngine::AlertState &state, size_t index) {
+    if (index < kSourceCount)
+        return state.*(kSources[index].sensorLost);
+    return isConfigured(index) && state.userSensorLost[index - kSourceCount];
+}
+
+AlertEngine::CriticalLimit AlertSources::limitAt(size_t index, float reading) {
+    if (index < kSourceCount)
+        return AlertEngine::criticalLimitFor(kSources[index].info.id, reading);
+    const CriticalAlertSource::Armed armed = CriticalAlertSource::armed(index - kSourceCount);
+    return {armed.firesAt, armed.below, armed.armed};
 }

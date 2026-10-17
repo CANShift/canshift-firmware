@@ -5,14 +5,20 @@
 #include "diag/error_store.h"
 #include "diag/logger.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
 namespace {
 
-CriticalAlertSource::Armed s_armed = {};
-AlertLevelHoldRs s_hold = {};
-AlertSensorHealthRs s_health = {};
+struct Slot {
+    CriticalAlertSource::Armed armed;
+    AlertLevelHoldRs hold;
+    AlertSensorHealthRs health;
+};
+
+Slot s_slots[kConfigMaxCriticalAlerts] = {};
+size_t s_count = 0;
 
 bool resolveSignal(const CfgCriticalAlert &cfg, SignalId *out) {
     *out = signalIdFromName(cfg.signalId);
@@ -24,39 +30,51 @@ bool resolveSignal(const CfgCriticalAlert &cfg, SignalId *out) {
     return false;
 }
 
-} // namespace
-
-void CriticalAlertSource::init(const CfgCriticalAlert &cfg) {
-    s_armed = {};
-    s_hold = {};
-    s_health = {};
-    if (!cfg.armed)
-        return;
+void arm(Slot &slot, const CfgCriticalAlert &cfg) {
     SignalId id = SignalIds::kSignalCount;
-    if (!resolveSignal(cfg, &id))
+    if (!cfg.armed || !resolveSignal(cfg, &id))
         return;
-    s_armed = {true, id, cfg.firesAt, cfg.below};
+    slot.armed = {true, id, cfg.firesAt, cfg.below};
     const long firesAtX100 = labs(lroundf(cfg.firesAt * 100.0f));
     LOG_INFO("ALERT", "critical alert armed on '%s' (%s %s%ld.%02ld)", cfg.signalId,
              cfg.below ? "below" : "above", cfg.firesAt < 0.0f ? "-" : "", firesAtX100 / 100,
              firesAtX100 % 100);
 }
 
-AlertEngine::AlertLevel CriticalAlertSource::step(const SignalStore::SignalValue *snap,
+} // namespace
+
+void CriticalAlertSource::init(const CfgCriticalAlert *alerts, size_t count) {
+    for (Slot &slot : s_slots)
+        slot = {};
+    s_count =
+        alerts == nullptr ? 0 : std::min(count, static_cast<size_t>(kConfigMaxCriticalAlerts));
+    for (size_t i = 0; i < s_count; ++i)
+        arm(s_slots[i], alerts[i]);
+}
+
+size_t CriticalAlertSource::count() {
+    return s_count;
+}
+
+AlertEngine::AlertLevel CriticalAlertSource::step(size_t index,
+                                                  const SignalStore::SignalValue *snap,
                                                   uint32_t now, bool *sensorLost) {
     *sensorLost = false;
-    if (!s_armed.armed)
+    if (index >= s_count || !s_slots[index].armed.armed)
         return AlertEngine::AlertLevel::NORMAL;
-    const SignalStore::SignalValue &reading = snap[s_armed.id];
-    alert_sensor_health_step_rs(&s_health, reading.valid, now, kAlertSensorLostClearHoldMs);
-    *sensorLost = s_health.lost;
+    Slot &slot = s_slots[index];
+    const SignalStore::SignalValue &reading = snap[slot.armed.id];
+    alert_sensor_health_step_rs(&slot.health, reading.valid, now, kAlertSensorLostClearHoldMs);
+    *sensorLost = slot.health.lost;
     if (!reading.valid)
         return AlertEngine::AlertLevel::NORMAL;
     return static_cast<AlertEngine::AlertLevel>(
-        alert_critical_alert_step_rs(&s_hold, reading.raw, s_armed.firesAt, s_armed.below, now,
-                                     kAlertHysteresisPct, kAlertMinActiveMs));
+        alert_critical_alert_step_rs(&slot.hold, reading.raw, slot.armed.firesAt, slot.armed.below,
+                                     now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
-CriticalAlertSource::Armed CriticalAlertSource::armed() {
-    return s_armed;
+CriticalAlertSource::Armed CriticalAlertSource::armed(size_t index) {
+    if (index >= s_count)
+        return {};
+    return s_slots[index].armed;
 }

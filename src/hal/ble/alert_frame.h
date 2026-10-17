@@ -7,8 +7,8 @@
 
 namespace AlertFrame {
 
-constexpr uint8_t kVersion = 0x01;
-constexpr uint8_t kSourceCount = 8;
+constexpr uint8_t kVersion = 0x02;
+constexpr uint8_t kSourceCount = 11;
 constexpr size_t kHeaderBytes = 2;
 constexpr size_t kEntryFixedBytes = 13;
 constexpr size_t kMaxSignalLen = 63;

@@ -11,7 +11,7 @@
 
 namespace {
 
-static_assert(AlertSources::kSourceCount + 1 == AlertFrame::kSourceCount);
+static_assert(AlertSources::kMaxSourceCount == AlertFrame::kSourceCount);
 
 struct Snapshot {
     uint32_t critical;
@@ -29,7 +29,7 @@ bool isSet(uint32_t mask, size_t source) {
 AlertFrame::Entry entryFor(size_t source, const Snapshot &snap) {
     const AlertSources::CriticalSource &src = AlertSources::at(source);
     const float reading = SignalStore::read(src.id);
-    const AlertEngine::CriticalLimit limit = src.limitFor(src.id, reading);
+    const AlertEngine::CriticalLimit limit = AlertSources::limitAt(source, reading);
     const uint8_t wireSource = static_cast<uint8_t>(source);
     return {wireSource,
             reading,
