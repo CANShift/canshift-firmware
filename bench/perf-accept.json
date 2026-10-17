@@ -1,3 +1,10 @@
 {
-  "accepted": []
+  "accepted": [
+    {
+      "case": "command/ping",
+      "max_delta_pct": 20,
+      "pr": 426,
+      "reason": "ping reply now carries the config reload verdict"
+    }
+  ]
 }
