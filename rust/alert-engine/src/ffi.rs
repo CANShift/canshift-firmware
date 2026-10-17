@@ -3,8 +3,8 @@ use crate::critical_alert::eval_critical_alert;
 use crate::{
     crossed_limit, eval_battery, eval_coolant_temp, eval_high_side, eval_high_side_temp,
     eval_oil_pressure, eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit,
-    sensor_health_step, severity_for_reading, warn_level_for, AlertLevel, CrossedLimit, LevelHold,
-    SensorHealth, Severity, SEVERITY_LEVEL_COUNT,
+    sensor_health_step, severity_for_reading, severity_for_signal, AlertLevel, CrossedLimit,
+    LevelHold, SensorHealth, Severity, SEVERITY_LEVEL_COUNT,
 };
 
 const _: () = assert!(core::mem::size_of::<AlertLevel>() == 1);
@@ -245,13 +245,20 @@ pub unsafe extern "C" fn alert_crossed_limit_rs(
 }
 
 #[no_mangle]
-pub extern "C" fn alert_warn_level_for_rs(
+pub extern "C" fn alert_severity_for_signal_rs(
+    value: f32,
+    warn_level: f32,
     danger_level: f32,
-    danger_below: bool,
-    sig_warn: f32,
-    sig_high_warn: f32,
-) -> f32 {
-    warn_level_for(danger_level, danger_below, sig_warn, sig_high_warn)
+    high_warn_level: f32,
+    high_danger_level: f32,
+) -> u8 {
+    severity_for_signal(
+        value,
+        warn_level,
+        danger_level,
+        high_warn_level,
+        high_danger_level,
+    ) as u8
 }
 
 #[cfg(test)]
@@ -259,12 +266,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ffi_warn_level_passes_through() {
+    fn ffi_signal_severity_passes_through() {
         assert_eq!(
-            alert_warn_level_for_rs(150.0, false, 130.0, f32::NAN),
-            130.0
+            alert_severity_for_signal_rs(10.8, 12.0, 11.5, 15.0, 16.0),
+            3
         );
-        assert!(alert_warn_level_for_rs(240.0, false, 250.0, f32::NAN).is_nan());
+        assert_eq!(
+            alert_severity_for_signal_rs(13.8, 12.0, 11.5, 15.0, 16.0),
+            0
+        );
     }
 
     #[test]

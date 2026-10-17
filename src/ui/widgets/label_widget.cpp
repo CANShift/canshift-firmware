@@ -47,6 +47,7 @@ struct LabelTag {
     float warnLevel;
     float dangerLevel;
     bool dangerBelow;
+    Severity::SignalLimits catalogue;
     float lastValue;
     bool lastValid;
     bool revFlash;
@@ -178,7 +179,9 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
 Severity::Level labelLevelFor(const LabelTag *tag, float value) {
     if (tag->revFlash && RevLimitFlash::isEngaged())
         return Severity::Level::FAILURE;
-    return Severity::forReading(value, tag->warnLevel, tag->dangerLevel, tag->dangerBelow);
+    return Severity::strongerOf(
+        Severity::forReading(value, tag->warnLevel, tag->dangerLevel, tag->dangerBelow),
+        Severity::forSignal(value, tag->catalogue));
 }
 
 void barWidthAnimCb(void *obj, int32_t w) {
@@ -223,10 +226,10 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
         Severity::adopt(parts.topRule, parts.kicker, nullptr, parts.rulePx, parts.textRgb);
     tag->barMaxW = parts.barMaxW;
     tag->lastBarW = -1;
-    tag->warnLevel = WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.label.warnLevel,
-                                                     cfg.label.dangerLevel, cfg.label.dangerBelow);
+    tag->warnLevel = cfg.label.warnLevel;
     tag->dangerLevel = cfg.label.dangerLevel;
     tag->dangerBelow = cfg.label.dangerBelow;
+    tag->catalogue = WidgetHelpers::catalogueLimitsFor(cfg.signalId);
     tag->lastValue = NAN;
     tag->lastValid = false;
     tag->revFlash = cfg.label.revFlash;

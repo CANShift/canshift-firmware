@@ -2,6 +2,7 @@
 
 #include "alert_engine_rs.h"
 #include "config/config_types.h"
+#include "ui/severity.h"
 #include "ui/theme_tokens.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_tag_pool.h"
@@ -68,8 +69,7 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text);
 
 void formatStalePlaceholder(char *out, size_t outLen, float maxValue);
 
-float resolveWarnLevel(const char *signalId, float widgetWarnLevel, float dangerLevel,
-                       bool dangerBelow);
+Severity::SignalLimits catalogueLimitsFor(const char *signalId);
 
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,
                    uint32_t borderRgb);

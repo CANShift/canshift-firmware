@@ -119,6 +119,7 @@ struct GaugeTag {
     uint32_t inkRgb;
     float warnLevel;
     float dangerLevel;
+    Severity::SignalLimits catalogue;
     uint32_t lastLabelRgb;
     uint32_t lastFillRgb;
     uint16_t lastAngle;
@@ -143,9 +144,11 @@ static Severity::Level gaugeLevelFor(const GaugeTag *tag, float value, bool dang
                                      bool limiting) {
     if (limiting)
         return Severity::Level::FAILURE;
+    const Severity::Level catalogue = Severity::forSignal(value, tag->catalogue);
     if (!tag->hasDanger)
-        return Severity::Level::INFORMATION;
-    return Severity::forReading(value, tag->warnLevel, tag->dangerLevel, dangerBelow);
+        return catalogue;
+    return Severity::strongerOf(
+        Severity::forReading(value, tag->warnLevel, tag->dangerLevel, dangerBelow), catalogue);
 }
 
 static int32_t computeArcDiameter(const CfgWidget &cfg) {
@@ -258,9 +261,9 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
     tag->lastFillRgb = 0xFFFFFFFFu;
     tag->lastAngle = 0xFFFFu;
     tag->lastDisplayScaled = INT32_MIN;
-    tag->warnLevel = WidgetHelpers::resolveWarnLevel(cfg.signalId, cfg.gauge.warnLevel,
-                                                     cfg.gauge.dangerLevel, cfg.gauge.dangerBelow);
+    tag->warnLevel = cfg.gauge.warnLevel;
     tag->dangerLevel = cfg.gauge.dangerLevel;
+    tag->catalogue = WidgetHelpers::catalogueLimitsFor(cfg.signalId);
     tag->revFlash = cfg.gauge.revFlash;
     tag->lastLimiting = false;
     tag->convertibleUnit = UnitDisplay::convertibleUnitFor(cfg.signalId, cfg.gauge.suffix);

@@ -108,17 +108,18 @@ bool setLabelTextIfChanged(lv_obj_t *label, const char *text) {
     return true;
 }
 
-float resolveWarnLevel(const char *signalId, float widgetWarnLevel, float dangerLevel,
-                       bool dangerBelow) {
-    if (!isnan(widgetWarnLevel))
-        return widgetWarnLevel;
+Severity::SignalLimits catalogueLimitsFor(const char *signalId) {
     if (!signalId || signalId[0] == '\0')
-        return NAN;
+        return {};
     const CfgSignalDef *def = ConfigLoader::findSignal(signalId);
     if (!def)
-        return NAN;
-    return alert_warn_level_for_rs(dangerLevel, dangerBelow, def->warningLevel,
-                                   def->highWarningLevel);
+        return {};
+    Severity::SignalLimits limits;
+    limits.warn = def->warningLevel;
+    limits.danger = def->dangerLevel;
+    limits.highWarn = def->highWarningLevel;
+    limits.highDanger = def->highDangerLevel;
+    return limits;
 }
 
 void initContainer(lv_obj_t *cont, const CfgWidget &cfg, int16_t yOffset, bool hasBorder,

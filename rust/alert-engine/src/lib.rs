@@ -246,37 +246,6 @@ pub(crate) fn crossed(value: f32, threshold: f32, below: bool) -> bool {
     }
 }
 
-#[must_use]
-pub fn warn_level_for(
-    danger_level: f32,
-    danger_below: bool,
-    sig_warn: f32,
-    sig_high_warn: f32,
-) -> f32 {
-    let ordered = |w: f32| -> bool {
-        if w.is_nan() || danger_level.is_nan() {
-            return false;
-        }
-        if danger_below {
-            w > danger_level
-        } else {
-            w < danger_level
-        }
-    };
-    let (first, second) = if danger_below {
-        (sig_warn, sig_high_warn)
-    } else {
-        (sig_high_warn, sig_warn)
-    };
-    if ordered(first) {
-        return first;
-    }
-    if ordered(second) {
-        return second;
-    }
-    f32::NAN
-}
-
 pub const DISPLAY_IDLE_LIVE: u8 = 0;
 pub const DISPLAY_IDLE_DIM: u8 = 1;
 pub const DISPLAY_IDLE_OFF: u8 = 2;
@@ -309,6 +278,20 @@ pub fn severity_for_reading(
         return Severity::Warning;
     }
     Severity::Information
+}
+
+#[must_use]
+pub fn severity_for_signal(
+    value: f32,
+    warn_level: f32,
+    danger_level: f32,
+    high_warn_level: f32,
+    high_danger_level: f32,
+) -> Severity {
+    let primary_below = warn_level > danger_level;
+    let primary = severity_for_reading(value, warn_level, danger_level, primary_below);
+    let high = severity_for_reading(value, high_warn_level, high_danger_level, false);
+    primary.max(high)
 }
 
 #[repr(C)]
@@ -390,18 +373,37 @@ mod tests {
     }
 
     #[test]
-    fn warn_level_takes_the_side_the_danger_level_is_on() {
-        assert_eq!(warn_level_for(150.0, false, 130.0, f32::NAN), 130.0);
-        assert_eq!(warn_level_for(15.5, false, 12.0, 15.0), 15.0);
-        assert_eq!(warn_level_for(1.0, true, 1.5, f32::NAN), 1.5);
+    fn signal_severity_reads_both_sides_of_a_battery() {
+        let at = |v: f32| severity_for_signal(v, 12.0, 11.5, 15.0, 16.0);
+        assert_eq!(at(13.8), Severity::Information);
+        assert_eq!(at(11.9), Severity::Warning);
+        assert_eq!(at(10.8), Severity::Failure);
+        assert_eq!(at(15.2), Severity::Warning);
+        assert_eq!(at(16.1), Severity::Failure);
     }
 
     #[test]
-    fn warn_level_rejects_a_threshold_on_the_wrong_side() {
-        assert!(warn_level_for(240.0, false, 250.0, f32::NAN).is_nan());
-        assert!(warn_level_for(1.5, true, 1.5, f32::NAN).is_nan());
-        assert!(warn_level_for(f32::NAN, false, 130.0, f32::NAN).is_nan());
-        assert!(warn_level_for(150.0, false, f32::NAN, f32::NAN).is_nan());
+    fn signal_severity_infers_the_primary_side_from_the_order() {
+        let oil = |v: f32| severity_for_signal(v, 1.5, 1.0, f32::NAN, f32::NAN);
+        assert_eq!(oil(3.0), Severity::Information);
+        assert_eq!(oil(1.4), Severity::Warning);
+        assert_eq!(oil(0.9), Severity::Failure);
+        let coolant = |v: f32| severity_for_signal(v, 100.0, 115.0, f32::NAN, f32::NAN);
+        assert_eq!(coolant(105.0), Severity::Warning);
+        assert_eq!(coolant(116.0), Severity::Failure);
+    }
+
+    #[test]
+    fn signal_severity_without_levels_stays_quiet() {
+        let none = f32::NAN;
+        assert_eq!(
+            severity_for_signal(9999.0, none, none, none, none),
+            Severity::Information
+        );
+        assert_eq!(
+            severity_for_signal(120.0, none, 115.0, none, none),
+            Severity::Failure
+        );
     }
 
     #[test]
