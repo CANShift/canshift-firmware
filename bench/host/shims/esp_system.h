@@ -12,7 +12,7 @@ inline Hook &hook() {
     return installed;
 }
 
-} // namespace BenchRestart
+}
 
 namespace BenchRandom {
 
@@ -24,7 +24,7 @@ inline uint32_t next() {
     return value;
 }
 
-} // namespace BenchRandom
+}
 
 inline void esp_restart() {
     if (BenchRestart::hook() == nullptr)

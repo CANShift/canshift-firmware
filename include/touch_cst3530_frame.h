@@ -72,4 +72,4 @@ inline uint8_t decodeFrame(const uint8_t *frame, Sample *out, uint8_t capacity) 
     return decoded;
 }
 
-} // namespace canshift::touch::cst3530
+}

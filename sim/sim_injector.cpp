@@ -386,7 +386,7 @@ void handleKey(int key, uint32_t nowMs) {
     }
 }
 
-} // namespace
+}
 
 namespace SimInjector {
 
@@ -473,4 +473,4 @@ void tick(uint32_t nowMs) {
     }
 }
 
-} // namespace SimInjector
+}

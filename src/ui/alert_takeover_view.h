@@ -16,4 +16,4 @@ void setValue(const char *text);
 
 void setContext(const char *text);
 
-} // namespace AlertTakeoverView
+}

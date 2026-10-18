@@ -16,4 +16,4 @@ void requestAcknowledge();
 
 void requestAcknowledgeSource(uint8_t source);
 
-} // namespace AlertTakeover
+}

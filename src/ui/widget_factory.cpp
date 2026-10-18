@@ -36,7 +36,6 @@ static WidgetEntry s_widgets[kMaxTrackedWidgets];
 static uint8_t s_widgetCount = 0;
 
 void updateWidget(WidgetEntry &entry, const SignalStore::SignalValue snap[kSignalStoreMaxSignals]) {
-
     if (entry.type == WidgetType::BUTTON) {
         ButtonWidget::update(entry.obj);
         return;
@@ -87,7 +86,7 @@ void updateWidget(WidgetEntry &entry, const SignalStore::SignalValue snap[kSigna
     }
 }
 
-} // namespace
+}
 
 lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     LVGL_ASSERT_LOCKED();

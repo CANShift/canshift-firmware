@@ -43,7 +43,7 @@ void loadConfig() {
     }
 }
 
-} // namespace
+}
 
 void logHeap(const char *stage) {
     const uint32_t free = ESP.getFreeHeap();
@@ -189,4 +189,4 @@ void preloadIconsWithHeapLog() {
     logHeap("after icon preload");
 }
 
-} // namespace BootPhases
+}

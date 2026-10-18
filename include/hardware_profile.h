@@ -8,5 +8,5 @@ namespace HardwareProfile {
 
 inline constexpr unsigned kLvglDrawBudgetBytes = 25U * 1024U;
 
-} // namespace HardwareProfile
+}
 #endif

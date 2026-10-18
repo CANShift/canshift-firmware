@@ -223,4 +223,4 @@ void onReset(lv_event_t *) {
     applyBrightness();
 }
 
-} // namespace SettingsPageInternal
+}

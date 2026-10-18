@@ -16,7 +16,7 @@ bool jsonLineContains(const char *substr) {
     return strstr(canshift_test::serialCaptureBuffer(), substr) != nullptr;
 }
 
-} // namespace
+}
 
 void setUp() {
     canshift_test::serialCaptureReset();

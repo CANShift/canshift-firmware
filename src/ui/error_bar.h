@@ -7,4 +7,4 @@ namespace ErrorBar {
 void update();
 void reapplyTheme();
 
-} // namespace ErrorBar
+}

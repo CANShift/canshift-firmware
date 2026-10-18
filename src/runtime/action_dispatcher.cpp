@@ -109,7 +109,6 @@ void dispatchMapSwitch(const CfgButtonAction &a) {
 }
 
 void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {
-
     if (!isActive && a.canDataOffLen > 0) {
         sendControlFrame(a.canFrameId, a.canDataOff, a.canDataOffLen, a.canExtended, "can_raw");
     } else {
@@ -118,12 +117,11 @@ void dispatchCanRaw(const CfgButtonAction &a, bool isActive) {
 }
 
 void dispatchCruiseControl(const CfgButtonAction &a) {
-
     LOG_INFO("BTN", "cruise_control op=%s stepKmh=%u (firmware integration pending #451)",
              cruiseOpName(a.cruiseOp), static_cast<unsigned>(a.cruiseStepKmh));
 }
 
-} // namespace
+}
 
 void dispatchTimerControl(const CfgButtonAction &a) {
     const bool ok = timerOpRunner(a.timerOp)();
@@ -154,4 +152,4 @@ void dispatchAction(const CfgButtonAction &a, bool isActive) {
     }
 }
 
-} // namespace ActionDispatcher
+}

@@ -6,7 +6,7 @@ namespace {
 
 const char *s_line = nullptr;
 
-} // namespace
+}
 
 namespace PerfCases {
 
@@ -22,4 +22,4 @@ void runCommand(uint32_t) {
     ReplyCapture::dispatch(ReplyCapture::Transport::Ws, s_line);
 }
 
-} // namespace PerfCases
+}

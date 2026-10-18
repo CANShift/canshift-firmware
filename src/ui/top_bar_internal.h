@@ -55,4 +55,4 @@ inline uint32_t mutedColor() {
     return ThemeManager::pickColor(kColorMutedNight, kColorMutedDay);
 }
 
-} // namespace TopBarInternal
+}

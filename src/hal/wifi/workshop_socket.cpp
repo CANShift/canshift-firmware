@@ -246,7 +246,7 @@ esp_err_t receiveLine(httpd_req_t *req) {
     return frame.len == 0 ? ESP_OK : queueLine(req, frame);
 }
 
-} // namespace
+}
 
 esp_err_t handleSocket(httpd_req_t *req) {
     if (req->method == HTTP_GET)
@@ -292,6 +292,6 @@ void drainSocket() {
     drainLogs();
 }
 
-} // namespace WorkshopServerInternal
+}
 
 #endif

@@ -22,7 +22,7 @@ inline uint32_t &mockMillisRef() {
     static uint32_t value = 0;
     return value;
 }
-} // namespace canshift_test
+}
 
 inline uint32_t millis() {
     return canshift_test::mockMillisRef();
@@ -78,7 +78,7 @@ inline void serialCaptureReset() {
     serialCaptureLen() = 0;
     serialCaptureBuffer()[0] = '\0';
 }
-} // namespace canshift_test
+}
 
 class HardwareSerialMock : public Print {
   public:

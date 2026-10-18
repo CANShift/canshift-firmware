@@ -50,7 +50,7 @@ void taskCAN(void *) {
     }
 }
 
-} // namespace
+}
 
 bool CanTask::reserveStack() {
     s_stack = static_cast<StackType_t *>(heap_caps_malloc(TASK_STACK_CAN * sizeof(StackType_t),

@@ -39,10 +39,9 @@ bool acceptsValue(SignalId id, float value) {
     return false;
 }
 
-} // namespace
+}
 
 void SignalStore::init() {
-
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < kSignalStoreMaxSignals; ++i) {
         s_signals[i] = {.raw = 0.0f,

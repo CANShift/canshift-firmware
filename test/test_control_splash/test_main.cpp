@@ -28,7 +28,7 @@ void feedAntiLag(float egtC) {
     SignalStore::update(SignalIds::kEgtC, egtC);
 }
 
-} // namespace
+}
 
 void setUp() {
     mockSetMillis(0);

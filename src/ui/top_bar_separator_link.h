@@ -23,4 +23,4 @@ bool hasValidLink(int8_t linkedFlagIdx, int8_t dynCount);
 
 bool wantsHidden(int8_t nextFlagIdx, int8_t dynCount, bool linkedFlagHidden, bool nextFlagHidden);
 
-} // namespace TopBarSeparatorLink
+}

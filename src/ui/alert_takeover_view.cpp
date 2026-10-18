@@ -139,7 +139,7 @@ bool allPartsPresent() {
     return s_field.name && s_field.value && s_field.context && s_field.rule && s_field.stop;
 }
 
-} // namespace
+}
 
 void build(lv_event_cb_t ackCb) {
     buildRoot(ackCb);
@@ -178,4 +178,4 @@ void setContext(const char *text) {
     WidgetHelpers::setLabelTextIfChanged(s_field.context, text);
 }
 
-} // namespace AlertTakeoverView
+}

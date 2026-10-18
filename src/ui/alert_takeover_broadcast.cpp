@@ -54,7 +54,7 @@ size_t collectEntries(AlertFrame::Entry *out, const Snapshot &snap) {
     return count;
 }
 
-} // namespace
+}
 
 void AlertTakeoverBroadcast::publish(uint32_t critical, uint32_t acknowledged, int displayed,
                                      uint32_t nowMs) {

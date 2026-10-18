@@ -111,4 +111,4 @@ constexpr uint16_t lcdLogicalHeight(const LcdProfile &lcd) {
     return lcdRotationSwapsAxes(lcd.default_rotation) ? lcd.panel_width : lcd.panel_height;
 }
 
-} // namespace canshift::boards
+}

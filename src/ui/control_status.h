@@ -29,4 +29,4 @@ struct GuardReading {
 
 GuardReading guardReading(ControlVocabulary::ControlId id);
 
-} // namespace ControlStatus
+}

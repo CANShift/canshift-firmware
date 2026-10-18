@@ -25,4 +25,4 @@ void setTexts(const Surface &surface, const char *kicker, const char *word);
 
 void paint(Surface &surface, ControlVocabulary::ControlState state, uint8_t level);
 
-} // namespace ControlButton
+}

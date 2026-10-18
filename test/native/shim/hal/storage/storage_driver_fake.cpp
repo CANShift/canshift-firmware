@@ -49,7 +49,7 @@ FakeFile *allocateSlot(const char *path) {
     return nullptr;
 }
 
-} // namespace
+}
 
 bool init() {
     return true;
@@ -109,7 +109,7 @@ bool stageFileBytes(const char *path, const uint8_t *data, size_t length) {
     return true;
 }
 
-} // namespace
+}
 
 bool writeFileAtomic(const char *path, const uint8_t *data, size_t length) {
     return stageFileBytes(path, data, length);
@@ -168,7 +168,7 @@ struct ChunkedWrite {
 
 ChunkedWrite s_chunk = {false, {0}, {0}, 0, kMaxFileBytes};
 
-} // namespace
+}
 
 bool beginChunkedWriteAtomic(const char *path) {
     if (!path)
@@ -245,4 +245,4 @@ const uint8_t *fakeRead(const char *path, size_t *length) {
     return f ? reinterpret_cast<const uint8_t *>(f->data) : nullptr;
 }
 
-} // namespace StorageDriver
+}

@@ -30,4 +30,4 @@ void consumePressAndWarnIfSlow() {
     }
 }
 
-} // namespace TouchLatency
+}

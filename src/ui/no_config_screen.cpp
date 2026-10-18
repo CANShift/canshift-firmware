@@ -72,7 +72,7 @@ void addCells(const SystemScreen::Frame &frame) {
     addCell(frame.foot, kFirmwareKicker, APP_VERSION_STR);
 }
 
-} // namespace
+}
 
 void show() {
     const Severity::Spec spec = {Severity::Level::INFORMATION, kKicker, Severity::kRulePrimaryPx};
@@ -88,4 +88,4 @@ void show() {
     LOG_INFO("UI", "No dashboard config — waiting for the Tuner over USB");
 }
 
-} // namespace NoConfigScreen
+}

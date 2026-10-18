@@ -67,4 +67,4 @@ ControlState stateFromRaw(uint8_t raw);
 void joinPhrase(const char *lead, const char *joiner, const char *tail, int param, char *out,
                 size_t outLen);
 
-} // namespace ControlVocabulary
+}

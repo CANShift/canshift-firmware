@@ -16,7 +16,7 @@ StorageDriver::InitStatus s_initStatus = StorageDriver::InitStatus::NotInitializ
 
 constexpr const char *kSpiffsMount = "/spiffs";
 constexpr size_t kSpiffsMountLen = 7;
-} // namespace
+}
 
 static constexpr size_t kAtomicSuffixLen = 4;
 static constexpr size_t kSuffixedPathLen = kCfgMaxPathLen + kAtomicSuffixLen + 1;
@@ -78,7 +78,7 @@ bool finalizeAtomicSwap(const char *path) {
     return true;
 }
 
-} // namespace
+}
 
 bool StorageDriver::init() {
     const esp_partition_t *part = esp_partition_find_first(
@@ -210,7 +210,6 @@ bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_
 }
 
 bool StorageDriver::fileExists(const char *path) {
-
     if (!path || path[0] != '/')
         return false;
     char full[kSpiffsMountLen + kCfgMaxPathLen + 1];
@@ -257,7 +256,7 @@ bool s_chunkOpen = false;
 bool s_chunkAtomic = false;
 char s_chunkAtomicPath[kCfgMaxPathLen] = {0};
 char s_chunkActualPath[kSuffixedPathLen] = {0};
-} // namespace
+}
 
 bool StorageDriver::ensureParentDirs(const char *path) {
     if (!path || path[0] != '/')
@@ -356,7 +355,7 @@ StorageDriver::ChunkCommit commitStagedChunk(StorageDriver::StagedFileCheck chec
     return StorageDriver::ChunkCommit::Failed;
 }
 
-} // namespace
+}
 
 StorageDriver::ChunkCommit StorageDriver::endChunkedWriteChecked(StagedFileCheck check) {
     if (!s_chunkOpen)

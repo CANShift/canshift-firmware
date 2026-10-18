@@ -37,4 +37,4 @@ void runFormatFloat(uint32_t index);
 bool setupCommand(const char *line);
 void runCommand(uint32_t index);
 
-} // namespace PerfCases
+}

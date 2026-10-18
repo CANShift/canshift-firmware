@@ -207,7 +207,7 @@ void buildBar() {
     }
 }
 
-} // namespace
+}
 
 void ErrorBar::reapplyTheme() {
     if (!s_container)

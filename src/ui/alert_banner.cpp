@@ -108,7 +108,7 @@ bool renderRow(size_t i, const AlertEngine::AlertState &state) {
     return visible;
 }
 
-} // namespace
+}
 
 void AlertBanner::init() {
     s_container = createContainer();

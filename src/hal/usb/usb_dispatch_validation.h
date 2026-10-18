@@ -10,4 +10,4 @@ bool isPathSafe(const char *path);
 
 bool parseSha256Hex(const char *hex, uint8_t out[kSha256Bytes]);
 
-} // namespace UsbDispatchValidation
+}

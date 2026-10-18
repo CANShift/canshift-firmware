@@ -52,7 +52,6 @@ bool needsProvision(const char *path) {
     if (!StorageDriver::fileExists(path)) {
         char bakPath[kBakPathLen];
         if (!buildBakPath(bakPath, sizeof(bakPath), path)) {
-
             return true;
         }
         return !StorageDriver::fileExists(bakPath);
@@ -79,7 +78,7 @@ bool writeOne(const EmbeddedBlob &blob) {
     return true;
 }
 
-} // namespace
+}
 
 DefaultConfig::ProvisionResult DefaultConfig::provisionMissingFiles() {
     ProvisionResult result = {0, 0, 0};

@@ -43,7 +43,7 @@ double quantile(const std::vector<double> &sorted, double q) {
     return sorted[lower] + (sorted[upper] - sorted[lower]) * weight;
 }
 
-} // namespace
+}
 
 namespace PerfTimer {
 
@@ -65,4 +65,4 @@ void keep(uint64_t value) {
     s_sink = s_sink + value;
 }
 
-} // namespace PerfTimer
+}

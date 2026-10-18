@@ -16,7 +16,6 @@ File s_filePool[kFsPoolSize];
 bool s_slotBusy[kFsPoolSize] = {};
 
 void *fs_open(lv_fs_drv_t *, const char *path, lv_fs_mode_t mode) {
-
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     if (largest < kLvglFsMinHeapBytes) {
         LOG_WARN("FS", "Refused open of %s (largest=%u) — heap too low", path, (unsigned)largest);
@@ -81,7 +80,7 @@ lv_fs_res_t fs_tell(lv_fs_drv_t *, void *file_p, uint32_t *pos_p) {
     return LV_FS_RES_OK;
 }
 
-} // namespace
+}
 
 void LvglFsDriver::init() {
     static lv_fs_drv_t drv;

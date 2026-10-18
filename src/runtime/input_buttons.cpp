@@ -92,7 +92,6 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
             firePress(b, CfgInputPressKind::DOUBLE);
             s.pendingDoubleArmed = false;
         } else if (!wasLong) {
-
             s.pendingDoubleArmed = true;
         }
         s.lastReleaseMs = nowMs;
@@ -135,7 +134,7 @@ void configurePin(const CfgInputBinding &b) {
     pinMode(b.pin, needsPullup ? INPUT_PULLUP : INPUT);
 }
 
-} // namespace
+}
 
 void init() {
     if (s_initDone)
@@ -162,4 +161,4 @@ void init() {
     s_initDone = true;
 }
 
-} // namespace InputButtons
+}

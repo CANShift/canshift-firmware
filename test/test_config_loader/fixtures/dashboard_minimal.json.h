@@ -215,4 +215,4 @@ constexpr const char *kDashboardGridFloor = R"({
   "pages": [{"id": "main", "widgets": []}]
 })";
 
-} // namespace fixtures
+}

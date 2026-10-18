@@ -27,7 +27,7 @@ const char *declaredSignalUnit(const char *signalId) {
     return SignalPresentation::unitForSignal(signalId);
 }
 
-} // namespace
+}
 
 const char *symbolFor(const char *declaredUnit) {
     if (!isRenderable(declaredUnit))
@@ -54,4 +54,4 @@ const char *displayUnitFor(const char *signalId, const char *configSuffix) {
     return symbolFor(declaredSignalUnit(signalId));
 }
 
-} // namespace UnitDisplay
+}

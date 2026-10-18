@@ -39,4 +39,4 @@ struct Content {
 void compose(const ControlVocabulary::Control &control, ControlVocabulary::ControlState state,
              uint8_t level, Content &out);
 
-} // namespace ControlSplashContent
+}

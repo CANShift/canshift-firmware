@@ -181,7 +181,7 @@ void bottomRefused(const Ingredients &in, Content &out) {
 constexpr Fill kBottomFills[ControlSplashCopy::kToneCount] = {bottomEngaged, bottomDisengaged,
                                                               bottomRefused};
 
-} // namespace
+}
 
 void compose(const Control &control, ControlState state, uint8_t level, Content &out) {
     out = Content{};
@@ -199,4 +199,4 @@ void compose(const Control &control, ControlState state, uint8_t level, Content 
     kBottomFills[static_cast<uint8_t>(out.tone)](in, out);
 }
 
-} // namespace ControlSplashContent
+}

@@ -6,4 +6,4 @@ void init();
 
 void tick();
 
-} // namespace DayNightAuto
+}

@@ -10,4 +10,4 @@ void setSwipeHandler(SwipeHandler handler);
 
 void checkGestures();
 
-} // namespace GestureController
+}

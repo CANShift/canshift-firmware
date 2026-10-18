@@ -117,7 +117,7 @@ bool bootTimeline(const char *dataRoot) {
     return true;
 }
 
-} // namespace
+}
 
 namespace TraceMode {
 
@@ -138,4 +138,4 @@ int run(int argc, char **argv) {
     return ok ? 0 : 1;
 }
 
-} // namespace TraceMode
+}

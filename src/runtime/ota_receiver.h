@@ -43,4 +43,4 @@ CommitResult commit();
 
 void abort(const char *reason);
 
-} // namespace OtaReceiver
+}

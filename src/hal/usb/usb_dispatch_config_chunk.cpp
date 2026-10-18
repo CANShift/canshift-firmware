@@ -141,7 +141,7 @@ void commitConfigChunk(uint32_t total) {
     UsbComm::sendOk();
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -185,4 +185,4 @@ void tickConfigChunkTimeout() {
         abortConfigChunk("idle timeout");
 }
 
-} // namespace UsbCommInternal
+}

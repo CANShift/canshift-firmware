@@ -18,7 +18,7 @@ inline bool lockUart(TickType_t /*timeout*/) {
     return true;
 }
 inline void unlockUart() {}
-} // namespace Logger
+}
 
 #define LOG_DISCARD(tag, fmt, ...)                                                                 \
     do {                                                                                           \

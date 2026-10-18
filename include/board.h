@@ -22,7 +22,7 @@ inline constexpr const BoardProfile &kActiveBoard = kWaveshareS328;
         "No default board selected. Define BOARD_CROWPANEL_28, BOARD_GENERIC_ILI9341, BOARD_GENERIC_ILI9341_GT911, BOARD_GENERIC_ESP32S3, or BOARD_WAVESHARE_S3_28 (or another supported BOARD_*) via platformio.ini build_flags."
 #endif
 
-} // namespace canshift::boards
+}
 
 inline constexpr const canshift::boards::BoardProfile &kBoard = canshift::boards::kActiveBoard;
 
@@ -40,5 +40,5 @@ inline uint16_t height() {
     return boards::lcdLogicalHeight(boards::runtimeBoardProfile().lcd);
 }
 
-} // namespace display
-} // namespace canshift
+}
+}

@@ -10,4 +10,4 @@ bool active();
 
 void tick(uint32_t nowMs);
 
-} // namespace SimSplash
+}

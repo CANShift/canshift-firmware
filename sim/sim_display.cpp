@@ -52,7 +52,7 @@ void pointerReadCb(lv_indev_drv_t *, lv_indev_data_t *data) {
     data->state = s_mouseDown ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
-} // namespace
+}
 
 namespace SimDisplay {
 
@@ -165,4 +165,4 @@ void writeScreenshot(const char *path) {
     printf("screenshot written: %s\n", path);
 }
 
-} // namespace SimDisplay
+}

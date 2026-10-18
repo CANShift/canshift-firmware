@@ -18,4 +18,4 @@ const char *kickerForSignal(const char *signalId);
 
 const char *unitForSignal(const char *signalId);
 
-} // namespace SignalPresentation
+}

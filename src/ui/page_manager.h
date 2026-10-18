@@ -28,4 +28,4 @@ void requestRebuild();
 
 void releaseAll();
 
-} // namespace PageManager
+}

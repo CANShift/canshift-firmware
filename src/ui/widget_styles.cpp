@@ -72,4 +72,4 @@ bool setArcColorIfChanged(lv_obj_t *arc, uint32_t &cachedRgb, uint32_t targetRgb
     return true;
 }
 
-} // namespace WidgetStyles
+}

@@ -48,7 +48,7 @@ uint16_t bit(uint8_t kind) {
     return static_cast<uint16_t>(1u << kind);
 }
 
-} // namespace
+}
 
 void setUp() {
     mockSetMillis(0);

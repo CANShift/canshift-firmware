@@ -67,7 +67,7 @@ bool keepAllResident() {
     return false;
 }
 
-} // namespace
+}
 
 void buildPagesAtBoot(uint8_t target) {
     s_keepAllPages = keepAllResident();
@@ -83,4 +83,4 @@ void rebuildPagesForTheme(uint8_t target) {
         buildAndReport(target);
 }
 
-} // namespace PageManagerInternal
+}

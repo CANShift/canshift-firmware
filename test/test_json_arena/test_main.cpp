@@ -72,7 +72,7 @@ void assertWriteFitsCallbackArena(const std::string &input) {
     TEST_ASSERT_EQUAL_UINT32(0, arena.liveBlocks());
 }
 
-} // namespace
+}
 
 void setUp() {}
 

@@ -34,7 +34,6 @@ void TouchDriver::readCallback(lv_indev_drv_t *, lv_indev_data_t *data) {
     s_wasPressed = pressed;
 
     if (pressed) {
-
         if (x < 0)
             x = 0;
         if (y < 0)
@@ -129,7 +128,7 @@ void registerIndev() {
     LOG_INFO("TOUCH", "Touch driver registered");
 }
 
-} // namespace
+}
 
 bool TouchDriver::init() {
     LOG_INFO("TOUCH", "Initializing touch controller...");

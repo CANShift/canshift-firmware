@@ -11,4 +11,4 @@ constexpr int16_t kShiftStripGapPx = 2;
 
 constexpr int16_t kShiftStripBandPx = kShiftStripHeightPx + kRowGapPx;
 
-} // namespace DashMetrics
+}

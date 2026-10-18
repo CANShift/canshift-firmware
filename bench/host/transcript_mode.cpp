@@ -72,7 +72,7 @@ bool bootTranscript(const char *dataRoot) {
     return BenchRuntime::boot(dataRoot);
 }
 
-} // namespace
+}
 
 namespace TranscriptMode {
 
@@ -95,4 +95,4 @@ int run(int argc, char **argv) {
     return ok ? 0 : 1;
 }
 
-} // namespace TranscriptMode
+}

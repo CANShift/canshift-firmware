@@ -49,7 +49,7 @@ inline void decodeInto(unsigned char *dst, const unsigned char *src, size_t len)
     }
 }
 
-} // namespace bench_base64
+}
 
 inline int mbedtls_base64_decode(unsigned char *dst, size_t dlen, size_t *olen,
                                  const unsigned char *src, size_t slen) {

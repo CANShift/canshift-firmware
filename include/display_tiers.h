@@ -35,7 +35,7 @@ constexpr FaceLadder ladderOf(const uint8_t (&sizes)[N]) {
     return {sizes, N};
 }
 
-} // namespace tiers
+}
 
 inline constexpr DisplayTier kDisplayTiers[] = {
     {"base", 320, 240, 12, 12, 12, tiers::ladderOf(tiers::kBaseValueFaces),
@@ -67,4 +67,4 @@ inline const DisplayTier &tierForPanel(uint16_t width, uint16_t height) {
     return *best;
 }
 
-} // namespace canshift::display
+}

@@ -129,7 +129,7 @@ FontState refresh(const EmbeddedFont &font) {
     return provisionOne(font, embedded) ? FontState::Written : FontState::Failed;
 }
 
-} // namespace
+}
 
 DefaultFonts::ProvisionResult DefaultFonts::provisionMissingFiles() {
     ProvisionResult result = {0, 0, 0};

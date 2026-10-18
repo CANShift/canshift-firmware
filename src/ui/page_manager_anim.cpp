@@ -61,7 +61,7 @@ void asyncDoLazyBuild(void *) {
     LOG_INFO("UI", "Navigated to page '%s' (idx=%u)", s_pages[idx].id, idx);
 }
 
-} // namespace
+}
 
 void showPage(uint8_t idx) {
     if (idx >= s_pageCount) {
@@ -133,4 +133,4 @@ void onSwipe(lv_dir_t dir) {
     }
 }
 
-} // namespace PageManagerInternal
+}

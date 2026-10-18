@@ -349,7 +349,7 @@ void buildCenterReadout(lv_obj_t *screen, int16_t contentY) {
                     centerH - LayoutScale::y(16), centerW);
 }
 
-} // namespace
+}
 
 void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
     const CruiseGrid grid = computeCruiseGrid(contentY);
@@ -367,4 +367,4 @@ void build(lv_obj_t *screen, const CfgPage &cfg, int16_t contentY) {
              cfg.id, created);
 }
 
-} // namespace CruiseControlWidget
+}

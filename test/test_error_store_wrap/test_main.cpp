@@ -26,7 +26,7 @@ void assertOrder(const char *expected[], uint8_t expectedCount) {
     }
 }
 
-} // namespace
+}
 
 void setUp() {
     ErrorStore::clear();

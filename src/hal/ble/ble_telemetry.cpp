@@ -39,12 +39,11 @@ TelemetryFrame::Deduper s_dedup = {};
 
 size_t s_lastSubCount = 0;
 
-} // namespace
+}
 
 namespace BleServerInternal {
 
 void emitTelemetry() {
-
     auto *pTele = BleServerInternal::s_pTele;
     if (!pTele)
         return;
@@ -73,6 +72,6 @@ void emitTelemetry() {
     }
 }
 
-} // namespace BleServerInternal
+}
 
 #endif

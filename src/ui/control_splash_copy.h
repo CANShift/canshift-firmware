@@ -38,4 +38,4 @@ Tone toneFor(const ControlVocabulary::Control &control, ControlVocabulary::Contr
 
 const char *unitFor(ControlVocabulary::ControlParam param);
 
-} // namespace ControlSplashCopy
+}

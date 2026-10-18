@@ -31,4 +31,4 @@ class LeasedDocument {
     JsonDocument doc_;
 };
 
-} // namespace BleJsonArena
+}

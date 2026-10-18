@@ -31,4 +31,4 @@ void resetDeduper(Deduper &deduper);
 
 bool shouldSend(Deduper &deduper, const uint8_t *frame, size_t len);
 
-} // namespace TelemetryFrame
+}

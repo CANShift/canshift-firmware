@@ -92,7 +92,7 @@ constexpr Command kCommands[] = {
     {kNoUsbCode, "ack_alert", &acknowledgeAlert},
 };
 
-} // namespace
+}
 
 const Command *findByUsbCode(uint8_t code) {
     if (code == kNoUsbCode)
@@ -114,4 +114,4 @@ const Command *findByBleName(const char *name) {
     return nullptr;
 }
 
-} // namespace DeviceCommands
+}

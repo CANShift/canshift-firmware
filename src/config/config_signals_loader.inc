@@ -268,7 +268,7 @@ void fillSignalHeader(JsonDocument &doc, CfgSignalConfig &into) {
     parseMapSwitchOut(doc["out"], into.out);
 }
 
-} // namespace
+}
 
 SignalsSource::Verdict parseSignalsDocument(JsonDocument &doc, CfgSignalConfig *into) {
     JsonArrayConst list = doc["signals"].as<JsonArrayConst>();
@@ -284,4 +284,4 @@ SignalsSource::Verdict parseSignalsDocument(JsonDocument &doc, CfgSignalConfig *
     return verdictOf(tally);
 }
 
-} // namespace ConfigLoaderInternal
+}

@@ -203,4 +203,4 @@ bool isPinConflict(int8_t pin) {
     return pin == dev.twaiTxPin || pin == dev.twaiRxPin;
 }
 
-} // namespace ConfigLoaderInternal
+}

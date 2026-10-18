@@ -16,4 +16,4 @@ int pollKey();
 
 void writeScreenshot(const char *path);
 
-} // namespace SimDisplay
+}

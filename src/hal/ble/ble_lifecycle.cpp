@@ -39,7 +39,7 @@ void teardownStack() {
     s_gattInited = false;
 }
 
-} // namespace
+}
 
 void BleServer::stop() {
     if (!s_enabled)

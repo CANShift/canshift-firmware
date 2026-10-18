@@ -9,4 +9,4 @@ const char *findNeedle(const char *haystack, size_t haystackLen, const char *nee
 
 const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLen);
 
-} // namespace UsbEnvelope
+}

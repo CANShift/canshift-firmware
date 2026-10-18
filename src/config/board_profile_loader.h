@@ -29,4 +29,4 @@ bool applyBoardProfileBlob(const char *json, size_t len);
 bool applyCatalogBoard(const char *boardId);
 void resetRuntimeBoardProfile();
 
-} // namespace canshift::boards
+}

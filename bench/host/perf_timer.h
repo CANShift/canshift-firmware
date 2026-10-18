@@ -18,4 +18,4 @@ struct Stats {
 
 void keep(uint64_t value);
 
-} // namespace PerfTimer
+}

@@ -52,7 +52,7 @@ lv_obj_t *makeScreen() {
     return screen;
 }
 
-} // namespace
+}
 
 Frame build(const Severity::Spec &spec, const FootSpec &foot) {
     Frame frame{};
@@ -109,4 +109,4 @@ void present(const Frame &frame) {
     lv_scr_load(frame.screen);
 }
 
-} // namespace SystemScreen
+}

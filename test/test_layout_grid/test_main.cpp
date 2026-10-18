@@ -96,7 +96,7 @@ void test_layoutScale_wrapper_identity_at_design() {
     TEST_ASSERT_EQUAL_INT16(36, LayoutScale::square(36));
 }
 
-} // namespace
+}
 
 int main(int, char **) {
     UNITY_BEGIN();

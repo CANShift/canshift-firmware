@@ -170,12 +170,12 @@ void drainCanScanQueue() {
     }
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 char *s_rxBuf = nullptr;
 volatile uint32_t s_lastHostCmdMs = 0;
-} // namespace UsbCommInternal
+}
 
 void UsbComm::reserveRxBuf() {
     if (UsbCommInternal::s_rxBuf) {
@@ -184,7 +184,6 @@ void UsbComm::reserveRxBuf() {
 
     UsbCommInternal::s_rxBuf = static_cast<char *>(Mem::allocPreferSpiram(kUsbRxBufSize));
     if (!UsbCommInternal::s_rxBuf) {
-
         LOG_ERROR("USB", "rxBuf reserve (%u B) failed — USB receive disabled", kUsbRxBufSize);
     }
 }
@@ -215,7 +214,7 @@ bool sendTagged(const char *line, size_t len, UsbSeqEcho::Seq seq) {
     return true;
 }
 
-} // namespace
+}
 
 void UsbComm::sendLine(const char *line) {
     if (!line)
@@ -260,7 +259,6 @@ void UsbComm::setBurnOverlayShowErrorCallback(BurnOverlayShowErrorCb cb) {
 }
 
 void UsbCommInternal::invokeBurnOverlayShow() {
-
     const UsbComm::BurnOverlayShowCb cb = s_burnOverlayShowCb;
     if (cb)
         cb();
@@ -296,7 +294,6 @@ bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
 }
 
 void UsbComm::tick() {
-
     if (!UsbCommInternal::s_rxBuf) {
         return;
     }
@@ -338,7 +335,6 @@ void UsbComm::tick() {
         } else if (s_rxPos < kUsbRxBufSize - 1) {
             UsbCommInternal::s_rxBuf[s_rxPos++] = c;
         } else {
-
             LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
                      static_cast<unsigned>(kUsbRxBufSize - 1));
             UsbComm::sendError("line_too_long");

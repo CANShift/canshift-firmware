@@ -57,7 +57,7 @@ bool flagIsAsserted(SignalId flag, const SignalStore::SignalValue *snap) {
     return snap[flag].valid && snap[flag].raw >= kFlagOnLevel;
 }
 
-} // namespace
+}
 
 const CutSources::Source CutSources::kSources[CutSources::kSourceCount] = {
     {SignalIds::kFlagBoostCut,

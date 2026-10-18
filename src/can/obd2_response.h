@@ -44,4 +44,4 @@ struct Header {
 
 [[nodiscard]] bool isServiceResponse(const uint8_t *data, uint8_t length, uint8_t expectedService);
 
-} // namespace Obd2Response
+}

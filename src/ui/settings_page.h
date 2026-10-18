@@ -30,4 +30,4 @@ uint8_t getBrightness();
 
 void applyFromUsb(uint8_t brightness);
 
-} // namespace SettingsPage
+}

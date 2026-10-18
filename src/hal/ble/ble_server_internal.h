@@ -43,6 +43,6 @@ void dropCurrentPeer(const char *reason);
 
 void dropOverduePeer();
 
-} // namespace BleServerInternal
+}
 
 #endif

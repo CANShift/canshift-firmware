@@ -20,4 +20,4 @@ void onSessionClosed(httpd_handle_t server, int sockfd);
 
 void drainSocket();
 
-} // namespace WorkshopServerInternal
+}

@@ -201,7 +201,7 @@ void hideRow(BandRow &row) {
     WidgetHelpers::setVisibleIfChanged(row.root, false);
 }
 
-} // namespace
+}
 
 void CutBand::init() {
     cut_band_reset_rs(&s_state);

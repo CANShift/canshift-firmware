@@ -63,7 +63,7 @@ DashboardOutcome stageWithFallback(StagedDashboard &out) {
                                                            : DashboardOutcome::Refused;
 }
 
-} // namespace
+}
 
 bool loadDashboard() {
     StagedDashboard staged;
@@ -78,7 +78,7 @@ bool loadDashboard() {
     return true;
 }
 
-} // namespace ConfigLoaderInternal
+}
 
 ConfigLoader::DashboardOutcome ConfigLoader::lastDashboardOutcome() {
     return ConfigLoaderInternal::s_dashboardOutcome;

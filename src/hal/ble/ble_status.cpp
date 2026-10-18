@@ -18,7 +18,6 @@
 namespace BleServerInternal {
 
 void updateStatus() {
-
     auto *pStatus = BleServerInternal::s_pStatus;
     if (!pStatus)
         return;
@@ -43,7 +42,7 @@ void updateStatus() {
     pStatus->setValue(buf);
 }
 
-} // namespace BleServerInternal
+}
 
 void BleServer::pushStatusNotify() {
     BleServerInternal::updateStatus();

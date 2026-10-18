@@ -62,7 +62,7 @@ const CfgPageButtons &load(const char *dashboard) {
     return ConfigLoader::getDashboardConfig().pageButtons;
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

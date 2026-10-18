@@ -16,4 +16,4 @@ const BoardProfile *catalogBoard(const char *boardId, ChipFamily chipFamily) {
     return nullptr;
 }
 
-} // namespace canshift::boards
+}

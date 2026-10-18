@@ -26,7 +26,7 @@ struct PsramAllocator : ArduinoJson::Allocator {
         return p ? p : realloc(ptr, newSize);
     }
 };
-} // namespace
+}
 
 ArduinoJson::Allocator *configAllocator() {
     static PsramAllocator allocator;
@@ -45,7 +45,7 @@ struct HeapAllocator : ArduinoJson::Allocator {
         return realloc(ptr, newSize);
     }
 };
-} // namespace
+}
 
 ArduinoJson::Allocator *configAllocator() {
     static HeapAllocator allocator;
@@ -57,4 +57,4 @@ DeserializationError parse(JsonDocument &doc, const char *data, size_t len) {
     return deserializeJson(doc, data, len);
 }
 
-} // namespace JsonReader
+}

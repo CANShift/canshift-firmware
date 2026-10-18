@@ -29,4 +29,4 @@ class Scope {
 
 [[nodiscard]] Seq active();
 
-} // namespace UsbSeqEcho
+}

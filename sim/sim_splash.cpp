@@ -54,7 +54,7 @@ void feed(const Case &c) {
     SignalStore::update(SignalIds::kBatteryVolts, 13.8f);
 }
 
-} // namespace
+}
 
 bool select(const char *scenario, uint32_t nowMs) {
     if (!scenario)
@@ -88,4 +88,4 @@ void tick(uint32_t nowMs) {
     ControlSplash::raiseFor(*s_control, s_case->state, s_case->level);
 }
 
-} // namespace SimSplash
+}

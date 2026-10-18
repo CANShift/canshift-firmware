@@ -59,4 +59,4 @@ bool isServiceResponse(const uint8_t *data, uint8_t length, uint8_t expectedServ
     return data[1] == expectedService;
 }
 
-} // namespace Obd2Response
+}

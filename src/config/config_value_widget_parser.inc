@@ -67,6 +67,6 @@ void parseGearWidget(JsonObjectConst cfg, CfgLabelParams *out) {
     parseKicker(cfg, out->kicker, sizeof(out->kicker));
 }
 
-} // namespace
+}
 
-} // namespace ConfigLoaderInternal
+}

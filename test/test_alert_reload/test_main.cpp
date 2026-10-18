@@ -64,7 +64,7 @@ AlertEngine::AlertLevel coolantLevelAt(float tempC) {
 std::string s_dashboard;
 std::string s_signals;
 
-} // namespace
+}
 
 void setUp() {
     mockSetMillis(0);

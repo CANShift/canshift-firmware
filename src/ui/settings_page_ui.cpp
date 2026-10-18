@@ -59,7 +59,7 @@ lv_obj_t *makeSegButton(lv_obj_t *parent, const char *label, bool active, lv_eve
     return btn;
 }
 
-} // namespace
+}
 
 lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, uint32_t bdrColor,
                          uint32_t textColor, lv_event_cb_t cb) {
@@ -82,7 +82,6 @@ lv_obj_t *makeFullButton(lv_obj_t *parent, const char *label, uint32_t bgColor, 
 }
 
 void computePanelGeometry(int16_t yOffset, int16_t height) {
-
     s_openY = yOffset;
     s_panelHeight = height;
     s_closedY = static_cast<int16_t>(yOffset - height);
@@ -255,4 +254,4 @@ void runSnap(int16_t targetY, lv_anim_ready_cb_t doneCb) {
     lv_anim_start(&a);
 }
 
-} // namespace SettingsPageInternal
+}

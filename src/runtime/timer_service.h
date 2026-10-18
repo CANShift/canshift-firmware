@@ -44,4 +44,4 @@ uint32_t getElapsedMs();
 uint8_t pendingLapCount();
 [[nodiscard]] bool popPendingLap(Lap &out);
 
-} // namespace TimerService
+}

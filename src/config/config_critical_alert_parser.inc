@@ -52,7 +52,7 @@ void parseCriticalAlertList(JsonArrayConst list, CfgDashboard *out) {
     }
 }
 
-} // namespace
+}
 
 void parseCriticalAlerts(const JsonDocument &doc, CfgDashboard *out) {
     out->criticalAlertCount = 0;
@@ -69,4 +69,4 @@ void parseCriticalAlerts(const JsonDocument &doc, CfgDashboard *out) {
     parseCriticalAlert(legacy, 0, &out->criticalAlerts[0]);
 }
 
-} // namespace ConfigLoaderInternal
+}

@@ -36,7 +36,7 @@ inline int32_t &recursiveMutexDepth() {
     static int32_t depth = 0;
     return depth;
 }
-} // namespace canshift_test
+}
 
 inline SemaphoreHandle_t xSemaphoreCreateRecursiveMutex() {
     static int recursiveSentinel = 1;

@@ -23,4 +23,4 @@ size_t formatGeneral(char *buf, size_t size, float value, int sigDigits) {
     return format_general_rs(buf, size, value, sigDigits);
 }
 
-} // namespace FloatFormat
+}

@@ -200,7 +200,7 @@ void test_aTransferWithoutATunerDoesNotBlockAdoption() {
                             workshop_socket_admission_rs(false, false, true, kSeenMs, kSeenMs));
 }
 
-} // namespace
+}
 
 void setUp() {}
 

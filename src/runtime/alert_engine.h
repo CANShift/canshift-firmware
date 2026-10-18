@@ -49,4 +49,4 @@ CriticalLimit criticalLimitFor(SignalId id, float reading);
 
 bool isRevLimiterRowLit();
 
-} // namespace AlertEngine
+}

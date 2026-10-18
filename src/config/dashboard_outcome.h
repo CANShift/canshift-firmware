@@ -14,4 +14,4 @@ enum class DashboardOutcome : uint8_t {
 
 inline constexpr uint8_t kDashboardOutcomeCount = 5;
 
-} // namespace ConfigLoader
+}

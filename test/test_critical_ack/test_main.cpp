@@ -24,7 +24,7 @@ void acknowledge(int8_t source) {
     s_acknowledged = alert_critical_acknowledge_rs(s_acknowledged, source);
 }
 
-} // namespace
+}
 
 void setUp() {
     s_acknowledged = 0;

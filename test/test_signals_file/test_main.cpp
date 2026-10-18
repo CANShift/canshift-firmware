@@ -86,7 +86,7 @@ StorageDriver::ChunkCommit upload(const char *json) {
     return StorageDriver::endChunkedWriteChecked(ConfigLoader::acceptSignalsUpload);
 }
 
-} // namespace
+}
 
 void setUp() {
     StorageDriver::fakeReset();

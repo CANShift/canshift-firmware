@@ -25,7 +25,7 @@ std::atomic<bool> s_canScanMode{false};
 
 uint32_t s_scanDrops = 0;
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -91,4 +91,4 @@ void handleCanScanStop() {
     UsbComm::sendLine(stopResp);
 }
 
-} // namespace UsbCommInternal
+}

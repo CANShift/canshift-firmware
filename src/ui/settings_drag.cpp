@@ -106,7 +106,7 @@ void followFinger(int16_t deltaY) {
     s_dragCrossedThreshold = startedClosed ? (targetY >= midpointY) : (targetY <= midpointY);
 }
 
-} // namespace
+}
 
 void update(lv_indev_t *indev, lv_indev_state_t state) {
     if (state == LV_INDEV_STATE_RELEASED) {
@@ -132,4 +132,4 @@ bool inHotzone(int16_t y) {
     return y <= LV_MIN(kDragHotzoneMaxPx, TopBar::getHeight());
 }
 
-} // namespace SettingsDrag
+}

@@ -41,7 +41,7 @@ void writeChange(FILE *out, uint32_t atMs, const Seen &seen, const SignalStore::
     fprintf(out, "%8u   %s=%.6g\n", atMs, seen.name, static_cast<double>(now.raw));
 }
 
-} // namespace
+}
 
 namespace SignalTimeline {
 
@@ -71,4 +71,4 @@ void writeChanges(FILE *out, uint32_t atMs) {
     }
 }
 
-} // namespace SignalTimeline
+}

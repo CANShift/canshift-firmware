@@ -21,7 +21,7 @@ void revealPanel() {
     refreshWorkshopRow();
 }
 
-} // namespace
+}
 
 void SettingsPage::init(int16_t yOffset, int16_t height) {
     LVGL_ASSERT_LOCKED();

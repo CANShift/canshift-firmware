@@ -47,7 +47,7 @@ bool applyStoredBlob() {
     return false;
 }
 
-} // namespace
+}
 
 namespace BoardProfileStore {
 
@@ -93,4 +93,4 @@ bool saveBoardId(const char *boardId) {
     return true;
 }
 
-} // namespace BoardProfileStore
+}

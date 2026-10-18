@@ -11,7 +11,7 @@ int16_t magnitude(int16_t value) {
     return value < 0 ? static_cast<int16_t>(-value) : value;
 }
 
-} // namespace
+}
 
 namespace GestureIntent {
 
@@ -52,4 +52,4 @@ TapTurn tapTurn(int16_t releaseX, int16_t screenWidth, int16_t travel) {
     return TapTurn::None;
 }
 
-} // namespace GestureIntent
+}

@@ -11,4 +11,4 @@ constexpr size_t kStringBytes = 512U;
 constexpr size_t kStatusArenaBytes = kPoolBytes + kStringBytes;
 constexpr size_t kCallbackArenaBytes = 2 * kPoolBytes;
 
-} // namespace BleJsonBudget
+}

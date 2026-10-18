@@ -244,7 +244,7 @@ void initLabelTag(LabelTag *tag, const CfgWidget &cfg, const LabelParts &parts) 
     tag->signal = signalIdFromName(cfg.signalId);
 }
 
-} // namespace
+}
 
 lv_obj_t *LabelWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);

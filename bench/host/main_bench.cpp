@@ -26,7 +26,7 @@ int usage() {
     return 2;
 }
 
-} // namespace
+}
 
 int main(int argc, char **argv) {
     if (argc < 2)

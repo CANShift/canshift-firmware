@@ -314,7 +314,7 @@ AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
         s_batteryHighCritV, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
-} // namespace
+}
 
 void AlertEngine::init() {
     s_state = {};

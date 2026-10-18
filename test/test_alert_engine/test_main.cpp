@@ -123,7 +123,7 @@ void test_initClampsTheListToTheCap() {
     TEST_ASSERT_FALSE(CriticalAlertSource::armed(kConfigMaxCriticalAlerts).armed);
 }
 
-} // namespace
+}
 
 void setUp() {
     mockSetMillis(0);

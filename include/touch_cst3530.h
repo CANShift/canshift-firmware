@@ -256,4 +256,4 @@ class Touch_CST3530 : public lgfx::ITouch {
     }
 };
 
-} // namespace canshift::touch
+}

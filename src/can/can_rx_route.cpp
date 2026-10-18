@@ -12,7 +12,7 @@ bool consumedByObd2(uint32_t frameId, const uint8_t *data, uint8_t length) {
     return Obd2Poller::onRxFrame(frameId, data, length);
 }
 
-} // namespace
+}
 
 void CanRxRoute::deliver(uint32_t frameId, const uint8_t *data, uint8_t length) {
     if (!consumedByObd2(frameId, data, length))

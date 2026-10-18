@@ -6,4 +6,4 @@
 namespace MonogramBaked {
 const lv_img_dsc_t *mark();
 const lv_img_dsc_t *header();
-} // namespace MonogramBaked
+}

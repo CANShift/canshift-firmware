@@ -16,4 +16,4 @@ TaskHandle_t spawnDynamic(const char *name, TaskFunction_t fn, uint32_t stackWor
 void logStackHighWater();
 #endif
 
-} // namespace TaskSpawn
+}

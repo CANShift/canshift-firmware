@@ -43,7 +43,7 @@ struct ParamUnit {
 constexpr ParamUnit kParamUnits[] = {{ControlParam::RPM, " rpm"},
                                      {ControlParam::SPEED_KPH, " km/h"}};
 
-} // namespace
+}
 
 const Copy &forControl(ControlId id) {
     const size_t idx = static_cast<size_t>(id);
@@ -66,4 +66,4 @@ const char *unitFor(ControlParam param) {
     return "";
 }
 
-} // namespace ControlSplashCopy
+}

@@ -264,6 +264,6 @@ DashboardOutcome buildDashboard(const JsonDocument &doc, CfgDashboard *out) {
     return resolvePageLayouts(out) ? DashboardOutcome::Loaded : DashboardOutcome::Refused;
 }
 
-} // namespace
+}
 
-} // namespace ConfigLoaderInternal
+}

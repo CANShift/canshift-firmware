@@ -14,4 +14,4 @@ void update(const SignalStore::SignalValue *snap);
 
 [[nodiscard]] Severity::Level levelFor(SignalId signal);
 
-} // namespace CutBand
+}

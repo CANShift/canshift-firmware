@@ -52,7 +52,7 @@ lv_obj_t *createLine() {
     return line;
 }
 
-} // namespace
+}
 
 void BusSilentLine::init() {
     s_line = createLine();

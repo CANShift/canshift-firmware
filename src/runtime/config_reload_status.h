@@ -44,4 +44,4 @@ inline void settle(ConfigLoader::DashboardOutcome outcome) {
     return kWireNames[static_cast<uint8_t>(s_state.load(std::memory_order_acquire))];
 }
 
-} // namespace ConfigReloadStatus
+}

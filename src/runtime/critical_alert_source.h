@@ -26,4 +26,4 @@ void init(const CfgCriticalAlert *alerts, size_t count);
 
 [[nodiscard]] Armed armed(size_t index);
 
-} // namespace CriticalAlertSource
+}

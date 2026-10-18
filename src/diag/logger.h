@@ -21,7 +21,7 @@ using LineMirror = void (*)(const char *line, size_t len);
 
 void setMirror(LineMirror mirror);
 #endif
-} // namespace Logger
+}
 
 #define LOG_LEVEL_ERROR 1
 #define LOG_LEVEL_WARN 2

@@ -13,7 +13,7 @@ bool slicesEqual(const char *got, size_t gotLen, const char *expected) {
     return memcmp(got, expected, gotLen) == 0;
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

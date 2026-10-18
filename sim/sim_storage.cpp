@@ -22,7 +22,7 @@ std::string resolve(const char *path) {
     return p;
 }
 
-} // namespace
+}
 
 void simStorageSetRoot(const char *rootDir) {
     s_root = rootDir;
@@ -159,7 +159,7 @@ void sweepOrphanTmp(const char *path) {
     remove((resolve(path) + ".tmp").c_str());
 }
 
-} // namespace StorageDriver
+}
 
 namespace {
 
@@ -196,7 +196,7 @@ lv_fs_res_t simFsTell(lv_fs_drv_t *, void *file, uint32_t *pos) {
     return LV_FS_RES_OK;
 }
 
-} // namespace
+}
 
 void simRegisterLvglFs(const char *) {
     static lv_fs_drv_t drv;

@@ -17,7 +17,7 @@ void clearFields(TelemetryFrame::Field *fields, size_t count) {
     }
 }
 
-} // namespace
+}
 
 void test_encode_emptyFrame_headerOnly() {
     TelemetryFrame::Field fields[14];

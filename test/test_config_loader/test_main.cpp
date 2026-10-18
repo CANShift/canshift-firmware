@@ -50,7 +50,7 @@ bool outcomeIs(ConfigLoader::DashboardOutcome expected, ConfigLoader::DashboardO
     return static_cast<uint8_t>(expected) == static_cast<uint8_t>(actual);
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

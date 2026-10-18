@@ -20,4 +20,4 @@ uint32_t responsesMissed();
 
 uint8_t activeSlotCount();
 
-} // namespace Obd2Poller
+}

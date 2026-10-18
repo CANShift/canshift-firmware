@@ -61,4 +61,4 @@ constexpr size_t kMaxSourceCount = kSourceCount + kConfigMaxCriticalAlerts;
 
 [[nodiscard]] AlertEngine::CriticalLimit limitAt(size_t index, float reading);
 
-} // namespace AlertSources
+}

@@ -18,4 +18,4 @@ inline void tick() {}
 
 #endif
 
-} // namespace WorkshopServer
+}

@@ -8,7 +8,7 @@ namespace {
 constexpr size_t kLineCap = 96;
 constexpr uint32_t kMaxId = 0xFFFFFFFFu;
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

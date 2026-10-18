@@ -23,7 +23,7 @@ constexpr uint32_t kFrameMs = 100;
 constexpr uint32_t kSettleMs = 3000;
 constexpr float kSettledEpsilon = 0.01f;
 
-} // namespace
+}
 
 void setUp() {
     mockSetMillis(0);

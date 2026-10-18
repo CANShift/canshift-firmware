@@ -52,4 +52,4 @@ void applyAndReboot(uint16_t offsetDeg) {
     esp_restart();
 }
 
-} // namespace RotationConfig
+}

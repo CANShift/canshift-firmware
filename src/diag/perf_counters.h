@@ -53,7 +53,7 @@ class ScopedTimer {
     int64_t m_startUs;
 };
 
-} // namespace PerfCounters
+}
 
     #define PERF_PASTE2(a, b) a##b
     #define PERF_PASTE(a, b) PERF_PASTE2(a, b)

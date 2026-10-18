@@ -11,7 +11,7 @@ lgfx::Touch_XPT2046 s_touchXpt2046;
 lgfx::Touch_GT911 s_touchGt911;
 lgfx::Touch_CST816S s_touchCst816s;
 
-} // namespace
+}
 
 volatile uintptr_t g_spikeDriverSink;
 

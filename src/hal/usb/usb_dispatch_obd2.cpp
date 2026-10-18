@@ -26,7 +26,7 @@ const char *failureReason(Obd2Dtc::Result result) {
     return "obd_failed";
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -86,4 +86,4 @@ void tickObdDtc() {
     sendReadResponse(outcome);
 }
 
-} // namespace UsbCommInternal
+}

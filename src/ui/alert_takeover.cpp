@@ -124,7 +124,7 @@ void refreshContext(size_t index) {
     AlertTakeoverView::setContext(text);
 }
 
-} // namespace
+}
 
 void AlertTakeover::init() {
     AlertTakeoverView::build(ackClickCb);

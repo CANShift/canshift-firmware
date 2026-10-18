@@ -14,4 +14,4 @@ struct Stats {
 
 void report(const char *phase);
 
-} // namespace LvglPool
+}

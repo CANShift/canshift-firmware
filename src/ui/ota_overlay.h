@@ -30,4 +30,4 @@ namespace Detail {
 void tick();
 }
 
-} // namespace OtaOverlay
+}

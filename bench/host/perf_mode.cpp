@@ -48,7 +48,7 @@ bool measureAll(FILE *out, uint32_t samples, const char *filter) {
     return true;
 }
 
-} // namespace
+}
 
 namespace PerfMode {
 
@@ -71,4 +71,4 @@ int run(int argc, char **argv) {
     return ok ? 0 : 1;
 }
 
-} // namespace PerfMode
+}

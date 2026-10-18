@@ -50,7 +50,7 @@ bool beginExchange(Obd2Dtc::detail::Pending kind, uint8_t mode, uint32_t timeout
     return true;
 }
 
-} // namespace
+}
 
 namespace Obd2Dtc {
 
@@ -64,7 +64,7 @@ bool isPositiveResponse(Pending pending, const uint8_t *data, uint8_t length) {
     return false;
 }
 
-} // namespace detail
+}
 
 bool beginRead(uint32_t timeoutMs) {
     return beginExchange(detail::Pending::Read, kModeReadDtc, timeoutMs);
@@ -124,4 +124,4 @@ bool onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {
     return true;
 }
 
-} // namespace Obd2Dtc
+}

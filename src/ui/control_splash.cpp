@@ -160,7 +160,7 @@ bool ensureBuilt() {
     return true;
 }
 
-} // namespace
+}
 
 void ControlSplash::raiseFor(const ControlVocabulary::Control &control,
                              ControlVocabulary::ControlState state, uint8_t level) {

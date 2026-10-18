@@ -12,4 +12,4 @@ void preload(const char *lvglPath);
 
 void preloadDashboardAssets();
 
-} // namespace IconAssets
+}

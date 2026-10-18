@@ -33,4 +33,4 @@ bool wantsHidden(int8_t nextFlagIdx, int8_t dynCount, bool linkedFlagHidden, boo
     return linkedFlagHidden || nextHidden;
 }
 
-} // namespace TopBarSeparatorLink
+}

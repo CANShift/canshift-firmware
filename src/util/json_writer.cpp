@@ -34,7 +34,7 @@ class BufferPrint : public Print {
     char *end_;
 };
 
-} // namespace
+}
 
 size_t JsonWriter::toPrint(JsonVariantConst value, Print &out) {
     return serializeJson(value, out);

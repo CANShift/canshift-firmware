@@ -17,7 +17,7 @@ CfgDeviceConfig s_device = {};
 CfgInputBindings s_inputs = {};
 CfgRejection s_rejection = {};
 
-} // namespace ConfigLoaderInternal
+}
 
 ConfigLoader::LoadResult ConfigLoader::loadAll() {
     LoadResult r{};

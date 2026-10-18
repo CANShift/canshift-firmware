@@ -18,4 +18,4 @@ inline JsonVariantConst inputBindings(const JsonDocument &doc) {
     return doc[kInputBindingsKey];
 }
 
-} // namespace TypedConfigBody
+}

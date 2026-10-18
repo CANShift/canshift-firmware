@@ -56,7 +56,7 @@ bool s_stackInited = false;
 bool s_gattInited = false;
 bool s_enabled = false;
 bool s_released = false;
-} // namespace BleServerInternal
+}
 
 using BleServerInternal::s_enabled;
 using BleServerInternal::s_gattInited;
@@ -370,7 +370,6 @@ bool setupGatt() {
 
 bool startStack() {
     if (s_gattInited) {
-
         NimBLEDevice::getAdvertising()->start();
         s_enabled = true;
         LOG_INFO("BLE", "BLE advertising restarted — %s",
@@ -379,7 +378,6 @@ bool startStack() {
     }
 
     if (!s_stackInited) {
-
         const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
         if (avail < kBleMinHeap) {
             LOG_WARN("BLE", "Insufficient contiguous DRAM for BLE stack (%u B < %u B) — skipped",
@@ -411,7 +409,7 @@ void reportStartFailure() {
     BleServer::requestStop();
 }
 
-} // namespace
+}
 
 void BleServer::earlyInit() {
     const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);

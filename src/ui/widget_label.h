@@ -28,4 +28,4 @@ _lv_obj_t *applySignalHeader(_lv_obj_t *cont, const char *signalId,
 _lv_obj_t *applyWidgetHeader(_lv_obj_t *cont, const char *kicker, const char *signalId,
                              HeaderPos pos = HeaderPos::TOP_LEFT);
 
-} // namespace WidgetLabelOverlay
+}

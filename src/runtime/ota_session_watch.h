@@ -28,4 +28,4 @@ struct Session {
     return Verdict::Keep;
 }
 
-} // namespace OtaSessionWatch
+}

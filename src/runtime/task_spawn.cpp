@@ -45,7 +45,7 @@ TaskHandle_t trackSpawned(const char *name, TaskHandle_t handle) {
     return handle;
 }
 
-} // namespace
+}
 
 namespace TaskSpawn {
 
@@ -83,4 +83,4 @@ void logStackHighWater() {
 }
 #endif
 
-} // namespace TaskSpawn
+}

@@ -24,4 +24,4 @@ struct Command {
 const Command *findByUsbCode(uint8_t code);
 const Command *findByBleName(const char *name);
 
-} // namespace DeviceCommands
+}

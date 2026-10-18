@@ -44,7 +44,7 @@ void test_foreignSignatureFailsAgainstTheReleaseKey() {
     TEST_ASSERT_FALSE(ota_signature_finish_rs(&slot));
 }
 
-} // namespace
+}
 
 void setUp() {}
 

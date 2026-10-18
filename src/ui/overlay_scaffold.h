@@ -19,4 +19,4 @@ void startBreath(lv_obj_t *obj);
 
 void stopBreath(lv_obj_t *obj);
 
-} // namespace OverlayScaffold
+}

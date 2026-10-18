@@ -133,7 +133,7 @@ void onTimerTouch(lv_event_t *e) {
     }
 }
 
-} // namespace
+}
 
 lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
@@ -264,7 +264,7 @@ void updateStopwatch(TimerTag *tag, const TimerService::Snapshot &snap) {
     strlcpy(tag->lastText, buf, sizeof(tag->lastText));
 }
 
-} // namespace
+}
 
 void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
     if (!obj)

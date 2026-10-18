@@ -42,7 +42,7 @@ void reportUnbuiltDrivers(const LGFX::ConfigureResult &result) {
     }
 }
 
-} // namespace
+}
 
 static lv_disp_draw_buf_t s_drawBuf;
 static lv_disp_drv_t s_dispDrv;
@@ -146,7 +146,7 @@ bool initPanel() {
     return false;
 }
 
-} // namespace
+}
 
 bool DisplayDriver::init() {
     LOG_INFO("DISP", "Initializing LovyanGFX...");

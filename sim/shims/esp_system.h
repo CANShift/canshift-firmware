@@ -14,7 +14,7 @@ inline Hook &hook() {
     return installed;
 }
 
-} // namespace SimRestart
+}
 
 inline void esp_restart() {
     if (SimRestart::hook() == nullptr)

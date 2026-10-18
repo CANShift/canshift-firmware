@@ -96,4 +96,4 @@ void onSnapOpenDone(lv_anim_t *a);
 void onSnapClosedDone(lv_anim_t *a);
 void animSetY(void *obj, int32_t v);
 
-} // namespace SettingsPageInternal
+}

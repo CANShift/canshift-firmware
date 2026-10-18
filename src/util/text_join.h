@@ -15,4 +15,4 @@ inline bool append(char *buf, size_t len, size_t &used, const char *part) {
     return true;
 }
 
-} // namespace TextJoin
+}

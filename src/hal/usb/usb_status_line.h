@@ -14,4 +14,4 @@ struct Fields {
 
 [[nodiscard]] size_t format(const Fields &fields, char *out, size_t cap);
 
-} // namespace UsbStatusLine
+}

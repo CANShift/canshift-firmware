@@ -77,7 +77,7 @@ void socketSink(const char *line, size_t len) {
 
 #endif
 
-} // namespace
+}
 
 #if APP_WORKSHOP_ENABLED
 

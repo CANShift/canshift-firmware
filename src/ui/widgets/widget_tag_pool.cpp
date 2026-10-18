@@ -40,7 +40,7 @@ bool anySlotBusy() {
     return false;
 }
 
-} // namespace
+}
 
 namespace WidgetTagPool {
 
@@ -88,4 +88,4 @@ void releaseRaw(void *p) {
     }
 }
 
-} // namespace WidgetTagPool
+}

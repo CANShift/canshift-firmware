@@ -73,7 +73,7 @@ void persistTypedConfigAndReboot(const char *path, const char *wrapKey, JsonVari
     UsbCommInternal::rebootIntoSavedConfig();
 }
 
-} // namespace
+}
 
 void UsbCommInternal::rebootIntoSavedConfig() {
     if (commandFromSocket())
@@ -141,4 +141,4 @@ void handlePutInputBindings(const JsonObjectConst &obj) {
     persistTypedConfigAndReboot(kConfigPathInputs, TypedConfigBody::kInputBindingsKey, sub);
 }
 
-} // namespace UsbCommInternal
+}

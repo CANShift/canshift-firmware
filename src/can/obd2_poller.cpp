@@ -59,7 +59,7 @@ bool buildRequestFrame(uint8_t mode, uint8_t pid, uint8_t out[kRequestDlc]) {
     return true;
 }
 
-} // namespace
+}
 
 void Obd2Poller::init() {
     s_slotCount = 0;
@@ -129,14 +129,12 @@ void Obd2Poller::tick(uint32_t nowMs) {
 
         const uint32_t prevPollMs = slot.nextPollMs - slot.intervalMs;
         if (slot.lastResponseMs == 0 || !timeReached(slot.lastResponseMs, prevPollMs)) {
-
             if (s_pollsSent > 0)
                 ++s_responsesMissed;
         }
 
         uint8_t payload[kRequestDlc];
         if (!buildRequestFrame(slot.mode, slot.pid, payload)) {
-
             slot.nextPollMs = nowMs + slot.intervalMs;
             continue;
         }
@@ -146,7 +144,6 @@ void Obd2Poller::tick(uint32_t nowMs) {
             ++s_pollsSent;
             LOG_DEBUG("OBD2", "Poll sent mode=0x%02X pid=0x%02X", slot.mode, slot.pid);
         } else {
-
             LOG_DEBUG("OBD2", "Poll send failed (pid=0x%02X) — retry next tick", slot.pid);
         }
         slot.nextPollMs = nowMs + slot.intervalMs;

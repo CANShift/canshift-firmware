@@ -20,4 +20,4 @@ void setRecording(bool recording);
 
 void dispatch(Transport transport, const char *line);
 
-} // namespace ReplyCapture
+}

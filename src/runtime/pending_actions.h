@@ -136,4 +136,4 @@ inline bool takeNavPage(char *out, size_t outLen) {
     return true;
 }
 
-} // namespace PendingActions
+}

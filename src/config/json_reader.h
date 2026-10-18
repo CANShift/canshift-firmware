@@ -9,4 +9,4 @@ ArduinoJson::Allocator *configAllocator();
 
 DeserializationError parse(JsonDocument &doc, const char *data, size_t len);
 
-} // namespace JsonReader
+}

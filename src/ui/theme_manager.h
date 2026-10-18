@@ -37,4 +37,4 @@ void setDayMode(bool day);
 
 [[nodiscard]] uint32_t getStaleTextColor();
 
-} // namespace ThemeManager
+}

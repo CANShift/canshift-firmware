@@ -23,4 +23,4 @@ ScaleFactors getScaleFactors();
 int16_t scaleXVal(int16_t value);
 int16_t scaleYVal(int16_t value);
 
-} // namespace ScreenProfile
+}

@@ -13,4 +13,4 @@ struct ProvisionResult {
 
 ProvisionResult provisionMissingFiles();
 
-} // namespace DefaultConfig
+}

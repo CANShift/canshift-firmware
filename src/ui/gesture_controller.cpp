@@ -157,7 +157,7 @@ void trackPress(lv_indev_t *indev, lv_indev_state_t state) {
     cancelClickIfSwiping(indev);
 }
 
-} // namespace
+}
 
 void setSwipeHandler(SwipeHandler handler) {
     s_swipeHandler = handler;
@@ -199,4 +199,4 @@ void checkGestures() {
     }
 }
 
-} // namespace GestureController
+}

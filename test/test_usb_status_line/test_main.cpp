@@ -9,7 +9,7 @@ namespace {
 constexpr size_t kLineCap = 160;
 constexpr unsigned kProtocol = 3;
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

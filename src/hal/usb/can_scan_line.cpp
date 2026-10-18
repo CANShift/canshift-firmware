@@ -23,7 +23,7 @@ bool appendBytes(char *&p, const char *end, uint8_t len, const uint8_t *data) {
     return true;
 }
 
-} // namespace
+}
 
 size_t CanScanLine::format(uint32_t id, uint8_t len, const uint8_t *data, char *out, size_t cap) {
     if (out == nullptr || cap == 0)

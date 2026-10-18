@@ -12,4 +12,4 @@ void writeFrame(FILE *out, uint32_t atMs, const char *direction, uint32_t id, co
 
 void writeChanges(FILE *out, uint32_t atMs);
 
-} // namespace SignalTimeline
+}

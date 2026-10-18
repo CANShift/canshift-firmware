@@ -8,4 +8,4 @@ void update();
 
 [[nodiscard]] bool isPanelOff();
 
-} // namespace DisplayIdle
+}
