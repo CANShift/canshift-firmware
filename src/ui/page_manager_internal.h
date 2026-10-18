@@ -22,6 +22,8 @@ extern uint8_t s_pageCount;
 extern uint8_t s_currentIdx;
 extern bool s_rebuildRequested;
 
+constexpr uint8_t kNoPage = 0xFF;
+
 extern uint8_t s_pendingFreeIdx;
 
 extern uint8_t s_pendingLazyBuildIdx;

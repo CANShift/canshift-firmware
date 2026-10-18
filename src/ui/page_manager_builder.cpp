@@ -143,8 +143,8 @@ void releaseAllPages() {
         releasePage(s_pages[i]);
     }
     s_pageCount = 0;
-    s_pendingFreeIdx = 0xFF;
-    s_pendingLazyBuildIdx = 0xFF;
+    s_pendingFreeIdx = kNoPage;
+    s_pendingLazyBuildIdx = kNoPage;
     s_keepAllPages = false;
 }
 
@@ -207,8 +207,8 @@ void reapplyThemeAllPages() {
     for (uint8_t i = 0; i < s_pageCount; ++i) {
         releasePage(s_pages[i]);
     }
-    s_pendingFreeIdx = 0xFF;
-    s_pendingLazyBuildIdx = 0xFF;
+    s_pendingFreeIdx = kNoPage;
+    s_pendingLazyBuildIdx = kNoPage;
 
     rebuildPagesForTheme(target);
     if (!s_pages[target].screen) {

@@ -38,8 +38,8 @@ uint8_t s_pageCount = 0;
 uint8_t s_currentIdx = 0;
 bool s_rebuildRequested = false;
 
-uint8_t s_pendingFreeIdx = 0xFF;
-uint8_t s_pendingLazyBuildIdx = 0xFF;
+uint8_t s_pendingFreeIdx = kNoPage;
+uint8_t s_pendingLazyBuildIdx = kNoPage;
 
 void showConfigFailure() {
     const CfgRejection &rejection = ConfigLoader::getRejection();
