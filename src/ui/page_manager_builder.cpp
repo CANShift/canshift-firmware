@@ -177,6 +177,14 @@ void listVisiblePages() {
     }
 }
 
+void releasePagesKeepingList() {
+    for (uint8_t i = 0; i < s_pageCount; ++i) {
+        releasePage(s_pages[i]);
+    }
+    s_pendingFreeIdx = kNoPage;
+    s_pendingLazyBuildIdx = kNoPage;
+}
+
 }
 
 void buildPageList() {
@@ -204,11 +212,7 @@ void reapplyThemeAllPages() {
     const uint8_t target =
         s_pendingLazyBuildIdx < s_pageCount ? s_pendingLazyBuildIdx : s_currentIdx;
 
-    for (uint8_t i = 0; i < s_pageCount; ++i) {
-        releasePage(s_pages[i]);
-    }
-    s_pendingFreeIdx = kNoPage;
-    s_pendingLazyBuildIdx = kNoPage;
+    releasePagesKeepingList();
 
     rebuildPagesForTheme(target);
     if (!s_pages[target].screen) {

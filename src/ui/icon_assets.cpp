@@ -118,6 +118,14 @@ void preloadIconNameOnce(char seen[kSeenCap][kSeenLen], uint8_t &seenCount, cons
     preload(path(iconName));
 }
 
+void preloadPageIcons(char seen[kSeenCap][kSeenLen], uint8_t &seenCount, const CfgPage &page) {
+    for (uint8_t w = 0; w < page.widgetCount; ++w) {
+        const CfgWidget &widget = page.widgets[w];
+        if (widget.type == WidgetType::WARNING)
+            preloadIconNameOnce(seen, seenCount, widget.warning.iconName);
+    }
+}
+
 }
 
 void preload(const char *lvglPath) {
@@ -142,17 +150,7 @@ void preloadDashboardAssets() {
     uint8_t seenCount = 0;
 
     for (uint8_t p = 0; p < dash.pageCount; ++p) {
-        const CfgPage &page = dash.pages[p];
-        for (uint8_t w = 0; w < page.widgetCount; ++w) {
-            const CfgWidget &widget = page.widgets[w];
-            switch (widget.type) {
-                case WidgetType::WARNING:
-                    preloadIconNameOnce(seen, seenCount, widget.warning.iconName);
-                    break;
-                default:
-                    break;
-            }
-        }
+        preloadPageIcons(seen, seenCount, dash.pages[p]);
     }
     LOG_INFO("ICON", "Preloaded %u dashboard icon(s) (theme +2)", static_cast<unsigned>(seenCount));
 }
