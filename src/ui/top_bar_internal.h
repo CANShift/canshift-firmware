@@ -32,6 +32,8 @@ extern lv_obj_t *s_bar;
 extern DynItem s_dynItems[kCfgMaxTopbarItems];
 extern uint8_t s_dynCount;
 extern bool s_dynEverSeen[kCfgMaxTopbarItems];
+extern lv_obj_t *s_themeIcon;
+extern int16_t s_height;
 
 constexpr uint32_t kColorDotDown = 0xCC3333;
 constexpr uint32_t kColorModeActive = ThemeTokens::kEngaged;
