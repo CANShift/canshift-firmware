@@ -69,8 +69,6 @@ void sendReadResponse(const Obd2Dtc::Outcome &outcome) {
     UsbComm::sendLine(resp);
 }
 
-// The reply lands on a later tick than the request; the host sees one status
-// line either way, so the wire protocol is unchanged.
 void tickObdDtc() {
     Obd2Dtc::Outcome outcome;
     if (!Obd2Dtc::takeOutcome(&outcome))

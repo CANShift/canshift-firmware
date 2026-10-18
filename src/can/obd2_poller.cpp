@@ -39,8 +39,6 @@ uint32_t s_nextDueMs = 0;
 constexpr uint8_t kRequestLen = 0x02;
 constexpr uint8_t kRequestDlc = 8;
 
-// Signed-delta comparison survives millis() wraparound (valid for
-// distances < 2^31 ms, ~24.8 days — far above any poll interval).
 bool timeReached(uint32_t nowMs, uint32_t dueMs) {
     return static_cast<int32_t>(nowMs - dueMs) >= 0;
 }

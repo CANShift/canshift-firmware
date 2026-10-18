@@ -79,8 +79,6 @@ const char *cruiseOpName(CfgCruiseOp op) {
     }
 }
 
-// Never touch LVGL here: this runs in the input task, and lv_async_call
-// mutates LVGL's timer list without g_lvglMutex. taskUI drains the slot.
 void dispatchNavPage(const CfgButtonAction &a) {
     if (a.pageId[0] == '\0')
         return;

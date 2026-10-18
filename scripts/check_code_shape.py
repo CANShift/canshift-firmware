@@ -15,6 +15,7 @@ EXCLUDED = (
     "src/ui/fonts/",
     "src/ui/monogram_baked.cpp",
     "src/ui/icon_assets_baked.cpp",
+    "src/ui/monogram_baked.h",
     "include/lv_conf.h",
     "test/native/vendor/",
     "rust/target/",

@@ -161,9 +161,6 @@ void TouchDriver::calibrate() {
     LOG_INFO("TOUCH", "Starting touch calibration...");
     uint16_t calData[8] = {};
 
-    // calibrateTouch() blocks until the user taps all 4 corners, with no hook to
-    // feed the WDT from inside — unsubscribe the calling task for the duration so
-    // a calibration taking longer than TASK_WDT_TIMEOUT_MS does not panic.
     const bool wasWdtSubscribed = (esp_task_wdt_delete(nullptr) == ESP_OK);
 
     DisplayDriver::getDisplay().calibrateTouch(

@@ -91,7 +91,15 @@ returns the whole stack to the heap.
 
 - **Config before BLE**: the transient `JsonDocument` for a full dashboard
   needs its ~20 KB while NimBLE has not yet claimed its share of internal
-  heap.
+  heap. `JsonReader` allocates documents from PSRAM when the board has it
+  (a 35 KB dashboard parses to about three times that) and falls back to
+  internal RAM otherwise. Button parameters (888 B) live out of line in
+  `CfgWidgetParams`: inline, every widget would cost 1 KB and the six-page
+  default would overflow a WROOM heap.
+
+- **One LVGL lock for the whole page build**: `g_lvglMutex` is not recursive,
+  and every step of the build calls `lv_*`; taking it per call is what once
+  left `init()` unguarded.
 
 - **`initBleEarlyIfEnabled` before `initDisplayHardware`**: NimBLE needs
   `kBleMinHeapBytes` of contiguous DRAM, and LovyanGFX's panel init

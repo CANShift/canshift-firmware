@@ -129,9 +129,6 @@ inline constexpr unsigned kErrorStoreRingSize = 6U;
 
 inline constexpr int kAlertRevlimitWarnPct = 95;
 inline constexpr int kAlertRevlimitFlashPct = 100;
-/* 6 Hz is the design spec. It exceeds WCAG 2.3.1's 3-flash limit, which guarded the
-   full-screen border this replaced; the strip and one numeral are far under the
-   25%-of-viewport area the threshold applies to. Drop to 3 to restore the old margin. */
 inline constexpr int kAlertRevlimitFlashHz = 6;
 
 inline constexpr float kAlertHysteresisPct = 2.0f;

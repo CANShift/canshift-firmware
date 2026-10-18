@@ -26,6 +26,14 @@ passed next to it.
 - `AlertLevel` is `repr(u8)` because the C++ enum is `uint8_t`, and
   `FwError` is `repr(C)` because C++ reads it by pointer at the same offsets.
   Both sizes are asserted at compile time in the crate.
+- The structs in `alert_engine_rs.h` (`SensorHealth`, `LevelHold`,
+  `CrossedLimit`, `BusSilence`) and the `Severity` enum mirror `repr(C)` /
+  `repr(u8)` types field for field; a change on one side is a change on both.
+  `SEVERITY_LEVEL_COUNT` and `STALE_DASH_GROUPS_MAX` are gated by
+  `check_ffi_parity.py`.
+- The expression evaluators in `can_parser_rs.h` return NaN when a value
+  cannot be published: an unresolved reference, a parse failure, or a
+  non-finite result.
 - Scalars shared across the boundary (buffer caps, error codes, state values)
   are paired in `scripts/check_ffi_parity.py`, which fails the build on drift.
   `SIGNAL_COUNT` is mirrored by `test/test_signal_map`.

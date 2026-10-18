@@ -160,7 +160,22 @@ the UI's frame loop.
 `drainCanScanQueue()` reads at most 32 frames per `tick()` so telemetry is
 not starved on a busy bus. Each frame is serialized as
 `{"can":1,"id":<id>,"len":<n>,"d":[b0,…,bn]}`. The queue is allocated
-lazily on the first `kCmdCanScanStart`.
+lazily on the first `kCmdCanScanStart` and never deleted, only reset: the
+published handle is null while scanning is stopped, and a producer holding a
+stale handle can never touch freed memory.
+
+## Dispatch notes
+
+- PUT_CONFIG and OTA_WRITE read their payload straight off the raw line;
+  PUT_FILE parses first, and aborts an open chunk transfer when that fails.
+- The command table holds named adapters for commands that ignore their
+  payload, because the Xtensa toolchain rejects captureless lambdas in a
+  `constexpr` initializer.
+- A config chunk is not parsed on arrival: parsing 16 KB would overflow the
+  USB task's 4 KB stack, so integrity is checked from what passed through,
+  the exact byte count and the JSON delimiters.
+- An OBD-II reply lands on a later tick than its request; the host still sees
+  exactly one status line.
 
 ## Typed config GET/PUT split
 

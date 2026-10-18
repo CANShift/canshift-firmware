@@ -213,8 +213,6 @@ struct CfgWidget {
         CfgImageParams image;
         CfgShiftLightParams shiftLight;
     };
-    // Out-of-line: 888 B that only button widgets need — keeping it inline made
-    // every widget cost 1 KB and the six-page default overflow the WROOM heap.
     CfgButtonParams *button;
 };
 

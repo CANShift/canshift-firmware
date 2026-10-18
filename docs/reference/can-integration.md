@@ -75,6 +75,10 @@ values held at once (`1+(1+(1+…))` nested 17 deep, for example). A rejected ex
 signal rather than publishing a wrong value: the console logs the reason, and the error list
 shows `EXPR_LEX`, `EXPR_LONG`, `EXPR_SYNTAX` or `EXPR_DEPTH` with the signal name.
 
+An expression that references other signals runs after every plain signal of
+its frame has been stored, because it reads values its own frame does not
+carry.
+
 Compiled programs share one pool of 512 tokens across all signals, in load order. A signal
 whose expression no longer fits is dropped the same way, with `EXPR_POOL`. Typical conversion
 expressions take 5 to 15 tokens, so the pool only fills when most of the 48 signals carry long
@@ -106,6 +110,18 @@ level) and decoded for the rest. See
 [SignalStore](../architecture/signal-store.md#decoded-and-display-values).
 
 ---
+
+## OBD-II polling
+
+The poller sends Mode 0x01 single-frame requests (ISO 15765-2) and accepts a
+reply `[len, mode | 0x40, pid, data…]` only when the echoed mode and PID match
+the request. Mode 0x03 replies `[len, 0x43, dtcCount, hi, lo, …]` yield the
+raw DTC pairs, clamped to the count, to the bytes present and to the caller's
+buffer, always as whole pairs; the tuner decodes them into codes. A DTC read
+is non-blocking: it reports done once the exchange resolved either way. Due
+times compare as signed deltas, so `millis()` wraparound is safe for any
+interval under 24.8 days. The framing rules live in `obd2_response.cpp` so the
+native tests cover them without the CAN stack.
 
 ## Diagnostics
 

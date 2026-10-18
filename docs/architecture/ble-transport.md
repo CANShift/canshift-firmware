@@ -148,6 +148,9 @@ Two heap gates guard the stack:
 - `kBleGattMinHeapBytes` (24 KB) — checked in `startStack()` before
   `setupGatt()` so the GATT phase has its own budget.
 
+When the stack fails to come up, `requestStop()` sets a flag so taskBLE tears
+it down and returns the heap. Nothing asks for a restart.
+
 ## Connection tuning
 
 On connect, `ServerCallbacks::onConnect` calls `updateConnParams` with a

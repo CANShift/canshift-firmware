@@ -49,8 +49,6 @@ void failConfigChunk(const char *reason) {
     UsbComm::sendError(reason);
 }
 
-// Parsing a 16 KB config would overflow the USB task's 4 KB stack, so integrity
-// is checked from what passed through: exact byte count, and the JSON delimiters.
 bool receivedConfigLooksComplete() {
     if (s_configChunk.declaredBytes == 0 ||
         s_configChunk.writtenBytes != s_configChunk.declaredBytes) {

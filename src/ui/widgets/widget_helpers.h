@@ -105,8 +105,6 @@ inline void setVisible(lv_obj_t *obj, bool visible) {
     }
 }
 
-// Skips the LVGL call when the flag already matches — the top-bar update path
-// runs every frame and invalidation is not free.
 inline void setVisibleIfChanged(lv_obj_t *obj, bool visible) {
     if (!obj)
         return;
@@ -115,8 +113,6 @@ inline void setVisibleIfChanged(lv_obj_t *obj, bool visible) {
     }
 }
 
-// Returns nullptr when the pool is dry, after deleting `deleteOnFailure` if the
-// caller has no way to render without a tag. Pass nullptr to keep the object.
 template <typename T>
 inline T *acquireTag(WidgetTagPool::Slot<T> &slot, const char *widgetId, const char *logTag,
                      lv_obj_t *deleteOnFailure) {
