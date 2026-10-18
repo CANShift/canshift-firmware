@@ -238,48 +238,81 @@ static void updateLinkedSeparator(DynItem &d) {
     d.hidden = wantHidden;
 }
 
+using DynUpdater = void (*)(uint8_t idx, DynItem &d, bool silent);
+
+struct DynUpdate {
+    TopBarItemKind kind;
+    DynUpdater update;
+};
+
+static void updateStatusDotItem(uint8_t idx, DynItem &d, bool) {
+    updateDynStatusDot(idx, d);
+}
+
+static void updateSignalItem(uint8_t, DynItem &d, bool) {
+    updateDynSignalLabel(d);
+}
+
+static void updateSignalMaxItem(uint8_t, DynItem &d, bool) {
+    updateDynSignalMax(d);
+}
+
+static void updateBleItem(uint8_t, DynItem &d, bool) {
+    updateBleIcon(d.obj, &d);
+}
+
+static void updateModeFlagItem(uint8_t, DynItem &d, bool) {
+    updateModeFlag(d);
+}
+
+static void updateTrackBadgeItem(uint8_t, DynItem &d, bool) {
+    updateTrackBadge(d);
+}
+
+static void updateCanRateItem(uint8_t, DynItem &d, bool silent) {
+    updateCanRate(d, silent);
+}
+
+static void updateSeparatorItem(uint8_t, DynItem &d, bool) {
+    updateLinkedSeparator(d);
+}
+
+static void updateLabelItem(uint8_t, DynItem &d, bool silent) {
+    applyDynTextColor(d, staticLabelColor(d, silent));
+}
+
+static constexpr DynUpdate kDynUpdates[] = {
+    {TopBarItemKind::STATUS_DOT, updateStatusDotItem},
+    {TopBarItemKind::SIGNAL, updateSignalItem},
+    {TopBarItemKind::SIGNAL_MAX, updateSignalMaxItem},
+    {TopBarItemKind::BLE_ICON, updateBleItem},
+    {TopBarItemKind::MODE_FLAG, updateModeFlagItem},
+    {TopBarItemKind::TRACK_BADGE, updateTrackBadgeItem},
+    {TopBarItemKind::CAN_RATE, updateCanRateItem},
+    {TopBarItemKind::SEPARATOR, updateSeparatorItem},
+    {TopBarItemKind::LABEL, updateLabelItem},
+};
+
+static DynUpdater updaterFor(TopBarItemKind kind) {
+    for (const DynUpdate &entry : kDynUpdates) {
+        if (entry.kind == kind)
+            return entry.update;
+    }
+    return nullptr;
+}
+
 void TopBar::update() {
     LVGL_ASSERT_LOCKED();
     if (!s_bar)
         return;
-
     const bool silent = BusHealth::sample().silent;
     const bool revLimitOverride = TopBarRevLimit::apply();
-
     for (uint8_t i = 0; i < s_dynCount; ++i) {
         DynItem &d = s_dynItems[i];
         if (revLimitOverride && d.position == TopBarItemPos::RIGHT)
             continue;
-        switch (d.kind) {
-            case TopBarItemKind::STATUS_DOT:
-                updateDynStatusDot(i, d);
-                break;
-            case TopBarItemKind::SIGNAL:
-                updateDynSignalLabel(d);
-                break;
-            case TopBarItemKind::SIGNAL_MAX:
-                updateDynSignalMax(d);
-                break;
-            case TopBarItemKind::BLE_ICON:
-                updateBleIcon(d.obj, &d);
-                break;
-            case TopBarItemKind::MODE_FLAG:
-                updateModeFlag(d);
-                break;
-            case TopBarItemKind::TRACK_BADGE:
-                updateTrackBadge(d);
-                break;
-            case TopBarItemKind::CAN_RATE:
-                updateCanRate(d, silent);
-                break;
-            case TopBarItemKind::SEPARATOR:
-                updateLinkedSeparator(d);
-                break;
-            case TopBarItemKind::LABEL:
-                applyDynTextColor(d, staticLabelColor(d, silent));
-                break;
-            default:
-                break;
-        }
+        const DynUpdater update = updaterFor(d.kind);
+        if (update)
+            update(i, d, silent);
     }
 }
