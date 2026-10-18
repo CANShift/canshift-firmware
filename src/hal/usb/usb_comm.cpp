@@ -5,15 +5,13 @@
 #include <esp_system.h>
 #include "usb_comm_internal.h"
 #include "usb_seq_echo.h"
+#include "usb_telemetry.h"
 
 #include "app_config.h"
 #include "board_config.h"
-#include "can/signal_map.h"
 #include "diag/error_store.h"
 #include "diag/heap_stats.h"
 #include "diag/logger.h"
-#include "runtime/signal_store.h"
-#include "util/format_float.h"
 #include "util/mem_alloc.h"
 
 #include <Arduino.h>
@@ -28,37 +26,6 @@ namespace {
 
 constexpr uint8_t kCanScanDrainPerTick = 32;
 constexpr size_t kCanScanLineCap = 96;
-
-struct TeleEntry {
-    SignalId id;
-    const char *name;
-};
-
-const TeleEntry kTeleSignals[] = {
-    {SignalIds::kRpm, "rpm"},
-    {SignalIds::kThrottlePos, "throttle_pos"},
-    {SignalIds::kMapKpa, "map_kpa"},
-    {SignalIds::kBoostBar, "boost_bar"},
-    {SignalIds::kIatC, "iat_c"},
-    {SignalIds::kCoolantTempC, "coolant_temp_c"},
-    {SignalIds::kOilTempC, "oil_temp_c"},
-    {SignalIds::kOilPressBar, "oil_press_bar"},
-    {SignalIds::kFuelPressBar, "fuel_press_bar"},
-    {SignalIds::kLambda1, "lambda_1"},
-    {SignalIds::kAfr1, "afr_1"},
-    {SignalIds::kSpeedKph, "speed_kph"},
-    {SignalIds::kGear, "gear"},
-    {SignalIds::kBatteryVolts, "battery_volts"},
-    {SignalIds::kFlagMil, "flag_mil"},
-    {SignalIds::kFlagLaunchCtrl, "flag_launch_ctrl"},
-    {SignalIds::kMapNumber, "map_number"},
-    {SignalIds::kWheelButton1, "wheel_button_1"},
-    {SignalIds::kWheelButton2, "wheel_button_2"},
-    {SignalIds::kWheelButton3, "wheel_button_3"},
-    {SignalIds::kWheelButton4, "wheel_button_4"},
-};
-
-constexpr size_t kTeleSignalCount = sizeof(kTeleSignals) / sizeof(kTeleSignals[0]);
 
 UsbComm::BurnOverlayShowCb s_burnOverlayShowCb = nullptr;
 UsbComm::BurnOverlayShowErrorCb s_burnOverlayShowErrorCb = nullptr;
@@ -82,8 +49,6 @@ CanHealthStats s_canStats = {0, 0, 0};
 portMUX_TYPE s_canStatsMux = portMUX_INITIALIZER_UNLOCKED;
 std::atomic<bool> s_canStatsPending{false};
 
-constexpr size_t kTeleBufSize = 768;
-
 void sendCanStatLine() {
     static constexpr size_t kCanStatBufWorstCase = 74;
     char statBuf[80];
@@ -106,52 +71,6 @@ void sendCanStatLine() {
     LOG_WARN("USB", "can_stat payload truncated (n=%d, cap=%u)", n,
              static_cast<unsigned>(sizeof(statBuf)));
     ErrorStore::push(ERROR_SRC_SYSTEM, "USB_TRUNC", "can_stat payload truncated");
-}
-
-void sendTelemetry() {
-    char buf[kTeleBufSize];
-    char *p = buf;
-    const char *end = buf + kTeleBufSize - 2;
-
-    const char *prefix = "{\"tele\":1,\"v\":{";
-    size_t prefixLen = strlen(prefix);
-    if (p + prefixLen >= end)
-        return;
-    memcpy(p, prefix, prefixLen);
-    p += prefixLen;
-
-    bool first = true;
-    for (size_t i = 0; i < kTeleSignalCount; i++) {
-        float val = 0.0f;
-        if (!SignalStore::tryReadDisplay(kTeleSignals[i].id, &val))
-            continue;
-
-        if (!first) {
-            if (p >= end)
-                break;
-            *p++ = ',';
-        }
-        first = false;
-
-        int n = snprintf(p, static_cast<size_t>(end - p), "\"%s\":", kTeleSignals[i].name);
-        if (n <= 0 || p + n >= end)
-            break;
-        p += n;
-        char numBuf[16];
-        size_t numLen = FloatFormat::formatGeneral(numBuf, sizeof(numBuf), val, 3);
-        if (numLen == 0 || p + numLen >= end)
-            break;
-        memcpy(p, numBuf, numLen);
-        p += numLen;
-    }
-
-    if (p + 3 <= end) {
-        *p++ = '}';
-        *p++ = '}';
-        *p++ = '\n';
-        *p = '\0';
-        UsbComm::sendLine(buf);
-    }
 }
 
 void drainCanScanQueue() {
@@ -293,6 +212,51 @@ bool UsbComm::pushCanFrame(const CanScanFrame &frame) {
     return UsbCommInternal::canScanQueueTrySend(frame);
 }
 
+namespace {
+
+void dropAbandonedLine() {
+    if (s_rxPos == 0 || millis() - UsbCommInternal::s_lastHostCmdMs <= kUsbRxLineTimeoutMs)
+        return;
+    LOG_WARN("USB", "RX line abandoned after %u ms — dropping %u buffered byte(s)",
+             static_cast<unsigned>(kUsbRxLineTimeoutMs), static_cast<unsigned>(s_rxPos));
+    s_rxPos = 0;
+    s_rxDraining = false;
+}
+
+void finishSerialLine() {
+    UsbCommInternal::s_rxBuf[s_rxPos] = '\0';
+    if (s_rxPos > 0)
+        UsbCommInternal::dispatchFromSerial(UsbCommInternal::s_rxBuf);
+    s_rxPos = 0;
+}
+
+void rejectOverlongLine() {
+    LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
+             static_cast<unsigned>(kUsbRxBufSize - 1));
+    UsbComm::sendError("line_too_long");
+    s_rxPos = 0;
+    s_rxDraining = true;
+}
+
+void acceptSerialByte(char c) {
+    UsbCommInternal::s_lastHostCmdMs = millis();
+    if (s_rxDraining) {
+        s_rxDraining = c != '\n';
+        return;
+    }
+    if (c == '\n') {
+        finishSerialLine();
+        return;
+    }
+    if (s_rxPos >= kUsbRxBufSize - 1) {
+        rejectOverlongLine();
+        return;
+    }
+    UsbCommInternal::s_rxBuf[s_rxPos++] = c;
+}
+
+}
+
 void UsbComm::tick() {
     if (!UsbCommInternal::s_rxBuf) {
         return;
@@ -307,41 +271,9 @@ void UsbComm::tick() {
                                            UsbCommInternal::socketOtaSessionOpen());
     UsbCommInternal::tickObdDtc();
 
-    if (s_rxPos > 0 && (millis() - UsbCommInternal::s_lastHostCmdMs) > kUsbRxLineTimeoutMs) {
-        LOG_WARN("USB", "RX line abandoned after %u ms — dropping %u buffered byte(s)",
-                 static_cast<unsigned>(kUsbRxLineTimeoutMs), static_cast<unsigned>(s_rxPos));
-        s_rxPos = 0;
-        s_rxDraining = false;
-    }
-
-    while (Serial.available() > 0) {
-        char c = static_cast<char>(Serial.read());
-
-        UsbCommInternal::s_lastHostCmdMs = millis();
-
-        if (s_rxDraining) {
-            if (c == '\n') {
-                s_rxDraining = false;
-            }
-            continue;
-        }
-
-        if (c == '\n') {
-            UsbCommInternal::s_rxBuf[s_rxPos] = '\0';
-            if (s_rxPos > 0) {
-                UsbCommInternal::dispatchFromSerial(UsbCommInternal::s_rxBuf);
-            }
-            s_rxPos = 0;
-        } else if (s_rxPos < kUsbRxBufSize - 1) {
-            UsbCommInternal::s_rxBuf[s_rxPos++] = c;
-        } else {
-            LOG_WARN("USB", "RX buffer overflow (>%u B) — emitting error, draining to newline",
-                     static_cast<unsigned>(kUsbRxBufSize - 1));
-            UsbComm::sendError("line_too_long");
-            s_rxPos = 0;
-            s_rxDraining = true;
-        }
-    }
+    dropAbandonedLine();
+    while (Serial.available() > 0)
+        acceptSerialByte(static_cast<char>(Serial.read()));
 
     drainCanScanQueue();
 
@@ -351,7 +283,7 @@ void UsbComm::tick() {
 
     if (++s_tickCount >= kTelePeriodTicks) {
         s_tickCount = 0;
-        sendTelemetry();
+        UsbTelemetry::sendLine();
     }
 
     HeapStats::tick();
