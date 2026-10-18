@@ -25,21 +25,9 @@ pub fn format_fixed(buf: &mut [u8], value: f32, decimals: i32) -> usize {
         return 0;
     }
     let decimals = decimals.clamp(0, MAX_DECIMALS);
-
-    if value.is_nan() {
-        return copy_terminated(buf, b"nan");
+    if let Some(len) = copy_non_finite(buf, value) {
+        return len;
     }
-    if value.is_infinite() {
-        return copy_terminated(
-            buf,
-            if value < 0.0 {
-                b"-inf"
-            } else {
-                b"inf"
-            },
-        );
-    }
-
     let negative = value < 0.0;
     let abs_value = if negative {
         -value
@@ -54,6 +42,17 @@ pub fn format_fixed(buf: &mut [u8], value: f32, decimals: i32) -> usize {
     let frac = scaled % scale;
 
     let mut scratch = [0u8; 32];
+    let len = write_fixed(&mut scratch, negative, whole, frac, decimals as usize);
+    copy_terminated(buf, &scratch[..len])
+}
+
+fn write_fixed(
+    scratch: &mut [u8],
+    negative: bool,
+    whole: i64,
+    frac: i64,
+    decimals: usize,
+) -> usize {
     let mut pos = 0usize;
     if negative {
         scratch[pos] = b'-';
@@ -63,10 +62,9 @@ pub fn format_fixed(buf: &mut [u8], value: f32, decimals: i32) -> usize {
     if decimals > 0 {
         scratch[pos] = b'.';
         pos += 1;
-        pos += write_fixed_width_int(&mut scratch[pos..], frac, decimals as usize);
+        pos += write_fixed_width_int(&mut scratch[pos..], frac, decimals);
     }
-
-    copy_terminated(buf, &scratch[..pos])
+    pos
 }
 
 struct FixedSpec {
@@ -156,32 +154,10 @@ pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
         return 0;
     }
     let sig_digits = sig_digits.clamp(1, MAX_SIG_DIGITS);
-
-    if value.is_nan() {
-        return copy_terminated(buf, b"nan");
+    if let Some(len) = copy_non_finite(buf, value) {
+        return len;
     }
-    if value.is_infinite() {
-        return copy_terminated(
-            buf,
-            if value < 0.0 {
-                b"-inf"
-            } else {
-                b"inf"
-            },
-        );
-    }
-
-    let abs = value.abs();
-    let mut int_digits = 1;
-    if abs >= 1.0 {
-        let mut scan = abs;
-        int_digits = 0;
-        while scan >= 1.0 && int_digits < 12 {
-            scan /= 10.0;
-            int_digits += 1;
-        }
-    }
-    let decimals = (sig_digits - int_digits).clamp(0, MAX_DECIMALS);
+    let decimals = (sig_digits - int_digit_count(value.abs())).clamp(0, MAX_DECIMALS);
 
     let mut scratch = [0u8; 32];
     let len = format_fixed(&mut scratch, value, decimals);
@@ -189,17 +165,53 @@ pub fn format_general(buf: &mut [u8], value: f32, sig_digits: i32) -> usize {
         return copy_terminated(buf, &scratch[..find_nul(&scratch)]);
     }
 
-    let mut end = len;
-    if decimals > 0 {
-        while end > 0 && scratch[end - 1] == b'0' {
-            end -= 1;
-        }
-        if end > 0 && scratch[end - 1] == b'.' {
-            end -= 1;
-        }
-    }
-
+    let end = if decimals > 0 {
+        trim_fraction(&scratch, len)
+    } else {
+        len
+    };
     copy_terminated(buf, &scratch[..end])
+}
+
+const MAX_INT_DIGITS: i32 = 12;
+
+fn copy_non_finite(buf: &mut [u8], value: f32) -> Option<usize> {
+    if value.is_nan() {
+        return Some(copy_terminated(buf, b"nan"));
+    }
+    if value.is_infinite() {
+        let text: &[u8] = if value < 0.0 {
+            b"-inf"
+        } else {
+            b"inf"
+        };
+        return Some(copy_terminated(buf, text));
+    }
+    None
+}
+
+fn int_digit_count(abs: f32) -> i32 {
+    if abs < 1.0 {
+        return 1;
+    }
+    let mut scan = abs;
+    let mut digits = 0;
+    while scan >= 1.0 && digits < MAX_INT_DIGITS {
+        scan /= 10.0;
+        digits += 1;
+    }
+    digits
+}
+
+fn trim_fraction(scratch: &[u8], len: usize) -> usize {
+    let mut end = len;
+    while end > 0 && scratch[end - 1] == b'0' {
+        end -= 1;
+    }
+    if end > 0 && scratch[end - 1] == b'.' {
+        end -= 1;
+    }
+    end
 }
 
 #[inline]
@@ -255,205 +267,4 @@ fn write_unsigned_int(buf: &mut [u8], value: i64) -> usize {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn as_str(buf: &[u8]) -> &str {
-        let end = find_nul(buf);
-        core::str::from_utf8(&buf[..end]).unwrap()
-    }
-
-    #[test]
-    fn fixed_basic_two_decimals() {
-        let mut buf = [0u8; 32];
-        let n = format_fixed(&mut buf, 8.14159, 2);
-        assert_eq!(n, 4);
-        assert_eq!(as_str(&buf), "8.14");
-    }
-
-    #[test]
-    fn fixed_zero_decimals_rounds() {
-        let mut buf = [0u8; 32];
-        let n = format_fixed(&mut buf, 3.7, 0);
-        assert_eq!(n, 1);
-        assert_eq!(as_str(&buf), "4");
-    }
-
-    #[test]
-    fn fixed_negative_value() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_fixed(&mut buf, -12.5, 1), 5);
-        assert_eq!(as_str(&buf), "-12.5");
-    }
-
-    #[test]
-    fn fixed_handles_zero() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_fixed(&mut buf, 0.0, 3), 5);
-        assert_eq!(as_str(&buf), "0.000");
-    }
-
-    #[test]
-    fn fixed_nan() {
-        let mut buf = [0u8; 32];
-        let n = format_fixed(&mut buf, f32::NAN, 2);
-        assert_eq!(n, 3);
-        assert_eq!(as_str(&buf), "nan");
-    }
-
-    #[test]
-    fn fixed_positive_infinity() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_fixed(&mut buf, f32::INFINITY, 2), 3);
-        assert_eq!(as_str(&buf), "inf");
-    }
-
-    #[test]
-    fn fixed_negative_infinity() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_fixed(&mut buf, f32::NEG_INFINITY, 2), 4);
-        assert_eq!(as_str(&buf), "-inf");
-    }
-
-    #[test]
-    fn fixed_clamps_decimals_high() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_fixed(&mut buf, 1.0, 99), 11);
-        assert_eq!(as_str(&buf), "1.000000000");
-    }
-
-    #[test]
-    fn fixed_clamps_decimals_negative() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_fixed(&mut buf, 1.5, -1), 1);
-        assert_eq!(as_str(&buf), "2");
-    }
-
-    #[test]
-    fn fixed_truncates_to_buffer_with_nul() {
-        let mut buf = [0u8; 4];
-        let n = format_fixed(&mut buf, 123.456, 2);
-        assert_eq!(n, 6);
-        assert_eq!(as_str(&buf), "123");
-        assert_eq!(buf[3], 0);
-    }
-
-    #[test]
-    fn fixed_empty_buffer_returns_zero() {
-        let mut buf = [];
-        assert_eq!(format_fixed(&mut buf, 1.0, 2), 0);
-    }
-
-    #[test]
-    fn spec_no_token_falls_back_to_one_decimal() {
-        let mut buf = [0u8; 32];
-        let n = format_from_spec(&mut buf, 12.34, b" V");
-        assert_eq!(n, 4);
-        assert_eq!(as_str(&buf), "12.3");
-    }
-
-    #[test]
-    fn spec_default_precision() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_from_spec(&mut buf, 5.4321, b"%fV"), 4);
-        assert_eq!(as_str(&buf), "5.4V");
-    }
-
-    #[test]
-    fn spec_explicit_precision() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_from_spec(&mut buf, 5.4321, b"%.3fV"), 6);
-        assert_eq!(as_str(&buf), "5.432V");
-    }
-
-    #[test]
-    fn spec_zero_precision() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_from_spec(&mut buf, 5.7, b"%.0f bar"), 5);
-        assert_eq!(as_str(&buf), "6 bar");
-    }
-
-    #[test]
-    fn spec_prefix_and_suffix() {
-        let mut buf = [0u8; 32];
-        let n = format_from_spec(&mut buf, 8.14, b"value=%.2fkg!");
-        assert_eq!(n, 13);
-        assert_eq!(as_str(&buf), "value=8.14kg!");
-    }
-
-    #[test]
-    fn spec_double_percent_is_skip_not_unescape() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_from_spec(&mut buf, 9.8, b"%%V%.1f"), 6);
-        assert_eq!(as_str(&buf), "%%V9.8");
-    }
-
-    #[test]
-    fn spec_unreasonable_precision_bails_and_keeps_scanning() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_from_spec(&mut buf, 4.5, b"%.123fV"), 3);
-        assert_eq!(as_str(&buf), "4.5");
-    }
-
-    #[test]
-    fn spec_empty_string_is_one_decimal() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_from_spec(&mut buf, 1.2345, b""), 3);
-        assert_eq!(as_str(&buf), "1.2");
-    }
-
-    #[test]
-    fn general_strips_trailing_zeros() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, 1.5, 4), 3);
-        assert_eq!(as_str(&buf), "1.5");
-    }
-
-    #[test]
-    fn general_keeps_meaningful_decimals() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, 1.234, 4), 5);
-        assert_eq!(as_str(&buf), "1.234");
-    }
-
-    #[test]
-    fn general_large_magnitude_no_decimals() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, 12345.0, 4), 5);
-        assert_eq!(as_str(&buf), "12345");
-    }
-
-    #[test]
-    fn general_sub_unit_small() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, 0.123, 4), 5);
-        assert_eq!(as_str(&buf), "0.123");
-    }
-
-    #[test]
-    fn general_negative() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, -1.5, 3), 4);
-        assert_eq!(as_str(&buf), "-1.5");
-    }
-
-    #[test]
-    fn general_clamps_sig_digits_low() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, 9.876, 0), 2);
-        assert_eq!(as_str(&buf), "10");
-    }
-
-    #[test]
-    fn general_nan_and_inf() {
-        let mut buf = [0u8; 32];
-        assert_eq!(format_general(&mut buf, f32::NAN, 3), 3);
-        assert_eq!(as_str(&buf), "nan");
-
-        assert_eq!(format_general(&mut buf, f32::INFINITY, 3), 3);
-        assert_eq!(as_str(&buf), "inf");
-
-        assert_eq!(format_general(&mut buf, f32::NEG_INFINITY, 3), 4);
-        assert_eq!(as_str(&buf), "-inf");
-    }
-}
+mod tests;
