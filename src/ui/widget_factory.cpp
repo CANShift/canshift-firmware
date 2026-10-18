@@ -24,10 +24,73 @@ static_assert(kConfigMaxWidgetsPerPage == canshift::display::kBaseTier.maxWidget
               "the per-page cap is the base tier's — a larger tier raises it through its own "
               "entry, not by moving this number");
 
+struct WidgetReading {
+    float raw;
+    float shown;
+    bool valid;
+};
+
+using CreateFn = lv_obj_t *(*)(lv_obj_t *, const CfgWidget &, int16_t);
+using UpdateFn = void (*)(lv_obj_t *, const WidgetReading &, const CfgWidget &);
+
+struct WidgetOps {
+    WidgetType type;
+    CreateFn create;
+    UpdateFn update;
+    bool readsSignal;
+};
+
+void updateGauge(lv_obj_t *obj, const WidgetReading &reading, const CfgWidget &cfg) {
+    GaugeWidget::update(obj, reading.shown, reading.valid, cfg);
+}
+
+void updateLabel(lv_obj_t *obj, const WidgetReading &reading, const CfgWidget &cfg) {
+    LabelWidget::update(obj, reading.shown, reading.valid, cfg);
+}
+
+void updateWarning(lv_obj_t *obj, const WidgetReading &reading, const CfgWidget &cfg) {
+    WarningWidget::update(obj, reading.raw, reading.valid, cfg);
+}
+
+void updateGear(lv_obj_t *obj, const WidgetReading &reading, const CfgWidget &cfg) {
+    GearWidget::update(obj, reading.raw, reading.valid, cfg);
+}
+
+void updateShiftLight(lv_obj_t *obj, const WidgetReading &reading, const CfgWidget &cfg) {
+    ShiftLightWidget::update(obj, reading.raw, reading.valid, cfg);
+}
+
+void updateTimer(lv_obj_t *obj, const WidgetReading &, const CfgWidget &cfg) {
+    TimerWidget::update(obj, 0.0f, false, cfg);
+}
+
+void updateButton(lv_obj_t *obj, const WidgetReading &, const CfgWidget &) {
+    ButtonWidget::update(obj);
+}
+
+constexpr WidgetOps kWidgetOps[] = {
+    {WidgetType::GAUGE, GaugeWidget::create, updateGauge, true},
+    {WidgetType::LABEL, LabelWidget::create, updateLabel, true},
+    {WidgetType::WARNING, WarningWidget::create, updateWarning, true},
+    {WidgetType::GEAR_IND, GearWidget::create, updateGear, true},
+    {WidgetType::SHIFT_LIGHT, ShiftLightWidget::create, updateShiftLight, true},
+    {WidgetType::TIMER, TimerWidget::create, updateTimer, false},
+    {WidgetType::BUTTON, ButtonWidget::create, updateButton, false},
+    {WidgetType::IMAGE, ImageWidget::create, nullptr, false},
+};
+
+const WidgetOps *opsFor(WidgetType type) {
+    for (const WidgetOps &ops : kWidgetOps) {
+        if (ops.type == type)
+            return &ops;
+    }
+    return nullptr;
+}
+
 struct WidgetEntry {
     lv_obj_t *parent;
     lv_obj_t *obj;
-    WidgetType type;
+    const WidgetOps *ops;
     SignalId signalId;
     const CfgWidget *cfg;
 };
@@ -35,55 +98,33 @@ struct WidgetEntry {
 static WidgetEntry s_widgets[kMaxTrackedWidgets];
 static uint8_t s_widgetCount = 0;
 
-void updateWidget(WidgetEntry &entry, const SignalStore::SignalValue snap[kSignalStoreMaxSignals]) {
-    if (entry.type == WidgetType::BUTTON) {
-        ButtonWidget::update(entry.obj);
+bool readSignal(SignalId signalId, const SignalStore::SignalValue snap[kSignalStoreMaxSignals],
+                WidgetReading &reading) {
+    if (signalId >= SignalIds::kSignalCount || signalId >= kSignalStoreMaxSignals)
+        return false;
+    const SignalStore::SignalValue &sv = snap[signalId];
+    reading.valid = sv.valid;
+    reading.raw = sv.valid ? sv.raw : 0.0f;
+    reading.shown = sv.valid ? sv.display : 0.0f;
+    return true;
+}
+
+void updateWidget(const WidgetEntry &entry,
+                  const SignalStore::SignalValue snap[kSignalStoreMaxSignals]) {
+    if (!entry.ops->update)
         return;
+    WidgetReading reading{};
+    if (entry.ops->readsSignal && !readSignal(entry.signalId, snap, reading))
+        return;
+    entry.ops->update(entry.obj, reading, *entry.cfg);
+}
+
+SignalId resolveSignal(const CfgWidget &cfg) {
+    const SignalId resolved = signalIdFromName(cfg.signalId);
+    if (resolved >= SignalIds::kSignalCount && cfg.signalId[0] != '\0') {
+        LOG_WARN("WF", "Unknown signal name: %s", cfg.signalId);
     }
-
-    if (entry.type == WidgetType::TIMER) {
-        TimerWidget::update(entry.obj, 0.0f, false, *entry.cfg);
-        return;
-    }
-
-    if (entry.signalId >= SignalIds::kSignalCount)
-        return;
-    if (entry.signalId >= kSignalStoreMaxSignals)
-        return;
-
-    const SignalStore::SignalValue &sv = snap[entry.signalId];
-    const bool valid = sv.valid;
-    const float value = valid ? sv.raw : 0.0f;
-    const float shown = valid ? sv.display : 0.0f;
-
-    switch (entry.type) {
-        case WidgetType::GAUGE:
-            GaugeWidget::update(entry.obj, shown, valid, *entry.cfg);
-            break;
-        case WidgetType::LABEL:
-            LabelWidget::update(entry.obj, shown, valid, *entry.cfg);
-            break;
-        case WidgetType::WARNING:
-            WarningWidget::update(entry.obj, value, valid, *entry.cfg);
-            break;
-        case WidgetType::BUTTON:
-
-            break;
-        case WidgetType::GEAR_IND:
-            GearWidget::update(entry.obj, value, valid, *entry.cfg);
-            break;
-        case WidgetType::TIMER:
-            TimerWidget::update(entry.obj, value, valid, *entry.cfg);
-            break;
-        case WidgetType::SHIFT_LIGHT:
-            ShiftLightWidget::update(entry.obj, value, valid, *entry.cfg);
-            break;
-        case WidgetType::IMAGE:
-
-            break;
-        default:
-            break;
-    }
+    return resolved;
 }
 
 }
@@ -94,59 +135,19 @@ lv_obj_t *WidgetFactory::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
         LOG_ERROR("WF", "Widget registry full — cannot create widget '%s'", cfg.id);
         return nullptr;
     }
-
-    lv_obj_t *obj = nullptr;
-
-    switch (cfg.type) {
-        case WidgetType::GAUGE:
-            obj = GaugeWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::LABEL:
-            obj = LabelWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::GEAR_IND:
-            obj = GearWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::TIMER:
-            obj = TimerWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::IMAGE:
-            obj = ImageWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::SHIFT_LIGHT:
-            obj = ShiftLightWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::WARNING:
-            obj = WarningWidget::create(parent, cfg, yOffset);
-            break;
-        case WidgetType::BUTTON:
-            obj = ButtonWidget::create(parent, cfg, yOffset);
-            break;
-        default:
-            LOG_WARN("WF", "Unknown widget type for '%s'", cfg.id);
-            return nullptr;
+    const WidgetOps *ops = opsFor(cfg.type);
+    if (!ops) {
+        LOG_WARN("WF", "Unknown widget type for '%s'", cfg.id);
+        return nullptr;
     }
-
+    lv_obj_t *obj = ops->create(parent, cfg, yOffset);
     if (!obj) {
         LOG_ERROR("WF", "Failed to create widget '%s'", cfg.id);
         return nullptr;
     }
-
-    SignalId resolved = signalIdFromName(cfg.signalId);
-    if (resolved >= SignalIds::kSignalCount && cfg.signalId[0] != '\0') {
-        LOG_WARN("WF", "Unknown signal name: %s", cfg.signalId);
-    }
-
-    WidgetEntry &entry = s_widgets[s_widgetCount++];
-    entry.parent = parent;
-    entry.obj = obj;
-    entry.type = cfg.type;
-    entry.cfg = &cfg;
-    entry.signalId = resolved;
-
+    s_widgets[s_widgetCount++] = WidgetEntry{parent, obj, ops, resolveSignal(cfg), &cfg};
     LOG_DEBUG("WF", "Created widget '%s' type=%d at (%d,%d)", cfg.id, cfg.type, cfg.layout.x,
               cfg.layout.y + yOffset);
-
     return obj;
 }
 

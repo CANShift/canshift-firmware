@@ -53,8 +53,6 @@
     "src/ui/top_bar_build.cpp::TopBar::init": 37,
     "src/ui/top_bar_build.cpp::buildItem": 134,
     "src/ui/top_bar_update.cpp::TopBar::update": 43,
-    "src/ui/widget_factory.cpp::WidgetFactory::create": 54,
-    "src/ui/widget_factory.cpp::updateWidget": 44,
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::cruiseLDrawCb": 38,
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::makeCruiseButton": 34,
     "src/ui/widgets/gauge_widget.cpp::GaugeWidget::create": 33,
