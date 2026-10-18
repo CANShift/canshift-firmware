@@ -112,7 +112,6 @@
     "src/config/config_types.h": 364,
     "src/hal/ble/ble_server.cpp": 409,
     "src/hal/storage/storage_driver.cpp": 332,
-    "src/main.cpp": 402,
     "src/runtime/alert_engine.cpp": 365,
     "src/ui/top_bar_build.cpp": 334,
     "src/ui/widgets/cruise_control_widget.cpp": 323,
