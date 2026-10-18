@@ -34,41 +34,44 @@ fn extract_field<'a>(blob: &'a str, key: &str) -> &'a str {
     }
 }
 
-#[test]
-fn rust_matches_fixtures() {
-    let blob = FIXTURES_JSON;
+fn fixture_records(blob: &str) -> Vec<&str> {
+    let mut records = Vec::new();
     let mut start = 0;
-    let mut count = 0;
     while let Some(open) = blob[start..].find('{') {
         let open_abs = start + open;
         let close = blob[open_abs..].find('}').expect("unterminated record");
-        let record = &blob[open_abs..=open_abs + close];
-
-        let expr_str = extract_field(record, "expr");
-        let v_str = extract_field(record, "v");
-        let bytes_str = extract_field(record, "bytes");
-        let expected_str = extract_field(record, "expected");
-
-        let v = parse_number(v_str);
-        let bytes = parse_bytes(bytes_str);
-        let expected = parse_number(expected_str);
-
-        let actual = eval(
-            expr_str.as_bytes(),
-            &EvalContext {
-                refs: &[],
-                v,
-                bytes: &bytes,
-            },
-        );
-        let tol = 1e-4_f32 * expected.abs().max(1.0);
-        assert!(
-            (actual - expected).abs() < tol,
-            "expr={expr_str} v={v} bytes={bytes:?} expected={expected} actual={actual}"
-        );
-
+        records.push(&blob[open_abs..=open_abs + close]);
         start = open_abs + close + 1;
-        count += 1;
     }
-    assert!(count > 0, "no fixtures parsed");
+    records
+}
+
+fn assert_record_matches(record: &str) {
+    let expr_str = extract_field(record, "expr");
+    let v = parse_number(extract_field(record, "v"));
+    let bytes = parse_bytes(extract_field(record, "bytes"));
+    let expected = parse_number(extract_field(record, "expected"));
+
+    let actual = eval(
+        expr_str.as_bytes(),
+        &EvalContext {
+            refs: &[],
+            v,
+            bytes: &bytes,
+        },
+    );
+    let tol = 1e-4_f32 * expected.abs().max(1.0);
+    assert!(
+        (actual - expected).abs() < tol,
+        "expr={expr_str} v={v} bytes={bytes:?} expected={expected} actual={actual}"
+    );
+}
+
+#[test]
+fn rust_matches_fixtures() {
+    let records = fixture_records(FIXTURES_JSON);
+    for record in &records {
+        assert_record_matches(record);
+    }
+    assert!(!records.is_empty(), "no fixtures parsed");
 }

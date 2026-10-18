@@ -1,12 +1,5 @@
 {
   "function-lines": {
-    "rust/alert-engine/src/ffi.rs::ffi_hold_steps_in_place_and_returns_level": 46,
-    "rust/can-parser/src/decimal.rs::hand_picked_literals_match_core_parse": 52,
-    "rust/can-parser/src/ffi.rs::eval_tokens_refs_rs": 36,
-    "rust/can-parser/tests/expr_parity.rs::rust_matches_fixtures": 33,
-    "rust/error-store/src/ffi.rs::ffi_dismiss_at_oldest_advances_head": 33,
-    "rust/signal-map/src/lib.rs::table_covers_every_id_in_module": 58,
-    "rust/workshop-mode/src/ffi.rs::ffi_origin_check_treats_null_as_absent_and_refuses_foreign_pages": 31,
     "src/config/config_dashboard_loader.inc::ConfigLoaderInternal::allocPageWidgets": 31,
     "src/config/json_helpers.inc::ConfigLoaderInternal::readAndParseWithBak": 37,
     "src/ui/page_manager_builder.cpp::PageManagerInternal::reapplyThemeAllPages": 31,
@@ -14,10 +7,6 @@
     "test/test_format_float/test_main.cpp::main": 31
   },
   "nesting": {
-    "rust/alert-engine/src/lib.rs::eval_coolant_temp": 3,
-    "rust/error-store/src/lib.rs::dismiss_at": 3,
-    "rust/layout-grid/src/lib.rs::assert_inside_frame": 4,
-    "rust/signal-map/src/lib.rs::table_has_no_duplicates": 3,
     "src/config/config_dashboard_loader.inc::ConfigLoaderInternal::parsePages": 3,
     "src/ui/icon_assets.cpp::IconAssets::preloadDashboardAssets": 3,
     "test/native/shim/hal/storage/storage_driver_fake.cpp::StorageDriver::getSpaceInfo": 3,
@@ -27,10 +16,10 @@
   },
   "file-lines": {
     "rust/alert-engine/src/cuts.rs": 304,
-    "rust/alert-engine/src/ffi.rs": 383,
-    "rust/alert-engine/src/lib.rs": 816,
+    "rust/alert-engine/src/ffi.rs": 359,
+    "rust/alert-engine/src/lib.rs": 812,
     "rust/timer-core/src/lib.rs": 395,
-    "rust/workshop-mode/src/ffi.rs": 348,
+    "rust/workshop-mode/src/ffi.rs": 341,
     "sim/sim_injector.cpp": 394,
     "src/config/config_types.h": 364,
     "test/test_config_loader/test_main.cpp": 393,

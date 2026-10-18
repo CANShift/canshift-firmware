@@ -174,73 +174,72 @@ mod tests {
         assert_eq!(signal_id_from_name("RPM"), SIGNAL_COUNT);
     }
 
+    const KNOWN_IDS: &[SignalId] = &[
+        ids::RPM,
+        ids::THROTTLE_POS,
+        ids::MAP_KPA,
+        ids::BOOST_BAR,
+        ids::IAT_C,
+        ids::COOLANT_TEMP_C,
+        ids::OIL_TEMP_C,
+        ids::OIL_PRESS_BAR,
+        ids::FUEL_PRESS_BAR,
+        ids::LAMBDA_1,
+        ids::AFR_1,
+        ids::SPEED_KPH,
+        ids::GEAR,
+        ids::BATTERY_VOLTS,
+        ids::FUEL_LEVEL_PCT,
+        ids::EGT_C,
+        ids::GEARBOX_TEMP_C,
+        ids::DIFF_TEMP_C,
+        ids::KNOCK_COUNT,
+        ids::KNOCK_CYL,
+        ids::FLAG_MIL,
+        ids::FLAG_LAUNCH_CTRL,
+        ids::FLAG_FLAT_SHIFT,
+        ids::FLAG_ANTI_LAG,
+        ids::FLAG_TRACTION_CUT,
+        ids::CLUTCH_STATE,
+        ids::FLAG_BRAKE,
+        ids::FLAG_PIT_LIMIT,
+        ids::FLAG_CRUISE,
+        ids::BOOST_TARGET_BAR,
+        ids::MAP_NUMBER,
+        ids::MAP_NAME_IDX,
+        ids::ODO_KM,
+        ids::TRIP_KM,
+        ids::LAP_TIMER_MS,
+        ids::FLAG_BOOST_CUT,
+        ids::FLAG_FUEL_CUT,
+        ids::FLAG_IGNITION_CUT,
+        ids::FLAG_IGNITION_RETARD,
+        ids::FLAG_REV_LIMIT,
+        ids::FLAG_PIT_LIMIT_CUT,
+        ids::FLAG_OVERHEAT_PROTECT,
+        ids::FLAG_LIMP_MODE,
+        ids::WHEEL_BUTTON_1,
+        ids::WHEEL_BUTTON_2,
+        ids::WHEEL_BUTTON_3,
+        ids::WHEEL_BUTTON_4,
+    ];
+
     #[test]
     fn table_covers_every_id_in_module() {
-        let known_ids: &[SignalId] = &[
-            ids::RPM,
-            ids::THROTTLE_POS,
-            ids::MAP_KPA,
-            ids::BOOST_BAR,
-            ids::IAT_C,
-            ids::COOLANT_TEMP_C,
-            ids::OIL_TEMP_C,
-            ids::OIL_PRESS_BAR,
-            ids::FUEL_PRESS_BAR,
-            ids::LAMBDA_1,
-            ids::AFR_1,
-            ids::SPEED_KPH,
-            ids::GEAR,
-            ids::BATTERY_VOLTS,
-            ids::FUEL_LEVEL_PCT,
-            ids::EGT_C,
-            ids::GEARBOX_TEMP_C,
-            ids::DIFF_TEMP_C,
-            ids::KNOCK_COUNT,
-            ids::KNOCK_CYL,
-            ids::FLAG_MIL,
-            ids::FLAG_LAUNCH_CTRL,
-            ids::FLAG_FLAT_SHIFT,
-            ids::FLAG_ANTI_LAG,
-            ids::FLAG_TRACTION_CUT,
-            ids::CLUTCH_STATE,
-            ids::FLAG_BRAKE,
-            ids::FLAG_PIT_LIMIT,
-            ids::FLAG_CRUISE,
-            ids::BOOST_TARGET_BAR,
-            ids::MAP_NUMBER,
-            ids::MAP_NAME_IDX,
-            ids::ODO_KM,
-            ids::TRIP_KM,
-            ids::LAP_TIMER_MS,
-            ids::FLAG_BOOST_CUT,
-            ids::FLAG_FUEL_CUT,
-            ids::FLAG_IGNITION_CUT,
-            ids::FLAG_IGNITION_RETARD,
-            ids::FLAG_REV_LIMIT,
-            ids::FLAG_PIT_LIMIT_CUT,
-            ids::FLAG_OVERHEAT_PROTECT,
-            ids::FLAG_LIMP_MODE,
-            ids::WHEEL_BUTTON_1,
-            ids::WHEEL_BUTTON_2,
-            ids::WHEEL_BUTTON_3,
-            ids::WHEEL_BUTTON_4,
-        ];
-        for id in known_ids {
+        for id in KNOWN_IDS {
             assert!(
                 NAME_TO_ID.iter().any(|(_, v)| v == id),
                 "SignalId {id} missing from NAME_TO_ID"
             );
         }
-        assert_eq!(NAME_TO_ID.len(), known_ids.len());
+        assert_eq!(NAME_TO_ID.len(), KNOWN_IDS.len());
     }
 
     #[test]
     fn table_has_no_duplicates() {
         for (i, (name, _)) in NAME_TO_ID.iter().enumerate() {
-            for (j, (other, _)) in NAME_TO_ID.iter().enumerate() {
-                if i == j {
-                    continue;
-                }
+            let others = NAME_TO_ID.iter().enumerate().filter(|(j, _)| *j != i);
+            for (j, (other, _)) in others {
                 assert_ne!(name, other, "duplicate name {name} at indices {i} and {j}");
             }
         }
