@@ -71,6 +71,40 @@ void paintChangedSegments(ShiftLightTag *tag, uint8_t lit) {
     tag->lastLit = lit;
 }
 
+uint8_t redFromIndex(const CfgShiftLightParams &params) {
+    if (params.redSegments >= kSegmentCount)
+        return 0;
+    return static_cast<uint8_t>(kSegmentCount - params.redSegments);
+}
+
+void initTag(ShiftLightTag *tag, const CfgWidget &cfg) {
+    tag->startValue = cfg.shiftLight.startValue;
+    tag->fullValue = resolveFullValue(cfg.shiftLight);
+    tag->redFromIndex = redFromIndex(cfg.shiftLight);
+    tag->litRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    tag->trackRgb = ThemeManager::trackColor();
+    tag->lastLit = 0xFF;
+    tag->lastValid = false;
+}
+
+void buildSegments(lv_obj_t *cont, ShiftLightTag *tag, const CfgWidget &cfg) {
+    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+    const int16_t h = box.h < kSegmentHeightPx ? box.h : kSegmentHeightPx;
+    const int16_t segW =
+        static_cast<int16_t>((box.w - kSegmentGapPx * (kSegmentCount - 1)) / kSegmentCount);
+    for (uint8_t i = 0; i < kSegmentCount; ++i) {
+        lv_obj_t *seg = lv_obj_create(cont);
+        lv_obj_set_size(seg, segW, h);
+        lv_obj_set_pos(seg, static_cast<int16_t>(i * (segW + kSegmentGapPx)), 0);
+        WidgetHelpers::resetContainerStyle(seg);
+        lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(seg, LV_OBJ_FLAG_CLICKABLE);
+        tag->segments[i] = seg;
+    }
+    paintSegments(tag, 0);
+}
+
 }
 
 lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
@@ -83,35 +117,8 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
     if (!tag)
         return nullptr;
 
-    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
-    const int16_t w = box.w;
-    const int16_t h = box.h < kSegmentHeightPx ? box.h : kSegmentHeightPx;
-    const int16_t segW =
-        static_cast<int16_t>((w - kSegmentGapPx * (kSegmentCount - 1)) / kSegmentCount);
-    constexpr int16_t x0 = 0;
-
-    tag->startValue = cfg.shiftLight.startValue;
-    tag->fullValue = resolveFullValue(cfg.shiftLight);
-    tag->redFromIndex = static_cast<uint8_t>(cfg.shiftLight.redSegments >= kSegmentCount
-                                                 ? 0
-                                                 : kSegmentCount - cfg.shiftLight.redSegments);
-    tag->litRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    tag->trackRgb = ThemeManager::trackColor();
-    tag->lastLit = 0xFF;
-    tag->lastValid = false;
-
-    for (uint8_t i = 0; i < kSegmentCount; ++i) {
-        lv_obj_t *seg = lv_obj_create(cont);
-        lv_obj_set_size(seg, segW, h);
-        lv_obj_set_pos(seg, static_cast<int16_t>(x0 + i * (segW + kSegmentGapPx)), 0);
-        WidgetHelpers::resetContainerStyle(seg);
-        lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(seg, lv_color_hex(tag->trackRgb), 0);
-        lv_obj_clear_flag(seg, LV_OBJ_FLAG_CLICKABLE);
-        tag->segments[i] = seg;
-    }
-    paintSegments(tag, 0);
+    initTag(tag, cfg);
+    buildSegments(cont, tag, cfg);
 
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<ShiftLightTag>, LV_EVENT_DELETE,
