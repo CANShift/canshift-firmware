@@ -186,6 +186,23 @@ mod tests {
         assert_eq!(ring[0].code[0], 0);
     }
 
+    fn push_code(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: &mut u32, code: u8) {
+        let code = cstr(&[code]);
+        let msg = cstr(b"");
+        unsafe {
+            error_store_push_rs(
+                ring.as_mut_ptr(),
+                RING,
+                head,
+                count,
+                version,
+                1,
+                code.as_ptr() as *const c_char,
+                msg.as_ptr() as *const c_char,
+            );
+        }
+    }
+
     #[test]
     fn ffi_dismiss_at_oldest_advances_head() {
         let mut ring = blank_ring();
@@ -193,19 +210,7 @@ mod tests {
         let mut count = 0u8;
         let mut version = 0u32;
         for i in 0..3 {
-            let code = cstr(&[b'A' + i]);
-            unsafe {
-                error_store_push_rs(
-                    ring.as_mut_ptr(),
-                    RING,
-                    &mut head,
-                    &mut count,
-                    &mut version,
-                    1,
-                    code.as_ptr() as *const c_char,
-                    cstr(b"").as_ptr() as *const c_char,
-                );
-            }
+            push_code(&mut ring, &mut head, &mut count, &mut version, b'A' + i);
         }
         unsafe {
             error_store_dismiss_at_rs(

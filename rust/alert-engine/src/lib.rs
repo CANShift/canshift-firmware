@@ -155,16 +155,12 @@ pub fn eval_coolant_temp(
     high_warn_c: f32,
     high_crit_c: f32,
 ) -> AlertLevel {
-    let base = if temp_c >= crit_c {
-        AlertLevel::Critical
-    } else if temp_c >= warn_c {
-        AlertLevel::Warning
-    } else if temp_c >= warn_c - 5.0 {
+    let caution = if temp_c >= warn_c - 5.0 {
         AlertLevel::Caution
     } else {
         AlertLevel::Normal
     };
-    base.max(eval_high_side(temp_c, high_warn_c, high_crit_c))
+    eval_high_side_temp(temp_c, warn_c, crit_c, high_warn_c, high_crit_c).max(caution)
 }
 
 #[must_use]

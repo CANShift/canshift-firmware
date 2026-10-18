@@ -369,51 +369,28 @@ mod tests {
         assert_eq!(level, 0);
     }
 
+    fn coolant_step(hold: &mut LevelHold, temp_c: f32, now_ms: u32) -> u8 {
+        unsafe {
+            alert_coolant_temp_step_rs(
+                hold,
+                temp_c,
+                100.0,
+                110.0,
+                f32::NAN,
+                f32::NAN,
+                now_ms,
+                2.0,
+                2000,
+            )
+        }
+    }
+
     #[test]
     fn ffi_hold_steps_in_place_and_returns_level() {
         let mut h = LevelHold::default();
-        let level = unsafe {
-            alert_coolant_temp_step_rs(
-                &mut h,
-                120.0,
-                100.0,
-                110.0,
-                f32::NAN,
-                f32::NAN,
-                0,
-                2.0,
-                2000,
-            )
-        };
-        assert_eq!(level, 3);
-        let level = unsafe {
-            alert_coolant_temp_step_rs(
-                &mut h,
-                80.0,
-                100.0,
-                110.0,
-                f32::NAN,
-                f32::NAN,
-                500,
-                2.0,
-                2000,
-            )
-        };
-        assert_eq!(level, 3);
-        let level = unsafe {
-            alert_coolant_temp_step_rs(
-                &mut h,
-                80.0,
-                100.0,
-                110.0,
-                f32::NAN,
-                f32::NAN,
-                2000,
-                2.0,
-                2000,
-            )
-        };
-        assert_eq!(level, 0);
+        assert_eq!(coolant_step(&mut h, 120.0, 0), 3);
+        assert_eq!(coolant_step(&mut h, 80.0, 500), 3);
+        assert_eq!(coolant_step(&mut h, 80.0, 2000), 0);
         assert_eq!(h.level, AlertLevel::Normal);
     }
 }

@@ -173,25 +173,30 @@ mod tests {
     }
 
     fn assert_inside_frame(area_w: u16, area_h: u16) {
-        let frame = FRAME_PADDING as i16;
-        let right = area_w as i16 - frame;
-        let bottom = area_h as i16 - frame;
         for col_span in 1..=COLUMNS {
             for col in 0..=(COLUMNS - col_span) {
-                for row_span in 1..=ROWS {
-                    for row in 0..=(ROWS - row_span) {
-                        let rect =
-                            resolve_grid_rect(place(col, col_span, row, row_span), area_w, area_h);
-                        assert!(rect.x >= frame);
-                        assert!(rect.y >= frame);
-                        assert!(rect.w >= 1);
-                        assert!(rect.h >= 1);
-                        assert!(rect.x + rect.w <= right);
-                        assert!(rect.y + rect.h <= bottom);
-                    }
-                }
+                assert_column_inside_frame(col, col_span, area_w, area_h);
             }
         }
+    }
+
+    fn assert_column_inside_frame(col: u8, col_span: u8, area_w: u16, area_h: u16) {
+        for row_span in 1..=ROWS {
+            for row in 0..=(ROWS - row_span) {
+                let rect = resolve_grid_rect(place(col, col_span, row, row_span), area_w, area_h);
+                assert_rect_inside_frame(rect, area_w, area_h);
+            }
+        }
+    }
+
+    fn assert_rect_inside_frame(rect: GridRect, area_w: u16, area_h: u16) {
+        let frame = FRAME_PADDING as i16;
+        assert!(rect.x >= frame);
+        assert!(rect.y >= frame);
+        assert!(rect.w >= 1);
+        assert!(rect.h >= 1);
+        assert!(rect.x + rect.w <= area_w as i16 - frame);
+        assert!(rect.y + rect.h <= area_h as i16 - frame);
     }
 
     #[test]

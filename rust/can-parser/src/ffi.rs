@@ -22,10 +22,9 @@ pub unsafe extern "C" fn decode_bytes_rs(
     if data.is_null() {
         return 0.0;
     }
-    let len = data_len.min(CAN_FRAME_MAX_BYTES);
-    let slice = unsafe { slice::from_raw_parts(data, len) };
+    let frame = unsafe { frame_bytes(data, data_len) };
     decode_bytes(
-        slice, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
+        frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
     )
 }
 
@@ -65,8 +64,7 @@ pub unsafe extern "C" fn eval_tokens_rs(
     if data.is_null() || tokens.is_null() || n_tokens == 0 {
         return f32::NAN;
     }
-    let len = data_len.min(CAN_FRAME_MAX_BYTES);
-    let frame = unsafe { slice::from_raw_parts(data, len) };
+    let frame = unsafe { frame_bytes(data, data_len) };
     let v = decode_bytes(
         frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
     );
@@ -100,23 +98,28 @@ pub unsafe extern "C" fn eval_tokens_refs_rs(
     if data.is_null() || tokens.is_null() || n_tokens == 0 {
         return f32::NAN;
     }
-    let len = data_len.min(CAN_FRAME_MAX_BYTES);
-    let frame = unsafe { slice::from_raw_parts(data, len) };
+    let frame = unsafe { frame_bytes(data, data_len) };
     let v = decode_bytes(
         frame, start_byte, byte_len, big_endian, is_signed, bit_mask, scale, offset,
     );
-    let ref_slice = if refs.is_null() || n_refs == 0 {
-        &[][..]
-    } else {
-        unsafe { slice::from_raw_parts(refs, n_refs) }
-    };
     let toks = unsafe { slice::from_raw_parts(tokens, n_tokens) };
     let ctx = EvalContext {
         v,
         bytes: frame,
-        refs: ref_slice,
+        refs: unsafe { ref_values(refs, n_refs) },
     };
     eval_ffi_checked(toks, &ctx)
+}
+
+unsafe fn frame_bytes<'a>(data: *const u8, data_len: usize) -> &'a [u8] {
+    unsafe { slice::from_raw_parts(data, data_len.min(CAN_FRAME_MAX_BYTES)) }
+}
+
+unsafe fn ref_values<'a>(refs: *const RefValue, n_refs: usize) -> &'a [RefValue] {
+    if refs.is_null() || n_refs == 0 {
+        return &[];
+    }
+    unsafe { slice::from_raw_parts(refs, n_refs) }
 }
 
 #[no_mangle]

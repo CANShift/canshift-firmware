@@ -312,37 +312,31 @@ mod tests {
         assert_eq!(text(&out), "WIFI:T:WPA;S:CANShift-K7QX;P:abcdefgh2345;;");
     }
 
+    fn origin_allowed(origin: *const c_char, ap_ip: *const c_char, host: *const c_char) -> bool {
+        unsafe { workshop_origin_allowed_rs(origin, ap_ip, host) }
+    }
+
     #[test]
     fn ffi_origin_check_treats_null_as_absent_and_refuses_foreign_pages() {
-        let ap_ip = c"192.168.4.1";
-        let host = c"canshift";
-        unsafe {
-            assert!(workshop_origin_allowed_rs(
-                ptr::null(),
-                ap_ip.as_ptr(),
-                host.as_ptr()
-            ));
-            assert!(workshop_origin_allowed_rs(
-                c"http://192.168.4.1".as_ptr(),
-                ap_ip.as_ptr(),
-                host.as_ptr()
-            ));
-            assert!(workshop_origin_allowed_rs(
-                c"http://canshift.local".as_ptr(),
-                ap_ip.as_ptr(),
-                host.as_ptr()
-            ));
-            assert!(!workshop_origin_allowed_rs(
-                c"http://evil.example".as_ptr(),
-                ap_ip.as_ptr(),
-                host.as_ptr()
-            ));
-            assert!(!workshop_origin_allowed_rs(
-                c"http://192.168.4.1".as_ptr(),
-                ptr::null(),
-                ptr::null()
-            ));
-        }
+        let ap_ip = c"192.168.4.1".as_ptr();
+        let host = c"canshift".as_ptr();
+        assert!(origin_allowed(ptr::null(), ap_ip, host));
+        assert!(origin_allowed(c"http://192.168.4.1".as_ptr(), ap_ip, host));
+        assert!(origin_allowed(
+            c"http://canshift.local".as_ptr(),
+            ap_ip,
+            host
+        ));
+        assert!(!origin_allowed(
+            c"http://evil.example".as_ptr(),
+            ap_ip,
+            host
+        ));
+        assert!(!origin_allowed(
+            c"http://192.168.4.1".as_ptr(),
+            ptr::null(),
+            ptr::null()
+        ));
     }
 
     #[test]

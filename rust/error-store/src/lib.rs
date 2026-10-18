@@ -86,17 +86,20 @@ pub fn dismiss_at(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: 
     if pos == 0 {
         *head = (head.wrapping_add(1)) % ring_size;
     } else if pos < count.saturating_sub(1) {
-        let mut i = pos;
-        while i + 1 < *count {
-            let dst = (head.wrapping_add(i)) % ring_size;
-            let src = (head.wrapping_add(i + 1)) % ring_size;
-            ring[dst as usize] = ring[src as usize];
-            i += 1;
-        }
+        close_gap(ring, *head, *count, pos);
     }
 
     *count -= 1;
     *version = version.wrapping_add(1);
+}
+
+fn close_gap(ring: &mut [FwError], head: u8, count: u8, pos: u8) {
+    let ring_size = ring.len() as u8;
+    for i in pos..count - 1 {
+        let dst = (head.wrapping_add(i)) % ring_size;
+        let src = (head.wrapping_add(i + 1)) % ring_size;
+        ring[dst as usize] = ring[src as usize];
+    }
 }
 
 fn code_matches(stored: &[u8; CODE_LEN], incoming: &[u8]) -> bool {
