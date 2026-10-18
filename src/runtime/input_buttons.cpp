@@ -69,44 +69,68 @@ void firePress(const CfgInputBinding &b, CfgInputPressKind detected) {
     syncSharedSignal(b);
 }
 
+enum class Edge : uint8_t { Pressed, Released, Holding, Idle };
+
+using EdgeHandler = void (*)(const CfgInputBinding &b, BindingState &s, uint32_t nowMs);
+
+Edge edgeOf(bool raw, bool held) {
+    if (raw == held)
+        return raw ? Edge::Holding : Edge::Idle;
+    return raw ? Edge::Pressed : Edge::Released;
+}
+
+void onPressed(const CfgInputBinding &, BindingState &s, uint32_t nowMs) {
+    s.debouncedPressed = true;
+    s.pressStartMs = nowMs;
+    s.longFiredThisPress = false;
+}
+
+void registerTap(const CfgInputBinding &b, BindingState &s, uint32_t nowMs) {
+    if (s.pendingDoubleArmed && nowMs - s.lastReleaseMs <= kDoubleTapGapMs) {
+        firePress(b, CfgInputPressKind::DOUBLE);
+        s.pendingDoubleArmed = false;
+        return;
+    }
+    s.pendingDoubleArmed = true;
+}
+
+void onReleased(const CfgInputBinding &b, BindingState &s, uint32_t nowMs) {
+    s.debouncedPressed = false;
+    if (nowMs - s.pressStartMs < kLongPressMs)
+        registerTap(b, s, nowMs);
+    s.lastReleaseMs = nowMs;
+}
+
+void onHolding(const CfgInputBinding &b, BindingState &s, uint32_t nowMs) {
+    if (s.longFiredThisPress || nowMs - s.pressStartMs < kLongPressMs)
+        return;
+    firePress(b, CfgInputPressKind::LONG);
+    s.longFiredThisPress = true;
+    s.pendingDoubleArmed = false;
+}
+
+void onIdle(const CfgInputBinding &, BindingState &, uint32_t) {}
+
+constexpr EdgeHandler kEdgeHandlers[] = {onPressed, onReleased, onHolding, onIdle};
+
+void flushPendingShortPress(const CfgInputBinding &b, BindingState &s, uint32_t nowMs) {
+    if (!s.pendingDoubleArmed || s.debouncedPressed || nowMs - s.lastReleaseMs <= kDoubleTapGapMs)
+        return;
+    firePress(b, CfgInputPressKind::SHORT);
+    s.pendingDoubleArmed = false;
+}
+
 void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
     BindingState &s = s_states[idx];
     const bool raw = isPressedNow(b);
-
     if (raw != s.rawPrev) {
         s.rawPrev = raw;
         s.lastEdgeMs = nowMs;
     }
     if (nowMs - s.lastEdgeMs < b.debounceMs)
         return;
-
-    if (raw && !s.debouncedPressed) {
-        s.debouncedPressed = true;
-        s.pressStartMs = nowMs;
-        s.longFiredThisPress = false;
-    } else if (!raw && s.debouncedPressed) {
-        s.debouncedPressed = false;
-        const uint32_t heldMs = nowMs - s.pressStartMs;
-        const bool wasLong = (heldMs >= kLongPressMs);
-        if (!wasLong && s.pendingDoubleArmed && nowMs - s.lastReleaseMs <= kDoubleTapGapMs) {
-            firePress(b, CfgInputPressKind::DOUBLE);
-            s.pendingDoubleArmed = false;
-        } else if (!wasLong) {
-            s.pendingDoubleArmed = true;
-        }
-        s.lastReleaseMs = nowMs;
-    } else if (raw && s.debouncedPressed && !s.longFiredThisPress) {
-        if (nowMs - s.pressStartMs >= kLongPressMs) {
-            firePress(b, CfgInputPressKind::LONG);
-            s.longFiredThisPress = true;
-            s.pendingDoubleArmed = false;
-        }
-    }
-
-    if (s.pendingDoubleArmed && !s.debouncedPressed && nowMs - s.lastReleaseMs > kDoubleTapGapMs) {
-        firePress(b, CfgInputPressKind::SHORT);
-        s.pendingDoubleArmed = false;
-    }
+    kEdgeHandlers[static_cast<uint8_t>(edgeOf(raw, s.debouncedPressed))](b, s, nowMs);
+    flushPendingShortPress(b, s, nowMs);
 }
 
 void taskInput(void *) {
