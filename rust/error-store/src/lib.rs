@@ -95,7 +95,7 @@ pub fn dismiss_at(ring: &mut [FwError], head: &mut u8, count: &mut u8, version: 
 
 fn close_gap(ring: &mut [FwError], head: u8, count: u8, pos: u8) {
     let ring_size = ring.len() as u8;
-    for i in pos..count - 1 {
+    for i in pos..count.saturating_sub(1) {
         let dst = (head.wrapping_add(i)) % ring_size;
         let src = (head.wrapping_add(i + 1)) % ring_size;
         ring[dst as usize] = ring[src as usize];
