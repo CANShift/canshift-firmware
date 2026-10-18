@@ -1,13 +1,6 @@
 {
-  "function-lines": {
-    "test/test_format_float/test_main.cpp::main": 31
-  },
-  "nesting": {
-    "test/native/shim/hal/storage/storage_driver_fake.cpp::StorageDriver::getSpaceInfo": 3,
-    "test/test_layout_grid/test_main.cpp::assertInsideFrame": 4,
-    "test/test_real_config/test_main.cpp::test_every_bound_signal_is_declared": 3,
-    "test/test_signal_presentation/test_main.cpp::test_no_two_signals_share_a_kicker": 3
-  },
+  "function-lines": {},
+  "nesting": {},
   "file-lines": {
     "rust/alert-engine/src/cuts.rs": 304,
     "rust/alert-engine/src/ffi.rs": 359,
