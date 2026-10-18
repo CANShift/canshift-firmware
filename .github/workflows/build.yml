@@ -18,7 +18,6 @@ concurrency:
 env:
   PYTHON_VERSION: '3.12'
   CLANG_FORMAT_VERSION: '22.1.8'
-  LIZARD_VERSION: '1.24.1'
   RUFF_VERSION: '0.17.0'
   ACTIONLINT_VERSION: '1.7.12'
   ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
@@ -384,7 +383,7 @@ jobs:
             | xargs -0 clang-format --dry-run --Werror --style=file
       - name: Code shape
         run: |
-          pip install "lizard==${LIZARD_VERSION}"
+          pip install --require-hashes -r .github/requirements/lizard.txt
           python3 scripts/check_code_shape.py
       - name: FFI constant parity
         run: python3 scripts/check_ffi_parity.py
