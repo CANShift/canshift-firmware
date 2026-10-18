@@ -35,45 +35,30 @@ bool buildBakPath(char *out, size_t outLen, const char *base) {
     out[baseLen + suffixLen] = '\0';
     return true;
 }
-}
 
-void logLargestFreeBlock([[maybe_unused]] const char *where) {
-#ifdef ARDUINO
-    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    LOG_INFO("CFG", "heap.largest_free=%u before %s", static_cast<unsigned>(largest), where);
-#endif
-}
-
-const char *lastParseError() {
-    return s_lastParseError;
-}
-
-bool lastParseOutOfMemory() {
-    return s_lastParseCode == DeserializationError::NoMemory;
-}
-
-bool readAndParseWithBak(const char *path, JsonDocument &doc) {
-    logLargestFreeBlock(path);
-    s_lastParseError = "file missing";
-    s_lastParseCode = DeserializationError::Ok;
-
-    if (StorageDriver::fileExists(path)) {
-        DeserializationError err = StorageDriver::parseJsonFile(path, doc);
-        if (!err)
-            return true;
-        s_lastParseError = err.c_str();
-        s_lastParseCode = err.code();
-
-        // NOLINTNEXTLINE(bugprone-branch-clone)
-        if (err == DeserializationError::EmptyInput) {
-            LOG_WARN("CFG", "%s could not be opened — falling back to .bak", path);
-        } else {
-            LOG_WARN("CFG", "%s parse error: %s — falling back to .bak", path, err.c_str());
-        }
-    } else {
-        LOG_WARN("CFG", "%s missing — falling back to .bak", path);
+void logPrimaryParseFailure(const char *path, const DeserializationError &err) {
+    if (err == DeserializationError::EmptyInput) {
+        LOG_WARN("CFG", "%s could not be opened — falling back to .bak", path);
+        return;
     }
+    LOG_WARN("CFG", "%s parse error: %s — falling back to .bak", path, err.c_str());
+}
 
+bool parsePrimary(const char *path, JsonDocument &doc) {
+    if (!StorageDriver::fileExists(path)) {
+        LOG_WARN("CFG", "%s missing — falling back to .bak", path);
+        return false;
+    }
+    DeserializationError err = StorageDriver::parseJsonFile(path, doc);
+    if (!err)
+        return true;
+    s_lastParseError = err.c_str();
+    s_lastParseCode = err.code();
+    logPrimaryParseFailure(path, err);
+    return false;
+}
+
+bool recoverFromBak(const char *path, JsonDocument &doc) {
     char bakPath[kBakPathLen];
     if (!buildBakPath(bakPath, sizeof(bakPath), path))
         return false;
@@ -95,6 +80,31 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
         LOG_WARN("CFG", "Could not rename %s back to %s — non-fatal", bakPath, path);
     }
     return true;
+}
+}
+
+void logLargestFreeBlock([[maybe_unused]] const char *where) {
+#ifdef ARDUINO
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    LOG_INFO("CFG", "heap.largest_free=%u before %s", static_cast<unsigned>(largest), where);
+#endif
+}
+
+const char *lastParseError() {
+    return s_lastParseError;
+}
+
+bool lastParseOutOfMemory() {
+    return s_lastParseCode == DeserializationError::NoMemory;
+}
+
+bool readAndParseWithBak(const char *path, JsonDocument &doc) {
+    logLargestFreeBlock(path);
+    s_lastParseError = "file missing";
+    s_lastParseCode = DeserializationError::Ok;
+    if (parsePrimary(path, doc))
+        return true;
+    return recoverFromBak(path, doc);
 }
 
 bool promoteBackup(const char *path) {
