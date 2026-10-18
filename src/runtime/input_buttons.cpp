@@ -133,6 +133,15 @@ void scanBinding(size_t idx, const CfgInputBinding &b, uint32_t nowMs) {
     flushPendingShortPress(b, s, nowMs);
 }
 
+void scanBindings(const CfgInputBindings &cfg, uint32_t nowMs) {
+    for (size_t i = 0; i < cfg.count && i < kCfgMaxInputBindings; ++i) {
+        const CfgInputBinding &b = cfg.bindings[i];
+        if (b.pin < 0)
+            continue;
+        scanBinding(i, b, nowMs);
+    }
+}
+
 void taskInput(void *) {
     TickType_t lastWake = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(kInputPollPeriodMs);
@@ -140,13 +149,7 @@ void taskInput(void *) {
 
     while (true) {
         esp_task_wdt_reset();
-        const uint32_t nowMs = millis();
-        for (size_t i = 0; i < cfg.count && i < kCfgMaxInputBindings; ++i) {
-            const CfgInputBinding &b = cfg.bindings[i];
-            if (b.pin < 0)
-                continue;
-            scanBinding(i, b, nowMs);
-        }
+        scanBindings(cfg, millis());
         vTaskDelayUntil(&lastWake, period);
     }
 }
