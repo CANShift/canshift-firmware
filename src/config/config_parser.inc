@@ -197,6 +197,60 @@ void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
     strlcpy(out->imagePath, cfg["imagePath"] | "", kCfgMaxPathLen);
 }
 
+void parseLabelWidgetParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseLabelParams(cfg, &w->label);
+}
+
+void parseWarningParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseWarningWidget(cfg, &w->warning);
+}
+
+void parseButtonParams(JsonObjectConst cfg, CfgWidget *w) {
+    w->button = new (std::nothrow) CfgButtonParams{};
+    if (w->button == nullptr) {
+        LOG_WARN("CFG", "button '%s': params alloc failed — widget dropped", w->id);
+        w->type = WidgetType::UNKNOWN;
+        return;
+    }
+    parseButtonWidget(cfg, w->id, w->button);
+}
+
+void parseTimerParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseTimerWidget(cfg, &w->timer);
+}
+
+void parseImageParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseImageWidget(cfg, &w->image);
+}
+
+void parseGearParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseGearWidget(cfg, &w->label);
+}
+
+void parseShiftLightParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseShiftLightWidget(cfg, &w->shiftLight);
+}
+
+struct WidgetParamsParser {
+    WidgetType type;
+    void (*parse)(JsonObjectConst, CfgWidget *);
+};
+
+constexpr WidgetParamsParser kWidgetParamsParsers[] = {
+    {WidgetType::GAUGE, parseGaugeWidget},     {WidgetType::LABEL, parseLabelWidgetParams},
+    {WidgetType::WARNING, parseWarningParams}, {WidgetType::BUTTON, parseButtonParams},
+    {WidgetType::TIMER, parseTimerParams},     {WidgetType::IMAGE, parseImageParams},
+    {WidgetType::GEAR_IND, parseGearParams},   {WidgetType::SHIFT_LIGHT, parseShiftLightParams},
+};
+
+const WidgetParamsParser *paramsParserFor(WidgetType type) {
+    for (const WidgetParamsParser &parser : kWidgetParamsParsers) {
+        if (parser.type == type)
+            return &parser;
+    }
+    return nullptr;
+}
+
 }
 
 void parseWidget(JsonObjectConst src, CfgWidget *w) {
@@ -207,42 +261,9 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     parseWidgetLayout(src["layout"], &w->layout);
     parseWidgetStyle(src["style"], &w->style);
 
-    JsonObjectConst cfg = src["config"];
-    switch (w->type) {
-        case WidgetType::GAUGE:
-            parseGaugeWidget(cfg, w);
-            break;
-        case WidgetType::LABEL:
-            parseLabelParams(cfg, &w->label);
-            break;
-        case WidgetType::WARNING:
-            parseWarningWidget(cfg, &w->warning);
-            break;
-        case WidgetType::BUTTON:
-            w->button = new (std::nothrow) CfgButtonParams{};
-            if (w->button) {
-                parseButtonWidget(cfg, w->id, w->button);
-            } else {
-                LOG_WARN("CFG", "button '%s': params alloc failed — widget dropped", w->id);
-                w->type = WidgetType::UNKNOWN;
-            }
-            break;
-        case WidgetType::TIMER:
-            parseTimerWidget(cfg, &w->timer);
-            break;
-        case WidgetType::IMAGE:
-            parseImageWidget(cfg, &w->image);
-            break;
-        case WidgetType::GEAR_IND:
-            parseGearWidget(cfg, &w->label);
-            break;
-        case WidgetType::SHIFT_LIGHT:
-            parseShiftLightWidget(cfg, &w->shiftLight);
-            break;
-        case WidgetType::UNKNOWN:
-        default:
-            break;
-    }
+    const WidgetParamsParser *parser = paramsParserFor(w->type);
+    if (parser != nullptr)
+        parser->parse(src["config"], w);
 }
 
 }
