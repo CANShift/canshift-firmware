@@ -52,7 +52,7 @@ static uint32_t statusDotColor(bool valid, bool everSeen) {
     return everSeen ? kColorDotStale : kColorDotDown;
 }
 
-static void updateDynStatusDot(uint8_t idx, DynItem &d) {
+static void updateDynStatusDot(uint8_t idx, DynItem &d, bool) {
     bool valid = false;
     if (d.signalId[0] == '\0' || strcmp(d.signalId, "any") == 0) {
         valid = anySignalValid();
@@ -76,7 +76,7 @@ static void applyDynTextColor(DynItem &d, uint32_t color) {
     d.lastColor = color;
 }
 
-static void updateDynSignalLabel(DynItem &d) {
+static void updateDynSignalLabel(uint8_t, DynItem &d, bool) {
     SignalId sid = signalIdFromName(d.signalId);
 
     if (sid >= SignalIds::kSignalCount) {
@@ -110,7 +110,7 @@ static void updateDynSignalLabel(DynItem &d) {
     applyDynTextColor(d, labelColor());
 }
 
-static void updateDynSignalMax(DynItem &d) {
+static void updateDynSignalMax(uint8_t, DynItem &d, bool) {
     const SignalId sid = signalIdFromName(d.signalId);
     if (sid >= SignalIds::kSignalCount) {
         WidgetHelpers::setVisibleIfChanged(d.obj, false);
@@ -134,7 +134,9 @@ static void updateDynSignalMax(DynItem &d) {
     applyDynTextColor(d, known ? labelColor() : ThemeManager::getStaleTextColor());
 }
 
-static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
+static void updateBleIcon(uint8_t, DynItem &item, bool) {
+    lv_obj_t *obj = item.obj;
+    DynItem *d = &item;
 #if APP_BLE_ENABLED
     const bool connected = BleServer::isConnected();
     const bool advertising = !connected && BleServer::isEnabled();
@@ -160,7 +162,7 @@ static void updateBleIcon(lv_obj_t *obj, DynItem *d) {
     }
 }
 
-static void updateModeFlag(DynItem &d) {
+static void updateModeFlag(uint8_t, DynItem &d, bool) {
     SignalId sid = signalIdFromName(d.signalId);
     bool active = false;
     if (sid < SignalIds::kSignalCount && SignalStore::isValid(sid)) {
@@ -184,7 +186,7 @@ static uint32_t staticLabelColor(const DynItem &d, bool silent) {
     return mutedColor();
 }
 
-static void updateCanRate(DynItem &d, bool silent) {
+static void updateCanRate(uint8_t, DynItem &d, bool silent) {
     char buf[kDynTextCap];
     if (silent) {
         strlcpy(buf, kBusRateSilent, sizeof(buf));
@@ -198,7 +200,7 @@ static void updateCanRate(DynItem &d, bool silent) {
     applyDynTextColor(d, busFieldColor(silent));
 }
 
-static void updateTrackBadge(DynItem &d) {
+static void updateTrackBadge(uint8_t, DynItem &d, bool) {
     const bool active = TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs);
     const bool wantHidden = !active;
     if (wantHidden != d.hidden) {
@@ -222,7 +224,7 @@ static void updateTrackBadge(DynItem &d) {
     applyDynTextColor(d, labelColor());
 }
 
-static void updateLinkedSeparator(DynItem &d) {
+static void updateLinkedSeparator(uint8_t, DynItem &d, bool) {
     const int8_t dynCount = static_cast<int8_t>(s_dynCount);
     if (!TopBarSeparatorLink::hasValidLink(d.linkedFlagIdx, dynCount))
         return;
@@ -240,65 +242,31 @@ static void updateLinkedSeparator(DynItem &d) {
 
 using DynUpdater = void (*)(uint8_t idx, DynItem &d, bool silent);
 
-struct DynUpdate {
-    TopBarItemKind kind;
-    DynUpdater update;
-};
-
-static void updateStatusDotItem(uint8_t idx, DynItem &d, bool) {
-    updateDynStatusDot(idx, d);
-}
-
-static void updateSignalItem(uint8_t, DynItem &d, bool) {
-    updateDynSignalLabel(d);
-}
-
-static void updateSignalMaxItem(uint8_t, DynItem &d, bool) {
-    updateDynSignalMax(d);
-}
-
-static void updateBleItem(uint8_t, DynItem &d, bool) {
-    updateBleIcon(d.obj, &d);
-}
-
-static void updateModeFlagItem(uint8_t, DynItem &d, bool) {
-    updateModeFlag(d);
-}
-
-static void updateTrackBadgeItem(uint8_t, DynItem &d, bool) {
-    updateTrackBadge(d);
-}
-
-static void updateCanRateItem(uint8_t, DynItem &d, bool silent) {
-    updateCanRate(d, silent);
-}
-
-static void updateSeparatorItem(uint8_t, DynItem &d, bool) {
-    updateLinkedSeparator(d);
-}
-
-static void updateLabelItem(uint8_t, DynItem &d, bool silent) {
+static void updateStaticLabel(uint8_t, DynItem &d, bool silent) {
     applyDynTextColor(d, staticLabelColor(d, silent));
 }
 
-static constexpr DynUpdate kDynUpdates[] = {
-    {TopBarItemKind::STATUS_DOT, updateStatusDotItem},
-    {TopBarItemKind::SIGNAL, updateSignalItem},
-    {TopBarItemKind::SIGNAL_MAX, updateSignalMaxItem},
-    {TopBarItemKind::BLE_ICON, updateBleItem},
-    {TopBarItemKind::MODE_FLAG, updateModeFlagItem},
-    {TopBarItemKind::TRACK_BADGE, updateTrackBadgeItem},
-    {TopBarItemKind::CAN_RATE, updateCanRateItem},
-    {TopBarItemKind::SEPARATOR, updateSeparatorItem},
-    {TopBarItemKind::LABEL, updateLabelItem},
+static constexpr DynUpdater kDynUpdaters[] = {
+    nullptr,
+    updateDynStatusDot,
+    updateStaticLabel,
+    updateLinkedSeparator,
+    updateDynSignalLabel,
+    updateBleIcon,
+    nullptr,
+    updateModeFlag,
+    updateTrackBadge,
+    updateCanRate,
+    updateDynSignalMax,
 };
 
+static_assert(sizeof(kDynUpdaters) / sizeof(kDynUpdaters[0]) ==
+                  static_cast<size_t>(TopBarItemKind::SIGNAL_MAX) + 1,
+              "every top bar item kind needs a row");
+
 static DynUpdater updaterFor(TopBarItemKind kind) {
-    for (const DynUpdate &entry : kDynUpdates) {
-        if (entry.kind == kind)
-            return entry.update;
-    }
-    return nullptr;
+    const size_t idx = static_cast<size_t>(kind);
+    return idx < sizeof(kDynUpdaters) / sizeof(kDynUpdaters[0]) ? kDynUpdaters[idx] : nullptr;
 }
 
 void TopBar::update() {
