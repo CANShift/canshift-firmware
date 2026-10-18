@@ -64,6 +64,55 @@ void applyThemeOverride() {
 
 }
 
+namespace {
+
+bool bootDashboard(const char *pageId) {
+    const ConfigLoader::LoadResult cfg = ConfigLoader::loadAll();
+    printf("config loaded: dashboard=%d signals=%d\n", static_cast<int>(cfg.dashboardOk),
+           static_cast<int>(cfg.signalsOk));
+
+    ScreenProfile::initFromDashboard();
+    FontManager::init();
+    LvglPool::report("fonts");
+    SignalStore::init();
+    AlertEngine::init();
+    PageManager::init();
+    if (!PageManager::navigateTo(pageId ? pageId : PageManager::getDefaultPageId())) {
+        printf("page '%s' not found\n", pageId);
+        return false;
+    }
+
+    return true;
+}
+
+int runLoop(uint32_t captureAfterMs) {
+    const uint32_t startMs = millis();
+    while (!SimDisplay::quitRequested()) {
+        SimDisplay::pumpEvents();
+
+        const uint32_t now = millis();
+
+        SimInjector::tick(now);
+        SignalStore::checkTimeouts();
+
+        PageManager::updateWidgets();
+        lv_timer_handler();
+
+        if (SimDisplay::screenshotRequested())
+            SimDisplay::writeScreenshot("sim-screenshot.bmp");
+
+        if (captureAfterMs > 0 && now - startMs >= captureAfterMs) {
+            SimDisplay::writeScreenshot("sim-screenshot.bmp");
+            return 0;
+        }
+
+        delay(kFrameMs);
+    }
+    return 0;
+}
+
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, nullptr, _IOLBF, 0);
     const char *dataRoot = argc > 1 ? argv[1] : "data";
@@ -92,47 +141,13 @@ int main(int argc, char **argv) {
     simStorageSetRoot(dataRoot);
     simRegisterLvglFs(dataRoot);
 
-    const ConfigLoader::LoadResult cfg = ConfigLoader::loadAll();
-    printf("config loaded: dashboard=%d signals=%d\n", static_cast<int>(cfg.dashboardOk),
-           static_cast<int>(cfg.signalsOk));
-
-    ScreenProfile::initFromDashboard();
-    FontManager::init();
-    LvglPool::report("fonts");
-    SignalStore::init();
-    AlertEngine::init();
-    PageManager::init();
-    if (!PageManager::navigateTo(pageId ? pageId : PageManager::getDefaultPageId())) {
-        printf("page '%s' not found\n", pageId);
+    if (!bootDashboard(pageId))
         return 1;
-    }
 
     LvglPool::report("first page build");
     applyThemeOverride();
 
     SimInjector::init(scenario);
 
-    const uint32_t startMs = millis();
-    while (!SimDisplay::quitRequested()) {
-        SimDisplay::pumpEvents();
-
-        const uint32_t now = millis();
-
-        SimInjector::tick(now);
-        SignalStore::checkTimeouts();
-
-        PageManager::updateWidgets();
-        lv_timer_handler();
-
-        if (SimDisplay::screenshotRequested())
-            SimDisplay::writeScreenshot("sim-screenshot.bmp");
-
-        if (captureAfterMs > 0 && now - startMs >= captureAfterMs) {
-            SimDisplay::writeScreenshot("sim-screenshot.bmp");
-            return 0;
-        }
-
-        delay(kFrameMs);
-    }
-    return 0;
+    return runLoop(captureAfterMs);
 }

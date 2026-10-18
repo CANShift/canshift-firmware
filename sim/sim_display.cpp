@@ -56,6 +56,24 @@ void pointerReadCb(lv_indev_drv_t *, lv_indev_data_t *data) {
 
 namespace SimDisplay {
 
+void registerLvglDrivers(int width) {
+    const uint32_t bufPixels = static_cast<uint32_t>(width) * 40;
+    s_buf1 = static_cast<lv_color_t *>(malloc(bufPixels * sizeof(lv_color_t)));
+    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, nullptr, bufPixels);
+    static lv_disp_drv_t dispDrv;
+    lv_disp_drv_init(&dispDrv);
+    dispDrv.hor_res = static_cast<lv_coord_t>(width);
+    dispDrv.ver_res = static_cast<lv_coord_t>(s_height);
+    dispDrv.draw_buf = &s_drawBuf;
+    dispDrv.flush_cb = flushCb;
+    lv_disp_drv_register(&dispDrv);
+    static lv_indev_drv_t indevDrv;
+    lv_indev_drv_init(&indevDrv);
+    indevDrv.type = LV_INDEV_TYPE_POINTER;
+    indevDrv.read_cb = pointerReadCb;
+    lv_indev_drv_register(&indevDrv);
+}
+
 bool init(int width, int height, int zoom) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -80,61 +98,58 @@ bool init(int width, int height, int zoom) {
         return false;
 
     s_frame = static_cast<uint32_t *>(calloc(static_cast<size_t>(width) * height, 4));
-
-    const uint32_t bufPixels = static_cast<uint32_t>(width) * 40;
-    s_buf1 = static_cast<lv_color_t *>(malloc(bufPixels * sizeof(lv_color_t)));
-    lv_disp_draw_buf_init(&s_drawBuf, s_buf1, nullptr, bufPixels);
-
-    static lv_disp_drv_t dispDrv;
-    lv_disp_drv_init(&dispDrv);
-    dispDrv.hor_res = static_cast<lv_coord_t>(width);
-    dispDrv.ver_res = static_cast<lv_coord_t>(height);
-    dispDrv.draw_buf = &s_drawBuf;
-    dispDrv.flush_cb = flushCb;
-    lv_disp_drv_register(&dispDrv);
-
-    static lv_indev_drv_t indevDrv;
-    lv_indev_drv_init(&indevDrv);
-    indevDrv.type = LV_INDEV_TYPE_POINTER;
-    indevDrv.read_cb = pointerReadCb;
-    lv_indev_drv_register(&indevDrv);
-
+    registerLvglDrivers(width);
     return true;
+}
+
+void enqueueKey(int sym) {
+    if ((s_keyTail + 1) % kKeyQueueSize == s_keyHead)
+        return;
+    s_keyQueue[s_keyTail] = sym;
+    s_keyTail = (s_keyTail + 1) % kKeyQueueSize;
+}
+
+void onKeyDown(int sym) {
+    if (sym == SDLK_ESCAPE) {
+        s_quit = true;
+        return;
+    }
+    if (sym == SDLK_s) {
+        s_screenshot = true;
+        return;
+    }
+    enqueueKey(sym);
+}
+
+void handleEvent(const SDL_Event &ev) {
+    switch (ev.type) {
+        case SDL_QUIT:
+            s_quit = true;
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            s_mouseDown = true;
+            s_mouseX = ev.button.x;
+            s_mouseY = ev.button.y;
+            break;
+        case SDL_MOUSEBUTTONUP:
+            s_mouseDown = false;
+            break;
+        case SDL_MOUSEMOTION:
+            s_mouseX = ev.motion.x;
+            s_mouseY = ev.motion.y;
+            break;
+        case SDL_KEYDOWN:
+            onKeyDown(ev.key.keysym.sym);
+            break;
+        default:
+            break;
+    }
 }
 
 void pumpEvents() {
     SDL_Event ev;
-    while (SDL_PollEvent(&ev)) {
-        switch (ev.type) {
-            case SDL_QUIT:
-                s_quit = true;
-                break;
-            case SDL_MOUSEBUTTONDOWN:
-                s_mouseDown = true;
-                s_mouseX = ev.button.x;
-                s_mouseY = ev.button.y;
-                break;
-            case SDL_MOUSEBUTTONUP:
-                s_mouseDown = false;
-                break;
-            case SDL_MOUSEMOTION:
-                s_mouseX = ev.motion.x;
-                s_mouseY = ev.motion.y;
-                break;
-            case SDL_KEYDOWN:
-                if (ev.key.keysym.sym == SDLK_ESCAPE) {
-                    s_quit = true;
-                } else if (ev.key.keysym.sym == SDLK_s) {
-                    s_screenshot = true;
-                } else if ((s_keyTail + 1) % kKeyQueueSize != s_keyHead) {
-                    s_keyQueue[s_keyTail] = ev.key.keysym.sym;
-                    s_keyTail = (s_keyTail + 1) % kKeyQueueSize;
-                }
-                break;
-            default:
-                break;
-        }
-    }
+    while (SDL_PollEvent(&ev))
+        handleEvent(ev);
 }
 
 int pollKey() {
