@@ -16,13 +16,15 @@
 
 using namespace TopBarInternal;
 
+static constexpr int16_t kDefaultBarHeight = 30;
+
 namespace TopBarInternal {
 lv_obj_t *s_bar = nullptr;
 DynItem s_dynItems[kCfgMaxTopbarItems];
 uint8_t s_dynCount = 0;
 bool s_dynEverSeen[kCfgMaxTopbarItems] = {};
 lv_obj_t *s_themeIcon = nullptr;
-int16_t s_height = 30;
+int16_t s_height = kDefaultBarHeight;
 }
 
 static bool s_pageOverridden = false;
@@ -184,8 +186,6 @@ void TopBar::rebuild() {
 }
 
 namespace {
-
-constexpr int16_t kDefaultBarHeight = 30;
 
 void onBarClicked(lv_event_t *e) {
     if (lv_event_get_target(e) != lv_event_get_current_target(e))
