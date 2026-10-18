@@ -144,16 +144,23 @@ bool removeFile(const char *path) {
     return true;
 }
 
+namespace {
+
+size_t usedByteCount() {
+    size_t used = 0;
+    for (const auto &f : s_files)
+        if (f.used)
+            used += f.size;
+    return used;
+}
+
+}
+
 void getSpaceInfo(size_t *totalBytes, size_t *usedBytes) {
     if (totalBytes)
         *totalBytes = kMaxFiles * kMaxFileBytes;
-    if (usedBytes) {
-        size_t used = 0;
-        for (const auto &f : s_files)
-            if (f.used)
-                used += f.size;
-        *usedBytes = used;
-    }
+    if (usedBytes)
+        *usedBytes = usedByteCount();
 }
 
 namespace {

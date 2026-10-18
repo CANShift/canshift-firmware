@@ -181,9 +181,7 @@ void test_formatGeneral_nanAndInf() {
     TEST_ASSERT_EQUAL_STRING("-inf", buf);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
-    UNITY_BEGIN();
-
+static void runFormatFixedTests() {
     RUN_TEST(test_formatFixed_basicTwoDecimals);
     RUN_TEST(test_formatFixed_zeroDecimalsRounds);
     RUN_TEST(test_formatFixed_negativeValue);
@@ -195,7 +193,9 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_formatFixed_clampsDecimalsNegative);
     RUN_TEST(test_formatFixed_truncatesToBufferAndReturnsWouldHave);
     RUN_TEST(test_formatFixed_zeroSizeReturnsZero);
+}
 
+static void runFormatFromSpecTests() {
     RUN_TEST(test_formatFromSpec_noTokenFallsBackToOneDecimal);
     RUN_TEST(test_formatFromSpec_defaultPrecisionOneWhenNoDot);
     RUN_TEST(test_formatFromSpec_explicitPrecision);
@@ -205,7 +205,9 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_formatFromSpec_unreasonablePrecisionBailsAndFallsBack);
     RUN_TEST(test_formatFromSpec_nullSpecRendersOneDecimal);
     RUN_TEST(test_formatFromSpec_emptySpecRendersOneDecimal);
+}
 
+static void runFormatGeneralTests() {
     RUN_TEST(test_formatGeneral_stripsTrailingZeros);
     RUN_TEST(test_formatGeneral_keepsMeaningfulDecimals);
     RUN_TEST(test_formatGeneral_largeMagnitudeNoDecimals);
@@ -213,6 +215,12 @@ int main(int /*argc*/, char ** /*argv*/) {
     RUN_TEST(test_formatGeneral_negativeValue);
     RUN_TEST(test_formatGeneral_clampsSigDigitsLow);
     RUN_TEST(test_formatGeneral_nanAndInf);
+}
 
+int main(int /*argc*/, char ** /*argv*/) {
+    UNITY_BEGIN();
+    runFormatFixedTests();
+    runFormatFromSpecTests();
+    runFormatGeneralTests();
     return UNITY_END();
 }

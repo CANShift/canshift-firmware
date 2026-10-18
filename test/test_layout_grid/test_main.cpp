@@ -57,23 +57,30 @@ void test_garbagePlacement_staysInsideFrame() {
     TEST_ASSERT_TRUE(rect.y + rect.h <= 224 - kFrame);
 }
 
-void assertInsideFrame(uint16_t areaW, uint16_t areaH) {
+void assertPlacementInsideFrame(uint8_t col, uint8_t colSpan, uint8_t row, uint8_t rowSpan,
+                                uint16_t areaW, uint16_t areaH) {
     const int16_t right = static_cast<int16_t>(areaW - kFrame);
     const int16_t bottom = static_cast<int16_t>(areaH - kFrame);
+    const LayoutGridRectRs rect = resolve(col, colSpan, row, rowSpan, areaW, areaH);
+    TEST_ASSERT_TRUE(rect.x >= kFrame);
+    TEST_ASSERT_TRUE(rect.y >= kFrame);
+    TEST_ASSERT_TRUE(rect.w >= 1);
+    TEST_ASSERT_TRUE(rect.h >= 1);
+    TEST_ASSERT_TRUE(rect.x + rect.w <= right);
+    TEST_ASSERT_TRUE(rect.y + rect.h <= bottom);
+}
+
+void assertEveryRowInsideFrame(uint8_t col, uint8_t colSpan, uint16_t areaW, uint16_t areaH) {
+    for (uint8_t rowSpan = 1; rowSpan <= 12; ++rowSpan) {
+        for (uint8_t row = 0; row <= 12 - rowSpan; ++row)
+            assertPlacementInsideFrame(col, colSpan, row, rowSpan, areaW, areaH);
+    }
+}
+
+void assertInsideFrame(uint16_t areaW, uint16_t areaH) {
     for (uint8_t colSpan = 1; colSpan <= 12; ++colSpan) {
-        for (uint8_t col = 0; col <= 12 - colSpan; ++col) {
-            for (uint8_t rowSpan = 1; rowSpan <= 12; ++rowSpan) {
-                for (uint8_t row = 0; row <= 12 - rowSpan; ++row) {
-                    const LayoutGridRectRs rect = resolve(col, colSpan, row, rowSpan, areaW, areaH);
-                    TEST_ASSERT_TRUE(rect.x >= kFrame);
-                    TEST_ASSERT_TRUE(rect.y >= kFrame);
-                    TEST_ASSERT_TRUE(rect.w >= 1);
-                    TEST_ASSERT_TRUE(rect.h >= 1);
-                    TEST_ASSERT_TRUE(rect.x + rect.w <= right);
-                    TEST_ASSERT_TRUE(rect.y + rect.h <= bottom);
-                }
-            }
-        }
+        for (uint8_t col = 0; col <= 12 - colSpan; ++col)
+            assertEveryRowInsideFrame(col, colSpan, areaW, areaH);
     }
 }
 

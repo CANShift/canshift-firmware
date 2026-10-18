@@ -87,21 +87,24 @@ static bool signalIsDeclared(const CfgSignalConfig &s, const char *name) {
     return false;
 }
 
+static void assertPageSignalsDeclared(const CfgSignalConfig &s, const CfgPage &page, uint8_t p) {
+    for (uint8_t w = 0; w < page.widgetCount; ++w) {
+        const char *signal = page.widgets[w].signalId;
+        if (signal[0] == '\0')
+            continue;
+        printf("page[%u] widget[%u] signal=%s\n", (unsigned)p, (unsigned)w, signal);
+        TEST_ASSERT_TRUE_MESSAGE(signalIsDeclared(s, signal), signal);
+    }
+}
+
 void test_every_bound_signal_is_declared() {
     const CfgDashboard &d = ConfigLoader::getDashboardConfig();
     const CfgSignalConfig &s = ConfigLoader::getSignalConfig();
     printf("signalCount=%u cap=%u\n", (unsigned)s.signalCount, (unsigned)kConfigMaxSignals);
     TEST_ASSERT_LESS_OR_EQUAL_UINT8(kConfigMaxSignals, s.signalCount);
 
-    for (uint8_t p = 0; p < d.pageCount; ++p) {
-        for (uint8_t w = 0; w < d.pages[p].widgetCount; ++w) {
-            const char *signal = d.pages[p].widgets[w].signalId;
-            if (signal[0] == '\0')
-                continue;
-            printf("page[%u] widget[%u] signal=%s\n", (unsigned)p, (unsigned)w, signal);
-            TEST_ASSERT_TRUE_MESSAGE(signalIsDeclared(s, signal), signal);
-        }
-    }
+    for (uint8_t p = 0; p < d.pageCount; ++p)
+        assertPageSignalsDeclared(s, d.pages[p], p);
 }
 
 int main(int, char **) {
