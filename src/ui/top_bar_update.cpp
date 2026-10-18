@@ -134,9 +134,7 @@ static void updateDynSignalMax(uint8_t, DynItem &d, bool) {
     applyDynTextColor(d, known ? labelColor() : ThemeManager::getStaleTextColor());
 }
 
-static void updateBleIcon(uint8_t, DynItem &item, bool) {
-    lv_obj_t *obj = item.obj;
-    DynItem *d = &item;
+static void updateBleIcon(uint8_t, DynItem &d, bool) {
 #if APP_BLE_ENABLED
     const bool connected = BleServer::isConnected();
     const bool advertising = !connected && BleServer::isEnabled();
@@ -151,15 +149,13 @@ static void updateBleIcon(uint8_t, DynItem &item, bool) {
                                ? ThemeManager::pickColor(kColorBleAdvNight, kColorBleAdvDay)
                                : ThemeManager::getStaleTextColor();
 
-    if (d != nullptr && color == d->lastColor && strcmp(d->lastText, text) == 0)
+    if (color == d.lastColor && strcmp(d.lastText, text) == 0)
         return;
 
-    lv_label_set_text(obj, text);
-    lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
-    if (d != nullptr) {
-        d->lastColor = color;
-        strlcpy(d->lastText, text, sizeof(d->lastText));
-    }
+    lv_label_set_text(d.obj, text);
+    lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
+    d.lastColor = color;
+    strlcpy(d.lastText, text, sizeof(d.lastText));
 }
 
 static void updateModeFlag(uint8_t, DynItem &d, bool) {
