@@ -106,50 +106,58 @@ size_t writtenSize() {
     return s_writtenSize;
 }
 
-BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32], const uint8_t *signature) {
-    if (s_state == State::Receiving) {
-        LOG_WARN("OTA", "begin while already receiving — aborting previous session");
-        teardownOtaHandle();
-    }
+namespace {
 
-    const esp_partition_t *target = esp_ota_get_next_update_partition(nullptr);
-    if (target == nullptr) {
-        s_state = State::Failed;
-        return {false, "no_ota_partition"};
-    }
-    if (totalSize < kAppHeaderProbeBytes || totalSize > target->size) {
-        s_state = State::Failed;
-        return {false, "size_out_of_range"};
-    }
+BeginResult failBegin(const char *reason) {
+    s_state = State::Failed;
+    return {false, reason};
+}
+
+const char *refusalFor(const esp_partition_t *target, size_t totalSize, const uint8_t *signature) {
+    if (target == nullptr)
+        return "no_ota_partition";
+    if (totalSize < kAppHeaderProbeBytes || totalSize > target->size)
+        return "size_out_of_range";
     const char *signatureError = startSignature(signature);
-    if (signatureError != nullptr) {
+    if (signatureError != nullptr)
         LOG_ERROR("OTA", "begin refused: %s", signatureError);
-        s_state = State::Failed;
-        return {false, signatureError};
-    }
+    return signatureError;
+}
 
-    esp_ota_handle_t handle = 0;
-    const esp_err_t err = esp_ota_begin(target, OTA_WITH_SEQUENTIAL_WRITES, &handle);
-    if (err != ESP_OK) {
-        LOG_ERROR("OTA", "esp_ota_begin failed: %s", esp_err_to_name(err));
-        s_state = State::Failed;
-        return {false, "ota_begin_failed"};
-    }
-
+void startSession(const esp_partition_t *target, esp_ota_handle_t handle, size_t totalSize,
+                  const uint8_t expectedSha256[32]) {
     s_targetPartition = target;
     s_otaHandle = handle;
     s_expectedSize = totalSize;
     s_writtenSize = 0;
     s_headerProbeLen = 0;
     memcpy(s_expectedSha, expectedSha256, 32);
+}
+
+}
+
+BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32], const uint8_t *signature) {
+    if (s_state == State::Receiving) {
+        LOG_WARN("OTA", "begin while already receiving — aborting previous session");
+        teardownOtaHandle();
+    }
+    const esp_partition_t *target = esp_ota_get_next_update_partition(nullptr);
+    const char *refusal = refusalFor(target, totalSize, signature);
+    if (refusal != nullptr)
+        return failBegin(refusal);
+    esp_ota_handle_t handle = 0;
+    const esp_err_t err = esp_ota_begin(target, OTA_WITH_SEQUENTIAL_WRITES, &handle);
+    if (err != ESP_OK) {
+        LOG_ERROR("OTA", "esp_ota_begin failed: %s", esp_err_to_name(err));
+        return failBegin("ota_begin_failed");
+    }
+    startSession(target, handle, totalSize, expectedSha256);
     if (!startShaContext()) {
         LOG_ERROR("OTA", "sha256 engine start failed");
         teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "sha_engine_failed"};
+        return failBegin("sha_engine_failed");
     }
     s_state = State::Receiving;
-
     LOG_INFO("OTA", "begin: target='%s' size=%u", target->label, static_cast<unsigned>(totalSize));
     return {true, nullptr};
 }
@@ -187,61 +195,72 @@ WriteResult writeChunk(uint32_t offset, const uint8_t *data, size_t len) {
     return {true, nullptr, s_writtenSize};
 }
 
-CommitResult commit() {
-    if (s_state != State::Receiving)
-        return {false, "not_receiving", 0};
+namespace {
+
+CommitResult failCommit(const char *reason) {
+    teardownOtaHandle();
+    s_state = State::Failed;
+    return {false, reason, 0};
+}
+
+CommitResult failActivation(const char *reason, esp_err_t err) {
+    s_targetPartition = nullptr;
+    s_state = State::Failed;
+    return {false, reason, static_cast<int>(err)};
+}
+
+const char *imageRejection() {
     if (s_writtenSize != s_expectedSize) {
         LOG_ERROR("OTA", "commit while incomplete: written=%u expected=%u",
                   static_cast<unsigned>(s_writtenSize), static_cast<unsigned>(s_expectedSize));
-        teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "incomplete", 0};
+        return "incomplete";
     }
-
     uint8_t actualSha[32] = {0};
     if (mbedtls_sha256_finish_ret(&s_shaCtx, actualSha) != 0) {
         LOG_ERROR("OTA", "sha256 finish failed");
-        teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "sha_engine_failed", 0};
+        return "sha_engine_failed";
     }
     if (memcmp(actualSha, s_expectedSha, 32) != 0) {
         LOG_ERROR("OTA", "sha256 mismatch — aborting");
-        teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "sha256_mismatch", 0};
+        return "sha256_mismatch";
     }
     if (!signatureAccepted()) {
         LOG_ERROR("OTA", "signature does not match the release key — aborting");
-        teardownOtaHandle();
-        s_state = State::Failed;
-        return {false, "ota_bad_signature", 0};
+        return "ota_bad_signature";
     }
+    return nullptr;
+}
 
+CommitResult activateImage() {
     const esp_err_t endErr = esp_ota_end(s_otaHandle);
     s_otaHandle = 0;
     if (endErr != ESP_OK) {
         LOG_ERROR("OTA", "esp_ota_end failed: %s (0x%x)", esp_err_to_name(endErr),
                   static_cast<unsigned>(endErr));
-        s_targetPartition = nullptr;
-        s_state = State::Failed;
-        return {false, "ota_end_failed", static_cast<int>(endErr)};
+        return failActivation("ota_end_failed", endErr);
     }
-
     const esp_err_t setErr = esp_ota_set_boot_partition(s_targetPartition);
     if (setErr != ESP_OK) {
         LOG_ERROR("OTA", "esp_ota_set_boot_partition failed: %s (0x%x)", esp_err_to_name(setErr),
                   static_cast<unsigned>(setErr));
-        s_targetPartition = nullptr;
-        s_state = State::Failed;
-        return {false, "set_boot_failed", static_cast<int>(setErr)};
+        return failActivation("set_boot_failed", setErr);
     }
-
     LOG_INFO("OTA", "commit: new boot partition='%s' — restart will load it",
              s_targetPartition->label);
     s_targetPartition = nullptr;
     s_state = State::Committed;
     return {true, nullptr, 0};
+}
+
+}
+
+CommitResult commit() {
+    if (s_state != State::Receiving)
+        return {false, "not_receiving", 0};
+    const char *rejection = imageRejection();
+    if (rejection != nullptr)
+        return failCommit(rejection);
+    return activateImage();
 }
 
 void abort(const char *reason) {
