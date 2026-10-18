@@ -1,4 +1,5 @@
 #include "storage_driver.h"
+#include "storage_atomic_swap.h"
 #include "board_config.h"
 #include "config/config_types.h"
 #include "config/json_reader.h"
@@ -25,67 +26,8 @@ bool isNewline(uint8_t c) {
 }
 }
 
-static constexpr size_t kAtomicSuffixLen = 4;
-static constexpr size_t kSuffixedPathLen = kCfgMaxPathLen + kAtomicSuffixLen + 1;
-
-namespace {
-
-bool buildSuffixedPath(char *out, size_t outLen, const char *base, const char *suffix) {
-    if (!out || !base || !suffix || outLen == 0)
-        return false;
-    const size_t baseLen = strlen(base);
-    const size_t suffixLen = strlen(suffix);
-    if (baseLen + suffixLen + 1 > outLen)
-        return false;
-    memcpy(out, base, baseLen);
-    memcpy(out + baseLen, suffix, suffixLen);
-    out[baseLen + suffixLen] = '\0';
-    return true;
-}
-
-bool finalizeAtomicSwap(const char *path) {
-    char tmpPath[kSuffixedPathLen];
-    char bakPath[kSuffixedPathLen];
-    if (!buildSuffixedPath(tmpPath, sizeof(tmpPath), path, ".tmp") ||
-        !buildSuffixedPath(bakPath, sizeof(bakPath), path, ".bak")) {
-        LOG_ERROR("STORAGE", "Path too long for atomic swap: %s", path);
-        return false;
-    }
-
-    if (SPIFFS.exists(bakPath)) {
-        if (!SPIFFS.remove(bakPath)) {
-            LOG_WARN("STORAGE", "Failed to remove stale %s — proceeding", bakPath);
-        }
-    }
-
-    bool hadOriginal = false;
-    if (SPIFFS.exists(path)) {
-        if (!SPIFFS.rename(path, bakPath)) {
-            LOG_ERROR("STORAGE", "Rotate %s -> %s failed", path, bakPath);
-            SPIFFS.remove(tmpPath);
-            return false;
-        }
-        hadOriginal = true;
-    }
-
-    if (!SPIFFS.rename(tmpPath, path)) {
-        LOG_ERROR("STORAGE", "Promote %s -> %s failed", tmpPath, path);
-
-        if (hadOriginal) {
-            if (!SPIFFS.rename(bakPath, path)) {
-                LOG_ERROR("STORAGE", "Restore from %s failed — file lost", bakPath);
-            } else {
-                LOG_WARN("STORAGE", "Restored %s from .bak after promote failure", path);
-            }
-        }
-        SPIFFS.remove(tmpPath);
-        return false;
-    }
-
-    return true;
-}
-
-}
+using StorageAtomicSwap::buildSuffixedPath;
+using StorageAtomicSwap::kSuffixedPathLen;
 
 bool StorageDriver::init() {
     const esp_partition_t *part = esp_partition_find_first(
@@ -204,7 +146,7 @@ bool StorageDriver::writeFileAtomic(const char *path, const uint8_t *data, size_
         return false;
     }
 
-    if (!finalizeAtomicSwap(path)) {
+    if (!StorageAtomicSwap::finalize(path)) {
         return false;
     }
 
@@ -261,6 +203,17 @@ char s_chunkAtomicPath[kCfgMaxPathLen] = {0};
 char s_chunkActualPath[kSuffixedPathLen] = {0};
 }
 
+namespace {
+
+bool ensureDir(const char *dir) {
+    if (SPIFFS.exists(dir) || SPIFFS.mkdir(dir))
+        return true;
+    LOG_WARN("STORAGE", "mkdir failed: %s", dir);
+    return false;
+}
+
+}
+
 bool StorageDriver::ensureParentDirs(const char *path) {
     if (!path || path[0] != '/')
         return false;
@@ -274,14 +227,10 @@ bool StorageDriver::ensureParentDirs(const char *path) {
         if (!slash)
             break;
         *slash = '\0';
-        if (!SPIFFS.exists(buf)) {
-            if (!SPIFFS.mkdir(buf)) {
-                LOG_WARN("STORAGE", "mkdir failed: %s", buf);
-                *slash = '/';
-                return false;
-            }
-        }
+        const bool present = ensureDir(buf);
         *slash = '/';
+        if (!present)
+            return false;
         cursor = slash + 1;
     }
     return true;
@@ -352,7 +301,7 @@ StorageDriver::ChunkCommit commitStagedChunk(StorageDriver::StagedFileCheck chec
         SPIFFS.remove(s_chunkActualPath);
         return StorageDriver::ChunkCommit::Rejected;
     }
-    if (finalizeAtomicSwap(s_chunkAtomicPath))
+    if (StorageAtomicSwap::finalize(s_chunkAtomicPath))
         return StorageDriver::ChunkCommit::Committed;
     LOG_ERROR("STORAGE", "Atomic chunked finalize failed: %s", s_chunkAtomicPath);
     return StorageDriver::ChunkCommit::Failed;
