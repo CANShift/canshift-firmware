@@ -1,4 +1,5 @@
 #include "alert_engine.h"
+#include "alert_engine_internal.h"
 #include "signal_store.h"
 #include "can/signal_map.h"
 #include "config/config_loader.h"
@@ -38,6 +39,29 @@ static Thresholds s_oilTemp = kOilTempDefaults;
 static Thresholds s_oilPress = kOilPressureDefaults;
 static Thresholds s_battery = kBatteryDefaults;
 
+namespace AlertEngineInternal {
+
+FixedText fixed(float value, int decimals) {
+    FixedText out = {};
+    FloatFormat::formatFixed(out.text, sizeof(out.text), value, decimals);
+    return out;
+}
+
+AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLevel b) {
+    return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
+}
+
+AlertEngine::AlertLevel withSensorLost(AlertEngine::AlertLevel level, bool lost) {
+    return lost ? maxLevel(level, AlertEngine::AlertLevel::WARNING) : level;
+}
+
+}
+
+using AlertEngineInternal::fixed;
+using AlertEngineInternal::kWholeDecimals;
+using AlertEngineInternal::maxLevel;
+using AlertEngineInternal::withSensorLost;
+
 namespace {
 
 void stepRevLimitBlink(bool engaged, uint32_t now) {
@@ -68,61 +92,10 @@ SensorHealthSlot s_sensorHealth[] = {
     {"battery", SignalIds::kBatteryVolts, &AlertEngine::AlertState::batterySensorLost, {}},
 };
 
-struct TempLimits {
-    float warnC;
-    float critC;
-};
-
-struct DeclaredTempSource {
-    const char *name;
-    SignalId id;
-    AlertEngine::AlertLevel AlertEngine::AlertState::*level;
-    bool AlertEngine::AlertState::*lost;
-    TempLimits defaults;
-    TempLimits limits;
-    AlertLevelHoldRs hold;
-    AlertSensorHealthRs health;
-    bool declared;
-};
-
-DeclaredTempSource s_declaredTemps[] = {
-    {"gearbox temp",
-     SignalIds::kGearboxTempC,
-     &AlertEngine::AlertState::gearboxTemp,
-     &AlertEngine::AlertState::gearboxSensorLost,
-     {120.0f, 140.0f},
-     {},
-     {},
-     {},
-     false},
-    {"diff temp",
-     SignalIds::kDiffTempC,
-     &AlertEngine::AlertState::diffTemp,
-     &AlertEngine::AlertState::diffSensorLost,
-     {120.0f, 140.0f},
-     {},
-     {},
-     {},
-     false},
-    {"exhaust temp",
-     SignalIds::kEgtC,
-     &AlertEngine::AlertState::exhaustTemp,
-     &AlertEngine::AlertState::exhaustSensorLost,
-     {950.0f, 1000.0f},
-     {},
-     {},
-     {},
-     false},
-};
-
 AlertLevelHoldRs s_coolantHold = {};
 AlertLevelHoldRs s_oilTempHold = {};
 AlertLevelHoldRs s_oilPressureHold = {};
 AlertLevelHoldRs s_batteryHold = {};
-
-AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLevel b) {
-    return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
-}
 
 void logSensorTransition(const SensorHealthSlot &slot) {
     if (slot.health.lost) {
@@ -141,10 +114,6 @@ void updateSensorHealth(const SignalStore::SignalValue *snap, uint32_t now) {
         if (slot.health.lost != wasLost)
             logSensorTransition(slot);
     }
-}
-
-AlertEngine::AlertLevel withSensorLost(AlertEngine::AlertLevel level, bool lost) {
-    return lost ? maxLevel(level, AlertEngine::AlertLevel::WARNING) : level;
 }
 
 AlertEngine::AlertLevel evalRevLimiter(float rpm) {
@@ -184,34 +153,6 @@ constexpr CriticalLimitBinding kCriticalLimits[] = {
     {SignalIds::kBatteryVolts, &s_battery.crit, true, &s_battery.highCrit},
 };
 
-void bindDeclaredTemp(const CfgSignalDef &def) {
-    for (DeclaredTempSource &src : s_declaredTemps) {
-        if (signalIdFromName(def.name) != src.id)
-            continue;
-        src.declared = true;
-        if (!std::isnan(def.warningLevel))
-            src.limits.warnC = def.warningLevel;
-        if (!std::isnan(def.dangerLevel))
-            src.limits.critC = def.dangerLevel;
-        return;
-    }
-}
-
-void stepDeclaredTemps(const SignalStore::SignalValue *snap, uint32_t now) {
-    for (DeclaredTempSource &src : s_declaredTemps) {
-        if (!src.declared)
-            continue;
-        alert_sensor_health_step_rs(&src.health, snap[src.id].valid, now,
-                                    kAlertSensorLostClearHoldMs);
-        s_state.*(src.lost) = src.health.lost;
-        const float value = snap[src.id].valid ? snap[src.id].raw : 0.0f;
-        const auto level = static_cast<AlertEngine::AlertLevel>(
-            alert_high_side_temp_step_rs(&src.hold, value, src.limits.warnC, src.limits.critC, NAN,
-                                         NAN, now, kAlertHysteresisPct, kAlertMinActiveMs));
-        s_state.*(src.level) = withSensorLost(level, src.health.lost);
-    }
-}
-
 void stepCriticalAlerts(const SignalStore::SignalValue *snap, uint32_t now) {
     for (size_t i = 0; i < kConfigMaxCriticalAlerts; ++i)
         s_state.userCritical[i] =
@@ -234,12 +175,7 @@ constexpr ThresholdBinding kBindings[] = {
 void resetSignalBindings() {
     for (const ThresholdBinding &b : kBindings)
         *b.live = b.defaults;
-    for (DeclaredTempSource &src : s_declaredTemps) {
-        src.limits = src.defaults;
-        src.declared = false;
-        src.hold = {};
-        src.health = {};
-    }
+    AlertDeclaredTemps::reset();
 }
 
 void overrideIfSet(float *slot, float configured) {
@@ -259,18 +195,7 @@ void bindThresholds(const CfgSignalDef &def) {
     }
 }
 
-constexpr int kWholeDecimals = 0;
 constexpr int kHundredthsDecimals = 2;
-
-struct FixedText {
-    char text[16];
-};
-
-FixedText fixed(float value, int decimals) {
-    FixedText out = {};
-    FloatFormat::formatFixed(out.text, sizeof(out.text), value, decimals);
-    return out;
-}
 
 void logThresholds() {
     LOG_INFO("ALERT",
@@ -294,6 +219,58 @@ AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
         s_battery.highCrit, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
+constexpr float kAbsentRpm = 0.0f;
+constexpr float kAbsentTempC = 0.0f;
+constexpr float kAbsentOilPressureBar = 5.0f;
+constexpr float kAbsentBatteryVolts = 13.0f;
+constexpr float kAbsentMil = 0.0f;
+constexpr float kMilActiveThreshold = 0.5f;
+
+struct PrimaryReadings {
+    float rpm;
+    float coolant;
+    float oilTemp;
+    float oilPres;
+    float volts;
+    float mil;
+};
+
+float readOr(const SignalStore::SignalValue *snap, SignalId id, float absent) {
+    return snap[id].valid ? snap[id].raw : absent;
+}
+
+PrimaryReadings readPrimary(const SignalStore::SignalValue *snap) {
+    return {readOr(snap, SignalIds::kRpm, kAbsentRpm),
+            readOr(snap, SignalIds::kCoolantTempC, kAbsentTempC),
+            readOr(snap, SignalIds::kOilTempC, kAbsentTempC),
+            readOr(snap, SignalIds::kOilPressBar, kAbsentOilPressureBar),
+            readOr(snap, SignalIds::kBatteryVolts, kAbsentBatteryVolts),
+            readOr(snap, SignalIds::kFlagMil, kAbsentMil)};
+}
+
+void stepPrimaryAlerts(const PrimaryReadings &r, uint32_t now) {
+    s_state.revLimiter = evalRevLimiter(r.rpm);
+    s_state.coolantTemp =
+        withSensorLost(stepCoolantTemp(r.coolant, now), s_state.coolantSensorLost);
+    s_state.oilTemp = withSensorLost(stepOilTemp(r.oilTemp, now), s_state.oilTempSensorLost);
+    s_state.oilPressure =
+        withSensorLost(stepOilPressure(r.oilPres, now), s_state.oilPressureSensorLost);
+    s_state.milActive = (r.mil > kMilActiveThreshold);
+    s_state.batteryVoltage = withSensorLost(stepBattery(r.volts, now), s_state.batterySensorLost);
+}
+
+AlertEngine::AlertLevel globalLevel() {
+    AlertEngine::AlertLevel level = s_state.revLimiter;
+    level = maxLevel(level, s_state.coolantTemp);
+    level = maxLevel(level, s_state.oilTemp);
+    level = maxLevel(level, s_state.oilPressure);
+    level = maxLevel(level, s_state.batteryVoltage);
+    level = AlertDeclaredTemps::highest(s_state, level);
+    for (const AlertEngine::AlertLevel user : s_state.userCritical)
+        level = maxLevel(level, user);
+    return level;
+}
+
 }
 
 void AlertEngine::init() {
@@ -314,56 +291,21 @@ void AlertEngine::init() {
     resetSignalBindings();
     const CfgSignalConfig &sigCfg = ConfigLoader::getSignalConfig();
     for (uint8_t i = 0; i < sigCfg.signalCount; i++) {
-        bindDeclaredTemp(sigCfg.signals[i]);
+        AlertDeclaredTemps::bind(sigCfg.signals[i]);
         bindThresholds(sigCfg.signals[i]);
     }
 
     logThresholds();
-    for (const DeclaredTempSource &src : s_declaredTemps) {
-        if (!src.declared) {
-            LOG_INFO("ALERT", "%s not in the signal catalogue — no alert armed", src.name);
-            continue;
-        }
-        LOG_INFO("ALERT", "%s armed (warn=%s crit=%s)", src.name,
-                 fixed(src.limits.warnC, kWholeDecimals).text,
-                 fixed(src.limits.critC, kWholeDecimals).text);
-    }
+    AlertDeclaredTemps::logArming();
 }
 
 void AlertEngine::tick(const SignalStore::SignalValue *snap) {
     const uint32_t now = millis();
     updateSensorHealth(snap, now);
-
-    const auto readSnap = [&snap](SignalId id, float def) {
-        return snap[id].valid ? snap[id].raw : def;
-    };
-    const float rpm = readSnap(SignalIds::kRpm, 0.0f);
-    float coolant = readSnap(SignalIds::kCoolantTempC, 0.0f);
-    float oilTemp = readSnap(SignalIds::kOilTempC, 0.0f);
-    float oilPres = readSnap(SignalIds::kOilPressBar, 5.0f);
-    float volts = readSnap(SignalIds::kBatteryVolts, 13.0f);
-    float mil = readSnap(SignalIds::kFlagMil, 0.0f);
-
-    s_state.revLimiter = evalRevLimiter(rpm);
-    s_state.coolantTemp = withSensorLost(stepCoolantTemp(coolant, now), s_state.coolantSensorLost);
-    s_state.oilTemp = withSensorLost(stepOilTemp(oilTemp, now), s_state.oilTempSensorLost);
-    s_state.oilPressure =
-        withSensorLost(stepOilPressure(oilPres, now), s_state.oilPressureSensorLost);
-    s_state.milActive = (mil > 0.5f);
-    s_state.batteryVoltage = withSensorLost(stepBattery(volts, now), s_state.batterySensorLost);
-    stepDeclaredTemps(snap, now);
+    stepPrimaryAlerts(readPrimary(snap), now);
+    AlertDeclaredTemps::step(snap, now, s_state);
     stepCriticalAlerts(snap, now);
-
-    s_state.global = s_state.revLimiter;
-    s_state.global = maxLevel(s_state.global, s_state.coolantTemp);
-    s_state.global = maxLevel(s_state.global, s_state.oilTemp);
-    s_state.global = maxLevel(s_state.global, s_state.oilPressure);
-    s_state.global = maxLevel(s_state.global, s_state.batteryVoltage);
-    for (const DeclaredTempSource &src : s_declaredTemps)
-        s_state.global = maxLevel(s_state.global, s_state.*(src.level));
-    for (const AlertLevel level : s_state.userCritical)
-        s_state.global = maxLevel(s_state.global, level);
-
+    s_state.global = globalLevel();
     stepRevLimitBlink(s_state.revLimiter == AlertLevel::CRITICAL, now);
 }
 
@@ -372,13 +314,9 @@ AlertEngine::AlertState AlertEngine::getState() {
 }
 
 AlertEngine::CriticalLimit AlertEngine::criticalLimitFor(SignalId id, float reading) {
-    for (const DeclaredTempSource &src : s_declaredTemps) {
-        if (src.id != id || !src.declared)
-            continue;
-        AlertCrossedLimitRs out = {};
-        alert_crossed_limit_rs(&out, reading, src.limits.critC, false, NAN);
-        return {out.limit, out.below, out.valid};
-    }
+    CriticalLimit declared = {};
+    if (AlertDeclaredTemps::criticalLimitFor(id, reading, declared))
+        return declared;
     for (const CriticalLimitBinding &b : kCriticalLimits) {
         if (b.id != id)
             continue;
