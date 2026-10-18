@@ -85,4 +85,4 @@ void publishSocketTransfer(bool inFlight);
 void invokeBurnOverlayShow();
 void invokeBurnOverlayShowError(int reason);
 
-} // namespace UsbCommInternal
+}

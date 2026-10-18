@@ -11,4 +11,4 @@ namespace CanTask {
 
 [[nodiscard]] TaskHandle_t handle();
 
-} // namespace CanTask
+}

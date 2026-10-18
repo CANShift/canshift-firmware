@@ -150,7 +150,7 @@ void test_nullPointers_areNoops() {
     TEST_ASSERT_EQUAL_UINT8(0, timer_core_pending_count_rs(nullptr));
 }
 
-} // namespace
+}
 
 int main(int, char **) {
     UNITY_BEGIN();

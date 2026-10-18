@@ -29,7 +29,7 @@ void stageDashboard() {
 
 char s_getConfig[] = "{\"cmd\":1}";
 
-} // namespace
+}
 
 void *Mem::allocPreferSpiram(size_t size) {
     return malloc(size);

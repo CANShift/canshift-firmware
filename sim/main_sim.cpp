@@ -62,7 +62,7 @@ void applyThemeOverride() {
     ThemeManager::setDayMode(strcmp(theme, "day") == 0);
 }
 
-} // namespace
+}
 
 int main(int argc, char **argv) {
     setvbuf(stdout, nullptr, _IOLBF, 0);

@@ -19,4 +19,4 @@ void reapplyTheme();
 
 void applyPage(const CfgPage &page);
 
-} // namespace TopBar
+}

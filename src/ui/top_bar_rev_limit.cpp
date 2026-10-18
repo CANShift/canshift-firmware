@@ -64,7 +64,7 @@ void writeLimitText() {
     lv_label_set_text(s_field, buf);
 }
 
-} // namespace
+}
 
 void TopBarRevLimit::build(lv_obj_t *bar) {
     s_overriding = false;

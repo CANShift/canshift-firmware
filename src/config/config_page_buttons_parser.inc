@@ -20,7 +20,7 @@ void readPageButton(JsonObjectConst src, const char *key, char *out, size_t outS
     ErrorStore::push(ERROR_SRC_CONFIG, "PAGE_BTN", "page button signal too long");
 }
 
-} // namespace
+}
 
 void parsePageButtons(JsonObjectConst src, CfgPageButtons *out) {
     *out = CfgPageButtons{};
@@ -30,4 +30,4 @@ void parsePageButtons(JsonObjectConst src, CfgPageButtons *out) {
     readPageButton(src, "previous", out->previous, sizeof(out->previous));
 }
 
-} // namespace ConfigLoaderInternal
+}

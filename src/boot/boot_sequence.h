@@ -6,4 +6,4 @@ void run();
 
 void markOtaSlotValidIfPending();
 
-} // namespace BootSequence
+}

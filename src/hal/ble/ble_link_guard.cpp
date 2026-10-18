@@ -48,7 +48,7 @@ void forgetAndTerminate(const ble_gap_conn_desc &desc) {
     terminate(desc.conn_handle);
 }
 
-} // namespace
+}
 
 void noteConnected() {
     s_connectedAtMs = millis();
@@ -92,6 +92,6 @@ void dropOverduePeer() {
     terminate(peer.handle);
 }
 
-} // namespace BleServerInternal
+}
 
 #endif

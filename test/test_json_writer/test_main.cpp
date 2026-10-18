@@ -59,7 +59,7 @@ void assertBufferMatchesArduinoJson(JsonVariantConst value, size_t capacity) {
     TEST_ASSERT_EQUAL_MEMORY(expected.data(), actual.data(), expected.size());
 }
 
-} // namespace
+}
 
 void setUp() {}
 

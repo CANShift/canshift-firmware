@@ -24,7 +24,7 @@ bool isStatusObject(const char *line, size_t len) {
     return strncmp(line, kStatusPrefix, kStatusPrefixLen) == 0;
 }
 
-} // namespace
+}
 
 namespace UsbSeqEcho {
 
@@ -70,4 +70,4 @@ Seq active() {
     return s_seq;
 }
 
-} // namespace UsbSeqEcho
+}

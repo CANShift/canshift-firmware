@@ -122,7 +122,7 @@ bool present(const WorkshopCredentials &creds) {
     return true;
 }
 
-} // namespace
+}
 
 bool enter() {
     WorkshopCredentials creds{};
@@ -132,6 +132,6 @@ bool enter() {
     return true;
 }
 
-} // namespace WorkshopScreen
+}
 
 #endif

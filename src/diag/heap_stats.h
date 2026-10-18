@@ -25,4 +25,4 @@ void logHeapBracket(const char *tag);
 
 void logMoment(const char *moment);
 
-} // namespace HeapStats
+}

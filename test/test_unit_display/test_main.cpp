@@ -20,7 +20,7 @@ void stageDashboard(const char *json) {
     TEST_ASSERT_TRUE(result.dashboardOk);
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

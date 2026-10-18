@@ -15,7 +15,7 @@ bool withWritableNamespace(const char *ns, WriteFn write) {
     return ok;
 }
 
-} // namespace
+}
 
 namespace NvsStore {
 
@@ -75,4 +75,4 @@ bool getULong(const char *ns, const char *key, uint32_t &value) {
     return present;
 }
 
-} // namespace NvsStore
+}

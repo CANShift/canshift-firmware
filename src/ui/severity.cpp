@@ -97,7 +97,7 @@ void paintGround(const Surface &surface, Level level) {
     lv_obj_set_style_bg_opa(surface.root, flood ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_MAIN);
 }
 
-} // namespace
+}
 
 Level fromRaw(uint8_t raw) {
     return static_cast<Level>(indexOf(static_cast<Level>(raw)));
@@ -205,4 +205,4 @@ void repaint(Surface &surface, Level level) {
     lv_obj_set_style_text_color(surface.value, lv_color_hex(valueRgb), 0);
 }
 
-} // namespace Severity
+}

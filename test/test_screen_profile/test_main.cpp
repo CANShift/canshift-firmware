@@ -35,7 +35,7 @@ void stageDashboard(const char *dashboard) {
     TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

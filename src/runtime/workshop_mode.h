@@ -70,4 +70,4 @@ inline void leaveOnMotion(uint32_t) {}
 
 #endif
 
-} // namespace WorkshopMode
+}

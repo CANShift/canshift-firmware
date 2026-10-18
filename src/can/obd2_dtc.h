@@ -32,6 +32,6 @@ enum class Pending : uint8_t { None, Read, Clear };
 
 [[nodiscard]] bool isPositiveResponse(Pending pending, const uint8_t *data, uint8_t length);
 
-} // namespace detail
+}
 
-} // namespace Obd2Dtc
+}

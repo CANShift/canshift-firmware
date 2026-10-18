@@ -95,7 +95,7 @@ esp_err_t finish(httpd_req_t *req, AssetResult result) {
     return result == AssetResult::Sent ? ESP_OK : ESP_FAIL;
 }
 
-} // namespace
+}
 
 esp_err_t handleTunerAsset(httpd_req_t *req) {
     const AssetResult direct = sendAsset(req, req->uri);
@@ -104,6 +104,6 @@ esp_err_t handleTunerAsset(httpd_req_t *req) {
     return finish(req, sendAsset(req, kIndexUri));
 }
 
-} // namespace WorkshopServerInternal
+}
 
 #endif

@@ -54,7 +54,7 @@ void test_noSessionIsNeverAborted() {
                             verdictOf(idle, true, kStartMs + 10 * OtaSessionWatch::kIdleTimeoutMs));
 }
 
-} // namespace
+}
 
 void setUp() {}
 

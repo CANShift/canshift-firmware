@@ -51,7 +51,6 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &e
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
 
     if (strlen(cfg.bgImagePath) > 0) {
-
         static char lvglPath[kCfgMaxPathLen + 4];
         snprintf(lvglPath, sizeof(lvglPath), "S:%s", cfg.bgImagePath);
 
@@ -63,7 +62,7 @@ void applyPageBackground(lv_obj_t *screen, const CfgPage &cfg, const CfgColor &e
     }
 }
 
-} // namespace
+}
 
 namespace {
 
@@ -107,7 +106,7 @@ bool buildPageContent(lv_obj_t *screen, const CfgPage &cfg) {
     return true;
 }
 
-} // namespace
+}
 
 bool buildPage(uint8_t idx, const CfgPage &cfg) {
     logBuildHeap("entry", cfg.id);
@@ -178,7 +177,7 @@ void listVisiblePages() {
     }
 }
 
-} // namespace
+}
 
 void buildPageList() {
     listVisiblePages();
@@ -225,7 +224,7 @@ void reapplyThemeAllPages() {
     CutBand::reapplyTheme();
 }
 
-} // namespace PageManagerInternal
+}
 
 namespace {
 
@@ -257,7 +256,7 @@ void rearmConfigConsumers() {
     PageButtons::init();
 }
 
-} // namespace
+}
 
 ConfigLoader::DashboardOutcome PageManager::reloadFromStorage() {
     using namespace PageManagerInternal;

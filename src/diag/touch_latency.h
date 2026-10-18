@@ -8,4 +8,4 @@ void recordPressNow();
 
 void consumePressAndWarnIfSlow();
 
-} // namespace TouchLatency
+}

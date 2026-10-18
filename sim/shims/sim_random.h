@@ -20,4 +20,4 @@ inline uint32_t next() {
     return x;
 }
 
-} // namespace SimRandom
+}

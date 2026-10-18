@@ -432,16 +432,14 @@ inline void uiThrottle(TickType_t &lastWake) {
     const TickType_t now = xTaskGetTickCount();
     const TickType_t elapsed = now - lastWake;
     if (elapsed >= period) {
-
         vTaskDelay(1);
     } else {
-
         (void)ulTaskNotifyTake(pdTRUE, period - elapsed);
     }
     lastWake = xTaskGetTickCount();
 }
 
-} // namespace
+}
 
 void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();

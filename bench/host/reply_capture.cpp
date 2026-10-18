@@ -53,7 +53,7 @@ char *copyLine(const char *line) {
     return s_scratch.data();
 }
 
-} // namespace
+}
 
 namespace ReplyCapture {
 
@@ -91,4 +91,4 @@ void dispatch(Transport transport, const char *line) {
     UsbComm::dispatchFromSocket(buf);
 }
 
-} // namespace ReplyCapture
+}

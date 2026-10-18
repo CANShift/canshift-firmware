@@ -96,7 +96,7 @@ WriteResult abortWrite(const char *reason) {
     return {false, reason, s_writtenSize};
 }
 
-} // namespace
+}
 
 State state() {
     return s_state;
@@ -256,4 +256,4 @@ void abort(const char *reason) {
     s_state = State::Failed;
 }
 
-} // namespace OtaReceiver
+}

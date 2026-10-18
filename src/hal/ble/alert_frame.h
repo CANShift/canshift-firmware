@@ -54,4 +54,4 @@ void resetCadence(Cadence &cadence);
 
 bool shouldSend(Cadence &cadence, uint32_t generation);
 
-} // namespace AlertFrame
+}

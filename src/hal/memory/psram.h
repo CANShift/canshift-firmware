@@ -12,4 +12,4 @@ size_t getPsramSize();
 
 size_t getFreePsram();
 
-} // namespace canshift::hal::memory
+}

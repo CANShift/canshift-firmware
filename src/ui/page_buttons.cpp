@@ -42,7 +42,7 @@ bool pressed(Binding &binding, const SignalStore::SignalValue *snap, uint32_t no
     return control_page_button_sample_rs(&binding.edge, reading.valid, reading.raw, nowMs);
 }
 
-} // namespace
+}
 
 void PageButtons::init() {
     const CfgPageButtons &cfg = ConfigLoader::getDashboardConfig().pageButtons;

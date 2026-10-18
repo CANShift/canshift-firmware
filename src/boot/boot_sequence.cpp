@@ -174,7 +174,7 @@ void logBootCompleteAndReady(uint32_t bootStartMs) {
     LOG_INFO("BOOT", "[BOOT] Ready");
 }
 
-} // namespace
+}
 
 extern "C" bool verifyRollbackLater() {
     return true;
@@ -192,7 +192,7 @@ bool runningImagePendingVerify() {
     return state == ESP_OTA_IMG_PENDING_VERIFY;
 }
 
-} // namespace
+}
 
 void BootSequence::markOtaSlotValidIfPending() {
     if (!runningImagePendingVerify())
@@ -226,7 +226,7 @@ void prepareUiAssets(bool storageOk) {
     BootPhases::preloadIconsWithHeapLog();
 }
 
-} // namespace
+}
 
 void BootSequence::run() {
     BootPhases::silenceFrameworkLogNoise();

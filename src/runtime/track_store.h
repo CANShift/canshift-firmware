@@ -24,4 +24,4 @@ void snapshot(State *out);
 
 bool isActiveWithin(uint32_t timeoutMs);
 
-} // namespace TrackStore
+}

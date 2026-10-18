@@ -122,7 +122,7 @@ void test_armedIsDeclaredPerControl() {
     TEST_ASSERT_TRUE(ControlVocabulary::hasArmedState(*ControlVocabulary::find("TRACTION")));
 }
 
-} // namespace
+}
 
 void setUp() {}
 

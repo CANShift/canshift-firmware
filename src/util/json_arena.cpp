@@ -12,7 +12,7 @@ constexpr size_t alignUp(size_t value) {
 
 constexpr size_t kHeaderBytes = alignUp(sizeof(size_t) * 2);
 
-} // namespace
+}
 
 JsonArena::Header *JsonArena::headerOf(void *block) const {
     return reinterpret_cast<Header *>(static_cast<uint8_t *>(block) - kHeaderBytes);

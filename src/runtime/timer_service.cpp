@@ -43,7 +43,7 @@ TimerService::Lap toLap(const TimerCoreLap &raw) {
     return TimerService::Lap{raw.index, raw.session, raw.lap_ms, raw.total_ms};
 }
 
-} // namespace
+}
 
 void TimerService::init() {
     if (g_state.initialized)

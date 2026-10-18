@@ -949,4 +949,4 @@ const lv_img_dsc_t *header() {
     return &header_dsc;
 }
 
-} // namespace MonogramBaked
+}

@@ -29,4 +29,4 @@ bool boot(const char *dataRoot) {
     return true;
 }
 
-} // namespace BenchRuntime
+}

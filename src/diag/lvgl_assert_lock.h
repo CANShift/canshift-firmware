@@ -16,14 +16,12 @@ extern SemaphoreHandle_t g_lvglMutex;
 namespace LvglLock {
 
 inline void assertLocked(const char *file, int line, const char *fn) {
-
     if (g_lvglMutex == nullptr)
         return;
 
     const TaskHandle_t holder = xSemaphoreGetMutexHolder(g_lvglMutex);
     const TaskHandle_t self = xTaskGetCurrentTaskHandle();
     if (holder != self) {
-
         printf("[LVGL_ASSERT_LOCKED] FAIL: lv_* without g_lvglMutex — %s:%d %s "
                "(holder=%p self=%p)\n",
                file, line, fn, static_cast<void *>(holder), static_cast<void *>(self));
@@ -31,7 +29,7 @@ inline void assertLocked(const char *file, int line, const char *fn) {
     }
 }
 
-} // namespace LvglLock
+}
 
     #define LVGL_ASSERT_LOCKED() ::LvglLock::assertLocked(__FILE__, __LINE__, __func__)
 

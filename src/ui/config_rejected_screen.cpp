@@ -61,7 +61,7 @@ void addWayOut(const SystemScreen::Frame &frame) {
                                     kSingleLinePermille);
 }
 
-} // namespace
+}
 
 void show(const CfgRejection &rejection) {
     const Severity::Spec spec = {Severity::Level::FAILURE, kKicker, Severity::kRulePrimaryPx};
@@ -80,4 +80,4 @@ void show(const CfgRejection &rejection) {
               rejection.widgetH, rejection.maxY);
 }
 
-} // namespace ConfigRejectedScreen
+}

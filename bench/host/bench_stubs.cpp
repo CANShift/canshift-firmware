@@ -11,7 +11,7 @@ namespace {
 
 BenchCanTx::Sink s_txSink = nullptr;
 
-} // namespace
+}
 
 namespace BenchCanTx {
 
@@ -24,7 +24,7 @@ void emit(uint32_t id, const uint8_t *data, uint8_t length) {
         s_txSink(id, data, length);
 }
 
-} // namespace BenchCanTx
+}
 
 namespace CanManager {
 
@@ -41,13 +41,13 @@ bool sendFrame(uint32_t id, const uint8_t *data, uint8_t length, bool) {
     return true;
 }
 
-} // namespace CanManager
+}
 
 namespace TouchDriver {
 
 void resetCalibration() {}
 
-} // namespace TouchDriver
+}
 
 namespace canshift::hal::memory {
 
@@ -55,7 +55,7 @@ bool isPsramAvailable() {
     return true;
 }
 
-} // namespace canshift::hal::memory
+}
 
 namespace BleServer {
 
@@ -69,4 +69,4 @@ bool isConnected() {
     return false;
 }
 
-} // namespace BleServer
+}

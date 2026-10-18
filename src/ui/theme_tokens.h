@@ -22,4 +22,4 @@ constexpr uint32_t kWarn = 0xFF8800;
 constexpr uint32_t kDanger = 0xFF4444;
 constexpr uint32_t kEngaged = 0xFF4747;
 
-} // namespace ThemeTokens
+}

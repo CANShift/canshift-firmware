@@ -16,4 +16,4 @@ void buildBoot(lv_obj_t *parent);
 
 void buildSelfTest(lv_obj_t *parent, const CheckResult (&results)[kCheckCount]);
 
-} // namespace BootScreens
+}

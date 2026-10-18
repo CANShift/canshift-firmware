@@ -7,7 +7,7 @@ namespace {
 float s_max[kSignalStoreMaxSignals];
 bool s_seen[kSignalStoreMaxSignals];
 
-} // namespace
+}
 
 void SignalStats::tick(const SignalStore::SignalValue *snap) {
     if (snap == nullptr)

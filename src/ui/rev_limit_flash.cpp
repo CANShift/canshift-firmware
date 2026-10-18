@@ -5,7 +5,7 @@ namespace {
 bool s_engaged = false;
 bool s_rowLit = true;
 
-} // namespace
+}
 
 void RevLimitFlash::set(bool limiterEngaged, bool rowLit) {
     s_engaged = limiterEngaged;

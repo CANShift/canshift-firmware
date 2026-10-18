@@ -64,7 +64,7 @@ void test_nullPasskeyBudgetIsRefused() {
     TEST_ASSERT_FALSE(ble_link_passkey_prompt_admit_rs(nullptr, 0));
 }
 
-} // namespace
+}
 
 int main(int, char **) {
     UNITY_BEGIN();

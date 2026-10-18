@@ -13,4 +13,4 @@ void update();
 
 [[nodiscard]] bool isVisible();
 
-} // namespace ControlSplash
+}

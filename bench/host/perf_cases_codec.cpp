@@ -76,7 +76,7 @@ uint64_t floatBits(float value) {
     return bits;
 }
 
-} // namespace
+}
 
 namespace PerfCases {
 
@@ -144,4 +144,4 @@ void runFormatFloat(uint32_t index) {
     PerfTimer::keep(FloatFormat::formatFixed(buf, sizeof(buf), value, decimals));
 }
 
-} // namespace PerfCases
+}

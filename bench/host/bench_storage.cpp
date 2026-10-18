@@ -21,7 +21,7 @@ std::string resolve(const char *path) {
     return p;
 }
 
-} // namespace
+}
 
 void benchStorageSetRoot(const char *rootDir) {
     s_root = rootDir;
@@ -174,4 +174,4 @@ void sweepOrphanTmp(const char *path) {
     remove((resolve(path) + ".tmp").c_str());
 }
 
-} // namespace StorageDriver
+}

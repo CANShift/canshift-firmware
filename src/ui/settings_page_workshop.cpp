@@ -25,7 +25,7 @@ void onWorkshopMode(lv_event_t *) {
     SettingsPage::close();
 }
 
-} // namespace
+}
 
 void buildWorkshopRow(int16_t &y, int16_t rowW) {
     if (!WorkshopMode::boardSupported())
@@ -45,6 +45,6 @@ void refreshWorkshopRow() {
     WidgetHelpers::setVisible(s_workshopBtn, WorkshopMode::offered());
 }
 
-} // namespace SettingsPageInternal
+}
 
 #endif

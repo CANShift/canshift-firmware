@@ -8,4 +8,4 @@ void set(bool limiterEngaged, bool rowLit);
 
 [[nodiscard]] bool isRowLit();
 
-} // namespace RevLimitFlash
+}

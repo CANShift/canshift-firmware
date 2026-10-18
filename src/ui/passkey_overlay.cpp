@@ -49,7 +49,7 @@ void show(uint32_t passkey) {
     lv_refr_now(nullptr);
 }
 
-} // namespace
+}
 
 void PasskeyOverlay::request(uint32_t passkey) {
     s_pendingPasskey = passkey;

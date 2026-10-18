@@ -44,7 +44,7 @@ const char *stateName(uint8_t state) {
     return "live";
 }
 
-} // namespace
+}
 
 namespace DisplayIdle {
 
@@ -71,4 +71,4 @@ bool isPanelOff() {
     return s_state == kAlertDisplayIdleOff;
 }
 
-} // namespace DisplayIdle
+}

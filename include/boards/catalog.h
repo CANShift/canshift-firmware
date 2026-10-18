@@ -20,4 +20,4 @@ inline constexpr size_t kCatalogCount = sizeof(kCatalog) / sizeof(kCatalog[0]);
 
 const BoardProfile *catalogBoard(const char *boardId, ChipFamily chipFamily);
 
-} // namespace canshift::boards
+}

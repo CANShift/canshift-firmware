@@ -32,4 +32,4 @@ extern const Source kSources[kSourceCount];
 
 void composeDetail(uint8_t kind, const SignalStore::SignalValue *snap, char *out, size_t len);
 
-} // namespace CutSources
+}

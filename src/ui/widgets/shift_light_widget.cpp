@@ -71,7 +71,7 @@ void paintChangedSegments(ShiftLightTag *tag, uint8_t lit) {
     tag->lastLit = lit;
 }
 
-} // namespace
+}
 
 lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);

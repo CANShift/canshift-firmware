@@ -31,4 +31,4 @@ inline constexpr int16_t kSettingsCloseTravelPx = 32;
 
 [[nodiscard]] TapTurn tapTurn(int16_t releaseX, int16_t screenWidth, int16_t travel);
 
-} // namespace GestureIntent
+}

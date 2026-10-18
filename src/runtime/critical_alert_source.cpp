@@ -41,7 +41,7 @@ void arm(Slot &slot, const CfgCriticalAlert &cfg) {
              firesAtX100 % 100);
 }
 
-} // namespace
+}
 
 void CriticalAlertSource::init(const CfgCriticalAlert *alerts, size_t count) {
     for (Slot &slot : s_slots)

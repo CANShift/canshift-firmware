@@ -40,7 +40,7 @@ void assertDeviceLoaded() {
     TEST_ASSERT_EQUAL_INT(4, device.twaiRxPin);
 }
 
-} // namespace
+}
 
 void *Mem::allocPreferSpiram(size_t size) {
     return malloc(size);

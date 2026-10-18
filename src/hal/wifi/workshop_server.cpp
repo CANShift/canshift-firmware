@@ -68,7 +68,7 @@ void runStart(void *) {
     vTaskDelete(nullptr);
 }
 
-} // namespace
+}
 
 void requestStart() {
     if (!TaskSpawn::spawnDynamic("workshop", runStart, kStartStackBytes, kStartPriority,
@@ -81,6 +81,6 @@ void tick() {
         WorkshopServerInternal::drainSocket();
 }
 
-} // namespace WorkshopServer
+}
 
 #endif

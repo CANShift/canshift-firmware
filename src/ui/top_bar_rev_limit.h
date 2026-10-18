@@ -10,4 +10,4 @@ void clearOverride();
 
 [[nodiscard]] bool apply();
 
-} // namespace TopBarRevLimit
+}

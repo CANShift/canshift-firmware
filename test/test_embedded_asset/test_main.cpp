@@ -72,7 +72,7 @@ uint32_t adler32(const std::vector<uint8_t> &bytes) {
     return (b << 16) | a;
 }
 
-} // namespace
+}
 
 void setUp() {
     StorageDriver::fakeReset();

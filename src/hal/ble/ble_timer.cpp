@@ -72,7 +72,7 @@ void flushPendingLaps(NimBLECharacteristic *pLap) {
     }
 }
 
-} // namespace
+}
 
 namespace BleServerInternal {
 
@@ -103,6 +103,6 @@ void emitTimerSync() {
     flushPendingLaps(pLap);
 }
 
-} // namespace BleServerInternal
+}
 
 #endif

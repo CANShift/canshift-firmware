@@ -11,4 +11,4 @@ void update(bool screenClaimed);
 
 void hide();
 
-} // namespace PasskeyOverlay
+}

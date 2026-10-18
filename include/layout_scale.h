@@ -27,4 +27,4 @@ inline int16_t square(int16_t designValue) {
     return sx < sy ? sx : sy;
 }
 
-} // namespace LayoutScale
+}

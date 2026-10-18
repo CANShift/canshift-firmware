@@ -16,4 +16,4 @@ namespace WorkshopScreen {
 
 #endif
 
-} // namespace WorkshopScreen
+}

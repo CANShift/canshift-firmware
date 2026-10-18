@@ -16,7 +16,7 @@ AlertFrame::Cadence s_cadence = {};
 
 size_t s_lastSubCount = 0;
 
-} // namespace
+}
 
 namespace BleServerInternal {
 
@@ -39,6 +39,6 @@ void emitAlert() {
         pAlert->notify();
 }
 
-} // namespace BleServerInternal
+}
 
 #endif

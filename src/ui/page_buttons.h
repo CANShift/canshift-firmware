@@ -11,4 +11,4 @@ void init();
 
 [[nodiscard]] lv_dir_t tick(const SignalStore::SignalValue *snap, uint32_t nowMs);
 
-} // namespace PageButtons
+}

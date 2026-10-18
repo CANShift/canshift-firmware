@@ -38,4 +38,4 @@ void setTimeout(SignalId id, uint32_t timeoutMs);
 
 void checkTimeouts();
 
-} // namespace SignalStore
+}

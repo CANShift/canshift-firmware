@@ -181,7 +181,7 @@ void addRuntimeSignal(const CfgSignalDef &def) {
     SignalStore::setTimeout(sid, def.timeoutMs);
 }
 
-} // namespace
+}
 
 float CanParser::detail::decodeBytes(const uint8_t *data, uint8_t startByte, uint8_t byteLen,
                                      bool bigEndian, bool isSigned, uint8_t bitMask, float scale,

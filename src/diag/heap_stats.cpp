@@ -76,7 +76,7 @@ void emitFrame(const Snapshot &s) {
     UsbComm::sendLine(buf);
 }
 
-} // namespace
+}
 
 Snapshot sampleNow() {
     s_latest = sampleInternal();
@@ -118,4 +118,4 @@ void logMoment(const char *moment) {
              static_cast<unsigned long>(s.freePsram));
 }
 
-} // namespace HeapStats
+}

@@ -8,4 +8,4 @@ void update();
 
 void reapplyTheme();
 
-} // namespace BusSilentLine
+}

@@ -42,7 +42,7 @@ PointBytes pointAt(uint16_t x, uint16_t y, uint8_t pressure, uint8_t id) {
                       static_cast<uint8_t>(0x10 | id)};
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

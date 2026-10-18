@@ -64,10 +64,9 @@ const char *stripDriveLetter(const char *lvglPath) {
     return lvglPath;
 }
 
-} // namespace
+}
 
 const void *resolveSource(const char *iconName) {
-
     if (const lv_img_dsc_t *baked = IconAssetsBaked::resolve(iconName))
         return baked;
     const char *p = path(iconName);
@@ -119,7 +118,7 @@ void preloadIconNameOnce(char seen[kSeenCap][kSeenLen], uint8_t &seenCount, cons
     preload(path(iconName));
 }
 
-} // namespace
+}
 
 void preload(const char *lvglPath) {
     if (!lvglPath || lvglPath[0] == '\0')
@@ -135,7 +134,6 @@ void preload(const char *lvglPath) {
 }
 
 void preloadDashboardAssets() {
-
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     if (!dash.loaded)
         return;
@@ -159,4 +157,4 @@ void preloadDashboardAssets() {
     LOG_INFO("ICON", "Preloaded %u dashboard icon(s) (theme +2)", static_cast<unsigned>(seenCount));
 }
 
-} // namespace IconAssets
+}

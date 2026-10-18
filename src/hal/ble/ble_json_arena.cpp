@@ -57,7 +57,7 @@ ArduinoJson::Allocator *allocatorFor(BleJsonArena::Slot slot, bool held) {
     return &arenaFor(slot).allocator;
 }
 
-} // namespace
+}
 
 BleJsonArena::LeasedDocument::LeasedDocument(Slot slot)
     : slot_(slot), held_(take(slot)), doc_(allocatorFor(slot, held_)) {}

@@ -72,4 +72,4 @@ inline constexpr BoardProfile kWaveshareS328 = {
         },
 };
 
-} // namespace canshift::boards
+}

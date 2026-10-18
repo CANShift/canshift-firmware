@@ -12,7 +12,7 @@ size_t tagOk(UsbSeqEcho::Seq seq, char *out) {
     return UsbSeqEcho::tag(kOk, strlen(kOk), seq, out, kCap);
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

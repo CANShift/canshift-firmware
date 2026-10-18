@@ -34,7 +34,7 @@ void test_unknownStateIsLeftAlone() {
     TEST_ASSERT_EQUAL_UINT8(kCanBusActionNone, can_bus_action_rs(9));
 }
 
-} // namespace
+}
 
 void setUp() {}
 

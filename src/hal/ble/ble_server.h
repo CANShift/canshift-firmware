@@ -51,6 +51,6 @@ bool isConnected();
 
 void pushStatusNotify();
 
-} // namespace BleServer
+}
 
 #endif

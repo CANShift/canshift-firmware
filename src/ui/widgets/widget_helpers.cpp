@@ -205,7 +205,7 @@ const char *configuredSuffix(const CfgWidget &cfg) {
     return cfg.type == WidgetType::GAUGE ? cfg.gauge.suffix : cfg.label.suffix;
 }
 
-} // namespace
+}
 
 void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx) {
     if (!font || cfg.layout.w <= 0)
@@ -267,4 +267,4 @@ void logTagPoolExhausted(const char *logTag, const char *widgetId) {
              static_cast<unsigned>(WidgetTagPool::capacity()));
 }
 
-} // namespace WidgetHelpers
+}

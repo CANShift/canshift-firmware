@@ -11,7 +11,7 @@ namespace {
 bool s_initialized = false;
 bool s_available = false;
 size_t s_totalBytes = 0;
-} // namespace
+}
 
 void initPsram() {
     if (s_initialized) {
@@ -46,4 +46,4 @@ size_t getFreePsram() {
     return ESP.getFreePsram();
 }
 
-} // namespace canshift::hal::memory
+}

@@ -121,7 +121,7 @@ void test_push_codeAtFieldWidth_dedupesOnStoredKey() {
     assertOrder(expected, 1);
 }
 
-} // namespace
+}
 
 int main(int, char **) {
     UNITY_BEGIN();

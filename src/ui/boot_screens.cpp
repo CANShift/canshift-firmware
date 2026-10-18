@@ -98,7 +98,7 @@ void addFooter(lv_obj_t *parent) {
                  static_cast<int16_t>(-LayoutScale::y(kFramePadPx)));
 }
 
-} // namespace
+}
 
 void buildBoot(lv_obj_t *parent) {
     if (!parent)
@@ -151,4 +151,4 @@ void buildSelfTest(lv_obj_t *parent, const CheckResult (&results)[kCheckCount]) 
     addFooter(parent);
 }
 
-} // namespace BootScreens
+}

@@ -53,7 +53,7 @@ struct PathBuilder {
     }
 };
 
-} // namespace
+}
 
 uint8_t buildOutline(lv_point_t *pts, const lv_area_t &area, Corner corner, const Geometry &geom) {
     const int16_t w = static_cast<int16_t>(area.x2 - area.x1 + 1);
@@ -105,4 +105,4 @@ bool hitInNotch(const lv_area_t &area, Corner corner, const Geometry &geom,
     return inNotchX && inNotchY;
 }
 
-} // namespace CruiseLShape
+}

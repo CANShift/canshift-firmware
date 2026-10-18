@@ -46,7 +46,7 @@ BoardProfileParse parse(const char *json, BoardProfile &out) {
                                  sizeof s_nameBuf);
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {

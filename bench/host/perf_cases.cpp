@@ -31,7 +31,7 @@ constexpr PerfCases::Case kCases[] = {
      &PerfCases::runCommand},
 };
 
-} // namespace
+}
 
 namespace PerfCases {
 
@@ -39,4 +39,4 @@ CaseList all() {
     return {kCases, std::size(kCases)};
 }
 
-} // namespace PerfCases
+}

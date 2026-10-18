@@ -107,7 +107,7 @@ bool resolvePageWidgets(const CfgPage &p, const PageBand &band, uint8_t pageNumb
     return true;
 }
 
-} // namespace
+}
 
 bool resolvePageLayouts(CfgDashboard *out) {
     const ScreenProfile::DesignDimensions design =
@@ -120,4 +120,4 @@ bool resolvePageLayouts(CfgDashboard *out) {
     return true;
 }
 
-} // namespace ConfigLoaderInternal
+}

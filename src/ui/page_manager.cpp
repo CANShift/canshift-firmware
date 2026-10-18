@@ -51,7 +51,7 @@ void showConfigFailure() {
     ConfigRejectedScreen::show(rejection);
 }
 
-} // namespace PageManagerInternal
+}
 
 void PageManager::init() {
     using namespace PageManagerInternal;
@@ -205,7 +205,7 @@ void refreshChrome() {
     ErrorBar::update();
 }
 
-} // namespace
+}
 
 void PageManager::updateWidgets() {
     using namespace PageManagerInternal;

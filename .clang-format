@@ -1,12 +1,7 @@
 ---
-# canshift-firmware — clang-format style
-# Based on LLVM with Arduino/embedded-friendly adjustments.
-# Run: clang-format -i $(find src include -name "*.cpp" -o -name "*.h" | grep -v lv_conf)
-
 BasedOnStyle: LLVM
 Language: Cpp
 
-# Indentation
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
@@ -14,14 +9,11 @@ ContinuationIndentWidth: 4
 IndentCaseLabels: true
 IndentPPDirectives: BeforeHash
 
-# Line length
 ColumnLimit: 100
 
-# Braces
 BreakBeforeBraces: Attach
 InsertBraces: false
 
-# Spacing
 SpaceBeforeParens: ControlStatements
 SpaceInEmptyBlock: false
 SpacesInParens: Never
@@ -30,15 +22,12 @@ SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeCpp11BracedList: false
 
-# Pointers & references — pointer on type side (int* p)
 PointerAlignment: Right
 ReferenceAlignment: Right
 
-# Includes — keep #include order as-written, group blank-line separated blocks
 SortIncludes: Never
 IncludeBlocks: Preserve
 
-# Line breaks
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
@@ -47,8 +36,11 @@ AlwaysBreakTemplateDeclarations: Yes
 BreakConstructorInitializers: BeforeColon
 BreakBeforeBinaryOperators: None
 
-# Comments
 ReflowComments: false
+FixNamespaceComments: false
+KeepEmptyLines:
+  AtEndOfFile: false
+  AtStartOfBlock: false
+  AtStartOfFile: true
 
-# Trailing commas
 InsertTrailingCommas: None

@@ -71,7 +71,7 @@ void armResume(uint8_t reason) {
     ErrorStore::push(ERROR_SRC_SYSTEM, "nvs_write", "workshop resume not stored");
 }
 
-} // namespace
+}
 
 bool boardSupported() {
     return workshop_board_supported_rs(filesystemBytes());
@@ -140,6 +140,6 @@ void leaveOnMotion(uint32_t nowMs) {
     esp_restart();
 }
 
-} // namespace WorkshopMode
+}
 
 #endif

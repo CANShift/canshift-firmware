@@ -109,7 +109,6 @@ void logFontHeap(const char *stage, const char *family, const char *weight, uint
 bool poolHasRoomFor(const char *spiffsPath, const char *family, const char *weight, uint8_t size) {
     File f = SPIFFS.open(spiffsPath, "r");
     if (!f) {
-
         return true;
     }
     const size_t fileSize = static_cast<size_t>(f.size());
@@ -224,7 +223,7 @@ size_t preloadFamily(const Family &fam) {
     return loaded;
 }
 
-} // namespace
+}
 
 void FontManager::init() {
     if (!canshift::hal::memory::isPsramAvailable()) {

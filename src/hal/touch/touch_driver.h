@@ -14,4 +14,4 @@ void calibrate();
 
 void resetCalibration();
 
-} // namespace TouchDriver
+}

@@ -54,4 +54,4 @@ struct Layer {
 
 bool build(Layer &layer);
 
-} // namespace ControlSplashInternal
+}

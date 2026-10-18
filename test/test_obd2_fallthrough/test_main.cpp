@@ -38,7 +38,7 @@ void loadObdSignals() {
     CanParser::loadSignalDefinitions();
 }
 
-} // namespace
+}
 
 void setUp() {
     loadObdSignals();

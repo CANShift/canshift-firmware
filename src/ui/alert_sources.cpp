@@ -39,7 +39,7 @@ bool isConfigured(size_t index) {
     return index >= AlertSources::kSourceCount && index < AlertSources::count();
 }
 
-} // namespace
+}
 
 size_t AlertSources::count() {
     return kSourceCount + CriticalAlertSource::count();

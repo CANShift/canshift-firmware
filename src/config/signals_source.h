@@ -39,4 +39,4 @@ enum class Source : uint8_t {
     return Source::None;
 }
 
-} // namespace SignalsSource
+}

@@ -12,4 +12,4 @@ void *allocPreferSpiram(size_t size) {
     return ptr;
 }
 
-} // namespace Mem
+}

@@ -14,4 +14,4 @@ State sample() {
     return State{out.silent, out.seconds};
 }
 
-} // namespace BusHealth
+}

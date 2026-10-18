@@ -47,7 +47,7 @@ const Entry *find(const char *signalId) {
     return nullptr;
 }
 
-} // namespace
+}
 
 const Entry *entries() {
     return kEntries;
@@ -67,4 +67,4 @@ const char *unitForSignal(const char *signalId) {
     return entry != nullptr ? entry->unit : "";
 }
 
-} // namespace SignalPresentation
+}

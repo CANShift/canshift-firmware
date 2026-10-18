@@ -6,4 +6,4 @@ void init();
 
 void update();
 
-} // namespace AlertBanner
+}

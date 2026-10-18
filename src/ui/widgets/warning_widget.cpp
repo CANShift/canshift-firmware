@@ -86,7 +86,7 @@ void enterState(WarningTag *tag, WarnState next) {
     tag->state = next;
 }
 
-} // namespace
+}
 
 lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *root = lv_obj_create(parent);

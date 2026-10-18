@@ -29,7 +29,7 @@ bool isEmitted(const Field &field) {
     return field.present && std::isfinite(field.value);
 }
 
-} // namespace
+}
 
 size_t encode(const Field *fields, size_t count, uint8_t *buf, size_t bufSize) {
     if (fields == nullptr || buf == nullptr || count > kMaxFields)
@@ -83,4 +83,4 @@ bool shouldSend(Deduper &deduper, const uint8_t *frame, size_t len) {
     return true;
 }
 
-} // namespace TelemetryFrame
+}

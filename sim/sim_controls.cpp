@@ -80,7 +80,7 @@ void tapEveryButton(uint8_t times) {
     }
 }
 
-} // namespace
+}
 
 bool select(const char *scenario, uint32_t nowMs) {
     if (!scenario)
@@ -111,4 +111,4 @@ void tick(uint32_t nowMs) {
     tapEveryButton(s_variant->taps);
 }
 
-} // namespace SimControls
+}

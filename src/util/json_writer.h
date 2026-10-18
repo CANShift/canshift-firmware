@@ -12,4 +12,4 @@ size_t measure(JsonVariantConst value);
 
 size_t toBuffer(JsonVariantConst value, char *buffer, size_t capacity);
 
-} // namespace JsonWriter
+}

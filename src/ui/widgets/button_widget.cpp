@@ -277,7 +277,7 @@ void pollStepper(ButtonTag &tag) {
     applyStateWithReceipt(tag);
 }
 
-} // namespace
+}
 
 lv_obj_t *ButtonWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     if (!cfg.button) {

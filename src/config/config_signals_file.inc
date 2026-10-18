@@ -56,7 +56,7 @@ static_assert(sizeof(kSignalsLoaders) / sizeof(kSignalsLoaders[0]) ==
                   static_cast<size_t>(Source::Backup) + 1,
               "every signals source needs a loader");
 
-} // namespace
+}
 
 bool loadSignals() {
     char bakPath[kBakPathLen] = {};
@@ -69,7 +69,7 @@ bool loadSignals() {
     return kSignalsLoaders[static_cast<size_t>(source)](bakPath);
 }
 
-} // namespace ConfigLoaderInternal
+}
 
 SignalsSource::Verdict ConfigLoader::inspectSignalsFile(const char *path) {
     if (path == nullptr)
@@ -141,7 +141,7 @@ bool keepCurrentOut(const char *stagedPath) {
     return false;
 }
 
-} // namespace
+}
 
 bool ConfigLoader::acceptSignalsUpload(const char *stagedPath) {
     const SignalsSource::Verdict verdict = inspectSignalsFile(stagedPath);

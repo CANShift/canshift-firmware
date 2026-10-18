@@ -52,7 +52,7 @@ const char *rendered(CfgTimerSource source, const TimerSources::Inputs &in, char
     return buf;
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

@@ -21,4 +21,4 @@ bool setTextColorIfChanged(lv_obj_t *label, uint32_t &cachedRgb, uint32_t target
 bool setBgColorIfChanged(lv_obj_t *obj, uint32_t &cachedRgb, uint32_t targetRgb);
 bool setArcColorIfChanged(lv_obj_t *arc, uint32_t &cachedRgb, uint32_t targetRgb, lv_part_t part);
 
-} // namespace WidgetStyles
+}

@@ -39,7 +39,7 @@ int hexNibble(char c) {
     return -1;
 }
 
-} // namespace
+}
 
 bool isPathSafe(const char *path) {
     if (!path)
@@ -75,4 +75,4 @@ bool parseSha256Hex(const char *hex, uint8_t out[kSha256Bytes]) {
     return true;
 }
 
-} // namespace UsbDispatchValidation
+}

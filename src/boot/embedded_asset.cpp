@@ -126,7 +126,7 @@ EmbeddedAsset::Outcome inflateStream(tinfl_decompressor &decompressor, DeflatedI
 
 constexpr size_t kZlibTrailerBytes = sizeof(uint32_t);
 
-} // namespace
+}
 
 bool EmbeddedAsset::contentStamp(const uint8_t *start, const uint8_t *end, uint32_t &stamp) {
     const size_t blobLength = static_cast<size_t>(end - start);

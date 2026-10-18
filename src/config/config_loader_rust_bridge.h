@@ -12,4 +12,4 @@ namespace ConfigLoaderInternal {
     return parse_minor_version_rs(version);
 }
 
-} // namespace ConfigLoaderInternal
+}

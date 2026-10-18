@@ -32,4 +32,4 @@ void initFontManagerWithHeapLog();
 
 void preloadIconsWithHeapLog();
 
-} // namespace BootPhases
+}

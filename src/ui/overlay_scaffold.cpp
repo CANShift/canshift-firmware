@@ -40,7 +40,7 @@ lv_obj_t *makeFilledRect(lv_obj_t *parent, int16_t w, int16_t h, uint32_t rgb, i
     return rect;
 }
 
-} // namespace
+}
 
 lv_obj_t *createRoot(uint32_t backdropRgb) {
     lv_obj_t *root = lv_obj_create(lv_layer_top());
@@ -99,4 +99,4 @@ void stopBreath(lv_obj_t *obj) {
     lv_anim_del(obj, breathCb);
 }
 
-} // namespace OverlayScaffold
+}

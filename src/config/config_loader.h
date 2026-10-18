@@ -38,4 +38,4 @@ struct LoadResult {
 
 [[nodiscard]] bool acceptSignalsUpload(const char *stagedPath);
 
-} // namespace ConfigLoader
+}

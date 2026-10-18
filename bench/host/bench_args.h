@@ -6,4 +6,4 @@ namespace BenchArgs {
 
 [[nodiscard]] bool present(int argc, char **argv, const char *flag);
 
-} // namespace BenchArgs
+}

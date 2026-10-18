@@ -14,7 +14,7 @@ uint8_t s_frame[AlertFrame::kMaxFrameBytes] = {AlertFrame::kVersion, 0};
 size_t s_len = AlertFrame::kHeaderBytes;
 uint32_t s_generation = 0;
 
-} // namespace
+}
 
 void publish(const uint8_t *frame, size_t len) {
     if (frame == nullptr || len < AlertFrame::kHeaderBytes || len > AlertFrame::kMaxFrameBytes)
@@ -39,4 +39,4 @@ size_t copyLatest(uint8_t *out, size_t outSize, uint32_t *generation) {
     return len;
 }
 
-} // namespace AlertBroadcast
+}

@@ -20,4 +20,4 @@ bool present(int argc, char **argv, const char *flag) {
     return false;
 }
 
-} // namespace BenchArgs
+}

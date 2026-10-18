@@ -141,7 +141,7 @@ void handleScreenSettings(const JsonObjectConst &obj) {
     UsbComm::sendOk();
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -304,4 +304,4 @@ void handleCommand(char *jsonLine) {
     entry->run(obj);
 }
 
-} // namespace UsbCommInternal
+}

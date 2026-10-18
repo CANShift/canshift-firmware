@@ -54,4 +54,4 @@ void showPage(uint8_t idx);
 
 void onSwipe(lv_dir_t dir);
 
-} // namespace PageManagerInternal
+}

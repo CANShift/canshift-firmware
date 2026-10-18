@@ -30,4 +30,4 @@ bool isInteractive(CfgTimerSource source);
 
 const char *kicker(CfgTimerSource source);
 
-} // namespace TimerSources
+}

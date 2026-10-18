@@ -112,7 +112,7 @@ void sendConfigToSocket(size_t fileBytes) {
     LOG_INFO("USB", "GET_CONFIG: sent %u bytes to the socket", static_cast<unsigned>(fileBytes));
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -131,4 +131,4 @@ void handleGetConfig() {
         streamConfigToSerial();
 }
 
-} // namespace UsbCommInternal
+}

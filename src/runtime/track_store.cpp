@@ -11,7 +11,7 @@ namespace {
 portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 State s_state = {};
 
-} // namespace
+}
 
 void init() {
     portENTER_CRITICAL(&s_mux);
@@ -45,4 +45,4 @@ bool isActiveWithin(uint32_t timeoutMs) {
     return (millis() - last) <= timeoutMs;
 }
 
-} // namespace TrackStore
+}

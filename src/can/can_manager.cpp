@@ -67,7 +67,6 @@ twai_timing_config_t getTimingConfig(uint16_t kbps) {
 }
 
 twai_filter_config_t getFilterConfig() {
-
     return TWAI_FILTER_CONFIG_ACCEPT_ALL();
 }
 
@@ -150,7 +149,7 @@ void twaiInitTaskFn(void *arg) {
     vTaskDelete(NULL);
 }
 
-} // namespace
+}
 
 bool CanManager::isAvailable() {
     return s_twaiInstalled;
@@ -193,12 +192,10 @@ esp_err_t CanManager::initHardware() {
     }
     TaskHandle_t handle = nullptr;
     if (s_initTaskStack) {
-
         handle =
             xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", kTwaiInitTaskStack, ctx,
                                           kTwaiInitTaskPrio, s_initTaskStack, &s_initTaskTCB, 0);
     } else {
-
         BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", kTwaiInitTaskStack,
                                                 ctx, kTwaiInitTaskPrio, &handle, 0);
         if (ok != pdPASS) {
@@ -388,7 +385,6 @@ bool CanManager::tick() {
 }
 
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
-
     if (!s_twaiInstalled)
         return false;
 

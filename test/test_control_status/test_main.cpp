@@ -45,7 +45,7 @@ void test_ecuMapLevelJumpsWithoutWalkingIntermediateLevels() {
     TEST_ASSERT_EQUAL_UINT8(kThirdMapLevel, level);
 }
 
-} // namespace
+}
 
 void setUp() {
     mockSetMillis(0);

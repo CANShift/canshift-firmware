@@ -29,4 +29,4 @@ void setTopGap(lv_obj_t *obj, int16_t gapPx);
 
 void present(const Frame &frame);
 
-} // namespace SystemScreen
+}

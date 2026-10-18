@@ -81,7 +81,7 @@ const SourceRenderer *rendererFor(CfgTimerSource source) {
     return &kRenderers[0];
 }
 
-} // namespace
+}
 
 namespace TimerSources {
 
@@ -119,4 +119,4 @@ bool isInteractive(CfgTimerSource source) {
     return source == CfgTimerSource::Elapsed;
 }
 
-} // namespace TimerSources
+}

@@ -47,7 +47,7 @@ void resetChunkState() {
     s_chunk.fromSocket = false;
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -82,7 +82,7 @@ void finishChunkTransfer() {
     finishPlainFile();
 }
 
-} // namespace
+}
 
 void failChunk(const char *reason) {
     UsbComm::sendError(reason);
@@ -122,7 +122,7 @@ const char *appendPutFileChunk(const char *b64, const DecodeScratch &scratch) {
     return nullptr;
 }
 
-} // namespace
+}
 
 void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
     const char *path = obj["path"];
@@ -211,4 +211,4 @@ void tickChunkTransferTimeout() {
     tickConfigChunkTimeout();
 }
 
-} // namespace UsbCommInternal
+}

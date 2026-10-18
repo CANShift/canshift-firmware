@@ -21,7 +21,7 @@ void markRx() {
     s_lastRxMs = millis();
 }
 
-} // namespace SimCanBus
+}
 
 namespace CanManager {
 
@@ -41,13 +41,13 @@ bool sendFrame(uint32_t id, const uint8_t *, uint8_t len, bool) {
     return true;
 }
 
-} // namespace CanManager
+}
 
 namespace TouchDriver {
 
 void resetCalibration() {}
 
-} // namespace TouchDriver
+}
 
 namespace canshift::hal::memory {
 
@@ -59,7 +59,7 @@ bool isPsramAvailable() {
 #endif
 }
 
-} // namespace canshift::hal::memory
+}
 
 namespace UsbComm {
 
@@ -67,7 +67,7 @@ void sendLine(const char *line) {
     printf("[sim] usb: %s\n", line);
 }
 
-} // namespace UsbComm
+}
 
 namespace BleServer {
 
@@ -81,4 +81,4 @@ bool isConnected() {
     return false;
 }
 
-} // namespace BleServer
+}

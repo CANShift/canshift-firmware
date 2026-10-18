@@ -727,7 +727,7 @@ constexpr Entry kBakedIcons[] = {
     {"icon_day", &icon_day_dsc}, {"icon_night", &icon_night_dsc}, {"map_icon", &map_icon_dsc},
     {"launch", &launch_dsc},     {"flame", &flame_dsc},
 };
-} // namespace
+}
 
 const lv_img_dsc_t *resolve(const char *iconName) {
     if (!iconName || iconName[0] == '\0')
@@ -739,4 +739,4 @@ const lv_img_dsc_t *resolve(const char *iconName) {
     return nullptr;
 }
 
-} // namespace IconAssetsBaked
+}

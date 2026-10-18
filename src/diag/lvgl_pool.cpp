@@ -34,7 +34,7 @@ uint32_t fragmentationPct(const Stats &s) {
     return kPercent - (s.largest * kPercent) / s.free;
 }
 
-} // namespace
+}
 
 Stats stats() {
     return readStats();
@@ -50,4 +50,4 @@ void report(const char *phase) {
              static_cast<unsigned>(s.largest));
 }
 
-} // namespace LvglPool
+}

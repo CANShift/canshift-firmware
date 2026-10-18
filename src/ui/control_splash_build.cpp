@@ -152,7 +152,7 @@ lv_obj_t *makeSpacer(lv_obj_t *parent) {
     return spacer;
 }
 
-} // namespace
+}
 
 bool build(Layer &layer) {
     layer.root = OverlayScaffold::createRoot();
@@ -172,4 +172,4 @@ bool build(Layer &layer) {
     return buildBottom(layer) && buildSegments(layer);
 }
 
-} // namespace ControlSplashInternal
+}

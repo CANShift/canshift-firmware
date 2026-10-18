@@ -79,4 +79,4 @@ void setKicker(const Surface &surface, const char *text);
 
 void repaint(Surface &surface, Level level);
 
-} // namespace Severity
+}

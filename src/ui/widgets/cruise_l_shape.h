@@ -24,4 +24,4 @@ void buildFillArms(const lv_area_t &btn, Corner corner, const Geometry &geom, lv
 bool hitInNotch(const lv_area_t &area, Corner corner, const Geometry &geom,
                 const lv_point_t &point);
 
-} // namespace CruiseLShape
+}

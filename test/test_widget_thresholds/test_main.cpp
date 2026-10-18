@@ -99,7 +99,7 @@ const CfgWidget &widgetAt(const CfgDashboard &dashboard, uint8_t index) {
     return dashboard.pages[0].widgets[index];
 }
 
-} // namespace
+}
 
 void setUp() {}
 void tearDown() {}

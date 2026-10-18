@@ -24,13 +24,13 @@ lv_obj_t *s_bar = nullptr;
 DynItem s_dynItems[kCfgMaxTopbarItems];
 uint8_t s_dynCount = 0;
 bool s_dynEverSeen[kCfgMaxTopbarItems] = {};
-} // namespace TopBarInternal
+}
 
 namespace TopBarMetrics {
 constexpr float kDotRatio = 0.30f;
 constexpr float kGapRatio = 0.25f;
 constexpr float kPaddingRatio = 0.40f;
-} // namespace TopBarMetrics
+}
 
 static inline int16_t metricRound(float v) {
     return static_cast<int16_t>(lroundf(v));
@@ -143,7 +143,6 @@ void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
         }
         case TopBarItemKind::SIGNAL:
         case TopBarItemKind::SIGNAL_MAX: {
-
             obj = makeBarLabel(s_bar, "", labelColor());
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
             anchor(obj, gap);
@@ -291,7 +290,7 @@ uint8_t mergePageStatusRow(const CfgTopBar &base, const CfgStatusRow &row, CfgTo
     return n;
 }
 
-} // namespace
+}
 
 void TopBar::applyPage(const CfgPage &page) {
     if (!s_bar)

@@ -72,7 +72,7 @@ int readRounded(SignalId sid) {
     return static_cast<int>(lroundf(SignalStore::read(sid, 0.0f)));
 }
 
-} // namespace
+}
 
 bool isConfirming(SignalId signal) {
     return signalValid(signal) && SignalStore::read(signal, 0.0f) != 0.0f;
@@ -116,4 +116,4 @@ bool levelFromSignal(ControlId id, uint8_t *outLevel) {
     return true;
 }
 
-} // namespace ControlStatus
+}

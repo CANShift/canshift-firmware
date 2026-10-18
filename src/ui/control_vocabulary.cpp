@@ -104,7 +104,7 @@ size_t appendExpanded(char *out, size_t outLen, size_t written, const char *tmpl
     return written;
 }
 
-} // namespace
+}
 
 const Control *find(const char *kicker) {
     if (!kicker || kicker[0] == '\0')
@@ -154,4 +154,4 @@ void joinPhrase(const char *lead, const char *joiner, const char *tail, int para
     out[written] = '\0';
 }
 
-} // namespace ControlVocabulary
+}

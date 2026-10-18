@@ -56,7 +56,7 @@ char kickerChar(char c) {
     return c;
 }
 
-} // namespace
+}
 
 void formatKicker(const char *raw, char *out, size_t outLen) {
     if (!out || outLen == 0)
@@ -89,7 +89,7 @@ bool composeKicker(const char *kicker, const char *signalId, char *out, size_t o
     return true;
 }
 
-} // namespace
+}
 
 lv_obj_t *applySignalHeader(lv_obj_t *cont, const char *signalId, HeaderPos pos) {
     return applyWidgetHeader(cont, nullptr, signalId, pos);
@@ -103,4 +103,4 @@ lv_obj_t *applyWidgetHeader(lv_obj_t *cont, const char *kicker, const char *sign
     return drawHeader(cont, buf, pos);
 }
 
-} // namespace WidgetLabelOverlay
+}

@@ -48,7 +48,7 @@ const ProfileEntry &findEntryOrDefault(const char *profileId) {
 static_assert(sizeof(kProfiles) / sizeof(kProfiles[0]) >= 1,
               "screen profile catalog must contain at least the default entry");
 
-} // namespace
+}
 
 DesignDimensions lookupDesignDimensions(const char *profileId) {
     const ProfileEntry &entry = findEntryOrDefault(profileId);
@@ -95,4 +95,4 @@ int16_t scaleYVal(int16_t value) {
     return static_cast<int16_t>(static_cast<float>(value) * s_factors.y);
 }
 
-} // namespace ScreenProfile
+}

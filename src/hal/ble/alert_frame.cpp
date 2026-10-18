@@ -64,7 +64,7 @@ void writeEntry(const Entry &entry, size_t len, uint8_t *p) {
     memcpy(p + kEntryFixedBytes, entry.signal, len);
 }
 
-} // namespace
+}
 
 size_t encode(const Entry *entries, size_t count, uint8_t *buf, size_t bufSize) {
     if (buf == nullptr || bufSize < kHeaderBytes)
@@ -114,4 +114,4 @@ bool shouldSend(Cadence &cadence, uint32_t generation) {
     return true;
 }
 
-} // namespace AlertFrame
+}

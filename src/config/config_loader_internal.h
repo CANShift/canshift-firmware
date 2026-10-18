@@ -64,4 +64,4 @@ void parseCriticalAlerts(const JsonDocument &doc, CfgDashboard *out);
 
 void parsePageButtons(JsonObjectConst src, CfgPageButtons *out);
 
-} // namespace ConfigLoaderInternal
+}

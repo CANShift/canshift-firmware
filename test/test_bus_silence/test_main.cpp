@@ -45,7 +45,7 @@ void test_onlyFourDigitValuesWidenThePlaceholder() {
     TEST_ASSERT_EQUAL_UINT8(kAlertStaleDashGroupsMax, alert_stale_dash_groups_rs(12000.0f));
 }
 
-} // namespace
+}
 
 int main(int, char **) {
     UNITY_BEGIN();

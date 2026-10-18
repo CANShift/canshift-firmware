@@ -67,7 +67,7 @@ bool create(WorkshopCredentials &out) {
     return true;
 }
 
-} // namespace
+}
 
 bool loadOrCreate(WorkshopCredentials &out) {
     if (load(out))
@@ -75,6 +75,6 @@ bool loadOrCreate(WorkshopCredentials &out) {
     return create(out);
 }
 
-} // namespace WorkshopCredentialStore
+}
 
 #endif

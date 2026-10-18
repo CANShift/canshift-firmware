@@ -203,7 +203,7 @@ BoardProfile s_runtime = kActiveBoard;
 char s_boardId[kBoardIdCapacity];
 char s_boardName[kBoardNameCapacity];
 
-} // namespace
+}
 
 BoardProfileParse parseBoardProfileBlob(const char *json, size_t len, BoardProfile &out,
                                         char *idBuf, size_t idCap, char *nameBuf, size_t nameCap) {
@@ -301,4 +301,4 @@ void resetRuntimeBoardProfile() {
     s_runtime = kActiveBoard;
 }
 
-} // namespace canshift::boards
+}

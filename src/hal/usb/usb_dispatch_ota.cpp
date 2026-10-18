@@ -107,7 +107,7 @@ void restartIntoCommittedImage() {
     UsbComm::flushAndRestart();
 }
 
-} // namespace
+}
 
 namespace UsbCommInternal {
 
@@ -200,7 +200,7 @@ void handleOtaEnd(const JsonObjectConst &obj) {
     UsbComm::sendOk();
 }
 
-} // namespace UsbCommInternal
+}
 
 bool UsbCommInternal::socketOtaSessionOpen() {
     return s_sessionFromSocket && OtaReceiver::state() == OtaReceiver::State::Receiving;

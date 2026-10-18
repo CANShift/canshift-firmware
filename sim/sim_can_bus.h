@@ -4,4 +4,4 @@ namespace SimCanBus {
 
 void markRx();
 
-} // namespace SimCanBus
+}

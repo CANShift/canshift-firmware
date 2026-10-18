@@ -106,7 +106,7 @@ multi_heap_handle_t pool() {
     return s_heap;
 }
 
-} // namespace
+}
 
 extern "C" void *canshift_lv_malloc(size_t size) {
     return multi_heap_malloc(pool(), size);

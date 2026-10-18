@@ -18,4 +18,4 @@ const char *findPayloadSlice(const char *jsonLine, size_t lineLen, size_t *outLe
         find_payload_slice_rs(reinterpret_cast<const uint8_t *>(jsonLine), lineLen, outLen));
 }
 
-} // namespace UsbEnvelope
+}

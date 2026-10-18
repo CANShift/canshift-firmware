@@ -84,7 +84,7 @@ bool errorStoreHolds(const char *code) {
     return false;
 }
 
-} // namespace
+}
 
 void test_compileExpr_rejectsOperandStackPastTheCap() {
     FfiTok tokens[kCanshiftExprMaxTokens];

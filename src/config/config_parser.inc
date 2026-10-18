@@ -297,7 +297,7 @@ void parseImageWidget(JsonObjectConst cfg, CfgImageParams *out) {
     strlcpy(out->imagePath, cfg["imagePath"] | "", kCfgMaxPathLen);
 }
 
-} // namespace
+}
 
 void parseWidget(JsonObjectConst src, CfgWidget *w) {
     strlcpy(w->id, src["id"] | "", kCfgMaxIdLen);
@@ -345,4 +345,4 @@ void parseWidget(JsonObjectConst src, CfgWidget *w) {
     }
 }
 
-} // namespace ConfigLoaderInternal
+}

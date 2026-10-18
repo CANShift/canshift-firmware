@@ -145,7 +145,7 @@ void paintSegments(const Surface &surface, ControlState state, uint8_t level) {
     }
 }
 
-} // namespace
+}
 
 Surface build(lv_obj_t *box, bool withSegments) {
     Surface surface = {};
@@ -194,4 +194,4 @@ void paint(Surface &surface, ControlState state, uint8_t level) {
     surface.everPainted = true;
 }
 
-} // namespace ControlButton
+}

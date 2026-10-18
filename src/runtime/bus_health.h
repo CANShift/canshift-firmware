@@ -11,4 +11,4 @@ struct State {
 
 [[nodiscard]] State sample();
 
-} // namespace BusHealth
+}

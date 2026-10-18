@@ -24,7 +24,7 @@ AlertFrame::Entry acknowledgedCoolantEntry() {
     return {1, 112.0f, true, 110.0f, false, true, false, 95, "coolant_temp_c"};
 }
 
-} // namespace
+}
 
 void test_encode_noAlert_versionAndZeroCount() {
     uint8_t buf[AlertFrame::kMaxFrameBytes] = {0};

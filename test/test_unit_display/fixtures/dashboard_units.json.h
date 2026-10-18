@@ -49,4 +49,4 @@ constexpr const char *kDashboardBogusUnits = R"({
   ]
 })";
 
-} // namespace fixtures
+}

@@ -174,4 +174,4 @@ constexpr const char *kSignalsThreeByteValue = R"({
   ]
 })";
 
-} // namespace fixtures
+}

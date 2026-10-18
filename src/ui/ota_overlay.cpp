@@ -199,7 +199,7 @@ void renderPercent(size_t written, size_t total, bool animate) {
     s_barFillW = target;
 }
 
-} // namespace
+}
 
 namespace OtaOverlay {
 
@@ -285,6 +285,6 @@ void tick() {
     renderPercent(written, s_total.load(std::memory_order_relaxed), true);
 }
 
-} // namespace Detail
+}
 
-} // namespace OtaOverlay
+}

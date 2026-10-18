@@ -105,7 +105,7 @@ void kickStalledTxDrain() {
 #endif
 }
 
-} // namespace
+}
 
 bool Logger::writeAll(const uint8_t *bytes, size_t len) {
     size_t sent = 0;
@@ -128,7 +128,6 @@ bool Logger::writeAll(const uint8_t *bytes, size_t len) {
 }
 
 void Logger::init() {
-
     if (!s_uartMutex) {
         s_uartMutex = xSemaphoreCreateRecursiveMutex();
     }
@@ -147,13 +146,11 @@ void Logger::unlockUart() {
 }
 
 void Logger::emit(char level, const char *tag, const char *fmt, ...) {
-
     if (!s_uartMutex) {
 #ifndef UNIT_TEST
         configASSERT(xPortGetCoreID() == kTaskCoreUi);
 #endif
     } else if (xSemaphoreTakeRecursive(s_uartMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
-
         return;
     }
 

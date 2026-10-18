@@ -70,4 +70,4 @@ static constexpr SignalId kWheelButton4 = 59;
 
 static constexpr SignalId kSignalCount = 64;
 
-} // namespace SignalIds
+}

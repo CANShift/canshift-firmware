@@ -13,4 +13,4 @@ void tick(const SignalStore::SignalValue *snap);
 
 void reset();
 
-} // namespace SignalStats
+}

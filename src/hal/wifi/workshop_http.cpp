@@ -55,7 +55,7 @@ bool registerRoutes() {
            httpd_register_uri_handler(s_server, &kAssetRoute) == ESP_OK;
 }
 
-} // namespace
+}
 
 bool startHttp() {
     httpd_config_t config = serverConfig();
@@ -67,6 +67,6 @@ bool startHttp() {
     return registerRoutes() && bindSocket(s_server);
 }
 
-} // namespace WorkshopServerInternal
+}
 
 #endif
