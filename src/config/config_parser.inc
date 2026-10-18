@@ -14,9 +14,8 @@
 namespace ConfigLoaderInternal {
 
 void parseButtonAction(JsonObjectConst src, CfgButtonAction *out) {
-    const char *category = src["category"] | "";
     const char *type = src["type"] | "";
-    out->type = parseButtonActionType(category, type);
+    out->type = parseButtonActionType(type);
     out->pageId[0] = '\0';
     out->mapIndex = 0;
     out->canFrameId = 0;

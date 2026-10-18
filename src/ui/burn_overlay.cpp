@@ -71,9 +71,8 @@ const ErrorCopy &errorCopyFor(BurnOverlay::ErrorReason reason) {
                                                               : kUnknownErrorCopy;
 }
 
-void errorHoldExpiredCb(lv_timer_t *timer) {
+void errorHoldExpiredCb(lv_timer_t *) {
     s_errorTimer = nullptr;
-    (void)timer;
     BurnOverlay::hide();
 }
 

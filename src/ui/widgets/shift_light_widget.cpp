@@ -119,8 +119,7 @@ lv_obj_t *ShiftLightWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16
     return cont;
 }
 
-void ShiftLightWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
-    (void)cfg;
+void ShiftLightWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &) {
     if (!obj)
         return;
     auto *tag = static_cast<ShiftLightTag *>(lv_obj_get_user_data(obj));

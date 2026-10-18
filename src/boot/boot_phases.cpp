@@ -102,7 +102,7 @@ bool mountStorageOrLogError() {
     return storageOk;
 }
 
-void provisionDefaultConfigsIfNeeded(bool storageOk) {
+void provisionDefaultConfigsIfNeeded([[maybe_unused]] bool storageOk) {
 #if DEFAULT_CONFIG_PROVISION_ENABLED
     if (!storageOk)
         return;
@@ -116,8 +116,6 @@ void provisionDefaultConfigsIfNeeded(bool storageOk) {
                  "Default-config provision failed for %u file(s) — "
                  "continuing with whatever is on storage",
                  static_cast<unsigned>(pr.failed));
-#else
-    (void)storageOk;
 #endif
 }
 

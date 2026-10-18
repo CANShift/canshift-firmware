@@ -44,7 +44,7 @@ void checkDashboardSchemaFloor(const char *fileVersion);
 
 [[nodiscard]] TopBarItemKind parseTopBarItemKind(const char *str);
 [[nodiscard]] TopBarItemPos parseTopBarItemPos(const char *str);
-[[nodiscard]] CfgButtonActionType parseButtonActionType(const char *category, const char *type);
+[[nodiscard]] CfgButtonActionType parseButtonActionType(const char *type);
 [[nodiscard]] CfgCruiseOp parseCruiseOp(const char *op);
 [[nodiscard]] CfgTimerOp parseTimerOp(const char *op);
 [[nodiscard]] CfgTimerSource parseTimerSource(const char *source);

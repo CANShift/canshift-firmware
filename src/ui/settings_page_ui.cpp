@@ -176,8 +176,7 @@ void buildDayModeRow(int16_t &y, int16_t rowW) {
     y += kBtnH;
 }
 
-void buildAboutRow(int16_t &y, int16_t rowW) {
-    (void)rowW;
+void buildAboutRow(int16_t &y) {
     lv_obj_t *lbl = lv_label_create(s_panel);
     lv_label_set_text(lbl, "ABOUT");
     lv_obj_set_style_text_font(lbl, FONT_SM(), 0);
