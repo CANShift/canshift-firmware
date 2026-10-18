@@ -12,6 +12,7 @@ namespace SignalStore {
 
 struct SignalValue {
     float raw;
+    float display;
     uint32_t lastUpdateMs;
     bool valid;
     uint32_t timeoutMs;
@@ -25,7 +26,9 @@ void update(SignalId id, float value);
 
 [[nodiscard]] bool isValid(SignalId id);
 
-[[nodiscard]] bool tryRead(SignalId id, float *value);
+[[nodiscard]] float readDisplay(SignalId id, float defaultValue = 0.0f);
+
+[[nodiscard]] bool tryReadDisplay(SignalId id, float *value);
 
 [[nodiscard]] bool anyValid(const SignalId *ids, size_t count);
 

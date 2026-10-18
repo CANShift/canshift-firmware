@@ -101,7 +101,7 @@ static void updateDynSignalLabel(DynItem &d) {
 
     const char *fmt = d.format[0] ? d.format : "%.1f";
     char buf[kDynTextCap];
-    const float v = SignalStore::read(sid, 0.0f);
+    const float v = SignalStore::readDisplay(sid, 0.0f);
     FloatFormat::formatFromSpec(buf, sizeof(buf), v, fmt);
     if (strcmp(buf, d.lastText) != 0) {
         lv_label_set_text(d.obj, buf);
