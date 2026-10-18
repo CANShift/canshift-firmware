@@ -56,7 +56,8 @@ Where to find this:
 3. **Vendor CAN XML.** Some tuning tools export a custom CAN XML for hundreds of
    ECUs. CANShift imports these directly via
    [`parseCanXml`](https://github.com/CANShift/canshift-core/blob/main/src/can-xml/parse-can-xml.ts)
-   (the parser recognises the `<RealDashCAN` root tag), and the tuner surfaces
+   (the parser accepts the neutral `<CanXml` root and the external format's
+   `<RealDashCAN` root), and the tuner surfaces
    it through the
    [`XmlImportZone`](https://github.com/CANShift/canshift-tuner/blob/main/src/components/ecu/XmlImportZone.tsx).
    Less reverse-engineering than reading a PDF.
