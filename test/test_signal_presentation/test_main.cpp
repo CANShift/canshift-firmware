@@ -7,19 +7,23 @@
 void setUp() {}
 void tearDown() {}
 
+static void assertKickerUniqueAfter(const SignalPresentation::Entry *entries, size_t count,
+                                    size_t i) {
+    for (size_t j = i + 1; j < count; ++j) {
+        if (strcmp(entries[i].kicker, entries[j].kicker) != 0)
+            continue;
+        char message[128];
+        snprintf(message, sizeof(message), "'%s' and '%s' both render '%s'", entries[i].signalId,
+                 entries[j].signalId, entries[i].kicker);
+        TEST_FAIL_MESSAGE(message);
+    }
+}
+
 void test_no_two_signals_share_a_kicker() {
     const SignalPresentation::Entry *entries = SignalPresentation::entries();
     const size_t count = SignalPresentation::entryCount();
-    for (size_t i = 0; i < count; ++i) {
-        for (size_t j = i + 1; j < count; ++j) {
-            if (strcmp(entries[i].kicker, entries[j].kicker) != 0)
-                continue;
-            char message[128];
-            snprintf(message, sizeof(message), "'%s' and '%s' both render '%s'",
-                     entries[i].signalId, entries[j].signalId, entries[i].kicker);
-            TEST_FAIL_MESSAGE(message);
-        }
-    }
+    for (size_t i = 0; i < count; ++i)
+        assertKickerUniqueAfter(entries, count, i);
 }
 
 void test_oil_pair_reads_apart() {
