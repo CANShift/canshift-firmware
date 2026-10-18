@@ -109,6 +109,14 @@ bool stageFileBytes(const char *path, const uint8_t *data, size_t length) {
     return true;
 }
 
+size_t usedByteCount() {
+    size_t used = 0;
+    for (const auto &f : s_files)
+        if (f.used)
+            used += f.size;
+    return used;
+}
+
 }
 
 bool writeFileAtomic(const char *path, const uint8_t *data, size_t length) {
@@ -142,18 +150,6 @@ bool removeFile(const char *path) {
     f->used = false;
     f->size = 0;
     return true;
-}
-
-namespace {
-
-size_t usedByteCount() {
-    size_t used = 0;
-    for (const auto &f : s_files)
-        if (f.used)
-            used += f.size;
-    return used;
-}
-
 }
 
 void getSpaceInfo(size_t *totalBytes, size_t *usedBytes) {
