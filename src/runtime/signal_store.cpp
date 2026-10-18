@@ -45,8 +45,11 @@ void SignalStore::init() {
 
     portENTER_CRITICAL(&s_signalsMux);
     for (int i = 0; i < kSignalStoreMaxSignals; ++i) {
-        s_signals[i] = {
-            .raw = 0.0f, .lastUpdateMs = 0, .valid = false, .timeoutMs = kSignalDefaultTimeoutMs};
+        s_signals[i] = {.raw = 0.0f,
+                        .display = 0.0f,
+                        .lastUpdateMs = 0,
+                        .valid = false,
+                        .timeoutMs = kSignalDefaultTimeoutMs};
     }
     portEXIT_CRITICAL(&s_signalsMux);
     s_anyValid.store(false, std::memory_order_relaxed);
