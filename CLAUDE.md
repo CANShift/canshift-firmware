@@ -31,6 +31,7 @@ Non-negotiable. Reviewed on every PR, ahead of feature count.
 - Third copy gets extracted — LVGL style ladders and show/hide toggles included. If a helper already exists in one file, promote it to `WidgetHelpers` instead of retyping it.
 - A constant must be read by the code it names. `(void)symbol;` to silence an unused warning means delete the symbol.
 - The zero-comment rule covers `rust/` too.
+- `scripts/check_code_shape.py` fails the `lint` job on any function past 30 code lines or nesting depth 2, any file past 300, and any comment, across `src`, `include`, `rust`, `test`, `sim` and `bench`. Existing offenders sit in `scripts/code_shape_baseline.json`, which only shrinks: a fix that brings an entry down makes the check ask for `--update`, a new or longer offender fails. Never add to the baseline by hand.
 
 ## Workflow
 
