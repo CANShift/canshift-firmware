@@ -24,26 +24,10 @@ pub fn decode_bytes(
     scale: f32,
     offset: f32,
 ) -> f32 {
-    if byte_len == 0 {
+    let Some(bytes) = frame_window(data, start_byte, byte_len) else {
         return 0.0;
-    }
-    let start = start_byte as usize;
-    let len = byte_len as usize;
-    if start + len > CAN_FRAME_MAX_BYTES || start + len > data.len() {
-        return 0.0;
-    }
-
-    let mut raw: u32 = 0;
-    if big_endian {
-        for i in 0..len {
-            raw = (raw << 8) | data[start + i] as u32;
-        }
-    } else {
-        for i in 0..len {
-            raw |= (data[start + i] as u32) << (i * 8);
-        }
-    }
-
+    };
+    let raw = read_raw(bytes, big_endian);
     if bit_mask != 0 {
         return if raw & bit_mask as u32 != 0 {
             1.0
@@ -51,18 +35,39 @@ pub fn decode_bytes(
             0.0
         };
     }
-
     let physical: f32 = if is_signed {
-        let bits = (len as u32) * 8;
-        if len < 4 && raw & (1u32 << (bits - 1)) != 0 {
-            raw |= !((1u64 << bits) - 1) as u32;
-        }
-        raw as i32 as f32
+        sign_extend(raw, bytes.len()) as i32 as f32
     } else {
         raw as f32
     };
-
     physical * scale + offset
+}
+
+fn frame_window(data: &[u8], start_byte: u8, byte_len: u8) -> Option<&[u8]> {
+    let start = start_byte as usize;
+    let end = start + byte_len as usize;
+    if byte_len == 0 || end > CAN_FRAME_MAX_BYTES || end > data.len() {
+        return None;
+    }
+    Some(&data[start..end])
+}
+
+fn read_raw(bytes: &[u8], big_endian: bool) -> u32 {
+    if big_endian {
+        return bytes.iter().fold(0u32, |raw, &b| (raw << 8) | b as u32);
+    }
+    bytes
+        .iter()
+        .enumerate()
+        .fold(0u32, |raw, (i, &b)| raw | (b as u32) << (i * 8))
+}
+
+fn sign_extend(raw: u32, len: usize) -> u32 {
+    let bits = (len as u32) * 8;
+    if len < 4 && raw & (1u32 << (bits - 1)) != 0 {
+        return raw | !((1u64 << bits) - 1) as u32;
+    }
+    raw
 }
 
 #[cfg(test)]

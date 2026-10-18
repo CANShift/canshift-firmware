@@ -23,45 +23,42 @@ pub fn find_needle(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 pub fn find_payload_slice(json_line: &[u8]) -> Option<(usize, usize)> {
     const NEEDLE: &[u8] = b"\"payload\"";
     let needle_off = find_needle(json_line, NEEDLE)?;
+    let colon = expect_byte(json_line, needle_off + NEEDLE.len(), b':')?;
+    let value_start = expect_byte(json_line, colon + 1, b'{')?;
+    let value_end = object_end(json_line, value_start)?;
+    Some((value_start, value_end - value_start))
+}
 
-    let mut cursor = needle_off + NEEDLE.len();
-    cursor = skip_ws(json_line, cursor);
-    if cursor >= json_line.len() || json_line[cursor] != b':' {
-        return None;
-    }
-    cursor += 1;
-    cursor = skip_ws(json_line, cursor);
-    if cursor >= json_line.len() || json_line[cursor] != b'{' {
-        return None;
-    }
+fn expect_byte(buf: &[u8], from: usize, byte: u8) -> Option<usize> {
+    let cursor = skip_ws(buf, from);
+    (buf.get(cursor) == Some(&byte)).then_some(cursor)
+}
 
-    let value_start = cursor;
+fn string_end(buf: &[u8], mut cursor: usize) -> usize {
+    while cursor < buf.len() {
+        match buf[cursor] {
+            b'\\' => cursor += 2,
+            b'"' => return cursor + 1,
+            _ => cursor += 1,
+        }
+    }
+    buf.len()
+}
+
+fn object_end(buf: &[u8], start: usize) -> Option<usize> {
     let mut depth: i32 = 0;
-    let mut in_string = false;
-    while cursor < json_line.len() {
-        let c = json_line[cursor];
-        if in_string {
-            if c == b'\\' {
-                cursor += 1;
-                if cursor < json_line.len() {
-                    cursor += 1;
-                }
+    let mut cursor = start;
+    while cursor < buf.len() {
+        match buf[cursor] {
+            b'"' => {
+                cursor = string_end(buf, cursor + 1);
                 continue;
             }
-            if c == b'"' {
-                in_string = false;
-            }
-            cursor += 1;
-            continue;
-        }
-        match c {
-            b'"' => in_string = true,
             b'{' => depth += 1,
             b'}' => {
                 depth -= 1;
                 if depth == 0 {
-                    cursor += 1;
-                    return Some((value_start, cursor - value_start));
+                    return Some(cursor + 1);
                 }
             }
             _ => {}
