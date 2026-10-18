@@ -52,17 +52,13 @@ void pointerReadCb(lv_indev_drv_t *, lv_indev_data_t *data) {
     data->state = s_mouseDown ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
-}
-
-namespace SimDisplay {
-
-void registerLvglDrivers(int width) {
-    const uint32_t bufPixels = static_cast<uint32_t>(width) * 40;
+void registerLvglDrivers() {
+    const uint32_t bufPixels = static_cast<uint32_t>(s_width) * 40;
     s_buf1 = static_cast<lv_color_t *>(malloc(bufPixels * sizeof(lv_color_t)));
     lv_disp_draw_buf_init(&s_drawBuf, s_buf1, nullptr, bufPixels);
     static lv_disp_drv_t dispDrv;
     lv_disp_drv_init(&dispDrv);
-    dispDrv.hor_res = static_cast<lv_coord_t>(width);
+    dispDrv.hor_res = static_cast<lv_coord_t>(s_width);
     dispDrv.ver_res = static_cast<lv_coord_t>(s_height);
     dispDrv.draw_buf = &s_drawBuf;
     dispDrv.flush_cb = flushCb;
@@ -72,34 +68,6 @@ void registerLvglDrivers(int width) {
     indevDrv.type = LV_INDEV_TYPE_POINTER;
     indevDrv.read_cb = pointerReadCb;
     lv_indev_drv_register(&indevDrv);
-}
-
-bool init(int width, int height, int zoom) {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-        return false;
-    }
-    s_width = width;
-    s_height = height;
-
-    s_window = SDL_CreateWindow("CANShift sim", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                width * zoom, height * zoom, 0);
-    if (!s_window)
-        return false;
-    s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_ACCELERATED);
-    if (!s_renderer)
-        s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_SOFTWARE);
-    if (!s_renderer)
-        return false;
-    SDL_RenderSetLogicalSize(s_renderer, width, height);
-    s_texture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-                                  width, height);
-    if (!s_texture)
-        return false;
-
-    s_frame = static_cast<uint32_t *>(calloc(static_cast<size_t>(width) * height, 4));
-    registerLvglDrivers(width);
-    return true;
 }
 
 void enqueueKey(int sym) {
@@ -144,6 +112,38 @@ void handleEvent(const SDL_Event &ev) {
         default:
             break;
     }
+}
+
+}
+
+namespace SimDisplay {
+
+bool init(int width, int height, int zoom) {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+    s_width = width;
+    s_height = height;
+
+    s_window = SDL_CreateWindow("CANShift sim", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                width * zoom, height * zoom, 0);
+    if (!s_window)
+        return false;
+    s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_ACCELERATED);
+    if (!s_renderer)
+        s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_SOFTWARE);
+    if (!s_renderer)
+        return false;
+    SDL_RenderSetLogicalSize(s_renderer, width, height);
+    s_texture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+                                  width, height);
+    if (!s_texture)
+        return false;
+
+    s_frame = static_cast<uint32_t *>(calloc(static_cast<size_t>(width) * height, 4));
+    registerLvglDrivers();
+    return true;
 }
 
 void pumpEvents() {
