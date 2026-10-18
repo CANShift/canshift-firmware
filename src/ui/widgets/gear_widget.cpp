@@ -39,6 +39,11 @@ const lv_font_t *selectFont(const CfgWidget &cfg, uint8_t &sizeOut) {
     return FontManager::value(size);
 }
 
+void showGear(lv_obj_t *label, GearTag *tag, const char *text, uint32_t rgb) {
+    WidgetHelpers::setLabelTextIfChanged(label, text);
+    WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, rgb);
+}
+
 }
 
 lv_obj_t *GearWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
@@ -88,26 +93,21 @@ void GearWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget 
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
 
     if (!valid) {
-        WidgetHelpers::setLabelTextIfChanged(label, kStaleGear);
-        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb,
-                                            ThemeManager::getStaleTextColor());
+        showGear(label, tag, kStaleGear, ThemeManager::getStaleTextColor());
         return;
     }
 
     int32_t gear = static_cast<int32_t>(value);
     if (gear == 0) {
-        WidgetHelpers::setLabelTextIfChanged(label, "N");
-        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
+        showGear(label, tag, "N", textRgb);
         return;
     }
     if (gear < 0) {
-        WidgetHelpers::setLabelTextIfChanged(label, "R");
-        WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, cfg.style.warningColor.rgb);
+        showGear(label, tag, "R", cfg.style.warningColor.rgb);
         return;
     }
 
     char buf[4];
     snprintf(buf, sizeof(buf), "%d", gear);
-    WidgetHelpers::setLabelTextIfChanged(label, buf);
-    WidgetStyles::setTextColorIfChanged(label, tag->lastColorRgb, textRgb);
+    showGear(label, tag, buf, textRgb);
 }
