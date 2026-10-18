@@ -24,6 +24,15 @@ static std::atomic<bool> s_nonFiniteReported{false};
 
 namespace {
 
+bool expireIfStale(SignalStore::SignalValue &signal, uint32_t now) {
+    if (!signal.valid)
+        return false;
+    if (now - signal.lastUpdateMs <= signal.timeoutMs)
+        return true;
+    signal.valid = false;
+    return false;
+}
+
 inline bool idValid(SignalId id) {
     return id < kSignalStoreMaxSignals;
 }
@@ -145,19 +154,6 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
     portENTER_CRITICAL(&s_signalsMux);
     s_signals[id].timeoutMs = timeoutMs;
     portEXIT_CRITICAL(&s_signalsMux);
-}
-
-namespace {
-
-bool expireIfStale(SignalStore::SignalValue &signal, uint32_t now) {
-    if (!signal.valid)
-        return false;
-    if (now - signal.lastUpdateMs <= signal.timeoutMs)
-        return true;
-    signal.valid = false;
-    return false;
-}
-
 }
 
 void SignalStore::checkTimeouts() {
