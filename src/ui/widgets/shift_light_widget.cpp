@@ -71,7 +71,7 @@ void paintChangedSegments(ShiftLightTag *tag, uint8_t lit) {
     tag->lastLit = lit;
 }
 
-uint8_t redFromIndex(const CfgShiftLightParams &params) {
+uint8_t resolveRedFromIndex(const CfgShiftLightParams &params) {
     if (params.redSegments >= kSegmentCount)
         return 0;
     return static_cast<uint8_t>(kSegmentCount - params.redSegments);
@@ -80,7 +80,7 @@ uint8_t redFromIndex(const CfgShiftLightParams &params) {
 void initTag(ShiftLightTag *tag, const CfgWidget &cfg) {
     tag->startValue = cfg.shiftLight.startValue;
     tag->fullValue = resolveFullValue(cfg.shiftLight);
-    tag->redFromIndex = redFromIndex(cfg.shiftLight);
+    tag->redFromIndex = resolveRedFromIndex(cfg.shiftLight);
     tag->litRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     tag->trackRgb = ThemeManager::trackColor();
