@@ -139,8 +139,6 @@ void clearDynItems() {
     memset(s_dynEverSeen, 0, sizeof(s_dynEverSeen));
 }
 
-// The status row's centre and right fields are per page (§8 of the design
-// system); the left field is always the bus rate.
 uint8_t mergePageStatusRow(const CfgTopBar &base, const CfgStatusRow &row, CfgTopBarItem *out) {
     uint8_t n = 0;
     for (uint8_t i = 0; i < base.itemCount && n < kCfgMaxTopbarItems; ++i) {
