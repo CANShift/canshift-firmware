@@ -26,23 +26,24 @@ constexpr const char *kDefaultProfileId = "crowpanel-28";
 
 ScaleFactors s_factors = {1.0f, 1.0f};
 
+const ProfileEntry *findEntry(const char *profileId) {
+    for (const ProfileEntry &entry : kProfiles) {
+        if (strcmp(entry.id, profileId) == 0)
+            return &entry;
+    }
+    return nullptr;
+}
+
 const ProfileEntry &findEntryOrDefault(const char *profileId) {
-    if (profileId && profileId[0] != '\0') {
-        for (const ProfileEntry &entry : kProfiles) {
-            if (strcmp(entry.id, profileId) == 0) {
-                return entry;
-            }
-        }
+    const bool named = profileId && profileId[0] != '\0';
+    const ProfileEntry *entry = named ? findEntry(profileId) : nullptr;
+    if (entry != nullptr)
+        return *entry;
+    if (named)
         LOG_WARN("SCRN", "unknown targetProfile='%s' — falling back to '%s'", profileId,
                  kDefaultProfileId);
-    }
-
-    for (const ProfileEntry &entry : kProfiles) {
-        if (strcmp(entry.id, kDefaultProfileId) == 0) {
-            return entry;
-        }
-    }
-    return kProfiles[0];
+    const ProfileEntry *fallback = findEntry(kDefaultProfileId);
+    return fallback != nullptr ? *fallback : kProfiles[0];
 }
 
 static_assert(sizeof(kProfiles) / sizeof(kProfiles[0]) >= 1,

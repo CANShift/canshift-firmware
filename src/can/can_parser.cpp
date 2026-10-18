@@ -47,15 +47,17 @@ static bool s_runtimeLoaded = false;
 static TargetBinding s_targets[kConfigMaxSignals];
 static uint8_t s_targetCount = 0;
 
+SignalId signalForTarget(uint16_t targetId) {
+    for (uint8_t t = 0; t < s_targetCount; ++t) {
+        if (s_targets[t].targetId == targetId)
+            return s_targets[t].signalId;
+    }
+    return SignalIds::kSignalCount;
+}
+
 bool resolveRefs(const RuntimeSignal &sig, RefValueRs *out) {
     for (uint8_t i = 0; i < sig.refCount; ++i) {
-        SignalId sid = SignalIds::kSignalCount;
-        for (uint8_t t = 0; t < s_targetCount; ++t) {
-            if (s_targets[t].targetId == sig.refTargetIds[i]) {
-                sid = s_targets[t].signalId;
-                break;
-            }
-        }
+        const SignalId sid = signalForTarget(sig.refTargetIds[i]);
         if (sid >= kSignalStoreMaxSignals || !SignalStore::isValid(sid))
             return false;
         out[i].target_id = sig.refTargetIds[i];
