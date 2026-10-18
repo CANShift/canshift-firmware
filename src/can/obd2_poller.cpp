@@ -53,6 +53,69 @@ bool buildRequestFrame(uint8_t mode, uint8_t pid, uint8_t out[kRequestDlc]) {
     return true;
 }
 
+constexpr uint32_t kPollStaggerMs = 25U;
+
+bool hasRoomForSlot() {
+    if (s_slotCount < kObd2MaxPollSlots)
+        return true;
+    if (!s_warnedSlotOverflow) {
+        LOG_WARN("OBD2", "Polling slot table full (cap=%u) — dropping extras",
+                 static_cast<unsigned>(kObd2MaxPollSlots));
+        s_warnedSlotOverflow = true;
+    }
+    return false;
+}
+
+void fillPollSlot(PollSlot &slot, const CfgSignalDef &def, SignalId sid) {
+    slot.signalId = sid;
+    slot.mode = def.pollMode;
+    slot.pid = def.pollPid;
+    slot.intervalMs = def.pollIntervalMs;
+    slot.nextPollMs = millis() + (static_cast<uint32_t>(s_slotCount) * kPollStaggerMs);
+    slot.startByte = def.startByte;
+    slot.byteLength = def.byteLength;
+    slot.bigEndian = def.bigEndian;
+    slot.isSigned = def.isSigned;
+    slot.bitMask = def.bitMask;
+    slot.scale = def.scale;
+    slot.offset = def.offset;
+}
+
+void addPollSlot(const CfgSignalDef &def) {
+    if (def.pollIntervalMs == 0 || !hasRoomForSlot())
+        return;
+    const SignalId sid = signalIdFromName(def.name);
+    if (sid == SignalIds::kSignalCount) {
+        LOG_WARN("OBD2", "Polling signal '%s' has no SignalId mapping — skipped", def.name);
+        return;
+    }
+    PollSlot &slot = s_slots[s_slotCount++];
+    fillPollSlot(slot, def, sid);
+}
+
+void pollIfDue(PollSlot &slot, uint32_t nowMs) {
+    if (!timeReached(nowMs, slot.nextPollMs))
+        return;
+    uint8_t payload[kRequestDlc];
+    if (buildRequestFrame(slot.mode, slot.pid, payload)) {
+        const bool sent = CanManager::sendFrame(kObd2RequestFrameId, payload, kRequestDlc, false);
+        if (sent)
+            LOG_DEBUG("OBD2", "Poll sent mode=0x%02X pid=0x%02X", slot.mode, slot.pid);
+        else
+            LOG_DEBUG("OBD2", "Poll send failed (pid=0x%02X) — retry next tick", slot.pid);
+    }
+    slot.nextPollMs = nowMs + slot.intervalMs;
+}
+
+uint32_t earliestNextPoll() {
+    uint32_t nextDue = s_slots[0].nextPollMs;
+    for (uint8_t i = 1; i < s_slotCount; ++i) {
+        if (static_cast<int32_t>(s_slots[i].nextPollMs - nextDue) < 0)
+            nextDue = s_slots[i].nextPollMs;
+    }
+    return nextDue;
+}
+
 }
 
 void Obd2Poller::init() {
@@ -66,41 +129,8 @@ void Obd2Poller::init() {
         return;
     }
 
-    for (uint8_t i = 0; i < cfg.signalCount; ++i) {
-        const CfgSignalDef &def = cfg.signals[i];
-        if (def.pollIntervalMs == 0)
-            continue;
-
-        if (s_slotCount >= kObd2MaxPollSlots) {
-            if (!s_warnedSlotOverflow) {
-                LOG_WARN("OBD2", "Polling slot table full (cap=%u) — dropping extras",
-                         static_cast<unsigned>(kObd2MaxPollSlots));
-                s_warnedSlotOverflow = true;
-            }
-            continue;
-        }
-
-        const SignalId sid = signalIdFromName(def.name);
-        if (sid == SignalIds::kSignalCount) {
-            LOG_WARN("OBD2", "Polling signal '%s' has no SignalId mapping — skipped", def.name);
-            continue;
-        }
-
-        PollSlot &slot = s_slots[s_slotCount++];
-        slot.signalId = sid;
-        slot.mode = def.pollMode;
-        slot.pid = def.pollPid;
-        slot.intervalMs = def.pollIntervalMs;
-
-        slot.nextPollMs = millis() + (static_cast<uint32_t>(s_slotCount) * 25U);
-        slot.startByte = def.startByte;
-        slot.byteLength = def.byteLength;
-        slot.bigEndian = def.bigEndian;
-        slot.isSigned = def.isSigned;
-        slot.bitMask = def.bitMask;
-        slot.scale = def.scale;
-        slot.offset = def.offset;
-    }
+    for (uint8_t i = 0; i < cfg.signalCount; ++i)
+        addPollSlot(cfg.signals[i]);
 
     LOG_INFO("OBD2", "Polling enabled for %u signal(s)", static_cast<unsigned>(s_slotCount));
 }
@@ -112,32 +142,9 @@ void Obd2Poller::tick(uint32_t nowMs) {
     if (!timeReached(nowMs, s_nextDueMs))
         return;
 
-    for (uint8_t i = 0; i < s_slotCount; ++i) {
-        PollSlot &slot = s_slots[i];
-        if (!timeReached(nowMs, slot.nextPollMs))
-            continue;
-
-        uint8_t payload[kRequestDlc];
-        if (!buildRequestFrame(slot.mode, slot.pid, payload)) {
-            slot.nextPollMs = nowMs + slot.intervalMs;
-            continue;
-        }
-
-        const bool sent = CanManager::sendFrame(kObd2RequestFrameId, payload, kRequestDlc, false);
-        if (sent) {
-            LOG_DEBUG("OBD2", "Poll sent mode=0x%02X pid=0x%02X", slot.mode, slot.pid);
-        } else {
-            LOG_DEBUG("OBD2", "Poll send failed (pid=0x%02X) — retry next tick", slot.pid);
-        }
-        slot.nextPollMs = nowMs + slot.intervalMs;
-    }
-
-    uint32_t nextDue = s_slots[0].nextPollMs;
-    for (uint8_t i = 1; i < s_slotCount; ++i) {
-        if (static_cast<int32_t>(s_slots[i].nextPollMs - nextDue) < 0)
-            nextDue = s_slots[i].nextPollMs;
-    }
-    s_nextDueMs = nextDue;
+    for (uint8_t i = 0; i < s_slotCount; ++i)
+        pollIfDue(s_slots[i], nowMs);
+    s_nextDueMs = earliestNextPoll();
 }
 
 bool Obd2Poller::onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length) {

@@ -164,6 +164,38 @@ void recordPageTransitionEnd() {
     }
 }
 
+namespace {
+
+constexpr size_t kReportLineCap = 256;
+
+int formatWindows(char *buf, size_t cap) {
+    int written = 0;
+    for (uint8_t i = 0; i < METRIC_COUNT; ++i) {
+        Window &w = s_windows[i];
+        if (w.count == 0)
+            continue;
+        const uint32_t mean = static_cast<uint32_t>(w.sumUs / w.count);
+        const uint32_t p95 = computeP95(w);
+        const int n = snprintf(buf + written, cap - written, "%s=%u/%u/%u ",
+                               metricName(static_cast<Metric>(i)), static_cast<unsigned>(mean),
+                               static_cast<unsigned>(p95), static_cast<unsigned>(w.maxUs));
+        if (n < 0 || static_cast<size_t>(n) >= cap - written)
+            break;
+        written += n;
+        w.clear();
+    }
+    return written;
+}
+
+uint32_t framesPerSecond(int64_t windowUs) {
+    if (windowUs <= 0)
+        return 0;
+    return static_cast<uint32_t>((static_cast<uint64_t>(s_flushFrameCount) * 1000000ULL) /
+                                 static_cast<uint64_t>(windowUs));
+}
+
+}
+
 void tick() {
     const int64_t now = esp_timer_get_time();
     if (now - s_lastReportUs < static_cast<int64_t>(kReportIntervalUs)) {
@@ -172,28 +204,9 @@ void tick() {
     const int64_t windowUs = now - s_lastReportUs;
     s_lastReportUs = now;
 
-    char buf[256];
-    int written = 0;
-    for (uint8_t i = 0; i < METRIC_COUNT; ++i) {
-        Window &w = s_windows[i];
-        if (w.count == 0)
-            continue;
-        const uint32_t mean = static_cast<uint32_t>(w.sumUs / w.count);
-        const uint32_t p95 = computeP95(w);
-        const int n = snprintf(buf + written, sizeof(buf) - written, "%s=%u/%u/%u ",
-                               metricName(static_cast<Metric>(i)), static_cast<unsigned>(mean),
-                               static_cast<unsigned>(p95), static_cast<unsigned>(w.maxUs));
-        if (n < 0 || static_cast<size_t>(n) >= sizeof(buf) - written)
-            break;
-        written += n;
-        w.clear();
-    }
-
-    const uint32_t fps =
-        (windowUs > 0)
-            ? static_cast<uint32_t>((static_cast<uint64_t>(s_flushFrameCount) * 1000000ULL) /
-                                    static_cast<uint64_t>(windowUs))
-            : 0;
+    char buf[kReportLineCap] = {0};
+    const int written = formatWindows(buf, sizeof(buf));
+    const uint32_t fps = framesPerSecond(windowUs);
 
     if (written == 0 && s_flushFrameCount == 0 && s_frameMissCount == 0) {
         return;
