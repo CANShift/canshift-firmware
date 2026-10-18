@@ -19,8 +19,6 @@ static constexpr int16_t kPadH = 8;
 static constexpr int16_t kSliderH = 16;
 static constexpr int16_t kLabelH = 14;
 
-// DASH_DESIGN_SYSTEM.md §6 puts the floor for a button at 48; the panel
-// fits one screen at that height and scrolls at anything taller.
 static constexpr int16_t kBtnH = 48;
 static constexpr int16_t kGapRow = 10;
 static constexpr int16_t kGapInner = 6;

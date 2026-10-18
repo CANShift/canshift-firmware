@@ -47,8 +47,6 @@ static bool s_runtimeLoaded = false;
 static TargetBinding s_targets[kConfigMaxSignals];
 static uint8_t s_targetCount = 0;
 
-// A cross-signal expression reads values its own frame does not carry, so it
-// runs after every plain signal in the frame has been stored.
 bool resolveRefs(const RuntimeSignal &sig, RefValueRs *out) {
     for (uint8_t i = 0; i < sig.refCount; ++i) {
         SignalId sid = SignalIds::kSignalCount;

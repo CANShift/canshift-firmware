@@ -35,6 +35,23 @@ emits a `LOG_WARN("PERF", "lvgl mutex wait %u µs (>%u)")` when the wait
 crosses `kPerfMutexWaitWarnUs = 5000` µs — half the timeout, so a
 crossing means taskUI is at risk of skipping its own frame.
 
+## Cross-task handoff
+
+- Work that needs LVGL from another task goes through `PendingActions` and is
+  drained by taskUI. `ActionDispatcher` runs in the input task and never calls
+  `lv_async_call` either, because that mutates LVGL's timer list without the
+  mutex.
+- Blocking work runs in taskUI's pre-mutex drain, never inside
+  `lv_task_handler()`: touch calibration blocks until four corners are tapped,
+  so `TouchDriver::calibrate` also unsubscribes its task from the watchdog for
+  the duration.
+- `PendingActions` slots are single-writer, last-write-wins. Each payload is
+  written before its flag with release/acquire ordering, so taskUI never sees
+  a flag before its buffer, a version against a later size, or a reason with
+  the detail of a later failure.
+- A page screen is deleted only once it is no longer the active screen;
+  deleting the active one leaves LVGL's active-screen pointer dangling.
+
 ## Why not `lv_lock`?
 
 LVGL 8.3 ships an opt-in `lv_lock`/`lv_unlock` shim that wraps a
@@ -51,6 +68,12 @@ shim becomes mandatory; the call sites then need a one-line swap from
 listening for `LV_EVENT_GESTURE`. Reason: buttons frequently absorb
 `LV_EVENT_GESTURE` before it bubbles to the screen — the indev layer is
 the only reliable cross-button gesture source.
+
+LVGL drops gesture detection while a scroll is live (`indev_gesture` returns
+when `scroll_obj` is set), and the settings panel scrolls. Its close swipe is
+therefore measured by `GestureIntent` from raw travel. A page turn needs a
+horizontally dominated travel; one that starts on a clickable must also clear
+`kSwipeThroughTravelPx`, so a swipe outranks the tap the finger already began.
 
 ## SettingsPage drag tracker
 

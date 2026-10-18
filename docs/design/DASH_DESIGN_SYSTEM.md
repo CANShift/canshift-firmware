@@ -255,6 +255,10 @@ Nothing else on the dash moves.
 | Stale signal    | after the signal's `timeoutMs` with no frame (500 ms by default), value drops to Dim and renders `- -`, unit kept                   |
 | Page change     | instant cut — no slide, no fade                                                                                                     |
 
+The 6 Hz rev-limit blink is above WCAG 2.3.1's three-flash limit on purpose: it covers the strip and one
+numeral, far under the 25 % of the viewport the threshold applies to. `kAlertRevlimitFlashHz = 3` restores the old
+margin.
+
 `- -` means **the sensor went quiet**. It is not the "no device" state, not a placeholder, and must never
 appear in a preview or a demo.
 

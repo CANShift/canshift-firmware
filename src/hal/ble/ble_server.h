@@ -18,9 +18,6 @@ void stop();
 
 bool isEnabled();
 
-// Set when the stack fails to come up, so the BLE task tears it down and
-// gives the heap back. Nothing asks for a restart — BLE is on whenever it
-// is compiled in and the DRAM is there.
 void requestStop();
 
 bool takeStopRequest();

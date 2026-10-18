@@ -15,10 +15,6 @@
 namespace {
 
 constexpr uint8_t kCanScanQueueDepth = 64;
-// Created once on first scan start and never deleted (only reset), so a
-// producer holding a stale handle can never touch freed queue memory.
-// s_canScanQueue is null while scanning is stopped; s_canScanQueueStorage
-// keeps the handle for reuse.
 QueueHandle_t s_canScanQueueStorage = nullptr;
 std::atomic<QueueHandle_t> s_canScanQueue{nullptr};
 std::atomic<bool> s_canScanMode{false};

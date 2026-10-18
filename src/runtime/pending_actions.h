@@ -86,8 +86,6 @@ inline int8_t takeBurnOverlayShowError() {
     return burnOverlayShowError.exchange(-1, std::memory_order_relaxed);
 }
 
-// Release/acquire pairs the version write with the size so the UI task never
-// reads the version of a later update against this size.
 inline void requestOtaOverlayShow(uint32_t totalBytes, const char *targetVersion) {
     strlcpy(otaOverlayTargetVersion, targetVersion ? targetVersion : "",
             sizeof(otaOverlayTargetVersion));
@@ -106,8 +104,6 @@ inline bool takeOtaOverlayComplete() {
     return otaOverlayComplete.exchange(false, std::memory_order_relaxed);
 }
 
-// The detail code is read before the reason is cleared, so the UI task never
-// pairs a reason with the detail of a later failure.
 inline int8_t takeOtaOverlayFailReason(uint32_t *detailOut) {
     const int8_t reason = otaOverlayFailReason.load(std::memory_order_acquire);
     if (reason < 0)
@@ -122,8 +118,6 @@ inline void requestOtaOverlayFailed(int8_t reason, uint32_t detailCode) {
     otaOverlayFailReason.store(reason, std::memory_order_release);
 }
 
-// Single slot, last-write-wins. Release/acquire pairs the id write with the
-// flag so the UI task never observes the flag before the buffer.
 inline void requestNavPage(const char *pageId) {
     strlcpy(navPageId, pageId, sizeof(navPageId));
     navPagePending.store(true, std::memory_order_release);

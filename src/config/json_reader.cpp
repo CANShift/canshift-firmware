@@ -10,9 +10,6 @@ namespace JsonReader {
 
 #ifdef ARDUINO
 namespace {
-// Large configs (35 KB dashboard = ~3x that in parsed nodes) exhaust the
-// internal heap alongside BLE + LVGL; PSRAM absorbs them, with an internal
-// fallback so boards without PSRAM keep the old behavior.
 struct PsramAllocator : ArduinoJson::Allocator {
     void *allocate(size_t size) override {
         void *p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

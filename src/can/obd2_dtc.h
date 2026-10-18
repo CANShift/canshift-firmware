@@ -21,7 +21,6 @@ struct Outcome {
 
 [[nodiscard]] bool isBusy();
 
-// Non-blocking: true once the in-flight exchange resolved, either way.
 [[nodiscard]] bool takeOutcome(Outcome *out);
 
 bool onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length);

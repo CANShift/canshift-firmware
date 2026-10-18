@@ -51,8 +51,6 @@ float eval_tokens_rs(const uint8_t *data, uint8_t start_byte, uint8_t byte_len, 
                      bool is_signed, uint8_t bit_mask, float scale, float offset, size_t data_len,
                      const FfiTok *tokens, size_t n_tokens);
 
-/* Returns NaN when the expression cannot be published: a reference the caller
-   could not resolve, a parse failure, or a non-finite result. */
 float eval_tokens_refs_rs(const uint8_t *data, uint8_t start_byte, uint8_t byte_len,
                           bool big_endian, bool is_signed, uint8_t bit_mask, float scale,
                           float offset, size_t data_len, const FfiTok *tokens, size_t n_tokens,

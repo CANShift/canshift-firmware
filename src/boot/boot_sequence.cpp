@@ -94,8 +94,6 @@ void showSelfTestScreen(const BootChecks &checks) {
 }
 
 void buildUI() {
-    // One lock for the whole build: the mutex is non-recursive, and every call
-    // below touches lv_* — taking it per call is what left init() unguarded.
     LvglLock lock(portMAX_DELAY);
 
     LOG_INFO("BOOT", "Applying theme...");
@@ -210,9 +208,6 @@ namespace {
 bool loadStorageAndConfig() {
     const bool storageOk = BootPhases::mountStorageOrLogError();
     BootPhases::provisionDefaultConfigsIfNeeded(storageOk);
-    // Config parses before BLE claims its ~55 KB of internal heap — the
-    // transient JsonDocument for a full 8-page dashboard needs the room on
-    // PSRAM-less WROOM modules (#1596 debugging session).
     BootPhases::loadConfigWithHeapBracket();
     ScreenProfile::initFromDashboard();
     BootPhases::initBleEarlyIfEnabled();

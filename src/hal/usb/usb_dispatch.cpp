@@ -187,8 +187,6 @@ bool parseOrFail(const char *jsonLine, size_t jsonLen, JsonDocument &doc, const 
     return false;
 }
 
-// PUT_CONFIG and OTA_WRITE read their payload straight off the raw line; PUT_FILE
-// parses first but must abort an open chunk transfer when that fails.
 bool consumeRawPayloadCommand(uint8_t cmd, char *jsonLine, size_t jsonLen) {
     if (cmd == UsbComm::kCmdPutConfig) {
         handlePutConfig(jsonLine);
@@ -213,8 +211,6 @@ struct UsbCommand {
     void (*run)(const JsonObjectConst &);
 };
 
-// The xtensa toolchain rejects captureless lambdas in a constexpr initializer,
-// so commands that ignore the payload get a named adapter.
 void runGetStatus(const JsonObjectConst &) {
     sendStatusResponse();
 }
