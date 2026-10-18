@@ -46,6 +46,73 @@ bool loadDevice() {
     return true;
 }
 
+constexpr int kMaxInputPin = 39;
+constexpr int kDefaultDebounceMs = 20;
+constexpr int kMinDebounceMs = 1;
+constexpr int kMaxDebounceMs = 500;
+
+bool acceptInputPin(const CfgInputBinding &b, int pin) {
+    if (pin < 0 || pin > kMaxInputPin) {
+        LOG_WARN("CFG", "input binding '%s': pin=%d out of range — dropped", b.id, pin);
+        return false;
+    }
+    if (isPinConflict(static_cast<int8_t>(pin))) {
+        LOG_WARN("CFG", "input binding '%s': pin=%d conflicts with TWAI — dropped", b.id, pin);
+        return false;
+    }
+    return true;
+}
+
+uint16_t clampDebounceMs(int debounce) {
+    if (debounce < kMinDebounceMs)
+        return kMinDebounceMs;
+    if (debounce > kMaxDebounceMs)
+        return kMaxDebounceMs;
+    return static_cast<uint16_t>(debounce);
+}
+
+bool parseBindingAction(JsonObjectConst entry, CfgInputBinding &b) {
+    JsonObjectConst action = entry["action"].as<JsonObjectConst>();
+    if (action.isNull()) {
+        LOG_WARN("CFG", "input binding '%s': missing 'action' — dropped", b.id);
+        return false;
+    }
+    parseButtonAction(action, &b.action);
+    if (b.action.type != CfgButtonActionType::UNKNOWN)
+        return true;
+    LOG_WARN("CFG", "input binding '%s': unknown / invalid action — dropped", b.id);
+    return false;
+}
+
+bool parseInputBinding(JsonObjectConst entry, CfgInputBinding &b) {
+    memset(&b, 0, sizeof(b));
+    strlcpy(b.id, entry["id"] | "", sizeof(b.id));
+    const int pin = entry["pin"] | -1;
+    if (!acceptInputPin(b, pin))
+        return false;
+    b.pin = static_cast<int8_t>(pin);
+    b.active = parseInputActive(entry["active"] | "low");
+    b.pullup = entry["pullup"] | true;
+    b.debounceMs = clampDebounceMs(entry["debounce_ms"] | kDefaultDebounceMs);
+    b.kind = parseInputPressKind(entry["kind"] | "short");
+    if (!parseBindingAction(entry, b))
+        return false;
+    strlcpy(b.signal, entry["signal"] | "", sizeof(b.signal));
+    return true;
+}
+
+void collectInputBindings(JsonArrayConst arr) {
+    for (JsonObjectConst entry : arr) {
+        if (s_inputs.count >= kCfgMaxInputBindings) {
+            LOG_WARN("CFG", "input_bindings.json: > %u entries — extras dropped",
+                     static_cast<unsigned>(kCfgMaxInputBindings));
+            break;
+        }
+        if (parseInputBinding(entry, s_inputs.bindings[s_inputs.count]))
+            s_inputs.count++;
+    }
+}
+
 bool loadInputBindings() {
     s_inputs.count = 0;
     s_inputs.loaded = false;
@@ -69,48 +136,7 @@ bool loadInputBindings() {
         return false;
     }
 
-    for (JsonObjectConst entry : arr) {
-        if (s_inputs.count >= kCfgMaxInputBindings) {
-            LOG_WARN("CFG", "input_bindings.json: > %u entries — extras dropped",
-                     static_cast<unsigned>(kCfgMaxInputBindings));
-            break;
-        }
-        CfgInputBinding &b = s_inputs.bindings[s_inputs.count];
-        memset(&b, 0, sizeof(b));
-        strlcpy(b.id, entry["id"] | "", sizeof(b.id));
-        const int pin = entry["pin"] | -1;
-        if (pin < 0 || pin > 39) {
-            LOG_WARN("CFG", "input binding '%s': pin=%d out of range — dropped", b.id, pin);
-            continue;
-        }
-        if (isPinConflict(static_cast<int8_t>(pin))) {
-            LOG_WARN("CFG", "input binding '%s': pin=%d conflicts with TWAI — dropped", b.id, pin);
-            continue;
-        }
-        b.pin = static_cast<int8_t>(pin);
-        b.active = parseInputActive(entry["active"] | "low");
-        b.pullup = entry["pullup"] | true;
-        int debounce = entry["debounce_ms"] | 20;
-        if (debounce < 1)
-            debounce = 1;
-        if (debounce > 500)
-            debounce = 500;
-        b.debounceMs = static_cast<uint16_t>(debounce);
-        b.kind = parseInputPressKind(entry["kind"] | "short");
-        JsonObjectConst action = entry["action"].as<JsonObjectConst>();
-        if (action.isNull()) {
-            LOG_WARN("CFG", "input binding '%s': missing 'action' — dropped", b.id);
-            continue;
-        }
-        parseButtonAction(action, &b.action);
-        if (b.action.type == CfgButtonActionType::UNKNOWN) {
-            LOG_WARN("CFG", "input binding '%s': unknown / invalid action — dropped", b.id);
-            continue;
-        }
-        strlcpy(b.signal, entry["signal"] | "", sizeof(b.signal));
-        s_inputs.count++;
-    }
-
+    collectInputBindings(arr);
     s_inputs.loaded = true;
     LOG_INFO("CFG", "input_bindings.json loaded: %u bindings", s_inputs.count);
     return true;
