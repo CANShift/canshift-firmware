@@ -18,14 +18,13 @@ void serialSink(const char *data, size_t len) {
     if (!data || len == 0)
         return;
     const bool needsNewline = data[len - 1] != '\n';
-    if (!Logger::lockUart(pdMS_TO_TICKS(kUsbTxLockTimeoutMs))) {
+    const Logger::UartLock lock(pdMS_TO_TICKS(kUsbTxLockTimeoutMs));
+    if (!lock.held())
         return;
-    }
     static constexpr uint8_t kNewline = '\n';
     if (Logger::writeAll(reinterpret_cast<const uint8_t *>(data), len) && needsNewline) {
         (void)Logger::writeAll(&kNewline, 1);
     }
-    Logger::unlockUart();
 }
 #else
 void serialSink(const char *, size_t) {}

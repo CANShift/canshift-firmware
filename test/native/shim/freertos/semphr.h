@@ -24,13 +24,6 @@ inline BaseType_t xSemaphoreGive(SemaphoreHandle_t /*sem*/) {
     return pdTRUE;
 }
 
-// ---------------------------------------------------------------------------
-// Recursive mutex — tracks depth so tests can pin down the contract that
-// Logger::lockUart followed by a re-entrant LOG_* never deadlocks (#1037).
-// Single global counter is sufficient because the host test runs
-// single-threaded; if a test ever spawns a thread we'll need a real mutex.
-// ---------------------------------------------------------------------------
-
 namespace canshift_test {
 inline int32_t &recursiveMutexDepth() {
     static int32_t depth = 0;
