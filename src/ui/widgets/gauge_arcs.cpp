@@ -15,6 +15,10 @@ constexpr uint16_t kArcRotation = 135;
 
 constexpr int32_t kMinArcDiam = 40;
 constexpr int32_t kArcContainerPadding = 4;
+constexpr float kStrokeRadiusRatioW = 0.48f;
+constexpr float kStrokeRadiusRatioH = 0.49f;
+constexpr float kStrokeRatio = 0.30f;
+constexpr float kStrokeWidthFloor = 5.0f;
 
 lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startAngle, uint16_t endAngle,
                           uint32_t colorRgb, uint8_t arcWidth) {
@@ -67,9 +71,10 @@ lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicatorWidth)
 
 uint8_t GaugeArcs::strokeWidthFor(const CfgWidget &cfg) {
     const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
-    const float r = std::min(static_cast<float>(box.w) * 0.48f, static_cast<float>(box.h) * 0.49f);
-    const float w = r * 0.30f;
-    return static_cast<uint8_t>(w < 5.0f ? 5.0f : w);
+    const float r = std::min(static_cast<float>(box.w) * kStrokeRadiusRatioW,
+                             static_cast<float>(box.h) * kStrokeRadiusRatioH);
+    const float w = r * kStrokeRatio;
+    return static_cast<uint8_t>(w < kStrokeWidthFloor ? kStrokeWidthFloor : w);
 }
 
 uint16_t GaugeArcs::valueToAngle(float value, float minVal, float maxVal) {
