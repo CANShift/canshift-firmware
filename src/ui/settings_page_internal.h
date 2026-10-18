@@ -14,9 +14,6 @@ static constexpr uint32_t kClrMuted = 0x555555;
 static constexpr uint32_t kClrBtnBg = 0x111111;
 static constexpr uint32_t kClrBtnAct = 0x1A0A0A;
 static constexpr uint32_t kClrBtnBdr = 0x2A2A2A;
-static constexpr uint32_t kClrSaveBg = 0x1A3A1A;
-static constexpr uint32_t kClrSaveBdr = 0x336633;
-static constexpr uint32_t kClrSaveText = 0x55AA55;
 
 static constexpr int16_t kPadH = 8;
 static constexpr int16_t kSliderH = 16;

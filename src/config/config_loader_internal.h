@@ -33,8 +33,6 @@ void logLargestFreeBlock(const char *where);
 
 void parseColor(const char *hex, CfgColor *out);
 
-[[nodiscard]] uint32_t parseHexColorValue(const char *hex);
-
 [[nodiscard]] bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outLen);
 
 inline constexpr uint32_t kCanStandardIdMax = 0x7FFu;

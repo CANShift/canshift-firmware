@@ -21,7 +21,6 @@ constexpr int32_t kCfgMaxExprLen = 128;
 constexpr int32_t kCfgMaxExprRefs = 8;
 constexpr int32_t kCfgMaxProfileIdLen = 24;
 constexpr int32_t kCfgMaxPathLen = 64;
-constexpr int32_t kCfgMaxColorLen = 8;
 
 struct CfgColor {
     uint32_t rgb;

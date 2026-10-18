@@ -21,7 +21,6 @@ struct PollSlot {
     uint8_t pid;
     uint32_t intervalMs;
     uint32_t nextPollMs;
-    uint32_t lastResponseMs;
     uint8_t startByte;
     uint8_t byteLength;
     bool bigEndian;
@@ -33,9 +32,6 @@ struct PollSlot {
 
 PollSlot s_slots[kObd2MaxPollSlots];
 uint8_t s_slotCount = 0;
-uint32_t s_pollsSent = 0;
-uint32_t s_responsesMatched = 0;
-uint32_t s_responsesMissed = 0;
 bool s_warnedSlotOverflow = false;
 
 uint32_t s_nextDueMs = 0;
@@ -63,9 +59,6 @@ bool buildRequestFrame(uint8_t mode, uint8_t pid, uint8_t out[kRequestDlc]) {
 
 void Obd2Poller::init() {
     s_slotCount = 0;
-    s_pollsSent = 0;
-    s_responsesMatched = 0;
-    s_responsesMissed = 0;
     s_warnedSlotOverflow = false;
     s_nextDueMs = 0;
 
@@ -102,7 +95,6 @@ void Obd2Poller::init() {
         slot.intervalMs = def.pollIntervalMs;
 
         slot.nextPollMs = millis() + (static_cast<uint32_t>(s_slotCount) * 25U);
-        slot.lastResponseMs = 0;
         slot.startByte = def.startByte;
         slot.byteLength = def.byteLength;
         slot.bigEndian = def.bigEndian;
@@ -127,12 +119,6 @@ void Obd2Poller::tick(uint32_t nowMs) {
         if (!timeReached(nowMs, slot.nextPollMs))
             continue;
 
-        const uint32_t prevPollMs = slot.nextPollMs - slot.intervalMs;
-        if (slot.lastResponseMs == 0 || !timeReached(slot.lastResponseMs, prevPollMs)) {
-            if (s_pollsSent > 0)
-                ++s_responsesMissed;
-        }
-
         uint8_t payload[kRequestDlc];
         if (!buildRequestFrame(slot.mode, slot.pid, payload)) {
             slot.nextPollMs = nowMs + slot.intervalMs;
@@ -141,7 +127,6 @@ void Obd2Poller::tick(uint32_t nowMs) {
 
         const bool sent = CanManager::sendFrame(kObd2RequestFrameId, payload, kRequestDlc, false);
         if (sent) {
-            ++s_pollsSent;
             LOG_DEBUG("OBD2", "Poll sent mode=0x%02X pid=0x%02X", slot.mode, slot.pid);
         } else {
             LOG_DEBUG("OBD2", "Poll send failed (pid=0x%02X) — retry next tick", slot.pid);
@@ -179,28 +164,10 @@ bool Obd2Poller::onRxFrame(uint32_t frameId, const uint8_t *data, uint8_t length
             data, slot.startByte, slot.byteLength, slot.bigEndian, slot.isSigned, slot.bitMask,
             slot.scale, slot.offset, length);
         SignalStore::update(slot.signalId, physical);
-        slot.lastResponseMs = millis();
-        ++s_responsesMatched;
         LOG_DEBUG("OBD2", "Response decoded pid=0x%02X value=%.3f", slot.pid,
                   static_cast<double>(physical));
         return true;
     }
 
     return false;
-}
-
-uint32_t Obd2Poller::pollsSent() {
-    return s_pollsSent;
-}
-
-uint32_t Obd2Poller::responsesMatched() {
-    return s_responsesMatched;
-}
-
-uint32_t Obd2Poller::responsesMissed() {
-    return s_responsesMissed;
-}
-
-uint8_t Obd2Poller::activeSlotCount() {
-    return s_slotCount;
 }

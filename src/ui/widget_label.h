@@ -14,8 +14,6 @@ enum class HeaderPos : uint8_t {
     BOTTOM_LEFT = 1,
 };
 
-constexpr uint32_t kLabelDimRgb = ThemeTokens::kDimNight;
-
 constexpr size_t kKickerBufLen = 32;
 
 void formatKicker(const char *raw, char *out, size_t outLen);

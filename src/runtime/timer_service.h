@@ -41,7 +41,6 @@ Snapshot snapshot();
 State getState();
 uint32_t getElapsedMs();
 
-uint8_t pendingLapCount();
 [[nodiscard]] bool popPendingLap(Lap &out);
 
 }
