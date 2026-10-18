@@ -11,8 +11,6 @@
     "src/config/config_parser.inc::ConfigLoaderInternal::parseWidget": 43,
     "src/config/json_helpers.inc::ConfigLoaderInternal::readAndParseWithBak": 37,
     "src/ui/page_manager_builder.cpp::PageManagerInternal::reapplyThemeAllPages": 31,
-    "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::cruiseLDrawCb": 38,
-    "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::makeCruiseButton": 34,
     "src/ui/widgets/gear_widget.cpp::GearWidget::update": 31,
     "test/test_format_float/test_main.cpp::main": 31
   },
@@ -36,7 +34,6 @@
     "rust/workshop-mode/src/ffi.rs": 348,
     "sim/sim_injector.cpp": 394,
     "src/config/config_types.h": 364,
-    "src/ui/widgets/cruise_control_widget.cpp": 323,
     "test/test_config_loader/test_main.cpp": 393,
     "test/test_embedded_asset/deflated_fixtures.h": 602
   },
