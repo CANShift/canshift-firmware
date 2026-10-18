@@ -52,8 +52,6 @@
     "src/ui/top_bar_update.cpp::TopBar::update": 43,
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::cruiseLDrawCb": 38,
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::makeCruiseButton": 34,
-    "src/ui/widgets/gauge_widget.cpp::GaugeWidget::create": 33,
-    "src/ui/widgets/gauge_widget.cpp::GaugeWidget::update": 44,
     "src/ui/widgets/gear_widget.cpp::GearWidget::update": 31,
     "src/ui/widgets/shift_light_widget.cpp::ShiftLightWidget::create": 40,
     "src/ui/widgets/timer_widget.cpp::TimerWidget::create": 60,
@@ -107,7 +105,6 @@
     "src/main.cpp": 402,
     "src/runtime/alert_engine.cpp": 365,
     "src/ui/widgets/cruise_control_widget.cpp": 323,
-    "src/ui/widgets/gauge_widget.cpp": 334,
     "test/test_config_loader/test_main.cpp": 393,
     "test/test_embedded_asset/deflated_fixtures.h": 602
   },

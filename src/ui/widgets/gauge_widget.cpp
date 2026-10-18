@@ -1,4 +1,5 @@
 #include "gauge_widget.h"
+#include "gauge_arcs.h"
 #include "ui/cut_band.h"
 #include "ui/font_manager.h"
 #include "ui/rev_limit_flash.h"
@@ -26,72 +27,6 @@ static constexpr int16_t kValueFontHeightSecondary = 40;
 static constexpr uint8_t kValueFontSizePrimary = 48;
 static constexpr uint8_t kValueFontSizeSecondary = 17;
 static constexpr uint8_t kValueFontSizeUnits = 10;
-
-static constexpr float kArcSweep = 270.0f;
-static constexpr uint16_t kArcSweepInt = 270;
-static constexpr uint16_t kArcRotation = 135;
-
-static constexpr int32_t kMinArcDiam = 40;
-static constexpr int32_t kArcContainerPadding = 4;
-static constexpr int16_t kArcYShift = 2;
-
-static uint8_t computeArcStrokeWidth(const CfgWidget &cfg) {
-    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
-    const float r = std::min(static_cast<float>(box.w) * 0.48f, static_cast<float>(box.h) * 0.49f);
-    const float w = r * 0.30f;
-    return static_cast<uint8_t>(w < 5.0f ? 5.0f : w);
-}
-
-static uint16_t valueToAngle(float value, float minVal, float maxVal) {
-    return static_cast<uint16_t>(WidgetHelpers::clampPct(value, minVal, maxVal) * kArcSweep);
-}
-
-static lv_obj_t *createSectorArc(lv_obj_t *parent, int32_t diam, uint16_t startAngle,
-                                 uint16_t endAngle, uint32_t colorRgb, uint8_t arcWidth) {
-    if (startAngle >= endAngle)
-        return nullptr;
-
-    lv_obj_t *arc = lv_arc_create(parent);
-    lv_obj_set_size(arc, diam, diam);
-    lv_obj_align(arc, LV_ALIGN_CENTER, 0, kArcYShift);
-    lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_arc_set_rotation(arc, kArcRotation);
-    lv_arc_set_bg_angles(arc, startAngle, endAngle);
-    lv_arc_set_angles(arc, 0, 0);
-
-    lv_obj_set_style_arc_color(arc, lv_color_hex(colorRgb), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc, arcWidth, LV_PART_MAIN);
-    lv_obj_set_style_arc_rounded(arc, false, LV_PART_MAIN);
-
-    lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc, arcWidth, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
-
-    WidgetStyles::disableArcKnob(arc);
-
-    return arc;
-}
-
-static lv_obj_t *createValueArc(lv_obj_t *parent, int32_t diam, uint8_t indicatorWidth) {
-    lv_obj_t *arc = lv_arc_create(parent);
-    lv_obj_set_size(arc, diam, diam);
-    lv_obj_align(arc, LV_ALIGN_CENTER, 0, kArcYShift);
-    lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_arc_set_rotation(arc, kArcRotation);
-    lv_arc_set_bg_angles(arc, 0, kArcSweepInt);
-    lv_arc_set_angles(arc, 0, 0);
-
-    lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_MAIN);
-
-    lv_obj_set_style_arc_color(arc, lv_color_hex(0xFFFFFFu), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc, indicatorWidth, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
-
-    WidgetStyles::disableArcKnob(arc);
-
-    return arc;
-}
 
 static int32_t scaleForDisplay(float value, uint8_t decimals) {
     static constexpr float kPow10[] = {1.0f, 10.0f, 100.0f, 1000.0f};
@@ -136,10 +71,6 @@ static uint32_t gaugeInkFor(const GaugeTag *tag, Severity::Level level) {
     return Severity::inkFor(level);
 }
 
-static void arcAngleAnimCb(void *obj, int32_t angle) {
-    lv_arc_set_angles(static_cast<lv_obj_t *>(obj), 0, static_cast<uint16_t>(angle));
-}
-
 static Severity::Level gaugeLevelFor(const GaugeTag *tag, float value, bool dangerBelow,
                                      bool limiting) {
     if (limiting)
@@ -149,24 +80,6 @@ static Severity::Level gaugeLevelFor(const GaugeTag *tag, float value, bool dang
         return catalogue;
     return Severity::strongerOf(
         Severity::forReading(value, tag->warnLevel, tag->dangerLevel, dangerBelow), catalogue);
-}
-
-static int32_t computeArcDiameter(const CfgWidget &cfg) {
-    int32_t diam = WidgetHelpers::scaledSquare(cfg) - kArcContainerPadding;
-    if (diam < kMinArcDiam)
-        diam = kMinArcDiam;
-    return diam;
-}
-
-static void buildBackgroundTracks(lv_obj_t *cont, int32_t diam, uint8_t strokeW) {
-    createSectorArc(cont, diam, 0, kArcSweepInt, ThemeManager::trackColor(), strokeW);
-}
-
-static lv_obj_t *buildValueFillArc(lv_obj_t *cont, int32_t diam, uint32_t inkRgb, uint8_t strokeW) {
-    lv_obj_t *fillArc = createValueArc(cont, diam, strokeW);
-    lv_arc_set_angles(fillArc, 0, 0);
-    lv_obj_set_style_arc_color(fillArc, lv_color_hex(inkRgb), LV_PART_INDICATOR);
-    return fillArc;
 }
 
 static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontSizeOut) {
@@ -187,7 +100,7 @@ static const lv_font_t *resolveValueFont(const CfgWidget &cfg, uint8_t &intFontS
     return FontManager::units();
 }
 
-static constexpr int16_t kValueRowYOffset = kArcYShift;
+static constexpr int16_t kValueRowYOffset = GaugeArcs::kArcYShift;
 static constexpr int16_t kValueClusterInsetPx = 0;
 
 static lv_obj_t *buildValueRow(lv_obj_t *cont) {
@@ -219,7 +132,7 @@ static GaugeArcModes resolveArcModes(const CfgWidget &cfg) {
     const float maxV = cfg.gauge.maxValue;
     m.hasDanger = !std::isnan(cfg.gauge.dangerLevel) && cfg.gauge.dangerLevel > minV &&
                   cfg.gauge.dangerLevel < maxV;
-    m.dangerAngle = m.hasDanger ? valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
+    m.dangerAngle = m.hasDanger ? GaugeArcs::valueToAngle(cfg.gauge.dangerLevel, minV, maxV) : 0;
     return m;
 }
 
@@ -277,19 +190,26 @@ static void initGaugeTag(GaugeTag *tag, const CfgWidget &cfg, const GaugeBuildSt
 
 }
 
+namespace {
+
+lv_obj_t *buildArcs(lv_obj_t *cont, const CfgWidget &cfg, uint32_t inkRgb) {
+    const int32_t diam = GaugeArcs::diameterFor(cfg);
+    const uint8_t strokeW = GaugeArcs::strokeWidthFor(cfg);
+    GaugeArcs::buildBackgroundTrack(cont, diam, strokeW);
+    return GaugeArcs::buildValueFill(cont, diam, inkRgb, strokeW);
+}
+
+}
+
 lv_obj_t *GaugeWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *cont = lv_obj_create(parent);
     WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
                                  cfg.style.borderColor.rgb);
 
-    const int32_t diam = computeArcDiameter(cfg);
     const GaugeArcModes modes = resolveArcModes(cfg);
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-
-    const uint8_t strokeW = computeArcStrokeWidth(cfg);
-    buildBackgroundTracks(cont, diam, strokeW);
-    lv_obj_t *fillArc = buildValueFillArc(cont, diam, textRgb, strokeW);
+    lv_obj_t *fillArc = buildArcs(cont, cfg, textRgb);
 
     lv_obj_t *label = nullptr;
     lv_obj_t *kicker = nullptr;
@@ -329,10 +249,45 @@ static void renderStale(GaugeTag *tag) {
     const uint32_t staleRgb = ThemeManager::getStaleTextColor();
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, staleRgb);
     if (tag->fillArc && tag->lastAngle != 0u) {
-        WidgetHelpers::setFillImmediate(tag->fillArc, arcAngleAnimCb, 0);
+        WidgetHelpers::setFillImmediate(tag->fillArc, GaugeArcs::angleAnimCb, 0);
         tag->lastAngle = 0u;
     }
     Severity::repaint(tag->severity, Severity::Level::INFORMATION);
+}
+
+static bool rememberReading(GaugeTag *tag, float value, bool limiting, Severity::Level cutLevel) {
+    if (tag->lastValid && value == tag->lastValue && limiting == tag->lastLimiting &&
+        cutLevel == tag->cutLevel)
+        return false;
+    tag->lastValue = value;
+    tag->lastValid = true;
+    tag->lastLimiting = limiting;
+    tag->cutLevel = cutLevel;
+    return true;
+}
+
+static void updateFillArc(GaugeTag *tag, float value, uint32_t levelRgb) {
+    if (!tag->fillArc)
+        return;
+    const uint16_t angle = GaugeArcs::valueToAngle(value, tag->minValue, tag->maxValue);
+    if (angle != tag->lastAngle) {
+        WidgetHelpers::animateFill(tag->fillArc, GaugeArcs::angleAnimCb,
+                                   lv_arc_get_angle_end(tag->fillArc), angle);
+        tag->lastAngle = angle;
+    }
+    WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, levelRgb, LV_PART_INDICATOR);
+}
+
+static void updateValueText(GaugeTag *tag, const CfgWidget &cfg, float value) {
+    const float shown = UnitDisplay::valueFor(value, tag->convertibleUnit);
+    const int32_t displayScaled = scaleForDisplay(shown, cfg.gauge.decimalPlaces);
+    if (displayScaled == tag->lastDisplayScaled)
+        return;
+    char buf[24];
+    WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces, shown,
+                               nullptr);
+    WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
+    tag->lastDisplayScaled = displayScaled;
 }
 
 void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget &cfg) {
@@ -350,40 +305,13 @@ void GaugeWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
 
     const bool limiting = tag->revFlash && RevLimitFlash::isEngaged();
     const Severity::Level cutLevel = CutBand::levelFor(tag->signal);
-    if (tag->lastValid && value == tag->lastValue && limiting == tag->lastLimiting &&
-        cutLevel == tag->cutLevel)
+    if (!rememberReading(tag, value, limiting, cutLevel))
         return;
-    tag->lastValue = value;
-    tag->lastValid = true;
-    tag->lastLimiting = limiting;
-    tag->cutLevel = cutLevel;
-
     const Severity::Level level =
         Severity::strongerOf(gaugeLevelFor(tag, value, cfg.gauge.dangerBelow, limiting), cutLevel);
     const uint32_t levelRgb = gaugeInkFor(tag, level);
     WidgetStyles::setTextColorIfChanged(tag->valueLabel, tag->lastLabelRgb, levelRgb);
-
-    if (tag->fillArc) {
-        const uint16_t angle = valueToAngle(value, tag->minValue, tag->maxValue);
-        if (angle != tag->lastAngle) {
-            WidgetHelpers::animateFill(tag->fillArc, arcAngleAnimCb,
-                                       lv_arc_get_angle_end(tag->fillArc), angle);
-            tag->lastAngle = angle;
-        }
-
-        WidgetStyles::setArcColorIfChanged(tag->fillArc, tag->lastFillRgb, levelRgb,
-                                           LV_PART_INDICATOR);
-    }
-
+    updateFillArc(tag, value, levelRgb);
     Severity::repaint(tag->severity, level);
-
-    const float shown = UnitDisplay::valueFor(value, tag->convertibleUnit);
-    const int32_t displayScaled = scaleForDisplay(shown, cfg.gauge.decimalPlaces);
-    if (displayScaled != tag->lastDisplayScaled) {
-        char buf[24];
-        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces,
-                                   shown, nullptr);
-        WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
-        tag->lastDisplayScaled = displayScaled;
-    }
+    updateValueText(tag, cfg, value);
 }
