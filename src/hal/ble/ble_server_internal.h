@@ -43,6 +43,12 @@ void dropCurrentPeer(const char *reason);
 
 void dropOverduePeer();
 
+NimBLECharacteristicCallbacks &settingsCallbacks();
+
+NimBLECharacteristicCallbacks &cmdCallbacks();
+
+NimBLECharacteristicCallbacks &timerCmdCallbacks();
+
 }
 
 #endif

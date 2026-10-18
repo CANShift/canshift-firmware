@@ -2,25 +2,14 @@
 #if APP_BLE_ENABLED
 
     #include "ble_server.h"
-    #include "ble_json_arena.h"
-    #include "ble_json_budget.h"
     #include "ble_server_internal.h"
     #include "ble_link_rs.h"
 
-    #include "config/json_reader.h"
-    #include "config/rotation_config.h"
     #include "diag/error_store.h"
     #include "diag/logger.h"
-    #include "diag/lvgl_hold_timer.h"
     #include "hal/storage/nvs_store.h"
-    #include "runtime/lvgl_lock.h"
-    #include "runtime/device_commands.h"
     #include "runtime/pending_actions.h"
-    #include "runtime/timer_service.h"
-    #include "ui/settings_page.h"
-    #include "util/json_writer.h"
 
-    #include <ArduinoJson.h>
     #include <Arduino.h>
     #include <NimBLEDevice.h>
     #include <esp_heap_caps.h>
@@ -39,9 +28,6 @@ static constexpr char kTimerLapUuid[] = "4fa0b6a0-0000-0000-0000-000000000008";
 static constexpr char kAlertUuid[] = "4fa0b6a0-0000-0000-0000-000000000009";
 
 static constexpr size_t kBleMinHeap = kBleMinHeapBytes;
-
-static constexpr size_t kBleMaxWriteLen = BleJsonBudget::kMaxWriteBytes;
-static constexpr uint32_t kBleSettingsMutexTimeoutMs = 50U;
 
 static constexpr uint16_t kBlePreferredMtu = 247U;
 
@@ -134,142 +120,6 @@ class AuthenticatedSubscribeCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
-class SettingsCallbacks : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic *pChar) override {
-        std::string val = pChar->getValue();
-        if (val.empty())
-            return;
-        if (val.length() > kBleMaxWriteLen) {
-            LOG_WARN("BLE", "SETTINGS write %u bytes exceeds cap %u — dropping",
-                     static_cast<unsigned>(val.length()), static_cast<unsigned>(kBleMaxWriteLen));
-            pChar->setValue("{\"err\":\"too_long\"}");
-            return;
-        }
-
-        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
-        JsonDocument &doc = leased.document();
-        if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
-            return;
-
-        JsonVariantConst brightnessVar = doc["brightness"];
-        if (!brightnessVar.isNull()) {
-            const uint8_t brightness = brightnessVar.as<uint8_t>();
-            LvglLock lock(pdMS_TO_TICKS(kBleSettingsMutexTimeoutMs));
-            if (!lock.held()) {
-                LOG_WARN("BLE", "SETTINGS write: LVGL mutex busy — brightness dropped");
-                pChar->setValue("{\"err\":\"busy\"}");
-                return;
-            }
-            LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_BLE);
-            SettingsPage::applyFromUsb(brightness);
-            LOG_DEBUG("BLE", "Settings applied via BLE");
-        }
-
-        JsonVariantConst rotationVar = doc["rotation"];
-        if (!rotationVar.isNull()) {
-            const uint16_t rotation = rotationVar.as<uint16_t>();
-            if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
-                LOG_INFO("BLE", "Rotation change requested: %u° — rebooting", rotation);
-                RotationConfig::applyAndReboot(rotation);
-            }
-        }
-    }
-
-    void onRead(NimBLECharacteristic *pChar) override {
-        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
-        JsonDocument &doc = leased.document();
-        doc["brightness"] = SettingsPage::getBrightness();
-        char buf[64];
-
-        const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
-        if (doc.overflowed() || len == 0 || len >= sizeof(buf)) {
-            LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",
-                     static_cast<unsigned>(len), static_cast<unsigned>(sizeof(buf)));
-            pChar->setValue("{\"err\":\"too_long\"}");
-            return;
-        }
-        pChar->setValue(buf);
-    }
-};
-
-class CmdCallbacks : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic *pChar) override {
-        std::string val = pChar->getValue();
-        if (val.empty())
-            return;
-        if (val.length() > kBleMaxWriteLen) {
-            LOG_WARN("BLE", "CMD write %u bytes exceeds cap %u — dropping",
-                     static_cast<unsigned>(val.length()), static_cast<unsigned>(kBleMaxWriteLen));
-            return;
-        }
-
-        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
-        JsonDocument &doc = leased.document();
-        if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
-            return;
-
-        const char *cmd = doc["cmd"] | "";
-        const DeviceCommands::Command *entry = DeviceCommands::findByBleName(cmd);
-        if (entry == nullptr) {
-            LOG_WARN("BLE", "Unknown CMD: %s", cmd);
-            return;
-        }
-
-        if (entry->run(doc.as<JsonObjectConst>()) == DeviceCommands::Outcome::RebootRequested) {
-            delay(kPreRestartFlushDelayMs);
-            esp_restart();
-        }
-    }
-};
-
-class TimerCmdCallbacks : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic *pChar) override {
-        std::string val = pChar->getValue();
-        if (val.empty())
-            return;
-        if (val.length() > kBleMaxWriteLen) {
-            LOG_WARN("BLE", "TIMER cmd write %u bytes exceeds cap %u — dropping",
-                     static_cast<unsigned>(val.length()), static_cast<unsigned>(kBleMaxWriteLen));
-            return;
-        }
-
-        BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
-        JsonDocument &doc = leased.document();
-        if (JsonReader::parse(doc, val.c_str(), val.length()) != DeserializationError::Ok)
-            return;
-
-        JsonVariantConst opVar = doc["op"];
-        if (opVar.isNull() || !opVar.is<int>()) {
-            LOG_WARN("BLE", "TIMER cmd missing 'op' int — ignoring");
-            return;
-        }
-
-        const int op = opVar.as<int>();
-        bool accepted = false;
-        switch (op) {
-            case 1:
-                accepted = TimerService::start();
-                break;
-            case 2:
-                accepted = TimerService::pause();
-                break;
-            case 3:
-                accepted = TimerService::resume();
-                break;
-            case 4:
-                accepted = TimerService::reset();
-                break;
-            case 5:
-                accepted = TimerService::lap();
-                break;
-            default:
-                LOG_WARN("BLE", "Unknown TIMER op: %d", op);
-                return;
-        }
-        LOG_DEBUG("BLE", "TIMER op %d %s", op, accepted ? "applied" : "rejected");
-    }
-};
-
 class TimerStateCallbacks : public AuthenticatedSubscribeCallbacks {
     void onRead(NimBLECharacteristic *) override {
         BleServerInternal::refreshTimerStateValue();
@@ -285,9 +135,6 @@ NimBLECharacteristic *requireChar(NimBLEService *svc, const char *uuid, uint32_t
 }
 
 bool createGattCharacteristics(NimBLEService *pSvc) {
-    static SettingsCallbacks s_settingsCb;
-    static CmdCallbacks s_cmdCb;
-    static TimerCmdCallbacks s_timerCmdCb;
     static TimerStateCallbacks s_timerStateCb;
     static AuthenticatedSubscribeCallbacks s_subscribeCb;
 
@@ -321,9 +168,9 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
     BleServerInternal::s_pStatus->setCallbacks(&s_subscribeCb);
     BleServerInternal::s_pTimerLap->setCallbacks(&s_subscribeCb);
     BleServerInternal::s_pAlert->setCallbacks(&s_subscribeCb);
-    pSettings->setCallbacks(&s_settingsCb);
-    pCmd->setCallbacks(&s_cmdCb);
-    pTimerCmd->setCallbacks(&s_timerCmdCb);
+    pSettings->setCallbacks(&BleServerInternal::settingsCallbacks());
+    pCmd->setCallbacks(&BleServerInternal::cmdCallbacks());
+    pTimerCmd->setCallbacks(&BleServerInternal::timerCmdCallbacks());
     BleServerInternal::s_pTimerState->setCallbacks(&s_timerStateCb);
     BleServerInternal::s_pTimerState->setValue("{\"st\":0,\"el\":0,\"lc\":0,\"sid\":0,\"ver\":0}");
     return true;
