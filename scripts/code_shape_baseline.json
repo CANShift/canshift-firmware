@@ -8,7 +8,6 @@
     "rust/signal-map/src/lib.rs::table_covers_every_id_in_module": 58,
     "rust/workshop-mode/src/ffi.rs::ffi_origin_check_treats_null_as_absent_and_refuses_foreign_pages": 31,
     "src/config/config_dashboard_loader.inc::ConfigLoaderInternal::allocPageWidgets": 31,
-    "src/config/config_parser.inc::ConfigLoaderInternal::parseWidget": 43,
     "src/config/json_helpers.inc::ConfigLoaderInternal::readAndParseWithBak": 37,
     "src/ui/page_manager_builder.cpp::PageManagerInternal::reapplyThemeAllPages": 31,
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::cruiseLDrawCb": 38,
