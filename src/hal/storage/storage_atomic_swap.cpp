@@ -6,6 +6,11 @@
 
 namespace {
 
+void dropTmp(const char *tmpPath) {
+    if (!SPIFFS.remove(tmpPath))
+        LOG_WARN("STORAGE", "Failed to remove %s after a failed swap", tmpPath);
+}
+
 void dropStaleBackup(const char *bakPath) {
     if (SPIFFS.exists(bakPath) && !SPIFFS.remove(bakPath))
         LOG_WARN("STORAGE", "Failed to remove stale %s — proceeding", bakPath);
@@ -25,7 +30,7 @@ bool promoteTmp(const char *tmpPath, const char *path, const char *bakPath, bool
     LOG_ERROR("STORAGE", "Promote %s -> %s failed", tmpPath, path);
     if (hadOriginal)
         restoreOriginal(bakPath, path);
-    SPIFFS.remove(tmpPath);
+    dropTmp(tmpPath);
     return false;
 }
 
@@ -58,7 +63,7 @@ bool StorageAtomicSwap::finalize(const char *path) {
     const bool hadOriginal = SPIFFS.exists(path);
     if (hadOriginal && !SPIFFS.rename(path, bakPath)) {
         LOG_ERROR("STORAGE", "Rotate %s -> %s failed", path, bakPath);
-        SPIFFS.remove(tmpPath);
+        dropTmp(tmpPath);
         return false;
     }
     return promoteTmp(tmpPath, path, bakPath, hadOriginal);
