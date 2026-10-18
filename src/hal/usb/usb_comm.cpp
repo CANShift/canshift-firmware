@@ -123,7 +123,7 @@ void sendTelemetry() {
     bool first = true;
     for (size_t i = 0; i < kTeleSignalCount; i++) {
         float val = 0.0f;
-        if (!SignalStore::tryRead(kTeleSignals[i].id, &val))
+        if (!SignalStore::tryReadDisplay(kTeleSignals[i].id, &val))
             continue;
 
         if (!first) {

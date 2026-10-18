@@ -99,10 +99,11 @@ to at least 3× the expected update period to avoid false "signal lost" warnings
 
 ## Signal Smoothing
 
-None. The store keeps the last decoded sample and every surface reads it:
-widgets, alerts, the top bar, the takeover card and telemetry show the same
-reading of the same frame. See
-[SignalStore](../architecture/signal-store.md#one-value-per-signal).
+Decisions (alerts, flags, the shift light, the rev limiter) read the decoded
+sample. Gauges, labels, the top bar and telemetry show a display value that is
+eased for slow signals (temperatures, oil and fuel pressure, battery, fuel
+level) and decoded for the rest. See
+[SignalStore](../architecture/signal-store.md#decoded-and-display-values).
 
 ---
 

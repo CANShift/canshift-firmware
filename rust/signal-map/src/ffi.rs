@@ -1,7 +1,19 @@
 #![allow(clippy::missing_safety_doc)]
 
+use crate::display::display_step;
 use crate::{signal_id_from_name, terminated_name_len, SignalId, SIGNAL_COUNT};
 use core::slice;
+
+#[no_mangle]
+pub extern "C" fn signal_display_step_rs(
+    id: SignalId,
+    previous: f32,
+    sample: f32,
+    dt_ms: u32,
+    seeded: bool,
+) -> f32 {
+    display_step(id, previous, sample, dt_ms, seeded)
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn signal_id_from_name_rs(name: *const core::ffi::c_char) -> SignalId {
@@ -30,6 +42,14 @@ mod tests {
     fn known_name_resolves() {
         let s = c"rpm";
         assert_eq!(lookup_cstr(s), ids::RPM);
+    }
+
+    #[test]
+    fn display_step_passes_fast_signals_through() {
+        assert_eq!(
+            signal_display_step_rs(ids::RPM, 1000.0, 6000.0, 100, true),
+            6000.0
+        );
     }
 
     #[test]

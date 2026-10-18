@@ -1,6 +1,7 @@
 
 #include "signal_store.h"
 #include "diag/logger.h"
+#include "signal_map_rs.h"
 
 #if defined(ARDUINO) || defined(ESP_PLATFORM)
     #include <Arduino.h>
@@ -61,6 +62,7 @@ void SignalStore::update(SignalId id, float value) {
 
     portENTER_CRITICAL(&s_signalsMux);
     SignalValue &sig = s_signals[id];
+    sig.display = signal_display_step_rs(id, sig.display, value, now - sig.lastUpdateMs, sig.valid);
     sig.raw = value;
     sig.lastUpdateMs = now;
     sig.valid = true;
@@ -88,13 +90,23 @@ bool SignalStore::isValid(SignalId id) {
     return result;
 }
 
-bool SignalStore::tryRead(SignalId id, float *value) {
+float SignalStore::readDisplay(SignalId id, float defaultValue) {
+    if (!idValid(id))
+        return defaultValue;
+
+    portENTER_CRITICAL(&s_signalsMux);
+    const float result = s_signals[id].valid ? s_signals[id].display : defaultValue;
+    portEXIT_CRITICAL(&s_signalsMux);
+    return result;
+}
+
+bool SignalStore::tryReadDisplay(SignalId id, float *value) {
     if (!idValid(id) || value == nullptr)
         return false;
 
     portENTER_CRITICAL(&s_signalsMux);
     const bool valid = s_signals[id].valid;
-    *value = s_signals[id].raw;
+    *value = s_signals[id].display;
     portEXIT_CRITICAL(&s_signalsMux);
     return valid;
 }

@@ -28,7 +28,7 @@ constexpr size_t kBleTeleSignalCount = sizeof(kBleTeleSignals) / sizeof(kBleTele
 size_t buildTelemetryPayload(uint8_t *buf, size_t bufSize) {
     TelemetryFrame::Field fields[kBleTeleSignalCount];
     for (size_t i = 0; i < kBleTeleSignalCount; i++) {
-        fields[i].present = SignalStore::tryRead(kBleTeleSignals[i], &fields[i].value);
+        fields[i].present = SignalStore::tryReadDisplay(kBleTeleSignals[i], &fields[i].value);
     }
     return TelemetryFrame::encode(fields, kBleTeleSignalCount, buf, bufSize);
 }

@@ -27,6 +27,7 @@ mid-frame. The lock is held for microseconds.
 ```cpp
 struct SignalValue {
     float raw;             // last sample as decoded
+    float display;         // what the dash shows: raw, or eased for slow signals
     uint32_t lastUpdateMs; // millis() at the last write
     bool valid;            // false until the first sample, and again once stale
     uint32_t timeoutMs;    // stale threshold for this signal
@@ -43,40 +44,65 @@ crate (`rust/signal-map/src/lib.rs`); the ids are mirrored as constants in
 Non-finite values are dropped at the door: `update()` refuses NaN and
 infinity, and logs the first refusal once.
 
-## One value per signal
+## Decoded and display values
 
-The store keeps the last decoded sample and nothing else. `update(id, value)`
-overwrites it; `read()`, `tryRead()` and the `raw` field of a snapshot all
-return it. There is no filtered copy.
+Every slot holds two values. `raw` is the last sample as decoded. `display`
+is the number a person reads: equal to `raw` for fast signals, and eased by
+a light time-based filter for slow ones.
 
-**Surface policy: every reader gets the decoded value.**
+- `read()` and the `raw` field of a snapshot return the decoded value.
+- `readDisplay()`, `tryReadDisplay()` and the `display` field return the
+  display value.
 
-| Surface                                                                     | Reads |
-| --------------------------------------------------------------------------- | ----- |
-| Gauge, label, warning, gear, timer and shift-light widgets                  | raw   |
-| Alert engine: thresholds, MIL, rev limiter, user critical alerts            | raw   |
-| Alert banner value, takeover card value and its RPM context                 | raw   |
-| Top-bar metric values and mode flags                                        | raw   |
-| Signal stats, cut band, page buttons, control guards, input-binding toggles | raw   |
-| Workshop-mode offer gate and motion exit                                    | raw   |
-| BLE `TELE` and `ALERT`, USB telemetry                                       | raw   |
-| Inputs of cross-signal expressions (`can_parser.cpp`)                       | raw   |
+### Which signals are eased
 
-Why one rule:
+The class lives in one table in the catalogue crate,
+`rust/signal-map/src/display.rs` (`SMOOTHED_SIGNALS`); every other id is
+decoded.
 
-- **One number per signal on one screen.** The takeover card, the banner,
-  the top bar and the widget show the same reading of the same frame.
-- **Decisions see the fault when it happens.** A threshold, a flag or a
-  guard on a filtered value fires late, filters a short dip and, on a
-  per-sample filter, lags by an amount that depends on the frame rate.
-  The alert engine already debounces in Rust (hysteresis plus a minimum
-  active time), so it needs no second filter in front of it.
-- **Derived signals are filtered zero times.** A cross-signal expression
-  reads its inputs as decoded, so its output is the expression of the
-  current frame, not of a lagged one.
+| Class    | Signals                                                                                                              | Display value                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Smoothed | temperatures (IAT, coolant, oil, EGT, gearbox, diff), oil and fuel pressure, battery volts, fuel level               | eased, τ = `DISPLAY_TAU_MS` = 250 ms |
+| Decoded  | RPM, speed, throttle, MAP, boost and boost target, lambda, AFR, gear, knock, flags, buttons, map selection, odometer | the decoded sample                   |
 
-A surface that ever needs a steadier picture filters locally, by time
-(`α = 1 − exp(−dt/τ)`), and documents its τ here. Nothing does today.
+Slow signals carry sensor and quantisation noise around a value that moves
+over seconds, so a numeral that flickers in its last digit tells the driver
+nothing. Fast signals are the information in their transients: RPM and
+speed are read on a ramp, and boost and MAP are read for spool and
+overshoot, which a filter hides. Boost stays decoded for that reason even
+though it is a pressure.
+
+The filter is `display += α · (raw − display)` with `α = dt / (τ + dt)` and
+`dt` the time since the previous sample, so the lag is the same at 10 Hz and
+at 50 Hz. The first sample after a stale period seeds `display = raw`.
+
+### Surface policy
+
+| Surface                                                                     | Reads   |
+| --------------------------------------------------------------------------- | ------- |
+| Gauge and label widgets (the number and the needle)                         | display |
+| Top-bar metric values                                                       | display |
+| BLE `TELE` and USB telemetry                                                | display |
+| Warning, gear, timer and shift-light widgets                                | raw     |
+| Alert engine: thresholds, MIL, rev limiter, user critical alerts            | raw     |
+| Alert banner value, takeover card value and its RPM context, BLE `ALERT`    | raw     |
+| Top-bar mode flags                                                          | raw     |
+| Signal stats, cut band, page buttons, control guards, input-binding toggles | raw     |
+| Workshop-mode offer gate and motion exit                                    | raw     |
+| Inputs of cross-signal expressions (`can_parser.cpp`)                       | raw     |
+
+Why:
+
+- **Decisions read the decoded value.** A threshold, a flag or a guard on a
+  filtered value fires late and filters a short dip. The alert engine
+  already debounces in Rust (hysteresis plus a minimum active time).
+- **An alert shows the value that tripped it.** The takeover card and the
+  banner read `raw`, so for a slow signal they can differ from the gauge by
+  the filter's lag; that is the intended trade.
+- **Telemetry carries what the dash shows,** so the phone and the tuner read
+  the same number as the screen.
+- **Derived signals are filtered once at most.** A cross-signal expression
+  reads its inputs as decoded; its own display value follows its class.
 
 Input bindings that toggle a signal (`input_buttons.cpp`) write through
 `update()` like the CAN parser, so the toggle and an ECU echo read back the
@@ -105,7 +131,7 @@ id (`top_bar_update.cpp::anySignalValid`).
 `PageManager` copies the whole table under one lock acquire every widget
 refresh and hands the copy to the alert engine, signal stats, cut band,
 widgets and page buttons, so one frame never mixes two states of the
-table. Telemetry reads per signal with `tryRead()`.
+table. Telemetry reads per signal with `tryReadDisplay()`.
 
 ## Why this lives in BSS
 

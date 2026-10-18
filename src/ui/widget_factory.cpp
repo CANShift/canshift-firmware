@@ -55,13 +55,14 @@ void updateWidget(WidgetEntry &entry, const SignalStore::SignalValue snap[kSigna
     const SignalStore::SignalValue &sv = snap[entry.signalId];
     const bool valid = sv.valid;
     const float value = valid ? sv.raw : 0.0f;
+    const float shown = valid ? sv.display : 0.0f;
 
     switch (entry.type) {
         case WidgetType::GAUGE:
-            GaugeWidget::update(entry.obj, value, valid, *entry.cfg);
+            GaugeWidget::update(entry.obj, shown, valid, *entry.cfg);
             break;
         case WidgetType::LABEL:
-            LabelWidget::update(entry.obj, value, valid, *entry.cfg);
+            LabelWidget::update(entry.obj, shown, valid, *entry.cfg);
             break;
         case WidgetType::WARNING:
             WarningWidget::update(entry.obj, value, valid, *entry.cfg);
