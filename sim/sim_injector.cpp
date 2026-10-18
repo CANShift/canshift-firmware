@@ -316,73 +316,99 @@ void dumpObj(lv_obj_t *obj, int depth) {
         dumpObj(lv_obj_get_child(obj, i), depth + 1);
 }
 
-void handleKey(int key, uint32_t nowMs) {
-    switch (key) {
-        case SDLK_c:
-            s_mode = Mode::Cruise;
-            printf("mode: cruise\n");
-            break;
-        case SDLK_r:
-            s_mode = Mode::RevLimit;
-            printf("mode: rev limit\n");
-            break;
-        case SDLK_o:
-            s_mode = Mode::OilCritical;
-            printf("mode: oil pressure critical\n");
-            break;
-        case SDLK_w:
-            s_mode = Mode::Warning;
-            printf("mode: warning band\n");
-            break;
-        case SDLK_1:
-            s_mode = Mode::CutBoost;
-            printf("mode: boost cut band\n");
-            break;
-        case SDLK_2:
-            s_mode = Mode::CutKnock;
-            printf("mode: ignition retard band\n");
-            break;
-        case SDLK_3:
-            s_mode = Mode::CutFuel;
-            printf("mode: fuel cut band\n");
-            break;
-        case SDLK_4:
-            s_mode = Mode::CutLimp;
-            printf("mode: limp mode band\n");
-            break;
-        case SDLK_x:
-            s_mode = Mode::AllStale;
-            printf("mode: all signals stale\n");
-            break;
-        case SDLK_b:
-            s_mode = Mode::BusLost;
+void feedNothing(uint32_t) {}
+
+void feedCruiseDefaults(uint32_t nowMs) {
+    feedCruise(nowMs);
+}
+
+constexpr void (*kFeeders[])(uint32_t nowMs) = {
+    feedCruiseDefaults, feedRevLimit, feedRevRelease, feedOilCritical, feedOilLow,
+    feedWaterCritical,  feedWarning,  feedNothing,    feedBusLost,     feedCutBoost,
+    feedCutKnock,       feedCutFuel,  feedCutLimp,
+};
+
+static_assert(sizeof(kFeeders) / sizeof(kFeeders[0]) == static_cast<size_t>(Mode::CutLimp) + 1,
+              "every sim mode needs a feeder");
+
+struct ModeKey {
+    int key;
+    Mode mode;
+    const char *label;
+};
+
+constexpr ModeKey kModeKeys[] = {
+    {SDLK_c, Mode::Cruise, "cruise"},
+    {SDLK_r, Mode::RevLimit, "rev limit"},
+    {SDLK_o, Mode::OilCritical, "oil pressure critical"},
+    {SDLK_w, Mode::Warning, "warning band"},
+    {SDLK_1, Mode::CutBoost, "boost cut band"},
+    {SDLK_2, Mode::CutKnock, "ignition retard band"},
+    {SDLK_3, Mode::CutFuel, "fuel cut band"},
+    {SDLK_4, Mode::CutLimp, "limp mode band"},
+    {SDLK_x, Mode::AllStale, "all signals stale"},
+    {SDLK_b, Mode::BusLost, "bus lost"},
+};
+
+bool selectMode(int key, uint32_t nowMs) {
+    for (const ModeKey &entry : kModeKeys) {
+        if (entry.key != key)
+            continue;
+        s_mode = entry.mode;
+        if (entry.mode == Mode::BusLost)
             s_startMs = nowMs;
-            printf("mode: bus lost\n");
-            break;
-        case SDLK_f:
-            if (s_otaDemo) {
-                s_otaDemo = false;
-                OtaOverlay::hide();
-                printf("ota demo: hidden\n");
-            } else {
-                startOtaDemo(nowMs);
-                printf("ota demo: started\n");
-            }
-            break;
-        case SDLK_d:
-            printf("=== screen tree ===\n");
-            dumpObj(lv_scr_act(), 0);
-            printf("=== top layer ===\n");
-            dumpObj(lv_layer_top(), 0);
-            break;
-        case SDLK_RIGHT:
-            PageManager::navigateNext();
-            break;
-        case SDLK_LEFT:
-            PageManager::navigatePrev();
-            break;
-        default:
-            break;
+        printf("mode: %s\n", entry.label);
+        return true;
+    }
+    return false;
+}
+
+void toggleOtaDemo(uint32_t nowMs) {
+    if (s_otaDemo) {
+        s_otaDemo = false;
+        OtaOverlay::hide();
+        printf("ota demo: hidden\n");
+        return;
+    }
+    startOtaDemo(nowMs);
+    printf("ota demo: started\n");
+}
+
+void dumpScreenTrees(uint32_t) {
+    printf("=== screen tree ===\n");
+    dumpObj(lv_scr_act(), 0);
+    printf("=== top layer ===\n");
+    dumpObj(lv_layer_top(), 0);
+}
+
+void showNextPage(uint32_t) {
+    PageManager::navigateNext();
+}
+
+void showPrevPage(uint32_t) {
+    PageManager::navigatePrev();
+}
+
+struct ActionKey {
+    int key;
+    void (*run)(uint32_t nowMs);
+};
+
+constexpr ActionKey kActionKeys[] = {
+    {SDLK_f, toggleOtaDemo},
+    {SDLK_d, dumpScreenTrees},
+    {SDLK_RIGHT, showNextPage},
+    {SDLK_LEFT, showPrevPage},
+};
+
+void handleKey(int key, uint32_t nowMs) {
+    if (selectMode(key, nowMs))
+        return;
+    for (const ActionKey &entry : kActionKeys) {
+        if (entry.key == key) {
+            entry.run(nowMs);
+            return;
+        }
     }
 }
 
@@ -431,46 +457,7 @@ void tick(uint32_t nowMs) {
         return;
     }
 
-    switch (s_mode) {
-        case Mode::Cruise:
-            feedCruise(nowMs);
-            break;
-        case Mode::RevLimit:
-            feedRevLimit(nowMs);
-            break;
-        case Mode::RevRelease:
-            feedRevRelease(nowMs);
-            break;
-        case Mode::OilCritical:
-            feedOilCritical(nowMs);
-            break;
-        case Mode::OilLow:
-            feedOilLow(nowMs);
-            break;
-        case Mode::WaterCritical:
-            feedWaterCritical(nowMs);
-            break;
-        case Mode::Warning:
-            feedWarning(nowMs);
-            break;
-        case Mode::AllStale:
-            break;
-        case Mode::BusLost:
-            feedBusLost(nowMs);
-            break;
-        case Mode::CutBoost:
-            feedCutBoost(nowMs);
-            break;
-        case Mode::CutKnock:
-            feedCutKnock(nowMs);
-            break;
-        case Mode::CutFuel:
-            feedCutFuel(nowMs);
-            break;
-        case Mode::CutLimp:
-            feedCutLimp(nowMs);
-            break;
-    }
+    kFeeders[static_cast<uint8_t>(s_mode)](nowMs);
 }
 
 }
