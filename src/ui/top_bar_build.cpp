@@ -2,19 +2,16 @@
 #include "top_bar_internal.h"
 #include "top_bar_rev_limit.h"
 #include "top_bar_separator_link.h"
+#include "top_bar_items.h"
 
 #include "app_config.h"
 #include "icon_assets.h"
-#include "layout_scale.h"
-#include "ui/font_manager.h"
 #include "settings_page.h"
 #include "theme_manager.h"
 #include "config/config_loader.h"
 #include "diag/logger.h"
-#include "ui/widgets/widget_helpers.h"
 
 #include <lvgl.h>
-#include <math.h>
 #include <string.h>
 
 using namespace TopBarInternal;
@@ -24,28 +21,10 @@ lv_obj_t *s_bar = nullptr;
 DynItem s_dynItems[kCfgMaxTopbarItems];
 uint8_t s_dynCount = 0;
 bool s_dynEverSeen[kCfgMaxTopbarItems] = {};
+lv_obj_t *s_themeIcon = nullptr;
+int16_t s_height = 30;
 }
 
-namespace TopBarMetrics {
-constexpr float kDotRatio = 0.30f;
-constexpr float kGapRatio = 0.25f;
-constexpr float kPaddingRatio = 0.40f;
-}
-
-static inline int16_t metricRound(float v) {
-    return static_cast<int16_t>(lroundf(v));
-}
-static inline int16_t derivedDot(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::kDotRatio);
-}
-static inline int16_t derivedGap(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::kGapRatio);
-}
-static inline int16_t derivedPadding(int16_t height) {
-    return metricRound(static_cast<float>(height) * TopBarMetrics::kPaddingRatio);
-}
-static lv_obj_t *s_themeIcon = nullptr;
-static int16_t s_height = 30;
 static bool s_pageOverridden = false;
 
 static constexpr uint32_t kColorBarBgDay = 0xF0F0F0;
@@ -54,189 +33,78 @@ static uint32_t barBgColor(const CfgTopBar &cfg) {
     return ThemeManager::pickColor(cfg.bgColor.rgb, kColorBarBgDay);
 }
 
-static lv_obj_t *makeStatusDot(lv_obj_t *parent) {
-    const int16_t side = derivedDot(s_height);
-    return WidgetHelpers::makeSquareBadge(parent, side, kColorDotDown);
-}
-
-static lv_obj_t *makeFlagBadge(lv_obj_t *parent, const char *text) {
-    lv_obj_t *cont = lv_obj_create(parent);
-    WidgetHelpers::resetContainerStyle(cont);
-    lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(cont, LayoutScale::x(kFlagGapPx), LV_PART_MAIN);
-    WidgetHelpers::makeSquareBadge(cont, kFlagSquarePx, kColorModeActive);
-
-    lv_obj_t *lbl = lv_label_create(cont);
-    lv_label_set_text(lbl, text);
-    lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
-    lv_obj_set_style_text_color(cont, lv_color_hex(kColorModeActive), 0);
-    lv_obj_update_layout(cont);
-    return cont;
-}
-
-static lv_obj_t *makeBarLabel(lv_obj_t *parent, const char *text, uint32_t color) {
-    lv_obj_t *lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, text);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
-
-    lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
-    lv_obj_set_style_text_letter_space(lbl, kBarLetterSpacePx, 0);
-    return lbl;
-}
-
-static lv_obj_t *makeBarSeparator(lv_obj_t *parent, uint32_t color) {
-    lv_obj_t *lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "|");
-    lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
-    lv_obj_set_style_text_font(lbl, FontManager::units(), 0);
-    return lbl;
-}
-
 namespace {
+
+constexpr lv_align_t kFirstItemAlign[] = {LV_ALIGN_LEFT_MID, LV_ALIGN_CENTER, LV_ALIGN_RIGHT_MID};
+
+void anchorItem(lv_obj_t *obj, lv_obj_t *prev, TopBarItemPos position, int16_t gap) {
+    if (prev == nullptr) {
+        lv_obj_align(obj, kFirstItemAlign[static_cast<uint8_t>(position)], 0, 0);
+        return;
+    }
+    if (position == TopBarItemPos::RIGHT) {
+        lv_obj_align_to(obj, prev, LV_ALIGN_OUT_LEFT_MID, -gap, 0);
+        return;
+    }
+    lv_obj_align_to(obj, prev, LV_ALIGN_OUT_RIGHT_MID, gap, 0);
+}
+
+void fillDynItem(DynItem &d, const CfgTopBarItem &item, lv_obj_t *obj, int8_t prevFlagIdx) {
+    const bool isSeparator = item.kind == TopBarItemKind::SEPARATOR;
+    d.kind = item.kind;
+    d.position = item.position;
+    d.obj = obj;
+    strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
+    strlcpy(d.format, item.format, sizeof(d.format));
+    strlcpy(d.prefix, item.text, sizeof(d.prefix));
+    d.lastText[0] = '\0';
+    d.lastColor = kColorUnset;
+    d.lastSeenValid = false;
+    d.hidden = item.kind == TopBarItemKind::MODE_FLAG || isSeparator;
+    d.linkedFlagIdx = isSeparator ? prevFlagIdx : TopBarSeparatorLink::kNoFlag;
+    d.nextFlagIdx = TopBarSeparatorLink::kNoFlag;
+}
+
+void linkModeFlag(TopBarSeparatorLink::Tracker &tracker, uint8_t flagIdx) {
+    const int8_t pendingSepIdx = TopBarSeparatorLink::registerModeFlag(
+        tracker, static_cast<int8_t>(flagIdx), static_cast<int8_t>(s_dynCount));
+    if (pendingSepIdx != TopBarSeparatorLink::kNoFlag) {
+        s_dynItems[pendingSepIdx].nextFlagIdx = static_cast<int8_t>(flagIdx);
+    }
+}
+
+void trackDynItem(const CfgTopBarItem &item, lv_obj_t *obj, TopBarSeparatorLink::Tracker &tracker,
+                  int8_t prevFlagIdx) {
+    const uint8_t myIdx = s_dynCount;
+    fillDynItem(s_dynItems[s_dynCount++], item, obj, prevFlagIdx);
+    if (item.kind == TopBarItemKind::MODE_FLAG) {
+        linkModeFlag(tracker, myIdx);
+        return;
+    }
+    if (item.kind == TopBarItemKind::SEPARATOR) {
+        TopBarSeparatorLink::registerSeparator(tracker, static_cast<int8_t>(myIdx));
+    }
+}
 
 void buildItem(const CfgTopBarItem &item, lv_obj_t *prevByPos[3],
                TopBarSeparatorLink::Tracker trackers[3], bool hasTheme) {
-    lv_obj_t *prev = prevByPos[static_cast<uint8_t>(item.position)];
-    lv_obj_t *obj = nullptr;
-
-    auto anchor = [&](lv_obj_t *o, int16_t gapAfterPrev) {
-        if (prev == nullptr) {
-            switch (item.position) {
-                case TopBarItemPos::LEFT:
-                    lv_obj_align(o, LV_ALIGN_LEFT_MID, 0, 0);
-                    break;
-                case TopBarItemPos::CENTER:
-                    lv_obj_align(o, LV_ALIGN_CENTER, 0, 0);
-                    break;
-                case TopBarItemPos::RIGHT:
-                    lv_obj_align(o, LV_ALIGN_RIGHT_MID, 0, 0);
-                    break;
-            }
-        } else if (item.position == TopBarItemPos::RIGHT) {
-            lv_obj_align_to(o, prev, LV_ALIGN_OUT_LEFT_MID, -gapAfterPrev, 0);
-        } else {
-            lv_obj_align_to(o, prev, LV_ALIGN_OUT_RIGHT_MID, gapAfterPrev, 0);
-        }
-    };
-
-    const int16_t gap = derivedGap(s_height);
-
-    switch (item.kind) {
-        case TopBarItemKind::STATUS_DOT: {
-            obj = makeStatusDot(s_bar);
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::LABEL: {
-            obj = makeBarLabel(s_bar, item.text, mutedColor());
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::SEPARATOR: {
-            obj = makeBarSeparator(s_bar, mutedColor());
-
-            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::SIGNAL:
-        case TopBarItemKind::SIGNAL_MAX: {
-            obj = makeBarLabel(s_bar, "", labelColor());
-            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::BLE_ICON: {
-            obj = lv_label_create(s_bar);
-            lv_label_set_text(obj, "BLE");
-            lv_obj_set_style_text_color(obj, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
-            lv_obj_set_style_text_font(obj, FontManager::units(), 0);
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::MODE_FLAG: {
-            obj = makeFlagBadge(s_bar, item.text);
-            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::TRACK_BADGE: {
-            obj = makeBarLabel(s_bar, "", labelColor());
-            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::CAN_RATE: {
-            obj = makeBarLabel(s_bar, kBusRateSilent, labelColor());
-            anchor(obj, gap);
-            break;
-        }
-        case TopBarItemKind::THEME_TOGGLE: {
-            obj = lv_img_create(s_bar);
-            lv_img_set_src(obj, IconAssets::resolveSource(
-                                    ThemeManager::isDayMode() ? "icon_day" : "icon_night"));
-            anchor(obj, 0);
-            if (hasTheme) {
-                lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-
-                lv_obj_set_ext_click_area(obj, 10);
-                lv_obj_add_event_cb(
-                    obj, [](lv_event_t *) { ThemeManager::toggleDayMode(); }, LV_EVENT_CLICKED,
-                    nullptr);
-            } else {
-                lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            }
-            s_themeIcon = obj;
-            break;
-        }
-        case TopBarItemKind::UNKNOWN:
-        default:
-            return;
-    }
-
-    prevByPos[static_cast<uint8_t>(item.position)] = obj;
-
+    const TopBarItems::KindOps *ops = TopBarItems::opsFor(item.kind);
+    if (!ops)
+        return;
     const uint8_t posIdx = static_cast<uint8_t>(item.position);
-    const int8_t prevFlagIdx = TopBarSeparatorLink::linkedFlagForSeparator(trackers[posIdx]);
-    bool needsUpdate =
-        (item.kind == TopBarItemKind::STATUS_DOT || item.kind == TopBarItemKind::SIGNAL ||
-         item.kind == TopBarItemKind::SIGNAL_MAX || item.kind == TopBarItemKind::BLE_ICON ||
-         item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::TRACK_BADGE ||
-         item.kind == TopBarItemKind::CAN_RATE || item.kind == TopBarItemKind::LABEL ||
-         (item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0));
-    if (needsUpdate && s_dynCount < kCfgMaxTopbarItems) {
-        const uint8_t myIdx = s_dynCount;
-        DynItem &d = s_dynItems[s_dynCount++];
-        d.kind = item.kind;
-        d.position = item.position;
-        d.obj = obj;
-        strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
-        strlcpy(d.format, item.format, sizeof(d.format));
-        strlcpy(d.prefix, item.text, sizeof(d.prefix));
-        d.lastText[0] = '\0';
-        d.lastColor = kColorUnset;
-        d.lastSeenValid = false;
+    lv_obj_t *obj = ops->build(item, hasTheme);
+    anchorItem(obj, prevByPos[posIdx], item.position,
+               ops->gapped ? TopBarItems::derivedGap(s_height) : 0);
+    prevByPos[posIdx] = obj;
 
-        d.hidden =
-            (item.kind == TopBarItemKind::MODE_FLAG || item.kind == TopBarItemKind::SEPARATOR);
-        d.linkedFlagIdx =
-            (item.kind == TopBarItemKind::SEPARATOR) ? prevFlagIdx : TopBarSeparatorLink::kNoFlag;
-        d.nextFlagIdx = TopBarSeparatorLink::kNoFlag;
-        if (item.kind == TopBarItemKind::MODE_FLAG) {
-            const int8_t pendingSepIdx = TopBarSeparatorLink::registerModeFlag(
-                trackers[posIdx], static_cast<int8_t>(myIdx), static_cast<int8_t>(s_dynCount));
-            if (pendingSepIdx != TopBarSeparatorLink::kNoFlag) {
-                s_dynItems[pendingSepIdx].nextFlagIdx = static_cast<int8_t>(myIdx);
-            }
-        } else if (item.kind == TopBarItemKind::SEPARATOR) {
-            TopBarSeparatorLink::registerSeparator(trackers[posIdx], static_cast<int8_t>(myIdx));
-        }
+    TopBarSeparatorLink::Tracker &tracker = trackers[posIdx];
+    const int8_t prevFlagIdx = TopBarSeparatorLink::linkedFlagForSeparator(tracker);
+    const bool linkedSeparator = item.kind == TopBarItemKind::SEPARATOR && prevFlagIdx >= 0;
+    if ((ops->tracked || linkedSeparator) && s_dynCount < kCfgMaxTopbarItems) {
+        trackDynItem(item, obj, tracker, prevFlagIdx);
     }
-
     if (item.kind != TopBarItemKind::MODE_FLAG && item.kind != TopBarItemKind::SEPARATOR) {
-        TopBarSeparatorLink::resetTracking(trackers[posIdx]);
+        TopBarSeparatorLink::resetTracking(tracker);
     }
 }
 
@@ -329,7 +197,7 @@ void TopBar::init() {
     lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(s_bar, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(s_bar, derivedPadding(s_height), LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(s_bar, TopBarItems::derivedPadding(s_height), LV_PART_MAIN);
     lv_obj_set_style_pad_ver(s_bar, 0, LV_PART_MAIN);
     lv_obj_clear_flag(s_bar, LV_OBJ_FLAG_SCROLLABLE);
 
