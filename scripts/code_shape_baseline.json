@@ -1,13 +1,10 @@
 {
   "function-lines": {
-    "src/config/config_dashboard_loader.inc::ConfigLoaderInternal::allocPageWidgets": 31,
-    "src/config/json_helpers.inc::ConfigLoaderInternal::readAndParseWithBak": 37,
     "src/ui/page_manager_builder.cpp::PageManagerInternal::reapplyThemeAllPages": 31,
     "src/ui/widgets/gear_widget.cpp::GearWidget::update": 31,
     "test/test_format_float/test_main.cpp::main": 31
   },
   "nesting": {
-    "src/config/config_dashboard_loader.inc::ConfigLoaderInternal::parsePages": 3,
     "src/ui/icon_assets.cpp::IconAssets::preloadDashboardAssets": 3,
     "test/native/shim/hal/storage/storage_driver_fake.cpp::StorageDriver::getSpaceInfo": 3,
     "test/test_layout_grid/test_main.cpp::assertInsideFrame": 4,

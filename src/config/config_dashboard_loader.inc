@@ -194,26 +194,33 @@ void parsePageMeta(JsonObjectConst page, CfgPage *p) {
     p->templateKind = CfgPageTemplate::CUSTOM;
 }
 
+size_t cappedWidgetCount(size_t totalWidgets, const CfgPage *p) {
+    if (totalWidgets <= kConfigMaxWidgetsPerPage)
+        return totalWidgets;
+    LOG_WARN("CFG", "page '%s': %u widgets exceed CONFIG_MAX_WIDGETS_PER_PAGE=%u — extras ignored",
+             p->id, static_cast<unsigned>(totalWidgets), kConfigMaxWidgetsPerPage);
+    return kConfigMaxWidgetsPerPage;
+}
+
+bool fitsWidgetBudget(size_t allocBytes, const CfgPage *p, size_t totalAllocBytes) {
+    if (totalAllocBytes + allocBytes <= kConfigDashboardHeapBudgetBytes)
+        return true;
+    LOG_ERROR("CFG",
+              "dashboard.json: cumulative widget alloc would exceed budget %u B "
+              "(at page '%s', running=%u + adding=%u) — refusing payload",
+              static_cast<unsigned>(kConfigDashboardHeapBudgetBytes), p->id,
+              static_cast<unsigned>(totalAllocBytes), static_cast<unsigned>(allocBytes));
+    ErrorStore::push(ERROR_SRC_CONFIG, "BUDGET", "payload_too_large");
+    return false;
+}
+
 DashboardOutcome allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *totalAllocBytes) {
-    if (totalWidgets > kConfigMaxWidgetsPerPage) {
-        LOG_WARN("CFG",
-                 "page '%s': %u widgets exceed CONFIG_MAX_WIDGETS_PER_PAGE=%u — extras ignored",
-                 p->id, static_cast<unsigned>(totalWidgets), kConfigMaxWidgetsPerPage);
-    }
-    const size_t cap =
-        totalWidgets > kConfigMaxWidgetsPerPage ? kConfigMaxWidgetsPerPage : totalWidgets;
+    const size_t cap = cappedWidgetCount(totalWidgets, p);
     if (cap == 0)
         return DashboardOutcome::Loaded;
     const size_t allocBytes = cap * sizeof(CfgWidget);
-    if (*totalAllocBytes + allocBytes > kConfigDashboardHeapBudgetBytes) {
-        LOG_ERROR("CFG",
-                  "dashboard.json: cumulative widget alloc would exceed budget %u B "
-                  "(at page '%s', running=%u + adding=%u) — refusing payload",
-                  static_cast<unsigned>(kConfigDashboardHeapBudgetBytes), p->id,
-                  static_cast<unsigned>(*totalAllocBytes), static_cast<unsigned>(allocBytes));
-        ErrorStore::push(ERROR_SRC_CONFIG, "BUDGET", "payload_too_large");
+    if (!fitsWidgetBudget(allocBytes, p, *totalAllocBytes))
         return DashboardOutcome::Refused;
-    }
     p->widgets = new (std::nothrow) CfgWidget[cap]{};
     if (!p->widgets) {
         LOG_ERROR("CFG", "page '%s': widgets alloc (%u × %u B) failed", p->id,
@@ -223,6 +230,23 @@ DashboardOutcome allocPageWidgets(size_t totalWidgets, CfgPage *p, size_t *total
     }
     p->widgetCapacity = static_cast<uint8_t>(cap);
     *totalAllocBytes += allocBytes;
+    return DashboardOutcome::Loaded;
+}
+
+DashboardOutcome parsePage(JsonObjectConst page, CfgPage *p, size_t *totalAllocBytes) {
+    parsePageMeta(page, p);
+    p->widgetCount = 0;
+    p->widgetCapacity = 0;
+    p->widgets = nullptr;
+    JsonArrayConst widgets = page["widgets"];
+    const DashboardOutcome alloc = allocPageWidgets(widgets.size(), p, totalAllocBytes);
+    if (alloc != DashboardOutcome::Loaded)
+        return alloc;
+    for (JsonObjectConst w : widgets) {
+        if (p->widgetCount >= p->widgetCapacity)
+            break;
+        parseWidget(w, &p->widgets[p->widgetCount++]);
+    }
     return DashboardOutcome::Loaded;
 }
 
@@ -236,20 +260,10 @@ DashboardOutcome parsePages(JsonArrayConst pages, CfgDashboard *out) {
     for (JsonObjectConst page : pages) {
         if (out->pageCount >= kConfigMaxPages)
             break;
-        CfgPage &p = out->pages[out->pageCount++];
-        parsePageMeta(page, &p);
-        p.widgetCount = 0;
-        p.widgetCapacity = 0;
-        p.widgets = nullptr;
-        JsonArrayConst widgets = page["widgets"];
-        const DashboardOutcome alloc = allocPageWidgets(widgets.size(), &p, &totalAllocBytes);
-        if (alloc != DashboardOutcome::Loaded)
-            return alloc;
-        for (JsonObjectConst w : widgets) {
-            if (p.widgetCount >= p.widgetCapacity)
-                break;
-            parseWidget(w, &p.widgets[p.widgetCount++]);
-        }
+        const DashboardOutcome parsed =
+            parsePage(page, &out->pages[out->pageCount++], &totalAllocBytes);
+        if (parsed != DashboardOutcome::Loaded)
+            return parsed;
     }
     return DashboardOutcome::Loaded;
 }
