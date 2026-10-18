@@ -134,80 +134,92 @@ NimBLECharacteristic *requireChar(NimBLEService *svc, const char *uuid, uint32_t
     return ch;
 }
 
-bool createGattCharacteristics(NimBLEService *pSvc) {
-    static TimerStateCallbacks s_timerStateCb;
-    static AuthenticatedSubscribeCallbacks s_subscribeCb;
+struct CharSpec {
+    const char *uuid;
+    uint32_t props;
+    NimBLECharacteristic **slot;
+    NimBLECharacteristicCallbacks *callbacks;
+};
 
-    BleServerInternal::s_pTele =
-        requireChar(pSvc, kTeleUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pStatus =
-        requireChar(pSvc, kStatusUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
-    NimBLECharacteristic *pSettings = requireChar(
-        pSvc, kSettingsUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::WRITE_AUTHEN);
-    NimBLECharacteristic *pCmd =
-        requireChar(pSvc, kCmdUuid, NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR);
-    NimBLECharacteristic *pTimerCmd =
-        requireChar(pSvc, kTimerCmdUuid, NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR);
-    BleServerInternal::s_pTimerState =
-        requireChar(pSvc, kTimerStateUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pTimerLap =
-        requireChar(pSvc, kTimerLapUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
-    BleServerInternal::s_pAlert =
-        requireChar(pSvc, kAlertUuid, NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY);
+constexpr uint32_t kNotifyProps = NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY;
+constexpr uint32_t kCommandProps = NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR;
+constexpr uint32_t kSettingsProps = NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::WRITE_AUTHEN;
 
-    if (!BleServerInternal::s_pTele || !BleServerInternal::s_pStatus || !pSettings || !pCmd ||
-        !pTimerCmd || !BleServerInternal::s_pTimerState || !BleServerInternal::s_pTimerLap ||
-        !BleServerInternal::s_pAlert) {
-        return false;
+bool createAll(NimBLEService *pSvc, const CharSpec *specs, size_t count) {
+    bool allCreated = true;
+    for (size_t i = 0; i < count; ++i) {
+        *specs[i].slot = requireChar(pSvc, specs[i].uuid, specs[i].props);
+        allCreated = allCreated && *specs[i].slot != nullptr;
     }
+    return allCreated;
+}
 
+void publishInitialValues() {
     BleServerInternal::s_pTele->setValue("{}");
     BleServerInternal::emitAlert();
     BleServerInternal::updateStatus();
-    BleServerInternal::s_pTele->setCallbacks(&s_subscribeCb);
-    BleServerInternal::s_pStatus->setCallbacks(&s_subscribeCb);
-    BleServerInternal::s_pTimerLap->setCallbacks(&s_subscribeCb);
-    BleServerInternal::s_pAlert->setCallbacks(&s_subscribeCb);
-    pSettings->setCallbacks(&BleServerInternal::settingsCallbacks());
-    pCmd->setCallbacks(&BleServerInternal::cmdCallbacks());
-    pTimerCmd->setCallbacks(&BleServerInternal::timerCmdCallbacks());
-    BleServerInternal::s_pTimerState->setCallbacks(&s_timerStateCb);
+}
+
+bool createGattCharacteristics(NimBLEService *pSvc) {
+    static TimerStateCallbacks s_timerStateCb;
+    static AuthenticatedSubscribeCallbacks s_subscribeCb;
+    NimBLECharacteristic *pSettings = nullptr;
+    NimBLECharacteristic *pCmd = nullptr;
+    NimBLECharacteristic *pTimerCmd = nullptr;
+    const CharSpec specs[] = {
+        {kTeleUuid, kNotifyProps, &BleServerInternal::s_pTele, &s_subscribeCb},
+        {kStatusUuid, kNotifyProps, &BleServerInternal::s_pStatus, &s_subscribeCb},
+        {kSettingsUuid, kSettingsProps, &pSettings, &BleServerInternal::settingsCallbacks()},
+        {kCmdUuid, kCommandProps, &pCmd, &BleServerInternal::cmdCallbacks()},
+        {kTimerCmdUuid, kCommandProps, &pTimerCmd, &BleServerInternal::timerCmdCallbacks()},
+        {kTimerStateUuid, kNotifyProps, &BleServerInternal::s_pTimerState, &s_timerStateCb},
+        {kTimerLapUuid, kNotifyProps, &BleServerInternal::s_pTimerLap, &s_subscribeCb},
+        {kAlertUuid, kNotifyProps, &BleServerInternal::s_pAlert, &s_subscribeCb},
+    };
+    if (!createAll(pSvc, specs, sizeof(specs) / sizeof(specs[0])))
+        return false;
+    publishInitialValues();
+    for (const CharSpec &spec : specs)
+        (*spec.slot)->setCallbacks(spec.callbacks);
     BleServerInternal::s_pTimerState->setValue("{\"st\":0,\"el\":0,\"lc\":0,\"sid\":0,\"ver\":0}");
     return true;
 }
 
-bool setupGatt() {
+NimBLEService *createService() {
     static ServerCallbacks s_serverCb;
-
     NimBLEServer *pServer = NimBLEDevice::createServer();
     if (pServer == nullptr) {
         LOG_ERROR("BLE", "GATT server alloc failed");
-        return false;
+        return nullptr;
     }
     pServer->setCallbacks(&s_serverCb);
-
     NimBLEService *pSvc = pServer->createService(kSvcUuid);
-    if (pSvc == nullptr) {
+    if (pSvc == nullptr)
         LOG_ERROR("BLE", "GATT service alloc failed");
-        return false;
-    }
-    if (!createGattCharacteristics(pSvc)) {
-        return false;
-    }
-    if (!pSvc->start()) {
-        LOG_ERROR("BLE", "GATT service start failed");
-        return false;
-    }
+    return pSvc;
+}
 
+bool startAdvertising() {
     NimBLEAdvertising *pAdv = NimBLEDevice::getAdvertising();
     pAdv->addServiceUUID(kSvcUuid);
     pAdv->setName("CANShift");
     pAdv->setScanResponse(false);
-    if (!pAdv->start()) {
-        LOG_ERROR("BLE", "advertising start failed");
+    if (pAdv->start())
+        return true;
+    LOG_ERROR("BLE", "advertising start failed");
+    return false;
+}
+
+bool setupGatt() {
+    NimBLEService *pSvc = createService();
+    if (pSvc == nullptr || !createGattCharacteristics(pSvc))
+        return false;
+    if (!pSvc->start()) {
+        LOG_ERROR("BLE", "GATT service start failed");
         return false;
     }
-
+    if (!startAdvertising())
+        return false;
     s_gattInited = true;
     s_enabled = true;
     LOG_INFO("BLE", "Advertising as 'CANShift' — %s",
