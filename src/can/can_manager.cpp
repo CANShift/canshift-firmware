@@ -1,11 +1,9 @@
 #include "can_manager.h"
-#include "can_parser.h"
+#include "can_driver_install.h"
 #include "can_parser_rs.h"
 #include "can_rx_route.h"
 #include "obd2_poller.h"
-#include "board.h"
 #include "app_config.h"
-#include "config/config_loader.h"
 #include "diag/logger.h"
 #include "diag/error_store.h"
 #include "hal/usb/usb_comm.h"
@@ -17,7 +15,6 @@
 #include <freertos/semphr.h>
 #include <Arduino.h>
 #include <atomic>
-#include <new>
 #include <string.h>
 
 static uint32_t s_errorCount = 0;
@@ -33,9 +30,6 @@ static uint32_t s_lastRetryMs = 0;
 static uint8_t s_retryAttempts = 0;
 static bool s_permanentlyDownWarned = false;
 
-static constexpr uint32_t kTwaiInitTaskStack = 4096;
-static constexpr UBaseType_t kTwaiInitTaskPrio = 5;
-static constexpr uint32_t kTwaiInitTimeoutMs = 5000;
 static constexpr uint32_t kTwaiRxErrorBackoffMs = 5;
 static constexpr uint32_t kTwaiRxPollTimeoutMs = 10;
 static constexpr uint32_t kTwaiDownTickDelayMs = 100;
@@ -45,111 +39,6 @@ static uint32_t s_lastErrLogMs = 0;
 static uint32_t s_lastErrPushMs = 0;
 static uint32_t s_rxDropped = 0;
 static bool s_rxDropPushed = false;
-
-static StackType_t *s_initTaskStack = nullptr;
-static StaticTask_t s_initTaskTCB;
-
-namespace {
-
-twai_timing_config_t getTimingConfig(uint16_t kbps) {
-    switch (kbps) {
-        case 1000:
-            return TWAI_TIMING_CONFIG_1MBITS();
-        case 500:
-            return TWAI_TIMING_CONFIG_500KBITS();
-        case 250:
-            return TWAI_TIMING_CONFIG_250KBITS();
-        default:
-            LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
-                     canshift::boards::runtimeBoardProfile().can.default_speed_kbps);
-            return TWAI_TIMING_CONFIG_500KBITS();
-    }
-}
-
-twai_filter_config_t getFilterConfig() {
-    return TWAI_FILTER_CONFIG_ACCEPT_ALL();
-}
-
-esp_err_t installAndStartOnThisCore() {
-    const CfgDeviceConfig &dev = ConfigLoader::getDeviceConfig();
-
-    const int txPin = (dev.loaded && dev.twaiTxPin >= 0)
-                          ? dev.twaiTxPin
-                          : canshift::boards::runtimeBoardProfile().can.pin_tx;
-    const int rxPin = (dev.loaded && dev.twaiRxPin >= 0)
-                          ? dev.twaiRxPin
-                          : canshift::boards::runtimeBoardProfile().can.pin_rx;
-    const uint16_t speedKbps =
-        (dev.loaded && dev.canSpeedKbps > 0)
-            ? static_cast<uint16_t>(dev.canSpeedKbps)
-            : static_cast<uint16_t>(ConfigLoader::getSignalConfig().canSpeedKbps);
-
-    LOG_INFO("CAN", "Initializing TWAI driver...");
-    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", txPin, rxPin, speedKbps);
-
-    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
-        static_cast<gpio_num_t>(txPin), static_cast<gpio_num_t>(rxPin), TWAI_MODE_NORMAL);
-    g_config.rx_queue_len = kCanRxQueueDepth;
-    g_config.tx_queue_len = 5;
-
-    twai_timing_config_t t_config = getTimingConfig(speedKbps);
-    twai_filter_config_t f_config = getFilterConfig();
-
-    esp_err_t err = twai_driver_install(&g_config, &t_config, &f_config);
-    if (err != ESP_OK) {
-        LOG_ERROR("CAN", "TWAI driver install failed: %s", esp_err_to_name(err));
-        char msg[52];
-        snprintf(msg, sizeof(msg), "Init failed: %s", esp_err_to_name(err));
-        ErrorStore::push(ERROR_SRC_CAN, "INIT_FAIL", msg);
-        return err;
-    }
-
-    err = twai_start();
-    if (err != ESP_OK) {
-        LOG_ERROR("CAN", "TWAI start failed: %s", esp_err_to_name(err));
-        char msg[52];
-        snprintf(msg, sizeof(msg), "Start failed: %s", esp_err_to_name(err));
-        ErrorStore::push(ERROR_SRC_CAN, "START_FAIL", msg);
-        return err;
-    }
-
-    CanParser::loadSignalDefinitions();
-
-    Obd2Poller::init();
-
-    LOG_INFO("CAN", "TWAI driver started successfully");
-    return ESP_OK;
-}
-
-// Heap-allocated; the second side to flip handedOff owns freeing ctx and its semaphore.
-struct InitContext {
-    SemaphoreHandle_t done = nullptr;
-    esp_err_t result = ESP_FAIL;
-    std::atomic<bool> handedOff{false};
-};
-
-void freeInitContext(InitContext *ctx) {
-    vSemaphoreDelete(ctx->done);
-    delete ctx;
-}
-
-void twaiInitTaskFn(void *arg) {
-    auto *ctx = static_cast<InitContext *>(arg);
-    ctx->result = installAndStartOnThisCore();
-    LOG_INFO("CAN", "TWAI init task done on core %d (err=%s)", xPortGetCoreID(),
-             esp_err_to_name(ctx->result));
-    if (ctx->handedOff.exchange(true)) {
-        if (ctx->result == ESP_OK) {
-            s_twaiInstalled = true;
-        }
-        freeInitContext(ctx);
-    } else {
-        xSemaphoreGive(ctx->done);
-    }
-    vTaskDelete(NULL);
-}
-
-}
 
 bool CanManager::isAvailable() {
     return s_twaiInstalled;
@@ -167,56 +56,11 @@ uint32_t CanManager::busRateHz() {
 }
 
 void CanManager::reserveInitTaskStack() {
-    if (s_initTaskStack) {
-        return;
-    }
-    s_initTaskStack = static_cast<StackType_t *>(heap_caps_malloc(
-        kTwaiInitTaskStack * sizeof(StackType_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-    if (!s_initTaskStack) {
-        LOG_ERROR("CAN", "Failed to reserve twai_init task stack (%u B)",
-                  static_cast<unsigned>(kTwaiInitTaskStack * sizeof(StackType_t)));
-    }
+    CanDriverInstall::reserveTaskStack();
 }
 
 esp_err_t CanManager::initHardware() {
-    auto *ctx = new (std::nothrow) InitContext();
-    if (!ctx) {
-        LOG_ERROR("CAN", "Failed to allocate init context");
-        return ESP_ERR_NO_MEM;
-    }
-    ctx->done = xSemaphoreCreateBinary();
-    if (!ctx->done) {
-        delete ctx;
-        LOG_ERROR("CAN", "Failed to create init semaphore");
-        return ESP_ERR_NO_MEM;
-    }
-    TaskHandle_t handle = nullptr;
-    if (s_initTaskStack) {
-        handle =
-            xTaskCreateStaticPinnedToCore(twaiInitTaskFn, "twai_init", kTwaiInitTaskStack, ctx,
-                                          kTwaiInitTaskPrio, s_initTaskStack, &s_initTaskTCB, 0);
-    } else {
-        BaseType_t ok = xTaskCreatePinnedToCore(twaiInitTaskFn, "twai_init", kTwaiInitTaskStack,
-                                                ctx, kTwaiInitTaskPrio, &handle, 0);
-        if (ok != pdPASS) {
-            handle = nullptr;
-        }
-    }
-    if (!handle) {
-        freeInitContext(ctx);
-        LOG_ERROR("CAN", "Failed to spawn twai_init task");
-        return ESP_ERR_NO_MEM;
-    }
-    if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(kTwaiInitTimeoutMs)) != pdTRUE) {
-        if (!ctx->handedOff.exchange(true)) {
-            LOG_ERROR("CAN", "twai_init task timed out");
-            return ESP_ERR_TIMEOUT;
-        }
-        // Task finished during the timeout race — its give is imminent.
-        xSemaphoreTake(ctx->done, portMAX_DELAY);
-    }
-    const esp_err_t result = ctx->result;
-    freeInitContext(ctx);
+    const esp_err_t result = CanDriverInstall::installOnCore0(&s_twaiInstalled);
     if (result == ESP_OK) {
         s_twaiInstalled = true;
     }
@@ -258,6 +102,10 @@ static void routeFrame(const twai_message_t &message) {
     UsbComm::pushCanFrame(sf);
 }
 
+static void yieldCoreAfterHardRxError() {
+    vTaskDelay(pdMS_TO_TICKS(kTwaiRxErrorBackoffMs));
+}
+
 static void handleRxError(esp_err_t err) {
     s_errorCount++;
     const uint32_t nowMs = millis();
@@ -273,10 +121,7 @@ static void handleRxError(esp_err_t err) {
         ErrorStore::push(ERROR_SRC_CAN, "TWAI_ERR", msg);
         s_lastErrPushMs = nowMs;
     }
-
-    // Hard errors return immediately (no rx-timeout block) — without a
-    // backoff this priority-15 task starves core 0 during bus-off recovery.
-    vTaskDelay(pdMS_TO_TICKS(kTwaiRxErrorBackoffMs));
+    yieldCoreAfterHardRxError();
 }
 
 static void reportRxDrops(const twai_status_info_t &status) {
