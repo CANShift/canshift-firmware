@@ -27,8 +27,6 @@
     "src/hal/usb/usb_dispatch_files.cpp::UsbCommInternal::handlePutConfig": 31,
     "src/hal/usb/usb_dispatch_ota.cpp::UsbCommInternal::handleOtaWriteRaw": 38,
     "src/runtime/alert_engine.cpp::AlertEngine::tick": 32,
-    "src/runtime/ota_receiver.cpp::OtaReceiver::begin": 43,
-    "src/runtime/ota_receiver.cpp::OtaReceiver::commit": 52,
     "src/ui/page_manager_anim.cpp::PageManagerInternal::asyncDoLazyBuild": 39,
     "src/ui/page_manager_anim.cpp::PageManagerInternal::showPage": 39,
     "src/ui/page_manager_builder.cpp::PageManagerInternal::reapplyThemeAllPages": 31,
