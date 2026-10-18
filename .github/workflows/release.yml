@@ -409,7 +409,7 @@ jobs:
   manifest:
     name: Publish firmware + board manifest
     needs: [check-version, attach]
-    if: needs.check-version.outputs.should_release == 'true'
+    if: always() && needs.check-version.outputs.should_release == 'true' && needs.attach.result == 'success'
     permissions:
       contents: write
     runs-on: ubuntu-latest
