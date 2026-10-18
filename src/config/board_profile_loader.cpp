@@ -205,67 +205,73 @@ char s_boardName[kBoardNameCapacity];
 
 }
 
+namespace {
+
+struct ProfileSections {
+    JsonObjectConst lcd;
+    JsonObjectConst backlight;
+    JsonObjectConst touch;
+    JsonObjectConst can;
+    JsonObjectConst storage;
+    JsonObjectConst conn;
+};
+
+BoardProfileParse checkEnvelope(JsonObjectConst root) {
+    JsonVariantConst magic = root["magic"];
+    if (!magic.is<const char *>() || strcmp(magic.as<const char *>(), kBoardBlobMagic) != 0)
+        return BoardProfileParse::WrongMagic;
+    JsonVariantConst version = root["formatVersion"];
+    if (!version.is<uint32_t>())
+        return BoardProfileParse::WrongShape;
+    const uint32_t fmt = version.as<uint32_t>();
+    if (fmt > kBoardBlobFormatVersion)
+        return BoardProfileParse::UnsupportedVersion;
+    if (fmt != kBoardBlobFormatVersion)
+        return BoardProfileParse::WrongShape;
+    return BoardProfileParse::Ok;
+}
+
+bool parseIdentity(JsonObjectConst p, BoardProfile &out, char *idBuf, size_t idCap, char *nameBuf,
+                   size_t nameCap) {
+    if (!readString(p["board_id"], idBuf, idCap) || !readString(p["board_name"], nameBuf, nameCap))
+        return false;
+    out.board_id = idBuf;
+    out.board_name = nameBuf;
+    FieldReader r{p};
+    r.enumField("chip_family", kChipFamilies, out.chip_family);
+    return r.ok;
+}
+
+bool findSections(JsonObjectConst p, ProfileSections &s) {
+    return subObject(p, "lcd", s.lcd) && subObject(p, "backlight", s.backlight) &&
+           subObject(p, "touch", s.touch) && subObject(p, "can", s.can) &&
+           subObject(p, "storage", s.storage) && subObject(p, "conn", s.conn);
+}
+
+bool parseSections(const ProfileSections &s, BoardProfile &out) {
+    return parseLcd(s.lcd, out.lcd) && parseBacklight(s.backlight, out.backlight) &&
+           parseTouch(s.touch, out.touch) && parseCan(s.can, out.can) &&
+           parseStorage(s.storage, out.storage) && parseConn(s.conn, out.conn);
+}
+
+}
+
 BoardProfileParse parseBoardProfileBlob(const char *json, size_t len, BoardProfile &out,
                                         char *idBuf, size_t idCap, char *nameBuf, size_t nameCap) {
     JsonDocument doc;
-    if (deserializeJson(doc, json, len)) {
+    if (deserializeJson(doc, json, len))
         return BoardProfileParse::InvalidJson;
-    }
-    if (!doc.is<JsonObjectConst>()) {
+    if (!doc.is<JsonObjectConst>())
         return BoardProfileParse::NotAnObject;
-    }
     JsonObjectConst root = doc.as<JsonObjectConst>();
-
-    JsonVariantConst magic = root["magic"];
-    if (!magic.is<const char *>() || strcmp(magic.as<const char *>(), kBoardBlobMagic) != 0) {
-        return BoardProfileParse::WrongMagic;
-    }
-
-    JsonVariantConst version = root["formatVersion"];
-    if (!version.is<uint32_t>()) {
-        return BoardProfileParse::WrongShape;
-    }
-    const uint32_t fmt = version.as<uint32_t>();
-    if (fmt > kBoardBlobFormatVersion) {
-        return BoardProfileParse::UnsupportedVersion;
-    }
-    if (fmt != kBoardBlobFormatVersion) {
-        return BoardProfileParse::WrongShape;
-    }
-
+    const BoardProfileParse envelope = checkEnvelope(root);
+    if (envelope != BoardProfileParse::Ok)
+        return envelope;
     JsonObjectConst p;
-    if (!subObject(root, "profile", p)) {
+    ProfileSections sections;
+    if (!subObject(root, "profile", p) || !parseIdentity(p, out, idBuf, idCap, nameBuf, nameCap) ||
+        !findSections(p, sections) || !parseSections(sections, out))
         return BoardProfileParse::WrongShape;
-    }
-
-    if (!readString(p["board_id"], idBuf, idCap) ||
-        !readString(p["board_name"], nameBuf, nameCap)) {
-        return BoardProfileParse::WrongShape;
-    }
-    out.board_id = idBuf;
-    out.board_name = nameBuf;
-
-    {
-        FieldReader r{p};
-        r.enumField("chip_family", kChipFamilies, out.chip_family);
-        if (!r.ok) {
-            return BoardProfileParse::WrongShape;
-        }
-    }
-
-    JsonObjectConst lcd, backlight, touch, can, storage, conn;
-    if (!subObject(p, "lcd", lcd) || !subObject(p, "backlight", backlight) ||
-        !subObject(p, "touch", touch) || !subObject(p, "can", can) ||
-        !subObject(p, "storage", storage) || !subObject(p, "conn", conn)) {
-        return BoardProfileParse::WrongShape;
-    }
-
-    if (!parseLcd(lcd, out.lcd) || !parseBacklight(backlight, out.backlight) ||
-        !parseTouch(touch, out.touch) || !parseCan(can, out.can) ||
-        !parseStorage(storage, out.storage) || !parseConn(conn, out.conn)) {
-        return BoardProfileParse::WrongShape;
-    }
-
     return BoardProfileParse::Ok;
 }
 
