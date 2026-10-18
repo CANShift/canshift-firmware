@@ -35,6 +35,12 @@ struct TimerTag {
 };
 
 constexpr uint32_t kLongPressMs = 600;
+constexpr int kSmallTimeFontPx = 17;
+constexpr int kMediumTimeFontPx = 22;
+constexpr int kLargeTimeFontPx = 40;
+constexpr int kMediumTimeMinH = 28;
+constexpr int kLargeTimeMinH = 55;
+constexpr int kLargeTimeMinW = 150;
 constexpr uint32_t kBlinkPeriodMs = 1000;
 
 constexpr uint32_t kRunningBorderRgb = WidgetHelpers::kAccentRgb;
@@ -87,80 +93,73 @@ void applyStateStyle(TimerTag *t, TimerService::State state) {
     }
 }
 
+using TimerCommand = bool (*)();
+
+bool noTimerCommand() {
+    return true;
+}
+
+constexpr TimerCommand kTapCommands[] = {TimerService::start, TimerService::lap,
+                                         TimerService::resume};
+constexpr TimerCommand kLongPressCommands[] = {noTimerCommand, TimerService::pause,
+                                               TimerService::reset};
+
+void runForState(const TimerCommand (&commands)[3], const char *gesture) {
+    const TimerService::State state = TimerService::getState();
+    if (!commands[static_cast<uint8_t>(state)]())
+        LOG_DEBUG("TMR", "%s rejected in state %u", gesture, static_cast<unsigned>(state));
+}
+
+void onTimerPressing(TimerTag *t) {
+    if (t->longPressFired || millis() - t->pressStartMs < kLongPressMs)
+        return;
+    t->longPressFired = true;
+    runForState(kLongPressCommands, "long press");
+}
+
 void onTimerTouch(lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     auto *t = static_cast<TimerTag *>(lv_event_get_user_data(e));
     if (!t)
         return;
-
     if (code == LV_EVENT_PRESSED) {
         t->pressStartMs = millis();
         t->longPressFired = false;
         return;
     }
-
     if (code == LV_EVENT_PRESSING) {
-        if (!t->longPressFired && (millis() - t->pressStartMs) >= kLongPressMs) {
-            t->longPressFired = true;
-            switch (TimerService::getState()) {
-                case TimerService::State::Running:
-                    (void)TimerService::pause();
-                    break;
-                case TimerService::State::Paused:
-                    (void)TimerService::reset();
-                    break;
-                case TimerService::State::Reset:
-                    break;
-            }
-        }
+        onTimerPressing(t);
         return;
     }
-
-    if (code == LV_EVENT_RELEASED) {
-        if (t->longPressFired)
-            return;
-        switch (TimerService::getState()) {
-            case TimerService::State::Reset:
-                (void)TimerService::start();
-                break;
-            case TimerService::State::Running:
-                (void)TimerService::lap();
-                break;
-            case TimerService::State::Paused:
-                (void)TimerService::resume();
-                break;
-        }
-    }
+    if (code == LV_EVENT_RELEASED && !t->longPressFired)
+        runForState(kTapCommands, "tap");
 }
 
+const lv_font_t *timeFontFor(const CfgWidget &cfg) {
+    if (cfg.timer.big > 0)
+        return FontManager::value(WidgetHelpers::deviceFontPxForBig(cfg.timer.big));
+    const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
+    if (box.h >= kLargeTimeMinH && box.w >= kLargeTimeMinW)
+        return FontManager::value(kLargeTimeFontPx);
+    if (box.h >= kMediumTimeMinH)
+        return FontManager::value(kMediumTimeFontPx);
+    return FontManager::value(kSmallTimeFontPx);
 }
 
-lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
-    lv_obj_t *cont = lv_obj_create(parent);
-    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
-                                 cfg.style.borderColor.rgb);
+const char *zeroTimeText(const CfgWidget &cfg) {
+    return cfg.timer.formatMsec ? "00.000" : "00:00";
+}
 
-    lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
-
-    const uint32_t textRgb =
-        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+lv_obj_t *makeTimeLabel(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb) {
     lv_obj_t *label = lv_label_create(cont);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
+    lv_obj_set_style_text_font(label, timeFontFor(cfg), 0);
+    lv_label_set_text(label, zeroTimeText(cfg));
+    return label;
+}
 
-    const lv_font_t *font = FontManager::value(17);
-    if (cfg.timer.big > 0) {
-        font = FontManager::value(WidgetHelpers::deviceFontPxForBig(cfg.timer.big));
-    } else {
-        const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
-        if (box.h >= 28)
-            font = FontManager::value(22);
-        if (box.h >= 55 && box.w >= 150)
-            font = FontManager::value(40);
-    }
-    lv_obj_set_style_text_font(label, font, 0);
-    lv_label_set_text(label, cfg.timer.formatMsec ? "00.000" : "00:00");
-
+lv_obj_t *makeLapBadge(lv_obj_t *cont, uint32_t textRgb) {
     lv_obj_t *lapLabel = lv_label_create(cont);
     lv_obj_align(lapLabel, LV_ALIGN_TOP_RIGHT, -LayoutScale::x(kLapBadgeInsetPx),
                  LayoutScale::y(kLapBadgeInsetPx));
@@ -169,14 +168,13 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     lv_obj_set_style_text_opa(lapLabel, kLapBadgeOpa, 0);
     lv_label_set_text(lapLabel, "");
     lv_obj_add_flag(lapLabel, LV_OBJ_FLAG_HIDDEN);
+    return lapLabel;
+}
 
-    WidgetTagPool::Slot<TimerTag> tagSlot;
-    TimerTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "TMR", cont);
-    if (!tag)
-        return nullptr;
+void initTimerTag(TimerTag *tag, const CfgWidget &cfg, lv_obj_t *cont, uint32_t textRgb) {
     tag->cont = cont;
-    tag->timeLabel = label;
-    tag->lapLabel = lapLabel;
+    tag->timeLabel = makeTimeLabel(cont, cfg, textRgb);
+    tag->lapLabel = makeLapBadge(cont, textRgb);
     tag->formatMsec = cfg.timer.formatMsec;
     tag->source = cfg.timer.source;
     tag->pressStartMs = 0;
@@ -184,27 +182,38 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
     tag->lastState = TimerService::State::Reset;
     tag->lastLapCount = 0;
     tag->textRgb = textRgb;
+    strlcpy(tag->lastText, zeroTimeText(cfg), sizeof(tag->lastText));
+}
 
-    strlcpy(tag->lastText, cfg.timer.formatMsec ? "00.000" : "00:00", sizeof(tag->lastText));
+void attachTimerTouch(lv_obj_t *cont, TimerTag *tag) {
+    lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
+    lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
+    lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
+}
 
+}
+
+lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    lv_obj_t *cont = lv_obj_create(parent);
+    WidgetHelpers::initContainer(cont, cfg, yOffset, cfg.style.hasBorder,
+                                 cfg.style.borderColor.rgb);
+    lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
+    WidgetTagPool::Slot<TimerTag> tagSlot;
+    TimerTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "TMR", cont);
+    if (!tag)
+        return nullptr;
+    const uint32_t textRgb =
+        ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
+    initTimerTag(tag, cfg, cont, textRgb);
     applyStateStyle(tag, TimerService::State::Reset);
-
-    if (cfg.timer.autoStart) {
-        (void)TimerService::start();
-    }
-
+    if (cfg.timer.autoStart && !TimerService::start())
+        LOG_DEBUG("TMR", "auto-start rejected for '%s'", cfg.id);
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
-
-    if (TimerSources::isInteractive(cfg.timer.source)) {
-        lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
-        lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
-        lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
-    }
-
+    if (TimerSources::isInteractive(cfg.timer.source))
+        attachTimerTouch(cont, tag);
     WidgetLabelOverlay::applySignalHeader(cont, TimerSources::kicker(cfg.timer.source));
-
     return cont;
 }
 

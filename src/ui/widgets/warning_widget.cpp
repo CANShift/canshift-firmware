@@ -15,6 +15,9 @@ namespace {
 
 constexpr uint32_t kBlinkPeriodMs = 1000;
 constexpr lv_opa_t kIdleBgOpa = 0x18;
+constexpr int16_t kRootPadPx = 2;
+constexpr int16_t kSignalLabelMinH = 28;
+constexpr int kSignalLabelFontPx = 10;
 
 enum class WarnState : uint8_t { IDLE, ALARM, STALE };
 
@@ -86,9 +89,7 @@ void enterState(WarningTag *tag, WarnState next) {
     tag->state = next;
 }
 
-}
-
-lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+lv_obj_t *makeWarningRoot(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
     lv_obj_t *root = lv_obj_create(parent);
     const int16_t px = ScreenProfile::scaleXVal(cfg.layout.x);
     const int16_t py = static_cast<int16_t>(ScreenProfile::scaleYVal(cfg.layout.y) + yOffset);
@@ -97,37 +98,52 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
                     ScreenProfile::scaleYVal(cfg.layout.h));
     WidgetHelpers::disableInteract(root);
     lv_obj_set_style_bg_color(root, lv_color_hex(cfg.style.criticalColor.rgb), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(root, 0x18, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(root, kIdleBgOpa, LV_PART_MAIN);
     lv_obj_set_style_border_width(root, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(root, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(root, 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(root, kRootPadPx, LV_PART_MAIN);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(root, 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(root, kRootPadPx, LV_PART_MAIN);
+    return root;
+}
 
+uint32_t dimmedLabelRgb(uint32_t critRgb) {
+    return ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
+}
+
+lv_obj_t *makeWarningIcon(lv_obj_t *root, const char *iconName, uint32_t critRgb) {
+    const void *iconSrc = IconAssets::resolveSource(iconName);
+    if (iconSrc == nullptr)
+        return nullptr;
+    lv_obj_t *iconImg = lv_img_create(root);
+    lv_img_set_src(iconImg, iconSrc);
+    lv_obj_set_style_img_recolor(iconImg, lv_color_hex(critRgb), 0);
+    lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
+    return iconImg;
+}
+
+lv_obj_t *makeSignalLabel(lv_obj_t *root, const CfgWidget &cfg, uint32_t labelRgb) {
+    if (WidgetHelpers::scaledBox(cfg).h < kSignalLabelMinH)
+        return nullptr;
+    char labelBuf[kCfgMaxSignalLen + 4];
+    WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
+    lv_obj_t *signalLabel = lv_label_create(root);
+    lv_label_set_text(signalLabel, labelBuf);
+    lv_obj_set_style_text_font(signalLabel, FontManager::label(kSignalLabelFontPx), 0);
+    lv_obj_set_style_text_color(signalLabel, lv_color_hex(labelRgb), 0);
+    lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
+    return signalLabel;
+}
+
+}
+
+lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yOffset) {
+    lv_obj_t *root = makeWarningRoot(parent, cfg, yOffset);
     const uint32_t critRgb = cfg.style.criticalColor.rgb;
-
-    lv_obj_t *iconImg = nullptr;
-    const void *iconSrc = IconAssets::resolveSource(cfg.warning.iconName);
-    if (iconSrc != nullptr) {
-        iconImg = lv_img_create(root);
-        lv_img_set_src(iconImg, iconSrc);
-        lv_obj_set_style_img_recolor(iconImg, lv_color_hex(critRgb), 0);
-        lv_obj_set_style_img_recolor_opa(iconImg, LV_OPA_COVER, 0);
-    }
-
-    lv_obj_t *signalLabel = nullptr;
-    const uint32_t labelRgb = ((critRgb >> 1) & 0x7F7F7F) | 0x404040;
-    if (WidgetHelpers::scaledBox(cfg).h >= 28) {
-        char labelBuf[kCfgMaxSignalLen + 4];
-        WidgetHelpers::formatSignalLabel(cfg.signalId, labelBuf, sizeof(labelBuf));
-        signalLabel = lv_label_create(root);
-        lv_label_set_text(signalLabel, labelBuf);
-        lv_obj_set_style_text_font(signalLabel, FontManager::label(10), 0);
-        lv_obj_set_style_text_color(signalLabel, lv_color_hex(labelRgb), 0);
-        lv_obj_set_style_text_letter_space(signalLabel, 1, 0);
-    }
-
+    const uint32_t labelRgb = dimmedLabelRgb(critRgb);
+    lv_obj_t *iconImg = makeWarningIcon(root, cfg.warning.iconName, critRgb);
+    lv_obj_t *signalLabel = makeSignalLabel(root, cfg, labelRgb);
     WidgetTagPool::Slot<WarningTag> tagSlot;
     WarningTag *tag = WidgetHelpers::acquireTag(tagSlot, cfg.id, "WARN", root);
     if (!tag)
@@ -140,7 +156,6 @@ lv_obj_t *WarningWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t 
     tag->labelRgb = labelRgb;
     lv_obj_set_user_data(root, tag);
     WidgetHelpers::attachTagDeleter(root, tagSlot.commit());
-
     LOG_DEBUG("WARN", "Created warning '%s' icon='%s' (%s)", cfg.id, cfg.warning.iconName,
               iconImg ? "asset" : "none");
     return root;
