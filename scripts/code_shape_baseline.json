@@ -15,7 +15,6 @@
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::cruiseLDrawCb": 38,
     "src/ui/widgets/cruise_control_widget.cpp::CruiseControlWidget::makeCruiseButton": 34,
     "src/ui/widgets/gear_widget.cpp::GearWidget::update": 31,
-    "src/ui/widgets/shift_light_widget.cpp::ShiftLightWidget::create": 40,
     "test/test_format_float/test_main.cpp::main": 31
   },
   "nesting": {
