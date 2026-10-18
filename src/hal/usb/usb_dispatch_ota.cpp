@@ -136,6 +136,39 @@ void handleOtaBegin(const JsonObjectConst &obj) {
     UsbComm::sendOk();
 }
 
+namespace {
+
+size_t decodeChunkInPlace(char *jsonLine, const char *b64, size_t b64Len) {
+    configASSERT(b64 > jsonLine);
+    const size_t decodeCap = static_cast<size_t>(b64 + b64Len - jsonLine);
+    size_t decoded = 0;
+    const int rc =
+        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(jsonLine), decodeCap, &decoded,
+                              reinterpret_cast<const unsigned char *>(b64), b64Len);
+    return rc == 0 ? decoded : 0;
+}
+
+void replyChunkRefused(const OtaReceiver::WriteResult &result) {
+    char resp[96];
+    snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\",\"written\":%u}",
+             result.error != nullptr ? result.error : "write_failed",
+             static_cast<unsigned>(result.writtenTotal));
+    UsbComm::sendLine(resp);
+    PendingActions::requestOtaOverlayFailed(static_cast<int8_t>(OtaOverlay::FailReason::Write),
+                                            static_cast<uint32_t>(result.writtenTotal));
+}
+
+void replyChunkAccepted(const OtaReceiver::WriteResult &result) {
+    s_sessionActivityMs = millis();
+    OtaOverlay::setProgress(result.writtenTotal);
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"written\":%u}",
+             static_cast<unsigned>(result.writtenTotal));
+    UsbComm::sendLine(resp);
+}
+
+}
+
 void handleOtaWriteRaw(char *jsonLine) {
     uint32_t offset = 0;
     const char *b64 = nullptr;
@@ -144,13 +177,8 @@ void handleOtaWriteRaw(char *jsonLine) {
         UsbComm::sendError("bad_args");
         return;
     }
-    configASSERT(b64 > jsonLine);
-    const size_t decodeCap = static_cast<size_t>(b64 + b64Len - jsonLine);
-    size_t decoded = 0;
-    const int rc =
-        mbedtls_base64_decode(reinterpret_cast<unsigned char *>(jsonLine), decodeCap, &decoded,
-                              reinterpret_cast<const unsigned char *>(b64), b64Len);
-    if (rc != 0 || decoded == 0) {
+    const size_t decoded = decodeChunkInPlace(jsonLine, b64, b64Len);
+    if (decoded == 0) {
         UsbComm::sendError("b64_decode");
         OtaReceiver::abort("b64_decode");
         return;
@@ -158,21 +186,10 @@ void handleOtaWriteRaw(char *jsonLine) {
     const OtaReceiver::WriteResult result =
         OtaReceiver::writeChunk(offset, reinterpret_cast<const uint8_t *>(jsonLine), decoded);
     if (!result.ok) {
-        char resp[96];
-        snprintf(resp, sizeof(resp), "{\"status\":\"error\",\"message\":\"%s\",\"written\":%u}",
-                 result.error != nullptr ? result.error : "write_failed",
-                 static_cast<unsigned>(result.writtenTotal));
-        UsbComm::sendLine(resp);
-        PendingActions::requestOtaOverlayFailed(static_cast<int8_t>(OtaOverlay::FailReason::Write),
-                                                static_cast<uint32_t>(result.writtenTotal));
+        replyChunkRefused(result);
         return;
     }
-    s_sessionActivityMs = millis();
-    OtaOverlay::setProgress(result.writtenTotal);
-    char resp[64];
-    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"written\":%u}",
-             static_cast<unsigned>(result.writtenTotal));
-    UsbComm::sendLine(resp);
+    replyChunkAccepted(result);
 }
 
 void handleOtaEnd(const JsonObjectConst &obj) {

@@ -153,6 +153,27 @@ void handlePutFile(const JsonObjectConst &obj, const DecodeScratch &scratch) {
     UsbComm::sendOk();
 }
 
+namespace {
+
+bool burnDashboard(const char *payload, size_t len) {
+    LvglLock lock(pdMS_TO_TICKS(kUsbPutConfigMutexTimeoutMs));
+    if (!lock.held()) {
+        LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
+        UsbCommInternal::invokeBurnOverlayShowError(0);
+        UsbComm::sendError("busy");
+        return false;
+    }
+    if (StorageDriver::writeFileAtomic(kConfigPathDashboard,
+                                       reinterpret_cast<const uint8_t *>(payload), len))
+        return true;
+    UsbCommInternal::invokeBurnOverlayShowError(0);
+    LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
+    UsbComm::sendError("write_failed");
+    return false;
+}
+
+}
+
 void handlePutConfig(const char *jsonLine) {
 #ifdef ARDUINO
     HeapStats::logHeapBracket("PUT_CONFIG");
@@ -170,22 +191,8 @@ void handlePutConfig(const char *jsonLine) {
     UsbCommInternal::invokeBurnOverlayShow();
     vTaskDelay(pdMS_TO_TICKS(kBurnOverlayRenderGraceMs));
 
-    LvglLock lock(pdMS_TO_TICKS(kUsbPutConfigMutexTimeoutMs));
-    if (!lock.held()) {
-        LOG_WARN("USB", "PUT_CONFIG: LVGL mutex busy — aborting write");
-        UsbCommInternal::invokeBurnOverlayShowError(0);
-        UsbComm::sendError("busy");
+    if (!burnDashboard(payloadStart, written))
         return;
-    }
-
-    bool ok = StorageDriver::writeFileAtomic(
-        kConfigPathDashboard, reinterpret_cast<const uint8_t *>(payloadStart), written);
-    if (!ok) {
-        UsbCommInternal::invokeBurnOverlayShowError(0);
-        LOG_ERROR("USB", "PUT_CONFIG: storage write failed");
-        UsbComm::sendError("write_failed");
-        return;
-    }
 
     LOG_INFO("USB", "PUT_CONFIG: dashboard.json updated (%u bytes) — reloading live", written);
     PendingActions::requestConfigReload();
