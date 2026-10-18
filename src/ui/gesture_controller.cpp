@@ -157,6 +157,23 @@ void trackPress(lv_indev_t *indev, lv_indev_state_t state) {
     cancelClickIfSwiping(indev);
 }
 
+void warnNoIndevOnce() {
+    static bool s_warned = false;
+    if (s_warned)
+        return;
+    LOG_ERROR("UI", "checkGestures: no indev registered!");
+    s_warned = true;
+}
+
+lv_indev_t *firstPointerIndev() {
+    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr;
+         indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER)
+            return indev;
+    }
+    return nullptr;
+}
+
 }
 
 void setSwipeHandler(SwipeHandler handler) {
@@ -165,38 +182,25 @@ void setSwipeHandler(SwipeHandler handler) {
 
 void checkGestures() {
     static lv_dir_t lastDir = LV_DIR_NONE;
-
-    lv_indev_t *indev = lv_indev_get_next(nullptr);
-
-    if (indev == nullptr) {
-        static bool s_warned = false;
-        if (!s_warned) {
-            LOG_ERROR("UI", "checkGestures: no indev registered!");
-            s_warned = true;
-        }
+    if (lv_indev_get_next(nullptr) == nullptr) {
+        warnNoIndevOnce();
         return;
     }
-
-    while (indev != nullptr) {
-        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            const lv_indev_state_t state = indev->proc.state;
-
-            SettingsDrag::update(indev, state);
-            trackPress(indev, state);
-
-            if (state == LV_INDEV_STATE_RELEASED) {
-                lastDir = LV_DIR_NONE;
-            } else {
-                lv_dir_t dir = lv_indev_get_gesture_dir(indev);
-                if (dir != LV_DIR_NONE && dir != lastDir) {
-                    onGesture(dir);
-                    lastDir = dir;
-                }
-            }
-            break;
-        }
-        indev = lv_indev_get_next(indev);
+    lv_indev_t *indev = firstPointerIndev();
+    if (indev == nullptr)
+        return;
+    const lv_indev_state_t state = indev->proc.state;
+    SettingsDrag::update(indev, state);
+    trackPress(indev, state);
+    if (state == LV_INDEV_STATE_RELEASED) {
+        lastDir = LV_DIR_NONE;
+        return;
     }
+    const lv_dir_t dir = lv_indev_get_gesture_dir(indev);
+    if (dir == LV_DIR_NONE || dir == lastDir)
+        return;
+    onGesture(dir);
+    lastDir = dir;
 }
 
 }

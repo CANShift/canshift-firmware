@@ -11,11 +11,18 @@
 #include <esp_partition.h>
 #include <sys/stat.h>
 
+#include <algorithm>
+
 namespace {
+
 StorageDriver::InitStatus s_initStatus = StorageDriver::InitStatus::NotInitialized;
 
 constexpr const char *kSpiffsMount = "/spiffs";
 constexpr size_t kSpiffsMountLen = 7;
+
+bool isNewline(uint8_t c) {
+    return c == '\n' || c == '\r';
+}
 }
 
 static constexpr size_t kAtomicSuffixLen = 4;
@@ -162,12 +169,8 @@ size_t StorageDriver::streamFileTo(const char *path, Print &out, bool replaceNew
         const int n = file.read(buf, sizeof(buf));
         if (n <= 0)
             break;
-        if (replaceNewlinesWithSpaces) {
-            for (int i = 0; i < n; ++i) {
-                if (buf[i] == '\n' || buf[i] == '\r')
-                    buf[i] = ' ';
-            }
-        }
+        if (replaceNewlinesWithSpaces)
+            std::replace_if(buf, buf + n, isNewline, ' ');
         out.write(buf, static_cast<size_t>(n));
         total += static_cast<size_t>(n);
     }
