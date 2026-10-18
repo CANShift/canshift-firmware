@@ -158,13 +158,6 @@ uint32_t TimerService::getElapsedMs() {
     return timer_core_elapsed_ms_rs(&g_state.core, esp_timer_get_time());
 }
 
-uint8_t TimerService::pendingLapCount() {
-    LockGuard lk(g_state.mutex);
-    if (!lk.held())
-        return 0;
-    return timer_core_pending_count_rs(&g_state.core);
-}
-
 bool TimerService::popPendingLap(Lap &out) {
     LockGuard lk(g_state.mutex);
     if (!lk.held())

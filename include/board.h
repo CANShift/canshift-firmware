@@ -24,8 +24,6 @@ inline constexpr const BoardProfile &kActiveBoard = kWaveshareS328;
 
 }
 
-inline constexpr const canshift::boards::BoardProfile &kBoard = canshift::boards::kActiveBoard;
-
 namespace canshift {
 namespace display {
 

@@ -78,11 +78,6 @@ void emitFrame(const Snapshot &s) {
 
 }
 
-Snapshot sampleNow() {
-    s_latest = sampleInternal();
-    return s_latest;
-}
-
 const Snapshot &latest() {
     return s_latest;
 }
@@ -95,13 +90,6 @@ void tick() {
     s_warmedUp = true;
     s_latest = sampleInternal();
     s_lastEmitMs = now;
-    emitFrame(s_latest);
-}
-
-void emitNow() {
-    s_latest = sampleInternal();
-    s_lastEmitMs = millis();
-    s_warmedUp = true;
     emitFrame(s_latest);
 }
 

@@ -26,7 +26,6 @@ struct ScaledBox {
 constexpr uint32_t kZoneDangerRgb = ThemeTokens::kDanger;
 constexpr uint32_t kAccentRgb = ThemeTokens::kEngaged;
 constexpr uint32_t kMutedRgb = ThemeTokens::kDimNight;
-constexpr uint32_t kTrackRgb = ThemeTokens::kTrackNight;
 
 constexpr uint8_t kRulePrimaryFontMin = 32;
 

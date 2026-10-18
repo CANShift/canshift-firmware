@@ -102,10 +102,6 @@ State state() {
     return s_state;
 }
 
-size_t expectedSize() {
-    return s_expectedSize;
-}
-
 size_t writtenSize() {
     return s_writtenSize;
 }

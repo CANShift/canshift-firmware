@@ -114,12 +114,6 @@ void parseColor(const char *hex, CfgColor *out) {
     out->rgb = static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
 }
 
-uint32_t parseHexColorValue(const char *hex) {
-    if (!hex || hex[0] != '#')
-        return 0u;
-    return static_cast<uint32_t>(strtoul(hex + 1, nullptr, 16));
-}
-
 bool decodeHexBytes(const char *hex, uint8_t *out, uint8_t maxLen, uint8_t *outLen) {
     if (!hex || !out || !outLen)
         return false;

@@ -13,13 +13,9 @@ struct Snapshot {
     bool hasPsram;
 };
 
-Snapshot sampleNow();
-
 const Snapshot &latest();
 
 void tick();
-
-void emitNow();
 
 void logHeapBracket(const char *tag);
 

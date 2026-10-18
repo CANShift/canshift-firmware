@@ -31,8 +31,6 @@ struct CommitResult {
 
 [[nodiscard]] State state();
 
-[[nodiscard]] size_t expectedSize();
-
 [[nodiscard]] size_t writtenSize();
 
 BeginResult begin(size_t totalSize, const uint8_t expectedSha256[32], const uint8_t *signature);
