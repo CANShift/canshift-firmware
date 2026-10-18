@@ -83,9 +83,9 @@ pushes `RX_DROPPED` to the error store.
 
 ## The serial sink
 
-`serialSink()` (`usb_reply_route.cpp`) writes to UART0: it takes
-`Logger::lockUart` with a 50 ms timeout, writes the bytes, appends a newline
-if the payload lacks one, then releases the lock. `UsbComm::sendLine()` hands
+`serialSink()` (`usb_reply_route.cpp`) writes to UART0: it holds a
+`Logger::UartLock` (RAII, `kUsbTxLockTimeoutMs`) while it writes the bytes and appends
+a newline if the payload lacks one. `UsbComm::sendLine()` hands
 every line to `routeLine()`.
 
 Without workshop mode, `routeLine()` is the serial sink and nothing else. With
@@ -103,7 +103,7 @@ file under the UART lock without buffering it, which keeps a no-PSRAM board
 out of a 28 KB allocation. For the socket it reads the file into one
 PSRAM-preferred buffer and sends it as a single frame.
 
-On a `Logger::lockUart` timeout the line is dropped rather than interleaved
+On a `Logger::UartLock` timeout the line is dropped rather than interleaved
 with a log line.
 
 ## RX buffer reservation

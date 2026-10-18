@@ -1,7 +1,3 @@
-
-// Relative include bypasses the test/native/shim/diag/logger.h no-op shim
-// that other native tests rely on — this one is specifically exercising the
-// production Logger.
 #include "../../src/diag/logger.h"
 
 #include <Arduino.h>
@@ -12,8 +8,14 @@
 
 namespace {
 
+constexpr TickType_t kLockTimeout = pdMS_TO_TICKS(50);
+
 bool jsonLineContains(const char *substr) {
     return strstr(canshift_test::serialCaptureBuffer(), substr) != nullptr;
+}
+
+int32_t mutexDepth() {
+    return canshift_test::recursiveMutexDepth();
 }
 
 }
@@ -22,73 +24,64 @@ void setUp() {
     canshift_test::serialCaptureReset();
     canshift_test::recursiveMutexDepth() = 0;
     Logger::init();
-    // init() takes no depth, but a stale depth from a prior failing test
-    // would mask a regression, so reset explicitly above.
 }
 
 void tearDown() {
-    // Every test must leave the mutex unlocked. If a test forgets, this
-    // catches the leak before the next test inherits the depth and silently
-    // passes.
-    TEST_ASSERT_EQUAL_INT32_MESSAGE(0, canshift_test::recursiveMutexDepth(),
-                                    "Logger mutex left held across test boundary");
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(0, mutexDepth(), "Logger mutex left held across test boundary");
 }
 
-// Baseline: a plain LOG_* emits one JSON-line envelope on the serial mock and
-// leaves the mutex unlocked. Anchors the rest of the suite — if this fails,
-// the recursive-mutex test result is meaningless.
 void test_log_error_emits_envelope() {
     Logger::emit('E', "TST", "baseline %d", 1);
     TEST_ASSERT_TRUE(jsonLineContains("\"lvl\":\"E\""));
     TEST_ASSERT_TRUE(jsonLineContains("\"tag\":\"TST\""));
     TEST_ASSERT_TRUE(jsonLineContains("\"msg\":\"baseline 1\""));
-    TEST_ASSERT_EQUAL_INT32(0, canshift_test::recursiveMutexDepth());
+    TEST_ASSERT_EQUAL_INT32(0, mutexDepth());
 }
 
-// The contract under test: a task holding Logger::lockUart() can issue a
-// nested LOG_ERROR without deadlocking. The recursive mutex must reach depth
-// 2 during emit() and return to depth 1 after, with the outer caller still
-// holding its lock. Mirrors the assert-handler scenario from F-HI-6.
 void test_reentrant_emit_under_held_lock() {
-    TEST_ASSERT_TRUE(Logger::lockUart(pdMS_TO_TICKS(50)));
-    TEST_ASSERT_EQUAL_INT32_MESSAGE(1, canshift_test::recursiveMutexDepth(),
-                                    "lockUart should bring depth to 1");
-
-    // Nested LOG_ERROR — must succeed (depth 1 -> 2 -> 1) and emit the line.
-    Logger::emit('E', "REE", "nested under held lock");
-
-    TEST_ASSERT_EQUAL_INT32_MESSAGE(
-        1, canshift_test::recursiveMutexDepth(),
-        "After nested emit returns, the outer lockUart hold must still be 1");
-    TEST_ASSERT_TRUE_MESSAGE(jsonLineContains("\"msg\":\"nested under held lock\""),
-                             "Nested LOG_ERROR was silently dropped — recursive contract broken");
-
-    Logger::unlockUart();
-    TEST_ASSERT_EQUAL_INT32_MESSAGE(0, canshift_test::recursiveMutexDepth(),
-                                    "unlockUart should bring depth back to 0");
+    {
+        const Logger::UartLock lock(kLockTimeout);
+        TEST_ASSERT_TRUE(lock.held());
+        TEST_ASSERT_EQUAL_INT32_MESSAGE(1, mutexDepth(), "the lock should bring depth to 1");
+        Logger::emit('E', "REE", "nested under held lock");
+        TEST_ASSERT_EQUAL_INT32_MESSAGE(1, mutexDepth(),
+                                        "after a nested emit the outer hold must still be 1");
+        TEST_ASSERT_TRUE_MESSAGE(jsonLineContains("\"msg\":\"nested under held lock\""),
+                                 "a nested LOG_ERROR was dropped");
+    }
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(0, mutexDepth(), "leaving the scope should release the lock");
 }
 
-// Deep nesting: lock + emit + emit should still balance. Catches a regression
-// where emit() forgets to Give on one path (e.g. the early-return on dropped
-// lines after a refactor).
 void test_two_nested_emits_under_held_lock() {
-    TEST_ASSERT_TRUE(Logger::lockUart(pdMS_TO_TICKS(50)));
-    Logger::emit('W', "REE", "one");
-    Logger::emit('I', "REE", "two");
-    TEST_ASSERT_EQUAL_INT32(1, canshift_test::recursiveMutexDepth());
-    Logger::unlockUart();
-    TEST_ASSERT_EQUAL_INT32(0, canshift_test::recursiveMutexDepth());
+    {
+        const Logger::UartLock lock(kLockTimeout);
+        Logger::emit('W', "REE", "one");
+        Logger::emit('I', "REE", "two");
+        TEST_ASSERT_EQUAL_INT32(1, mutexDepth());
+    }
+    TEST_ASSERT_EQUAL_INT32(0, mutexDepth());
     TEST_ASSERT_TRUE(jsonLineContains("\"msg\":\"one\""));
     TEST_ASSERT_TRUE(jsonLineContains("\"msg\":\"two\""));
 }
 
-// Balanced lock/unlock outside emit must round-trip — a regression here would
-// indicate lockUart / unlockUart drift apart in API.
-void test_lock_unlock_round_trip() {
-    TEST_ASSERT_TRUE(Logger::lockUart(pdMS_TO_TICKS(50)));
-    TEST_ASSERT_EQUAL_INT32(1, canshift_test::recursiveMutexDepth());
-    Logger::unlockUart();
-    TEST_ASSERT_EQUAL_INT32(0, canshift_test::recursiveMutexDepth());
+void test_lock_round_trip() {
+    {
+        const Logger::UartLock lock(kLockTimeout);
+        TEST_ASSERT_TRUE(lock.held());
+        TEST_ASSERT_EQUAL_INT32(1, mutexDepth());
+    }
+    TEST_ASSERT_EQUAL_INT32(0, mutexDepth());
+}
+
+void test_escapes_message_and_strips_tag() {
+    Logger::emit('E', "T\"G\x01", "a\"b\\c\nd\t\x02");
+    TEST_ASSERT_TRUE(jsonLineContains("\"tag\":\"TG\""));
+    TEST_ASSERT_TRUE(jsonLineContains("\"msg\":\"a\\\"b\\\\c\\nd\\t\\u0002\""));
+}
+
+void test_unknown_level_falls_back_to_info() {
+    Logger::emit('X', "TST", "level");
+    TEST_ASSERT_TRUE(jsonLineContains("\"lvl\":\"I\""));
 }
 
 int main() {
@@ -96,6 +89,8 @@ int main() {
     RUN_TEST(test_log_error_emits_envelope);
     RUN_TEST(test_reentrant_emit_under_held_lock);
     RUN_TEST(test_two_nested_emits_under_held_lock);
-    RUN_TEST(test_lock_unlock_round_trip);
+    RUN_TEST(test_lock_round_trip);
+    RUN_TEST(test_escapes_message_and_strips_tag);
+    RUN_TEST(test_unknown_level_falls_back_to_info);
     return UNITY_END();
 }

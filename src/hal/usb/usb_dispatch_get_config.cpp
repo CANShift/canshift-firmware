@@ -75,17 +75,30 @@ size_t writeReply(Print &out) {
     return streamed;
 }
 
+struct SerialStream {
+    bool locked;
+    bool ended;
+    size_t streamed;
+};
+
+SerialStream streamUnderUartLock() {
+    const Logger::UartLock lock(pdMS_TO_TICKS(kUsbTxLockTimeoutMs));
+    if (!lock.held())
+        return {false, false, 0};
+    SerialPrint sink;
+    const size_t streamed = writeReply(sink);
+    return {true, streamed > 0 && writeText(sink, kNewline, 1), streamed};
+}
+
 void streamConfigToSerial() {
-    if (!Logger::lockUart(pdMS_TO_TICKS(kUsbTxLockTimeoutMs))) {
+    const SerialStream result = streamUnderUartLock();
+    if (!result.locked) {
         LOG_WARN("USB", "GET_CONFIG: serial busy");
         UsbComm::sendError("busy");
         return;
     }
-    SerialPrint sink;
-    const size_t streamed = writeReply(sink);
-    const bool ended = streamed > 0 && writeText(sink, kNewline, 1);
-    Logger::unlockUart();
-    if (!ended) {
+    const size_t streamed = result.streamed;
+    if (!result.ended) {
         LOG_ERROR("USB", "GET_CONFIG: stream to host failed after %u B",
                   static_cast<unsigned>(streamed));
         return;

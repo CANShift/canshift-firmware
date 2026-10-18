@@ -13,8 +13,20 @@ void emit(char level, const char *tag, const char *fmt, ...) __attribute__((form
 
 bool writeAll(const uint8_t *bytes, size_t len);
 
-bool lockUart(TickType_t timeout);
-void unlockUart();
+class UartLock {
+  public:
+    explicit UartLock(TickType_t timeout);
+    ~UartLock();
+    UartLock(const UartLock &) = delete;
+    UartLock &operator=(const UartLock &) = delete;
+
+    bool held() const {
+        return held_;
+    }
+
+  private:
+    bool held_;
+};
 
 #if APP_WORKSHOP_ENABLED
 using LineMirror = void (*)(const char *line, size_t len);
