@@ -147,6 +147,19 @@ void SignalStore::setTimeout(SignalId id, uint32_t timeoutMs) {
     portEXIT_CRITICAL(&s_signalsMux);
 }
 
+namespace {
+
+bool expireIfStale(SignalStore::SignalValue &signal, uint32_t now) {
+    if (!signal.valid)
+        return false;
+    if (now - signal.lastUpdateMs <= signal.timeoutMs)
+        return true;
+    signal.valid = false;
+    return false;
+}
+
+}
+
 void SignalStore::checkTimeouts() {
     if (!s_anyValid.load(std::memory_order_relaxed))
         return;
@@ -155,16 +168,8 @@ void SignalStore::checkTimeouts() {
 
     bool stillValid = false;
     portENTER_CRITICAL(&s_signalsMux);
-    for (int i = 0; i < kSignalStoreMaxSignals; ++i) {
-        if (s_signals[i].valid) {
-            uint32_t age = now - s_signals[i].lastUpdateMs;
-            if (age > s_signals[i].timeoutMs) {
-                s_signals[i].valid = false;
-            } else {
-                stillValid = true;
-            }
-        }
-    }
+    for (int i = 0; i < kSignalStoreMaxSignals; ++i)
+        stillValid |= expireIfStale(s_signals[i], now);
     portEXIT_CRITICAL(&s_signalsMux);
     s_anyValid.store(stillValid, std::memory_order_relaxed);
 }

@@ -33,22 +33,10 @@ constexpr Thresholds kBatteryDefaults = {kBatteryDefaultLowWarnV, kBatteryDefaul
 
 static float s_revLimitRpm = kDefaultRevLimitRpm;
 
-static float s_coolantWarnC = kCoolantDefaults.warn;
-static float s_coolantCritC = kCoolantDefaults.crit;
-static float s_coolantHighWarnC = kCoolantDefaults.highWarn;
-static float s_coolantHighCritC = kCoolantDefaults.highCrit;
-static float s_oilTempWarnC = kOilTempDefaults.warn;
-static float s_oilTempCritC = kOilTempDefaults.crit;
-static float s_oilTempHighWarnC = kOilTempDefaults.highWarn;
-static float s_oilTempHighCritC = kOilTempDefaults.highCrit;
-static float s_oilPressWarnBar = kOilPressureDefaults.warn;
-static float s_oilPressCritBar = kOilPressureDefaults.crit;
-static float s_oilPressHighWarnBar = kOilPressureDefaults.highWarn;
-static float s_oilPressHighCritBar = kOilPressureDefaults.highCrit;
-static float s_batteryLowWarnV = kBatteryDefaults.warn;
-static float s_batteryLowCritV = kBatteryDefaults.crit;
-static float s_batteryHighWarnV = kBatteryDefaults.highWarn;
-static float s_batteryHighCritV = kBatteryDefaults.highCrit;
+static Thresholds s_coolant = kCoolantDefaults;
+static Thresholds s_oilTemp = kOilTempDefaults;
+static Thresholds s_oilPress = kOilPressureDefaults;
+static Thresholds s_battery = kBatteryDefaults;
 
 namespace {
 
@@ -136,19 +124,22 @@ AlertEngine::AlertLevel maxLevel(AlertEngine::AlertLevel a, AlertEngine::AlertLe
     return (static_cast<uint8_t>(a) > static_cast<uint8_t>(b)) ? a : b;
 }
 
+void logSensorTransition(const SensorHealthSlot &slot) {
+    if (slot.health.lost) {
+        LOG_WARN("ALERT", "%s sensor lost", slot.name);
+        return;
+    }
+    LOG_INFO("ALERT", "%s sensor recovered", slot.name);
+}
+
 void updateSensorHealth(const SignalStore::SignalValue *snap, uint32_t now) {
     for (SensorHealthSlot &slot : s_sensorHealth) {
         const bool wasLost = slot.health.lost;
         alert_sensor_health_step_rs(&slot.health, snap[slot.id].valid, now,
                                     kAlertSensorLostClearHoldMs);
         s_state.*(slot.lost) = slot.health.lost;
-        if (slot.health.lost != wasLost) {
-            if (slot.health.lost) {
-                LOG_WARN("ALERT", "%s sensor lost", slot.name);
-            } else {
-                LOG_INFO("ALERT", "%s sensor recovered", slot.name);
-            }
-        }
+        if (slot.health.lost != wasLost)
+            logSensorTransition(slot);
     }
 }
 
@@ -163,20 +154,20 @@ AlertEngine::AlertLevel evalRevLimiter(float rpm) {
 
 AlertEngine::AlertLevel stepCoolantTemp(float tempC, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_coolant_temp_step_rs(
-        &s_coolantHold, tempC, s_coolantWarnC, s_coolantCritC, s_coolantHighWarnC,
-        s_coolantHighCritC, now, kAlertHysteresisPct, kAlertMinActiveMs));
+        &s_coolantHold, tempC, s_coolant.warn, s_coolant.crit, s_coolant.highWarn,
+        s_coolant.highCrit, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 AlertEngine::AlertLevel stepOilTemp(float tempC, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_high_side_temp_step_rs(
-        &s_oilTempHold, tempC, s_oilTempWarnC, s_oilTempCritC, s_oilTempHighWarnC,
-        s_oilTempHighCritC, now, kAlertHysteresisPct, kAlertMinActiveMs));
+        &s_oilTempHold, tempC, s_oilTemp.warn, s_oilTemp.crit, s_oilTemp.highWarn,
+        s_oilTemp.highCrit, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 AlertEngine::AlertLevel stepOilPressure(float pressBar, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_oil_pressure_step_rs(
-        &s_oilPressureHold, pressBar, s_oilPressWarnBar, s_oilPressCritBar, s_oilPressHighWarnBar,
-        s_oilPressHighCritBar, now, kAlertHysteresisPct, kAlertMinActiveMs));
+        &s_oilPressureHold, pressBar, s_oilPress.warn, s_oilPress.crit, s_oilPress.highWarn,
+        s_oilPress.highCrit, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 struct CriticalLimitBinding {
@@ -187,10 +178,10 @@ struct CriticalLimitBinding {
 };
 
 constexpr CriticalLimitBinding kCriticalLimits[] = {
-    {SignalIds::kCoolantTempC, &s_coolantCritC, false, &s_coolantHighCritC},
-    {SignalIds::kOilTempC, &s_oilTempCritC, false, &s_oilTempHighCritC},
-    {SignalIds::kOilPressBar, &s_oilPressCritBar, true, &s_oilPressHighCritBar},
-    {SignalIds::kBatteryVolts, &s_batteryLowCritV, true, &s_batteryHighCritV},
+    {SignalIds::kCoolantTempC, &s_coolant.crit, false, &s_coolant.highCrit},
+    {SignalIds::kOilTempC, &s_oilTemp.crit, false, &s_oilTemp.highCrit},
+    {SignalIds::kOilPressBar, &s_oilPress.crit, true, &s_oilPress.highCrit},
+    {SignalIds::kBatteryVolts, &s_battery.crit, true, &s_battery.highCrit},
 };
 
 void bindDeclaredTemp(const CfgSignalDef &def) {
@@ -229,31 +220,20 @@ void stepCriticalAlerts(const SignalStore::SignalValue *snap, uint32_t now) {
 
 struct ThresholdBinding {
     const char *name;
-    float *warn;
-    float *crit;
-    float *highWarn;
-    float *highCrit;
+    Thresholds *live;
     Thresholds defaults;
 };
 
 constexpr ThresholdBinding kBindings[] = {
-    {"coolant_temp_c", &s_coolantWarnC, &s_coolantCritC, &s_coolantHighWarnC, &s_coolantHighCritC,
-     kCoolantDefaults},
-    {"oil_temp_c", &s_oilTempWarnC, &s_oilTempCritC, &s_oilTempHighWarnC, &s_oilTempHighCritC,
-     kOilTempDefaults},
-    {"oil_press_bar", &s_oilPressWarnBar, &s_oilPressCritBar, &s_oilPressHighWarnBar,
-     &s_oilPressHighCritBar, kOilPressureDefaults},
-    {"battery_volts", &s_batteryLowWarnV, &s_batteryLowCritV, &s_batteryHighWarnV,
-     &s_batteryHighCritV, kBatteryDefaults},
+    {"coolant_temp_c", &s_coolant, kCoolantDefaults},
+    {"oil_temp_c", &s_oilTemp, kOilTempDefaults},
+    {"oil_press_bar", &s_oilPress, kOilPressureDefaults},
+    {"battery_volts", &s_battery, kBatteryDefaults},
 };
 
 void resetSignalBindings() {
-    for (const ThresholdBinding &b : kBindings) {
-        *b.warn = b.defaults.warn;
-        *b.crit = b.defaults.crit;
-        *b.highWarn = b.defaults.highWarn;
-        *b.highCrit = b.defaults.highCrit;
-    }
+    for (const ThresholdBinding &b : kBindings)
+        *b.live = b.defaults;
     for (DeclaredTempSource &src : s_declaredTemps) {
         src.limits = src.defaults;
         src.declared = false;
@@ -271,10 +251,10 @@ void bindThresholds(const CfgSignalDef &def) {
     for (const ThresholdBinding &b : kBindings) {
         if (strcmp(def.name, b.name) != 0)
             continue;
-        overrideIfSet(b.warn, def.warningLevel);
-        overrideIfSet(b.crit, def.dangerLevel);
-        overrideIfSet(b.highWarn, def.highWarningLevel);
-        overrideIfSet(b.highCrit, def.highDangerLevel);
+        overrideIfSet(&b.live->warn, def.warningLevel);
+        overrideIfSet(&b.live->crit, def.dangerLevel);
+        overrideIfSet(&b.live->highWarn, def.highWarningLevel);
+        overrideIfSet(&b.live->highCrit, def.highDangerLevel);
         return;
     }
 }
@@ -297,21 +277,21 @@ void logThresholds() {
              "Alert engine initialized (revLimit=%s RPM, coolant warn=%s crit=%s, "
              "oilT warn=%s crit=%s, oilP warn=%s crit=%s, "
              "batt lowWarn=%s lowCrit=%s highWarn=%s highCrit=%s)",
-             fixed(s_revLimitRpm, kWholeDecimals).text, fixed(s_coolantWarnC, kWholeDecimals).text,
-             fixed(s_coolantCritC, kWholeDecimals).text, fixed(s_oilTempWarnC, kWholeDecimals).text,
-             fixed(s_oilTempCritC, kWholeDecimals).text,
-             fixed(s_oilPressWarnBar, kHundredthsDecimals).text,
-             fixed(s_oilPressCritBar, kHundredthsDecimals).text,
-             fixed(s_batteryLowWarnV, kHundredthsDecimals).text,
-             fixed(s_batteryLowCritV, kHundredthsDecimals).text,
-             fixed(s_batteryHighWarnV, kHundredthsDecimals).text,
-             fixed(s_batteryHighCritV, kHundredthsDecimals).text);
+             fixed(s_revLimitRpm, kWholeDecimals).text, fixed(s_coolant.warn, kWholeDecimals).text,
+             fixed(s_coolant.crit, kWholeDecimals).text, fixed(s_oilTemp.warn, kWholeDecimals).text,
+             fixed(s_oilTemp.crit, kWholeDecimals).text,
+             fixed(s_oilPress.warn, kHundredthsDecimals).text,
+             fixed(s_oilPress.crit, kHundredthsDecimals).text,
+             fixed(s_battery.warn, kHundredthsDecimals).text,
+             fixed(s_battery.crit, kHundredthsDecimals).text,
+             fixed(s_battery.highWarn, kHundredthsDecimals).text,
+             fixed(s_battery.highCrit, kHundredthsDecimals).text);
 }
 
 AlertEngine::AlertLevel stepBattery(float volts, uint32_t now) {
     return static_cast<AlertEngine::AlertLevel>(alert_battery_step_rs(
-        &s_batteryHold, volts, s_batteryLowWarnV, s_batteryLowCritV, s_batteryHighWarnV,
-        s_batteryHighCritV, now, kAlertHysteresisPct, kAlertMinActiveMs));
+        &s_batteryHold, volts, s_battery.warn, s_battery.crit, s_battery.highWarn,
+        s_battery.highCrit, now, kAlertHysteresisPct, kAlertMinActiveMs));
 }
 
 }
