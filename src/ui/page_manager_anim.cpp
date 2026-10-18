@@ -13,8 +13,6 @@ namespace PageManagerInternal {
 
 namespace {
 
-constexpr uint8_t kNoPage = 0xFF;
-
 lv_obj_t *makeBlankScreen() {
     lv_obj_t *blank = lv_obj_create(nullptr);
     if (!blank)
