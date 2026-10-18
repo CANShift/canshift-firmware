@@ -203,10 +203,6 @@ BoardProfile s_runtime = kActiveBoard;
 char s_boardId[kBoardIdCapacity];
 char s_boardName[kBoardNameCapacity];
 
-}
-
-namespace {
-
 struct ProfileSections {
     JsonObjectConst lcd;
     JsonObjectConst backlight;
