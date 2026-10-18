@@ -46,7 +46,7 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
     }
     buildRebootRow(y, rowW);
     y += LayoutScale::y(kGapRow);
-    buildAboutRow(y, rowW);
+    buildAboutRow(y);
     buildWorkshopRow(y, rowW);
 
     applyBrightness();

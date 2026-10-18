@@ -357,13 +357,11 @@ inline void uiFeedTaskWdt() {
     esp_task_wdt_reset();
 }
 
-inline void uiNotifyDayNightChanged(bool didDayNightChange) {
+inline void uiNotifyDayNightChanged([[maybe_unused]] bool didDayNightChange) {
 #if APP_BLE_ENABLED
     if (didDayNightChange) {
         BleServer::pushStatusNotify();
     }
-#else
-    (void)didDayNightChange;
 #endif
 }
 
@@ -393,7 +391,8 @@ inline void uiReportStackHeadroom() {
 }
 #endif
 
-inline void uiRecordFrameMetrics(int64_t frameStartUs, TickType_t lastWake) {
+inline void uiRecordFrameMetrics([[maybe_unused]] int64_t frameStartUs,
+                                 [[maybe_unused]] TickType_t lastWake) {
 #if APP_PROFILE_UI
     const int64_t frameEndUs = esp_timer_get_time();
     ::PerfCounters::recordSample(::PerfCounters::FRAME_TOTAL,
@@ -404,9 +403,6 @@ inline void uiRecordFrameMetrics(int64_t frameStartUs, TickType_t lastWake) {
     }
     ::PerfCounters::tick();
     uiReportStackHeadroom();
-#else
-    (void)frameStartUs;
-    (void)lastWake;
 #endif
 }
 

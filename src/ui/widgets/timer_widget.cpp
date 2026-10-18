@@ -266,7 +266,7 @@ void updateStopwatch(TimerTag *tag, const TimerService::Snapshot &snap) {
 
 }
 
-void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
+void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &) {
     if (!obj)
         return;
     auto *tag = static_cast<TimerTag *>(lv_obj_get_user_data(obj));
@@ -276,9 +276,7 @@ void TimerWidget::update(lv_obj_t *obj, float, bool, const CfgWidget &cfg) {
     const TimerService::Snapshot snap = TimerService::snapshot();
     if (TimerSources::isInteractive(tag->source)) {
         updateStopwatch(tag, snap);
-        (void)cfg;
         return;
     }
     updateReadout(tag, snap);
-    (void)cfg;
 }

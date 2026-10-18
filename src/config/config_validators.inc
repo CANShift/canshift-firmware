@@ -80,7 +80,7 @@ TopBarItemPos parseTopBarItemPos(const char *str) {
     return TopBarItemPos::LEFT;
 }
 
-CfgButtonActionType parseButtonActionType(const char *category, const char *type) {
+CfgButtonActionType parseButtonActionType(const char *type) {
     if (!type)
         return CfgButtonActionType::UNKNOWN;
     if (strcmp(type, "navigate") == 0)
@@ -93,7 +93,6 @@ CfgButtonActionType parseButtonActionType(const char *category, const char *type
         return CfgButtonActionType::CRUISE_CONTROL;
     if (strcmp(type, "timer_control") == 0)
         return CfgButtonActionType::TIMER_CONTROL;
-    (void)category;
     return CfgButtonActionType::UNKNOWN;
 }
 

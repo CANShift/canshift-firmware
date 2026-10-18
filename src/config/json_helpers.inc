@@ -37,12 +37,10 @@ bool buildBakPath(char *out, size_t outLen, const char *base) {
 }
 }
 
-void logLargestFreeBlock(const char *where) {
+void logLargestFreeBlock([[maybe_unused]] const char *where) {
 #ifdef ARDUINO
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     LOG_INFO("CFG", "heap.largest_free=%u before %s", static_cast<unsigned>(largest), where);
-#else
-    (void)where;
 #endif
 }
 
