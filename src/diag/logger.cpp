@@ -165,9 +165,6 @@ size_t writeLockedLine(char level, const char *tag, const char *fmt, va_list ap,
     return len;
 }
 
-// HWCDC::write returns 0 without re-arming the TX interrupt when its ring is
-// full, so the ring stops draining. flush() re-arms it but waits forever when no
-// host is reading, which would hang the boot — re-arm the interrupt directly.
 void kickStalledTxDrain() {
 #if defined(ARDUINO_USB_MODE) && SOC_USB_SERIAL_JTAG_SUPPORTED
     usb_serial_jtag_ll_ena_intr_mask(USB_SERIAL_JTAG_INTR_SERIAL_IN_EMPTY);

@@ -76,9 +76,6 @@
     "test/test_embedded_asset/deflated_fixtures.h": 602
   },
   "comments": {
-    "src/diag/logger.cpp": 3,
-    "src/ui/gesture_controller.cpp": 9,
-    "src/ui/top_bar_build.cpp": 2,
     "test/native/shim/Arduino.h": 33,
     "test/native/shim/diag/error_store.h": 5,
     "test/native/shim/diag/logger.h": 9,

@@ -103,6 +103,11 @@ file under the UART lock without buffering it, which keeps a no-PSRAM board
 out of a 28 KB allocation. For the socket it reads the file into one
 PSRAM-preferred buffer and sends it as a single frame.
 
+When the HWCDC TX ring is full, `HWCDC::write` returns 0 without re-arming the
+TX interrupt, and the ring stops draining. `flush()` would re-arm it but blocks
+forever when no host is reading, which hangs the boot, so `Logger::writeAll`
+re-arms the interrupt directly (`kickStalledTxDrain`).
+
 On a `Logger::UartLock` timeout the line is dropped rather than interleaved
 with a log line.
 

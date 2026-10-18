@@ -95,12 +95,7 @@ void turnPageOnTap() {
 void closeSettingsOnSwipe(lv_indev_t *indev, int16_t signedTravelX, int16_t signedTravelY) {
     if (s_press.clickCancelled || !GestureIntent::closesSettings(signedTravelY, signedTravelX))
         return;
-    // snapClosed, not close: the drag path already slides the panel out and
-    // the swipe is the same gesture family, so it uses the same motion
-    // rather than a second, instant one.
     SettingsPage::snapClosed();
-    // The finger is still down and the page underneath is now exposed —
-    // without this the release lands a click on it (#288).
     lv_indev_wait_release(indev);
     s_press.clickCancelled = true;
 }
@@ -121,10 +116,6 @@ void cancelClickIfSwiping(lv_indev_t *indev) {
         GestureIntent::decide(signedTravelX, travelY, s_press.startedOnClickable);
 
     if (decision.cancelClick && !s_press.clickCancelled) {
-        // wait_until_release is the only sticky cancel: lv_indev_reset clears
-        // act_obj but leaves the next poll free to re-press. With the finger
-        // still down and the page swapped underneath it, that re-press lands a
-        // click on whatever the new page put under the finger.
         lv_indev_wait_release(indev);
         s_press.clickCancelled = true;
         LOG_VDEBUG("UI", "press dropped, travel=%d,%d", static_cast<int>(signedTravelX),

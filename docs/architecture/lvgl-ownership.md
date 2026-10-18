@@ -75,6 +75,13 @@ therefore measured by `GestureIntent` from raw travel. A page turn needs a
 horizontally dominated travel; one that starts on a clickable must also clear
 `kSwipeThroughTravelPx`, so a swipe outranks the tap the finger already began.
 
+A close-swipe ends with `SettingsPage::snapClosed()`, the same slide the drag
+path uses, not the instant `close()`. The finger is still down and the page
+underneath is exposed, so `lv_indev_wait_release` stops the release landing a
+click on it (#288). It is the only sticky cancel: `lv_indev_reset` clears
+`act_obj` but leaves the next poll free to press again, onto whatever the new
+page put under the finger.
+
 ## SettingsPage drag tracker
 
 `SettingsPage` drag is implemented at the indev layer too —
