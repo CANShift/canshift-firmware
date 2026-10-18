@@ -183,37 +183,45 @@ void TopBar::rebuild() {
     TopBar::init();
 }
 
+namespace {
+
+constexpr int16_t kDefaultBarHeight = 30;
+
+void onBarClicked(lv_event_t *e) {
+    if (lv_event_get_target(e) != lv_event_get_current_target(e))
+        return;
+    if (!SettingsPage::isOpen())
+        return;
+    if (millis() - SettingsPage::lastOpenMs() < kSettingsOpenTapGuardMs)
+        return;
+    LOG_INFO("UI", "Top bar tapped — closing Settings");
+    SettingsPage::close();
+}
+
+lv_obj_t *createBar(const CfgTopBar &cfg) {
+    lv_obj_t *bar = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(bar, LV_HOR_RES, s_height);
+    lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(barBgColor(cfg)), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(bar, TopBarItems::derivedPadding(s_height), LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(bar, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(bar, onBarClicked, LV_EVENT_CLICKED, nullptr);
+    return bar;
+}
+
+}
+
 void TopBar::init() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     const CfgTopBar &cfg = dash.topBar;
-    s_height = cfg.height > 0 ? cfg.height : 30;
+    s_height = cfg.height > 0 ? cfg.height : kDefaultBarHeight;
 
-    s_bar = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_bar, LV_HOR_RES, s_height);
-    lv_obj_align(s_bar, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_bar, lv_color_hex(barBgColor(cfg)), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(s_bar, TopBarItems::derivedPadding(s_height), LV_PART_MAIN);
-    lv_obj_set_style_pad_ver(s_bar, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(s_bar, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_add_flag(s_bar, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(
-        s_bar,
-        [](lv_event_t *e) {
-            if (lv_event_get_target(e) != lv_event_get_current_target(e))
-                return;
-            if (!SettingsPage::isOpen())
-                return;
-
-            if (millis() - SettingsPage::lastOpenMs() < kSettingsOpenTapGuardMs)
-                return;
-            LOG_INFO("UI", "Top bar tapped — closing Settings");
-            SettingsPage::close();
-        },
-        LV_EVENT_CLICKED, nullptr);
+    s_bar = createBar(cfg);
 
     s_themeIcon = nullptr;
     s_dynCount = 0;
