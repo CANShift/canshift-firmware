@@ -208,7 +208,8 @@ void parseWarningParams(JsonObjectConst cfg, CfgWidget *w) {
 void parseButtonParams(JsonObjectConst cfg, CfgWidget *w) {
     w->button = new (std::nothrow) CfgButtonParams{};
     if (w->button == nullptr) {
-        LOG_WARN("CFG", "button '%s': params alloc failed — widget dropped", w->id);
+        LOG_ERROR("CFG", "button '%s': params alloc failed — widget dropped", w->id);
+        ErrorStore::push(ERROR_SRC_CONFIG, "OOM", "button params alloc failed");
         w->type = WidgetType::UNKNOWN;
         return;
     }
