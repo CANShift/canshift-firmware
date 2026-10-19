@@ -30,8 +30,6 @@ void test_encode_emptyFrame_headerOnly() {
 }
 
 void test_encode_canonicalVector_matchesCore() {
-    // Shared byte vector pinned in canshift-core telemetry-frame.test.ts:
-    // { r: 3500 (i0), tps: 45.5 (i1), g: -1 (i12) }
     TelemetryFrame::Field fields[14];
     clearFields(fields, 14);
     fields[0].present = true;
@@ -141,7 +139,7 @@ void test_dedup_rejectsInvalidFrame() {
     TEST_ASSERT_FALSE(TelemetryFrame::shouldSend(dedup, frame, TelemetryFrame::kMaxFrameBytes + 1));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_encode_emptyFrame_headerOnly);
     RUN_TEST(test_encode_canonicalVector_matchesCore);

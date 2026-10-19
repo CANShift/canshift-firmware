@@ -154,7 +154,7 @@ void test_criticalAlerts_absent_armNothing() {
     TEST_ASSERT_EQUAL_UINT8(0, load(kDashboardNoAlert).criticalAlertCount);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_arcGauge_readsKickerAndWarnLevel);
     RUN_TEST(test_numericGauge_withoutWarnLevel_leavesItUnset);

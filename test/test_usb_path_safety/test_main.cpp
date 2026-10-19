@@ -93,7 +93,7 @@ void test_parseSha256Hex_nullptr_returnsFalse() {
     TEST_ASSERT_FALSE(parseSha256Hex(nullptr, out));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_isPathSafe_allowedAssetsPrefix_returnsTrue);
     RUN_TEST(test_isPathSafe_allowedFontsPrefix_returnsTrue);

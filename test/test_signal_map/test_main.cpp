@@ -80,10 +80,8 @@ void test_wheel_button_slots() {
 void test_unknown_returns_sentinel() {
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName("not_a_signal"));
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName(""));
-    // Partial / suffix variants must not match — `strcmp` is exact.
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName("rpm_extra"));
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName("RPM"));
-    // Substring of a known name — also must miss.
     TEST_ASSERT_EQUAL_UINT8(SignalIds::kSignalCount, signalIdFromName("rp"));
 }
 
@@ -92,12 +90,10 @@ void test_null_returns_sentinel() {
 }
 
 void test_sentinel_value_locked() {
-    // The Rust port hard-codes SIGNAL_COUNT = 64 in `rust/signal-map/src/lib.rs`;
-    // failing this assert means the C++ and Rust sentinels have drifted.
     TEST_ASSERT_EQUAL_UINT8(64, SignalIds::kSignalCount);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_known_engine_signals);
     RUN_TEST(test_known_temp_pressure_fuel_signals);

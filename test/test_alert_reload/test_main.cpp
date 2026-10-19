@@ -109,7 +109,7 @@ void test_a_critical_alert_armed_by_a_reload_is_armed() {
     TEST_ASSERT_FALSE(CriticalAlertSource::armed(0).armed);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_a_threshold_removed_by_a_reload_falls_back_to_the_default);
     RUN_TEST(test_a_held_critical_does_not_survive_a_reload);

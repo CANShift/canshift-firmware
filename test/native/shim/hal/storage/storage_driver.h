@@ -1,8 +1,4 @@
 #pragma once
-// hal/storage/storage_driver.h shim — header signature mirrors the real
-// SPIFFS driver verbatim so config_loader.cpp compiles unchanged. Storage
-// state is held by storage_driver_fake.cpp (see that file for helpers
-// tests use to populate / inspect the in-memory file table).
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -46,10 +42,6 @@ bool isChunkedWriteOpen();
 bool ensureParentDirs(const char *path);
 void sweepOrphanTmp(const char *path);
 
-// ---------------------------------------------------------------------------
-// Test-only helpers — populate / inspect the in-memory file table.
-// Implemented in storage_driver_fake.cpp.
-// ---------------------------------------------------------------------------
 void fakeReset();
 void fakeWrite(const char *path, const char *contents, size_t length);
 void fakeFailChunksAfter(size_t bytes);

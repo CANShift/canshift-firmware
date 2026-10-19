@@ -1,13 +1,4 @@
 #pragma once
-// dashboard_minimal.json.h — embedded JSON fixtures for config_loader tests.
-//
-// Two payloads:
-//   - kDashboardMinimal: schema major 1 → matches the firmware build, parses
-//     cleanly, populates a single page with no widgets.
-//   - kDashboardWrongVersion: schema major 99 → triggers the "VER_MAJOR"
-//     warning path. The loader still parses successfully and exposes the
-//     content; the mismatch is observable through the version field on the
-//     loaded struct.
 
 namespace fixtures {
 
@@ -42,8 +33,6 @@ constexpr const char *kDashboardWrongVersion = R"({
   ]
 })";
 
-// Same schema as kDashboardMinimal but with a distinct name + a second page,
-// so reloadAll() can be observed switching from one to the other.
 constexpr const char *kDashboardMinimalReload = R"({
   "version": "1.0.0",
   "name": "Reloaded Dashboard",
@@ -70,7 +59,6 @@ constexpr const char *kDashboardMinimalReload = R"({
   ]
 })";
 
-// Truncated JSON — parse must fail. Used to assert reloadAll() returns false.
 constexpr const char *kDashboardCorrupt = R"({
   "version": "1.0.0",
   "name": "Corrupt",
@@ -79,8 +67,6 @@ constexpr const char *kDashboardCorrupt = R"({
     {"id": "main"
 )";
 
-// Dashboard carrying an explicit `targetProfile` field (issues #17 / #18 /
-// #1128 / #548). Parser must surface the literal id on CfgDashboard.
 constexpr const char *kDashboardWithProfile = R"({
   "version": "1.0.0",
   "name": "Profile Test",
@@ -93,9 +79,6 @@ constexpr const char *kDashboardWithProfile = R"({
   ]
 })";
 
-// Two pages exercising the page template field (issue #451) — the first omits
-// `template` (must default to CUSTOM, back-compat), the second carries
-// `cruise_control` (must round-trip to CfgPageTemplate::CRUISE_CONTROL).
 constexpr const char *kDashboardWithTemplates = R"({
   "version": "1.0.0",
   "name": "Template Test",
@@ -109,9 +92,6 @@ constexpr const char *kDashboardWithTemplates = R"({
   ]
 })";
 
-// Widget layouts with out-of-range span values — parseWidgetLayout must clamp
-// spans to [1,12] and origins to [0, 12 - span] before the uint8_t fields are
-// assigned, so negative / oversized JSON values can never wrap.
 constexpr const char *kDashboardLayoutOutOfRange = R"({
   "version": "1.0.0",
   "name": "Layout Clamp Test",

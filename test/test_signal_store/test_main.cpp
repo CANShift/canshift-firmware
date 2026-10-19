@@ -154,7 +154,7 @@ void test_read_returnsDefaultWhenInvalidOrOutOfRange() {
     TEST_ASSERT_EQUAL_FLOAT(kReadDefault, SignalStore::read(SignalIds::kSignalCount, kReadDefault));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_update_then_read_returnsValue_andValid);
     RUN_TEST(test_read_unwritten_signal_isInvalid);

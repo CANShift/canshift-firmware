@@ -156,7 +156,7 @@ void test_detail_skips_a_clause_with_no_data() {
     TEST_ASSERT_EQUAL_STRING("KNOCK CYL 3 \xc2\xb7 4 EVENTS", detail);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_kind_names_come_from_the_shared_table);
     RUN_TEST(test_unknown_kind_renders_no_name);

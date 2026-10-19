@@ -1,10 +1,4 @@
 #pragma once
-// diag/logger.h shim — silence every LOG_* call in host tests.
-//
-// Production code dispatches log calls through these macros and the
-// `Logger::emit` symbol. Tests don't care about output; reducing the macros
-// to `((void)0)` also avoids dragging the real Logger TU (which pulls in
-// FreeRTOS mutexes and the UART) into the host build.
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
@@ -12,7 +6,7 @@
 
 namespace Logger {
 inline void init() {}
-inline void emit(char /*level*/, const char * /*tag*/, const char * /*fmt*/, ...) {}
+inline void emit(char, const char *, const char *, ...) {}
 bool writeAll(const uint8_t *bytes, size_t len);
 class UartLock {
   public:

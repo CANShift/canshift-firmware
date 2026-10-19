@@ -57,7 +57,7 @@ void test_tag_leavesALineThatWouldNotFitAlone() {
     TEST_ASSERT_EQUAL_size_t(0, UsbSeqEcho::tag(kOk, strlen(kOk), {true, 7}, out, sizeof(out)));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parse_readsTheSeqRightAfterTheCmd);
     RUN_TEST(test_parse_withoutSeqAfterTheCmd_isAbsent);
