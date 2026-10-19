@@ -122,8 +122,6 @@ void test_extractMode03_rejectsShortAndNull() {
 }
 
 void test_extractMode03_clampsToPresentBytes() {
-    // count claims 3 DTCs (6 bytes) but only 5 payload bytes are present —
-    // clamp to the 4 that form whole DTC pairs (drops the trailing odd byte).
     const uint8_t frame[] = {0x05, 0x43, 0x03, 0x01, 0x33, 0x43, 0x01, 0x00};
     uint8_t out[16] = {0};
     TEST_ASSERT_EQUAL_UINT8(4, Obd2Response::extractMode03Dtcs(frame, sizeof(frame), out, 16));
@@ -137,7 +135,7 @@ void test_extractMode03_clampsToOutCap() {
     TEST_ASSERT_EQUAL_UINT8(0x33, out[1]);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parseHeader_validSingleFrame);
     RUN_TEST(test_parseHeader_rejectsNullAndShort);

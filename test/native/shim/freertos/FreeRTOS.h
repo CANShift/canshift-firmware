@@ -1,9 +1,4 @@
 #pragma once
-// freertos/FreeRTOS.h shim for host unit tests.
-//
-// Tests run single-threaded on the host. FreeRTOS task/scheduler primitives
-// are reduced to no-ops. Only the surface area touched by the modules under
-// test (signal_store, config_loader) is provided.
 
 #include <stdint.h>
 

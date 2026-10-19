@@ -44,8 +44,6 @@ void test_aShortWobbleStaysAClick() {
 }
 
 void test_offAClickableHorizontallyDominatedTravelSwipes() {
-    // Was decide(20, 40, ...) asserting fireSwipe — twice as vertical as
-    // horizontal, yet turning the page. That assertion described the bug.
     const Decision right = decide(20, 5, false);
     TEST_ASSERT_TRUE(right.cancelClick);
     TEST_ASSERT_TRUE(right.fireSwipe);
@@ -83,7 +81,6 @@ void test_closesSettings_horizontalDominatedTravelIsNotAClose() {
 }
 
 void test_decide_verticalSwipeOffClickableDoesNotTurnThePage() {
-    // 8 px of sideways wobble on a long upward swipe used to be enough.
     TEST_ASSERT_FALSE(decide(8, 100, false).fireSwipe);
     TEST_ASSERT_FALSE(decide(-8, 100, false).fireSwipe);
     TEST_ASSERT_FALSE(decide(30, 60, false).fireSwipe);

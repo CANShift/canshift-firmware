@@ -1,4 +1,3 @@
-// Parity gate for the Rust port (#1177 R-2).
 #include "util/format_float.h"
 
 #include <math.h>
@@ -109,7 +108,6 @@ void test_formatFromSpec_prefixAndSuffix() {
 
 void test_formatFromSpec_doublePercentIsSkipNotUnescape() {
     char buf[16] = {0};
-    // C++ quirk: %% survives in the prefix verbatim, NOT printf-style.
     FloatFormat::formatFromSpec(buf, sizeof(buf), 9.8f, "%%V%.1f");
     TEST_ASSERT_EQUAL_STRING("%%V9.8", buf);
 }
@@ -217,7 +215,7 @@ static void runFormatGeneralTests() {
     RUN_TEST(test_formatGeneral_nanAndInf);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     runFormatFixedTests();
     runFormatFromSpecTests();

@@ -193,40 +193,29 @@ void setUp() {}
 void tearDown() {}
 
 void test_decodeBytes_littleEndian_unsigned_scaleOffset() {
-    const float result = CanParser::detail::decodeBytes(
-        kLittleEndianFrame,
-        /*startByte=*/0, /*byteLen=*/2,
-        /*bigEndian=*/false, /*isSigned=*/false, /*bitMask=*/0, kLittleEndianScale, /*offset=*/0.0f,
-        /*dataLen=*/sizeof(kLittleEndianFrame));
+    const float result =
+        CanParser::detail::decodeBytes(kLittleEndianFrame, 0, 2, false, false, 0,
+                                       kLittleEndianScale, 0.0f, sizeof(kLittleEndianFrame));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kLittleEndianExpected, result);
 }
 
 void test_decodeBytes_bigEndian_signed_negative() {
-    const float result = CanParser::detail::decodeBytes(
-        kBigEndianSignedFrame,
-        /*startByte=*/0, /*byteLen=*/2,
-        /*bigEndian=*/true, /*isSigned=*/true, /*bitMask=*/0,
-        /*scale=*/1.0f, /*offset=*/0.0f, /*dataLen=*/sizeof(kBigEndianSignedFrame));
+    const float result = CanParser::detail::decodeBytes(kBigEndianSignedFrame, 0, 2, true, true, 0,
+                                                        1.0f, 0.0f, sizeof(kBigEndianSignedFrame));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, kBigEndianSignedExpected, result);
 }
 
 void test_decodeBytes_bitMask_extractsFlag() {
     const float setResult = CanParser::detail::decodeBytes(
-        kFlagsFrame,
-        /*startByte=*/0, /*byteLen=*/1,
-        /*bigEndian=*/false, /*isSigned=*/false, kMaskBit6,
-        /*scale=*/1.0f, /*offset=*/0.0f, /*dataLen=*/sizeof(kFlagsFrame));
+        kFlagsFrame, 0, 1, false, false, kMaskBit6, 1.0f, 0.0f, sizeof(kFlagsFrame));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 1.0f, setResult);
 
     const float clearResult = CanParser::detail::decodeBytes(
-        kFlagsFrame,
-        /*startByte=*/0, /*byteLen=*/1,
-        /*bigEndian=*/false, /*isSigned=*/false, kMaskBit0,
-        /*scale=*/1.0f, /*offset=*/0.0f, /*dataLen=*/sizeof(kFlagsFrame));
+        kFlagsFrame, 0, 1, false, false, kMaskBit0, 1.0f, 0.0f, sizeof(kFlagsFrame));
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 0.0f, clearResult);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_decodeBytes_littleEndian_unsigned_scaleOffset);
     RUN_TEST(test_decodeBytes_bigEndian_signed_negative);

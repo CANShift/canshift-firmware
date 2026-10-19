@@ -40,7 +40,6 @@ void stageDashboard(const char *dashboard) {
 void setUp() {}
 void tearDown() {}
 
-// Catalog hit: crowpanel-28 must resolve to the v1 design canvas (320×240).
 void test_lookupDesignDimensions_knownProfile() {
     const ScreenProfile::DesignDimensions dims =
         ScreenProfile::lookupDesignDimensions("crowpanel-28");
@@ -48,8 +47,6 @@ void test_lookupDesignDimensions_knownProfile() {
     TEST_ASSERT_EQUAL_UINT16(240, dims.height);
 }
 
-// Catalog miss: an unknown / nonexistent id must fall back to the default
-// profile rather than zeroing dims (would divide by zero downstream).
 void test_lookupDesignDimensions_unknownFallsBackToDefault() {
     const ScreenProfile::DesignDimensions dims =
         ScreenProfile::lookupDesignDimensions("crowpanel-9999");
@@ -57,7 +54,6 @@ void test_lookupDesignDimensions_unknownFallsBackToDefault() {
     TEST_ASSERT_EQUAL_UINT16(240, dims.height);
 }
 
-// Empty / null id must also fall back to the default.
 void test_lookupDesignDimensions_emptyStringFallsBackToDefault() {
     const ScreenProfile::DesignDimensions empty = ScreenProfile::lookupDesignDimensions("");
     TEST_ASSERT_EQUAL_UINT16(320, empty.width);
@@ -68,9 +64,6 @@ void test_lookupDesignDimensions_emptyStringFallsBackToDefault() {
     TEST_ASSERT_EQUAL_UINT16(240, null.height);
 }
 
-// v1 invariant — design dims == physical dims → identity factors. This is the
-// scale-of-1.0 guarantee the PR rests on: widget render output is byte-for-byte
-// identical to pre-scaffold firmware on the only board that ships today.
 void test_initFromDashboard_crowpanel28_yieldsIdentityFactors() {
     stageDashboard(kDashboardCrowpanel28);
     ScreenProfile::initFromDashboard();
@@ -80,8 +73,6 @@ void test_initFromDashboard_crowpanel28_yieldsIdentityFactors() {
     TEST_ASSERT_EQUAL_FLOAT(1.0f, factors.y);
 }
 
-// Identity scale must round-trip representative widget coordinates (the four
-// extremes a v1 dashboard uses: top-left, top-right, full-width, full-height).
 void test_scaleXVal_scaleYVal_identityRoundtripsCoordinates() {
     stageDashboard(kDashboardCrowpanel28);
     ScreenProfile::initFromDashboard();
@@ -94,7 +85,7 @@ void test_scaleXVal_scaleYVal_identityRoundtripsCoordinates() {
     TEST_ASSERT_EQUAL_INT16(240, ScreenProfile::scaleYVal(240));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_lookupDesignDimensions_knownProfile);
     RUN_TEST(test_lookupDesignDimensions_unknownFallsBackToDefault);

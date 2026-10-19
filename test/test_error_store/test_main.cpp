@@ -30,7 +30,7 @@ void test_dismissAt_newest_matchesDismissLatest() {
     pushCode("B");
     pushCode("C");
 
-    ErrorStore::dismissAt(0); // row 0 is newest → "C"
+    ErrorStore::dismissAt(0);
 
     const char *expected[] = {"B", "A"};
     assertOrder(expected, 2);
@@ -42,7 +42,7 @@ void test_dismissAt_oldest_dropsEnd() {
     pushCode("B");
     pushCode("C");
 
-    ErrorStore::dismissAt(2); // row 2 (newest-first) → "A" (oldest)
+    ErrorStore::dismissAt(2);
 
     const char *expected[] = {"C", "B"};
     assertOrder(expected, 2);
@@ -55,7 +55,7 @@ void test_dismissAt_middle_collapsesGap() {
     pushCode("C");
     pushCode("D");
 
-    ErrorStore::dismissAt(1); // row 1 (newest-first) → "C"
+    ErrorStore::dismissAt(1);
 
     const char *expected[] = {"D", "B", "A"};
     assertOrder(expected, 3);
@@ -66,7 +66,7 @@ void test_dismissAt_outOfRange_isNoOp() {
     pushCode("A");
     pushCode("B");
 
-    ErrorStore::dismissAt(5); // past the end → ignored
+    ErrorStore::dismissAt(5);
 
     const char *expected[] = {"B", "A"};
     assertOrder(expected, 2);
@@ -78,21 +78,18 @@ void test_dismissAt_emptyStore_isNoOp() {
     TEST_ASSERT_EQUAL_UINT8(0, ErrorStore::getCount());
 }
 
-// Force the ring to wrap so dismissAt has to navigate past the seam — the
-// most likely place to break (#898). After pushing > RING_SIZE entries the
-// oldest are overwritten, leaving head != 0.
 void test_dismissAt_acrossRingWrap() {
     resetStore();
-    pushCode("A"); // overwritten
-    pushCode("B"); // overwritten
+    pushCode("A");
+    pushCode("B");
     pushCode("C");
     pushCode("D");
     pushCode("E");
     pushCode("F");
     pushCode("G");
-    pushCode("H"); // ring now holds C..H newest-first {H,G,F,E,D,C}
+    pushCode("H");
 
-    ErrorStore::dismissAt(2); // → F
+    ErrorStore::dismissAt(2);
 
     const char *expected[] = {"H", "G", "E", "D", "C"};
     assertOrder(expected, 5);
@@ -104,10 +101,10 @@ void test_dismissAt_versionAdvancesOnSuccess_notOnNoOp() {
     pushCode("B");
 
     const uint32_t before = ErrorStore::getVersion();
-    ErrorStore::dismissAt(99); // no-op
+    ErrorStore::dismissAt(99);
     TEST_ASSERT_EQUAL_UINT32(before, ErrorStore::getVersion());
 
-    ErrorStore::dismissAt(0); // real dismiss
+    ErrorStore::dismissAt(0);
     TEST_ASSERT_NOT_EQUAL_UINT32(before, ErrorStore::getVersion());
 }
 

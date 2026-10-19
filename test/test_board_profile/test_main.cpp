@@ -230,7 +230,7 @@ void test_applyCatalogBoard_refusesAnUnknownIdAndKeepsTheProfile() {
     TEST_ASSERT_EQUAL_STRING("generic_ili9341", runtimeBoardProfile().board_id);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_validBlob_parsesAllFields);
     RUN_TEST(test_invalidJson_rejected);

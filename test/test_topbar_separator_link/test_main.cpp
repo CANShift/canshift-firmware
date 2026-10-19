@@ -86,7 +86,7 @@ void test_wantsHidden_bothFlagsVisible_shows() {
     TEST_ASSERT_FALSE(wantsHidden(2, 4, false, false));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_freshTracker_linkedFlagIsNoFlag);
     RUN_TEST(test_registerModeFlag_setsLastFlag_noPending_returnsNoFlag);

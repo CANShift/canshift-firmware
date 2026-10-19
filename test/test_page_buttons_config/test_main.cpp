@@ -91,7 +91,7 @@ void test_pageButtons_overlongSignalIsDroppedNotTruncated() {
     TEST_ASSERT_EQUAL_STRING("flag_pit_limit", buttons.previous);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_pageButtons_readsBothSignals);
     RUN_TEST(test_pageButtons_missingButtonStaysEmpty);

@@ -21,7 +21,6 @@ void test_parseU32Strict_validHexUppercase_returnsTrue() {
 void test_parseU32Strict_invalidHexChars_returnsFalse() {
     uint32_t out = 0xDEAD;
     TEST_ASSERT_FALSE(parseU32Strict("0xGG", 16, &out));
-    // out must not have been written with a garbage value
     TEST_ASSERT_EQUAL_UINT32(0xDEADu, out);
 }
 
@@ -64,7 +63,6 @@ void test_parseU32Strict_uint32Max_returnsTrue() {
 
 void test_parseU32Strict_uint32MaxPlusOne_returnsFalse() {
     uint32_t out = 0;
-    // 4294967296 == UINT32_MAX + 1 — must overflow
     TEST_ASSERT_FALSE(parseU32Strict("4294967296", 10, &out));
 }
 
@@ -74,7 +72,7 @@ void test_parseU32Strict_autoBase0_hexPrefix_returnsTrue() {
     TEST_ASSERT_EQUAL_UINT32(0x1Au, out);
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parseU32Strict_validHexWithPrefix_returnsTrue);
     RUN_TEST(test_parseU32Strict_validHexUppercase_returnsTrue);

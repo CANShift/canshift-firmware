@@ -4,40 +4,5 @@
   "file-lines": {
     "test/test_embedded_asset/deflated_fixtures.h": 602
   },
-  "comments": {
-    "test/native/shim/Arduino.h": 33,
-    "test/native/shim/diag/error_store.h": 5,
-    "test/native/shim/diag/logger.h": 9,
-    "test/native/shim/freertos/FreeRTOS.h": 5,
-    "test/native/shim/freertos/portmacro.h": 4,
-    "test/native/shim/freertos/semphr.h": 13,
-    "test/native/shim/hal/storage/storage_driver.h": 8,
-    "test/native/shim/hal/storage/storage_driver_fake.cpp": 10,
-    "test/test_alert_reload/test_main.cpp": 2,
-    "test/test_board_profile/test_main.cpp": 2,
-    "test/test_can_parser/test_main.cpp": 31,
-    "test/test_can_parser_signed/test_main.cpp": 91,
-    "test/test_config_loader/fixtures/dashboard_minimal.json.h": 20,
-    "test/test_config_loader/fixtures/signals_minimal.json.h": 13,
-    "test/test_config_loader/test_main.cpp": 38,
-    "test/test_critical_ack/test_main.cpp": 2,
-    "test/test_cut_band/test_main.cpp": 2,
-    "test/test_error_store/test_main.cpp": 13,
-    "test/test_error_store_wrap/test_main.cpp": 23,
-    "test/test_format_float/test_main.cpp": 4,
-    "test/test_gesture_intent/test_main.cpp": 3,
-    "test/test_obd2_response/test_main.cpp": 4,
-    "test/test_page_buttons_config/test_main.cpp": 2,
-    "test/test_parse_u32_strict/test_main.cpp": 4,
-    "test/test_screen_profile/test_main.cpp": 11,
-    "test/test_signal_map/test_main.cpp": 6,
-    "test/test_signal_store/test_main.cpp": 2,
-    "test/test_telemetry_frame/test_main.cpp": 4,
-    "test/test_topbar_separator_link/test_main.cpp": 2,
-    "test/test_unit_display/test_main.cpp": 2,
-    "test/test_usb_envelope/test_main.cpp": 36,
-    "test/test_usb_path_safety/test_main.cpp": 2,
-    "test/test_usb_seq_echo/test_main.cpp": 2,
-    "test/test_widget_thresholds/test_main.cpp": 2
-  }
+  "comments": {}
 }

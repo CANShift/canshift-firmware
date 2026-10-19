@@ -105,7 +105,7 @@ void test_reloadingIntoMetric_restoresMetricRendering() {
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 100.0f, UnitDisplay::valueFor(100.0f, "km/h"));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_units_absent_readsAsMetric);
     RUN_TEST(test_units_unknownValue_fallsBackToMetric);

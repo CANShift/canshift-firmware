@@ -1,8 +1,4 @@
 #pragma once
-// signals_minimal.json.h — minimal signals.json fixture for config_loader
-// tests. One signal mapped to CAN frame 0x370 (RPM, MaxxECU-style layout) is
-// enough to verify the loader populates CfgSignalConfig.signals[0] without
-// warnings.
 
 namespace fixtures {
 
@@ -28,8 +24,6 @@ constexpr const char *kSignalsMinimal = R"({
   ]
 })";
 
-// Truncated signals JSON — parse must fail. Used by issue #458 tests to assert
-// reloadAll() leaves s_signals byte-identical when the signals file is bad.
 constexpr const char *kSignalsCorrupt = R"({
   "version": "1.0.0",
   "protocol": "custom_v1.0",
@@ -37,9 +31,6 @@ constexpr const char *kSignalsCorrupt = R"({
     {"name": "rpm"
 )";
 
-// Signals JSON with one malformed canFrameId. The good signal ("rpm") must
-// survive; the bad signal ("tps") must be silently dropped. Used by
-// test_loadSignals_malformedCanFrameId_dropsSignal (issue #1159).
 constexpr const char *kSignalsMalformedCanFrameId = R"({
   "version": "1.0.0",
   "protocol": "custom_v1.0",
@@ -76,8 +67,6 @@ constexpr const char *kSignalsMalformedCanFrameId = R"({
   ]
 })";
 
-// Signal with a name that exceeds CFG_MAX_SIGNAL_LEN. The signal must be
-// dropped and the valid "rpm" signal before it must survive (#1162).
 constexpr const char *kSignalsNameTooLong = R"({
   "version": "1.0.0",
   "protocol": "custom_v1.0",
@@ -114,8 +103,6 @@ constexpr const char *kSignalsNameTooLong = R"({
   ]
 })";
 
-// Signal with a unit string that exceeds sizeof(s.unit) (16). The signal must
-// survive but its unit must be reset to "" (#1162).
 constexpr const char *kSignalsUnitTooLong = R"({
   "version": "1.0.0",
   "protocol": "custom_v1.0",

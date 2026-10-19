@@ -1,5 +1,3 @@
-// In-memory StorageDriver for host tests. Tests stage via fakeWrite() then
-// invoke ConfigLoader; parseJsonFile() reads from the staged buffer.
 #include "hal/storage/storage_driver.h"
 
 #include "config/json_reader.h"
@@ -68,8 +66,6 @@ DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *
     }
     if (outSize)
         *outSize = f->size;
-    // Route through JsonReader::parse so the host build exercises the same
-    // BoundedReader<const char*> instantiation as the device build (#1249 F-2).
     return JsonReader::parse(doc, f->data, f->size);
 }
 
@@ -94,8 +90,6 @@ size_t streamFileTo(const char *path, Print &out, bool replaceNewlinesWithSpaces
 
 namespace {
 
-// Internal helper shared by writeFileAtomic and the fakeWrite test stager.
-// Not part of the public StorageDriver API (real driver dropped writeFile).
 bool stageFileBytes(const char *path, const uint8_t *data, size_t length) {
     if (!path || length > kMaxFileBytes)
         return false;
@@ -131,8 +125,6 @@ bool renameFile(const char *src, const char *dst) {
     FakeFile *s = findFile(src);
     if (!s || !dst)
         return false;
-    // Drop any existing destination so the rename has the same end state as
-    // POSIX rename().
     FakeFile *d = findFile(dst);
     if (d) {
         d->used = false;
@@ -219,10 +211,10 @@ void abortChunkedWrite() {
 bool isChunkedWriteOpen() {
     return s_chunk.open;
 }
-bool ensureParentDirs(const char * /*path*/) {
+bool ensureParentDirs(const char *) {
     return true;
 }
-void sweepOrphanTmp(const char * /*path*/) {}
+void sweepOrphanTmp(const char *) {}
 
 void fakeReset() {
     abortChunkedWrite();

@@ -1,8 +1,4 @@
 #pragma once
-// freertos/semphr.h shim — single-threaded host build needs no real mutex,
-// but recursive-mutex tests (e.g. test_logger #1037) need a counter so we can
-// observe re-entrant Take/Give pairs and catch a regression where production
-// code accidentally swaps the recursive APIs for the binary ones.
 
 #include "freertos/FreeRTOS.h"
 
@@ -16,11 +12,11 @@ inline SemaphoreHandle_t xSemaphoreCreateMutex() {
     return &sentinel;
 }
 
-inline BaseType_t xSemaphoreTake(SemaphoreHandle_t /*sem*/, TickType_t /*timeout*/) {
+inline BaseType_t xSemaphoreTake(SemaphoreHandle_t, TickType_t) {
     return pdTRUE;
 }
 
-inline BaseType_t xSemaphoreGive(SemaphoreHandle_t /*sem*/) {
+inline BaseType_t xSemaphoreGive(SemaphoreHandle_t) {
     return pdTRUE;
 }
 
@@ -37,16 +33,13 @@ inline SemaphoreHandle_t xSemaphoreCreateRecursiveMutex() {
     return &recursiveSentinel;
 }
 
-inline BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t /*sem*/, TickType_t /*timeout*/) {
+inline BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t, TickType_t) {
     canshift_test::recursiveMutexDepth()++;
     return pdTRUE;
 }
 
-inline BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t /*sem*/) {
+inline BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t) {
     if (canshift_test::recursiveMutexDepth() <= 0) {
-        // Unbalanced Give — production behaviour is undefined; abort the
-        // test so the regression surfaces loudly rather than silently
-        // corrupting the depth counter.
         std::abort();
     }
     canshift_test::recursiveMutexDepth()--;

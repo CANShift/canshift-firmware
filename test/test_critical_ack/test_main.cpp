@@ -61,7 +61,7 @@ void test_acknowledge_without_a_takeover_is_ignored() {
     TEST_ASSERT_EQUAL_INT8(kOilPressure, takeoverFor(bit(kOilPressure)));
 }
 
-int main(int /*argc*/, char ** /*argv*/) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_no_critical_source_shows_no_takeover);
     RUN_TEST(test_acknowledged_oil_pressure_does_not_mask_coolant);
