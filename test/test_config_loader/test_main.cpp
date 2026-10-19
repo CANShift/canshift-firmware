@@ -4,53 +4,18 @@
 #include "diag/error_store.h"
 #include "hal/storage/storage_driver.h"
 
+#include "config_loader_test_support.h"
 #include "fixtures/dashboard_minimal.json.h"
 #include "fixtures/signals_minimal.json.h"
 
 #include <string.h>
 #include <unity.h>
 
-namespace {
-
-// CONFIG_PATH_DASHBOARD / CONFIG_PATH_SIGNALS are macros from board_config.h —
-// keep them resolved at use site.
-
-void stageMinimalFiles() {
-    StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
-                             strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
-                             strlen(fixtures::kSignalsMinimal));
-}
-
-constexpr const char kDashboardBakPath[] = "/config/dashboard.json.bak";
-
-void stageDashboard(const char *primary, const char *backup) {
-    StorageDriver::fakeReset();
-    ErrorStore::clear();
-    StorageDriver::fakeWrite(kConfigPathDashboard, primary, strlen(primary));
-    if (backup)
-        StorageDriver::fakeWrite(kDashboardBakPath, backup, strlen(backup));
-    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMinimal,
-                             strlen(fixtures::kSignalsMinimal));
-}
-
-bool errorStoreHolds(const char *code) {
-    FwError rows[8];
-    uint8_t count = 0;
-    ErrorStore::getAll(rows, &count, 8);
-    for (uint8_t i = 0; i < count; i++) {
-        if (strcmp(rows[i].code, code) == 0)
-            return true;
-    }
-    return false;
-}
-
-bool outcomeIs(ConfigLoader::DashboardOutcome expected, ConfigLoader::DashboardOutcome actual) {
-    return static_cast<uint8_t>(expected) == static_cast<uint8_t>(actual);
-}
-
-}
+using ConfigLoaderTest::errorStoreHolds;
+using ConfigLoaderTest::kDashboardBakPath;
+using ConfigLoaderTest::outcomeIs;
+using ConfigLoaderTest::stageDashboard;
+using ConfigLoaderTest::stageMinimalFiles;
 
 void setUp() {}
 void tearDown() {}
@@ -244,76 +209,6 @@ void test_loadDashboard_targetProfile_roundTripsExplicitValue() {
     TEST_ASSERT_EQUAL_STRING("crowpanel-28", ConfigLoader::getDashboardConfig().targetProfile);
 }
 
-// Issue #1159 — malformed canFrameId must drop the offending signal and keep
-// all other signals intact. A bare strtoul would have silently produced 0.
-void test_loadSignals_malformedCanFrameId_dropsSignal() {
-    StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
-                             strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsMalformedCanFrameId,
-                             strlen(fixtures::kSignalsMalformedCanFrameId));
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
-
-    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
-    // Only the valid "rpm" signal survives; "tps" (0xGGG) is dropped.
-    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
-    TEST_ASSERT_EQUAL_STRING("rpm", signals.signals[0].name);
-    TEST_ASSERT_EQUAL_UINT32(0x370u, signals.signals[0].canFrameId);
-}
-
-// Issue #1162 — signal name longer than CFG_MAX_SIGNAL_LEN must drop the
-// signal (not truncate silently). A good signal before the offending one
-// must survive intact.
-void test_loadSignals_threeByteValue_isAccepted() {
-    StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
-                             strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsThreeByteValue,
-                             strlen(fixtures::kSignalsThreeByteValue));
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
-
-    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
-    // The 3-byte "odo" survives; "too_wide" (5 bytes) is still dropped.
-    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
-    TEST_ASSERT_EQUAL_STRING("odo", signals.signals[0].name);
-    TEST_ASSERT_EQUAL_UINT8(3, signals.signals[0].byteLength);
-}
-
-void test_loadSignals_nameTooLong_dropsSignal() {
-    StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
-                             strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsNameTooLong,
-                             strlen(fixtures::kSignalsNameTooLong));
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
-
-    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
-    // Only "rpm" survives; the too-long-name signal is dropped.
-    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
-    TEST_ASSERT_EQUAL_STRING("rpm", signals.signals[0].name);
-}
-
-// Issue #1162 — unit string longer than sizeof(s.unit) must be reset to ""
-// rather than truncated silently. The signal itself must survive.
-void test_loadSignals_unitTooLong_resetsUnitToEmpty() {
-    StorageDriver::fakeReset();
-    StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardMinimal,
-                             strlen(fixtures::kDashboardMinimal));
-    StorageDriver::fakeWrite(kConfigPathSignals, fixtures::kSignalsUnitTooLong,
-                             strlen(fixtures::kSignalsUnitTooLong));
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().signalsOk);
-
-    const CfgSignalConfig &signals = ConfigLoader::getSignalConfig();
-    TEST_ASSERT_EQUAL_UINT8(1, signals.signalCount);
-    TEST_ASSERT_EQUAL_STRING("rpm", signals.signals[0].name);
-    // Unit must be empty string, not a truncated fragment.
-    TEST_ASSERT_EQUAL_STRING("", signals.signals[0].unit);
-}
-
 void test_loadDashboard_pageTemplate_parsesCruiseControlAndDefaultsCustom() {
     StorageDriver::fakeReset();
     StorageDriver::fakeWrite(kConfigPathDashboard, fixtures::kDashboardWithTemplates,
@@ -427,81 +322,6 @@ void test_loadDashboard_gearBig_isParsed() {
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(WidgetType::GEAR_IND),
                             static_cast<uint8_t>(gear.type));
     TEST_ASSERT_EQUAL_UINT8(96, gear.label.big);
-}
-
-void test_loadDashboard_belowGridFloor_reportsVersionTooOld() {
-    stageDashboard(fixtures::kDashboardPreGrid, nullptr);
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    TEST_ASSERT_TRUE(errorStoreHolds("VER_OLD"));
-}
-
-void test_loadDashboard_atGridFloor_reportsNothing() {
-    stageDashboard(fixtures::kDashboardGridFloor, nullptr);
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    TEST_ASSERT_FALSE(errorStoreHolds("VER_OLD"));
-}
-
-void test_loadDashboard_refusedWithBackup_restoresPrevious() {
-    stageDashboard(fixtures::kDashboardOverflow, fixtures::kDashboardMinimal);
-
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-
-    TEST_ASSERT_TRUE(outcomeIs(ConfigLoader::DashboardOutcome::RestoredPrevious,
-                               ConfigLoader::lastDashboardOutcome()));
-    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
-    TEST_ASSERT_EQUAL_UINT32(strlen(fixtures::kDashboardMinimal),
-                             StorageDriver::fileSize(kConfigPathDashboard));
-    TEST_ASSERT_FALSE(StorageDriver::fileExists(kDashboardBakPath));
-    TEST_ASSERT_FALSE(ConfigLoader::getRejection().present);
-    TEST_ASSERT_TRUE(errorStoreHolds("OVERFLOW"));
-    TEST_ASSERT_TRUE(errorStoreHolds("CFG_BAK"));
-}
-
-void test_loadDashboard_refusedWithoutBackup_isRefused() {
-    stageDashboard(fixtures::kDashboardOverflow, nullptr);
-
-    TEST_ASSERT_FALSE(ConfigLoader::loadAll().dashboardOk);
-
-    TEST_ASSERT_TRUE(
-        outcomeIs(ConfigLoader::DashboardOutcome::Refused, ConfigLoader::lastDashboardOutcome()));
-    TEST_ASSERT_TRUE(ConfigLoader::getRejection().present);
-    TEST_ASSERT_FALSE(errorStoreHolds("CFG_BAK"));
-}
-
-void test_vetDashboard_refused_restoresFileAndKeepsLiveConfig() {
-    stageMinimalFiles();
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    stageDashboard(fixtures::kDashboardOverflow, fixtures::kDashboardMinimalReload);
-
-    TEST_ASSERT_TRUE(
-        outcomeIs(ConfigLoader::DashboardOutcome::RestoredPrevious, ConfigLoader::vetDashboard()));
-
-    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
-    TEST_ASSERT_EQUAL_UINT32(strlen(fixtures::kDashboardMinimalReload),
-                             StorageDriver::fileSize(kConfigPathDashboard));
-}
-
-void test_vetDashboard_valid_isLoadedAndKeepsLiveConfig() {
-    stageMinimalFiles();
-    TEST_ASSERT_TRUE(ConfigLoader::loadAll().dashboardOk);
-    stageDashboard(fixtures::kDashboardMinimalReload, fixtures::kDashboardMinimal);
-
-    TEST_ASSERT_TRUE(
-        outcomeIs(ConfigLoader::DashboardOutcome::Loaded, ConfigLoader::vetDashboard()));
-
-    TEST_ASSERT_EQUAL_STRING("Minimal Test Dashboard", ConfigLoader::getDashboardConfig().name);
-    TEST_ASSERT_TRUE(StorageDriver::fileExists(kDashboardBakPath));
-}
-
-void test_loadDashboard_unparsable_isUnreadable() {
-    stageDashboard(fixtures::kDashboardCorrupt, nullptr);
-
-    TEST_ASSERT_FALSE(ConfigLoader::loadAll().dashboardOk);
-
-    TEST_ASSERT_TRUE(outcomeIs(ConfigLoader::DashboardOutcome::Unreadable,
-                               ConfigLoader::lastDashboardOutcome()));
 }
 
 int main(int /*argc*/, char ** /*argv*/) {
