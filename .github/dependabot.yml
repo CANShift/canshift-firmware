@@ -9,6 +9,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      codeql-action:
+        patterns: ['github/codeql-action*']
   - package-ecosystem: cargo
     directory: /rust
     schedule:
