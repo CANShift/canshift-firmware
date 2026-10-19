@@ -242,27 +242,42 @@ static void updateStaticLabel(uint8_t, DynItem &d, bool silent) {
     applyDynTextColor(d, staticLabelColor(d, silent));
 }
 
-static constexpr DynUpdater kDynUpdaters[] = {
-    nullptr,
-    updateDynStatusDot,
-    updateStaticLabel,
-    updateLinkedSeparator,
-    updateDynSignalLabel,
-    updateBleIcon,
-    nullptr,
-    updateModeFlag,
-    updateTrackBadge,
-    updateCanRate,
-    updateDynSignalMax,
+struct DynUpdaterRow {
+    TopBarItemKind kind;
+    DynUpdater update;
 };
 
-static_assert(sizeof(kDynUpdaters) / sizeof(kDynUpdaters[0]) ==
-                  static_cast<size_t>(TopBarItemKind::SIGNAL_MAX) + 1,
+static constexpr DynUpdaterRow kDynUpdaters[] = {
+    {TopBarItemKind::UNKNOWN, nullptr},
+    {TopBarItemKind::STATUS_DOT, updateDynStatusDot},
+    {TopBarItemKind::LABEL, updateStaticLabel},
+    {TopBarItemKind::SEPARATOR, updateLinkedSeparator},
+    {TopBarItemKind::SIGNAL, updateDynSignalLabel},
+    {TopBarItemKind::BLE_ICON, updateBleIcon},
+    {TopBarItemKind::THEME_TOGGLE, nullptr},
+    {TopBarItemKind::MODE_FLAG, updateModeFlag},
+    {TopBarItemKind::TRACK_BADGE, updateTrackBadge},
+    {TopBarItemKind::CAN_RATE, updateCanRate},
+    {TopBarItemKind::SIGNAL_MAX, updateDynSignalMax},
+};
+
+static constexpr size_t kDynUpdaterCount = sizeof(kDynUpdaters) / sizeof(kDynUpdaters[0]);
+
+static_assert(kDynUpdaterCount == static_cast<size_t>(TopBarItemKind::SIGNAL_MAX) + 1,
               "every top bar item kind needs a row");
+
+static constexpr bool rowsFollowKindOrder() {
+    for (size_t i = 0; i < kDynUpdaterCount; ++i)
+        if (static_cast<size_t>(kDynUpdaters[i].kind) != i)
+            return false;
+    return true;
+}
+
+static_assert(rowsFollowKindOrder(), "top bar updater rows must follow TopBarItemKind order");
 
 static DynUpdater updaterFor(TopBarItemKind kind) {
     const size_t idx = static_cast<size_t>(kind);
-    return idx < sizeof(kDynUpdaters) / sizeof(kDynUpdaters[0]) ? kDynUpdaters[idx] : nullptr;
+    return idx < kDynUpdaterCount ? kDynUpdaters[idx].update : nullptr;
 }
 
 void TopBar::update() {
