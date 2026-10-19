@@ -2,11 +2,6 @@
   "function-lines": {},
   "nesting": {},
   "file-lines": {
-    "rust/alert-engine/src/cuts.rs": 304,
-    "rust/alert-engine/src/ffi.rs": 359,
-    "rust/alert-engine/src/lib.rs": 812,
-    "rust/timer-core/src/lib.rs": 395,
-    "rust/workshop-mode/src/ffi.rs": 341,
     "test/test_embedded_asset/deflated_fixtures.h": 602
   },
   "comments": {
