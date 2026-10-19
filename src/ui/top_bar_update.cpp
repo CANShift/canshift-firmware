@@ -266,11 +266,9 @@ static constexpr size_t kDynUpdaterCount = sizeof(kDynUpdaters) / sizeof(kDynUpd
 static_assert(kDynUpdaterCount == static_cast<size_t>(TopBarItemKind::SIGNAL_MAX) + 1,
               "every top bar item kind needs a row");
 
-static constexpr bool rowsFollowKindOrder() {
-    for (size_t i = 0; i < kDynUpdaterCount; ++i)
-        if (static_cast<size_t>(kDynUpdaters[i].kind) != i)
-            return false;
-    return true;
+static constexpr bool rowsFollowKindOrder(size_t i = 0) {
+    return i == kDynUpdaterCount ||
+           (static_cast<size_t>(kDynUpdaters[i].kind) == i && rowsFollowKindOrder(i + 1));
 }
 
 static_assert(rowsFollowKindOrder(), "top bar updater rows must follow TopBarItemKind order");
