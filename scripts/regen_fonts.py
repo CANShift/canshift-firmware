@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 LATIN_RANGE = "0x20-0x7F,0xB0,0xB7,0x2014,0x2022,0x2192"
+UNIT_RANGE = f"{LATIN_RANGE},0x3BB"
 NUMERIC_RANGE = "0x20,0x2D,0x2E,0x30-0x39"
 
 HERO_RANGE = "0x20,0x2D,0x2F,0x30-0x39,0x41-0x5A"
@@ -55,7 +56,7 @@ JBMONO_VALUE_FALLBACK = (
     "JetBrainsMono-Medium.ttf",
     (10,),
     "lvgl",
-    LATIN_RANGE,
+    UNIT_RANGE,
 )
 
 
@@ -72,8 +73,10 @@ def run_lv_font_conv(*args: str) -> None:
     subprocess.run(cmd, check=True)
 
 
-def collapse_include(path: Path) -> None:
+def normalise_source(path: Path, ttf: Path) -> None:
     text = path.read_text()
+    text = text.replace(f"--font {ttf} ", f"--font {ttf.name} ")
+    text = text.replace(f"-o {path}\n", f"-o {path.name}\n")
     text = text.replace(
         "#ifdef LV_LVGL_H_INCLUDE_SIMPLE\n"
         '#include "lvgl.h"\n'
@@ -113,7 +116,7 @@ def regen(input_dir: Path, bins_dir: Path, src_dir: Path) -> None:
                 str(out),
             )
             if fmt == "lvgl":
-                collapse_include(out)
+                normalise_source(out, ttf)
             print(f"  generated {out.name} ({out.stat().st_size} B)")
 
 

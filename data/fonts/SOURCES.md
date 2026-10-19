@@ -16,6 +16,18 @@ car produces render in monospace with tabular figures.
 - Conversion: `scripts/regen_fonts.py <ttf-dir>` — wraps
   `lv_font_conv --size <S> --bpp 4 --no-kerning --range 0x20-0x7F,0xB0,0xB7,0x2014,0x2022,0x2192`
   (`--format bin` for SPIFFS, `--format lvgl` for the in-flash twins).
+  The script writes each in-flash face's `Opts:` header with bare file names, so a
+  regeneration from the same TTFs is byte-identical wherever it runs.
+
+## Unit glyphs
+
+The units face (`lv_font_jbmono_medium_10_nk.c`) uses `UNIT_RANGE`: the Latin range
+plus `λ` (U+03BB) for the lambda unit. Only that face draws signal units, and Archivo
+has no Greek. `scripts/check_unit_glyphs.py` fails the `lint` job when a unit string
+uses a codepoint the face does not carry. It checks the presentation table, the
+metric/imperial pairs in `rust/unit-convert`, the bundled `signals.json` units and the
+bundled `dashboard.json` suffixes. To add a unit with a new character, add its codepoint
+to `UNIT_RANGE` and regenerate.
 
 ## Weight / size matrix
 
