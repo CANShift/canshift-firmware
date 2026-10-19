@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "app_config.h"
+#include "config_enums.h"
 
 #ifndef CONFIG_SCHEMA_VERSION
     #error "CONFIG_SCHEMA_VERSION not defined — extra_targets.py must inject it from canshift-core"
@@ -24,19 +25,6 @@ constexpr int32_t kCfgMaxPathLen = 64;
 
 struct CfgColor {
     uint32_t rgb;
-};
-
-enum class WidgetType : uint8_t {
-    UNKNOWN = 0,
-    GAUGE = 1,
-    LABEL = 2,
-    WARNING = 3,
-    BUTTON = 4,
-    TOP_BAR = 5,
-    TIMER = 6,
-    GEAR_IND = 8,
-    IMAGE = 9,
-    SHIFT_LIGHT = 10,
 };
 
 struct CfgLayout {
@@ -99,45 +87,6 @@ struct CfgWarningParams {
     char iconName[16];
 };
 
-enum class CfgButtonActionType : uint8_t {
-    UNKNOWN = 0,
-    NAV_PAGE,
-    MAP_SWITCH,
-    CAN_RAW,
-    CRUISE_CONTROL,
-    TIMER_CONTROL,
-};
-
-enum class CfgTimerOp : uint8_t {
-    UNKNOWN = 0,
-    START,
-    PAUSE,
-    RESUME,
-    TOGGLE,
-    RESET,
-    LAP,
-};
-
-enum class CfgTimerSource : uint8_t {
-    Elapsed = 0,
-    Lap,
-    Best,
-    Last,
-    LapCount,
-    Delta,
-};
-
-enum class CfgCruiseOp : uint8_t {
-    UNKNOWN = 0,
-    ON,
-    OFF,
-    TOGGLE,
-    SET,
-    RESUME,
-    INCREMENT,
-    DECREMENT,
-};
-
 struct CfgButtonAction {
     CfgButtonActionType type;
     char pageId[kCfgMaxIdLen];
@@ -151,11 +100,6 @@ struct CfgButtonAction {
     CfgCruiseOp cruiseOp;
     uint8_t cruiseStepKmh;
     CfgTimerOp timerOp;
-};
-
-enum class CfgButtonMode : uint8_t {
-    SINGLE = 0,
-    CYCLE = 1,
 };
 
 struct CfgButtonState {
@@ -216,31 +160,6 @@ struct CfgWidget {
     CfgButtonParams *button;
 };
 
-enum class CfgPageTemplate : uint8_t {
-    CUSTOM = 0,
-    CRUISE_CONTROL,
-};
-
-enum class TopBarItemKind : uint8_t {
-    UNKNOWN = 0,
-    STATUS_DOT,
-    LABEL,
-    SEPARATOR,
-    SIGNAL,
-    BLE_ICON,
-    THEME_TOGGLE,
-    MODE_FLAG,
-    TRACK_BADGE,
-    CAN_RATE,
-    SIGNAL_MAX,
-};
-
-enum class TopBarItemPos : uint8_t {
-    LEFT = 0,
-    CENTER = 1,
-    RIGHT = 2,
-};
-
 struct CfgTopBarItem {
     TopBarItemKind kind;
     TopBarItemPos position;
@@ -282,11 +201,6 @@ struct CfgTheme {
     bool hasPalette;
     CfgColor text;
     CfgColor textDim;
-};
-
-enum class CfgUnitSystem : uint8_t {
-    METRIC = 0,
-    IMPERIAL = 1,
 };
 
 struct CfgCriticalAlert {
@@ -385,18 +299,6 @@ struct CfgDeviceConfig {
 };
 
 constexpr int32_t kCfgMaxInputBindings = 16;
-
-enum class CfgInputActive : uint8_t {
-    ACTIVE_LOW = 0,
-    ACTIVE_HIGH = 1,
-};
-
-enum class CfgInputPressKind : uint8_t {
-    UNKNOWN = 0,
-    SHORT,
-    LONG,
-    DOUBLE,
-};
 
 struct CfgInputBinding {
     char id[kCfgMaxIdLen];
