@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 64 px
  * Bpp: 4
- * Opts: --no-compress --no-prefilter --no-kerning --bpp 4 --size 64 --font /private/tmp/claude-501/-Users-thomas-Developer-TMBK-CANShift/9b852d6c-d5b0-423b-8b78-0b8aa014d016/scratchpad/ttf/JetBrainsMono-ExtraBold.ttf -r 0x20,0x2D,0x2F,0x30-0x39,0x41-0x5A --format lvgl -o /Users/thomas/Developer/TMBK/CANShift/.worktrees/fw-control-splashes/src/ui/fonts/lv_font_jbmono_extrabold_64_nk.c
+ * Opts: --no-compress --no-prefilter --no-kerning --bpp 4 --size 64 --font JetBrainsMono-ExtraBold.ttf -r 0x20,0x2D,0x2F,0x30-0x39,0x41-0x5A --format lvgl -o lv_font_jbmono_extrabold_64_nk.c
  ******************************************************************************/
 
 #include "lvgl.h"
