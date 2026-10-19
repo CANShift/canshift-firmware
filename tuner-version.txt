@@ -1,2 +1,2 @@
-tag=v0.5.0
-sha256=3dd2f15da355dc649d700698de6abe9dcbc57653ebcdc4eacea2ef4558b551cd
+tag=v0.6.0
+sha256=5a7013d0a43bd595e3de7e37c180314aa1d4a27f8191e4b73adceffe9faba966
