@@ -159,6 +159,24 @@ timeout; the stack advertises with `kBlePreferredMtu` (247) requested. The
 latency lets the phone skip connection events when telemetry is idle without
 dropping the link.
 
+## Advertising cadence and TX power
+
+Advertising starts fast — every 30–60 ms — on boot, after a disconnect and when
+BLE is restarted, so a phone that is looking finds the dash at once. After 30 s
+with no connection (`advertising_backs_off` in `rust/ble-link`) it restarts at
+417.5–437.5 ms, one of the intervals Apple's accessory guidelines list, which
+cuts the advertising events about tenfold while a foreground app still connects
+within a second. The next disconnect returns to the fast cadence.
+
+| Radio use   | TX power | Why                                                                                                                |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| Advertising | +3 dBm   | Discovery only has to reach the cabin; at 2 m through a body the phone still sees about −75 dBm                    |
+| Connection  | +9 dBm   | Telemetry streams for the whole drive; the margin keeps the link up when the phone is in a pocket or behind a seat |
+
+Both are set through `esp_ble_tx_power_set` (default type for the link, the
+advertising type for advertising), and a refused level is logged and pushed to
+the ErrorStore.
+
 ## Race against `stop()`
 
 `updateStatus()` and `emitTelemetry()` snapshot the file-scope characteristic

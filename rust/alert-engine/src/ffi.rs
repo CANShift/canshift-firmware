@@ -1,5 +1,6 @@
 use crate::bus_silence::{bus_silence, stale_dash_groups, BusSilence};
 use crate::critical_alert::eval_critical_alert;
+use crate::display_power::{held_display_idle_state, touch_read_period_ms};
 use crate::{
     crossed_limit, eval_battery, eval_coolant_temp, eval_high_side, eval_high_side_temp,
     eval_oil_pressure, eval_rev_limiter, eval_with_hysteresis, rev_limit_row_lit,
@@ -128,8 +129,14 @@ pub extern "C" fn alert_display_idle_state_rs(
     idle_ms: u32,
     dim_after_ms: u32,
     off_after_ms: u32,
+    alert_held: bool,
 ) -> u8 {
-    crate::display_idle_state(idle_ms, dim_after_ms, off_after_ms)
+    held_display_idle_state(idle_ms, dim_after_ms, off_after_ms, alert_held)
+}
+
+#[no_mangle]
+pub extern "C" fn alert_touch_read_period_ms_rs(display_state: u8, ms_since_touch: u32) -> u32 {
+    touch_read_period_ms(display_state, ms_since_touch)
 }
 
 #[no_mangle]

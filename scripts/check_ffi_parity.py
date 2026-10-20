@@ -64,6 +64,13 @@ PAIRS = (
         "kAlertDisplayIdleOff",
     ),
     (
+        "touch read active period",
+        "rust/alert-engine/src/display_power.rs",
+        "TOUCH_READ_ACTIVE_MS",
+        "include/alert_engine_rs.h",
+        "kAlertTouchReadActiveMs",
+    ),
+    (
         "timer lap capacity",
         "rust/timer-core/src/lib.rs",
         "LAP_CAPACITY",

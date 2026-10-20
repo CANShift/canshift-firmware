@@ -32,7 +32,12 @@ inline constexpr uint8_t kAlertDisplayIdleLive = 0;
 inline constexpr uint8_t kAlertDisplayIdleDim = 1;
 inline constexpr uint8_t kAlertDisplayIdleOff = 2;
 
-uint8_t alert_display_idle_state_rs(uint32_t idle_ms, uint32_t dim_after_ms, uint32_t off_after_ms);
+uint8_t alert_display_idle_state_rs(uint32_t idle_ms, uint32_t dim_after_ms, uint32_t off_after_ms,
+                                    bool alert_held);
+
+inline constexpr uint32_t kAlertTouchReadActiveMs = 15;
+
+uint32_t alert_touch_read_period_ms_rs(uint8_t display_state, uint32_t ms_since_touch);
 
 uint8_t alert_critical_alert_step_rs(AlertLevelHoldRs *hold, float value, float fires_at,
                                      bool below, uint32_t now_ms, float hysteresis_pct,
