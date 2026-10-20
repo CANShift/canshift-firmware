@@ -121,15 +121,38 @@ fn find_fixed_spec(spec: &[u8]) -> Option<FixedSpec> {
 
 #[must_use]
 pub fn format_from_spec(buf: &mut [u8], value: f32, spec: &[u8]) -> usize {
+    format_from_spec_at(buf, value, spec, None)
+}
+
+#[must_use]
+pub fn format_from_spec_with_decimals(
+    buf: &mut [u8],
+    value: f32,
+    spec: &[u8],
+    decimals: i32,
+) -> usize {
+    format_from_spec_at(buf, value, spec, Some(decimals))
+}
+
+#[must_use]
+pub fn spec_decimals(spec: &[u8]) -> i32 {
+    find_fixed_spec(spec).map_or(1, |found| found.decimals)
+}
+
+fn format_from_spec_at(buf: &mut [u8], value: f32, spec: &[u8], decimals: Option<i32>) -> usize {
     if buf.is_empty() {
         return 0;
     }
     let Some(found) = find_fixed_spec(spec) else {
-        return format_fixed(buf, value, 1);
+        return format_fixed(buf, value, decimals.unwrap_or(1));
     };
 
     let mut number_scratch = [0u8; 32];
-    let number_len_total = format_fixed(&mut number_scratch, value, found.decimals);
+    let number_len_total = format_fixed(
+        &mut number_scratch,
+        value,
+        decimals.unwrap_or(found.decimals),
+    );
     let number = &number_scratch[..number_len_total];
 
     let prefix = &spec[..found.percent];

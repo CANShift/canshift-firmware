@@ -11,6 +11,9 @@ extern "C" {
 
 size_t format_fixed_rs(char *buf, size_t size, float value, int32_t decimals);
 size_t format_from_spec_rs(char *buf, size_t size, float value, const char *spec);
+size_t format_from_spec_decimals_rs(char *buf, size_t size, float value, const char *spec,
+                                    int32_t decimals);
+int32_t format_spec_decimals_rs(const char *spec);
 size_t format_general_rs(char *buf, size_t size, float value, int32_t sig_digits);
 
 #ifdef __cplusplus

@@ -198,3 +198,30 @@ fn general_nan_and_inf() {
     assert_eq!(format_general(&mut buf, f32::NEG_INFINITY, 3), 4);
     assert_eq!(as_str(&buf), "-inf");
 }
+
+#[test]
+fn spec_decimals_reads_the_fixed_precision() {
+    assert_eq!(spec_decimals(b"PEAK %.2f"), 2);
+    assert_eq!(spec_decimals(b"%.0f km"), 0);
+}
+
+#[test]
+fn spec_decimals_without_a_fixed_spec_is_one() {
+    assert_eq!(spec_decimals(b"plain"), 1);
+    assert_eq!(spec_decimals(b""), 1);
+}
+
+#[test]
+fn spec_with_decimals_keeps_prefix_and_suffix() {
+    let mut buf = [0u8; 16];
+    let n = format_from_spec_with_decimals(&mut buf, 23.35, b"PEAK %.2f psi", 1);
+    assert_eq!(as_str(&buf), "PEAK 23.4 psi");
+    assert_eq!(n, 13);
+}
+
+#[test]
+fn spec_with_decimals_without_a_fixed_spec_uses_the_override() {
+    let mut buf = [0u8; 16];
+    let _ = format_from_spec_with_decimals(&mut buf, 3.14159, b"plain", 3);
+    assert_eq!(as_str(&buf), "3.142");
+}
