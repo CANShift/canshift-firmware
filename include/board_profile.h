@@ -71,6 +71,15 @@ struct ConnectivityProfile {
     bool psram_present;
 };
 
+struct AudioProfile {
+    bool present;
+    int8_t pin_bck;
+    int8_t pin_ws;
+    int8_t pin_dout;
+};
+
+inline constexpr AudioProfile kNoAudio = {false, -1, -1, -1};
+
 struct BoardProfile {
     const char *board_id;
     const char *board_name;
@@ -81,6 +90,7 @@ struct BoardProfile {
     CanProfile can;
     StorageProfile storage;
     ConnectivityProfile conn;
+    AudioProfile audio;
 };
 
 inline constexpr const char *kLcdDriverNames[] = {"ILI9341", "ST7789", "ILI9488", "GC9A01"};

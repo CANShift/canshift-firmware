@@ -230,6 +230,27 @@ void test_applyCatalogBoard_refusesAnUnknownIdAndKeepsTheProfile() {
     TEST_ASSERT_EQUAL_STRING("generic_ili9341", runtimeBoardProfile().board_id);
 }
 
+void test_blobNeverCarriesAudio() {
+    char blob[1200];
+    buildBlob(blob, sizeof blob, "test_board", "st7789", 15);
+    BoardProfile out{};
+    out.audio = {true, 1, 2, 3};
+    TEST_ASSERT_EQUAL(static_cast<int>(BoardProfileParse::Ok), static_cast<int>(parse(blob, out)));
+    TEST_ASSERT_FALSE(out.audio.present);
+    TEST_ASSERT_EQUAL_INT(-1, out.audio.pin_dout);
+}
+
+void test_onlyTheWaveshareBoardHasAudio() {
+    for (const BoardProfile *profile : kCatalog) {
+        const bool waveshare = strcmp(profile->board_id, "waveshare_s3_28") == 0;
+        TEST_ASSERT_EQUAL(waveshare, profile->audio.present);
+    }
+    const AudioProfile &audio = catalogBoard("waveshare_s3_28", ChipFamily::Esp32s3)->audio;
+    TEST_ASSERT_EQUAL_INT(48, audio.pin_bck);
+    TEST_ASSERT_EQUAL_INT(38, audio.pin_ws);
+    TEST_ASSERT_EQUAL_INT(47, audio.pin_dout);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_validBlob_parsesAllFields);
@@ -252,5 +273,7 @@ int main(int, char **) {
     RUN_TEST(test_applyCatalogBoard_switchesTheRuntimeProfile);
     RUN_TEST(test_applyCatalogBoard_refusesAnotherChipFamily);
     RUN_TEST(test_applyCatalogBoard_refusesAnUnknownIdAndKeepsTheProfile);
+    RUN_TEST(test_blobNeverCarriesAudio);
+    RUN_TEST(test_onlyTheWaveshareBoardHasAudio);
     return UNITY_END();
 }

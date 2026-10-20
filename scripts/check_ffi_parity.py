@@ -560,6 +560,41 @@ PAIRS = (
         "include/bus_scan_rs.h",
         "kBusScanActionRestore",
     ),
+    (
+        "tone sample rate",
+        "rust/tone-sequencer/src/synth.rs",
+        "TONE_SAMPLE_RATE_HZ",
+        "include/tone_sequencer_rs.h",
+        "kToneSampleRateHz",
+    ),
+    (
+        "tone pattern none",
+        "rust/tone-sequencer/src/pattern.rs",
+        "TONE_PATTERN_NONE",
+        "include/tone_sequencer_rs.h",
+        "kTonePatternNone",
+    ),
+    (
+        "tone pattern critical",
+        "rust/tone-sequencer/src/pattern.rs",
+        "TONE_PATTERN_CRITICAL",
+        "include/tone_sequencer_rs.h",
+        "kTonePatternCritical",
+    ),
+    (
+        "tone pattern boot",
+        "rust/tone-sequencer/src/pattern.rs",
+        "TONE_PATTERN_BOOT",
+        "include/tone_sequencer_rs.h",
+        "kTonePatternBoot",
+    ),
+    (
+        "tone pattern count",
+        "rust/tone-sequencer/src/pattern.rs",
+        "TONE_PATTERN_COUNT",
+        "include/tone_sequencer_rs.h",
+        "kTonePatternCount",
+    ),
 )
 
 RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(-?\\d+)"

@@ -49,6 +49,7 @@ dependencies = [
  "ota-signature",
  "signal-map",
  "timer-core",
+ "tone-sequencer",
  "unit-convert",
  "usb-envelope",
  "workshop-mode",
@@ -259,6 +260,10 @@ dependencies = [
 
 [[package]]
 name = "timer-core"
+version = "0.1.0"
+
+[[package]]
+name = "tone-sequencer"
 version = "0.1.0"
 
 [[package]]

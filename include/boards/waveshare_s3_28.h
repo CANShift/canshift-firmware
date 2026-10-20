@@ -70,6 +70,13 @@ inline constexpr BoardProfile kWaveshareS328 = {
             .ble_supported = true,
             .psram_present = true,
         },
+    .audio =
+        {
+            .present = true,
+            .pin_bck = 48,
+            .pin_ws = 38,
+            .pin_dout = 47,
+        },
 };
 
 }

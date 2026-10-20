@@ -1,0 +1,12 @@
+[package]
+name = "tone-sequencer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Dash sound pure logic: the tone patterns, the sequencer that plays them with the critical alert first, and the square-wave synthesis. I2S stays C++."
+license = "UNLICENSED"
+
+[features]
+default = ["std"]
+std = []
+ffi = []

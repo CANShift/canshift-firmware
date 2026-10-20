@@ -67,6 +67,10 @@ was provisioned rather than what the binary was built with.
 data bus, sync lines and porch timings, so they are not expressible as a profile
 variant today — see #51.
 
+`audio` (the I2S pins of a board with a speaker) comes from the catalog header
+only. The blob form does not carry it, so a board provisioned by blob is always
+silent.
+
 A profile may only name drivers this build can construct; see
 [Board drivers](../reference/board-drivers.md) for the matrix and for what happens
 when it names one that is missing.

@@ -70,6 +70,7 @@ inline constexpr BoardProfile kGenericEsp32s3 = {
             .ble_supported = true,
             .psram_present = true,
         },
+    .audio = kNoAudio,
 };
 
 }

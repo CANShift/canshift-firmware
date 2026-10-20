@@ -48,6 +48,12 @@ passed next to it.
 - `bus-scan` owns the bus scan's probe sequence, the bit-rate picker and the
   seen-ID table; `BusScanRs` mirrors `repr(C)` `BusScan` field for field, and
   the C++ side only executes the install and restore actions it returns.
+- `tone-sequencer` owns the tone patterns, the sequencer that plays them and
+  the square-wave synthesis. The sequencer plays the critical pattern for as
+  long as the caller passes `critical`, refuses any other pattern while it
+  does, and returns silence otherwise; the C++ side only writes the samples it
+  fills to I2S. `ToneSequencerRs`, `ToneOutputRs` and `ToneSynthRs` mirror the
+  `repr(C)` structs field for field.
 - `format-float` exists to keep newlib's `%f`/`%g` out of the image, which
   costs about 30 KB of flash. It returns `snprintf`-style lengths, truncates
   rather than rounds, and prints NaN and infinity as literals. `format_general`

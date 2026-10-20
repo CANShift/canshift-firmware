@@ -70,6 +70,7 @@ inline constexpr BoardProfile kGenericIli9341 = {
             .ble_supported = true,
             .psram_present = false,
         },
+    .audio = kNoAudio,
 };
 
 }
