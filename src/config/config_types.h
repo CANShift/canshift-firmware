@@ -177,6 +177,10 @@ struct CfgTopBarItem {
     char signalId[kCfgMaxSignalLen];
     char text[16];
     char format[16];
+    char unit[16];
+    char offText[16];
+    CfgTimerSource timerSource;
+    bool showUnit;
 };
 
 struct CfgStatusRow {

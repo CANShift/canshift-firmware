@@ -67,11 +67,11 @@ void applyDefaultTopBarLayout(CfgTopBar *bar) {
         if (n >= kCfgMaxTopbarItems)
             return;
         CfgTopBarItem &out = items[n++];
+        out = CfgTopBarItem{};
         out.kind = kind;
         out.position = pos;
         strlcpy(out.signalId, sig, sizeof(out.signalId));
         strlcpy(out.text, txt, sizeof(out.text));
-        out.format[0] = '\0';
     };
     addItem(TopBarItemKind::LABEL, TopBarItemPos::LEFT, "", "CAN");
     addItem(TopBarItemKind::CAN_RATE, TopBarItemPos::LEFT, "", "");
@@ -80,6 +80,20 @@ void applyDefaultTopBarLayout(CfgTopBar *bar) {
     if (n > 0)
         strlcpy(items[n - 1].format, "%.0f", sizeof(items[n - 1].format));
     addItem(TopBarItemKind::TRACK_BADGE, TopBarItemPos::RIGHT, "", "");
+}
+
+CfgTopBarItem parseTopBarItem(JsonObjectConst item, const char *defaultPosition) {
+    CfgTopBarItem out{};
+    out.kind = parseTopBarItemKind(item["type"] | "");
+    out.position = parseTopBarItemPos(item["position"] | defaultPosition);
+    strlcpy(out.signalId, item["signal"] | "", kCfgMaxSignalLen);
+    strlcpy(out.text, item["text"] | "", sizeof(out.text));
+    strlcpy(out.format, item["format"] | "", sizeof(out.format));
+    strlcpy(out.unit, item["unit"] | "", sizeof(out.unit));
+    strlcpy(out.offText, item["offText"] | "", sizeof(out.offText));
+    out.timerSource = parseTimerSource(item["source"] | "lap");
+    out.showUnit = item["showUnit"] | false;
+    return out;
 }
 
 void parseTopBarLayout(JsonArrayConst layout, CfgTopBar *bar) {
@@ -91,12 +105,7 @@ void parseTopBarLayout(JsonArrayConst layout, CfgTopBar *bar) {
     for (JsonObjectConst item : layout) {
         if (bar->itemCount >= kCfgMaxTopbarItems)
             break;
-        CfgTopBarItem tmp{};
-        tmp.kind = parseTopBarItemKind(item["type"] | "");
-        tmp.position = parseTopBarItemPos(item["position"] | "left");
-        strlcpy(tmp.signalId, item["signal"] | "", kCfgMaxSignalLen);
-        strlcpy(tmp.text, item["text"] | "", sizeof(tmp.text));
-        strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
+        const CfgTopBarItem tmp = parseTopBarItem(item, "left");
         if (tmp.kind == TopBarItemKind::UNKNOWN) {
             LOG_WARN("CFG", "topBar.layout[%u]: unknown type — item dropped",
                      static_cast<unsigned>(bar->itemCount));
@@ -153,14 +162,9 @@ void parseThemes(const JsonDocument &doc, CfgDashboard *out) {
 bool parseStatusItem(JsonObjectConst item, CfgTopBarItem *out) {
     if (item.isNull())
         return false;
-    CfgTopBarItem tmp{};
-    tmp.kind = parseTopBarItemKind(item["type"] | "");
+    const CfgTopBarItem tmp = parseTopBarItem(item, "right");
     if (tmp.kind == TopBarItemKind::UNKNOWN)
         return false;
-    tmp.position = parseTopBarItemPos(item["position"] | "right");
-    strlcpy(tmp.signalId, item["signal"] | "", kCfgMaxSignalLen);
-    strlcpy(tmp.text, item["text"] | "", sizeof(tmp.text));
-    strlcpy(tmp.format, item["format"] | "", sizeof(tmp.format));
     *out = tmp;
     return true;
 }

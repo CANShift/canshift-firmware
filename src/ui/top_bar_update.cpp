@@ -5,6 +5,7 @@
 #include "runtime/signal_stats.h"
 #include "top_bar_rev_limit.h"
 #include "top_bar_separator_link.h"
+#include "top_bar_status_update.h"
 
 #include "app_config.h"
 #include "theme_manager.h"
@@ -16,7 +17,7 @@
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
 #endif
-#include "util/format_float.h"
+#include "ui/status_field_text.h"
 #include "ui/widgets/widget_helpers.h"
 
 #include <lvgl.h>
@@ -33,8 +34,6 @@ static constexpr uint32_t kColorBleConnNight = 0x4499FF;
 static constexpr uint32_t kColorBleConnDay = 0x0044BB;
 static constexpr uint32_t kColorBleAdvNight = 0x66AACC;
 static constexpr uint32_t kColorBleAdvDay = 0x336699;
-
-static constexpr const char *kStalePlaceholder = "- -";
 
 static constexpr uint32_t kCanBusLiveThresholdMs = 2000;
 
@@ -54,10 +53,10 @@ static uint32_t statusDotColor(bool valid, bool everSeen) {
 
 static void updateDynStatusDot(uint8_t idx, DynItem &d, bool) {
     bool valid = false;
-    if (d.signalId[0] == '\0' || strcmp(d.signalId, "any") == 0) {
+    if (d.item.signalId[0] == '\0' || strcmp(d.item.signalId, "any") == 0) {
         valid = anySignalValid();
     } else {
-        SignalId sid = signalIdFromName(d.signalId);
+        SignalId sid = signalIdFromName(d.item.signalId);
         valid = (sid < SignalIds::kSignalCount) && SignalStore::isValid(sid);
     }
     if (valid)
@@ -69,15 +68,8 @@ static void updateDynStatusDot(uint8_t idx, DynItem &d, bool) {
     d.lastColor = color;
 }
 
-static void applyDynTextColor(DynItem &d, uint32_t color) {
-    if (color == d.lastColor)
-        return;
-    lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
-    d.lastColor = color;
-}
-
 static void updateDynSignalLabel(uint8_t, DynItem &d, bool) {
-    SignalId sid = signalIdFromName(d.signalId);
+    SignalId sid = signalIdFromName(d.item.signalId);
 
     if (sid >= SignalIds::kSignalCount) {
         WidgetHelpers::setVisibleIfChanged(d.obj, false);
@@ -86,52 +78,44 @@ static void updateDynSignalLabel(uint8_t, DynItem &d, bool) {
     WidgetHelpers::setVisibleIfChanged(d.obj, true);
 
     if (!SignalStore::isValid(sid)) {
-        if (d.lastSeenValid) {
-            applyDynTextColor(d, ThemeManager::getStaleTextColor());
-            return;
-        }
-        if (strcmp(kStalePlaceholder, d.lastText) != 0) {
-            lv_label_set_text(d.obj, kStalePlaceholder);
-            strlcpy(d.lastText, kStalePlaceholder, sizeof(d.lastText));
-        }
+        if (!d.lastSeenValid)
+            applyDynText(d, StatusFieldText::kStalePlaceholder);
         applyDynTextColor(d, ThemeManager::getStaleTextColor());
         return;
     }
     d.lastSeenValid = true;
 
-    const char *fmt = d.format[0] ? d.format : "%.1f";
+    const char *fmt = d.item.format[0] ? d.item.format : "%.1f";
     char buf[kDynTextCap];
-    const float v = SignalStore::readDisplay(sid, 0.0f);
-    FloatFormat::formatFromSpec(buf, sizeof(buf), v, fmt);
-    if (strcmp(buf, d.lastText) != 0) {
-        lv_label_set_text(d.obj, buf);
-        strlcpy(d.lastText, buf, sizeof(d.lastText));
-    }
+    StatusFieldText::formatValue(buf, sizeof(buf), SignalStore::readDisplay(sid, 0.0f), fmt,
+                                 d.item);
+    applyDynText(d, buf);
     applyDynTextColor(d, labelColor());
 }
 
+static void formatSignalMax(char *buf, size_t cap, SignalId sid, const DynItem &d) {
+    if (!SignalStats::hasMax(sid)) {
+        StatusFieldText::withPrefix(buf, cap, d.item.text, StatusFieldText::kStalePlaceholder);
+        return;
+    }
+    const char *fmt = d.item.format[0] ? d.item.format : "%.0f";
+    char value[kDynTextCap];
+    StatusFieldText::formatValue(value, sizeof(value), SignalStats::maxValue(sid), fmt, d.item);
+    StatusFieldText::withPrefix(buf, cap, d.item.text, value);
+}
+
 static void updateDynSignalMax(uint8_t, DynItem &d, bool) {
-    const SignalId sid = signalIdFromName(d.signalId);
+    const SignalId sid = signalIdFromName(d.item.signalId);
     if (sid >= SignalIds::kSignalCount) {
         WidgetHelpers::setVisibleIfChanged(d.obj, false);
         return;
     }
     WidgetHelpers::setVisibleIfChanged(d.obj, true);
-    const bool known = SignalStats::hasMax(sid);
     char buf[kDynTextCap];
-    if (!known) {
-        snprintf(buf, sizeof(buf), "%s %s", d.prefix, kStalePlaceholder);
-    } else {
-        const char *fmt = d.format[0] ? d.format : "%.0f";
-        char value[kDynTextCap];
-        FloatFormat::formatFromSpec(value, sizeof(value), SignalStats::maxValue(sid), fmt);
-        snprintf(buf, sizeof(buf), "%s %s", d.prefix, value);
-    }
-    if (strcmp(buf, d.lastText) != 0) {
-        lv_label_set_text(d.obj, buf);
-        strlcpy(d.lastText, buf, sizeof(d.lastText));
-    }
-    applyDynTextColor(d, known ? labelColor() : ThemeManager::getStaleTextColor());
+    formatSignalMax(buf, sizeof(buf), sid, d);
+    applyDynText(d, buf);
+    applyDynTextColor(d,
+                      SignalStats::hasMax(sid) ? labelColor() : ThemeManager::getStaleTextColor());
 }
 
 static void updateBleIcon(uint8_t, DynItem &d, bool) {
@@ -159,7 +143,7 @@ static void updateBleIcon(uint8_t, DynItem &d, bool) {
 }
 
 static void updateModeFlag(uint8_t, DynItem &d, bool) {
-    SignalId sid = signalIdFromName(d.signalId);
+    SignalId sid = signalIdFromName(d.item.signalId);
     bool active = false;
     if (sid < SignalIds::kSignalCount && SignalStore::isValid(sid)) {
         active = SignalStore::read(sid, 0.0f) != 0.0f;
@@ -189,10 +173,7 @@ static void updateCanRate(uint8_t, DynItem &d, bool silent) {
     } else {
         snprintf(buf, sizeof(buf), "%lu Hz", static_cast<unsigned long>(CanManager::busRateHz()));
     }
-    if (strcmp(buf, d.lastText) != 0) {
-        lv_label_set_text(d.obj, buf);
-        strlcpy(d.lastText, buf, sizeof(d.lastText));
-    }
+    applyDynText(d, buf);
     applyDynTextColor(d, busFieldColor(silent));
 }
 
@@ -213,10 +194,7 @@ static void updateTrackBadge(uint8_t, DynItem &d, bool) {
     snprintf(buf, sizeof(buf), "LAP %u   %u:%02u.%02u", static_cast<unsigned>(st.lapNumber),
              static_cast<unsigned>(ms / 60000u), static_cast<unsigned>((ms % 60000u) / 1000u),
              static_cast<unsigned>((ms % 1000u) / 10u));
-    if (strcmp(buf, d.lastText) != 0) {
-        lv_label_set_text(d.obj, buf);
-        strlcpy(d.lastText, buf, sizeof(d.lastText));
-    }
+    applyDynText(d, buf);
     applyDynTextColor(d, labelColor());
 }
 
@@ -259,11 +237,13 @@ static constexpr DynUpdaterRow kDynUpdaters[] = {
     {TopBarItemKind::TRACK_BADGE, updateTrackBadge},
     {TopBarItemKind::CAN_RATE, updateCanRate},
     {TopBarItemKind::SIGNAL_MAX, updateDynSignalMax},
+    {TopBarItemKind::TIMER, TopBarStatusUpdate::updateTimer},
+    {TopBarItemKind::FLAG_WORD, TopBarStatusUpdate::updateFlagWord},
 };
 
 static constexpr size_t kDynUpdaterCount = sizeof(kDynUpdaters) / sizeof(kDynUpdaters[0]);
 
-static_assert(kDynUpdaterCount == static_cast<size_t>(TopBarItemKind::SIGNAL_MAX) + 1,
+static_assert(kDynUpdaterCount == static_cast<size_t>(TopBarItemKind::FLAG_WORD) + 1,
               "every top bar item kind needs a row");
 
 static constexpr bool rowsFollowKindOrder(size_t i = 0) {
