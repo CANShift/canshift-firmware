@@ -6490,6 +6490,65 @@
     "passed": 36,
     "failed": 0
    }
+  },
+  {
+   "sha": "ac8b5284011e138afd7535334e7441193dcd6566",
+   "date": "2026-10-21",
+   "sizes": {
+    "crowpanel_28": {
+     "flash": 1312256,
+     "dram": 93372,
+     "iram": 110327,
+     "psram": 0
+    },
+    "generic_esp32s3": {
+     "flash": 1225488,
+     "dram": 87112,
+     "iram": 77959,
+     "psram": 0
+    },
+    "generic_ili9341": {
+     "flash": 1312432,
+     "dram": 93372,
+     "iram": 110327,
+     "psram": 0
+    },
+    "generic_ili9341_gt911": {
+     "flash": 1312736,
+     "dram": 93372,
+     "iram": 110327,
+     "psram": 0
+    },
+    "waveshare_s3_28": {
+     "flash": 1692528,
+     "dram": 109644,
+     "iram": 89443,
+     "psram": 0
+    }
+   },
+   "perf": {
+    "calibration": 55.303,
+    "can_decode": 118.902,
+    "expr_eval": 22.482,
+    "telemetry_encode": 33.827,
+    "status_writer": 731.076,
+    "format_float": 13.698,
+    "command/status": 904.851,
+    "command/ping": 198.929,
+    "command/shared": 167.696,
+    "command/config_get": 6890.705,
+    "command/ota_reject": 490.369,
+    "command/unknown": 163.552,
+    "command/parse_error": 154.137
+   },
+   "goldens": {
+    "passed": 6,
+    "failed": 0
+   },
+   "visual": {
+    "passed": 36,
+    "failed": 0
+   }
   }
  ]
 }
