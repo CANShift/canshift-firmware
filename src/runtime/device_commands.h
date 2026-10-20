@@ -11,6 +11,7 @@ enum class Outcome : uint8_t {
     MissingDayField,
     RebootRequested,
     InvalidAlertSource,
+    InvalidPageId,
 };
 
 inline constexpr uint8_t kNoUsbCode = 0;

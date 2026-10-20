@@ -117,6 +117,7 @@ inline void uiDrainConfigReload() {
 inline void uiDrainNavActions() {
     char pageId[kCfgMaxIdLen];
     if (PendingActions::takeNavPage(pageId, sizeof(pageId))) {
+        DisplayIdle::wake();
         PageManager::navigateTo(pageId);
     }
 }
@@ -198,6 +199,7 @@ inline void uiRunDashFrame(bool &didDayNightChange) {
     uiDrainConfigReload();
     uiDrainNavActions();
     PageManager::updateWidgets();
+    PageManager::publishPages();
     uiRunLvTaskHandler();
 }
 
