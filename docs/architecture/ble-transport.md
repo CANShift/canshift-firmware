@@ -8,27 +8,29 @@ telemetry and status over GATT notify and writes settings, commands, and
 timer ops over GATT write. Sources: `src/hal/ble/ble_server.cpp`,
 `src/hal/ble/ble_status.cpp`, `src/hal/ble/ble_telemetry.cpp`,
 `src/hal/ble/telemetry_frame.cpp`, `src/hal/ble/ble_alert.cpp`,
-`src/hal/ble/alert_frame.cpp`, `src/hal/ble/ble_timer.cpp`, `src/hal/ble/ble_pages.cpp`.
+`src/hal/ble/alert_frame.cpp`, `src/hal/ble/ble_timer.cpp`, `src/hal/ble/ble_pages.cpp`,
+`src/hal/ble/ble_can_monitor.cpp`.
 
 ## GATT layout
 
-A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with nine
+A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with ten
 characteristics. Every read/write property is an **authenticated** variant
 (`READ_AUTHEN` / `WRITE_AUTHEN`), so the client must hold a passkey-authenticated
 bond before it can read telemetry, receive a notification or issue a command.
 An encrypted-but-unauthenticated link (Just Works) is refused at the ATT layer.
 
-| Characteristic | UUID tail | Properties                | Payload                                                                                                                      |
-| -------------- | --------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| TELE           | `0002`    | READ_AUTHEN, NOTIFY       | binary telemetry frame (see below), ~10 Hz                                                                                   |
-| STATUS         | `0003`    | READ_AUTHEN, NOTIFY       | `{"ver","board_id","can","is_day","page"}` JSON, ~2 s and on every page change                                               |
-| SETTINGS       | `0004`    | READ_AUTHEN, WRITE_AUTHEN | read `{"brightness"}`, plus `volume` and `sounds` on a board with audio; write `{"brightness","rotation","volume","sounds"}` |
-| CMD            | `0005`    | WRITE_AUTHEN, WRITE_NR    | `{"cmd":"<name>",…}` JSON command                                                                                            |
-| TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR    | `{"op":<1–5>}` timer operation                                                                                               |
-| TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY       | `{"st","el","lc","sid","ver"}` JSON                                                                                          |
-| TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY       | lap notification                                                                                                             |
-| ALERT          | `0009`    | READ_AUTHEN, NOTIFY       | binary critical-alert frame (see below), on change + 1 s                                                                     |
-| PAGES          | `000a`    | READ_AUTHEN               | `{"pages":["<id>",…]}` JSON, the visible page ids in dash order                                                              |
+| Characteristic | UUID tail | Properties                        | Payload                                                                                                                      |
+| -------------- | --------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| TELE           | `0002`    | READ_AUTHEN, NOTIFY               | binary telemetry frame (see below), ~10 Hz                                                                                   |
+| STATUS         | `0003`    | READ_AUTHEN, NOTIFY               | `{"ver","board_id","can","is_day","page"}` JSON, ~2 s and on every page change                                               |
+| SETTINGS       | `0004`    | READ_AUTHEN, WRITE_AUTHEN         | read `{"brightness"}`, plus `volume` and `sounds` on a board with audio; write `{"brightness","rotation","volume","sounds"}` |
+| CMD            | `0005`    | WRITE_AUTHEN, WRITE_NR            | `{"cmd":"<name>",…}` JSON command                                                                                            |
+| TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR            | `{"op":<1–5>}` timer operation                                                                                               |
+| TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY               | `{"st","el","lc","sid","ver"}` JSON                                                                                          |
+| TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY               | lap notification                                                                                                             |
+| ALERT          | `0009`    | READ_AUTHEN, NOTIFY               | binary critical-alert frame (see below), on change + 1 s                                                                     |
+| PAGES          | `000a`    | READ_AUTHEN                       | `{"pages":["<id>",…]}` JSON, the visible page ids in dash order                                                              |
+| CANMON         | `000b`    | READ_AUTHEN, NOTIFY, WRITE_AUTHEN | binary CAN monitor frame (see below), only while subscribed; write sets the ID filter                                        |
 
 There is no PASSKEY characteristic — the pairing code is shown on the dash
 itself (see below), not exposed over GATT.
@@ -145,6 +147,32 @@ order, then one id per `criticalAlerts` entry in list order, so the phone can
 name the entry that fired. An entry the dash cannot arm keeps its id and never
 turns critical. core's parity test checks the built-in order against its
 `ALERT_SOURCES` and the id count against `ALERT_SOURCE_ID_COUNT`.
+
+## CAN monitor payload — binary frame
+
+CANMON streams the raw bus to the phone's console as a per-ID snapshot: the
+latest frame of each ID plus how many frames of that ID arrived since its last
+report. The format is canonical in `@canshift/core`
+(`docs/ble-can-monitor-frame.md`); the pure logic is `rust/can-monitor`
+(`can_monitor_rs.h`), which pins the same byte vectors in its tests.
+
+| Rule     | Behaviour                                                                                                                                       |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Off      | the monitor runs only while CANMON has a subscriber on an admitted link; unsubscribe or disconnect stops it and clears the table and the filter |
+| CAN task | `routeFrame` hands every data frame to `CanMonitor::offer`, a filter check and a table update under a spinlock — no queue, no allocation        |
+| Table    | `CAN_MONITOR_ID_CAPACITY` (64) IDs; a new ID past that is ignored and the frame's overflow flag is raised                                       |
+| BLE task | after TELE, ALERT and the timer, at most `kCanMonitorNotifiesPerTick` (2) notifies per tick carry the IDs that received a frame                 |
+| Fairness | an ID that does not fit stays pending and the next frame resumes from it, so no ID starves                                                      |
+| Payload  | capped at the peer MTU minus the 3-byte ATT header, and at 244 bytes                                                                            |
+| Filter   | a write of up to 8 ID/mask pairs; a malformed write is refused and keeps the current filter                                                     |
+
+The bandwidth is bounded by the tick, not by the bus: a busy bus raises each
+ID's count, not the notify rate, so TELE and the CAN task are never starved.
+The monitor state is allocated on first use, preferring PSRAM.
+
+The USB `CAN_SCAN` stream stays separate: it is a lossless per-frame line
+stream for the tuner over the wired link, and shares only the tap point in
+`routeFrame`.
 
 ## Early init and heap gating
 

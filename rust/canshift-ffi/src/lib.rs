@@ -6,6 +6,8 @@ extern crate alert_engine;
 extern crate ble_link;
 #[cfg(feature = "bus-scan")]
 extern crate bus_scan;
+#[cfg(feature = "can-monitor")]
+extern crate can_monitor;
 #[cfg(feature = "can-parser")]
 extern crate can_parser;
 #[cfg(feature = "config-loader")]

@@ -27,6 +27,7 @@ static constexpr char kTimerStateUuid[] = "4fa0b6a0-0000-0000-0000-000000000007"
 static constexpr char kTimerLapUuid[] = "4fa0b6a0-0000-0000-0000-000000000008";
 static constexpr char kAlertUuid[] = "4fa0b6a0-0000-0000-0000-000000000009";
 static constexpr char kPagesUuid[] = "4fa0b6a0-0000-0000-0000-00000000000a";
+static constexpr char kCanMonitorUuid[] = "4fa0b6a0-0000-0000-0000-00000000000b";
 
 static constexpr size_t kBleMinHeap = kBleMinHeapBytes;
 
@@ -38,6 +39,7 @@ NimBLECharacteristic *s_pStatus = nullptr;
 NimBLECharacteristic *s_pTimerState = nullptr;
 NimBLECharacteristic *s_pTimerLap = nullptr;
 NimBLECharacteristic *s_pAlert = nullptr;
+NimBLECharacteristic *s_pCanMonitor = nullptr;
 bool s_connected = false;
 bool s_stackInited = false;
 bool s_gattInited = false;
@@ -82,6 +84,7 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     }
     void onDisconnect(NimBLEServer *pServer) override {
         BleServerInternal::s_connected = false;
+        BleServerInternal::stopCanMonitor();
         LOG_INFO("BLE", "Client disconnected — restarting advertising");
         PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
         if (!BleServerInternal::startAdvertisingFast())
@@ -111,18 +114,7 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     }
 };
 
-class AuthenticatedSubscribeCallbacks : public NimBLECharacteristicCallbacks {
-    void onSubscribe(NimBLECharacteristic *, ble_gap_conn_desc *desc, uint16_t subValue) override {
-        if (subValue == 0 || desc == nullptr)
-            return;
-        if (!ble_link_subscription_refused_rs(desc->sec_state.encrypted,
-                                              desc->sec_state.authenticated))
-            return;
-        BleServerInternal::dropUnauthenticatedLink(*desc, "Subscriber bonded without the passkey");
-    }
-};
-
-class TimerStateCallbacks : public AuthenticatedSubscribeCallbacks {
+class TimerStateCallbacks : public BleServerInternal::AuthenticatedSubscribeCallbacks {
     void onRead(NimBLECharacteristic *) override {
         BleServerInternal::refreshTimerStateValue();
     }
@@ -147,6 +139,7 @@ constexpr uint32_t kNotifyProps = NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY
 constexpr uint32_t kCommandProps = NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR;
 constexpr uint32_t kSettingsProps = NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::WRITE_AUTHEN;
 constexpr uint32_t kReadProps = NIMBLE_PROPERTY::READ_AUTHEN;
+constexpr uint32_t kMonitorProps = kNotifyProps | NIMBLE_PROPERTY::WRITE_AUTHEN;
 
 bool createAll(NimBLEService *pSvc, const CharSpec *specs, size_t count) {
     bool allCreated = true;
@@ -165,7 +158,7 @@ void publishInitialValues() {
 
 bool createGattCharacteristics(NimBLEService *pSvc) {
     static TimerStateCallbacks s_timerStateCb;
-    static AuthenticatedSubscribeCallbacks s_subscribeCb;
+    static BleServerInternal::AuthenticatedSubscribeCallbacks s_subscribeCb;
     NimBLECharacteristic *pSettings = nullptr;
     NimBLECharacteristic *pCmd = nullptr;
     NimBLECharacteristic *pTimerCmd = nullptr;
@@ -180,6 +173,8 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
         {kTimerLapUuid, kNotifyProps, &BleServerInternal::s_pTimerLap, &s_subscribeCb},
         {kAlertUuid, kNotifyProps, &BleServerInternal::s_pAlert, &s_subscribeCb},
         {kPagesUuid, kReadProps, &pPages, &BleServerInternal::pagesCallbacks()},
+        {kCanMonitorUuid, kMonitorProps, &BleServerInternal::s_pCanMonitor,
+         &BleServerInternal::canMonitorCallbacks()},
     };
     if (!createAll(pSvc, specs, sizeof(specs) / sizeof(specs[0])))
         return false;
@@ -327,6 +322,7 @@ void BleServer::tick() {
     BleServerInternal::emitAlert();
     BleServerInternal::emitPageChange();
     BleServerInternal::emitTimerSync();
+    BleServerInternal::emitCanMonitor();
 }
 
 bool BleServer::isConnected() {
