@@ -261,6 +261,24 @@ One line, mono, Dim, 0.1em tracking, exactly three fields — left, centre, righ
 
 Never a fourth field, never an icon, never a coloured status. The left field is always the bus rate.
 
+Each page sets its centre and right field in `statusRow`. The item kinds behind the table:
+
+| Field             | Item                                                                | Source                                                         |
+| ----------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `TRIP 128 km`     | `signal`, `format: "TRIP %.0f"`, `unit: "km"`, `showUnit: true`     | `SignalStore`                                                  |
+| `MAX OIL 128`     | `signalMax`, `text: "MAX OIL"`, `unit: "°C"`                        | `SignalStats` session max                                      |
+| `LAP 4`, `BEST …` | `timer`, `source: "lapCount"` / `"best"`, `text` as the prefix      | `TrackStore` while track telemetry is live, else the stopwatch |
+| `ALS ON`, `ARMED` | `flagWord`, `text` when the flag is set, `offText` when it is clear | a decoded ECU flag signal                                      |
+
+- **Units.** `unit` names the unit the value arrives in. With it, `units: imperial` converts the number as in §5,
+  and `showUnit` appends the symbol. Without `unit`, the value is printed as it arrives, so a unit typed into
+  `format` never converts: keep units out of `format`.
+- **Stale.** A `flagWord` whose signal is not being received shows `- -`, never its `offText`, so a missing
+  frame does not read as "off". A `timer` with no value yet shows `--:--` in the stale colour.
+- **Armed.** `ARMED` reads `flag_launch_ctrl` (frame `0x374`, mask `0x02`), the flag the ECU reports. The dash
+  keeps no armed state of its own. Whether a MaxxECU sets that bit when launch control is armed or only while it
+  is actively limiting is unverified and is a bench check.
+
 ## 9. Motion — the complete list
 
 Nothing else on the dash moves.

@@ -6,6 +6,7 @@
 
 #include <lvgl.h>
 #include <stdint.h>
+#include <string.h>
 
 namespace TopBarInternal {
 
@@ -15,9 +16,7 @@ struct DynItem {
     TopBarItemKind kind;
     TopBarItemPos position;
     lv_obj_t *obj;
-    char signalId[kCfgMaxSignalLen];
-    char format[kDynTextCap];
-    char prefix[16];
+    CfgTopBarItem item;
 
     char lastText[kDynTextCap];
     uint32_t lastColor;
@@ -55,6 +54,20 @@ inline uint32_t labelColor() {
 }
 inline uint32_t mutedColor() {
     return ThemeManager::pickColor(kColorMutedNight, kColorMutedDay);
+}
+
+inline void applyDynText(DynItem &d, const char *text) {
+    if (strcmp(text, d.lastText) == 0)
+        return;
+    lv_label_set_text(d.obj, text);
+    strlcpy(d.lastText, text, sizeof(d.lastText));
+}
+
+inline void applyDynTextColor(DynItem &d, uint32_t color) {
+    if (color == d.lastColor)
+        return;
+    lv_obj_set_style_text_color(d.obj, lv_color_hex(color), 0);
+    d.lastColor = color;
 }
 
 }
