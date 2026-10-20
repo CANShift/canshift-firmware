@@ -22,6 +22,11 @@ when the board profile reports `storage.sd_present` with an `sd_bus` of
 SDMMC is its own peripheral, so the card never shares the display SPI bus.
 D1 (18) and D2 (15) are wired to the card but unused in 1-bit mode.
 
+> [!WARNING]
+> GPIO 17 is also the Waveshare profile's default TWAI TX pin, so the card and
+> a CAN transceiver wired to the defaults cannot both run. No environment sets
+> `APP_SD_DATALOG_ENABLED` until the board's CAN pins are settled.
+
 ## Tasks
 
 ```mermaid
@@ -76,7 +81,9 @@ Each failure is reported once, on the error bar (`ErrorStore`):
 | `sd_write`  | Any other write error, a removed card         | Card unmounted, mount retried       |
 | `datalog`   | No PSRAM for the ring, or no DMA RAM to stage | Datalog off for this boot           |
 
-Old logs are never deleted automatically.
+A full card refuses new sessions: every drive reports `sd_full` once and
+records nothing until logs are deleted from the tuner. Old logs are never
+deleted automatically.
 
 ## File format
 
