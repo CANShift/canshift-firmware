@@ -2,6 +2,8 @@
 #include "runtime/timer_service.h"
 #include "app_config.h"
 #include "runtime/track_store.h"
+#include "runtime/imu_feed.h"
+#include "config/config_loader.h"
 #include "ui/widgets/timer_sources.h"
 #include "ui/font_manager.h"
 #include "ui/widgets/value_cluster.h"
@@ -209,7 +211,9 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
                         tagSlot.commit());
     if (TimerSources::isInteractive(cfg.timer.source))
         makeInteractive(cont, tag);
-    WidgetLabelOverlay::applySignalHeader(cont, TimerSources::kicker(cfg.timer.source));
+    WidgetLabelOverlay::applySignalHeader(
+        cont, TimerSources::kicker(cfg.timer.source, ConfigLoader::getDashboardConfig().units ==
+                                                         CfgUnitSystem::IMPERIAL));
     return cont;
 }
 
@@ -218,7 +222,12 @@ namespace {
 TimerSources::Inputs gatherInputs(const TimerService::Snapshot &snap) {
     TrackStore::State track;
     TrackStore::snapshot(&track);
-    return TimerSources::select(snap, track, TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs));
+    TimerSources::Inputs in =
+        TimerSources::select(snap, track, TrackStore::isActiveWithin(kTrackTelemetryTimeoutMs));
+    LaunchTimer launch = {};
+    if (ImuFeed::latestLaunch(launch))
+        in.launch = TimerSources::launchReading(launch, millis());
+    return in;
 }
 
 void updateReadout(TimerTag *tag, const TimerService::Snapshot &snap) {

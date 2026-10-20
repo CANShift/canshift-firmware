@@ -133,12 +133,12 @@ void test_onlyTheStopwatchIsInteractive() {
 }
 
 void test_everySourceCarriesItsKicker() {
-    TEST_ASSERT_EQUAL_STRING("TIMER", TimerSources::kicker(CfgTimerSource::Elapsed));
-    TEST_ASSERT_EQUAL_STRING("LAP", TimerSources::kicker(CfgTimerSource::Lap));
-    TEST_ASSERT_EQUAL_STRING("BEST", TimerSources::kicker(CfgTimerSource::Best));
-    TEST_ASSERT_EQUAL_STRING("LAST", TimerSources::kicker(CfgTimerSource::Last));
-    TEST_ASSERT_EQUAL_STRING("LAPS", TimerSources::kicker(CfgTimerSource::LapCount));
-    TEST_ASSERT_EQUAL_STRING("DELTA", TimerSources::kicker(CfgTimerSource::Delta));
+    TEST_ASSERT_EQUAL_STRING("TIMER", TimerSources::kicker(CfgTimerSource::Elapsed, false));
+    TEST_ASSERT_EQUAL_STRING("LAP", TimerSources::kicker(CfgTimerSource::Lap, false));
+    TEST_ASSERT_EQUAL_STRING("BEST", TimerSources::kicker(CfgTimerSource::Best, false));
+    TEST_ASSERT_EQUAL_STRING("LAST", TimerSources::kicker(CfgTimerSource::Last, false));
+    TEST_ASSERT_EQUAL_STRING("LAPS", TimerSources::kicker(CfgTimerSource::LapCount, false));
+    TEST_ASSERT_EQUAL_STRING("DELTA", TimerSources::kicker(CfgTimerSource::Delta, false));
 }
 
 void test_aPlaceholderIsNotAReading() {

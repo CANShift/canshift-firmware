@@ -13,8 +13,9 @@ constexpr uint8_t kLevelNotSaved = kImuLevelScreenFlat + 1;
 void markPresent();
 [[nodiscard]] bool present();
 
-void publish(const ImuCoreState &core);
+void publish(const ImuCoreState &core, const LaunchTimer &launch);
 [[nodiscard]] bool latest(ImuCoreState &out);
+[[nodiscard]] bool latestLaunch(LaunchTimer &out);
 
 void requestPeakReset();
 [[nodiscard]] bool takePeakReset();

@@ -84,6 +84,36 @@ measures the real mounting:
 Levelling handles any tilt and any lean. It assumes the screen faces backwards
 toward the driver; a dash mounted sideways is not described.
 
+## Launch timing
+
+The same task times a standing start. A `timer` widget whose `source` is
+`launchSprint` or `launchStrip` shows the result; the targets follow the
+dashboard's `units`:
+
+| Source         | Metric              | Imperial         |
+| -------------- | ------------------- | ---------------- |
+| `launchSprint` | 0–100 km/h, `0-100` | 0–60 mph, `0-60` |
+| `launchStrip`  | 400 m, `400 M`      | ¼ mile, `1/4 MI` |
+
+The detector lives in `imu-core` (`launch.rs`) and needs a valid `speed_kph`:
+without a speed signal it never arms, because stillness alone also describes a
+car cruising at a constant speed.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Armed: speed ≤ 1 km/h and |lon| ≤ 0.05 g for 1 s
+  Armed --> Idle: rolls away without a push
+  Armed --> Running: lon ≥ 0.25 g held 100 ms, timed from the onset
+  Running --> Done: both targets reached, braking ≤ −0.3 g, or 30 s, with a result
+  Running --> Idle: braking or 30 s before any target
+  Done --> Armed: at rest again for 1 s
+```
+
+Distance is the speed signal integrated at the sampling rate. A result stays on
+screen while the car re-arms and is cleared when the next launch starts. While
+a run is live the widget counts up; a target not reached reads `--:--`.
+
 ## Bench checks
 
 The axis map in the Waveshare profile is a starting point taken from the board's

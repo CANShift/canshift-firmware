@@ -62,7 +62,7 @@ void tick(uint32_t nowMs) {
         return;
     for (uint32_t i = 0; i <= samples; ++i)
         pushSample(core, i);
-    ImuFeed::publish(core);
+    ImuFeed::publish(core, LaunchTimer{});
 }
 
 }

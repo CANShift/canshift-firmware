@@ -13,6 +13,7 @@ namespace {
 
 struct Snapshot {
     ImuCoreState core;
+    LaunchTimer launch;
     uint32_t publishedMs;
     bool published;
 };
@@ -23,6 +24,15 @@ std::atomic<bool> s_present{false};
 std::atomic<bool> s_peakResetRequested{false};
 std::atomic<bool> s_levelRequested{false};
 std::atomic<uint8_t> s_levelStatus{kImuLevelPending};
+
+bool freshSnapshot(Snapshot &out) {
+    if (!present())
+        return false;
+    portENTER_CRITICAL(&s_mux);
+    out = *s_snapshot;
+    portEXIT_CRITICAL(&s_mux);
+    return out.published && millis() - out.publishedMs <= kStaleAfterMs;
+}
 
 }
 
@@ -44,26 +54,32 @@ bool present() {
     return s_present.load(std::memory_order_acquire);
 }
 
-void publish(const ImuCoreState &core) {
+void publish(const ImuCoreState &core, const LaunchTimer &launch) {
     if (!present())
         return;
     const uint32_t nowMs = millis();
     portENTER_CRITICAL(&s_mux);
     s_snapshot->core = core;
+    s_snapshot->launch = launch;
     s_snapshot->publishedMs = nowMs;
     s_snapshot->published = true;
     portEXIT_CRITICAL(&s_mux);
 }
 
 bool latest(ImuCoreState &out) {
-    if (!present())
+    Snapshot snapshot;
+    if (!freshSnapshot(snapshot))
         return false;
-    portENTER_CRITICAL(&s_mux);
-    out = s_snapshot->core;
-    const uint32_t publishedMs = s_snapshot->publishedMs;
-    const bool published = s_snapshot->published;
-    portEXIT_CRITICAL(&s_mux);
-    return published && millis() - publishedMs <= kStaleAfterMs;
+    out = snapshot.core;
+    return true;
+}
+
+bool latestLaunch(LaunchTimer &out) {
+    Snapshot snapshot;
+    if (!freshSnapshot(snapshot))
+        return false;
+    out = snapshot.launch;
+    return true;
 }
 
 void requestPeakReset() {

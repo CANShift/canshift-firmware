@@ -42,6 +42,8 @@ enum class CfgTimerSource : uint8_t {
     Last,
     LapCount,
     Delta,
+    LaunchSprint,
+    LaunchStrip,
 };
 
 enum class CfgCruiseOp : uint8_t {

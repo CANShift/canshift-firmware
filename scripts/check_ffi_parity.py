@@ -686,6 +686,34 @@ PAIRS = (
         "include/board_profile.h",
         "NegZ",
     ),
+    (
+        "launch idle",
+        "rust/imu-core/src/launch.rs",
+        "LAUNCH_IDLE",
+        "include/imu_core_rs.h",
+        "kLaunchIdle",
+    ),
+    (
+        "launch armed",
+        "rust/imu-core/src/launch.rs",
+        "LAUNCH_ARMED",
+        "include/imu_core_rs.h",
+        "kLaunchArmed",
+    ),
+    (
+        "launch running",
+        "rust/imu-core/src/launch.rs",
+        "LAUNCH_RUNNING",
+        "include/imu_core_rs.h",
+        "kLaunchRunning",
+    ),
+    (
+        "launch done",
+        "rust/imu-core/src/launch.rs",
+        "LAUNCH_DONE",
+        "include/imu_core_rs.h",
+        "kLaunchDone",
+    ),
 )
 
 RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(-?\\d+)"

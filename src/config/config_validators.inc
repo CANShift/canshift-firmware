@@ -112,9 +112,14 @@ struct TimerSourceSlug {
 };
 
 constexpr TimerSourceSlug kTimerSourceSlugs[] = {
-    {"elapsed", CfgTimerSource::Elapsed},   {"lap", CfgTimerSource::Lap},
-    {"best", CfgTimerSource::Best},         {"last", CfgTimerSource::Last},
-    {"lapCount", CfgTimerSource::LapCount}, {"delta", CfgTimerSource::Delta},
+    {"elapsed", CfgTimerSource::Elapsed},
+    {"lap", CfgTimerSource::Lap},
+    {"best", CfgTimerSource::Best},
+    {"last", CfgTimerSource::Last},
+    {"lapCount", CfgTimerSource::LapCount},
+    {"delta", CfgTimerSource::Delta},
+    {"launchSprint", CfgTimerSource::LaunchSprint},
+    {"launchStrip", CfgTimerSource::LaunchStrip},
 };
 
 CfgTimerOp parseTimerOp(const char *op) {
