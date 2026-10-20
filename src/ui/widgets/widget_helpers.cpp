@@ -201,6 +201,10 @@ float widestConfiguredValue(const CfgWidget &cfg) {
     return -minValue > maxValue ? minValue : maxValue;
 }
 
+uint8_t configuredDecimals(const CfgWidget &cfg) {
+    return cfg.type == WidgetType::GAUGE ? cfg.gauge.decimalPlaces : cfg.label.decimalPlaces;
+}
+
 const char *configuredSuffix(const CfgWidget &cfg) {
     return cfg.type == WidgetType::GAUGE ? cfg.gauge.suffix : cfg.label.suffix;
 }
@@ -210,16 +214,14 @@ const char *configuredSuffix(const CfgWidget &cfg) {
 void reportValueOverflow(const CfgWidget &cfg, const lv_font_t *font, int16_t trackingPx) {
     if (!font || cfg.layout.w <= 0)
         return;
-    const uint8_t decimals =
-        cfg.type == WidgetType::GAUGE ? cfg.gauge.decimalPlaces : cfg.label.decimalPlaces;
     const char *prefix = cfg.type == WidgetType::GAUGE ? cfg.gauge.prefix : cfg.label.prefix;
     const char *suffix = configuredSuffix(cfg);
     const char *unit = UnitDisplay::displayUnitFor(cfg.signalId, suffix);
+    const char *convertible = UnitDisplay::convertibleUnitFor(cfg.signalId, suffix);
     char widest[40];
-    formatValue(widest, sizeof(widest), prefix, decimals,
-                UnitDisplay::valueFor(widestConfiguredValue(cfg),
-                                      UnitDisplay::convertibleUnitFor(cfg.signalId, suffix)),
-                nullptr);
+    formatValue(widest, sizeof(widest), prefix,
+                UnitDisplay::decimalsFor(configuredDecimals(cfg), convertible),
+                UnitDisplay::valueFor(widestConfiguredValue(cfg), convertible), nullptr);
     int16_t needed = textWidthPx(widest, font, trackingPx);
     if (unit && unit[0] != '\0')
         needed = static_cast<int16_t>(needed + textWidthPx(unit, FontManager::units(), 0));

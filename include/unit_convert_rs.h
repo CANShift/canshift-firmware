@@ -13,6 +13,7 @@ extern "C" {
 
 const char *unit_display_symbol_rs(const char *unit, uint8_t system);
 float unit_display_value_rs(float value, const char *unit, uint8_t system);
+uint8_t unit_display_decimals_rs(uint8_t decimals, const char *unit, uint8_t system);
 
 #ifdef __cplusplus
 }

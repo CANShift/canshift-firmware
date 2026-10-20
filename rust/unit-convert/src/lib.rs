@@ -57,6 +57,8 @@ pub struct UnitPair {
     metric: &'static [u8],
     imperial: &'static [u8],
     scale: Scale,
+    to_imperial_drop: u8,
+    to_metric_drop: u8,
 }
 
 impl UnitPair {
@@ -66,6 +68,14 @@ impl UnitPair {
             UnitSystem::Imperial => self.imperial,
         }
     }
+
+    fn decimal_drop(&self, declared: UnitSystem, system: UnitSystem) -> u8 {
+        match (declared, system) {
+            (UnitSystem::Metric, UnitSystem::Imperial) => self.to_imperial_drop,
+            (UnitSystem::Imperial, UnitSystem::Metric) => self.to_metric_drop,
+            _ => 0,
+        }
+    }
 }
 
 static UNIT_PAIRS: [UnitPair; 5] = [
@@ -73,26 +83,36 @@ static UNIT_PAIRS: [UnitPair; 5] = [
         metric: b"km/h\0",
         imperial: b"mph\0",
         scale: Scale::Ratio(KMH_PER_MPH),
+        to_imperial_drop: 0,
+        to_metric_drop: 0,
     },
     UnitPair {
         metric: b"km\0",
         imperial: b"mi\0",
         scale: Scale::Ratio(KM_PER_MI),
+        to_imperial_drop: 0,
+        to_metric_drop: 0,
     },
     UnitPair {
         metric: b"kPa\0",
         imperial: b"psi\0",
         scale: Scale::Ratio(KPA_PER_PSI),
+        to_imperial_drop: 0,
+        to_metric_drop: 1,
     },
     UnitPair {
         metric: b"bar\0",
         imperial: b"psi\0",
         scale: Scale::Ratio(BAR_PER_PSI),
+        to_imperial_drop: 1,
+        to_metric_drop: 0,
     },
     UnitPair {
         metric: "°C\0".as_bytes(),
         imperial: "°F\0".as_bytes(),
         scale: Scale::Fahrenheit,
+        to_imperial_drop: 0,
+        to_metric_drop: 0,
     },
 ];
 
@@ -208,103 +228,12 @@ pub fn display_value(value: f32, unit: &[u8], system: UnitSystem) -> f32 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn symbol(unit: &str, system: UnitSystem) -> Option<&'static str> {
-        display_symbol(unit.as_bytes(), system)
-            .map(|s| core::str::from_utf8(&s[..s.len() - 1]).unwrap())
-    }
-
-    fn value(v: f32, unit: &str, system: UnitSystem) -> f32 {
-        display_value(v, unit.as_bytes(), system)
-    }
-
-    #[test]
-    fn speed_converts_to_mph_and_keeps_kmh_for_metric() {
-        assert!((value(100.0, "km/h", UnitSystem::Imperial) - 62.137_12).abs() < 0.001);
-        assert_eq!(value(100.0, "km/h", UnitSystem::Metric), 100.0);
-        assert_eq!(symbol("km/h", UnitSystem::Imperial), Some("mph"));
-        assert_eq!(symbol("km/h", UnitSystem::Metric), Some("km/h"));
-    }
-
-    #[test]
-    fn celsius_converts_through_the_offset_not_a_ratio() {
-        assert!((value(100.0, "°C", UnitSystem::Imperial) - 212.0).abs() < 0.001);
-        assert!((value(0.0, "°C", UnitSystem::Imperial) - 32.0).abs() < 0.001);
-        assert_eq!(symbol("°C", UnitSystem::Imperial), Some("°F"));
-    }
-
-    #[test]
-    fn pressure_converts_from_both_kpa_and_bar() {
-        assert!((value(100.0, "kPa", UnitSystem::Imperial) - 14.503_774).abs() < 0.001);
-        assert!((value(1.0, "bar", UnitSystem::Imperial) - 14.503_774).abs() < 0.001);
-        assert_eq!(symbol("bar", UnitSystem::Imperial), Some("psi"));
-    }
-
-    #[test]
-    fn psi_resolves_back_to_kpa_not_bar() {
-        assert_eq!(symbol("psi", UnitSystem::Metric), Some("kPa"));
-        assert!((value(14.503_774, "psi", UnitSystem::Metric) - 100.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn distance_converts_to_miles() {
-        assert!((value(10.0, "km", UnitSystem::Imperial) - 6.213_712).abs() < 0.001);
-        assert_eq!(symbol("km", UnitSystem::Imperial), Some("mi"));
-    }
-
-    #[test]
-    fn an_unpaired_unit_is_untouched() {
-        for unit in ["%", "V", "rpm", "", "λ"] {
-            assert_eq!(value(42.0, unit, UnitSystem::Imperial), 42.0);
-            assert_eq!(symbol(unit, UnitSystem::Imperial), None);
-        }
-    }
-
-    #[test]
-    fn aliases_and_casing_resolve_to_the_same_pair() {
-        for unit in ["kph", "KM/H", "km/hr", " km/h "] {
-            assert_eq!(symbol(unit, UnitSystem::Imperial), Some("mph"));
-        }
-        for unit in ["C", "degC", "c"] {
-            assert_eq!(symbol(unit, UnitSystem::Imperial), Some("°F"));
-        }
-        assert_eq!(symbol("miles", UnitSystem::Metric), Some("km"));
-    }
-
-    #[test]
-    fn a_unit_longer_than_the_buffer_finds_no_pair() {
-        assert_eq!(symbol("kilometres/hour", UnitSystem::Imperial), None);
-        assert_eq!(value(1.0, "kilometres/hour", UnitSystem::Imperial), 1.0);
-    }
-
-    #[test]
-    fn a_round_trip_returns_the_declared_value() {
-        for (unit, v) in [
-            ("km/h", 137.0f32),
-            ("°C", 92.0),
-            ("kPa", 450.0),
-            ("km", 3.2),
-        ] {
-            let shown = display_value(v, unit.as_bytes(), UnitSystem::Imperial);
-            let back = display_value(
-                shown,
-                display_symbol(unit.as_bytes(), UnitSystem::Imperial).unwrap(),
-                UnitSystem::Metric,
-            );
-            assert!((back - v).abs() < 0.01, "{unit} round trip drifted");
-        }
-    }
-
-    #[test]
-    fn from_u8_defaults_anything_unknown_to_metric() {
-        assert_eq!(
-            UnitSystem::from_u8(UNIT_SYSTEM_IMPERIAL),
-            UnitSystem::Imperial
-        );
-        assert_eq!(UnitSystem::from_u8(UNIT_SYSTEM_METRIC), UnitSystem::Metric);
-        assert_eq!(UnitSystem::from_u8(7), UnitSystem::Metric);
-    }
+pub fn display_decimals(decimals: u8, unit: &[u8], system: UnitSystem) -> u8 {
+    let Some((pair, declared)) = resolve(unit) else {
+        return decimals;
+    };
+    decimals.saturating_sub(pair.decimal_drop(declared, system))
 }
+
+#[cfg(test)]
+mod tests;

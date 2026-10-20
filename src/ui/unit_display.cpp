@@ -42,6 +42,12 @@ float valueFor(float value, const char *declaredUnit) {
     return unit_display_value_rs(value, declaredUnit, activeSystem());
 }
 
+uint8_t decimalsFor(uint8_t decimals, const char *declaredUnit) {
+    if (!isRenderable(declaredUnit))
+        return decimals;
+    return unit_display_decimals_rs(decimals, declaredUnit, activeSystem());
+}
+
 const char *convertibleUnitFor(const char *signalId, const char *configSuffix) {
     if (isRenderable(configSuffix))
         return "";

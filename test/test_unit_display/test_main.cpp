@@ -73,6 +73,21 @@ void test_imperialConfig_leavesUnpairedUnitsAlone() {
     TEST_ASSERT_FLOAT_WITHIN(kEpsilon, 6500.0f, UnitDisplay::valueFor(6500.0f, "rpm"));
 }
 
+void test_imperialConfig_dropsADecimalOnlyWhereTheReadingGainsADigit() {
+    stageDashboard(fixtures::kDashboardImperial);
+    TEST_ASSERT_EQUAL_UINT8(0, UnitDisplay::decimalsFor(1, "bar"));
+    TEST_ASSERT_EQUAL_UINT8(0, UnitDisplay::decimalsFor(0, "bar"));
+    TEST_ASSERT_EQUAL_UINT8(1, UnitDisplay::decimalsFor(1, "km/h"));
+    TEST_ASSERT_EQUAL_UINT8(1, UnitDisplay::decimalsFor(1, "°C"));
+    TEST_ASSERT_EQUAL_UINT8(1, UnitDisplay::decimalsFor(1, "V"));
+    TEST_ASSERT_EQUAL_UINT8(1, UnitDisplay::decimalsFor(1, nullptr));
+}
+
+void test_metricConfig_keepsTheConfiguredDecimals() {
+    stageDashboard(fixtures::kDashboardMetric);
+    TEST_ASSERT_EQUAL_UINT8(2, UnitDisplay::decimalsFor(2, "bar"));
+}
+
 void test_emptyAndNullUnits_passThroughUnchanged() {
     stageDashboard(fixtures::kDashboardImperial);
     TEST_ASSERT_EQUAL_STRING("", UnitDisplay::symbolFor(""));
@@ -113,6 +128,8 @@ int main(int, char **) {
     RUN_TEST(test_metricConfig_leavesEveryPairedUnitAlone);
     RUN_TEST(test_imperialConfig_swapsSymbolAndValue);
     RUN_TEST(test_imperialConfig_leavesUnpairedUnitsAlone);
+    RUN_TEST(test_imperialConfig_dropsADecimalOnlyWhereTheReadingGainsADigit);
+    RUN_TEST(test_metricConfig_keepsTheConfiguredDecimals);
     RUN_TEST(test_emptyAndNullUnits_passThroughUnchanged);
     RUN_TEST(test_authoredSuffix_isVerbatimAndNeverConverts);
     RUN_TEST(test_unauthoredSuffix_convertsFromTheSignalUnit);

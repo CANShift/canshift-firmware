@@ -251,8 +251,10 @@ void LabelWidget::update(lv_obj_t *obj, float value, bool valid, const CfgWidget
     const bool unchanged = tag->lastValid && !std::isnan(tag->lastValue) && value == tag->lastValue;
     if (!unchanged) {
         char buf[40];
-        WidgetHelpers::formatValue(buf, sizeof(buf), cfg.label.prefix, cfg.label.decimalPlaces,
-                                   UnitDisplay::valueFor(value, tag->convertibleUnit), nullptr);
+        WidgetHelpers::formatValue(
+            buf, sizeof(buf), cfg.label.prefix,
+            UnitDisplay::decimalsFor(cfg.label.decimalPlaces, tag->convertibleUnit),
+            UnitDisplay::valueFor(value, tag->convertibleUnit), nullptr);
         WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
         tag->lastValue = value;
         tag->lastValid = true;
