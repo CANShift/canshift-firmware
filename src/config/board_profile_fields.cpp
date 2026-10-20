@@ -56,6 +56,10 @@ constexpr EnumSlug<CanController> kCanControllers[] = {
     {"none", CanController::None},
     {"esp_twai", CanController::EspTwai},
 };
+constexpr EnumSlug<SdBus> kSdBuses[] = {
+    {"none", SdBus::None},
+    {"sdmmc_1bit", SdBus::Sdmmc1Bit},
+};
 constexpr EnumSlug<ImuDriver> kImuDrivers[] = {
     {"none", ImuDriver::None},
     {"qmi8658", ImuDriver::QMI8658},
@@ -124,6 +128,13 @@ struct FieldReader {
         JsonVariantConst v = obj[k];
         if (!v.is<const char *>() || !matchEnum(table, v.as<const char *>(), d)) {
             ok = false;
+        }
+    }
+    template <typename E, size_t N>
+    void optionalEnum(const char *k, const EnumSlug<E> (&table)[N], E &d, E fallback) {
+        d = fallback;
+        if (!obj[k].isNull()) {
+            enumField(k, table, d);
         }
     }
 
@@ -201,6 +212,11 @@ bool parseStorage(JsonObjectConst o, StorageProfile &d) {
     r.u16("spiffs_size_kb", d.spiffs_size_kb);
     r.boolean("sd_present", d.sd_present);
     r.i8("sd_pin_cs", d.sd_pin_cs);
+    r.optionalEnum("sd_bus", kSdBuses, d.sd_bus, SdBus::None);
+    r.optionalI8("sd_pin_clk", d.sd_pin_clk, -1);
+    r.optionalI8("sd_pin_cmd", d.sd_pin_cmd, -1);
+    r.optionalI8("sd_pin_d0", d.sd_pin_d0, -1);
+    r.optionalI8("sd_pin_d3", d.sd_pin_d3, -1);
     return r.ok;
 }
 

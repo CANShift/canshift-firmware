@@ -22,7 +22,7 @@ constexpr char kBlobHead[] =
     "\"touch\":{\"driver\":\"cst3530\",\"pin_cs\":-1,\"pin_irq\":-1,\"freq_hz\":400000,"
     "\"needs_calibration\":false,\"pin_sda\":1,\"pin_scl\":3%s},\"can\":{\"controller\":"
     "\"esp_twai\",\"pin_tx\":17,\"pin_rx\":18,\"default_speed_kbps\":500},\"storage\":"
-    "{\"spiffs_present\":true,\"spiffs_size_kb\":1024,\"sd_present\":true,\"sd_pin_cs\":-1},"
+    "{\"spiffs_present\":true,\"spiffs_size_kb\":1024,\"sd_present\":true,\"sd_pin_cs\":-1%s},"
     "\"conn\":{\"wifi_supported\":true,\"ble_supported\":true,\"psram_present\":true}%s}}";
 
 constexpr char kImuSection[] =
@@ -33,8 +33,9 @@ char s_blob[1600];
 char s_idBuf[kBoardIdCapacity];
 char s_nameBuf[kBoardNameCapacity];
 
-BoardProfileParse parseWith(const char *touchTail, const char *imuSection, BoardProfile &out) {
-    snprintf(s_blob, sizeof s_blob, kBlobHead, touchTail, imuSection);
+BoardProfileParse parseWith(const char *touchTail, const char *storageTail, const char *imuSection,
+                            BoardProfile &out) {
+    snprintf(s_blob, sizeof s_blob, kBlobHead, touchTail, storageTail, imuSection);
     return parseBoardProfileBlob(s_blob, strlen(s_blob), out, s_idBuf, sizeof s_idBuf, s_nameBuf,
                                  sizeof s_nameBuf);
 }
@@ -50,26 +51,27 @@ void tearDown() {}
 
 void test_blobWithoutImu_hasNoImu() {
     BoardProfile out{};
-    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", out)));
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", "", out)));
     TEST_ASSERT_EQUAL(static_cast<int>(ImuDriver::None), static_cast<int>(out.imu.driver));
     TEST_ASSERT_EQUAL_INT(-1, out.imu.pin_sda);
 }
 
 void test_blobWithoutTouchReset_defaultsTheResetPinOff() {
     BoardProfile out{};
-    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", out)));
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", "", out)));
     TEST_ASSERT_EQUAL_INT(-1, out.touch.pin_rst);
 }
 
 void test_blobWithTouchReset_readsTheResetPin() {
     BoardProfile out{};
-    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith(",\"pin_rst\":2", "", out)));
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok),
+                      asInt(parseWith(",\"pin_rst\":2", "", "", out)));
     TEST_ASSERT_EQUAL_INT(2, out.touch.pin_rst);
 }
 
 void test_blobWithImu_parsesEveryField() {
     BoardProfile out{};
-    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", kImuSection, out)));
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", kImuSection, out)));
     TEST_ASSERT_EQUAL(static_cast<int>(ImuDriver::QMI8658), static_cast<int>(out.imu.driver));
     TEST_ASSERT_EQUAL_INT(11, out.imu.pin_sda);
     TEST_ASSERT_EQUAL_INT(10, out.imu.pin_scl);
@@ -85,7 +87,7 @@ void test_imuNamingOneAxisTwice_rejected() {
     const char *twice = ",\"imu\":{\"driver\":\"qmi8658\",\"pin_sda\":11,\"pin_scl\":10,"
                         "\"i2c_addr\":107,\"freq_hz\":400000,\"screen_x\":\"x\",\"screen_y\":"
                         "\"-x\",\"screen_z\":\"z\"}";
-    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape), asInt(parseWith("", twice, out)));
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape), asInt(parseWith("", "", twice, out)));
 }
 
 void test_imuWithUnknownDriver_rejected() {
@@ -93,13 +95,13 @@ void test_imuWithUnknownDriver_rejected() {
     const char *unknown = ",\"imu\":{\"driver\":\"mpu6050\",\"pin_sda\":11,\"pin_scl\":10,"
                           "\"i2c_addr\":104,\"freq_hz\":400000,\"screen_x\":\"x\",\"screen_y\":"
                           "\"y\",\"screen_z\":\"z\"}";
-    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape), asInt(parseWith("", unknown, out)));
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape), asInt(parseWith("", "", unknown, out)));
 }
 
 void test_imuThatIsNotAnObject_rejected() {
     BoardProfile out{};
     TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape),
-                      asInt(parseWith("", ",\"imu\":true", out)));
+                      asInt(parseWith("", "", ",\"imu\":true", out)));
 }
 
 void test_catalogDeclaresTheImuOnlyOnTheWaveshare() {
@@ -113,6 +115,39 @@ void test_catalogDeclaresTheImuOnlyOnTheWaveshare() {
     TEST_ASSERT_NOT_EQUAL(waveshare->touch.pin_sda, waveshare->imu.pin_sda);
 }
 
+void test_blobWithoutSdSlot_hasNoSdBus() {
+    BoardProfile out{};
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", "", out)));
+    TEST_ASSERT_EQUAL(static_cast<int>(SdBus::None), static_cast<int>(out.storage.sd_bus));
+    TEST_ASSERT_EQUAL_INT(-1, out.storage.sd_pin_clk);
+    TEST_ASSERT_EQUAL_INT(-1, out.storage.sd_pin_d3);
+}
+
+void test_blobWithSdmmcSlot_parsesEveryPin() {
+    BoardProfile out{};
+    const char *slot = ",\"sd_bus\":\"sdmmc_1bit\",\"sd_pin_clk\":14,\"sd_pin_cmd\":17,"
+                       "\"sd_pin_d0\":16,\"sd_pin_d3\":21";
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", slot, "", out)));
+    TEST_ASSERT_EQUAL(static_cast<int>(SdBus::Sdmmc1Bit), static_cast<int>(out.storage.sd_bus));
+    TEST_ASSERT_EQUAL_INT(14, out.storage.sd_pin_clk);
+    TEST_ASSERT_EQUAL_INT(17, out.storage.sd_pin_cmd);
+    TEST_ASSERT_EQUAL_INT(16, out.storage.sd_pin_d0);
+    TEST_ASSERT_EQUAL_INT(21, out.storage.sd_pin_d3);
+}
+
+void test_sdBusWithUnknownSlug_rejected() {
+    BoardProfile out{};
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape),
+                      asInt(parseWith("", ",\"sd_bus\":\"sdmmc_4bit\"", "", out)));
+}
+
+void test_catalogDeclaresTheSdSlotOnlyOnTheWaveshare() {
+    for (const BoardProfile *profile : kCatalog) {
+        const bool waveshare = strcmp(profile->board_id, "waveshare_s3_28") == 0;
+        TEST_ASSERT_EQUAL(waveshare, profile->storage.sd_bus == SdBus::Sdmmc1Bit);
+    }
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_blobWithoutImu_hasNoImu);
@@ -123,5 +158,9 @@ int main(int, char **) {
     RUN_TEST(test_imuWithUnknownDriver_rejected);
     RUN_TEST(test_imuThatIsNotAnObject_rejected);
     RUN_TEST(test_catalogDeclaresTheImuOnlyOnTheWaveshare);
+    RUN_TEST(test_blobWithoutSdSlot_hasNoSdBus);
+    RUN_TEST(test_blobWithSdmmcSlot_parsesEveryPin);
+    RUN_TEST(test_sdBusWithUnknownSlug_rejected);
+    RUN_TEST(test_catalogDeclaresTheSdSlotOnlyOnTheWaveshare);
     return UNITY_END();
 }
