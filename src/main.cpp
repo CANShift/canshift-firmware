@@ -20,6 +20,7 @@
 #include "diag/perf_counters.h"
 #include "hal/usb/usb_comm.h"
 #include "hal/wifi/workshop_server.h"
+#include "runtime/datalog/datalog_tasks.h"
 #include "runtime/ui_task.h"
 #include "runtime/input_buttons.h"
 #include "runtime/pending_actions.h"
@@ -105,6 +106,9 @@ static void createAllTasks() {
 #if APP_BLE_ENABLED
     s_bleTaskHandle = TaskSpawn::spawnStatic("ble", taskBLE, TASK_STACK_BLE, kTaskPrioBle,
                                              s_bleStack, &s_bleTaskTCB, kTaskCoreBle);
+#endif
+#if APP_SD_DATALOG_ENABLED
+    DatalogTasks::start();
 #endif
 }
 
