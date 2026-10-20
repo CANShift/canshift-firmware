@@ -1,9 +1,11 @@
 #![allow(clippy::missing_safety_doc)]
 
+use crate::lap_watch::{observe, rebase, LapWatch};
 use crate::record::{
     encode_end, encode_header, encode_lap, encode_preamble, encode_sample, DATALOG_SIGNAL_SLOTS,
 };
 use crate::ring::Ring;
+use crate::session::{halt, step, Session, SessionInputs, DATALOG_ACTION_NONE};
 
 unsafe fn out_slice<'a>(out: *mut u8, capacity: usize) -> Option<&'a mut [u8]> {
     if out.is_null() {
@@ -114,4 +116,43 @@ pub unsafe extern "C" fn datalog_ring_used_rs(ring: *const Ring) -> u32 {
 #[no_mangle]
 pub unsafe extern "C" fn datalog_ring_dropped_rs(ring: *const Ring) -> u32 {
     unsafe { ring.as_ref() }.map_or(0, Ring::dropped)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn datalog_session_step_rs(
+    session: *mut Session,
+    inputs: *const SessionInputs,
+) -> u8 {
+    let (Some(session), Some(inputs)) = (unsafe { session.as_mut() }, unsafe { inputs.as_ref() })
+    else {
+        return DATALOG_ACTION_NONE;
+    };
+    step(session, inputs)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn datalog_session_halt_rs(session: *mut Session) {
+    if let Some(session) = unsafe { session.as_mut() } {
+        halt(session);
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn datalog_lap_observe_rs(
+    watch: *mut LapWatch,
+    lap_count: u16,
+    timer_session: u16,
+) -> bool {
+    unsafe { watch.as_mut() }.is_some_and(|watch| observe(watch, lap_count, timer_session))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn datalog_lap_rebase_rs(
+    watch: *mut LapWatch,
+    lap_count: u16,
+    timer_session: u16,
+) {
+    if let Some(watch) = unsafe { watch.as_mut() } {
+        rebase(watch, lap_count, timer_session);
+    }
 }
