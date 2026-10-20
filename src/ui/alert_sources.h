@@ -61,4 +61,6 @@ constexpr size_t kMaxSourceCount = kSourceCount + kConfigMaxCriticalAlerts;
 
 [[nodiscard]] AlertEngine::CriticalLimit limitAt(size_t index, float reading);
 
+void formatReading(char *out, size_t outLen, const CriticalSource &src, float value);
+
 }

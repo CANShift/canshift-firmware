@@ -2,7 +2,9 @@
 
 #include "config/config_loader.h"
 #include "runtime/critical_alert_source.h"
+#include "ui/unit_display.h"
 #include "ui/widget_label.h"
+#include "util/format_float.h"
 
 #include <cmath>
 #include <string.h>
@@ -70,4 +72,9 @@ AlertEngine::CriticalLimit AlertSources::limitAt(size_t index, float reading) {
         return AlertEngine::criticalLimitFor(kSources[index].info.id, reading);
     const CriticalAlertSource::Armed armed = CriticalAlertSource::armed(index - kSourceCount);
     return {armed.firesAt, armed.below, armed.armed};
+}
+
+void AlertSources::formatReading(char *out, size_t outLen, const CriticalSource &src, float value) {
+    const uint8_t decimals = UnitDisplay::decimalsFor(static_cast<uint8_t>(src.decimals), src.unit);
+    FloatFormat::formatFixed(out, outLen, UnitDisplay::valueFor(value, src.unit), decimals);
 }

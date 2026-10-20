@@ -8,7 +8,6 @@
 #include "ui/alert_takeover_view.h"
 #include "ui/ota_overlay.h"
 #include "ui/unit_display.h"
-#include "util/format_float.h"
 #include "util/text_join.h"
 
 #include <Arduino.h>
@@ -90,9 +89,7 @@ void hideLayer() {
 
 void refreshValue(const AlertSources::CriticalSource &src) {
     char text[16];
-    FloatFormat::formatFixed(text, sizeof(text),
-                             UnitDisplay::valueFor(SignalStore::read(src.id), src.unit),
-                             src.decimals);
+    AlertSources::formatReading(text, sizeof(text), src, SignalStore::read(src.id));
     if (strcmp(text, s_lastValueText) == 0)
         return;
     strlcpy(s_lastValueText, text, sizeof(s_lastValueText));
@@ -109,8 +106,7 @@ void formatContext(char *out, size_t outLen, size_t index) {
         return;
     }
     char limitText[12];
-    FloatFormat::formatFixed(limitText, sizeof(limitText),
-                             UnitDisplay::valueFor(limit.limit, src.unit), src.decimals);
+    AlertSources::formatReading(limitText, sizeof(limitText), src, limit.limit);
     snprintf(out, outLen, "%s %s %s%sAT %d rpm", kLimitWord[limit.below ? 1 : 0], limitText,
              UnitDisplay::symbolFor(src.unit), TextJoin::kSeparator, rpm);
 }
