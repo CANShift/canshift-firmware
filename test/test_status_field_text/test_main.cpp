@@ -90,6 +90,20 @@ void test_value_unpairedUnit_isUntouched() {
     TEST_ASSERT_EQUAL_STRING("13.8 V", buf);
 }
 
+void test_value_convertedPressure_dropsOneDecimal() {
+    stageDashboard(fixtures::kStatusRowImperial);
+    char buf[kBufCap];
+    StatusFieldText::formatValue(buf, sizeof(buf), 1.61f, "%.2f", valueItem("bar", false));
+    TEST_ASSERT_EQUAL_STRING("23.4", buf);
+}
+
+void test_value_metricPressure_keepsTheSpecDecimals() {
+    stageDashboard(fixtures::kStatusRowMetric);
+    char buf[kBufCap];
+    StatusFieldText::formatValue(buf, sizeof(buf), 1.61f, "%.2f", valueItem("bar", false));
+    TEST_ASSERT_EQUAL_STRING("1.61", buf);
+}
+
 void test_withPrefix_joinsWithOneSpace() {
     char buf[kBufCap];
     StatusFieldText::withPrefix(buf, sizeof(buf), "MAX OIL", "128");
@@ -160,6 +174,8 @@ int main(int, char **) {
     RUN_TEST(test_value_showUnit_appendsTheImperialSymbol);
     RUN_TEST(test_value_showUnit_keepsTheMetricSymbol);
     RUN_TEST(test_value_unpairedUnit_isUntouched);
+    RUN_TEST(test_value_convertedPressure_dropsOneDecimal);
+    RUN_TEST(test_value_metricPressure_keepsTheSpecDecimals);
     RUN_TEST(test_withPrefix_joinsWithOneSpace);
     RUN_TEST(test_timer_lapCount_readsTheTrackLapNumber);
     RUN_TEST(test_timer_best_formatsTheBestLap);

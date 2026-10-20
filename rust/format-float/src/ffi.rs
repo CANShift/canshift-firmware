@@ -1,7 +1,9 @@
 use core::ffi::{c_char, CStr};
 use core::slice;
 
-use crate::{format_fixed, format_from_spec, format_general};
+use crate::{
+    format_fixed, format_from_spec, format_from_spec_with_decimals, format_general, spec_decimals,
+};
 
 #[no_mangle]
 pub unsafe extern "C" fn format_fixed_rs(
@@ -17,6 +19,13 @@ pub unsafe extern "C" fn format_fixed_rs(
     format_fixed(out, value, decimals)
 }
 
+unsafe fn spec_bytes<'a>(spec: *const c_char) -> &'a [u8] {
+    if spec.is_null() {
+        return &[];
+    }
+    unsafe { CStr::from_ptr(spec) }.to_bytes()
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn format_from_spec_rs(
     buf: *mut c_char,
@@ -28,11 +37,27 @@ pub unsafe extern "C" fn format_from_spec_rs(
         return 0;
     }
     let out = unsafe { slice::from_raw_parts_mut(buf as *mut u8, size) };
-    if spec.is_null() {
-        return format_from_spec(out, value, &[]);
+    format_from_spec(out, value, unsafe { spec_bytes(spec) })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn format_from_spec_decimals_rs(
+    buf: *mut c_char,
+    size: usize,
+    value: f32,
+    spec: *const c_char,
+    decimals: i32,
+) -> usize {
+    if buf.is_null() || size == 0 {
+        return 0;
     }
-    let spec_slice = unsafe { CStr::from_ptr(spec) }.to_bytes();
-    format_from_spec(out, value, spec_slice)
+    let out = unsafe { slice::from_raw_parts_mut(buf as *mut u8, size) };
+    format_from_spec_with_decimals(out, value, unsafe { spec_bytes(spec) }, decimals)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn format_spec_decimals_rs(spec: *const c_char) -> i32 {
+    spec_decimals(unsafe { spec_bytes(spec) })
 }
 
 #[no_mangle]

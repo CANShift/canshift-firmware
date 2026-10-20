@@ -10,7 +10,9 @@ namespace StatusFieldText {
 
 void formatValue(char *buf, size_t cap, float value, const char *spec, const CfgTopBarItem &item) {
     const float shown = UnitDisplay::valueFor(value, item.unit);
-    FloatFormat::formatFromSpec(buf, cap, shown, spec);
+    const uint8_t specDecimals = static_cast<uint8_t>(FloatFormat::specDecimals(spec));
+    const uint8_t decimals = UnitDisplay::decimalsFor(specDecimals, item.unit);
+    FloatFormat::formatFromSpecWithDecimals(buf, cap, shown, spec, decimals);
     if (!item.showUnit || item.unit[0] == '\0')
         return;
     const size_t used = strlen(buf);

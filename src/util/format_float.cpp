@@ -17,6 +17,17 @@ size_t formatFromSpec(char *buf, size_t size, float value, const char *spec) {
     return format_from_spec_rs(buf, size, value, spec);
 }
 
+size_t formatFromSpecWithDecimals(char *buf, size_t size, float value, const char *spec,
+                                  int decimals) {
+    if (buf == nullptr || size == 0)
+        return 0;
+    return format_from_spec_decimals_rs(buf, size, value, spec, decimals);
+}
+
+int specDecimals(const char *spec) {
+    return format_spec_decimals_rs(spec);
+}
+
 size_t formatGeneral(char *buf, size_t size, float value, int sigDigits) {
     if (buf == nullptr || size == 0)
         return 0;
