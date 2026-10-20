@@ -101,6 +101,19 @@ class Preferences {
         return len;
     }
 
+    size_t getBytesLength(const char *key) {
+        const auto it = store().find(m_ns + "/" + key);
+        return it != store().end() ? it->second.size() : 0;
+    }
+
+    size_t getBytes(const char *key, void *buf, size_t maxLen) {
+        const auto it = store().find(m_ns + "/" + key);
+        if (it == store().end() || it->second.size() > maxLen)
+            return 0;
+        memcpy(buf, it->second.data(), it->second.size());
+        return it->second.size();
+    }
+
   private:
     static std::map<std::string, std::string> &store() {
         static std::map<std::string, std::string> s;

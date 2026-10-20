@@ -12,6 +12,7 @@
 #include "hal/display/display_driver.h"
 #include "hal/usb/usb_comm.h"
 #include "runtime/alert_engine.h"
+#include "runtime/imu_service.h"
 #include "runtime/lvgl_lock.h"
 #include "runtime/signal_store.h"
 #include "runtime/timer_service.h"
@@ -121,6 +122,7 @@ void initRuntimeServices() {
     TrackStore::init();
     LOG_INFO("BOOT", "Initializing AlertEngine...");
     AlertEngine::init();
+    ImuService::init();
     LOG_INFO("BOOT", "Runtime ready");
 }
 

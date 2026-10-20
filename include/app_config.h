@@ -47,6 +47,13 @@ inline constexpr int kTaskCoreInput = 0;
     #define TASK_STACK_INPUT 2048
 #endif
 
+inline constexpr int kTaskPrioImu = 9;
+inline constexpr int kTaskCoreImu = 0;
+
+#ifndef TASK_STACK_IMU
+    #define TASK_STACK_IMU 3072
+#endif
+
 inline constexpr unsigned kTaskWdtTimeoutMs = 8000U;
 
 inline constexpr unsigned kPreRestartFlushDelayMs = 200U;

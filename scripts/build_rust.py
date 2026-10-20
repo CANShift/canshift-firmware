@@ -34,6 +34,7 @@ CRATES = (
     ("USE_RUST_BLE_LINK=1", "ble-link"),
     ("USE_RUST_BUS_SCAN=1", "bus-scan"),
     ("USE_RUST_TONE_SEQUENCER=1", "tone-sequencer"),
+    ("USE_RUST_IMU_CORE=1", "imu-core"),
 )
 
 

@@ -71,6 +71,7 @@ inline constexpr BoardProfile kCrowpanel28 = {
             .psram_present = false,
         },
     .audio = kNoAudio,
+    .imu = kNoImu,
 };
 
 }

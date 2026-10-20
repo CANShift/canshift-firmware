@@ -57,6 +57,20 @@ void parseShiftLightWidget(JsonObjectConst cfg, CfgShiftLightParams *out) {
     out->redSegments = static_cast<uint8_t>(red);
 }
 
+float clampRangeG(float range) {
+    if (range < kGMeterMinRangeG)
+        return kGMeterMinRangeG;
+    if (range > kGMeterMaxRangeG)
+        return kGMeterMaxRangeG;
+    return range;
+}
+
+void parseGMeterWidget(JsonObjectConst cfg, CfgGMeterParams *out) {
+    out->rangeG = clampRangeG(cfg["rangeG"] | kGMeterDefaultRangeG);
+    out->peakHold = cfg["peakHold"] | true;
+    strlcpy(out->kicker, cfg["kicker"] | "", kCfgMaxNameLen);
+}
+
 void parseWarningWidget(JsonObjectConst cfg, CfgWarningParams *out) {
     out->invertLogic = cfg["invertLogic"] | false;
     out->threshold = cfg["threshold"] | 0.5f;
@@ -232,6 +246,10 @@ void parseShiftLightParams(JsonObjectConst cfg, CfgWidget *w) {
     parseShiftLightWidget(cfg, &w->shiftLight);
 }
 
+void parseGMeterParams(JsonObjectConst cfg, CfgWidget *w) {
+    parseGMeterWidget(cfg, &w->gMeter);
+}
+
 struct WidgetParamsParser {
     WidgetType type;
     void (*parse)(JsonObjectConst, CfgWidget *);
@@ -242,6 +260,7 @@ constexpr WidgetParamsParser kWidgetParamsParsers[] = {
     {WidgetType::WARNING, parseWarningParams}, {WidgetType::BUTTON, parseButtonParams},
     {WidgetType::TIMER, parseTimerParams},     {WidgetType::IMAGE, parseImageParams},
     {WidgetType::GEAR_IND, parseGearParams},   {WidgetType::SHIFT_LIGHT, parseShiftLightParams},
+    {WidgetType::G_METER, parseGMeterParams},
 };
 
 const WidgetParamsParser *paramsParserFor(WidgetType type) {

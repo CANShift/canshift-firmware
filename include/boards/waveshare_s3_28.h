@@ -77,6 +77,17 @@ inline constexpr BoardProfile kWaveshareS328 = {
             .pin_ws = 38,
             .pin_dout = 47,
         },
+    .imu =
+        {
+            .driver = ImuDriver::QMI8658,
+            .pin_sda = 11,
+            .pin_scl = 10,
+            .i2c_addr = 0x6B,
+            .freq_hz = 400000UL,
+            .screen_x = ImuAxis::PosX,
+            .screen_y = ImuAxis::PosY,
+            .screen_z = ImuAxis::PosZ,
+        },
 };
 
 }

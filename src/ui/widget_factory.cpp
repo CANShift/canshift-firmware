@@ -4,6 +4,7 @@
 #include "widgets/warning_widget.h"
 #include "widgets/button_widget.h"
 #include "widgets/gear_widget.h"
+#include "widgets/g_meter_widget.h"
 #include "widgets/shift_light_widget.h"
 #include "widgets/timer_widget.h"
 #include "widgets/image_widget.h"
@@ -64,6 +65,10 @@ void updateTimer(lv_obj_t *obj, const WidgetReading &, const CfgWidget &cfg) {
     TimerWidget::update(obj, 0.0f, false, cfg);
 }
 
+void updateGMeter(lv_obj_t *obj, const WidgetReading &, const CfgWidget &) {
+    GMeterWidget::update(obj);
+}
+
 void updateButton(lv_obj_t *obj, const WidgetReading &, const CfgWidget &) {
     ButtonWidget::update(obj);
 }
@@ -77,6 +82,7 @@ constexpr WidgetOps kWidgetOps[] = {
     {WidgetType::TIMER, TimerWidget::create, updateTimer, false},
     {WidgetType::BUTTON, ButtonWidget::create, updateButton, false},
     {WidgetType::IMAGE, ImageWidget::create, nullptr, false},
+    {WidgetType::G_METER, GMeterWidget::create, updateGMeter, false},
 };
 
 const WidgetOps *opsFor(WidgetType type) {

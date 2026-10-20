@@ -1,5 +1,5 @@
 {
- "version": "1.44.0",
+ "version": "1.45.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
  "defaultPageId": "street",

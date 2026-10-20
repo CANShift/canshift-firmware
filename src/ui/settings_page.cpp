@@ -44,6 +44,10 @@ void SettingsPage::init(int16_t yOffset, int16_t height) {
         buildResetTouchCalRow(y, rowW);
         y += LayoutScale::y(kGapRow);
     }
+    if (canshift::boards::runtimeBoardProfile().imu.driver != canshift::boards::ImuDriver::None) {
+        buildLevelImuRow(y, rowW);
+        y += LayoutScale::y(kGapRow);
+    }
     buildRebootRow(y, rowW);
     y += LayoutScale::y(kGapRow);
     buildAboutRow(y);

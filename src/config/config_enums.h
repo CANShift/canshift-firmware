@@ -13,6 +13,7 @@ enum class WidgetType : uint8_t {
     GEAR_IND = 8,
     IMAGE = 9,
     SHIFT_LIGHT = 10,
+    G_METER = 11,
 };
 
 enum class CfgButtonActionType : uint8_t {

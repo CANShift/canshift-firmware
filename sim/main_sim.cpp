@@ -1,4 +1,5 @@
 #include "sim_display.h"
+#include "sim_imu.h"
 #include "sim_injector.h"
 
 #include "board.h"
@@ -53,6 +54,12 @@ bool applyBoardProfileFile(const char *path) {
         return false;
     }
     return true;
+}
+
+void prepareInputs(const char *dataRoot, const char *scenario) {
+    simStorageSetRoot(dataRoot);
+    simRegisterLvglFs(dataRoot);
+    SimImu::prepare(scenario);
 }
 
 void applyThemeOverride() {
@@ -138,9 +145,7 @@ int main(int argc, char **argv) {
     if (!SimDisplay::init(panelW, panelH, zoomForPanel(panelW)))
         return 1;
 
-    simStorageSetRoot(dataRoot);
-    simRegisterLvglFs(dataRoot);
-
+    prepareInputs(dataRoot, scenario);
     if (!bootDashboard(pageId))
         return 1;
 

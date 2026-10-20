@@ -27,6 +27,7 @@ FEATURES = (
     "ble-link",
     "bus-scan",
     "tone-sequencer",
+    "imu-core",
 )
 
 

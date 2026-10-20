@@ -1,0 +1,12 @@
+[package]
+name = "imu-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "IMU pure logic for the g-meter: chip-to-screen axis remap, level calibration into the vehicle frame, low-pass, peak envelope and plot geometry. The I2C driver stays C++."
+license = "UNLICENSED"
+
+[features]
+default = ["std"]
+std = []
+ffi = []
