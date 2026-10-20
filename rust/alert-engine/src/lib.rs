@@ -15,6 +15,8 @@ pub mod critical_alert;
 
 pub mod critical_ack;
 
+pub mod display_power;
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub enum AlertLevel {

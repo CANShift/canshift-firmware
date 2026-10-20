@@ -17,6 +17,7 @@ typedef struct {
 bool ble_link_admitted_rs(bool encrypted, bool authenticated);
 bool ble_link_subscription_refused_rs(bool encrypted, bool authenticated);
 bool ble_link_pairing_overdue_rs(bool encrypted, bool authenticated, uint32_t connected_ms);
+bool ble_link_advertising_backs_off_rs(uint32_t advertising_ms);
 bool ble_link_passkey_prompt_admit_rs(BleLinkPasskeyBudgetRs *budget, uint32_t now_ms);
 
 #ifdef __cplusplus

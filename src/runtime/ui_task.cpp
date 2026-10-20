@@ -28,6 +28,7 @@
 #include "ui/alert_takeover.h"
 #include "ui/burn_overlay.h"
 #include "ui/day_night_auto.h"
+#include "ui/display_idle.h"
 #include "ui/ota_overlay.h"
 #include "ui/page_manager.h"
 #include "ui/passkey_overlay.h"
@@ -81,6 +82,7 @@ inline void uiDrainPasskeyActions() {
     const uint32_t passkey = PendingActions::takeBlePasskeyShow();
     const bool takeoverActive = AlertTakeover::isActive();
     if (passkey != 0u) {
+        DisplayIdle::wake();
         PasskeyOverlay::request(passkey);
         if (takeoverActive)
             LOG_WARN("BLE", "Passkey card held — a critical alert owns the screen");
@@ -90,6 +92,7 @@ inline void uiDrainPasskeyActions() {
 
 inline void uiDrainBurnOverlayActions() {
     if (PendingActions::takeBurnOverlayShow()) {
+        DisplayIdle::wake();
         BurnOverlay::show();
     }
     const int8_t err = PendingActions::takeBurnOverlayShowError();
@@ -123,6 +126,7 @@ inline void uiDrainOtaOverlayActions() {
     const uint32_t showSize =
         PendingActions::takeOtaOverlayShow(targetVersion, sizeof(targetVersion));
     if (showSize > 0) {
+        DisplayIdle::wake();
         OtaOverlay::show(showSize, targetVersion);
     }
     if (PendingActions::takeOtaOverlayComplete()) {
@@ -147,6 +151,7 @@ inline void uiHandRadioToWorkshop() {
 inline void uiDrainWorkshopEntry() {
     if (!WorkshopMode::isEntering())
         return;
+    DisplayIdle::wake();
     const bool entered = WorkshopScreen::enter();
     WorkshopMode::settleEntry(entered);
     if (entered)

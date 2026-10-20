@@ -6,6 +6,7 @@ mod ffi;
 pub const PAIRING_DEADLINE_MS: u32 = 20_000;
 pub const PASSKEY_PROMPTS_PER_WINDOW: u8 = 3;
 pub const PASSKEY_PROMPT_WINDOW_MS: u32 = 60_000;
+pub const ADVERTISING_FAST_WINDOW_MS: u32 = 30_000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct LinkSecurity {
@@ -41,6 +42,11 @@ pub const fn subscription_refused(link: LinkSecurity) -> bool {
 #[must_use]
 pub const fn pairing_overdue(link: LinkSecurity, connected_ms: u32) -> bool {
     !link.admitted() && connected_ms >= PAIRING_DEADLINE_MS
+}
+
+#[must_use]
+pub const fn advertising_backs_off(advertising_ms: u32) -> bool {
+    advertising_ms >= ADVERTISING_FAST_WINDOW_MS
 }
 
 #[repr(C)]
@@ -113,6 +119,18 @@ mod tests {
     #[test]
     fn a_fresh_connection_is_not_overdue() {
         assert!(!pairing_overdue(PLAIN, 0));
+    }
+
+    #[test]
+    fn advertising_stays_fast_through_the_window() {
+        assert!(!advertising_backs_off(0));
+        assert!(!advertising_backs_off(ADVERTISING_FAST_WINDOW_MS - 1));
+    }
+
+    #[test]
+    fn advertising_backs_off_once_the_window_has_passed() {
+        assert!(advertising_backs_off(ADVERTISING_FAST_WINDOW_MS));
+        assert!(advertising_backs_off(u32::MAX));
     }
 
     fn spend_window(budget: &mut PasskeyPromptBudget, start_ms: u32) {
