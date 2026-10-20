@@ -280,12 +280,13 @@ static void updateFillArc(GaugeTag *tag, float value, uint32_t levelRgb) {
 
 static void updateValueText(GaugeTag *tag, const CfgWidget &cfg, float value) {
     const float shown = UnitDisplay::valueFor(value, tag->convertibleUnit);
-    const int32_t displayScaled = scaleForDisplay(shown, cfg.gauge.decimalPlaces);
+    const uint8_t decimals =
+        UnitDisplay::decimalsFor(cfg.gauge.decimalPlaces, tag->convertibleUnit);
+    const int32_t displayScaled = scaleForDisplay(shown, decimals);
     if (displayScaled == tag->lastDisplayScaled)
         return;
     char buf[24];
-    WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, cfg.gauge.decimalPlaces, shown,
-                               nullptr);
+    WidgetHelpers::formatValue(buf, sizeof(buf), cfg.gauge.prefix, decimals, shown, nullptr);
     WidgetHelpers::setLabelTextIfChanged(tag->valueLabel, buf);
     tag->lastDisplayScaled = displayScaled;
 }

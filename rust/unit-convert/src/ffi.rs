@@ -1,7 +1,7 @@
 use core::ffi::{c_char, CStr};
 use core::ptr;
 
-use crate::{display_symbol, display_value, UnitSystem};
+use crate::{display_decimals, display_symbol, display_value, UnitSystem};
 
 #[no_mangle]
 pub unsafe extern "C" fn unit_display_symbol_rs(unit: *const c_char, system: u8) -> *const c_char {
@@ -22,6 +22,19 @@ pub unsafe extern "C" fn unit_display_value_rs(value: f32, unit: *const c_char, 
     }
     let bytes = unsafe { CStr::from_ptr(unit) }.to_bytes();
     display_value(value, bytes, UnitSystem::from_u8(system))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn unit_display_decimals_rs(
+    decimals: u8,
+    unit: *const c_char,
+    system: u8,
+) -> u8 {
+    if unit.is_null() {
+        return decimals;
+    }
+    let bytes = unsafe { CStr::from_ptr(unit) }.to_bytes();
+    display_decimals(decimals, bytes, UnitSystem::from_u8(system))
 }
 
 #[cfg(test)]
@@ -75,6 +88,23 @@ mod tests {
         assert_eq!(
             unsafe { unit_display_value_rs(9.5, ptr::null(), UNIT_SYSTEM_IMPERIAL) },
             9.5
+        );
+    }
+
+    #[test]
+    fn ffi_decimals_drop_for_bar_in_psi() {
+        let unit = b"bar\0";
+        let shown = unsafe {
+            unit_display_decimals_rs(1, unit.as_ptr() as *const c_char, UNIT_SYSTEM_IMPERIAL)
+        };
+        assert_eq!(shown, 0);
+    }
+
+    #[test]
+    fn ffi_decimals_null_unit_passes_through() {
+        assert_eq!(
+            unsafe { unit_display_decimals_rs(2, ptr::null(), UNIT_SYSTEM_IMPERIAL) },
+            2
         );
     }
 }
