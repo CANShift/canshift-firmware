@@ -97,14 +97,25 @@ static void assertPageSignalsDeclared(const CfgSignalConfig &s, const CfgPage &p
     }
 }
 
+static void assertStatusItemDeclared(const CfgSignalConfig &s, bool present,
+                                     const CfgTopBarItem &item) {
+    if (!present || item.signalId[0] == '\0')
+        return;
+    printf("status row signal=%s\n", item.signalId);
+    TEST_ASSERT_TRUE_MESSAGE(signalIsDeclared(s, item.signalId), item.signalId);
+}
+
 void test_every_bound_signal_is_declared() {
     const CfgDashboard &d = ConfigLoader::getDashboardConfig();
     const CfgSignalConfig &s = ConfigLoader::getSignalConfig();
     printf("signalCount=%u cap=%u\n", (unsigned)s.signalCount, (unsigned)kConfigMaxSignals);
     TEST_ASSERT_LESS_OR_EQUAL_UINT8(kConfigMaxSignals, s.signalCount);
 
-    for (uint8_t p = 0; p < d.pageCount; ++p)
+    for (uint8_t p = 0; p < d.pageCount; ++p) {
         assertPageSignalsDeclared(s, d.pages[p], p);
+        assertStatusItemDeclared(s, d.pages[p].statusRow.hasCenter, d.pages[p].statusRow.center);
+        assertStatusItemDeclared(s, d.pages[p].statusRow.hasRight, d.pages[p].statusRow.right);
+    }
 }
 
 int main(int, char **) {

@@ -573,6 +573,20 @@
       "min": 0,
       "max": 16777215,
       "timeoutMs": 5000
+    },
+    {
+      "name": "trip_km",
+      "canFrameId": "0x378",
+      "startByte": 0,
+      "byteLength": 3,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.1,
+      "offset": 0.0,
+      "unit": "km",
+      "min": 0,
+      "max": 1677721.5,
+      "timeoutMs": 5000
     }
   ]
 }
