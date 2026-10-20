@@ -62,6 +62,8 @@ USB-only table `kUsbCommands`. Anything else replies `unknown_command`.
 | `0x21` | `kCmdCanScanStop`       | `{"cmd":33}`                                          | Stops forwarding; the ack carries `drops`                                                                                                                                                  |
 | `0x22` | `kCmdObdReadDtc`        | `{"cmd":34}`                                          | OBD-II mode 03; replies `{"status":"ok","dtc_bytes":[…]}` when the ECU answers                                                                                                             |
 | `0x23` | `kCmdObdClearDtc`       | `{"cmd":35}`                                          | OBD-II mode 04                                                                                                                                                                             |
+| `0x24` | `kCmdBusScanStart`      | `{"cmd":36}`                                          | Starts a listen-only bus scan; acks at once, or `can_unavailable` / `bus_scan_busy`                                                                                                        |
+| `0x25` | `kCmdBusScanPoll`       | `{"cmd":37}`                                          | Replies the scan state; the `done` line carries the bit rate and the seen IDs                                                                                                              |
 | `0x30` | `kCmdOtaBegin`          | `{"cmd":48,"total":N,"sha256":"<hex>","sig":"<b64>"}` | Opens the inactive app slot (see [Firmware OTA](firmware-ota.md))                                                                                                                          |
 | `0x31` | `kCmdOtaWrite`          | `{"cmd":49,"offset":O,"data":"<b64>"}`                | Writes one chunk; `{"status":"ok","written":N}`                                                                                                                                            |
 | `0x32` | `kCmdOtaEnd`            | `{"cmd":50,"action":"commit"}`                        | `commit` verifies and reboots into the new slot; `abort`, the default, discards                                                                                                            |
@@ -168,6 +170,41 @@ not starved on a busy bus. Each frame is serialized as
 lazily on the first `kCmdCanScanStart` and never deleted, only reset: the
 published handle is null while scanning is stopped, and a producer holding a
 stale handle can never touch freed memory.
+
+## Bus scan
+
+`kCmdBusScanStart` hands the bus to `BusScan` (`src/can/bus_scan.cpp`), which
+runs inside the CAN task because that task owns the TWAI driver. The scan stops
+the normal driver, then reinstalls it in `TWAI_MODE_LISTEN_ONLY` at 500, 250,
+1000 and 125 kbit/s for 500 ms each: listen-only never ACKs, never sends an
+error frame and cannot transmit, so the dash cannot disturb a bus it has the
+wrong rate for. `rust/bus-scan` picks the rate whose window held at least four
+frames and at most one bus error per ten frames, the busiest one winning.
+A detected rate is then held listen-only for 3 s while every frame ID is
+counted (128 IDs at most, `truncated` past that). The normal driver comes back
+at the configured speed through the same `resolveBusSetup()` the boot path
+uses; nothing is written to flash, so the running config only changes when the
+host sends a new one. While the scan holds the bus, `CanManager::sendFrame`
+refuses, and the OBD-II poller, the signal parser and the raw-frame stream see
+nothing.
+
+The host polls `kCmdBusScanPoll`, one status line per poll. A scan reads as
+the first probe from the moment it is accepted, so a poll can never return the
+previous result:
+
+```json
+{"status":"ok","state":"probing","kbps":250,"step":2,"steps":5}
+{"status":"ok","state":"done","outcome":"detected","kbps":500,"window_ms":3000,
+ "probes":[[500,812,0],[250,0,96],[1000,0,40],[125,0,77]],
+ "ids":[[880,150],[881,150]],"truncated":false}
+```
+
+`probes` is `[kbps, frames, bus_errors]` per rate and `ids` is `[id, count]`
+over `window_ms`. `outcome` is `detected`, `silent` (no frame and no error on
+any rate), `unclear` (traffic, but no rate was clean) or `failed` (the driver
+could not be switched); only `detected` carries a non-zero `kbps`. A dash and
+one ECU alone on a bench read as `unclear`: nobody ACKs the ECU, so every frame
+ends in an error.
 
 ## Dispatch notes
 

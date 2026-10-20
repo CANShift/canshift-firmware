@@ -1,4 +1,5 @@
 #include "can_manager.h"
+#include "bus_scan.h"
 #include "can_driver_install.h"
 #include "can_parser_rs.h"
 #include "can_rx_route.h"
@@ -207,7 +208,22 @@ static void updateStatsWindow(uint32_t nowMs) {
     s_lastStatMs = nowMs;
 }
 
+static void markDriverDown() {
+    s_twaiInstalled = false;
+    s_retryAttempts = 0;
+    s_lastRetryMs = 0;
+}
+
+static bool tickBusScan() {
+    const BusScan::Tick tick = BusScan::tick();
+    if (tick == BusScan::Tick::DriverLost)
+        markDriverDown();
+    return tick == BusScan::Tick::Frame;
+}
+
 bool CanManager::tick() {
+    if (s_twaiInstalled && BusScan::claimsBus())
+        return tickBusScan();
     if (!s_twaiInstalled) {
         tickInitRetry();
         vTaskDelay(pdMS_TO_TICKS(kTwaiDownTickDelayMs));
@@ -230,7 +246,7 @@ bool CanManager::tick() {
 }
 
 bool CanManager::sendFrame(uint32_t id, const uint8_t *data, uint8_t len, bool extended) {
-    if (!s_twaiInstalled)
+    if (!s_twaiInstalled || BusScan::claimsBus())
         return false;
 
     if (len > kCanFrameMaxBytes)

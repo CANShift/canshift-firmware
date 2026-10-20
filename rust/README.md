@@ -23,6 +23,7 @@ what lets the release profile's LTO apply, and it owns the only panic handler.
 | `workshop-mode`     | `include/workshop_mode_rs.h`     |
 | `ota-signature`     | `include/ota_signature_rs.h`     |
 | `ble-link`          | `include/ble_link_rs.h`          |
+| `bus-scan`          | `include/bus_scan_rs.h`          |
 
 ## Running
 

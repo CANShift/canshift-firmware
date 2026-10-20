@@ -43,6 +43,8 @@ static constexpr uint8_t kCmdCanScanStart = 0x20;
 static constexpr uint8_t kCmdCanScanStop = 0x21;
 static constexpr uint8_t kCmdObdReadDtc = 0x22;
 static constexpr uint8_t kCmdObdClearDtc = 0x23;
+static constexpr uint8_t kCmdBusScanStart = 0x24;
+static constexpr uint8_t kCmdBusScanPoll = 0x25;
 
 static constexpr uint8_t kCmdOtaBegin = 0x30;
 static constexpr uint8_t kCmdOtaWrite = 0x31;

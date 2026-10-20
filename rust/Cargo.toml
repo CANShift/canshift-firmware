@@ -15,6 +15,7 @@ members = [
     "workshop-mode",
     "ota-signature",
     "ble-link",
+    "bus-scan",
     "canshift-ffi",
 ]
 

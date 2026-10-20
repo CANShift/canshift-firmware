@@ -32,6 +32,7 @@ CRATES = (
     ("USE_RUST_WORKSHOP_MODE=1", "workshop-mode"),
     ("USE_RUST_OTA_SIGNATURE=1", "ota-signature"),
     ("USE_RUST_BLE_LINK=1", "ble-link"),
+    ("USE_RUST_BUS_SCAN=1", "bus-scan"),
 )
 
 

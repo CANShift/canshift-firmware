@@ -63,6 +63,9 @@ void abortChunkTransfer(const char *reason);
 void handleCanScanStart();
 void handleCanScanStop();
 
+void handleBusScanStart();
+void handleBusScanPoll();
+
 void handleObdReadDtc();
 void handleObdClearDtc();
 void tickObdDtc();

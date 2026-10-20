@@ -234,6 +234,12 @@ void runCanScanStart(const JsonObjectConst &) {
 void runCanScanStop(const JsonObjectConst &) {
     handleCanScanStop();
 }
+void runBusScanStart(const JsonObjectConst &) {
+    handleBusScanStart();
+}
+void runBusScanPoll(const JsonObjectConst &) {
+    handleBusScanPoll();
+}
 void runObdReadDtc(const JsonObjectConst &) {
     handleObdReadDtc();
 }
@@ -258,6 +264,8 @@ constexpr UsbCommand kUsbCommands[] = {
     {UsbComm::kCmdCanScanStop, &runCanScanStop},
     {UsbComm::kCmdObdReadDtc, &runObdReadDtc},
     {UsbComm::kCmdObdClearDtc, &runObdClearDtc},
+    {UsbComm::kCmdBusScanStart, &runBusScanStart},
+    {UsbComm::kCmdBusScanPoll, &runBusScanPoll},
 };
 
 const UsbCommand *findUsbCommand(uint8_t code) {

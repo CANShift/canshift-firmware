@@ -45,6 +45,9 @@ passed next to it.
 - `ble-link` owns the BLE admission policy and its one constant,
   `PAIRING_DEADLINE_MS`; the C++ guard passes the link's `encrypted` and
   `authenticated` bits and the milliseconds since the connection, nothing else.
+- `bus-scan` owns the bus scan's probe sequence, the bit-rate picker and the
+  seen-ID table; `BusScanRs` mirrors `repr(C)` `BusScan` field for field, and
+  the C++ side only executes the install and restore actions it returns.
 - `format-float` exists to keep newlib's `%f`/`%g` out of the image, which
   costs about 30 KB of flash. It returns `snprintf`-style lengths, truncates
   rather than rounds, and prints NaN and infinity as literals. `format_general`
