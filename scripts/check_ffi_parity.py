@@ -798,6 +798,27 @@ PAIRS = (
         "include/can_monitor_rs.h",
         "kCanMonitorMaxFrameBytes",
     ),
+    (
+        "datalog action none",
+        "rust/datalog/src/session.rs",
+        "DATALOG_ACTION_NONE",
+        "include/datalog_rs.h",
+        "kDatalogActionNone",
+    ),
+    (
+        "datalog action open",
+        "rust/datalog/src/session.rs",
+        "DATALOG_ACTION_OPEN",
+        "include/datalog_rs.h",
+        "kDatalogActionOpen",
+    ),
+    (
+        "datalog action close",
+        "rust/datalog/src/session.rs",
+        "DATALOG_ACTION_CLOSE",
+        "include/datalog_rs.h",
+        "kDatalogActionClose",
+    ),
 )
 
 RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(-?\\d+)"
