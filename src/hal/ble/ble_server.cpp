@@ -26,7 +26,7 @@ static constexpr char kTimerCmdUuid[] = "4fa0b6a0-0000-0000-0000-000000000006";
 static constexpr char kTimerStateUuid[] = "4fa0b6a0-0000-0000-0000-000000000007";
 static constexpr char kTimerLapUuid[] = "4fa0b6a0-0000-0000-0000-000000000008";
 static constexpr char kAlertUuid[] = "4fa0b6a0-0000-0000-0000-000000000009";
-static constexpr char kCanMonitorUuid[] = "4fa0b6a0-0000-0000-0000-00000000000a";
+static constexpr char kCanMonitorUuid[] = "4fa0b6a0-0000-0000-0000-00000000000b";
 
 static constexpr size_t kBleMinHeap = kBleMinHeapBytes;
 

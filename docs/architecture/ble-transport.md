@@ -29,7 +29,7 @@ An encrypted-but-unauthenticated link (Just Works) is refused at the ATT layer.
 | TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY               | `{"st","el","lc","sid","ver"}` JSON                                                                                          |
 | TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY               | lap notification                                                                                                             |
 | ALERT          | `0009`    | READ_AUTHEN, NOTIFY               | binary critical-alert frame (see below), on change + 1 s                                                                     |
-| CANMON         | `000a`    | READ_AUTHEN, NOTIFY, WRITE_AUTHEN | binary CAN monitor frame (see below), only while subscribed; write sets the ID filter                                        |
+| CANMON         | `000b`    | READ_AUTHEN, NOTIFY, WRITE_AUTHEN | binary CAN monitor frame (see below), only while subscribed; write sets the ID filter                                        |
 
 There is no PASSKEY characteristic — the pairing code is shown on the dash
 itself (see below), not exposed over GATT.
