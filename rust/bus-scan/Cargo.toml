@@ -1,0 +1,12 @@
+[package]
+name = "bus-scan"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "CAN bus scan pure logic: the listen-only probe sequence, the bit-rate picker and the seen-ID table. TWAI stays C++."
+license = "UNLICENSED"
+
+[features]
+default = ["std"]
+std = []
+ffi = []

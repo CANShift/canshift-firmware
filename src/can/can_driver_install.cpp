@@ -40,19 +40,32 @@ struct InitContext {
     bool *installed = nullptr;
 };
 
+struct SpeedTiming {
+    uint16_t kbps;
+    twai_timing_config_t timing;
+};
+
+const SpeedTiming kSpeedTimings[] = {
+    {1000, TWAI_TIMING_CONFIG_1MBITS()},
+    {500, TWAI_TIMING_CONFIG_500KBITS()},
+    {250, TWAI_TIMING_CONFIG_250KBITS()},
+    {125, TWAI_TIMING_CONFIG_125KBITS()},
+};
+
+constexpr twai_mode_t kTwaiModes[] = {TWAI_MODE_NORMAL, TWAI_MODE_LISTEN_ONLY};
+
+static_assert(sizeof(kTwaiModes) / sizeof(kTwaiModes[0]) ==
+                  static_cast<size_t>(CanDriverInstall::BusMode::ListenOnly) + 1,
+              "every bus mode needs a TWAI mode");
+
 twai_timing_config_t getTimingConfig(uint16_t kbps) {
-    switch (kbps) {
-        case 1000:
-            return TWAI_TIMING_CONFIG_1MBITS();
-        case 500:
-            return TWAI_TIMING_CONFIG_500KBITS();
-        case 250:
-            return TWAI_TIMING_CONFIG_250KBITS();
-        default:
-            LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
-                     canshift::boards::runtimeBoardProfile().can.default_speed_kbps);
-            return TWAI_TIMING_CONFIG_500KBITS();
+    for (const SpeedTiming &entry : kSpeedTimings) {
+        if (entry.kbps == kbps)
+            return entry.timing;
     }
+    LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
+             canshift::boards::runtimeBoardProfile().can.default_speed_kbps);
+    return TWAI_TIMING_CONFIG_500KBITS();
 }
 
 BusSetup resolveBusSetup() {
@@ -78,26 +91,49 @@ esp_err_t reportStartError(const char *step, const char *storePrefix, const char
     return err;
 }
 
-esp_err_t installAndStartOnThisCore() {
-    const BusSetup bus = resolveBusSetup();
-    LOG_INFO("CAN", "Initializing TWAI driver...");
-    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", bus.txPin, bus.rxPin, bus.speedKbps);
+esp_err_t installDriver(const BusSetup &bus, CanDriverInstall::BusMode mode) {
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
-        static_cast<gpio_num_t>(bus.txPin), static_cast<gpio_num_t>(bus.rxPin), TWAI_MODE_NORMAL);
+        static_cast<gpio_num_t>(bus.txPin), static_cast<gpio_num_t>(bus.rxPin),
+        kTwaiModes[static_cast<size_t>(mode)]);
     g_config.rx_queue_len = kCanRxQueueDepth;
     g_config.tx_queue_len = kTwaiTxQueueLen;
     const twai_timing_config_t t_config = getTimingConfig(bus.speedKbps);
     const twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    esp_err_t err = twai_driver_install(&g_config, &t_config, &f_config);
+    const esp_err_t err = twai_driver_install(&g_config, &t_config, &f_config);
     if (err != ESP_OK)
         return reportStartError("driver install", "Init", "INIT_FAIL", err);
-    err = twai_start();
+    return ESP_OK;
+}
+
+esp_err_t startDriver(const BusSetup &bus, CanDriverInstall::BusMode mode) {
+    const esp_err_t installed = installDriver(bus, mode);
+    if (installed != ESP_OK)
+        return installed;
+    const esp_err_t err = twai_start();
     if (err != ESP_OK)
         return reportStartError("start", "Start", "START_FAIL", err);
+    return ESP_OK;
+}
+
+esp_err_t installAndStartOnThisCore() {
+    const BusSetup bus = resolveBusSetup();
+    LOG_INFO("CAN", "Initializing TWAI driver...");
+    LOG_INFO("CAN", "TX=GPIO%d RX=GPIO%d speed=%dkbps", bus.txPin, bus.rxPin, bus.speedKbps);
+    const esp_err_t err = startDriver(bus, CanDriverInstall::BusMode::Normal);
+    if (err != ESP_OK)
+        return err;
     CanParser::loadSignalDefinitions();
     Obd2Poller::init();
     LOG_INFO("CAN", "TWAI driver started successfully");
     return ESP_OK;
+}
+
+esp_err_t stopIfRunning() {
+    const esp_err_t err = twai_stop();
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE)
+        return ESP_OK;
+    LOG_ERROR("CAN", "TWAI stop failed: %s", esp_err_to_name(err));
+    return err;
 }
 
 void freeInitContext(InitContext *ctx) {
@@ -191,4 +227,24 @@ esp_err_t CanDriverInstall::installOnCore0(bool *installed) {
         return ESP_ERR_NO_MEM;
     }
     return awaitInit(ctx);
+}
+
+esp_err_t CanDriverInstall::startOnThisCore(BusMode mode, uint16_t speedKbps) {
+    BusSetup bus = resolveBusSetup();
+    bus.speedKbps = speedKbps;
+    return startDriver(bus, mode);
+}
+
+esp_err_t CanDriverInstall::stopOnThisCore() {
+    const esp_err_t stopped = stopIfRunning();
+    if (stopped != ESP_OK)
+        return stopped;
+    const esp_err_t err = twai_driver_uninstall();
+    if (err != ESP_OK)
+        LOG_ERROR("CAN", "TWAI uninstall failed: %s", esp_err_to_name(err));
+    return err;
+}
+
+uint16_t CanDriverInstall::configuredSpeedKbps() {
+    return resolveBusSetup().speedKbps;
 }

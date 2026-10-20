@@ -6,7 +6,6 @@
 #include "hal/storage/storage_driver.h"
 #include "util/mem_alloc.h"
 
-#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 
 #include <memory>
@@ -21,13 +20,7 @@ constexpr char kNewline[] = "\n";
 constexpr size_t kPrefixBytes = sizeof(kPrefix) - 1;
 constexpr size_t kSuffixBytes = sizeof(kSuffix) - 1;
 
-struct HeapFree {
-    void operator()(char *line) const {
-        heap_caps_free(line);
-    }
-};
-
-using LineBuffer = std::unique_ptr<char, HeapFree>;
+using LineBuffer = Mem::HeapPtr<char>;
 
 class SerialPrint : public Print {
   public:

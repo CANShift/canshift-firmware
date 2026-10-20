@@ -10,7 +10,6 @@
 
     #include <Arduino.h>
     #include <WiFi.h>
-    #include <esp_heap_caps.h>
     #include <esp_http_server.h>
     #include <freertos/FreeRTOS.h>
     #include <freertos/queue.h>
@@ -41,13 +40,7 @@ constexpr size_t kBusyCloseReasonLen = sizeof(kBusyCloseReason) - 1;
 constexpr unsigned kByteBits = 8;
 constexpr uint16_t kByteMask = 0xFF;
 
-struct HeapFree {
-    void operator()(char *line) const {
-        heap_caps_free(line);
-    }
-};
-
-using LineBuffer = std::unique_ptr<char, HeapFree>;
+using LineBuffer = Mem::HeapPtr<char>;
 
 httpd_handle_t s_server = nullptr;
 std::atomic<QueueHandle_t> s_lines{nullptr};

@@ -25,6 +25,7 @@ FEATURES = (
     "workshop-mode",
     "ota-signature",
     "ble-link",
+    "bus-scan",
 )
 
 
