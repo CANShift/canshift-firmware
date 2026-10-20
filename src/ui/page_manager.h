@@ -22,6 +22,8 @@ const char *getDefaultPageId();
 
 void updateWidgets();
 
+void publishPages();
+
 [[nodiscard]] int16_t currentContentTopY();
 
 void requestRebuild();

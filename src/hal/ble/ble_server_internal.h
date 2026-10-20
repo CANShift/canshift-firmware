@@ -27,6 +27,8 @@ void emitTelemetry();
 
 void emitAlert();
 
+void emitPageChange();
+
 void refreshTimerStateValue();
 
 void emitTimerSync();
@@ -48,6 +50,8 @@ NimBLECharacteristicCallbacks &settingsCallbacks();
 NimBLECharacteristicCallbacks &cmdCallbacks();
 
 NimBLECharacteristicCallbacks &timerCmdCallbacks();
+
+NimBLECharacteristicCallbacks &pagesCallbacks();
 
 }
 

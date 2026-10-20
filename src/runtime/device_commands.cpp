@@ -67,6 +67,18 @@ Outcome acknowledgeAlert(const JsonObjectConst &obj) {
     return Outcome::Ok;
 }
 
+Outcome showPage(const JsonObjectConst &obj) {
+    const char *page = obj["page"] | "";
+    const size_t len = strnlen(page, kCfgMaxIdLen);
+    if (len == 0 || len >= kCfgMaxIdLen) {
+        LOG_WARN("CMD", "show_page 'page' is not a page id");
+        return Outcome::InvalidPageId;
+    }
+    PendingActions::requestNavPage(page);
+    LOG_INFO("CMD", "page '%s' queued", page);
+    return Outcome::Ok;
+}
+
 Outcome applyTrackState(const JsonObjectConst &obj) {
     TrackStore::State next = {};
     next.trackMode = obj["trackMode"] | false;
@@ -90,6 +102,7 @@ constexpr Command kCommands[] = {
     {UsbComm::kCmdReboot, "reboot", &requestReboot},
     {kNoUsbCode, "track_state", &applyTrackState},
     {kNoUsbCode, "ack_alert", &acknowledgeAlert},
+    {kNoUsbCode, "show_page", &showPage},
 };
 
 }

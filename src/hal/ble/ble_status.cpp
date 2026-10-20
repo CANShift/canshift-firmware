@@ -7,6 +7,7 @@
 
     #include "board.h"
     #include "diag/logger.h"
+    #include "runtime/page_broadcast.h"
     #include "runtime/signal_store.h"
     #include "can/signal_map.h"
     #include "ui/theme_manager.h"
@@ -14,6 +15,12 @@
 
     #include <ArduinoJson.h>
     #include <NimBLEDevice.h>
+
+namespace {
+
+constexpr size_t kStatusPayloadCap = 192;
+
+}
 
 namespace BleServerInternal {
 
@@ -27,11 +34,13 @@ void updateStatus() {
     doc["board_id"] = canshift::boards::runtimeBoardProfile().board_id;
     doc["can"] = SignalStore::isValid(SignalIds::kRpm) ? 1 : 0;
     doc["is_day"] = ThemeManager::isDayMode() ? 1 : 0;
+    const PageBroadcast::Snapshot pages = PageBroadcast::latest();
+    doc["page"] = PageBroadcast::currentId(pages);
     if (doc.overflowed()) {
         LOG_WARN("BLE", "STATUS arena %s — skipping notify", leased.held() ? "full" : "busy");
         return;
     }
-    char buf[128];
+    char buf[kStatusPayloadCap];
 
     const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
     if (len == 0 || len >= sizeof(buf)) {

@@ -26,6 +26,7 @@ static constexpr char kTimerCmdUuid[] = "4fa0b6a0-0000-0000-0000-000000000006";
 static constexpr char kTimerStateUuid[] = "4fa0b6a0-0000-0000-0000-000000000007";
 static constexpr char kTimerLapUuid[] = "4fa0b6a0-0000-0000-0000-000000000008";
 static constexpr char kAlertUuid[] = "4fa0b6a0-0000-0000-0000-000000000009";
+static constexpr char kPagesUuid[] = "4fa0b6a0-0000-0000-0000-00000000000a";
 
 static constexpr size_t kBleMinHeap = kBleMinHeapBytes;
 
@@ -144,6 +145,7 @@ struct CharSpec {
 constexpr uint32_t kNotifyProps = NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::NOTIFY;
 constexpr uint32_t kCommandProps = NIMBLE_PROPERTY::WRITE_AUTHEN | NIMBLE_PROPERTY::WRITE_NR;
 constexpr uint32_t kSettingsProps = NIMBLE_PROPERTY::READ_AUTHEN | NIMBLE_PROPERTY::WRITE_AUTHEN;
+constexpr uint32_t kReadProps = NIMBLE_PROPERTY::READ_AUTHEN;
 
 bool createAll(NimBLEService *pSvc, const CharSpec *specs, size_t count) {
     bool allCreated = true;
@@ -166,6 +168,7 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
     NimBLECharacteristic *pSettings = nullptr;
     NimBLECharacteristic *pCmd = nullptr;
     NimBLECharacteristic *pTimerCmd = nullptr;
+    NimBLECharacteristic *pPages = nullptr;
     const CharSpec specs[] = {
         {kTeleUuid, kNotifyProps, &BleServerInternal::s_pTele, &s_subscribeCb},
         {kStatusUuid, kNotifyProps, &BleServerInternal::s_pStatus, &s_subscribeCb},
@@ -175,6 +178,7 @@ bool createGattCharacteristics(NimBLEService *pSvc) {
         {kTimerStateUuid, kNotifyProps, &BleServerInternal::s_pTimerState, &s_timerStateCb},
         {kTimerLapUuid, kNotifyProps, &BleServerInternal::s_pTimerLap, &s_subscribeCb},
         {kAlertUuid, kNotifyProps, &BleServerInternal::s_pAlert, &s_subscribeCb},
+        {kPagesUuid, kReadProps, &pPages, &BleServerInternal::pagesCallbacks()},
     };
     if (!createAll(pSvc, specs, sizeof(specs) / sizeof(specs[0])))
         return false;
@@ -317,6 +321,7 @@ void BleServer::tick() {
     }
     BleServerInternal::emitTelemetry();
     BleServerInternal::emitAlert();
+    BleServerInternal::emitPageChange();
     BleServerInternal::emitTimerSync();
 }
 

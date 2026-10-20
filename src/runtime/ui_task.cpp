@@ -193,6 +193,7 @@ inline void uiRunDashFrame(bool &didDayNightChange) {
     uiDrainConfigReload();
     uiDrainNavActions();
     PageManager::updateWidgets();
+    PageManager::publishPages();
     uiRunLvTaskHandler();
 }
 
