@@ -68,6 +68,8 @@ void sendOk();
 
 void sendOkRebooting();
 
+void flushIfHostActive();
+
 void flushAndRestart();
 
 void sendError(const char *code);
