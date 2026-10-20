@@ -11,6 +11,7 @@ enum class TouchDriver : uint8_t { None, XPT2046, FT6336, GT911, CST816S, CST353
 enum class CanController : uint8_t { None, EspTwai };
 enum class ImuDriver : uint8_t { None, QMI8658 };
 enum class ImuAxis : uint8_t { PosX = 0, NegX = 1, PosY = 2, NegY = 3, PosZ = 4, NegZ = 5 };
+enum class SdBus : uint8_t { None, Sdmmc1Bit };
 
 struct LcdProfile {
     LcdDriver driver;
@@ -65,6 +66,11 @@ struct StorageProfile {
     uint16_t spiffs_size_kb;
     bool sd_present;
     int8_t sd_pin_cs;
+    SdBus sd_bus;
+    int8_t sd_pin_clk;
+    int8_t sd_pin_cmd;
+    int8_t sd_pin_d0;
+    int8_t sd_pin_d3;
 };
 
 struct ConnectivityProfile {
