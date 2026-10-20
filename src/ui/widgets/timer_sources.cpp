@@ -61,20 +61,38 @@ bool renderDelta(const TimerSources::Inputs &in, char *buf, size_t cap) {
     return true;
 }
 
+bool renderLaunchSplit(const TimerSources::LaunchReading &launch, uint32_t splitMs, char *buf,
+                       size_t cap) {
+    if (splitMs != 0)
+        return writeLapTime(splitMs, buf, cap);
+    return writeLapTime(launch.running ? launch.liveMs : 0, buf, cap);
+}
+
+bool renderLaunchSprint(const TimerSources::Inputs &in, char *buf, size_t cap) {
+    return renderLaunchSplit(in.launch, in.launch.sprintMs, buf, cap);
+}
+
+bool renderLaunchStrip(const TimerSources::Inputs &in, char *buf, size_t cap) {
+    return renderLaunchSplit(in.launch, in.launch.stripMs, buf, cap);
+}
+
 struct SourceRenderer {
     CfgTimerSource source;
     bool (*render)(const TimerSources::Inputs &, char *, size_t);
     const char *kicker;
+    const char *imperialKicker;
     const char *unit;
 };
 
 constexpr SourceRenderer kRenderers[] = {
-    {CfgTimerSource::Elapsed, &renderElapsed, "TIMER", ""},
-    {CfgTimerSource::Lap, &renderLap, "LAP", ""},
-    {CfgTimerSource::Best, &renderBest, "BEST", ""},
-    {CfgTimerSource::Last, &renderLast, "LAST", ""},
-    {CfgTimerSource::LapCount, &renderLapCount, "LAPS", ""},
-    {CfgTimerSource::Delta, &renderDelta, "DELTA", "s"},
+    {CfgTimerSource::Elapsed, &renderElapsed, "TIMER", "TIMER", ""},
+    {CfgTimerSource::Lap, &renderLap, "LAP", "LAP", ""},
+    {CfgTimerSource::Best, &renderBest, "BEST", "BEST", ""},
+    {CfgTimerSource::Last, &renderLast, "LAST", "LAST", ""},
+    {CfgTimerSource::LapCount, &renderLapCount, "LAPS", "LAPS", ""},
+    {CfgTimerSource::Delta, &renderDelta, "DELTA", "DELTA", "s"},
+    {CfgTimerSource::LaunchSprint, &renderLaunchSprint, "0-100", "0-60", ""},
+    {CfgTimerSource::LaunchStrip, &renderLaunchStrip, "400 M", "1/4 MI", ""},
 };
 
 const SourceRenderer *rendererFor(CfgTimerSource source) {
@@ -98,7 +116,8 @@ Inputs select(const TimerService::Snapshot &stopwatch, const TrackStore::State &
                 track.bestLapMs,
                 track.lapNumber,
                 track.deltaMs,
-                true};
+                true,
+                {}};
     }
     return {stopwatch.elapsedMs,
             stopwatch.currentLapMs,
@@ -106,7 +125,8 @@ Inputs select(const TimerService::Snapshot &stopwatch, const TrackStore::State &
             stopwatch.bestLapMs,
             stopwatch.lapCount,
             0,
-            false};
+            false,
+            {}};
 }
 
 bool render(CfgTimerSource source, const Inputs &in, char *buf, size_t cap) {
@@ -115,8 +135,14 @@ bool render(CfgTimerSource source, const Inputs &in, char *buf, size_t cap) {
     return rendererFor(source)->render(in, buf, cap);
 }
 
-const char *kicker(CfgTimerSource source) {
-    return rendererFor(source)->kicker;
+const char *kicker(CfgTimerSource source, bool imperial) {
+    const SourceRenderer *entry = rendererFor(source);
+    return imperial ? entry->imperialKicker : entry->kicker;
+}
+
+LaunchReading launchReading(const LaunchTimer &timer, uint32_t nowMs) {
+    return {timer.state == kLaunchRunning, imu_launch_elapsed_ms_rs(&timer, nowMs), timer.sprint_ms,
+            timer.strip_ms};
 }
 
 const char *unit(CfgTimerSource source) {

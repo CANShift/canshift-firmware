@@ -1,5 +1,5 @@
 {
-  "version": "1.45.0",
+  "version": "1.46.0",
   "name": "CANShift g-meter fixture",
   "description": "Simulator fixture: the g-meter widget at two sizes",
   "defaultPageId": "gmeter",

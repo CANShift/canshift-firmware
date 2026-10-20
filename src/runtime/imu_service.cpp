@@ -2,15 +2,18 @@
 
 #include "app_config.h"
 #include "config/board_profile_loader.h"
+#include "config/config_loader.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 #include "hal/imu/qmi8658.h"
 #include "hal/storage/nvs_store.h"
 #include "imu_core_rs.h"
 #include "runtime/imu_feed.h"
+#include "runtime/signal_store.h"
 #include "runtime/task_spawn.h"
 #include "util/mem_alloc.h"
 
+#include <Arduino.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -32,6 +35,7 @@ struct Sampler {
     ImuProfile imu;
     ImuCoreState core;
     ImuLevelCapture capture;
+    LaunchTimer launch;
     bool capturing;
     uint16_t readFailures;
 };
@@ -78,6 +82,14 @@ void noteReadFailure(Sampler &s) {
     ErrorStore::push(ERROR_SRC_SYSTEM, "IMU_READ", "accelerometer stopped answering");
 }
 
+void tickLaunch(Sampler &s) {
+    const bool hasSpeed = SignalStore::isValid(SignalIds::kSpeedKph);
+    const float speedKph = hasSpeed ? SignalStore::read(SignalIds::kSpeedKph) : 0.0f;
+    const bool imperial = ConfigLoader::getDashboardConfig().units == CfgUnitSystem::IMPERIAL;
+    imu_launch_tick_rs(&s.launch, millis(), s.core.longitudinal_g, hasSpeed, speedKph,
+                       imu_launch_targets_rs(imperial));
+}
+
 void sample(Sampler &s) {
     float g[3] = {};
     if (!Qmi8658::readAccelG(s.imu, g)) {
@@ -94,7 +106,8 @@ void sample(Sampler &s) {
     if (ImuFeed::takePeakReset())
         imu_core_reset_peaks_rs(&s.core);
     imu_core_push_rs(&s.core, g[0], g[1], g[2]);
-    ImuFeed::publish(s.core);
+    tickLaunch(s);
+    ImuFeed::publish(s.core, s.launch);
 }
 
 void taskImu(void *) {
@@ -127,7 +140,7 @@ bool allocateSampler(const ImuProfile &imu) {
         Mem::HeapFree{}(raw);
         return false;
     }
-    s_sampler.reset(new (raw) Sampler{imu, {}, {}, false, 0});
+    s_sampler.reset(new (raw) Sampler{imu, {}, {}, {}, false, 0});
     return true;
 }
 

@@ -1,7 +1,9 @@
 #![allow(clippy::missing_safety_doc)]
 
 use crate::envelope::{envelope_vertex, felt_force, plot_offset, PlotOffset};
-use crate::{ImuCore, LevelCapture, LEVEL_PENDING};
+use crate::{
+    targets_for, ImuCore, LaunchSample, LaunchTargets, LaunchTimer, LevelCapture, LEVEL_PENDING,
+};
 
 unsafe fn write_offset(offset: PlotOffset, out_dx: *mut i16, out_dy: *mut i16) {
     if let Some(dx) = unsafe { out_dx.as_mut() } {
@@ -108,4 +110,34 @@ pub unsafe extern "C" fn imu_level_gravity_rs(capture: *const LevelCapture, out:
         unsafe { *out.add(i) = *value };
     }
     status
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn imu_launch_tick_rs(
+    timer: *mut LaunchTimer,
+    now_ms: u32,
+    longitudinal_g: f32,
+    has_speed: bool,
+    speed_kph: f32,
+    targets: LaunchTargets,
+) {
+    let Some(timer) = (unsafe { timer.as_mut() }) else {
+        return;
+    };
+    let sample = LaunchSample {
+        now_ms,
+        longitudinal_g,
+        speed_kph: has_speed.then_some(speed_kph),
+    };
+    timer.tick(sample, targets);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn imu_launch_elapsed_ms_rs(timer: *const LaunchTimer, now_ms: u32) -> u32 {
+    unsafe { timer.as_ref() }.map_or(0, |timer| timer.elapsed_ms(now_ms))
+}
+
+#[no_mangle]
+pub extern "C" fn imu_launch_targets_rs(imperial: bool) -> LaunchTargets {
+    targets_for(imperial)
 }
