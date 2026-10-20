@@ -23,6 +23,7 @@
 #include "runtime/ui_task.h"
 #include "runtime/input_buttons.h"
 #include "runtime/pending_actions.h"
+#include "runtime/sound.h"
 #include "runtime/task_spawn.h"
 #if APP_BLE_ENABLED
     #include "hal/ble/ble_server.h"
@@ -137,6 +138,7 @@ void setup() {
 
     registerBurnOverlayObserver();
     InputButtons::init();
+    Sound::start();
     LOG_INFO("BOOT", "All tasks started — releasing the %u B setup stack",
              static_cast<unsigned>(getArduinoLoopTaskStackSize()));
     vTaskDelete(nullptr);

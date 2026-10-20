@@ -268,6 +268,27 @@ Preempts every page. Full `CS_DANGER` ground, pulsing per §9; signal name in Ar
 value in huge mono; `STOP THE ENGINE` pinned at the bottom. No status row, no page nav. Holds until
 acknowledged on the dash or from the phone.
 
+## 10b. Sound
+
+The dash is silent by default. Sound exists for the moment the driver is not looking at the screen,
+so the list is short on purpose: a dash that beeps at everything gets muted, and then it cannot warn
+about the one thing that matters.
+
+| Sound          | Pattern                                                          | Plays                                                             |
+| -------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Critical alert | three 120 ms beeps at 2 kHz, 80 ms apart, then 560 ms of rest    | from the moment the takeover (§10) shows until it is acknowledged |
+| Boot           | 70 ms at 1.32 kHz, 30 ms rest, 110 ms at 1.76 kHz, once, quieter | once, when the dash has finished booting                          |
+
+- The critical tone repeats for as long as the takeover is up, and stops on the same acknowledgement
+  that hides it: a tap, a physical button, or the phone. A second critical alert restarts it on a beep.
+- The critical tone wins. Nothing else plays while it does, and it cuts off anything already playing.
+- Tones are generated square waves, never recorded samples, so sound costs no SPIFFS and no board
+  pays for audio it does not have.
+- Volume is the board's own hardware knob. No setting can silence the critical alert.
+- Sound never runs on the UI task. It has its own task, which reads the takeover state and never
+  holds the LVGL mutex.
+- Anything not in the table is silent: no click on touch, no tone on page change, OTA or burn.
+
 ## 11. Overflow
 
 The dash never auto-scales, wraps, ellipsises or clips a widget to make it fit. A layout that does not

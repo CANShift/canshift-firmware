@@ -24,6 +24,8 @@ extern crate ota_signature;
 extern crate signal_map;
 #[cfg(feature = "timer-core")]
 extern crate timer_core;
+#[cfg(feature = "tone-sequencer")]
+extern crate tone_sequencer;
 #[cfg(feature = "unit-convert")]
 extern crate unit_convert;
 #[cfg(feature = "usb-envelope")]

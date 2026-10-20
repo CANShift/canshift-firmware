@@ -149,6 +149,16 @@ inline constexpr float kBatteryDefaultHighCritV = 16.0f;
     #define APP_WORKSHOP_ENABLED 0
 #endif
 
+#ifndef APP_AUDIO_ENABLED
+    #define APP_AUDIO_ENABLED 0
+#endif
+
+#ifndef TASK_STACK_SOUND
+    #define TASK_STACK_SOUND 3072
+#endif
+inline constexpr int kTaskPrioSound = 5;
+inline constexpr int kTaskCoreSound = 0;
+
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120
 #endif

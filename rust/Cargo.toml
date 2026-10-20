@@ -16,6 +16,7 @@ members = [
     "ota-signature",
     "ble-link",
     "bus-scan",
+    "tone-sequencer",
     "canshift-ffi",
 ]
 

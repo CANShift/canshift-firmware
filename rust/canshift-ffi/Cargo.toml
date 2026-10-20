@@ -13,7 +13,7 @@ doctest = false
 
 [features]
 default = ["std"]
-std = ["signal-map?/std", "can-parser?/std", "usb-envelope?/std", "config-loader?/std", "format-float?/std", "error-store?/std", "alert-engine?/std", "timer-core?/std", "layout-grid?/std", "control-state?/std", "unit-convert?/std", "workshop-mode?/std", "ota-signature?/std", "ble-link?/std", "bus-scan?/std"]
+std = ["signal-map?/std", "can-parser?/std", "usb-envelope?/std", "config-loader?/std", "format-float?/std", "error-store?/std", "alert-engine?/std", "timer-core?/std", "layout-grid?/std", "control-state?/std", "unit-convert?/std", "workshop-mode?/std", "ota-signature?/std", "ble-link?/std", "bus-scan?/std", "tone-sequencer?/std"]
 signal-map = ["dep:signal-map"]
 can-parser = ["dep:can-parser"]
 usb-envelope = ["dep:usb-envelope"]
@@ -29,6 +29,7 @@ workshop-mode = ["dep:workshop-mode"]
 ota-signature = ["dep:ota-signature"]
 ble-link = ["dep:ble-link"]
 bus-scan = ["dep:bus-scan"]
+tone-sequencer = ["dep:tone-sequencer"]
 
 [dependencies]
 signal-map = { path = "../signal-map", default-features = false, features = ["ffi"], optional = true }
@@ -46,3 +47,4 @@ workshop-mode = { path = "../workshop-mode", default-features = false, features 
 ota-signature = { path = "../ota-signature", default-features = false, features = ["ffi"], optional = true }
 ble-link = { path = "../ble-link", default-features = false, features = ["ffi"], optional = true }
 bus-scan = { path = "../bus-scan", default-features = false, features = ["ffi"], optional = true }
+tone-sequencer = { path = "../tone-sequencer", default-features = false, features = ["ffi"], optional = true }

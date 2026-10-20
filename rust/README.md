@@ -24,6 +24,7 @@ what lets the release profile's LTO apply, and it owns the only panic handler.
 | `ota-signature`     | `include/ota_signature_rs.h`     |
 | `ble-link`          | `include/ble_link_rs.h`          |
 | `bus-scan`          | `include/bus_scan_rs.h`          |
+| `tone-sequencer`    | `include/tone_sequencer_rs.h`    |
 
 ## Running
 

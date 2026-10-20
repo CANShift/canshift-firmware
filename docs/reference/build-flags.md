@@ -58,6 +58,17 @@ reads them itself with `#ifndef`.
 USB CDC is not behind a flag — it is the primary transport and always compiled
 in. See [Transports](../architecture/transports.md).
 
+## Audio
+
+| Flag                      | Default | Effect                                                                                                                                                     |
+| ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_AUDIO_ENABLED`       | `0`     | Compiles the I2S tone output and the sound task. Set only by `waveshare_s3_28`. At run time the task still starts only when the board profile has `audio`. |
+| `USE_RUST_TONE_SEQUENCER` | unset   | Links `rust/tone-sequencer`. It goes with `APP_AUDIO_ENABLED`; no other env references the crate.                                                          |
+
+A board without audio output pays nothing: the CrowPanel and generic envs compile
+neither the C++ nor the crate. The sounds themselves are specified in §10b of the
+[design system](../design/DASH_DESIGN_SYSTEM.md).
+
 ## Rust modules
 
 Ten crates under [`rust/`](../../rust/) are compiled into every board build.

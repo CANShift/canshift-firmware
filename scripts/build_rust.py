@@ -33,6 +33,7 @@ CRATES = (
     ("USE_RUST_OTA_SIGNATURE=1", "ota-signature"),
     ("USE_RUST_BLE_LINK=1", "ble-link"),
     ("USE_RUST_BUS_SCAN=1", "bus-scan"),
+    ("USE_RUST_TONE_SEQUENCER=1", "tone-sequencer"),
 )
 
 

@@ -26,6 +26,7 @@ FEATURES = (
     "ota-signature",
     "ble-link",
     "bus-scan",
+    "tone-sequencer",
 )
 
 

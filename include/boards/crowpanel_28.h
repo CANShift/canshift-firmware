@@ -70,6 +70,7 @@ inline constexpr BoardProfile kCrowpanel28 = {
             .ble_supported = true,
             .psram_present = false,
         },
+    .audio = kNoAudio,
 };
 
 }
