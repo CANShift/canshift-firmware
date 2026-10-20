@@ -121,3 +121,15 @@ In workshop mode the server answers three routes besides the tuner itself:
 
 Only names the dash writes (`S` + five digits + `.csl`) are accepted, so a
 route can never reach outside the log directory.
+
+Every route answers only the tuner that holds the workshop socket, under the
+same rules as `/ws`:
+
+| Check                                                                             | Refusal         |
+| --------------------------------------------------------------------------------- | --------------- |
+| `Origin`, when sent, is the dash itself (its access-point IP or `canshift.local`) | `403 Forbidden` |
+| The request comes from the host that holds `/ws`                                  | `409 Conflict`  |
+
+A second phone on the access point, or a page served from elsewhere, can
+neither read nor delete a session. A tuner whose socket is reconnecting gets
+`409` until it is back.

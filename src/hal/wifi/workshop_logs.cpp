@@ -106,6 +106,8 @@ esp_err_t replyDeleteFailure(httpd_req_t *req, const char *name) {
 }
 
 esp_err_t handleLogIndex(httpd_req_t *req) {
+    if (!admitTunerRequest(req))
+        return ESP_OK;
     if (httpd_resp_set_type(req, kJsonType) != ESP_OK || !setSecurityHeaders(req))
         return ESP_FAIL;
     if (!SdCard::mounted())
@@ -114,6 +116,8 @@ esp_err_t handleLogIndex(httpd_req_t *req) {
 }
 
 esp_err_t handleLogDownload(httpd_req_t *req) {
+    if (!admitTunerRequest(req))
+        return ESP_OK;
     const char *name = logNameFromUri(req->uri);
     HttpFile file = openLog(name);
     if (!file)
@@ -129,6 +133,8 @@ esp_err_t handleLogDownload(httpd_req_t *req) {
 }
 
 esp_err_t handleLogDelete(httpd_req_t *req) {
+    if (!admitTunerRequest(req))
+        return ESP_OK;
     const char *name = logNameFromUri(req->uri);
     if (name == nullptr || !SdCard::mounted())
         return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, nullptr);

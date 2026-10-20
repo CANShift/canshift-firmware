@@ -9,7 +9,6 @@
     #include "workshop_mode_rs.h"
 
     #include <Arduino.h>
-    #include <WiFi.h>
     #include <esp_http_server.h>
     #include <freertos/FreeRTOS.h>
     #include <freertos/queue.h>
@@ -30,8 +29,6 @@ constexpr UBaseType_t kLogQueueDepth = 16;
 constexpr uint32_t kLineQueueWaitMs = 2000;
 constexpr size_t kMaxLineBytes = kUsbRxBufSize;
 constexpr char kLineEnd = '\n';
-constexpr char kOriginHeader[] = "Origin";
-constexpr size_t kOriginCap = 64;
 constexpr uint16_t kClosePolicyViolation = 1008;
 constexpr uint16_t kBusyCloseCode = 4001;
 constexpr char kBusyCloseReason[] = "busy";
@@ -115,18 +112,6 @@ void closeSession(int fd) {
         return;
     }
     LOG_INFO("WORKSHOP", "Stale tuner socket %d replaced", fd);
-}
-
-bool originAllowed(httpd_req_t *req) {
-    const size_t len = httpd_req_get_hdr_value_len(req, kOriginHeader);
-    if (len == 0)
-        return workshop_origin_allowed_rs(nullptr, nullptr, kHostName);
-    char origin[kOriginCap];
-    if (len >= sizeof(origin) ||
-        httpd_req_get_hdr_value_str(req, kOriginHeader, origin, sizeof(origin)) != ESP_OK)
-        return false;
-    const String apIp = WiFi.softAPIP().toString();
-    return workshop_origin_allowed_rs(origin, apIp.c_str(), kHostName);
 }
 
 esp_err_t refuseClient(httpd_req_t *req) {
@@ -270,6 +255,10 @@ bool bindSocket(httpd_handle_t server) {
     UsbComm::setSocketSink(sendToClient);
     Logger::setMirror(mirrorLog);
     return true;
+}
+
+int socketOwnerFd() {
+    return s_clientFd.load();
 }
 
 bool socketBound() {
