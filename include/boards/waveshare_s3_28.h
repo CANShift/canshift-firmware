@@ -63,6 +63,11 @@ inline constexpr BoardProfile kWaveshareS328 = {
             .spiffs_size_kb = 1024,
             .sd_present = true,
             .sd_pin_cs = -1,
+            .sd_bus = SdBus::Sdmmc1Bit,
+            .sd_pin_clk = 14,
+            .sd_pin_cmd = 17,
+            .sd_pin_d0 = 16,
+            .sd_pin_d3 = 21,
         },
     .conn =
         {

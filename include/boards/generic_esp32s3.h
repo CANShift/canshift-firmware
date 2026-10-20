@@ -63,6 +63,11 @@ inline constexpr BoardProfile kGenericEsp32s3 = {
             .spiffs_size_kb = 1024,
             .sd_present = false,
             .sd_pin_cs = -1,
+            .sd_bus = SdBus::None,
+            .sd_pin_clk = -1,
+            .sd_pin_cmd = -1,
+            .sd_pin_d0 = -1,
+            .sd_pin_d3 = -1,
         },
     .conn =
         {
