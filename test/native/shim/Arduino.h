@@ -7,12 +7,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-namespace canshift_test {
-inline uint32_t &mockMillisRef() {
-    static uint32_t value = 0;
-    return value;
-}
-}
+#include "mock_clock.h"
 
 inline uint32_t millis() {
     return canshift_test::mockMillisRef();
@@ -50,6 +45,10 @@ inline void serialCaptureReset() {
     serialCaptureLen() = 0;
     serialCaptureBuffer()[0] = '\0';
 }
+inline bool &serialHostAttachedRef() {
+    static bool attached = true;
+    return attached;
+}
 }
 
 class HardwareSerialMock : public Print {
@@ -76,6 +75,9 @@ class HardwareSerialMock : public Print {
         return static_cast<int>(len >= cap ? 0 : cap - len);
     }
     void flush() {}
+    explicit operator bool() const {
+        return canshift_test::serialHostAttachedRef();
+    }
 };
 
 inline HardwareSerialMock &serialInstance() {

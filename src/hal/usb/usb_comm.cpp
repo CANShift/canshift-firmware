@@ -153,10 +153,16 @@ void UsbComm::sendOkRebooting() {
     sendLine("{\"status\":\"ok\",\"rebooting\":true}");
 }
 
-void UsbComm::flushAndRestart() {
+void UsbComm::flushIfHostActive() {
 #ifdef ARDUINO
     if (isHostActive())
         Serial.flush();
+#endif
+}
+
+void UsbComm::flushAndRestart() {
+#ifdef ARDUINO
+    flushIfHostActive();
     vTaskDelay(pdMS_TO_TICKS(kUsbPreRestartFlushDelayMs));
     esp_restart();
 #endif

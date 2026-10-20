@@ -173,26 +173,61 @@ void kickStalledTxDrain() {
 #endif
 }
 
+constexpr int kTxNotStalled = -1;
+std::atomic<int> s_txStalledFreeBytes{kTxNotStalled};
+
+bool serialHostAttached() {
+    return static_cast<bool>(Serial);
 }
 
-bool Logger::writeAll(const uint8_t *bytes, size_t len) {
+bool txDrainedSinceStall() {
+    const int stalledFree = s_txStalledFreeBytes.load(std::memory_order_relaxed);
+    return stalledFree == kTxNotStalled || Serial.availableForWrite() > stalledFree;
+}
+
+size_t writePiece(const uint8_t *bytes, size_t len, size_t sent) {
+    const size_t remaining = len - sent;
+    const size_t piece = remaining < kUsbTxPieceBytes ? remaining : kUsbTxPieceBytes;
+    const bool roomForPiece = static_cast<size_t>(Serial.availableForWrite()) >= piece;
+    return roomForPiece ? Serial.write(bytes + sent, piece) : 0;
+}
+
+bool writeWaitingForDrain(const uint8_t *bytes, size_t len) {
     size_t sent = 0;
     const uint32_t deadline = millis() + kUsbTxWriteTimeoutMs;
     while (sent < len) {
-        const size_t remaining = len - sent;
-        const size_t piece = remaining < kUsbTxPieceBytes ? remaining : kUsbTxPieceBytes;
-        const bool roomForPiece = static_cast<size_t>(Serial.availableForWrite()) >= piece;
-        sent += roomForPiece ? Serial.write(bytes + sent, piece) : 0;
-        if (sent >= len) {
+        sent += writePiece(bytes, len, sent);
+        if (sent >= len)
             return true;
-        }
-        if (static_cast<int32_t>(millis() - deadline) >= 0) {
+        if (static_cast<int32_t>(millis() - deadline) >= 0)
             return false;
-        }
         kickStalledTxDrain();
         vTaskDelay(1);
     }
     return true;
+}
+
+bool writeIfRoom(const uint8_t *bytes, size_t len) {
+    if (static_cast<size_t>(Serial.availableForWrite()) < len)
+        return false;
+    size_t sent = 0;
+    while (sent < len) {
+        const size_t wrote = writePiece(bytes, len, sent);
+        if (wrote == 0)
+            return false;
+        sent += wrote;
+    }
+    return true;
+}
+
+}
+
+bool Logger::writeAll(const uint8_t *bytes, size_t len) {
+    const bool waitForDrain = serialHostAttached() && txDrainedSinceStall();
+    const bool written = waitForDrain ? writeWaitingForDrain(bytes, len) : writeIfRoom(bytes, len);
+    s_txStalledFreeBytes.store(written ? kTxNotStalled : Serial.availableForWrite(),
+                               std::memory_order_relaxed);
+    return written;
 }
 
 void Logger::init() {

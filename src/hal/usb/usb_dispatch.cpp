@@ -133,7 +133,7 @@ void handleScreenSettings(const JsonObjectConst &obj) {
         if ((rotation == 0 || rotation == 180) && rotation != RotationConfig::getOffsetDeg()) {
             LOG_INFO("USB", "Rotation change requested: %u° — rebooting", rotation);
             UsbComm::sendOkRebooting();
-            Serial.flush();
+            UsbComm::flushIfHostActive();
             RotationConfig::applyAndReboot(rotation);
         }
     }
