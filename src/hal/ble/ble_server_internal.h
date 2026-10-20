@@ -14,6 +14,7 @@ extern NimBLECharacteristic *s_pStatus;
 extern NimBLECharacteristic *s_pTimerState;
 extern NimBLECharacteristic *s_pTimerLap;
 extern NimBLECharacteristic *s_pAlert;
+extern NimBLECharacteristic *s_pCanMonitor;
 
 extern bool s_connected;
 extern bool s_stackInited;
@@ -28,6 +29,10 @@ void emitTelemetry();
 void emitAlert();
 
 void emitPageChange();
+
+void emitCanMonitor();
+
+void stopCanMonitor();
 
 void refreshTimerStateValue();
 
@@ -58,6 +63,13 @@ NimBLECharacteristicCallbacks &cmdCallbacks();
 NimBLECharacteristicCallbacks &timerCmdCallbacks();
 
 NimBLECharacteristicCallbacks &pagesCallbacks();
+
+class AuthenticatedSubscribeCallbacks : public NimBLECharacteristicCallbacks {
+  public:
+    void onSubscribe(NimBLECharacteristic *, ble_gap_conn_desc *desc, uint16_t subValue) override;
+};
+
+NimBLECharacteristicCallbacks &canMonitorCallbacks();
 
 }
 

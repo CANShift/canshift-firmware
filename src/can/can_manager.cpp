@@ -1,5 +1,6 @@
 #include "can_manager.h"
 #include "bus_scan.h"
+#include "can_monitor.h"
 #include "can_driver_install.h"
 #include "can_parser_rs.h"
 #include "can_rx_route.h"
@@ -88,14 +89,16 @@ static void tickInitRetry() {
 }
 
 static void routeFrame(const twai_message_t &message) {
+    const uint32_t nowMs = millis();
     s_windowFrames++;
-    s_lastRxMs.store(millis(), std::memory_order_relaxed);
+    s_lastRxMs.store(nowMs, std::memory_order_relaxed);
     if (message.rtr)
         return;
     const uint8_t safeLen =
         static_cast<uint8_t>(message.data_length_code < kCanFrameMaxBytes ? message.data_length_code
                                                                           : kCanFrameMaxBytes);
     CanRxRoute::deliver(message.identifier, message.data, safeLen);
+    CanMonitor::offer(message.identifier, message.extd != 0, message.data, safeLen, nowMs);
     UsbComm::CanScanFrame sf;
     sf.id = message.identifier;
     sf.len = safeLen;

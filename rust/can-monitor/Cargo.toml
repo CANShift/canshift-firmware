@@ -1,0 +1,12 @@
+[package]
+name = "can-monitor"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "BLE CAN monitor pure logic: the per-ID latest-frame table, the ID/mask acceptance filter and the CANMON frame codec. TWAI and NimBLE stay C++."
+license = "UNLICENSED"
+
+[features]
+default = ["std"]
+std = []
+ffi = []

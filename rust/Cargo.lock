@@ -30,6 +30,10 @@ name = "bus-scan"
 version = "0.1.0"
 
 [[package]]
+name = "can-monitor"
+version = "0.1.0"
+
+[[package]]
 name = "can-parser"
 version = "0.1.0"
 
@@ -40,6 +44,7 @@ dependencies = [
  "alert-engine",
  "ble-link",
  "bus-scan",
+ "can-monitor",
  "can-parser",
  "config-loader",
  "control-state",
