@@ -1,7 +1,8 @@
 pub const TONE_PATTERN_NONE: u8 = 0;
 pub const TONE_PATTERN_CRITICAL: u8 = 1;
 pub const TONE_PATTERN_BOOT: u8 = 2;
-pub const TONE_PATTERN_COUNT: u8 = 3;
+pub const TONE_PATTERN_SHIFT: u8 = 3;
+pub const TONE_PATTERN_COUNT: u8 = 4;
 
 const SILENT_HZ: u16 = 0;
 const CRITICAL_HZ: u16 = 2_000;
@@ -15,6 +16,10 @@ const BOOT_LOW_MS: u16 = 70;
 const BOOT_GAP_MS: u16 = 30;
 const BOOT_HIGH_MS: u16 = 110;
 const BOOT_AMPLITUDE: i16 = 4_000;
+const SHIFT_HZ: u16 = 2_600;
+const SHIFT_BEEP_MS: u16 = 60;
+const SHIFT_REST_MS: u16 = 107;
+const SHIFT_AMPLITUDE: i16 = 6_000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Step {
@@ -54,6 +59,8 @@ static BOOT_STEPS: [Step; 3] = [
     beep(BOOT_HIGH_HZ, BOOT_HIGH_MS),
 ];
 
+static SHIFT_STEPS: [Step; 2] = [beep(SHIFT_HZ, SHIFT_BEEP_MS), rest(SHIFT_REST_MS)];
+
 static PATTERNS: [Pattern; TONE_PATTERN_COUNT as usize] = [
     Pattern {
         steps: &[],
@@ -69,6 +76,11 @@ static PATTERNS: [Pattern; TONE_PATTERN_COUNT as usize] = [
         steps: &BOOT_STEPS,
         repeats: false,
         amplitude: BOOT_AMPLITUDE,
+    },
+    Pattern {
+        steps: &SHIFT_STEPS,
+        repeats: true,
+        amplitude: SHIFT_AMPLITUDE,
     },
 ];
 

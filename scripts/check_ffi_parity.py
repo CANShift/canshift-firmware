@@ -589,6 +589,20 @@ PAIRS = (
         "kTonePatternBoot",
     ),
     (
+        "tone pattern shift",
+        "rust/tone-sequencer/src/pattern.rs",
+        "TONE_PATTERN_SHIFT",
+        "include/tone_sequencer_rs.h",
+        "kTonePatternShift",
+    ),
+    (
+        "tone volume max",
+        "rust/tone-sequencer/src/volume.rs",
+        "TONE_VOLUME_MAX_PCT",
+        "include/tone_sequencer_rs.h",
+        "kToneVolumeMaxPct",
+    ),
+    (
         "tone pattern count",
         "rust/tone-sequencer/src/pattern.rs",
         "TONE_PATTERN_COUNT",

@@ -11,6 +11,7 @@
     #include "diag/lvgl_hold_timer.h"
     #include "runtime/device_commands.h"
     #include "runtime/lvgl_lock.h"
+    #include "runtime/sound_settings.h"
     #include "runtime/timer_service.h"
     #include "ui/settings_page.h"
     #include "util/json_writer.h"
@@ -25,6 +26,7 @@ constexpr size_t kBleMaxWriteLen = BleJsonBudget::kMaxWriteBytes;
 constexpr uint32_t kBleSettingsMutexTimeoutMs = 50U;
 constexpr char kTooLongReply[] = "{\"err\":\"too_long\"}";
 constexpr char kBusyReply[] = "{\"err\":\"busy\"}";
+constexpr char kInvalidSoundReply[] = "{\"err\":\"invalid_sound_settings\"}";
 
 struct TimerOp {
     int code;
@@ -98,6 +100,10 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
             return;
         if (!applyBrightness(pChar, doc["brightness"]))
             return;
+        if (!SoundSettings::apply(doc.as<JsonObjectConst>())) {
+            pChar->setValue(kInvalidSoundReply);
+            return;
+        }
         applyRotation(doc["rotation"]);
     }
 
@@ -105,7 +111,9 @@ class SettingsCallbacks : public NimBLECharacteristicCallbacks {
         BleJsonArena::LeasedDocument leased(BleJsonArena::Slot::Callback);
         JsonDocument &doc = leased.document();
         doc["brightness"] = SettingsPage::getBrightness();
-        char buf[64];
+        if (SoundSettings::available())
+            SoundSettings::writeTo(doc.as<JsonObject>());
+        char buf[128];
         const size_t len = JsonWriter::toBuffer(doc, buf, sizeof(buf));
         if (doc.overflowed() || len == 0 || len >= sizeof(buf)) {
             LOG_WARN("BLE", "SETTINGS read payload truncated (len=%u, cap=%u) — emitting canary",

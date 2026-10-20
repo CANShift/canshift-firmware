@@ -11,6 +11,8 @@ size_t UsbStatusLine::format(const Fields &fields, char *out, size_t cap) {
     doc["protocol"] = fields.protocol;
     doc["is_day"] = fields.isDay ? 1 : 0;
     doc["board_id"] = fields.boardId;
+    if (fields.appendSound != nullptr)
+        fields.appendSound(doc.as<JsonObject>());
     if (doc.overflowed())
         return 0;
     const size_t needed = JsonWriter::measure(doc);

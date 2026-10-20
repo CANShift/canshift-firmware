@@ -18,16 +18,16 @@ characteristics. Every read/write property is an **authenticated** variant
 bond before it can read telemetry, receive a notification or issue a command.
 An encrypted-but-unauthenticated link (Just Works) is refused at the ATT layer.
 
-| Characteristic | UUID tail | Properties                | Payload                                                  |
-| -------------- | --------- | ------------------------- | -------------------------------------------------------- |
-| TELE           | `0002`    | READ_AUTHEN, NOTIFY       | binary telemetry frame (see below), ~10 Hz               |
-| STATUS         | `0003`    | READ_AUTHEN, NOTIFY       | `{"ver","board_id","can","is_day"}` JSON, ~2 s           |
-| SETTINGS       | `0004`    | READ_AUTHEN, WRITE_AUTHEN | read `{"brightness"}`; write `{"brightness","rotation"}` |
-| CMD            | `0005`    | WRITE_AUTHEN, WRITE_NR    | `{"cmd":"<name>",…}` JSON command                        |
-| TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR    | `{"op":<1–5>}` timer operation                           |
-| TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY       | `{"st","el","lc","sid","ver"}` JSON                      |
-| TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY       | lap notification                                         |
-| ALERT          | `0009`    | READ_AUTHEN, NOTIFY       | binary critical-alert frame (see below), on change + 1 s |
+| Characteristic | UUID tail | Properties                | Payload                                                                                                                      |
+| -------------- | --------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| TELE           | `0002`    | READ_AUTHEN, NOTIFY       | binary telemetry frame (see below), ~10 Hz                                                                                   |
+| STATUS         | `0003`    | READ_AUTHEN, NOTIFY       | `{"ver","board_id","can","is_day"}` JSON, ~2 s                                                                               |
+| SETTINGS       | `0004`    | READ_AUTHEN, WRITE_AUTHEN | read `{"brightness"}`, plus `volume` and `sounds` on a board with audio; write `{"brightness","rotation","volume","sounds"}` |
+| CMD            | `0005`    | WRITE_AUTHEN, WRITE_NR    | `{"cmd":"<name>",…}` JSON command                                                                                            |
+| TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR    | `{"op":<1–5>}` timer operation                                                                                               |
+| TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY       | `{"st","el","lc","sid","ver"}` JSON                                                                                          |
+| TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY       | lap notification                                                                                                             |
+| ALERT          | `0009`    | READ_AUTHEN, NOTIFY       | binary critical-alert frame (see below), on change + 1 s                                                                     |
 
 There is no PASSKEY characteristic — the pairing code is shown on the dash
 itself (see below), not exposed over GATT.

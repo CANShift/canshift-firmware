@@ -1,10 +1,11 @@
 #![allow(clippy::missing_safety_doc)]
 
-use crate::sequencer::{request, reset, tick, ToneOutput, ToneSequencer};
+use crate::sequencer::{request, reset, tick, ToneDemand, ToneOutput, ToneSequencer};
 use crate::synth::{fill, ToneSynth};
 
 const _: () = assert!(core::mem::size_of::<ToneSequencer>() == 8);
 const _: () = assert!(core::mem::size_of::<ToneOutput>() == 4);
+const _: () = assert!(core::mem::size_of::<ToneDemand>() == 4);
 const _: () = assert!(core::mem::size_of::<ToneSynth>() == 4);
 
 #[no_mangle]
@@ -30,12 +31,12 @@ pub unsafe extern "C" fn tone_sequencer_request_rs(
 pub unsafe extern "C" fn tone_sequencer_tick_rs(
     seq: *mut ToneSequencer,
     now_ms: u32,
-    critical: bool,
+    demand: ToneDemand,
 ) -> ToneOutput {
     let Some(seq) = (unsafe { seq.as_mut() }) else {
         return ToneOutput::default();
     };
-    tick(seq, now_ms, critical)
+    tick(seq, now_ms, demand)
 }
 
 #[no_mangle]

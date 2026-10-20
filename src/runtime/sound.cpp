@@ -6,9 +6,11 @@
     #include "board.h"
     #include "diag/logger.h"
     #include "hal/audio/i2s_tone_output.h"
+    #include "runtime/sound_settings.h"
     #include "runtime/task_spawn.h"
     #include "tone_sequencer_rs.h"
     #include "ui/alert_takeover.h"
+    #include "ui/rev_limit_flash.h"
 
     #include <Arduino.h>
     #include <esp_task_wdt.h>
@@ -31,11 +33,23 @@ void renderChunk(const ToneOutputRs &tone) {
         vTaskDelay(pdMS_TO_TICKS(kWriteRetryMs));
 }
 
+ToneDemandRs currentDemand() {
+    const SoundSettingsWire::Values settings = SoundSettings::current();
+    const bool shiftLit = RevLimitFlash::isEngaged() && RevLimitFlash::isRowLit();
+    return {settings.volumePct, AlertTakeover::isActive(), settings.shiftTone && shiftLit, 0};
+}
+
+void requestBootTone() {
+    if (!SoundSettings::current().boot)
+        return;
+    if (!tone_sequencer_request_rs(&s_sequencer, kTonePatternBoot, millis()))
+        LOG_WARN("AUDIO", "boot tone refused");
+}
+
 void taskSound(void *) {
     while (true) {
         esp_task_wdt_reset();
-        const ToneOutputRs tone =
-            tone_sequencer_tick_rs(&s_sequencer, millis(), AlertTakeover::isActive());
+        const ToneOutputRs tone = tone_sequencer_tick_rs(&s_sequencer, millis(), currentDemand());
         if (s_sequencer.pattern == kTonePatternNone) {
             vTaskDelay(pdMS_TO_TICKS(kIdlePollMs));
             continue;
@@ -52,11 +66,11 @@ void Sound::start() {
         LOG_INFO("AUDIO", "board has no audio output — sound task not started");
         return;
     }
+    SoundSettings::load();
     if (!I2sToneOutput::begin(audio))
         return;
     tone_sequencer_reset_rs(&s_sequencer);
-    if (!tone_sequencer_request_rs(&s_sequencer, kTonePatternBoot, millis()))
-        LOG_WARN("AUDIO", "boot tone refused");
+    requestBootTone();
     if (TaskSpawn::spawnDynamic("sound", taskSound, TASK_STACK_SOUND, kTaskPrioSound,
                                 kTaskCoreSound) == nullptr)
         LOG_ERROR("AUDIO", "sound task not started — the dash stays silent");
