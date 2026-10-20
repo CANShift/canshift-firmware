@@ -69,7 +69,11 @@ void formatKicker(const char *raw, char *out, size_t outLen) {
 
 void signalKicker(const char *signalId, char *out, size_t outLen) {
     const char *curated = SignalPresentation::kickerForSignal(signalId);
-    formatKicker(curated != nullptr ? curated : signalId, out, outLen);
+    if (curated == nullptr) {
+        SignalPresentation::fallbackKicker(signalId, out, outLen);
+        return;
+    }
+    formatKicker(curated, out, outLen);
 }
 
 namespace {
