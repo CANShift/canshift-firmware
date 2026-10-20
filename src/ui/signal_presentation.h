@@ -18,4 +18,6 @@ const char *kickerForSignal(const char *signalId);
 
 const char *unitForSignal(const char *signalId);
 
+void fallbackKicker(const char *signalId, char *out, size_t outLen);
+
 }
