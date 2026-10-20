@@ -8,6 +8,7 @@ namespace {
 constexpr uint32_t kDeadlineMs = 20000;
 constexpr uint8_t kPromptsPerWindow = 3;
 constexpr uint32_t kPromptWindowMs = 60000;
+constexpr uint32_t kAdvertisingFastWindowMs = 30000;
 
 void spendPromptWindow(BleLinkPasskeyBudgetRs *budget, uint32_t startMs) {
     for (uint8_t i = 0; i < kPromptsPerWindow; i++) {
@@ -64,6 +65,16 @@ void test_nullPasskeyBudgetIsRefused() {
     TEST_ASSERT_FALSE(ble_link_passkey_prompt_admit_rs(nullptr, 0));
 }
 
+void test_advertisingStaysFastThroughTheWindow() {
+    TEST_ASSERT_FALSE(ble_link_advertising_backs_off_rs(0));
+    TEST_ASSERT_FALSE(ble_link_advertising_backs_off_rs(kAdvertisingFastWindowMs - 1));
+}
+
+void test_advertisingBacksOffAfterTheWindow() {
+    TEST_ASSERT_TRUE(ble_link_advertising_backs_off_rs(kAdvertisingFastWindowMs));
+    TEST_ASSERT_TRUE(ble_link_advertising_backs_off_rs(UINT32_MAX));
+}
+
 }
 
 int main(int, char **) {
@@ -78,5 +89,7 @@ int main(int, char **) {
     RUN_TEST(test_passkeyPromptsPastTheBudgetAreRefused);
     RUN_TEST(test_passkeyBudgetRefillsAfterTheWindow);
     RUN_TEST(test_nullPasskeyBudgetIsRefused);
+    RUN_TEST(test_advertisingStaysFastThroughTheWindow);
+    RUN_TEST(test_advertisingBacksOffAfterTheWindow);
     return UNITY_END();
 }

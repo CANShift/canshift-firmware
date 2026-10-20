@@ -179,11 +179,40 @@ bus-silence logic it belongs with. A zero threshold disables that step, so a
 configuration can dim without ever blanking.
 
 Only the panel dims. USB and BLE keep answering, the CAN task keeps parsing, and
-alerts keep evaluating — a takeover raised while the screen is off still fires, and
-the wake restores a dash that is already showing it.
+alerts keep evaluating. **A critical takeover is a wake source of its own**: while
+`AlertTakeover::isActive()` the state is held at live, so a critical alert relights
+a blanked panel even with no frame and no touch to reset the idle clock.
 
 The touch that wakes a blanked panel is swallowed rather than delivered, so waking
-the dash cannot also press the button under your finger.
+the dash cannot also press the button under your finger. The suppression targets
+the pointer indev directly — `lv_indev_get_act()` is only set inside LVGL's read
+callback, so it cannot be used from the idle path.
+
+### Power while dark
+
+A blanked panel also stops paying for what nobody can see:
+
+| While off          | Effect                                                        |
+| ------------------ | ------------------------------------------------------------- |
+| LVGL refresh timer | paused — widgets and alerts still update, nothing is rendered |
+| CPU clock          | 80 MHz instead of the board's nominal clock (`CpuClock`)      |
+| Touch read period  | 100 ms instead of 15 ms                                       |
+
+The APB clock stays at 80 MHz at either CPU speed, so TWAI, SPI, I2C, UART and the
+backlight PWM keep their timings; the CAN task on the other core keeps running,
+only slower, until the first frame wakes the panel.
+
+Waking reverses it in order: nominal clock first, then the refresh timer resumes,
+the whole screen is invalidated and rendered with `lv_refr_now`, and only then
+the backlight comes back — the stale frame from ten minutes ago is never lit.
+
+Anything that must be seen while dark calls `DisplayIdle::wake()` before it draws:
+the BLE passkey card, the burn overlay, the OTA overlay and workshop-mode entry.
+
+A live panel nobody has touched for 3 s reads touch every 33 ms instead of 15 ms;
+the first press brings the rate back. The periods are `touch_read_period_ms` in
+`rust/alert-engine/src/display_power.rs`; the active one is pinned to
+`LV_INDEV_DEF_READ_PERIOD` by a `static_assert`.
 
 ### Not the same as stale values
 

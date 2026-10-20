@@ -33,6 +33,12 @@ void emitTimerSync();
 
 void noteConnected();
 
+void applyTxPower();
+
+bool startAdvertisingFast();
+
+void paceAdvertising();
+
 bool linkAdmitted();
 
 void dropUnauthenticatedLink(const ble_gap_conn_desc &desc, const char *reason);

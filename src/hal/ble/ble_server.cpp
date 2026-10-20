@@ -83,7 +83,8 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         BleServerInternal::s_connected = false;
         LOG_INFO("BLE", "Client disconnected — restarting advertising");
         PendingActions::blePasskeyHide.store(true, std::memory_order_relaxed);
-        NimBLEDevice::startAdvertising();
+        if (!BleServerInternal::startAdvertisingFast())
+            LOG_WARN("BLE", "Advertising not restarted after disconnect");
     }
 
     uint32_t onPassKeyRequest() override {
@@ -204,10 +205,7 @@ bool startAdvertising() {
     pAdv->addServiceUUID(kSvcUuid);
     pAdv->setName("CANShift");
     pAdv->setScanResponse(false);
-    if (pAdv->start())
-        return true;
-    LOG_ERROR("BLE", "advertising start failed");
-    return false;
+    return BleServerInternal::startAdvertisingFast();
 }
 
 bool setupGatt() {
@@ -227,14 +225,18 @@ bool setupGatt() {
     return true;
 }
 
+bool restartAdvertising() {
+    if (!BleServerInternal::startAdvertisingFast())
+        return false;
+    s_enabled = true;
+    LOG_INFO("BLE", "BLE advertising restarted — %s",
+             NimBLEDevice::getAddress().toString().c_str());
+    return true;
+}
+
 bool startStack() {
-    if (s_gattInited) {
-        NimBLEDevice::getAdvertising()->start();
-        s_enabled = true;
-        LOG_INFO("BLE", "BLE advertising restarted — %s",
-                 NimBLEDevice::getAddress().toString().c_str());
-        return true;
-    }
+    if (s_gattInited)
+        return restartAdvertising();
 
     if (!s_stackInited) {
         const size_t avail = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
@@ -244,7 +246,7 @@ bool startStack() {
             return false;
         }
         NimBLEDevice::init("CANShift");
-        NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+        BleServerInternal::applyTxPower();
         NimBLEDevice::setMTU(kBlePreferredMtu);
 
         NimBLEDevice::setSecurityAuth(true, true, true);
@@ -279,7 +281,7 @@ void BleServer::earlyInit() {
     }
 
     NimBLEDevice::init("CANShift");
-    NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+    BleServerInternal::applyTxPower();
 
     NimBLEDevice::setSecurityAuth(true, true, true);
     NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
@@ -309,8 +311,10 @@ void BleServer::start() {
 }
 
 void BleServer::tick() {
-    if (!BleServerInternal::s_connected)
+    if (!BleServerInternal::s_connected) {
+        BleServerInternal::paceAdvertising();
         return;
+    }
     if (!BleServerInternal::linkAdmitted()) {
         BleServerInternal::dropOverduePeer();
         return;
