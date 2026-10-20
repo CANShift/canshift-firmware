@@ -97,6 +97,7 @@ void feedCruise(uint32_t nowMs, float oilPressBar = 4.1f, float rpmOverride = -1
     setSignal(SignalIds::kGear, 2.0f + floorf(sweep * 4.0f));
     setSignal(SignalIds::kThrottlePos, sweep * 100.0f);
     setSignal(SignalIds::kBoostBar, sweep * 1.4f);
+    setSignal(SignalIds::kBoostTargetBar, 1.5f);
     setSignal(SignalIds::kMapKpa, 100.0f + sweep * 120.0f);
     setSignal(SignalIds::kCoolantTempC, coolantC);
     setSignal(SignalIds::kOilTempC, 104.0f);

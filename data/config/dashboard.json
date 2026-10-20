@@ -49,6 +49,14 @@
    "backgroundImage": "",
    "backgroundColor": "#121212",
    "showTopBar": true,
+   "statusRow": {
+    "right": {
+     "type": "signal",
+     "signal": "trip_km",
+     "format": "TRIP %.0f km",
+     "position": "right"
+    }
+   },
    "widgets": [
     {
      "id": "street_speed",
@@ -739,9 +747,9 @@
    "statusRow": {
     "right": {
      "type": "signalMax",
-     "signal": "map_kpa",
+     "signal": "boost_bar",
      "text": "PEAK",
-     "format": "%.0f",
+     "format": "%.2f",
      "position": "right"
     }
    },
