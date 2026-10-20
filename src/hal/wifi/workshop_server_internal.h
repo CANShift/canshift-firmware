@@ -23,6 +23,12 @@ using HttpFile = std::unique_ptr<FILE, FileCloser>;
 
 [[nodiscard]] bool streamFile(httpd_req_t *req, FILE *file);
 
+[[nodiscard]] bool originAllowed(httpd_req_t *req);
+
+[[nodiscard]] bool admitTunerRequest(httpd_req_t *req);
+
+[[nodiscard]] int socketOwnerFd();
+
 esp_err_t handleTunerAsset(httpd_req_t *req);
 
 #if APP_SD_DATALOG_ENABLED
