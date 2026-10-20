@@ -222,6 +222,6 @@ fn spec_with_decimals_keeps_prefix_and_suffix() {
 #[test]
 fn spec_with_decimals_without_a_fixed_spec_uses_the_override() {
     let mut buf = [0u8; 16];
-    let _ = format_from_spec_with_decimals(&mut buf, 3.14159, b"plain", 3);
-    assert_eq!(as_str(&buf), "3.142");
+    let _ = format_from_spec_with_decimals(&mut buf, 1.23456, b"plain", 3);
+    assert_eq!(as_str(&buf), "1.235");
 }
