@@ -8,11 +8,11 @@ telemetry and status over GATT notify and writes settings, commands, and
 timer ops over GATT write. Sources: `src/hal/ble/ble_server.cpp`,
 `src/hal/ble/ble_status.cpp`, `src/hal/ble/ble_telemetry.cpp`,
 `src/hal/ble/telemetry_frame.cpp`, `src/hal/ble/ble_alert.cpp`,
-`src/hal/ble/alert_frame.cpp`, `src/hal/ble/ble_timer.cpp`.
+`src/hal/ble/alert_frame.cpp`, `src/hal/ble/ble_timer.cpp`, `src/hal/ble/ble_pages.cpp`.
 
 ## GATT layout
 
-A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with eight
+A single primary service (`kSvcUuid` = `4fa0b6a0-…-0001`) with nine
 characteristics. Every read/write property is an **authenticated** variant
 (`READ_AUTHEN` / `WRITE_AUTHEN`), so the client must hold a passkey-authenticated
 bond before it can read telemetry, receive a notification or issue a command.
@@ -21,13 +21,14 @@ An encrypted-but-unauthenticated link (Just Works) is refused at the ATT layer.
 | Characteristic | UUID tail | Properties                | Payload                                                                                                                      |
 | -------------- | --------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | TELE           | `0002`    | READ_AUTHEN, NOTIFY       | binary telemetry frame (see below), ~10 Hz                                                                                   |
-| STATUS         | `0003`    | READ_AUTHEN, NOTIFY       | `{"ver","board_id","can","is_day"}` JSON, ~2 s                                                                               |
+| STATUS         | `0003`    | READ_AUTHEN, NOTIFY       | `{"ver","board_id","can","is_day","page"}` JSON, ~2 s and on every page change                                               |
 | SETTINGS       | `0004`    | READ_AUTHEN, WRITE_AUTHEN | read `{"brightness"}`, plus `volume` and `sounds` on a board with audio; write `{"brightness","rotation","volume","sounds"}` |
 | CMD            | `0005`    | WRITE_AUTHEN, WRITE_NR    | `{"cmd":"<name>",…}` JSON command                                                                                            |
 | TIMER_CMD      | `0006`    | WRITE_AUTHEN, WRITE_NR    | `{"op":<1–5>}` timer operation                                                                                               |
 | TIMER_STATE    | `0007`    | READ_AUTHEN, NOTIFY       | `{"st","el","lc","sid","ver"}` JSON                                                                                          |
 | TIMER_LAP      | `0008`    | READ_AUTHEN, NOTIFY       | lap notification                                                                                                             |
 | ALERT          | `0009`    | READ_AUTHEN, NOTIFY       | binary critical-alert frame (see below), on change + 1 s                                                                     |
+| PAGES          | `000a`    | READ_AUTHEN               | `{"pages":["<id>",…]}` JSON, the visible page ids in dash order                                                              |
 
 There is no PASSKEY characteristic — the pairing code is shown on the dash
 itself (see below), not exposed over GATT.
@@ -44,11 +45,23 @@ each to a runtime action; writes are capped at `kBleMaxWriteLen` (256 B):
 - `reboot` → `esp_restart()`
 - `ack_alert` → acknowledges the critical alert on screen, or the one named by
   an optional `"source"` (the ALERT source id)
+- `show_page` (`{"page":"<id>"}`) → `PendingActions::requestNavPage`, the same
+  path a button's `navigate` action takes; it wakes a dark panel first
 
 Unknown commands are logged and ignored. `TIMER_CMD` is a second, separate
 dispatcher (`TimerCmdCallbacks::onWrite`): `{"op":N}` maps `1–5` to
 `TimerService::start / pause / resume / reset / lap`. Treat USB as the
 complete control surface and BLE as the in-car convenience link.
+
+## Pages
+
+The UI task publishes the visible page ids and the page on screen to
+`PageBroadcast` every frame. STATUS carries the id on screen as `"page"` (empty
+when the dash has no page), and `BleServer::tick` notifies STATUS as soon as it
+changes, whether a swipe, a button or `show_page` moved it. PAGES is read-only
+and built on each read, so the phone reads it after connecting and again when
+STATUS names a page its list doesn't hold. The list stays out of STATUS because
+eight 31-character ids don't fit one notification at the MTU an iPhone settles on.
 
 ## Pairing and the security model
 

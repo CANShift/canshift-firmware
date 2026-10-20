@@ -21,6 +21,7 @@
 
 #include "config/config_loader.h"
 #include "runtime/alert_engine.h"
+#include "runtime/page_broadcast.h"
 #include "runtime/signal_stats.h"
 #include "runtime/signal_store.h"
 
@@ -128,6 +129,17 @@ int16_t PageManager::currentContentTopY() {
 const char *PageManager::getDefaultPageId() {
     const CfgDashboard &dash = ConfigLoader::getDashboardConfig();
     return dash.defaultPageId;
+}
+
+void PageManager::publishPages() {
+    using namespace PageManagerInternal;
+
+    PageBroadcast::Snapshot snapshot = {};
+    snapshot.count = s_pageCount;
+    snapshot.current = s_pageCount == 0 ? PageBroadcast::kNoCurrentPage : s_currentIdx;
+    for (uint8_t i = 0; i < s_pageCount; ++i)
+        strlcpy(snapshot.ids[i], s_pages[i].id, kCfgMaxIdLen);
+    PageBroadcast::publish(snapshot);
 }
 
 void PageManager::requestRebuild() {
