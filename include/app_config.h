@@ -166,6 +166,25 @@ inline constexpr float kBatteryDefaultHighCritV = 16.0f;
 inline constexpr int kTaskPrioSound = 5;
 inline constexpr int kTaskCoreSound = 0;
 
+#ifndef APP_SD_DATALOG_ENABLED
+    #define APP_SD_DATALOG_ENABLED 0
+#endif
+
+#ifndef TASK_STACK_DATALOG
+    #define TASK_STACK_DATALOG 4096
+#endif
+inline constexpr int kTaskPrioDatalogSampler = 5;
+inline constexpr int kTaskPrioDatalogWriter = 2;
+inline constexpr int kTaskCoreDatalogSampler = 1;
+inline constexpr int kTaskCoreDatalogWriter = 0;
+
+inline constexpr uint16_t kDatalogSamplePeriodMs = 50;
+inline constexpr uint32_t kDatalogRingBytes = 256U * 1024U;
+inline constexpr size_t kDatalogStagingBytes = 4096;
+inline constexpr uint32_t kDatalogWriterTickMs = 100;
+inline constexpr uint32_t kDatalogSyncIntervalMs = 2000;
+inline constexpr uint32_t kDatalogMountRetryMs = 30000;
+
 #ifndef TASK_STACK_BLE
     #define TASK_STACK_BLE 5120
 #endif
