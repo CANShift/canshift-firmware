@@ -7,32 +7,32 @@
   },
   "boards": {
     "crowpanel_28": {
-      "flash": 1293200,
-      "dram": 91300,
+      "flash": 1302672,
+      "dram": 91340,
       "iram": 110327,
       "psram": 0
     },
     "generic_esp32s3": {
-      "flash": 1206224,
-      "dram": 85040,
+      "flash": 1215968,
+      "dram": 85080,
       "iram": 77959,
       "psram": 0
     },
     "generic_ili9341": {
-      "flash": 1293376,
-      "dram": 91300,
+      "flash": 1302848,
+      "dram": 91340,
       "iram": 110327,
       "psram": 0
     },
     "generic_ili9341_gt911": {
-      "flash": 1293680,
-      "dram": 91300,
+      "flash": 1303152,
+      "dram": 91340,
       "iram": 110327,
       "psram": 0
     },
     "waveshare_s3_28": {
-      "flash": 1671280,
-      "dram": 107564,
+      "flash": 1680976,
+      "dram": 107604,
       "iram": 89443,
       "psram": 0
     }
