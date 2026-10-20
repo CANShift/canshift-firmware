@@ -714,6 +714,41 @@ PAIRS = (
         "include/imu_core_rs.h",
         "kLaunchDone",
     ),
+    (
+        "datalog signal slots",
+        "rust/datalog/src/record.rs",
+        "DATALOG_SIGNAL_SLOTS",
+        "include/datalog_rs.h",
+        "kDatalogSignalSlots",
+    ),
+    (
+        "datalog max sample bytes",
+        "rust/datalog/src/record.rs",
+        "DATALOG_MAX_SAMPLE_BYTES",
+        "include/datalog_rs.h",
+        "kDatalogMaxSampleBytes",
+    ),
+    (
+        "datalog max header bytes",
+        "rust/datalog/src/record.rs",
+        "DATALOG_MAX_HEADER_BYTES",
+        "include/datalog_rs.h",
+        "kDatalogMaxHeaderBytes",
+    ),
+    (
+        "datalog max marker bytes",
+        "rust/datalog/src/record.rs",
+        "DATALOG_MAX_MARKER_BYTES",
+        "include/datalog_rs.h",
+        "kDatalogMaxMarkerBytes",
+    ),
+    (
+        "datalog preamble bytes",
+        "rust/datalog/src/record.rs",
+        "DATALOG_PREAMBLE_BYTES",
+        "include/datalog_rs.h",
+        "kDatalogPreambleBytes",
+    ),
 )
 
 RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(-?\\d+)"

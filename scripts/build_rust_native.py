@@ -28,6 +28,7 @@ FEATURES = (
     "bus-scan",
     "tone-sequencer",
     "imu-core",
+    "datalog",
 )
 
 

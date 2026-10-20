@@ -1,0 +1,15 @@
+[package]
+name = "datalog"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "On-device datalog pure logic: the framed .csl record encoder, its CRC, and the single-producer single-consumer byte ring the sampler fills and the SD writer drains. The SD card and the tasks stay C++."
+license = "UNLICENSED"
+
+[features]
+default = ["std"]
+std = ["signal-map/std"]
+ffi = []
+
+[dependencies]
+signal-map = { path = "../signal-map", default-features = false }

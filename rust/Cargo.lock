@@ -43,6 +43,7 @@ dependencies = [
  "can-parser",
  "config-loader",
  "control-state",
+ "datalog",
  "error-store",
  "format-float",
  "imu-core",
@@ -113,6 +114,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "datalog"
+version = "0.1.0"
+dependencies = [
+ "signal-map",
 ]
 
 [[package]]
