@@ -763,6 +763,34 @@ PAIRS = (
         "include/datalog_rs.h",
         "kDatalogPreambleBytes",
     ),
+    (
+        "can monitor id capacity",
+        "rust/can-monitor/src/table.rs",
+        "CAN_MONITOR_ID_CAPACITY",
+        "include/can_monitor_rs.h",
+        "kCanMonitorIdCapacity",
+    ),
+    (
+        "can monitor max filters",
+        "rust/can-monitor/src/filter.rs",
+        "CAN_MONITOR_MAX_FILTERS",
+        "include/can_monitor_rs.h",
+        "kCanMonitorMaxFilters",
+    ),
+    (
+        "can monitor max data bytes",
+        "rust/can-monitor/src/table.rs",
+        "CAN_MONITOR_MAX_DATA_BYTES",
+        "include/can_monitor_rs.h",
+        "kCanMonitorMaxDataBytes",
+    ),
+    (
+        "can monitor max frame bytes",
+        "rust/can-monitor/src/frame.rs",
+        "CAN_MONITOR_MAX_FRAME_BYTES",
+        "include/can_monitor_rs.h",
+        "kCanMonitorMaxFrameBytes",
+    ),
 )
 
 RUST_RE = "(?:pub(?:\\(crate\\))?\\s+)?const\\s+{name}\\s*:\\s*\\w+\\s*=\\s*(-?\\d+)"

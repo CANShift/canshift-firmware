@@ -72,6 +72,15 @@ bool admitPasskeyPrompt() {
     return ble_link_passkey_prompt_admit_rs(&s_passkeyBudget, millis());
 }
 
+void AuthenticatedSubscribeCallbacks::onSubscribe(NimBLECharacteristic *, ble_gap_conn_desc *desc,
+                                                  uint16_t subValue) {
+    if (subValue == 0 || desc == nullptr)
+        return;
+    if (!ble_link_subscription_refused_rs(desc->sec_state.encrypted, desc->sec_state.authenticated))
+        return;
+    dropUnauthenticatedLink(*desc, "Subscriber bonded without the passkey");
+}
+
 void dropCurrentPeer(const char *reason) {
     const Peer peer = currentPeer();
     if (!peer.present)
