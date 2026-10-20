@@ -47,7 +47,8 @@ fn both_channels_carry_the_same_sample() {
     let mut synth = ToneSynth::default();
     let mut out = [0i16; 64];
     fill(&mut synth, &mut out, LOUD);
-    assert!(out.chunks_exact(2).all(|frame| frame[0] == frame[1]));
+    let (frames, _) = out.as_chunks::<2>();
+    assert!(frames.iter().all(|[left, right]| left == right));
 }
 
 #[test]
