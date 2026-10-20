@@ -4,6 +4,7 @@
 #include "runtime/track_store.h"
 #include "ui/widgets/timer_sources.h"
 #include "ui/font_manager.h"
+#include "ui/widgets/value_cluster.h"
 #include "ui/theme_manager.h"
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
@@ -35,9 +36,9 @@ struct TimerTag {
 };
 
 constexpr uint32_t kLongPressMs = 600;
-constexpr int kSmallTimeFontPx = 17;
-constexpr int kMediumTimeFontPx = 22;
-constexpr int kLargeTimeFontPx = 40;
+constexpr uint8_t kSmallTimeFontPx = 17;
+constexpr uint8_t kMediumTimeFontPx = 22;
+constexpr uint8_t kLargeTimeFontPx = 40;
 constexpr int kMediumTimeMinH = 28;
 constexpr int kLargeTimeMinH = 55;
 constexpr int kLargeTimeMinW = 150;
@@ -49,22 +50,6 @@ constexpr uint8_t kStateBorderWidth = 2;
 constexpr lv_opa_t kResetTextOpa = LV_OPA_60;
 constexpr lv_opa_t kLapBadgeOpa = LV_OPA_80;
 constexpr int16_t kLapBadgeInsetPx = 2;
-
-void formatTime(char *buf, size_t len, uint32_t elapsedMs, bool msec, bool blinkOn) {
-    if (msec) {
-        const uint32_t totalS = elapsedMs / 1000;
-        const uint32_t ms = elapsedMs % 1000;
-        snprintf(buf, len, "%02lu.%03lu", static_cast<unsigned long>(totalS),
-                 static_cast<unsigned long>(ms));
-        return;
-    }
-    const uint32_t totalS = elapsedMs / 1000;
-    const uint32_t m = totalS / 60;
-    const uint32_t s = totalS % 60;
-    const char sep = blinkOn ? ':' : ' ';
-    snprintf(buf, len, "%02lu%c%02lu", static_cast<unsigned long>(m), sep,
-             static_cast<unsigned long>(s));
-}
 
 void applyStateStyle(TimerTag *t, TimerService::State state) {
     if (!t || !t->cont || !t->timeLabel)
@@ -135,15 +120,15 @@ void onTimerTouch(lv_event_t *e) {
         runForState(kTapCommands, "tap");
 }
 
-const lv_font_t *timeFontFor(const CfgWidget &cfg) {
+uint8_t timeFontPxFor(const CfgWidget &cfg) {
     if (cfg.timer.big > 0)
-        return FontManager::value(WidgetHelpers::deviceFontPxForBig(cfg.timer.big));
+        return WidgetHelpers::deviceFontPxForBig(cfg.timer.big);
     const WidgetHelpers::ScaledBox box = WidgetHelpers::scaledBox(cfg);
     if (box.h >= kLargeTimeMinH && box.w >= kLargeTimeMinW)
-        return FontManager::value(kLargeTimeFontPx);
+        return kLargeTimeFontPx;
     if (box.h >= kMediumTimeMinH)
-        return FontManager::value(kMediumTimeFontPx);
-    return FontManager::value(kSmallTimeFontPx);
+        return kMediumTimeFontPx;
+    return kSmallTimeFontPx;
 }
 
 const char *zeroTimeText(const CfgWidget &cfg) {
@@ -151,11 +136,15 @@ const char *zeroTimeText(const CfgWidget &cfg) {
 }
 
 lv_obj_t *makeTimeLabel(lv_obj_t *cont, const CfgWidget &cfg, uint32_t textRgb) {
-    lv_obj_t *label = lv_label_create(cont);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+    const uint8_t fontPx = timeFontPxFor(cfg);
+    lv_obj_t *row = ValueCluster::makeRow(cont);
+    lv_obj_t *label = ValueCluster::makeValue(row, fontPx);
+    if (!label)
+        return nullptr;
     lv_obj_set_style_text_color(label, lv_color_hex(textRgb), 0);
-    lv_obj_set_style_text_font(label, timeFontFor(cfg), 0);
     lv_label_set_text(label, zeroTimeText(cfg));
+    ValueCluster::makeUnit(row, TimerSources::unit(cfg.timer.source));
+    ValueCluster::makeRule(cont, fontPx, textRgb);
     return label;
 }
 
@@ -171,9 +160,11 @@ lv_obj_t *makeLapBadge(lv_obj_t *cont, uint32_t textRgb) {
     return lapLabel;
 }
 
-void initTimerTag(TimerTag *tag, const CfgWidget &cfg, lv_obj_t *cont, uint32_t textRgb) {
+bool initTimerTag(TimerTag *tag, const CfgWidget &cfg, lv_obj_t *cont, uint32_t textRgb) {
     tag->cont = cont;
     tag->timeLabel = makeTimeLabel(cont, cfg, textRgb);
+    if (!tag->timeLabel)
+        return false;
     tag->lapLabel = makeLapBadge(cont, textRgb);
     tag->formatMsec = cfg.timer.formatMsec;
     tag->source = cfg.timer.source;
@@ -183,9 +174,11 @@ void initTimerTag(TimerTag *tag, const CfgWidget &cfg, lv_obj_t *cont, uint32_t 
     tag->lastLapCount = 0;
     tag->textRgb = textRgb;
     strlcpy(tag->lastText, zeroTimeText(cfg), sizeof(tag->lastText));
+    return true;
 }
 
-void attachTimerTouch(lv_obj_t *cont, TimerTag *tag) {
+void makeInteractive(lv_obj_t *cont, TimerTag *tag) {
+    applyStateStyle(tag, TimerService::State::Reset);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSED, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_PRESSING, tag);
     lv_obj_add_event_cb(cont, onTimerTouch, LV_EVENT_RELEASED, tag);
@@ -204,15 +197,18 @@ lv_obj_t *TimerWidget::create(lv_obj_t *parent, const CfgWidget &cfg, int16_t yO
         return nullptr;
     const uint32_t textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
-    initTimerTag(tag, cfg, cont, textRgb);
-    applyStateStyle(tag, TimerService::State::Reset);
+    if (!initTimerTag(tag, cfg, cont, textRgb)) {
+        LOG_ERROR("TMR", "time label create failed for '%s' — LVGL pool OOM", cfg.id);
+        lv_obj_del(cont);
+        return nullptr;
+    }
     if (cfg.timer.autoStart && !TimerService::start())
         LOG_DEBUG("TMR", "auto-start rejected for '%s'", cfg.id);
     lv_obj_set_user_data(cont, tag);
     lv_obj_add_event_cb(cont, WidgetTagPool::deleteHandler<TimerTag>, LV_EVENT_DELETE,
                         tagSlot.commit());
     if (TimerSources::isInteractive(cfg.timer.source))
-        attachTimerTouch(cont, tag);
+        makeInteractive(cont, tag);
     WidgetLabelOverlay::applySignalHeader(cont, TimerSources::kicker(cfg.timer.source));
     return cont;
 }
@@ -227,9 +223,11 @@ TimerSources::Inputs gatherInputs(const TimerService::Snapshot &snap) {
 
 void updateReadout(TimerTag *tag, const TimerService::Snapshot &snap) {
     char buf[TimerSources::kTextCapacity];
-    TimerSources::render(tag->source, gatherInputs(snap), buf, sizeof(buf));
+    const bool reading = TimerSources::render(tag->source, gatherInputs(snap), buf, sizeof(buf));
     if (strcmp(tag->lastText, buf) == 0)
         return;
+    const uint32_t rgb = reading ? tag->textRgb : ThemeManager::getStaleTextColor();
+    lv_obj_set_style_text_color(tag->timeLabel, lv_color_hex(rgb), 0);
     lv_label_set_text(tag->timeLabel, buf);
     strlcpy(tag->lastText, buf, sizeof(tag->lastText));
 }
@@ -265,8 +263,8 @@ void updateStopwatch(TimerTag *tag, const TimerService::Snapshot &snap) {
     updateLapBadge(tag, snap.lapCount);
 
     char buf[12];
-    formatTime(buf, sizeof(buf), snap.elapsedMs, tag->formatMsec,
-               stopwatchBlinkOn(tag, snap.state));
+    TimerSources::formatStopwatch(buf, sizeof(buf), snap.elapsedMs, tag->formatMsec,
+                                  stopwatchBlinkOn(tag, snap.state));
     if (strcmp(tag->lastText, buf) == 0)
         return;
     lv_label_set_text(tag->timeLabel, buf);

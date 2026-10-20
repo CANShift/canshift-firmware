@@ -47,8 +47,10 @@ TimerSources::Inputs stopwatchBeforeTheFirstLap() {
     return TimerSources::select(stopwatchWithoutLaps(), TrackStore::State{}, false);
 }
 
+bool s_lastReading = false;
+
 const char *rendered(CfgTimerSource source, const TimerSources::Inputs &in, char *buf, size_t cap) {
-    TimerSources::render(source, in, buf, cap);
+    s_lastReading = TimerSources::render(source, in, buf, cap);
     return buf;
 }
 
@@ -116,10 +118,10 @@ void test_deltaClampsRatherThanOverflowingItsBuffer() {
     char buf[TimerSources::kTextCapacity];
     TimerSources::Inputs in = trackRunning();
     in.deltaMs = 2000000000;
-    TimerSources::render(CfgTimerSource::Delta, in, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(TimerSources::render(CfgTimerSource::Delta, in, buf, sizeof(buf)));
     TEST_ASSERT_TRUE(strlen(buf) < TimerSources::kTextCapacity);
     in.deltaMs = -2000000000;
-    TimerSources::render(CfgTimerSource::Delta, in, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(TimerSources::render(CfgTimerSource::Delta, in, buf, sizeof(buf)));
     TEST_ASSERT_TRUE(strlen(buf) < TimerSources::kTextCapacity);
     TEST_ASSERT_EQUAL_CHAR('-', buf[0]);
 }
@@ -139,6 +141,27 @@ void test_everySourceCarriesItsKicker() {
     TEST_ASSERT_EQUAL_STRING("DELTA", TimerSources::kicker(CfgTimerSource::Delta));
 }
 
+void test_aPlaceholderIsNotAReading() {
+    char buf[TimerSources::kTextCapacity];
+    const TimerSources::Inputs idle = stopwatchBeforeTheFirstLap();
+    rendered(CfgTimerSource::Best, idle, buf, sizeof(buf));
+    TEST_ASSERT_FALSE(s_lastReading);
+    rendered(CfgTimerSource::Delta, stopwatchOnly(), buf, sizeof(buf));
+    TEST_ASSERT_FALSE(s_lastReading);
+    rendered(CfgTimerSource::Lap, idle, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(s_lastReading);
+    rendered(CfgTimerSource::LapCount, idle, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(s_lastReading);
+}
+
+void test_onlyTheDeltaCarriesAUnit() {
+    TEST_ASSERT_EQUAL_STRING("s", TimerSources::unit(CfgTimerSource::Delta));
+    TEST_ASSERT_EQUAL_STRING("", TimerSources::unit(CfgTimerSource::Lap));
+    TEST_ASSERT_EQUAL_STRING("", TimerSources::unit(CfgTimerSource::Best));
+    TEST_ASSERT_EQUAL_STRING("", TimerSources::unit(CfgTimerSource::LapCount));
+    TEST_ASSERT_EQUAL_STRING("", TimerSources::unit(CfgTimerSource::Elapsed));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_lapTimeFormatsAsMinutesSecondsHundredths);
@@ -151,5 +174,7 @@ int main(int, char **) {
     RUN_TEST(test_deltaClampsRatherThanOverflowingItsBuffer);
     RUN_TEST(test_onlyTheStopwatchIsInteractive);
     RUN_TEST(test_everySourceCarriesItsKicker);
+    RUN_TEST(test_aPlaceholderIsNotAReading);
+    RUN_TEST(test_onlyTheDeltaCarriesAUnit);
     return UNITY_END();
 }
