@@ -92,6 +92,9 @@ class SerialShim : public Print {
     int availableForWrite() {
         return 4096;
     }
+    explicit operator bool() const {
+        return true;
+    }
 
   private:
     Capture m_capture = nullptr;
