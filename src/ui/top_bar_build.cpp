@@ -56,9 +56,7 @@ void fillDynItem(DynItem &d, const CfgTopBarItem &item, lv_obj_t *obj, int8_t pr
     d.kind = item.kind;
     d.position = item.position;
     d.obj = obj;
-    strlcpy(d.signalId, item.signalId, sizeof(d.signalId));
-    strlcpy(d.format, item.format, sizeof(d.format));
-    strlcpy(d.prefix, item.text, sizeof(d.prefix));
+    d.item = item;
     d.lastText[0] = '\0';
     d.lastColor = kColorUnset;
     d.lastSeenValid = false;

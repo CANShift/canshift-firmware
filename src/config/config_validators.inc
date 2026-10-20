@@ -44,29 +44,27 @@ void checkDashboardSchemaFloor(const char *fileVersion) {
     ErrorStore::push(ERROR_SRC_CONFIG, "VER_OLD", detail);
 }
 
+struct TopBarItemKindSlug {
+    const char *slug;
+    TopBarItemKind kind;
+};
+
+constexpr TopBarItemKindSlug kTopBarItemKindSlugs[] = {
+    {"statusDot", TopBarItemKind::STATUS_DOT}, {"label", TopBarItemKind::LABEL},
+    {"separator", TopBarItemKind::SEPARATOR},  {"signal", TopBarItemKind::SIGNAL},
+    {"bleIcon", TopBarItemKind::BLE_ICON},     {"themeToggle", TopBarItemKind::THEME_TOGGLE},
+    {"modeFlag", TopBarItemKind::MODE_FLAG},   {"trackBadge", TopBarItemKind::TRACK_BADGE},
+    {"canRate", TopBarItemKind::CAN_RATE},     {"signalMax", TopBarItemKind::SIGNAL_MAX},
+    {"timer", TopBarItemKind::TIMER},          {"flagWord", TopBarItemKind::FLAG_WORD},
+};
+
 TopBarItemKind parseTopBarItemKind(const char *str) {
     if (!str)
         return TopBarItemKind::UNKNOWN;
-    if (strcmp(str, "statusDot") == 0)
-        return TopBarItemKind::STATUS_DOT;
-    if (strcmp(str, "label") == 0)
-        return TopBarItemKind::LABEL;
-    if (strcmp(str, "separator") == 0)
-        return TopBarItemKind::SEPARATOR;
-    if (strcmp(str, "signal") == 0)
-        return TopBarItemKind::SIGNAL;
-    if (strcmp(str, "bleIcon") == 0)
-        return TopBarItemKind::BLE_ICON;
-    if (strcmp(str, "themeToggle") == 0)
-        return TopBarItemKind::THEME_TOGGLE;
-    if (strcmp(str, "modeFlag") == 0)
-        return TopBarItemKind::MODE_FLAG;
-    if (strcmp(str, "trackBadge") == 0)
-        return TopBarItemKind::TRACK_BADGE;
-    if (strcmp(str, "canRate") == 0)
-        return TopBarItemKind::CAN_RATE;
-    if (strcmp(str, "signalMax") == 0)
-        return TopBarItemKind::SIGNAL_MAX;
+    for (const TopBarItemKindSlug &entry : kTopBarItemKindSlugs) {
+        if (strcmp(str, entry.slug) == 0)
+            return entry.kind;
+    }
     return TopBarItemKind::UNKNOWN;
 }
 

@@ -79,6 +79,8 @@ enum class TopBarItemKind : uint8_t {
     TRACK_BADGE,
     CAN_RATE,
     SIGNAL_MAX,
+    TIMER,
+    FLAG_WORD,
 };
 
 enum class TopBarItemPos : uint8_t {

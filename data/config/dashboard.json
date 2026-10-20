@@ -1,5 +1,5 @@
 {
- "version": "1.46.0",
+ "version": "1.47.0",
  "name": "CANShift",
  "description": "Six-page default dashboard \u2014 street, track, engine, tuning, timing, controls",
  "defaultPageId": "street",
@@ -53,7 +53,9 @@
     "right": {
      "type": "signal",
      "signal": "trip_km",
-     "format": "TRIP %.0f km",
+     "format": "TRIP %.0f",
+     "unit": "km",
+     "showUnit": true,
      "position": "right"
     }
    },
@@ -528,6 +530,7 @@
      "signal": "oil_temp_c",
      "text": "MAX OIL",
      "format": "%.0f",
+     "unit": "\u00b0C",
      "position": "right"
     }
    },
@@ -750,6 +753,7 @@
      "signal": "boost_bar",
      "text": "PEAK",
      "format": "%.2f",
+     "unit": "bar",
      "position": "right"
     }
    },
@@ -963,6 +967,20 @@
    "backgroundImage": "",
    "backgroundColor": "#121212",
    "showTopBar": true,
+   "statusRow": {
+    "center": {
+     "type": "timer",
+     "source": "lapCount",
+     "text": "LAP",
+     "position": "center"
+    },
+    "right": {
+     "type": "timer",
+     "source": "best",
+     "text": "BEST",
+     "position": "right"
+    }
+   },
    "widgets": [
     {
      "id": "timing_lap",
@@ -1166,6 +1184,22 @@
    "backgroundImage": "",
    "backgroundColor": "#121212",
    "showTopBar": true,
+   "statusRow": {
+    "center": {
+     "type": "flagWord",
+     "signal": "flag_anti_lag",
+     "text": "ALS ON",
+     "offText": "ALS OFF",
+     "position": "center"
+    },
+    "right": {
+     "type": "flagWord",
+     "signal": "flag_launch_ctrl",
+     "text": "ARMED",
+     "offText": "LAUNCH OFF",
+     "position": "right"
+    }
+   },
    "widgets": [
     {
      "id": "controls_rpm",

@@ -127,6 +127,8 @@ constexpr TopBarItems::KindOps kItemKinds[] = {
     {TopBarItemKind::SEPARATOR, buildSeparator, true, false},
     {TopBarItemKind::SIGNAL, buildValueLabel, true, true},
     {TopBarItemKind::SIGNAL_MAX, buildValueLabel, true, true},
+    {TopBarItemKind::TIMER, buildValueLabel, true, true},
+    {TopBarItemKind::FLAG_WORD, buildValueLabel, true, true},
     {TopBarItemKind::BLE_ICON, buildBleIcon, true, true},
     {TopBarItemKind::MODE_FLAG, buildModeFlag, true, true},
     {TopBarItemKind::TRACK_BADGE, buildValueLabel, true, true},
