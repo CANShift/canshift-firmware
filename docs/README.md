@@ -54,6 +54,7 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 | [Firmware OTA](architecture/firmware-ota.md)       | The OTA commands over USB or the workshop socket, and their limits    |
 | [BLE transport](architecture/ble-transport.md)     | NimBLE topology, encrypted GATT layout, binary telemetry frame        |
 | [Workshop mode](architecture/workshop-mode.md)     | The dash serves the tuner over Wi-Fi, with BLE off                    |
+| [Datalog](architecture/datalog.md)                 | Sessions recorded to the TF card, and the file format                 |
 | [ErrorStore](architecture/error-store.md)          | Error ring buffer and its critical-section invariant                  |
 | [Cruise template](architecture/cruise-template.md) | L-shape buttons and the LVGL convex-polygon workaround                |
 | [Rust modules](architecture/rust-modules.md)       | FFI contracts and invariants of the `rust/` crates                    |
