@@ -1,5 +1,6 @@
 #include "bench_can_tx.h"
 
+#include "can/bus_scan.h"
 #include "can/can_manager.h"
 #include "hal/ble/ble_server.h"
 #include "hal/memory/psram.h"
@@ -28,6 +29,10 @@ void emit(uint32_t id, const uint8_t *data, uint8_t length) {
 
 namespace CanManager {
 
+bool isAvailable() {
+    return false;
+}
+
 uint32_t msSinceLastRx() {
     return 0;
 }
@@ -39,6 +44,18 @@ uint32_t busRateHz() {
 bool sendFrame(uint32_t id, const uint8_t *data, uint8_t length, bool) {
     BenchCanTx::emit(id, data, length);
     return true;
+}
+
+}
+
+namespace BusScan {
+
+bool requestStart() {
+    return false;
+}
+
+void copyReport(BusScanRs &out) {
+    out = BusScanRs{};
 }
 
 }
