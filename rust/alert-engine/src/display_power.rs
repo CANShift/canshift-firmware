@@ -5,6 +5,9 @@ pub const TOUCH_READ_IDLE_MS: u32 = 33;
 pub const TOUCH_READ_PANEL_OFF_MS: u32 = 100;
 pub const TOUCH_IDLE_AFTER_MS: u32 = 3_000;
 
+const _: () = assert!(TOUCH_READ_IDLE_MS > TOUCH_READ_ACTIVE_MS);
+const _: () = assert!(TOUCH_READ_PANEL_OFF_MS > TOUCH_READ_IDLE_MS);
+
 #[must_use]
 pub fn held_display_idle_state(
     idle_ms: u32,
@@ -87,11 +90,5 @@ mod tests {
             touch_read_period_ms(DISPLAY_IDLE_OFF, 0),
             TOUCH_READ_PANEL_OFF_MS
         );
-    }
-
-    #[test]
-    fn the_idle_rates_never_read_faster_than_the_active_rate() {
-        assert!(TOUCH_READ_IDLE_MS > TOUCH_READ_ACTIVE_MS);
-        assert!(TOUCH_READ_PANEL_OFF_MS > TOUCH_READ_IDLE_MS);
     }
 }
