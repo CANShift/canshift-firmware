@@ -16,27 +16,34 @@ constexpr uint16_t kMaxOpenSockets = 4;
 constexpr uint16_t kSendWaitSeconds = 1;
 constexpr char kSocketUri[] = "/ws";
 constexpr char kAssetUri[] = "/*";
+    #if APP_SD_DATALOG_ENABLED
+constexpr char kLogIndexUri[] = "/api/logs";
+constexpr char kLogFileUri[] = "/api/logs/*";
+    #endif
 
 httpd_handle_t s_server = nullptr;
 
-const httpd_uri_t kSocketRoute = {
-    .uri = kSocketUri,
-    .method = HTTP_GET,
-    .handler = handleSocket,
-    .user_ctx = nullptr,
-    .is_websocket = true,
-    .handle_ws_control_frames = false,
-    .supported_subprotocol = nullptr,
-};
+constexpr httpd_uri_t route(const char *uri, httpd_method_t method,
+                            esp_err_t (*handler)(httpd_req_t *), bool websocket) {
+    return {
+        .uri = uri,
+        .method = method,
+        .handler = handler,
+        .user_ctx = nullptr,
+        .is_websocket = websocket,
+        .handle_ws_control_frames = false,
+        .supported_subprotocol = nullptr,
+    };
+}
 
-const httpd_uri_t kAssetRoute = {
-    .uri = kAssetUri,
-    .method = HTTP_GET,
-    .handler = handleTunerAsset,
-    .user_ctx = nullptr,
-    .is_websocket = false,
-    .handle_ws_control_frames = false,
-    .supported_subprotocol = nullptr,
+const httpd_uri_t kRoutes[] = {
+    route(kSocketUri, HTTP_GET, handleSocket, true),
+    #if APP_SD_DATALOG_ENABLED
+    route(kLogIndexUri, HTTP_GET, handleLogIndex, false),
+    route(kLogFileUri, HTTP_GET, handleLogDownload, false),
+    route(kLogFileUri, HTTP_DELETE, handleLogDelete, false),
+    #endif
+    route(kAssetUri, HTTP_GET, handleTunerAsset, false),
 };
 
 httpd_config_t serverConfig() {
@@ -51,8 +58,13 @@ httpd_config_t serverConfig() {
 }
 
 bool registerRoutes() {
-    return httpd_register_uri_handler(s_server, &kSocketRoute) == ESP_OK &&
-           httpd_register_uri_handler(s_server, &kAssetRoute) == ESP_OK;
+    for (const httpd_uri_t &entry : kRoutes) {
+        if (httpd_register_uri_handler(s_server, &entry) != ESP_OK) {
+            LOG_ERROR("WORKSHOP", "HTTP route %s not registered", entry.uri);
+            return false;
+        }
+    }
+    return true;
 }
 
 }
