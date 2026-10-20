@@ -10,6 +10,7 @@ inline constexpr size_t kDatalogMaxSampleBytes = 273;
 inline constexpr size_t kDatalogMaxHeaderBytes = 2186;
 inline constexpr size_t kDatalogMaxMarkerBytes = 15;
 inline constexpr size_t kDatalogPreambleBytes = 5;
+inline constexpr size_t kDatalogNameBytes = 10;
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +62,9 @@ uint8_t datalog_session_step_rs(DatalogSessionRs *session, const DatalogSessionI
 void datalog_session_halt_rs(DatalogSessionRs *session);
 bool datalog_lap_observe_rs(DatalogLapWatchRs *watch, uint16_t lap_count, uint16_t timer_session);
 void datalog_lap_rebase_rs(DatalogLapWatchRs *watch, uint16_t lap_count, uint16_t timer_session);
+
+size_t datalog_log_name_rs(uint16_t session, uint8_t *out, size_t capacity);
+bool datalog_is_log_name_rs(const uint8_t *name, size_t len);
 
 #ifdef __cplusplus
 }

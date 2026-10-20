@@ -799,6 +799,13 @@ PAIRS = (
         "kCanMonitorMaxFrameBytes",
     ),
     (
+        "datalog log name bytes",
+        "rust/datalog/src/names.rs",
+        "DATALOG_NAME_BYTES",
+        "include/datalog_rs.h",
+        "kDatalogNameBytes",
+    ),
+    (
         "datalog action none",
         "rust/datalog/src/session.rs",
         "DATALOG_ACTION_NONE",

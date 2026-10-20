@@ -6,12 +6,14 @@ mod ffi;
 mod crc;
 mod cursor;
 mod lap_watch;
+mod names;
 mod record;
 mod ring;
 mod session;
 
 pub use crc::{crc16, DATALOG_CRC_SEED};
 pub use lap_watch::{observe, rebase, LapWatch};
+pub use names::{is_log_name, log_name, DATALOG_NAME_BYTES};
 pub use record::{
     encode_end, encode_header, encode_lap, encode_preamble, encode_sample, DATALOG_FORMAT_VERSION,
     DATALOG_FRAME_CRC_BYTES, DATALOG_FRAME_PREFIX_BYTES, DATALOG_MAGIC, DATALOG_MAX_HEADER_BYTES,

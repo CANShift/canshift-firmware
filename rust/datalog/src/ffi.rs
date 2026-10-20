@@ -1,6 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use crate::lap_watch::{observe, rebase, LapWatch};
+use crate::names::{is_log_name, log_name};
 use crate::record::{
     encode_end, encode_header, encode_lap, encode_preamble, encode_sample, DATALOG_SIGNAL_SLOTS,
 };
@@ -155,4 +156,17 @@ pub unsafe extern "C" fn datalog_lap_rebase_rs(
     if let Some(watch) = unsafe { watch.as_mut() } {
         rebase(watch, lap_count, timer_session);
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn datalog_log_name_rs(session: u16, out: *mut u8, capacity: usize) -> usize {
+    unsafe { out_slice(out, capacity) }.map_or(0, |out| log_name(session, out))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn datalog_is_log_name_rs(name: *const u8, len: usize) -> bool {
+    if name.is_null() {
+        return false;
+    }
+    is_log_name(unsafe { core::slice::from_raw_parts(name, len) })
 }
