@@ -23,6 +23,10 @@ constexpr int32_t kCfgMaxExprRefs = 8;
 constexpr int32_t kCfgMaxProfileIdLen = 24;
 constexpr int32_t kCfgMaxPathLen = 64;
 
+constexpr float kGMeterDefaultRangeG = 1.5f;
+constexpr float kGMeterMinRangeG = 0.5f;
+constexpr float kGMeterMaxRangeG = 3.0f;
+
 struct CfgColor {
     uint32_t rgb;
 };
@@ -138,6 +142,12 @@ struct CfgShiftLightParams {
     uint8_t redSegments;
 };
 
+struct CfgGMeterParams {
+    float rangeG;
+    bool peakHold;
+    char kicker[kCfgMaxNameLen];
+};
+
 struct CfgImageParams {
     char imagePath[kCfgMaxPathLen];
 };
@@ -156,6 +166,7 @@ struct CfgWidget {
         CfgTimerParams timer;
         CfgImageParams image;
         CfgShiftLightParams shiftLight;
+        CfgGMeterParams gMeter;
     };
     CfgButtonParams *button;
 };

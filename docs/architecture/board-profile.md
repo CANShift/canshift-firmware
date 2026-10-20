@@ -23,6 +23,13 @@ question of which wins after a re-provision.
 Whatever wins is copied into a single mutable profile. Everything downstream reads
 `canshift::boards::runtimeBoardProfile()` — never the compile-time constant.
 
+## Optional sections
+
+`imu` is the one section a blob may leave out: absent means the board has no
+IMU, so a profile written before the field existed still loads. The same goes
+for `touch.pin_rst`, which reads as `-1` when absent.
+[IMU and the g-meter](imu.md) describes the fields.
+
 ## The catalog
 
 Every board header under `include/boards/` defines its own profile symbol, and

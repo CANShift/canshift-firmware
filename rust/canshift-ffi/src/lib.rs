@@ -16,6 +16,8 @@ extern crate control_state;
 extern crate error_store;
 #[cfg(feature = "format-float")]
 extern crate format_float;
+#[cfg(feature = "imu-core")]
+extern crate imu_core;
 #[cfg(feature = "layout-grid")]
 extern crate layout_grid;
 #[cfg(feature = "ota-signature")]

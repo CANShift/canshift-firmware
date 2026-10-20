@@ -9,6 +9,8 @@ enum class ChipFamily : uint8_t { Esp32, Esp32s3 };
 enum class LcdDriver : uint8_t { ILI9341, ST7789, ILI9488, GC9A01 };
 enum class TouchDriver : uint8_t { None, XPT2046, FT6336, GT911, CST816S, CST3530 };
 enum class CanController : uint8_t { None, EspTwai };
+enum class ImuDriver : uint8_t { None, QMI8658 };
+enum class ImuAxis : uint8_t { PosX = 0, NegX = 1, PosY = 2, NegY = 3, PosZ = 4, NegZ = 5 };
 
 struct LcdProfile {
     LcdDriver driver;
@@ -79,6 +81,27 @@ struct AudioProfile {
 };
 
 inline constexpr AudioProfile kNoAudio = {false, -1, -1, -1};
+struct ImuProfile {
+    ImuDriver driver;
+    int8_t pin_sda;
+    int8_t pin_scl;
+    uint8_t i2c_addr;
+    uint32_t freq_hz;
+    ImuAxis screen_x;
+    ImuAxis screen_y;
+    ImuAxis screen_z;
+};
+
+inline constexpr ImuProfile kNoImu = {
+    .driver = ImuDriver::None,
+    .pin_sda = -1,
+    .pin_scl = -1,
+    .i2c_addr = 0,
+    .freq_hz = 0,
+    .screen_x = ImuAxis::PosX,
+    .screen_y = ImuAxis::PosY,
+    .screen_z = ImuAxis::PosZ,
+};
 
 struct BoardProfile {
     const char *board_id;
@@ -91,6 +114,7 @@ struct BoardProfile {
     StorageProfile storage;
     ConnectivityProfile conn;
     AudioProfile audio;
+    ImuProfile imu;
 };
 
 inline constexpr const char *kLcdDriverNames[] = {"ILI9341", "ST7789", "ILI9488", "GC9A01"};

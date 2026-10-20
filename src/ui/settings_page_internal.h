@@ -78,6 +78,7 @@ void buildResetTouchCalRow(int16_t &y, int16_t rowW);
 void buildDayModeRow(int16_t &y, int16_t rowW);
 void buildAboutRow(int16_t &y);
 void buildRebootRow(int16_t &y, int16_t rowW);
+void buildLevelImuRow(int16_t &y, int16_t rowW);
 #if APP_WORKSHOP_ENABLED
 void buildWorkshopRow(int16_t &y, int16_t rowW);
 void refreshWorkshopRow();

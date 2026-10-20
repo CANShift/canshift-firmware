@@ -32,6 +32,15 @@ bus, sync lines or porch timings. That tier is tracked on #51.
 | `CST3530`     | `canshift::touch::Touch_CST3530` | I2C                        | `0x58`  | Built. In-tree driver — 4-byte commands, verified on Waveshare hardware (#81). |
 | `FT6336`      | `Touch_FT5x06`                   | I2C                        | `0x38`  | Built, untested on hardware. FT6336 is FT5x06 protocol-compatible.             |
 
+## IMUs
+
+| `ImuDriver` | Driver                    | Bus        | Address | Status                                                           |
+| ----------- | ------------------------- | ---------- | ------- | ---------------------------------------------------------------- |
+| `None`      | —                         | —          | —       | The default; no task, no bus, the g-meter shows `NO IMU`.        |
+| `QMI8658`   | `src/hal/imu/qmi8658.cpp` | I2C port 1 | `0x6B`  | Built, accelerometer only, ±4 g at 125 Hz. Untested on hardware. |
+
+See [IMU and the g-meter](../architecture/imu.md) for the axis map and the bench checks.
+
 ## Touch calibration
 
 Only a controller whose profile sets `touch.needs_calibration` is calibrated; today

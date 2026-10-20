@@ -14,5 +14,6 @@ bool remove(const char *ns, const char *key);
 uint8_t getUChar(const char *ns, const char *key, uint8_t fallback);
 bool putULong(const char *ns, const char *key, uint32_t value);
 [[nodiscard]] bool getULong(const char *ns, const char *key, uint32_t &value);
+[[nodiscard]] bool getBytes(const char *ns, const char *key, void *data, size_t len);
 
 }

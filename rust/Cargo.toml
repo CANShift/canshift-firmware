@@ -17,6 +17,7 @@ members = [
     "ble-link",
     "bus-scan",
     "tone-sequencer",
+    "imu-core",
     "canshift-ffi",
 ]
 

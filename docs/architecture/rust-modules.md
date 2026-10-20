@@ -54,6 +54,12 @@ passed next to it.
   does, and returns silence otherwise; the C++ side only writes the samples it
   fills to I2S. `ToneSequencerRs`, `ToneOutputRs` and `ToneSynthRs` mirror the
   `repr(C)` structs field for field.
+- `imu-core` owns the g-meter's arithmetic: the chip-to-screen axis remap, the
+  level calibration into the vehicle frame, the low-pass, the eight-sector peak
+  envelope and the plot geometry. `ImuCoreState` and `ImuLevelCapture` mirror
+  `repr(C)` `ImuCore` and `LevelCapture`; the C++ side owns the I2C bus and the
+  task, and never touches the arithmetic. It carries its own Newton square root,
+  since `f32::sqrt` is not in `core`.
 - `format-float` exists to keep newlib's `%f`/`%g` out of the image, which
   costs about 30 KB of flash. It returns `snprintf`-style lengths, truncates
   rather than rounds, and prints NaN and infinity as literals. `format_general`

@@ -71,6 +71,7 @@ inline constexpr BoardProfile kGenericEsp32s3 = {
             .psram_present = true,
         },
     .audio = kNoAudio,
+    .imu = kNoImu,
 };
 
 }

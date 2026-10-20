@@ -57,6 +57,7 @@ How the firmware is put together — read [Overview](architecture/overview.md) f
 | [ErrorStore](architecture/error-store.md)          | Error ring buffer and its critical-section invariant                  |
 | [Cruise template](architecture/cruise-template.md) | L-shape buttons and the LVGL convex-polygon workaround                |
 | [Rust modules](architecture/rust-modules.md)       | FFI contracts and invariants of the `rust/` crates                    |
+| [IMU and the g-meter](architecture/imu.md)         | The accelerometer path, levelling, and the g-meter's bench checks     |
 
 ## Reference
 

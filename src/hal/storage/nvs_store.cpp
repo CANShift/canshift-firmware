@@ -75,4 +75,15 @@ bool getULong(const char *ns, const char *key, uint32_t &value) {
     return present;
 }
 
+bool getBytes(const char *ns, const char *key, void *data, size_t len) {
+    Preferences prefs;
+    if (!prefs.begin(ns, true)) {
+        return false;
+    }
+    const bool exact = prefs.isKey(key) && prefs.getBytesLength(key) == len &&
+                       prefs.getBytes(key, data, len) == len;
+    prefs.end();
+    return exact;
+}
+
 }

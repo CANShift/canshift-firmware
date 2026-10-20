@@ -157,25 +157,26 @@ CfgCruiseOp parseCruiseOp(const char *op) {
     return CfgCruiseOp::UNKNOWN;
 }
 
+struct WidgetTypeName {
+    const char *name;
+    WidgetType type;
+};
+
+constexpr WidgetTypeName kWidgetTypeNames[] = {
+    {"gauge", WidgetType::GAUGE},     {"label", WidgetType::LABEL},
+    {"warning", WidgetType::WARNING}, {"button", WidgetType::BUTTON},
+    {"timer", WidgetType::TIMER},     {"gear", WidgetType::GEAR_IND},
+    {"image", WidgetType::IMAGE},     {"shift_light", WidgetType::SHIFT_LIGHT},
+    {"g_meter", WidgetType::G_METER},
+};
+
 WidgetType parseWidgetType(const char *str) {
     if (!str)
         return WidgetType::UNKNOWN;
-    if (strcmp(str, "gauge") == 0)
-        return WidgetType::GAUGE;
-    if (strcmp(str, "label") == 0)
-        return WidgetType::LABEL;
-    if (strcmp(str, "warning") == 0)
-        return WidgetType::WARNING;
-    if (strcmp(str, "button") == 0)
-        return WidgetType::BUTTON;
-    if (strcmp(str, "timer") == 0)
-        return WidgetType::TIMER;
-    if (strcmp(str, "gear") == 0)
-        return WidgetType::GEAR_IND;
-    if (strcmp(str, "image") == 0)
-        return WidgetType::IMAGE;
-    if (strcmp(str, "shift_light") == 0)
-        return WidgetType::SHIFT_LIGHT;
+    for (const WidgetTypeName &entry : kWidgetTypeNames) {
+        if (strcmp(str, entry.name) == 0)
+            return entry.type;
+    }
     return WidgetType::UNKNOWN;
 }
 

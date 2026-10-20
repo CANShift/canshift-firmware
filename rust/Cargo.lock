@@ -45,6 +45,7 @@ dependencies = [
  "control-state",
  "error-store",
  "format-float",
+ "imu-core",
  "layout-grid",
  "ota-signature",
  "signal-map",
@@ -168,6 +169,10 @@ dependencies = [
  "typenum",
  "version_check",
 ]
+
+[[package]]
+name = "imu-core"
+version = "0.1.0"
 
 [[package]]
 name = "layout-grid"

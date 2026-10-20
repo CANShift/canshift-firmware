@@ -227,6 +227,25 @@ Minimum on-screen time 1.5 s so a 60 ms cut is readable; a latched cut reads LAT
 concurrent cuts stack most-severe-first, three maximum. A cut is not driver-requested, so it never takes
 the screen and never pulses — see §F of the states plank.
 
+## 7c. G-meter
+
+Only on a board whose profile declares an IMU ([IMU and the g-meter](../architecture/imu.md)). A value
+widget whose value is a plot:
+
+- 2 px `CS_INK` rule, kicker (`G` unless the config names one), and the combined reading in mono
+  `secondary` with the unit `g` in Dim, flush left under the kicker.
+- A square plot, right-aligned in the widget with the value widget's 8 px right inset, 4 px below the rule
+  and 3 px above the bottom; it is as large as the height allows while leaving the 52 px readout column.
+- Guides in 1 px `CS_TRACK`: the full-range ring, the half-range ring and the two axes.
+- The peak envelope, when `peakHold` is on, as a 1 px `CS_DIM` polyline through the eight sector peaks.
+- The dot: a 6 × 6 `CS_INK` **square**. It snaps like any value.
+- Stale (no sample for 250 ms): dot and envelope hidden, the reading drops to Dim `- -`.
+- Unavailable (no IMU): rule and guides `CS_LOCK_LINE`, kicker in `CS_LOCK_INK` reading `G · NO IMU`, no
+  reading.
+
+The rings are the one round shape on the dash. They are data — the locus of equal grip — not chrome, so
+the radius-0 rule still holds for everything around them. Logged on #127.
+
 ## 8. Status row
 
 One line, mono, Dim, 0.1em tracking, exactly three fields — left, centre, right:

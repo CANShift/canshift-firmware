@@ -1,0 +1,106 @@
+{
+  "version": "1.45.0",
+  "name": "CANShift g-meter fixture",
+  "description": "Simulator fixture: the g-meter widget at two sizes",
+  "defaultPageId": "gmeter",
+  "revLimitRpm": 7200,
+  "topBar": {
+    "height": 16,
+    "bgColor": "#121212",
+    "textColor": "#BABABA",
+    "layout": [
+      {
+        "type": "label",
+        "text": "CAN",
+        "position": "left"
+      },
+      {
+        "type": "canRate",
+        "position": "left"
+      },
+      {
+        "type": "label",
+        "text": "MAP",
+        "position": "center"
+      },
+      {
+        "type": "signal",
+        "signal": "map_number",
+        "format": "%.0f",
+        "position": "center"
+      },
+      {
+        "type": "trackBadge",
+        "position": "right"
+      }
+    ]
+  },
+  "theme": {
+    "day": {
+      "bgColor": "#DDDDDD"
+    },
+    "night": {
+      "bgColor": "#121212"
+    }
+  },
+  "pages": [
+    {
+      "id": "gmeter",
+      "backgroundImage": "",
+      "backgroundColor": "#121212",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "gmeter_main",
+          "type": "g_meter",
+          "signal": "",
+          "layout": {
+            "col": 0,
+            "colSpan": 8,
+            "row": 0,
+            "rowSpan": 9,
+            "zOrder": 0
+          },
+          "style": {
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#222222",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 17
+          },
+          "config": {
+            "type": "g_meter",
+            "rangeG": 1.5
+          }
+        },
+        {
+          "id": "gmeter_small",
+          "type": "g_meter",
+          "signal": "",
+          "layout": {
+            "col": 8,
+            "colSpan": 4,
+            "row": 0,
+            "rowSpan": 5,
+            "zOrder": 0
+          },
+          "style": {
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#222222",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 17
+          },
+          "config": {
+            "type": "g_meter",
+            "rangeG": 1.0,
+            "peakHold": false,
+            "kicker": "Lat g"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 #include "sim_can_bus.h"
 #include "sim_controls.h"
 #include "sim_display.h"
+#include "sim_imu.h"
 #include "sim_overlays.h"
 #include "sim_splash.h"
 
@@ -325,6 +326,7 @@ void tick(uint32_t nowMs) {
         handleKey(key, nowMs);
 
     SimOverlays::tick(nowMs);
+    SimImu::tick(nowMs);
 
     if (SimControls::active()) {
         SimControls::tick(nowMs);

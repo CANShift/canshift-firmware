@@ -39,6 +39,15 @@ Wipes the saved offsets. Next boot uses board defaults and re-runs first-boot
 calibration. The current session keeps cached offsets so you can still
 navigate to reboot.
 
+### Level g-meter
+
+Only on a board with an IMU. Park on level ground and tap **LEVEL G-METER**: the
+dash averages one second of accelerometer samples and from then on reads the
+g-meter in the car's frame, whatever the mounting tilt. The row reports
+`LEVELLED`, or why it refused (`CAR MOVING`, `READING OFF`, `SCREEN TOO FLAT`).
+The result is stored in NVS under namespace `imu`; see
+[IMU and the g-meter](../architecture/imu.md#orientation-and-levelling).
+
 ### Workshop mode
 
 Turns the dash into its own configurator ([design](../architecture/workshop-mode.md)).

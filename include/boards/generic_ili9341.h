@@ -71,6 +71,7 @@ inline constexpr BoardProfile kGenericIli9341 = {
             .psram_present = false,
         },
     .audio = kNoAudio,
+    .imu = kNoImu,
 };
 
 }

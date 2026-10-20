@@ -17,6 +17,7 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 RGB = 3
 DIFF_DIM = 4
 DIFF_MARK = (255, 0, 0)
+G_METER_DASHBOARD = Path("sim/fixtures/g-meter-dashboard.json")
 TIERS = {
     "base": None,
     "medium": Path("sim/boards/sim_medium_480x320.json"),
@@ -35,6 +36,7 @@ class Scene:
     page: str
     capture_ms: int
     theme: str | None = None
+    dashboard: Path | None = None
 
 
 SCENES = (
@@ -48,6 +50,8 @@ SCENES = (
     Scene("workshop-card", "workshop", "street", 1500),
     Scene("self-test", "self-test", "street", 1500),
     Scene("day-street", "cruise", "street", 1500, "day"),
+    Scene("g-meter", "gmeter", "gmeter", 1500, dashboard=G_METER_DASHBOARD),
+    Scene("g-meter-locked", "cruise", "gmeter", 1500, dashboard=G_METER_DASHBOARD),
 )
 
 
@@ -183,6 +187,9 @@ def changed_pixels(golden: Image, actual: Image) -> int:
 def capture(scene: Scene, tier: str, program: Path) -> Image:
     environment = {**os.environ, "SDL_VIDEODRIVER": "dummy"}
     environment.pop("CANSHIFT_SIM_BOARD", None)
+    environment.pop("CANSHIFT_SIM_DASHBOARD", None)
+    if scene.dashboard is not None:
+        environment["CANSHIFT_SIM_DASHBOARD"] = str(scene.dashboard.resolve())
     if TIERS[tier] is not None:
         environment["CANSHIFT_SIM_BOARD"] = str(TIERS[tier].resolve())
     if scene.theme is not None:

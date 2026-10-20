@@ -1,9 +1,12 @@
 #include "hal/storage/storage_driver.h"
 
+#include "board_config.h"
+
 #include <lvgl.h>
 
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <sys/stat.h>
@@ -15,6 +18,9 @@ FILE *s_chunked = nullptr;
 std::string s_chunkedFinalPath;
 
 std::string resolve(const char *path) {
+    const char *dashboard = getenv("CANSHIFT_SIM_DASHBOARD");
+    if (dashboard != nullptr && strcmp(path, kConfigPathDashboard) == 0)
+        return dashboard;
     std::string p = s_root;
     if (path[0] != '/')
         p += '/';
