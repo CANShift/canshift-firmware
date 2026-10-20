@@ -113,6 +113,11 @@ const NAME_TO_ID: &[(&str, SignalId)] = &[
 pub const MAX_NAME_LEN: usize = 32;
 
 #[must_use]
+pub fn catalog() -> &'static [(&'static str, SignalId)] {
+    NAME_TO_ID
+}
+
+#[must_use]
 pub fn terminated_name_len(read: impl Fn(usize) -> u8) -> Option<usize> {
     (0..MAX_NAME_LEN).find(|&i| read(i) == 0)
 }

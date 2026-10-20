@@ -26,6 +26,7 @@ what lets the release profile's LTO apply, and it owns the only panic handler.
 | `bus-scan`          | `include/bus_scan_rs.h`          |
 | `tone-sequencer`    | `include/tone_sequencer_rs.h`    |
 | `imu-core`          | `include/imu_core_rs.h`          |
+| `datalog`           | `include/datalog_rs.h`           |
 
 ## Running
 

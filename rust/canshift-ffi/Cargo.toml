@@ -13,7 +13,7 @@ doctest = false
 
 [features]
 default = ["std"]
-std = ["signal-map?/std", "can-parser?/std", "usb-envelope?/std", "config-loader?/std", "format-float?/std", "error-store?/std", "alert-engine?/std", "timer-core?/std", "layout-grid?/std", "control-state?/std", "unit-convert?/std", "workshop-mode?/std", "ota-signature?/std", "ble-link?/std", "bus-scan?/std", "tone-sequencer?/std", "imu-core?/std"]
+std = ["signal-map?/std", "can-parser?/std", "usb-envelope?/std", "config-loader?/std", "format-float?/std", "error-store?/std", "alert-engine?/std", "timer-core?/std", "layout-grid?/std", "control-state?/std", "unit-convert?/std", "workshop-mode?/std", "ota-signature?/std", "ble-link?/std", "bus-scan?/std", "tone-sequencer?/std", "imu-core?/std", "datalog?/std"]
 signal-map = ["dep:signal-map"]
 can-parser = ["dep:can-parser"]
 usb-envelope = ["dep:usb-envelope"]
@@ -31,6 +31,7 @@ ble-link = ["dep:ble-link"]
 bus-scan = ["dep:bus-scan"]
 tone-sequencer = ["dep:tone-sequencer"]
 imu-core = ["dep:imu-core"]
+datalog = ["dep:datalog"]
 
 [dependencies]
 signal-map = { path = "../signal-map", default-features = false, features = ["ffi"], optional = true }
@@ -50,3 +51,4 @@ ble-link = { path = "../ble-link", default-features = false, features = ["ffi"],
 bus-scan = { path = "../bus-scan", default-features = false, features = ["ffi"], optional = true }
 tone-sequencer = { path = "../tone-sequencer", default-features = false, features = ["ffi"], optional = true }
 imu-core = { path = "../imu-core", default-features = false, features = ["ffi"], optional = true }
+datalog = { path = "../datalog", default-features = false, features = ["ffi"], optional = true }

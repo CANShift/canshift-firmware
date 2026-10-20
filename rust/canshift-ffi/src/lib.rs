@@ -12,6 +12,8 @@ extern crate can_parser;
 extern crate config_loader;
 #[cfg(feature = "control-state")]
 extern crate control_state;
+#[cfg(feature = "datalog")]
+extern crate datalog;
 #[cfg(feature = "error-store")]
 extern crate error_store;
 #[cfg(feature = "format-float")]

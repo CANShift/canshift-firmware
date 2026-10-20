@@ -18,6 +18,7 @@ members = [
     "bus-scan",
     "tone-sequencer",
     "imu-core",
+    "datalog",
     "canshift-ffi",
 ]
 

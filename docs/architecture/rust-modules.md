@@ -60,6 +60,10 @@ passed next to it.
   `repr(C)` `ImuCore` and `LevelCapture`; the C++ side owns the I2C bus and the
   task, and never touches the arithmetic. It carries its own Newton square root,
   since `f32::sqrt` is not in `core`.
+- `datalog` owns the `.csl` record encoder (framing, CRC-16/CCITT-FALSE, the
+  catalogue header) and the single-producer single-consumer byte ring the
+  sampler fills and the SD writer drains. The byte vectors in
+  `test/test_datalog_frame` are the ones `@canshift/core` decodes.
 - `format-float` exists to keep newlib's `%f`/`%g` out of the image, which
   costs about 30 KB of flash. It returns `snprintf`-style lengths, truncates
   rather than rounds, and prints NaN and infinity as literals. `format_general`
