@@ -8,7 +8,6 @@
 #include "ui/severity.h"
 #include "ui/unit_display.h"
 #include "ui/widgets/widget_helpers.h"
-#include "util/format_float.h"
 #include "util/text_join.h"
 
 #include <Arduino.h>
@@ -32,9 +31,7 @@ void composeCriticalText(const AlertEngine::AlertState &state, char *buf, size_t
         if (AlertSources::sensorLostAt(state, i) && !SignalStore::isValid(src.id))
             continue;
         char valBuf[16];
-        FloatFormat::formatFixed(valBuf, sizeof(valBuf),
-                                 UnitDisplay::valueFor(SignalStore::read(src.id), src.unit),
-                                 src.decimals);
+        AlertSources::formatReading(valBuf, sizeof(valBuf), src, SignalStore::read(src.id));
         char part[32];
         snprintf(part, sizeof(part), "%s %s%s", src.chipLabel, valBuf,
                  UnitDisplay::symbolFor(src.unit));
