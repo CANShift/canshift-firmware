@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 inline constexpr uint32_t kToneSampleRateHz = 44100;
+inline constexpr uint8_t kToneVolumeMaxPct = 100;
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,7 +16,8 @@ enum {
     kTonePatternNone = 0,
     kTonePatternCritical = 1,
     kTonePatternBoot = 2,
-    kTonePatternCount = 3
+    kTonePatternShift = 3,
+    kTonePatternCount = 4
 };
 
 typedef struct {
@@ -24,6 +26,13 @@ typedef struct {
     uint8_t step;
     uint8_t _pad[2];
 } ToneSequencerRs;
+
+typedef struct {
+    uint8_t volume_pct;
+    bool critical;
+    bool shift;
+    uint8_t _pad;
+} ToneDemandRs;
 
 typedef struct {
     uint16_t freq_hz;
@@ -36,13 +45,14 @@ typedef struct {
 
 void tone_sequencer_reset_rs(ToneSequencerRs *seq);
 bool tone_sequencer_request_rs(ToneSequencerRs *seq, uint8_t pattern, uint32_t now_ms);
-ToneOutputRs tone_sequencer_tick_rs(ToneSequencerRs *seq, uint32_t now_ms, bool critical);
+ToneOutputRs tone_sequencer_tick_rs(ToneSequencerRs *seq, uint32_t now_ms, ToneDemandRs demand);
 void tone_synth_fill_rs(ToneSynthRs *synth, int16_t *out, size_t samples, ToneOutputRs tone);
 
 #ifdef __cplusplus
 }
 
 static_assert(sizeof(ToneSequencerRs) == 8, "ToneSequencerRs layout must match rust ToneSequencer");
+static_assert(sizeof(ToneDemandRs) == 4, "ToneDemandRs layout must match rust ToneDemand");
 static_assert(sizeof(ToneOutputRs) == 4, "ToneOutputRs layout must match rust ToneOutput");
 static_assert(sizeof(ToneSynthRs) == 4, "ToneSynthRs layout must match rust ToneSynth");
 #endif

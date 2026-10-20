@@ -48,12 +48,14 @@ passed next to it.
 - `bus-scan` owns the bus scan's probe sequence, the bit-rate picker and the
   seen-ID table; `BusScanRs` mirrors `repr(C)` `BusScan` field for field, and
   the C++ side only executes the install and restore actions it returns.
-- `tone-sequencer` owns the tone patterns, the sequencer that plays them and
-  the square-wave synthesis. The sequencer plays the critical pattern for as
-  long as the caller passes `critical`, refuses any other pattern while it
-  does, and returns silence otherwise; the C++ side only writes the samples it
-  fills to I2S. `ToneSequencerRs`, `ToneOutputRs` and `ToneSynthRs` mirror the
-  `repr(C)` structs field for field.
+- `tone-sequencer` owns the tone patterns, the sequencer that plays them, the
+  volume scaling and the square-wave synthesis. A `ToneDemand` names the held
+  patterns the caller wants (critical, then shift) and the volume; a held
+  pattern plays for as long as it is demanded and blocks every one-shot. The
+  critical alert never drops below `TONE_CRITICAL_VOLUME_FLOOR_PCT`. The C++
+  side only writes the samples it fills to I2S. `ToneSequencerRs`,
+  `ToneDemandRs`, `ToneOutputRs` and `ToneSynthRs` mirror the `repr(C)` structs
+  field for field.
 - `imu-core` owns the g-meter's arithmetic: the chip-to-screen axis remap, the
   level calibration into the vehicle frame, the low-pass, the eight-sector peak
   envelope and the plot geometry. `ImuCoreState` and `ImuLevelCapture` mirror

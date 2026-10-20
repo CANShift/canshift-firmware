@@ -293,17 +293,21 @@ The dash is silent by default. Sound exists for the moment the driver is not loo
 so the list is short on purpose: a dash that beeps at everything gets muted, and then it cannot warn
 about the one thing that matters.
 
-| Sound          | Pattern                                                          | Plays                                                             |
-| -------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Critical alert | three 120 ms beeps at 2 kHz, 80 ms apart, then 560 ms of rest    | from the moment the takeover (§10) shows until it is acknowledged |
-| Boot           | 70 ms at 1.32 kHz, 30 ms rest, 110 ms at 1.76 kHz, once, quieter | once, when the dash has finished booting                          |
+| Sound          | Pattern                                                                                | Plays                                                                               |
+| -------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Critical alert | three 120 ms beeps at 2 kHz, 80 ms apart, then 560 ms of rest                          | from the moment the takeover (§10) shows until it is acknowledged                   |
+| Boot           | 70 ms at 1.32 kHz, 30 ms rest, 110 ms at 1.76 kHz, once, quieter                       | once, when the dash has finished booting                                            |
+| Shift tone     | 60 ms at 2.6 kHz on each lit phase of the rev-limit blink (§9), quieter than the alert | while the rev limiter is engaged, and only when `shift_tone` is on — off by default |
 
 - The critical tone repeats for as long as the takeover is up, and stops on the same acknowledgement
   that hides it: a tap, a physical button, or the phone. A second critical alert restarts it on a beep.
-- The critical tone wins. Nothing else plays while it does, and it cuts off anything already playing.
+- The critical tone wins, then the shift tone. Nothing plays over them, and they cut off a boot
+  chirp already playing.
 - Tones are generated square waves, never recorded samples, so sound costs no SPIFFS and no board
   pays for audio it does not have.
-- Volume is the board's own hardware knob. No setting can silence the critical alert.
+- Volume is the `volume` setting (0–100, default 70) on top of the board's hardware knob. `volume` 0
+  silences boot and shift, never the critical alert: it plays at the setting or 50, whichever is
+  higher. `sounds.boot` (on by default) and `sounds.shift_tone` (off by default) switch the other two.
 - Sound never runs on the UI task. It has its own task, which reads the takeover state and never
   holds the LVGL mutex.
 - Anything not in the table is silent: no click on touch, no tone on page change, OTA or burn.

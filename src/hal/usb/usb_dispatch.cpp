@@ -14,6 +14,7 @@
 #include "runtime/device_commands.h"
 #include "runtime/config_reload_status.h"
 #include "runtime/pending_actions.h"
+#include "runtime/sound_settings.h"
 #include "ui/settings_page.h"
 #include "ui/theme_manager.h"
 #include "util/json_writer.h"
@@ -75,10 +76,11 @@ void handleSetBoardProfile(const JsonObjectConst &doc) {
 }
 
 void sendStatusResponse() {
-    char resp[160];
+    char resp[224];
     const UsbStatusLine::Fields fields = {
         APP_VERSION_STR, static_cast<unsigned>(kUsbProtocolVersion), ThemeManager::isDayMode(),
-        canshift::boards::runtimeBoardProfile().board_id};
+        canshift::boards::runtimeBoardProfile().board_id,
+        SoundSettings::available() ? &SoundSettings::writeTo : nullptr};
     if (UsbStatusLine::format(fields, resp, sizeof(resp)) == 0) {
         LOG_ERROR("USB", "GET_STATUS payload does not fit %u B",
                   static_cast<unsigned>(sizeof(resp)));
@@ -125,6 +127,11 @@ void handleScreenSettings(const JsonObjectConst &obj) {
         }
         LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_USB);
         SettingsPage::applyFromUsb(brightness);
+    }
+
+    if (!SoundSettings::apply(obj)) {
+        UsbComm::sendError("invalid_sound_settings");
+        return;
     }
 
     JsonVariantConst rotationVar = obj["rotation"];
