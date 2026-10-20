@@ -110,6 +110,46 @@ void test_ring_refusesBadStorage() {
     TEST_ASSERT_FALSE(datalog_ring_init_rs(nullptr, storage, 16));
 }
 
+void test_session_opensOnALiveBusAndClosesInWorkshop() {
+    DatalogSessionRs session = {};
+    DatalogSessionInputsRs live = {false, true, false, 0, 0};
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionOpen, datalog_session_step_rs(&session, &live));
+    DatalogSessionInputsRs workshop = live;
+    workshop.workshop = true;
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionClose, datalog_session_step_rs(&session, &workshop));
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionNone, datalog_session_step_rs(nullptr, &live));
+}
+
+void test_session_haltedWaitsForSilence() {
+    DatalogSessionRs session = {};
+    DatalogSessionInputsRs live = {false, true, false, 0, 0};
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionOpen, datalog_session_step_rs(&session, &live));
+    datalog_session_halt_rs(&session);
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionNone, datalog_session_step_rs(&session, &live));
+    DatalogSessionInputsRs silent = {true, true, false, 0, 1};
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionNone, datalog_session_step_rs(&session, &silent));
+    TEST_ASSERT_EQUAL_UINT8(kDatalogActionOpen, datalog_session_step_rs(&session, &live));
+}
+
+void test_lapWatch_reportsEachNewLapOnce() {
+    DatalogLapWatchRs watch = {};
+    datalog_lap_rebase_rs(&watch, 3, 1);
+    TEST_ASSERT_FALSE(datalog_lap_observe_rs(&watch, 3, 1));
+    TEST_ASSERT_TRUE(datalog_lap_observe_rs(&watch, 4, 1));
+    TEST_ASSERT_FALSE(datalog_lap_observe_rs(&watch, 0, 2));
+}
+
+void test_logNames_roundTrip() {
+    uint8_t name[kDatalogNameBytes] = {0};
+    TEST_ASSERT_EQUAL_size_t(kDatalogNameBytes, datalog_log_name_rs(7, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_MEMORY("S00007.csl", name, kDatalogNameBytes);
+    TEST_ASSERT_TRUE(datalog_is_log_name_rs(name, sizeof(name)));
+    const char traversal[] = "../S00007.csl";
+    TEST_ASSERT_FALSE(datalog_is_log_name_rs(reinterpret_cast<const uint8_t *>(traversal),
+                                             sizeof(traversal) - 1));
+    TEST_ASSERT_FALSE(datalog_is_log_name_rs(nullptr, 0));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_preamble_isMagicThenVersion);
@@ -120,5 +160,9 @@ int main(int, char **) {
     RUN_TEST(test_encoders_rejectNullAndShortBuffers);
     RUN_TEST(test_ring_dropsWholeRecordsAndCountsThem);
     RUN_TEST(test_ring_refusesBadStorage);
+    RUN_TEST(test_session_opensOnALiveBusAndClosesInWorkshop);
+    RUN_TEST(test_session_haltedWaitsForSilence);
+    RUN_TEST(test_lapWatch_reportsEachNewLapOnce);
+    RUN_TEST(test_logNames_roundTrip);
     return UNITY_END();
 }
