@@ -22,12 +22,12 @@ pub fn fill(synth: &mut ToneSynth, out: &mut [i16], tone: ToneOutput) {
         return;
     }
     let step = phase_step(tone.freq_hz);
-    let mut frames = out.chunks_exact_mut(STEREO_CHANNELS);
-    for frame in &mut frames {
-        frame.fill(square(synth.phase, tone.amplitude));
+    let (frames, tail) = out.as_chunks_mut::<STEREO_CHANNELS>();
+    for frame in frames {
+        *frame = [square(synth.phase, tone.amplitude); STEREO_CHANNELS];
         synth.phase = synth.phase.wrapping_add(step);
     }
-    frames.into_remainder().fill(0);
+    tail.fill(0);
 }
 
 fn square(phase: u32, amplitude: i16) -> i16 {
