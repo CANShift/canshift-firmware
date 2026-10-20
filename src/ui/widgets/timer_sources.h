@@ -24,10 +24,14 @@ inline constexpr size_t kTextCapacity = 12;
 Inputs select(const TimerService::Snapshot &stopwatch, const TrackStore::State &track,
               bool trackActive);
 
-void render(CfgTimerSource source, const Inputs &in, char *buf, size_t cap);
+[[nodiscard]] bool render(CfgTimerSource source, const Inputs &in, char *buf, size_t cap);
+
+void formatStopwatch(char *buf, size_t len, uint32_t elapsedMs, bool msec, bool blinkOn);
 
 bool isInteractive(CfgTimerSource source);
 
 const char *kicker(CfgTimerSource source);
+
+const char *unit(CfgTimerSource source);
 
 }

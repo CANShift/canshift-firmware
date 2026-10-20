@@ -9,6 +9,7 @@
 #include "ui/widget_label.h"
 #include "ui/widget_styles.h"
 #include "ui/widgets/widget_helpers.h"
+#include "ui/widgets/value_cluster.h"
 #include "ui/widgets/widget_tag_pool.h"
 #include <cmath>
 #include <lvgl.h>
@@ -19,9 +20,6 @@ namespace {
 
 constexpr uint8_t kBarHeightPx = 2;
 constexpr int16_t kBarSideMarginPx = 0;
-constexpr int16_t kValueClusterInsetPx = 0;
-constexpr int16_t kValueRowPadColumnPx = 3;
-constexpr int16_t kValueRowYOffsetPx = 8;
 
 uint8_t pickValueFontSize(const CfgWidget &cfg) {
     if (cfg.label.big > 0)
@@ -83,42 +81,6 @@ struct LabelParts {
     uint8_t rulePx = Severity::kRulePrimaryPx;
 };
 
-lv_obj_t *makeValueRow(lv_obj_t *cont) {
-    lv_obj_t *valueRow = lv_obj_create(cont);
-    if (!valueRow)
-        return nullptr;
-    lv_obj_set_size(valueRow, LV_PCT(100), LV_SIZE_CONTENT);
-    WidgetHelpers::resetContainerStyle(valueRow);
-    lv_obj_set_style_pad_column(valueRow, kValueRowPadColumnPx, LV_PART_MAIN);
-    lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    lv_obj_align(valueRow, LV_ALIGN_LEFT_MID, kValueClusterInsetPx, kValueRowYOffsetPx);
-    return valueRow;
-}
-
-lv_obj_t *makeValueLabel(lv_obj_t *valueRow, uint8_t valueSize) {
-    lv_obj_t *label = lv_label_create(valueRow);
-    if (!label)
-        return nullptr;
-    lv_obj_set_style_text_color(label, lv_color_hex(ThemeManager::getStaleTextColor()), 0);
-    lv_obj_set_style_text_font(label, FontManager::value(valueSize), 0);
-    lv_obj_set_style_text_letter_space(label, WidgetHelpers::valueTrackingPx(valueSize), 0);
-    return label;
-}
-
-lv_obj_t *makeUnitLabel(lv_obj_t *valueRow, const CfgWidget &cfg) {
-    const char *unit = UnitDisplay::displayUnitFor(cfg.signalId, cfg.label.suffix);
-    if (unit[0] == '\0')
-        return nullptr;
-    lv_obj_t *unitLabel = lv_label_create(valueRow);
-    if (!unitLabel)
-        return nullptr;
-    lv_obj_set_style_text_color(unitLabel, lv_color_hex(ThemeManager::dimColor()), 0);
-    lv_obj_set_style_text_font(unitLabel, FontManager::units(), 0);
-    lv_label_set_text(unitLabel, unit);
-    return unitLabel;
-}
-
 lv_obj_t *makeBarRect(lv_obj_t *cont, int16_t w, uint32_t rgb) {
     lv_obj_t *rect = lv_obj_create(cont);
     if (!rect)
@@ -155,19 +117,19 @@ bool buildLabelParts(lv_obj_t *cont, const CfgWidget &cfg, LabelParts *parts) {
     parts->textRgb =
         ThemeManager::getEffectiveTextColor(cfg.style.textColor.rgb, cfg.style.respectDayMode);
     parts->kicker = WidgetLabelOverlay::applyWidgetHeader(cont, cfg.label.kicker, cfg.signalId);
-    lv_obj_t *valueRow = makeValueRow(cont);
+    lv_obj_t *valueRow = ValueCluster::makeRow(cont);
     if (!valueRow) {
         LOG_ERROR("WF", "valueRow create failed for '%s' — LVGL pool OOM", cfg.id);
         return false;
     }
-    parts->valueLabel = makeValueLabel(valueRow, valueSize);
+    parts->valueLabel = ValueCluster::makeValue(valueRow, valueSize);
     if (!parts->valueLabel) {
         LOG_ERROR("WF", "lv_label_create failed for '%s' — LVGL pool OOM", cfg.id);
         return false;
     }
-    parts->unitLabel = makeUnitLabel(valueRow, cfg);
-    const bool primary = valueSize >= WidgetHelpers::kRulePrimaryFontMin;
-    parts->rulePx = primary ? Severity::kRulePrimaryPx : Severity::kRuleSecondaryPx;
+    parts->unitLabel = ValueCluster::makeUnit(
+        valueRow, UnitDisplay::displayUnitFor(cfg.signalId, cfg.label.suffix));
+    parts->rulePx = ValueCluster::rulePxFor(valueSize);
     parts->topRule = WidgetHelpers::makeTopRule(
         cont, parts->rulePx, Severity::baseRuleRgbFor(parts->rulePx, parts->textRgb));
     parts->barFill = makeProgressBar(cont, cfg, parts->textRgb, &parts->barMaxW);
