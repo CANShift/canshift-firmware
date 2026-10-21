@@ -55,6 +55,11 @@ stateDiagram-v2
   | `update` | the running image is the new one, pending verify | a rollback lands in driving mode, not on a broken workshop |
   | `config` | nothing                                          | the image did not change                                   |
 
+  After an `update` resume, the new image is still pending verify. It is
+  marked valid on Leave once it has been up for 60 s
+  ([OTA mark-valid placement](boot-sequence.md#ota-mark-valid-placement)).
+  Leaving sooner rolls the update back.
+
   The stationary rule is skipped for that entry: the car was already
   stationary when the driver entered workshop mode. Because the flag is
   cleared before the resume, a crash loop lands in driving mode, and the same

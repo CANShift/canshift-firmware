@@ -30,6 +30,8 @@ void armResumeAfterConfigChange();
 
 void resumeAfterReboot(uint8_t reason, bool imagePendingVerify);
 
+void restartIntoDash();
+
 void leaveOnMotion(uint32_t nowMs);
 
 #else
@@ -65,6 +67,8 @@ inline void armResumeAfterConfigChange() {}
 }
 
 inline void resumeAfterReboot(uint8_t, bool) {}
+
+inline void restartIntoDash() {}
 
 inline void leaveOnMotion(uint32_t) {}
 

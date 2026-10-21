@@ -22,6 +22,7 @@
 #include "hal/wifi/workshop_server.h"
 #include "runtime/ui_task.h"
 #include "runtime/lvgl_lock.h"
+#include "runtime/ota_soak.h"
 #include "runtime/config_reload_status.h"
 #include "runtime/pending_actions.h"
 #include "runtime/workshop_mode.h"
@@ -43,8 +44,6 @@
 static uint32_t s_lvSumUs = 0, s_lvMaxUs = 0, s_lvCount = 0;
 static int64_t s_lvLastFlushUs = 0;
 #endif
-
-static constexpr int kUiOtaValidFrames = 30;
 
 namespace {
 
@@ -226,14 +225,13 @@ inline bool uiRunMutexFrame(bool &didDayNightChange) {
     return true;
 }
 
-inline void uiHandleOtaMark(int &successfulFrames, bool &otaSlotMarked) {
-    if (successfulFrames < kUiOtaValidFrames) {
-        ++successfulFrames;
-    }
-    if (!otaSlotMarked && successfulFrames >= kUiOtaValidFrames) {
-        BootSequence::markOtaSlotValidIfPending();
-        otaSlotMarked = true;
-    }
+inline void uiHandleOtaMark(bool &otaSlotMarked) {
+    const OtaSoak::Moment moment =
+        WorkshopMode::isActive() ? OtaSoak::Moment::WorkshopFrame : OtaSoak::Moment::DashFrame;
+    if (otaSlotMarked || !OtaSoak::marksValid(moment, millis()))
+        return;
+    BootSequence::markOtaSlotValidIfPending();
+    otaSlotMarked = true;
 }
 
 inline void uiFeedTaskWdt() {
@@ -297,7 +295,6 @@ inline void uiThrottle(TickType_t &lastWake) {
 void taskUI(void *pvParameters) {
     TickType_t lastWake = xTaskGetTickCount();
 
-    int successfulFrames = 0;
     bool otaSlotMarked = false;
 
     while (true) {
@@ -312,7 +309,7 @@ void taskUI(void *pvParameters) {
 
         bool didDayNightChange = false;
         if (uiRunMutexFrame(didDayNightChange)) {
-            uiHandleOtaMark(successfulFrames, otaSlotMarked);
+            uiHandleOtaMark(otaSlotMarked);
         }
 
         uiFeedTaskWdt();

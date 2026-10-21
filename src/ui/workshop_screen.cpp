@@ -7,6 +7,7 @@
     #include "diag/error_store.h"
     #include "diag/logger.h"
     #include "runtime/workshop_credentials.h"
+    #include "runtime/workshop_mode.h"
     #include "ui/page_manager.h"
     #include "ui/severity.h"
     #include "ui/system_screen.h"
@@ -16,7 +17,6 @@
     #include "workshop_mode_rs.h"
 
     #include <Arduino.h>
-    #include <esp_system.h>
     #include <lvgl.h>
 
 namespace WorkshopScreen {
@@ -62,8 +62,7 @@ void addCredential(lv_obj_t *parent, const char *kicker, const char *value) {
 
 void onLeave(lv_event_t *) {
     LOG_INFO("WORKSHOP", "Leaving workshop mode — rebooting");
-    delay(kPreRestartFlushDelayMs);
-    esp_restart();
+    WorkshopMode::restartIntoDash();
 }
 
 void addLeaveButton(lv_obj_t *parent) {
