@@ -13,6 +13,9 @@ namespace {
 constexpr const char *kDashboard = "{\n  \"version\": \"1.0.0\",\n  \"pages\": []\n}\n";
 constexpr const char *kExpectedReply =
     "{\"status\":\"ok\",\"config\":{   \"version\": \"1.0.0\",   \"pages\": [] } }";
+constexpr const char *kExpectedTaggedReply =
+    "{\"status\":\"ok\",\"config\":{   \"version\": \"1.0.0\",   \"pages\": [] } ,\"seq\":7}";
+constexpr UsbSeqEcho::Seq kSeven = {true, 7};
 constexpr const char *kNotFound = "{\"status\":\"error\",\"message\":\"config_not_found\"}";
 
 std::string s_socket;
@@ -83,10 +86,27 @@ void test_socketGetConfigWithoutAFileAnswersOnTheSocket() {
     TEST_ASSERT_EQUAL_STRING(kNotFound, s_socket.c_str());
 }
 
+void test_socketGetConfigEchoesTheSeq() {
+    stageDashboard();
+    const UsbSeqEcho::Scope seq(kSeven);
+    UsbComm::dispatchFromSocket(s_getConfig);
+    TEST_ASSERT_EQUAL_STRING(kExpectedTaggedReply, s_socket.c_str());
+}
+
+void test_serialGetConfigEchoesTheSeq() {
+    stageDashboard();
+    const UsbSeqEcho::Scope seq(kSeven);
+    UsbCommInternal::dispatchFromSerial(s_getConfig);
+    const std::string expected = std::string(kExpectedTaggedReply) + "\n";
+    TEST_ASSERT_EQUAL_STRING(expected.c_str(), canshift_test::serialCaptureBuffer());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_socketGetConfigReturnsTheConfigOnTheSocket);
     RUN_TEST(test_serialGetConfigStillStreamsToTheUart);
     RUN_TEST(test_socketGetConfigWithoutAFileAnswersOnTheSocket);
+    RUN_TEST(test_socketGetConfigEchoesTheSeq);
+    RUN_TEST(test_serialGetConfigEchoesTheSeq);
     return UNITY_END();
 }

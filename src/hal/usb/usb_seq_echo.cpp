@@ -40,14 +40,24 @@ Seq parseAfterCmd(const char *afterCmd) {
     return {true, static_cast<uint32_t>(parsed)};
 }
 
-size_t tag(const char *line, size_t len, Seq seq, char *out, size_t cap) {
-    if (!seq.present || line == nullptr || !isStatusObject(line, len))
-        return 0;
-    const int n = snprintf(out, cap, "%.*s,\"seq\":%lu}", static_cast<int>(len - 1), line,
-                           static_cast<unsigned long>(seq.value));
+size_t closeReply(Seq seq, char *out, size_t cap) {
+    const int n = seq.present
+                      ? snprintf(out, cap, ",\"seq\":%lu}", static_cast<unsigned long>(seq.value))
+                      : snprintf(out, cap, "}");
     if (n <= 0 || static_cast<size_t>(n) >= cap)
         return 0;
     return static_cast<size_t>(n);
+}
+
+size_t tag(const char *line, size_t len, Seq seq, char *out, size_t cap) {
+    if (!seq.present || line == nullptr || !isStatusObject(line, len))
+        return 0;
+    const size_t body = len - 1;
+    if (body >= cap)
+        return 0;
+    memcpy(out, line, body);
+    const size_t tail = closeReply(seq, out + body, cap - body);
+    return tail == 0 ? 0 : body + tail;
 }
 
 Scope::Scope(Seq seq) : armed_(seq.present) {
