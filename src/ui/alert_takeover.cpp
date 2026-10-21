@@ -6,7 +6,6 @@
 #include "ui/alert_sources.h"
 #include "ui/alert_takeover_broadcast.h"
 #include "ui/alert_takeover_view.h"
-#include "ui/ota_overlay.h"
 #include "ui/unit_display.h"
 #include "util/text_join.h"
 
@@ -58,7 +57,7 @@ uint32_t criticalSources(const AlertEngine::AlertState &state) {
 }
 
 int pickCriticalSource(const AlertEngine::AlertState &state) {
-    s_criticalSources = OtaOverlay::suspendsDash() ? 0 : criticalSources(state);
+    s_criticalSources = criticalSources(state);
     s_acknowledgedSources = alert_critical_retain_rs(s_acknowledgedSources, s_criticalSources);
     return alert_critical_first_unacknowledged_rs(s_criticalSources, s_acknowledgedSources);
 }
@@ -76,7 +75,6 @@ void showFor(int sourceIndex) {
     s_lastContextText[0] = '\0';
     AlertTakeoverView::setSignalName(
         AlertSources::at(static_cast<size_t>(sourceIndex)).takeoverName);
-    AlertTakeoverView::setHidden(false);
 }
 
 void hideLayer() {
@@ -152,6 +150,7 @@ void AlertTakeover::update() {
         s_activeFlag.store(true, std::memory_order_relaxed);
         showFor(critical);
     }
+    AlertTakeoverView::setHidden(false);
     refreshValue(AlertSources::at(static_cast<size_t>(critical)));
     refreshContext(static_cast<size_t>(critical));
 }

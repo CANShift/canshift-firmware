@@ -212,13 +212,15 @@ changes in a PR is a behaviour change: the diff is part of the review.
 frame and tier, and compares the framebuffer, pixel for pixel, with the PNGs
 under `bench/goldens/visual/<tier>/`:
 
-| Frame            | Scenario, page, capture                                                        |
-| ---------------- | ------------------------------------------------------------------------------ |
-| `page-<id>`      | the six default pages (`cruise`, or `controls` for the controls page) at 1.5 s |
-| `alert-takeover` | `oil` on `street` at 3 s, after the 2 s hold                                   |
-| `workshop-card`  | `workshop`, the card entered through the real path                             |
-| `self-test`      | `self-test` (D02)                                                              |
-| `day-street`     | `cruise` on `street` with `CANSHIFT_SIM_THEME=day`                             |
+| Frame               | Scenario, page, capture                                                        |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `page-<id>`         | the six default pages (`cruise`, or `controls` for the controls page) at 1.5 s |
+| `alert-takeover`    | `oil` on `street` at 3 s, after the 2 s hold                                   |
+| `workshop-card`     | `workshop`, the card entered through the real path                             |
+| `workshop-takeover` | `workshop-oil`: the oil-pressure takeover over the workshop card at 3 s        |
+| `ota-takeover`      | `ota-oil`: the oil-pressure takeover over the OTA overlay at 3 s               |
+| `self-test`         | `self-test` (D02)                                                              |
+| `day-street`        | `cruise` on `street` with `CANSHIFT_SIM_THEME=day`                             |
 
 Each frame is taken at the `base` (320×240), `medium` (480×320) and `large`
 (800×480) tiers, the last two through `sim/boards/`.

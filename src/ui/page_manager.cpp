@@ -68,6 +68,7 @@ void PageManager::init() {
     lv_obj_clean(lv_scr_act());
 
     if (!dash.loaded) {
+        AlertTakeover::init();
         showConfigFailure();
         return;
     }
@@ -164,13 +165,17 @@ namespace {
 static_assert(kWidgetRefreshPeriodMs == LV_DISP_DEF_REFR_PERIOD,
               "widgets refresh at the rate LVGL redraws");
 
+bool periodElapsed(uint32_t &lastMs) {
+    const uint32_t nowMs = millis();
+    if (nowMs - lastMs < kWidgetRefreshPeriodMs)
+        return false;
+    lastMs = nowMs;
+    return true;
+}
+
 bool widgetRefreshDue() {
     static uint32_t s_lastRefreshMs = 0;
-    const uint32_t nowMs = millis();
-    if (nowMs - s_lastRefreshMs < kWidgetRefreshPeriodMs)
-        return false;
-    s_lastRefreshMs = nowMs;
-    return true;
+    return periodElapsed(s_lastRefreshMs);
 }
 
 void refreshCurrentPage() {
@@ -181,7 +186,6 @@ void refreshCurrentPage() {
     SignalStore::snapshotAll(snap);
 
     SignalStats::tick(snap);
-    AlertEngine::tick(snap);
     RevLimitFlash::set(AlertEngine::getState().revLimiter == AlertEngine::AlertLevel::CRITICAL,
                        AlertEngine::isRevLimiterRowLit());
     CutBand::update(snap);
@@ -202,14 +206,7 @@ void refreshChrome() {
         lastTopBarMs = nowMs;
     }
 
-    static uint32_t lastTimeoutCheck = 0;
-    if (nowMs - lastTimeoutCheck > 100) {
-        SignalStore::checkTimeouts();
-        lastTimeoutCheck = nowMs;
-    }
-
     AlertBanner::update();
-    AlertTakeover::update();
     BusSilentLine::update();
     DisplayIdle::update();
     ControlSplash::update();
@@ -217,6 +214,19 @@ void refreshChrome() {
     ErrorBar::update();
 }
 
+}
+
+void PageManager::tickAlerts() {
+    static uint32_t s_lastAlertTickMs = 0;
+
+    LVGL_ASSERT_LOCKED();
+    if (!periodElapsed(s_lastAlertTickMs))
+        return;
+    SignalStore::checkTimeouts();
+    SignalStore::SignalValue snap[kSignalStoreMaxSignals];
+    SignalStore::snapshotAll(snap);
+    AlertEngine::tick(snap);
+    AlertTakeover::update();
 }
 
 void PageManager::updateWidgets() {

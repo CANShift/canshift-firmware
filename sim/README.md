@@ -44,7 +44,9 @@ limiter clears is reproducible) and the overlay scenarios `ota`, `ota-complete`,
 `boot` (D01), `self-test` (D02, with the CAN BUS row failing), `no-config` (D07,
 the first-boot empty screen) and `config-rejected` (D06, a layout that does not
 fit 240 px), and `workshop` (the workshop-mode card, entered through the real
-path: credentials generated into the in-memory NVS shim, pages released). The
+path: credentials generated into the in-memory NVS shim, pages released). `workshop-oil` and
+`ota-oil` drive the oil-pressure critical over the workshop card and the OTA
+overlay, so the takeover is captured where the dash draws no page. The
 last three replace the whole screen and hide the dash chrome, so
 the captured frame is what a device with no usable config shows. The control
 scenarios `controls`, `controls-armed`, `controls-active`, `controls-locked` and

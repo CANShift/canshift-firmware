@@ -48,6 +48,8 @@ SCENES = (
     Scene("page-controls", "controls", "controls", 1500),
     Scene("alert-takeover", "oil", "street", 3000),
     Scene("workshop-card", "workshop", "street", 1500),
+    Scene("workshop-takeover", "workshop-oil", "street", 3000),
+    Scene("ota-takeover", "ota-oil", "street", 3000),
     Scene("self-test", "self-test", "street", 1500),
     Scene("day-street", "cruise", "street", 1500, "day"),
     Scene("g-meter", "gmeter", "gmeter", 1500, dashboard=G_METER_DASHBOARD),

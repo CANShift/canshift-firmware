@@ -101,7 +101,8 @@ constexpr OverlayScenario kOverlayScenarios[] = {
     {"ota-failed", startOtaFailed}, {"failure", startFailureSurface},
     {"boot", startBootScreen},      {"self-test", startSelfTestScreen},
     {"no-config", startNoConfig},   {"config-rejected", startConfigRejected},
-    {"workshop", startWorkshop}};
+    {"workshop", startWorkshop},    {"workshop-oil", startWorkshop},
+    {"ota-oil", startOtaDemo}};
 
 void tickOtaDemo(uint32_t nowMs) {
     if (!s_otaDemo)
