@@ -20,9 +20,9 @@ JSON lines plus a telemetry line every 200 ms. Sources: `src/hal/usb/usb_comm.cp
   multi-kilobyte payload is never scanned. While it runs, every
   `{"status":…}` reply it sends comes back with the same `"seq"` appended
   (`usb_seq_echo.cpp`), so the host can tell a late reply from the one it is
-  waiting for. A reply longer than `kMaxTaggedLine` (256 B), such as
-  GET_CONFIG, goes out untagged, and a command without `seq` gets the replies it
-  always got.
+  waiting for. Replies of any size are tagged: one longer than `kMaxTaggedLine`
+  (256 B) is tagged in a heap buffer, and GET_CONFIG closes its streamed reply
+  with the `seq`. A command without `seq` gets the replies it always got.
 - **Telemetry**: `{"tele":1,"v":{…signals…}}` every `kTelePeriodTicks` (10) USB
   ticks of `kUsbTaskTickIntervalMs` (20 ms), so every 200 ms, from
   `usb_comm.cpp::sendTelemetry`.

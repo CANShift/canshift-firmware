@@ -6,6 +6,7 @@
 namespace UsbSeqEcho {
 
 constexpr size_t kMaxTaggedLine = 256;
+constexpr size_t kSeqSuffixRoom = sizeof(",\"seq\":4294967295}") - 1;
 
 struct Seq {
     bool present;
@@ -13,6 +14,8 @@ struct Seq {
 };
 
 [[nodiscard]] Seq parseAfterCmd(const char *afterCmd);
+
+[[nodiscard]] size_t closeReply(Seq seq, char *out, size_t cap);
 
 [[nodiscard]] size_t tag(const char *line, size_t len, Seq seq, char *out, size_t cap);
 

@@ -124,13 +124,22 @@ void UsbComm::init() {
 
 namespace {
 
-bool sendTagged(const char *line, size_t len, UsbSeqEcho::Seq seq) {
-    char tagged[UsbSeqEcho::kMaxTaggedLine];
-    const size_t taggedLen = UsbSeqEcho::tag(line, len, seq, tagged, sizeof(tagged));
+bool routeTagged(const char *line, size_t len, UsbSeqEcho::Seq seq, char *out, size_t cap) {
+    const size_t taggedLen = UsbSeqEcho::tag(line, len, seq, out, cap);
     if (taggedLen == 0)
         return false;
-    UsbCommInternal::routeLine(tagged, taggedLen);
+    UsbCommInternal::routeLine(out, taggedLen);
     return true;
+}
+
+bool sendTagged(const char *line, size_t len, UsbSeqEcho::Seq seq) {
+    const size_t cap = len + UsbSeqEcho::kSeqSuffixRoom;
+    if (cap <= UsbSeqEcho::kMaxTaggedLine) {
+        char tagged[UsbSeqEcho::kMaxTaggedLine];
+        return routeTagged(line, len, seq, tagged, sizeof(tagged));
+    }
+    const Mem::HeapPtr<char> tagged(static_cast<char *>(Mem::allocPreferSpiram(cap)));
+    return tagged && routeTagged(line, len, seq, tagged.get(), cap);
 }
 
 }

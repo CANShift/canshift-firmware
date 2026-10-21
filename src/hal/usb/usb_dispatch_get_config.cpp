@@ -1,4 +1,5 @@
 #include "usb_comm_internal.h"
+#include "usb_seq_echo.h"
 
 #include "app_config.h"
 #include "board_config.h"
@@ -15,10 +16,8 @@
 namespace {
 
 constexpr char kPrefix[] = "{\"status\":\"ok\",\"config\":";
-constexpr char kSuffix[] = "}";
 constexpr char kNewline[] = "\n";
 constexpr size_t kPrefixBytes = sizeof(kPrefix) - 1;
-constexpr size_t kSuffixBytes = sizeof(kSuffix) - 1;
 
 using LineBuffer = Mem::HeapPtr<char>;
 
@@ -59,11 +58,23 @@ bool writeText(Print &out, const char *text, size_t len) {
     return out.write(reinterpret_cast<const uint8_t *>(text), len) == len;
 }
 
+struct ReplyTail {
+    char text[UsbSeqEcho::kSeqSuffixRoom + 1];
+    size_t len;
+};
+
+ReplyTail replyTail() {
+    ReplyTail tail{};
+    tail.len = UsbSeqEcho::closeReply(UsbSeqEcho::active(), tail.text, sizeof(tail.text));
+    return tail;
+}
+
 size_t writeReply(Print &out) {
     if (!writeText(out, kPrefix, kPrefixBytes))
         return 0;
     const size_t streamed = StorageDriver::streamFileTo(kConfigPathDashboard, out, true);
-    if (streamed == 0 || !writeText(out, kSuffix, kSuffixBytes))
+    const ReplyTail tail = replyTail();
+    if (streamed == 0 || tail.len == 0 || !writeText(out, tail.text, tail.len))
         return 0;
     return streamed;
 }
@@ -100,7 +111,7 @@ void streamConfigToSerial() {
 }
 
 void sendConfigToSocket(size_t fileBytes) {
-    const size_t cap = kPrefixBytes + fileBytes + kSuffixBytes;
+    const size_t cap = kPrefixBytes + fileBytes + replyTail().len;
     const LineBuffer line(static_cast<char *>(Mem::allocPreferSpiram(cap)));
     if (!line) {
         LOG_ERROR("USB", "GET_CONFIG: no %u B buffer for the socket reply",
