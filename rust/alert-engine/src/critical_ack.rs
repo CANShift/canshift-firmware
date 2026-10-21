@@ -15,6 +15,11 @@ pub fn retain(acknowledged: u32, critical: u32) -> u32 {
 }
 
 #[must_use]
+pub fn hold(shown: u32, critical: u32, acknowledged: u32, no_data: u32) -> u32 {
+    critical | (shown & !acknowledged & no_data)
+}
+
+#[must_use]
 pub fn first_unacknowledged(critical: u32, acknowledged: u32) -> i8 {
     let open = critical & !acknowledged;
     if open == 0 {
@@ -88,6 +93,25 @@ mod tests {
         takeover.ack(second);
         assert_eq!(second, COOLANT);
         assert_eq!(takeover.show(both), CRITICAL_NO_SOURCE);
+    }
+
+    #[test]
+    fn a_shown_source_stays_until_acknowledged_while_its_signal_is_lost() {
+        let shown = hold(0, bit(OIL_PRESSURE), 0, 0);
+        let lost = hold(shown, 0, 0, bit(OIL_PRESSURE));
+        assert_eq!(lost, bit(OIL_PRESSURE));
+        assert_eq!(hold(lost, 0, bit(OIL_PRESSURE), bit(OIL_PRESSURE)), 0);
+    }
+
+    #[test]
+    fn a_source_that_recovers_with_live_data_clears_itself() {
+        let shown = hold(0, bit(COOLANT), 0, 0);
+        assert_eq!(hold(shown, 0, 0, 0), 0);
+    }
+
+    #[test]
+    fn a_lost_signal_never_raises_a_takeover_on_its_own() {
+        assert_eq!(hold(0, 0, 0, bit(OIL_TEMP)), 0);
     }
 
     #[test]

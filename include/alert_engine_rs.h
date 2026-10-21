@@ -145,6 +145,9 @@ uint32_t alert_critical_acknowledge_rs(uint32_t acknowledged, int8_t source);
 
 uint32_t alert_critical_retain_rs(uint32_t acknowledged, uint32_t critical);
 
+uint32_t alert_critical_hold_rs(uint32_t shown, uint32_t critical, uint32_t acknowledged,
+                                uint32_t no_data);
+
 int8_t alert_critical_first_unacknowledged_rs(uint32_t critical, uint32_t acknowledged);
 
 #ifdef __cplusplus
