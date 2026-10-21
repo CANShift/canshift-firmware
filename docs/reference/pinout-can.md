@@ -22,5 +22,5 @@ The default is 500 kbit/s (`can.default_speed_kbps`), the most common rate on mo
 The GPIO pins are logic-level TWAI — they are **not** a CAN bus on their own. Between them and the vehicle sits a transceiver (the reference build uses an NXP TJA1051), which converts the ESP32's single-ended signals to the differential CAN-H / CAN-L pair. See the [Hardware & BOM](../reference/hardware-bom.md) for the part.
 
 > [!WARNING]
-> `TWAI TX` must be an output-capable pin. GPIO 34–39 are input-only on the ESP32 and cannot drive it — keep the header on the pins your board's profile declares (22 / 21 on the CrowPanel 2.8") unless you know the alternative pin can output.
+> `TWAI TX` must be an output-capable pin. GPIO 34–39 are input-only on the ESP32 and cannot drive it — keep the header on the pins your board's profile declares (22 / 21 on the CrowPanel 2.8") unless you know the alternative pin can output. The dash refuses a `device.json` TWAI pin the chip cannot use that way, a reserved flash / PSRAM / USB pin, or a pin the board profile already owns: it keeps the board's pin and logs `PIN_REJECT` in the error store.
 > The full board pinout is on [Pinout](../reference/pinout.md).

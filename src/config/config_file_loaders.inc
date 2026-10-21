@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "board_config.h"
+#include "config/board_profile_loader.h"
 #include "config/parse_utils.h"
 #include "config/typed_config_body.h"
 #include "diag/error_store.h"
@@ -35,10 +36,13 @@ bool loadDevice() {
     }
 
     const JsonVariantConst body = TypedConfigBody::device(doc);
+    const auto &can = canshift::boards::runtimeBoardProfile().can;
     CfgDeviceConfig parsed{};
     parsed.canSpeedKbps = body["can_speed_kbps"] | 0;
-    parsed.twaiTxPin = body["twai_tx_pin"] | -1;
-    parsed.twaiRxPin = body["twai_rx_pin"] | -1;
+    parsed.twaiTxPin = static_cast<int8_t>(
+        checkedTwaiPin("twai_tx_pin", body["twai_tx_pin"] | -1, can.pin_tx, PinUse::Output));
+    parsed.twaiRxPin = static_cast<int8_t>(
+        checkedTwaiPin("twai_rx_pin", body["twai_rx_pin"] | -1, can.pin_rx, PinUse::Input));
     parsed.loaded = true;
     s_device = parsed;
     LOG_INFO("CFG", "device.json loaded: CAN=%ukbps TX=GPIO%d RX=GPIO%d", s_device.canSpeedKbps,
@@ -46,21 +50,16 @@ bool loadDevice() {
     return true;
 }
 
-constexpr int kMaxInputPin = 39;
 constexpr int kDefaultDebounceMs = 20;
 constexpr int kMinDebounceMs = 1;
 constexpr int kMaxDebounceMs = 500;
 
 bool acceptInputPin(const CfgInputBinding &b, int pin) {
-    if (pin < 0 || pin > kMaxInputPin) {
-        LOG_WARN("CFG", "input binding '%s': pin=%d out of range — dropped", b.id, pin);
-        return false;
-    }
-    if (isPinConflict(static_cast<int8_t>(pin))) {
-        LOG_WARN("CFG", "input binding '%s': pin=%d conflicts with TWAI — dropped", b.id, pin);
-        return false;
-    }
-    return true;
+    if (isUsablePin(pin, PinUse::Input) && !isPinConflict(static_cast<int8_t>(pin)))
+        return true;
+    LOG_WARN("CFG", "input binding '%s': pin=%d is not usable on this board — dropped", b.id, pin);
+    ErrorStore::push(ERROR_SRC_CONFIG, "PIN_REJECT", b.id);
+    return false;
 }
 
 uint16_t clampDebounceMs(int debounce) {
