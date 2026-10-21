@@ -10,14 +10,16 @@ constexpr int8_t kCoolant = 1;
 constexpr int8_t kUserCritical = 7;
 
 uint32_t s_acknowledged = 0;
+uint32_t s_shown = 0;
 
 uint32_t bit(int8_t source) {
     return 1u << source;
 }
 
-int8_t takeoverFor(uint32_t critical) {
-    s_acknowledged = alert_critical_retain_rs(s_acknowledged, critical);
-    return alert_critical_first_unacknowledged_rs(critical, s_acknowledged);
+int8_t takeoverFor(uint32_t critical, uint32_t noData = 0) {
+    s_shown = alert_critical_hold_rs(s_shown, critical, s_acknowledged, noData);
+    s_acknowledged = alert_critical_retain_rs(s_acknowledged, s_shown);
+    return alert_critical_first_unacknowledged_rs(s_shown, s_acknowledged);
 }
 
 void acknowledge(int8_t source) {
@@ -28,6 +30,7 @@ void acknowledge(int8_t source) {
 
 void setUp() {
     s_acknowledged = 0;
+    s_shown = 0;
 }
 
 void tearDown() {}
@@ -61,6 +64,18 @@ void test_acknowledge_without_a_takeover_is_ignored() {
     TEST_ASSERT_EQUAL_INT8(kOilPressure, takeoverFor(bit(kOilPressure)));
 }
 
+void test_losing_the_sensor_keeps_the_takeover_until_acknowledged() {
+    TEST_ASSERT_EQUAL_INT8(kOilPressure, takeoverFor(bit(kOilPressure)));
+    TEST_ASSERT_EQUAL_INT8(kOilPressure, takeoverFor(0, bit(kOilPressure)));
+    acknowledge(kOilPressure);
+    TEST_ASSERT_EQUAL_INT8(kAlertCriticalNoSource, takeoverFor(0, bit(kOilPressure)));
+}
+
+void test_a_live_recovery_still_clears_the_takeover() {
+    TEST_ASSERT_EQUAL_INT8(kCoolant, takeoverFor(bit(kCoolant)));
+    TEST_ASSERT_EQUAL_INT8(kAlertCriticalNoSource, takeoverFor(0));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_no_critical_source_shows_no_takeover);
@@ -68,5 +83,7 @@ int main(int, char **) {
     RUN_TEST(test_recovered_oil_pressure_shows_again_when_it_re_trips);
     RUN_TEST(test_user_critical_is_not_masked_by_a_built_in_acknowledge);
     RUN_TEST(test_acknowledge_without_a_takeover_is_ignored);
+    RUN_TEST(test_losing_the_sensor_keeps_the_takeover_until_acknowledged);
+    RUN_TEST(test_a_live_recovery_still_clears_the_takeover);
     return UNITY_END();
 }
