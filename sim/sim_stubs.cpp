@@ -1,5 +1,6 @@
 #include "sim_can_bus.h"
 
+#include "boot/boot_sequence.h"
 #include "can/can_manager.h"
 #include "hal/ble/ble_server.h"
 #include "hal/memory/psram.h"
@@ -80,5 +81,11 @@ void requestStop() {}
 bool isConnected() {
     return false;
 }
+
+}
+
+namespace BootSequence {
+
+void markOtaSlotValidIfPending() {}
 
 }

@@ -177,12 +177,16 @@ returns the whole stack to the heap.
 A freshly OTA-written slot boots as `ESP_OTA_IMG_PENDING_VERIFY`, and the
 prebuilt bootloader rolls back to the previous slot if it resets before the
 image is marked valid. The mark has one home:
-`BootSequence::markOtaSlotValidIfPending()`, called from `taskUI` once
-`kUiOtaValidFrames` frames have rendered (`main.cpp`). So a crash anywhere in
-`setup()`, the boot sequence or the first frames rolls back.
-Workshop frames count too, so an update that resumes workshop mode
-([Workshop mode](workshop-mode.md#entering-and-leaving)) is marked valid the same
-way.
+`BootSequence::markOtaSlotValidIfPending()`, and `OtaSoak::marksValid`
+(`runtime/ota_soak.h`) decides when it runs. `taskUI` calls it on the first dash
+frame after 60 s of uptime. So a crash anywhere in `setup()`, the boot sequence
+or the first minute of driving rolls back. Workshop frames never count: an
+update that resumes workshop mode
+([Workshop mode](workshop-mode.md#entering-and-leaving)) has not drawn a single
+page. It is marked valid when the driver leaves workshop mode
+(`WorkshopMode::restartIntoDash`), if the image has been up for 60 s by then.
+Leaving it earlier, or the device losing power in workshop mode, rolls the
+update back.
 
 arduino-esp32's `initArduino()` would otherwise mark the image valid itself,
 before `setup()` runs: it calls the weak `verifyRollbackLater()`, which returns

@@ -4,11 +4,13 @@
     #include "workshop_mode.h"
 
     #include "can/signal_map.h"
+    #include "boot/boot_sequence.h"
     #include "config/config_loader.h"
     #include "diag/error_store.h"
     #include "diag/logger.h"
     #include "hal/storage/nvs_store.h"
     #include "hal/storage/storage_driver.h"
+    #include "runtime/ota_soak.h"
     #include "runtime/signal_store.h"
     #include "runtime/workshop_credentials.h"
     #include "workshop_mode_rs.h"
@@ -128,6 +130,13 @@ void resumeAfterReboot(uint8_t reason, bool imagePendingVerify) {
         LOG_INFO("WORKSHOP", "Workshop mode resumed after the reboot");
 }
 
+void restartIntoDash() {
+    if (OtaSoak::marksValid(OtaSoak::Moment::LeavingWorkshop, millis()))
+        BootSequence::markOtaSlotValidIfPending();
+    delay(kPreRestartFlushDelayMs);
+    esp_restart();
+}
+
 void leaveOnMotion(uint32_t nowMs) {
     if (!isActive() || !motionExitDue(nowMs))
         return;
@@ -136,8 +145,7 @@ void leaveOnMotion(uint32_t nowMs) {
     if (!disarmResume())
         LOG_WARN("WORKSHOP",
                  "Resume flag kept — the next boot may resume until the watchdog trips again");
-    delay(kPreRestartFlushDelayMs);
-    esp_restart();
+    restartIntoDash();
 }
 
 }
