@@ -186,7 +186,9 @@ update that resumes workshop mode
 page. It is marked valid when the driver leaves workshop mode
 (`WorkshopMode::restartIntoDash`), if the image has been up for 60 s by then.
 Leaving it earlier, or the device losing power in workshop mode, rolls the
-update back.
+update back. The gap that remains: an image delivered over workshop
+Wi-Fi is validated before its dash render path has drawn a page, so a crash
+there is no longer rolled back and needs a USB reflash.
 
 arduino-esp32's `initArduino()` would otherwise mark the image valid itself,
 before `setup()` runs: it calls the weak `verifyRollbackLater()`, which returns
