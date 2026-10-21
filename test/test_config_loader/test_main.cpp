@@ -309,12 +309,6 @@ int main(int, char **) {
     RUN_TEST(test_loadSignals_nameTooLong_dropsSignal);
     RUN_TEST(test_loadSignals_unitTooLong_resetsUnitToEmpty);
     RUN_TEST(test_loadDashboard_gearBig_isParsed);
-    RUN_TEST(test_loadDashboard_belowGridFloor_reportsVersionTooOld);
-    RUN_TEST(test_loadDashboard_atGridFloor_reportsNothing);
-    RUN_TEST(test_loadDashboard_refusedWithBackup_restoresPrevious);
-    RUN_TEST(test_loadDashboard_refusedWithoutBackup_isRefused);
-    RUN_TEST(test_vetDashboard_refused_restoresFileAndKeepsLiveConfig);
-    RUN_TEST(test_vetDashboard_valid_isLoadedAndKeepsLiveConfig);
-    RUN_TEST(test_loadDashboard_unparsable_isUnreadable);
+    runDashboardOutcomeTests();
     return UNITY_END();
 }
