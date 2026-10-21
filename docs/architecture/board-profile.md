@@ -25,10 +25,14 @@ Whatever wins is copied into a single mutable profile. Everything downstream rea
 
 ## Optional sections
 
-`imu` is the one section a blob may leave out: absent means the board has no
-IMU, so a profile written before the field existed still loads. The same goes
-for `touch.pin_rst`, which reads as `-1` when absent.
-[IMU and the g-meter](imu.md) describes the fields.
+`imu` and `audio` are the sections a blob may leave out: absent means the board
+has no IMU or no speaker, so a profile written before the field existed still
+loads. The same goes for `touch.pin_rst`, which reads as `-1` when absent.
+[IMU and the g-meter](imu.md) describes the IMU fields.
+
+`audio` carries `present` and the I2S pins `pin_bck`, `pin_ws` and `pin_dout`. A
+section that says `present: true` with any pin below `0` is rejected: a speaker
+with an unwired pin cannot sound, and the blob would claim one that does.
 
 ## The catalog
 
@@ -73,10 +77,6 @@ was provisioned rather than what the binary was built with.
 `LcdProfile` carries SPI pins and one write frequency. RGB-parallel panels need a
 data bus, sync lines and porch timings, so they are not expressible as a profile
 variant today — see #51.
-
-`audio` (the I2S pins of a board with a speaker) comes from the catalog header
-only. The blob form does not carry it, so a board provisioned by blob is always
-silent.
 
 A profile may only name drivers this build can construct; see
 [Board drivers](../reference/board-drivers.md) for the matrix and for what happens

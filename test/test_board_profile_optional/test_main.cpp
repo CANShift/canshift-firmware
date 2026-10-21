@@ -29,13 +29,16 @@ constexpr char kImuSection[] =
     ",\"imu\":{\"driver\":\"qmi8658\",\"pin_sda\":11,\"pin_scl\":10,\"i2c_addr\":107,"
     "\"freq_hz\":400000,\"screen_x\":\"-y\",\"screen_y\":\"x\",\"screen_z\":\"z\"}";
 
+constexpr char kAudioSection[] =
+    ",\"audio\":{\"present\":true,\"pin_bck\":48,\"pin_ws\":38,\"pin_dout\":47}";
+
 char s_blob[1600];
 char s_idBuf[kBoardIdCapacity];
 char s_nameBuf[kBoardNameCapacity];
 
-BoardProfileParse parseWith(const char *touchTail, const char *storageTail, const char *imuSection,
-                            BoardProfile &out) {
-    snprintf(s_blob, sizeof s_blob, kBlobHead, touchTail, storageTail, imuSection);
+BoardProfileParse parseWith(const char *touchTail, const char *storageTail,
+                            const char *extraSections, BoardProfile &out) {
+    snprintf(s_blob, sizeof s_blob, kBlobHead, touchTail, storageTail, extraSections);
     return parseBoardProfileBlob(s_blob, strlen(s_blob), out, s_idBuf, sizeof s_idBuf, s_nameBuf,
                                  sizeof s_nameBuf);
 }
@@ -148,6 +151,66 @@ void test_catalogDeclaresTheSdSlotOnlyOnTheWaveshare() {
     }
 }
 
+void test_blobWithoutAudio_staysSilent() {
+    BoardProfile out{};
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", "", out)));
+    TEST_ASSERT_FALSE(out.audio.present);
+    TEST_ASSERT_EQUAL_INT(-1, out.audio.pin_bck);
+    TEST_ASSERT_EQUAL_INT(-1, out.audio.pin_dout);
+}
+
+void test_blobWithAudio_parsesEveryPin() {
+    BoardProfile out{};
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", kAudioSection, out)));
+    TEST_ASSERT_TRUE(out.audio.present);
+    TEST_ASSERT_EQUAL_INT(48, out.audio.pin_bck);
+    TEST_ASSERT_EQUAL_INT(38, out.audio.pin_ws);
+    TEST_ASSERT_EQUAL_INT(47, out.audio.pin_dout);
+}
+
+void test_blobWithImuAndAudio_parsesBoth() {
+    BoardProfile out{};
+    char sections[400];
+    snprintf(sections, sizeof sections, "%s%s", kImuSection, kAudioSection);
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", sections, out)));
+    TEST_ASSERT_EQUAL(static_cast<int>(ImuDriver::QMI8658), static_cast<int>(out.imu.driver));
+    TEST_ASSERT_TRUE(out.audio.present);
+}
+
+void test_audioMarkedAbsent_parsesSilent() {
+    BoardProfile out{};
+    const char *absent =
+        ",\"audio\":{\"present\":false,\"pin_bck\":-1,\"pin_ws\":-1,\"pin_dout\":-1}";
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::Ok), asInt(parseWith("", "", absent, out)));
+    TEST_ASSERT_FALSE(out.audio.present);
+}
+
+void test_audioPresentWithAnUnwiredPin_rejected() {
+    BoardProfile out{};
+    const char *unwired =
+        ",\"audio\":{\"present\":true,\"pin_bck\":48,\"pin_ws\":-1,\"pin_dout\":47}";
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape), asInt(parseWith("", "", unwired, out)));
+}
+
+void test_audioMissingAPin_rejected() {
+    BoardProfile out{};
+    const char *missing = ",\"audio\":{\"present\":true,\"pin_bck\":48,\"pin_ws\":38}";
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape), asInt(parseWith("", "", missing, out)));
+}
+
+void test_audioThatIsNotAnObject_rejected() {
+    BoardProfile out{};
+    TEST_ASSERT_EQUAL(asInt(BoardProfileParse::WrongShape),
+                      asInt(parseWith("", "", ",\"audio\":true", out)));
+}
+
+void test_catalogDeclaresAudioOnlyOnTheWaveshare() {
+    for (const BoardProfile *profile : kCatalog) {
+        const bool waveshare = strcmp(profile->board_id, "waveshare_s3_28") == 0;
+        TEST_ASSERT_EQUAL(waveshare, profile->audio.present);
+    }
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_blobWithoutImu_hasNoImu);
@@ -162,5 +225,13 @@ int main(int, char **) {
     RUN_TEST(test_blobWithSdmmcSlot_parsesEveryPin);
     RUN_TEST(test_sdBusWithUnknownSlug_rejected);
     RUN_TEST(test_catalogDeclaresTheSdSlotOnlyOnTheWaveshare);
+    RUN_TEST(test_blobWithoutAudio_staysSilent);
+    RUN_TEST(test_blobWithAudio_parsesEveryPin);
+    RUN_TEST(test_blobWithImuAndAudio_parsesBoth);
+    RUN_TEST(test_audioMarkedAbsent_parsesSilent);
+    RUN_TEST(test_audioPresentWithAnUnwiredPin_rejected);
+    RUN_TEST(test_audioMissingAPin_rejected);
+    RUN_TEST(test_audioThatIsNotAnObject_rejected);
+    RUN_TEST(test_catalogDeclaresAudioOnlyOnTheWaveshare);
     return UNITY_END();
 }

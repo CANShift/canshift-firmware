@@ -261,6 +261,28 @@ bool parseImu(JsonObjectConst profile, ImuProfile &d) {
     return subObject(profile, "imu", o) && parseImuFields(o, d);
 }
 
+bool audioPinsWired(const AudioProfile &d) {
+    return !d.present || (d.pin_bck >= 0 && d.pin_ws >= 0 && d.pin_dout >= 0);
+}
+
+bool parseAudioFields(JsonObjectConst o, AudioProfile &d) {
+    FieldReader r{o};
+    r.boolean("present", d.present);
+    r.i8("pin_bck", d.pin_bck);
+    r.i8("pin_ws", d.pin_ws);
+    r.i8("pin_dout", d.pin_dout);
+    return r.ok && audioPinsWired(d);
+}
+
+bool parseAudio(JsonObjectConst profile, AudioProfile &d) {
+    d = kNoAudio;
+    if (profile["audio"].isNull()) {
+        return true;
+    }
+    JsonObjectConst o;
+    return subObject(profile, "audio", o) && parseAudioFields(o, d);
+}
+
 struct ProfileSections {
     JsonObjectConst lcd;
     JsonObjectConst backlight;
@@ -291,7 +313,7 @@ bool parseChipFamily(JsonVariantConst v, ChipFamily &out) {
 bool parseProfileSections(JsonObjectConst profile, BoardProfile &out) {
     ProfileSections sections;
     return findSections(profile, sections) && parseSections(sections, out) &&
-           parseImu(profile, out.imu);
+           parseImu(profile, out.imu) && parseAudio(profile, out.audio);
 }
 
 }
