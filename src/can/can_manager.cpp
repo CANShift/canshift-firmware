@@ -31,6 +31,7 @@ static bool s_twaiInstalled = false;
 static uint32_t s_lastRetryMs = 0;
 static uint8_t s_retryAttempts = 0;
 static bool s_permanentlyDownWarned = false;
+static uint8_t s_busOffRecoveries = 0;
 
 static constexpr uint32_t kTwaiRxErrorBackoffMs = 5;
 static constexpr uint32_t kTwaiRxPollTimeoutMs = 10;
@@ -150,7 +151,9 @@ static_assert(TWAI_STATE_RECOVERING == kCanBusStateRecovering, "TWAI recovering 
 static void leaveBusAlone() {}
 
 static void recoverFromBusOff() {
-    LOG_ERROR("CAN", "TWAI bus-off — attempting recovery");
+    ++s_busOffRecoveries;
+    LOG_ERROR("CAN", "TWAI bus-off — attempting recovery %u",
+              static_cast<unsigned>(s_busOffRecoveries));
     ErrorStore::push(ERROR_SRC_CAN, "BUS_OFF", "CAN bus-off, recovering");
     const esp_err_t err = twai_initiate_recovery();
     if (err != ESP_OK) {
@@ -169,16 +172,22 @@ static void restartAfterRecovery() {
     LOG_INFO("CAN", "TWAI recovered from bus-off and restarted");
 }
 
+static void giveUpOnBus() {
+    ++s_busOffRecoveries;
+    LOG_ERROR("CAN", "TWAI bus-off again — recovery stopped until reboot");
+    ErrorStore::push(ERROR_SRC_CAN, "BUS_DOWN", "CAN bus-off persists, recovery stopped");
+}
+
 using BusActionHandler = void (*)();
 
 static constexpr BusActionHandler kBusActionHandlers[] = {
     leaveBusAlone,
     recoverFromBusOff,
     restartAfterRecovery,
+    giveUpOnBus,
 };
 
-static_assert(sizeof(kBusActionHandlers) / sizeof(kBusActionHandlers[0]) ==
-                  kCanBusActionRestart + 1,
+static_assert(sizeof(kBusActionHandlers) / sizeof(kBusActionHandlers[0]) == kCanBusActionGiveUp + 1,
               "every CAN bus action needs a handler");
 
 static void superviseBus() {
@@ -189,8 +198,9 @@ static void superviseBus() {
         return;
     }
     reportRxDrops(status);
-    const uint8_t action = can_bus_action_rs(static_cast<uint8_t>(status.state));
-    if (action > kCanBusActionRestart)
+    const uint8_t action =
+        can_bus_action_rs(static_cast<uint8_t>(status.state), s_busOffRecoveries);
+    if (action > kCanBusActionGiveUp)
         return;
     kBusActionHandlers[action]();
 }

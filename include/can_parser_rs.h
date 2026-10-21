@@ -27,9 +27,14 @@ enum {
     kCanBusStateRecovering = 3
 };
 
-enum { kCanBusActionNone = 0, kCanBusActionRecover = 1, kCanBusActionRestart = 2 };
+enum {
+    kCanBusActionNone = 0,
+    kCanBusActionRecover = 1,
+    kCanBusActionRestart = 2,
+    kCanBusActionGiveUp = 3
+};
 
-uint8_t can_bus_action_rs(uint8_t driver_state);
+uint8_t can_bus_action_rs(uint8_t driver_state, uint8_t recoveries);
 
 typedef struct {
     uint8_t kind;
