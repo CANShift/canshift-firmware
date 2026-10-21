@@ -141,6 +141,10 @@ If you see constant timeout errors:
 3. Check termination
 4. Confirm ECU CAN output is enabled
 
+The dash recovers from a bus-off up to 10 times per boot (`MAX_BUS_OFF_RECOVERIES`
+in [`bus_recovery.rs`](../../rust/can-parser/src/bus_recovery.rs)), then leaves the
+bus off until reboot and logs `BUS_DOWN` once in the error store.
+
 If you see bus-off errors:
 
 1. Check for wiring short

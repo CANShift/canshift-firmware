@@ -400,6 +400,13 @@ PAIRS = (
         "kCanBusActionRestart",
     ),
     (
+        "CAN bus action give up",
+        "rust/can-parser/src/bus_recovery.rs",
+        "CAN_BUS_ACTION_GIVE_UP",
+        "include/can_parser_rs.h",
+        "kCanBusActionGiveUp",
+    ),
+    (
         "workshop socket busy window",
         "rust/workshop-mode/src/socket_admission.rs",
         "WORKSHOP_SOCKET_BUSY_WINDOW_MS",

@@ -124,8 +124,8 @@ unsafe fn ref_values<'a>(refs: *const RefValue, n_refs: usize) -> &'a [RefValue]
 
 #[no_mangle]
 #[must_use]
-pub extern "C" fn can_bus_action_rs(driver_state: u8) -> u8 {
-    bus_action(driver_state) as u8
+pub extern "C" fn can_bus_action_rs(driver_state: u8, recoveries: u8) -> u8 {
+    bus_action(driver_state, recoveries) as u8
 }
 
 #[cfg(test)]
