@@ -43,11 +43,14 @@ struct ScenarioName {
 };
 
 constexpr ScenarioName kScenarioNames[] = {
-    {"cruise", Mode::Cruise},      {"rev", Mode::RevLimit},       {"rev-release", Mode::RevRelease},
-    {"oil", Mode::OilCritical},    {"oil-low", Mode::OilLow},     {"water", Mode::WaterCritical},
-    {"warn", Mode::Warning},       {"stale", Mode::AllStale},     {"bus-lost", Mode::BusLost},
-    {"cut-boost", Mode::CutBoost}, {"cut-knock", Mode::CutKnock}, {"cut-fuel", Mode::CutFuel},
-    {"cut-limp", Mode::CutLimp}};
+    {"cruise", Mode::Cruise},          {"rev", Mode::RevLimit},
+    {"rev-release", Mode::RevRelease}, {"oil", Mode::OilCritical},
+    {"oil-low", Mode::OilLow},         {"water", Mode::WaterCritical},
+    {"warn", Mode::Warning},           {"stale", Mode::AllStale},
+    {"bus-lost", Mode::BusLost},       {"cut-boost", Mode::CutBoost},
+    {"cut-knock", Mode::CutKnock},     {"cut-fuel", Mode::CutFuel},
+    {"cut-limp", Mode::CutLimp},       {"workshop-oil", Mode::OilCritical},
+    {"ota-oil", Mode::OilCritical}};
 
 Mode s_mode = Mode::Cruise;
 uint32_t s_startMs = 0;

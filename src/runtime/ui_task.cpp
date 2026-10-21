@@ -218,6 +218,7 @@ inline bool uiRunMutexFrame(bool &didDayNightChange) {
     }
     LVGL_HOLD_TIMER(::PerfCounters::MUTEX_HOLD_UI);
     uiDrainWorkshopEntry();
+    PageManager::tickAlerts();
     if (WorkshopMode::isActive()) {
         uiRunWorkshopFrame();
         return true;

@@ -20,6 +20,8 @@ void navigatePrev();
 
 const char *getDefaultPageId();
 
+void tickAlerts();
+
 void updateWidgets();
 
 void publishPages();

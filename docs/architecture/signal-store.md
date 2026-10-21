@@ -114,8 +114,8 @@ same way.
 write is older than its `timeoutMs`. The default is
 `kSignalDefaultTimeoutMs = 500`; a signal's `timeoutMs` in `signals.json`
 overrides it, applied through `setTimeout()` when the parser loads the
-definitions. `PageManager` calls it about every 100 ms; it returns at once
-when nothing is valid.
+definitions. `PageManager::tickAlerts()` calls it every 20 ms; it returns at
+once when nothing is valid.
 
 A stale signal renders as the stale placeholder (`- -` on gauges and the top
 bar, `-` on the gear) instead of keeping its last value.

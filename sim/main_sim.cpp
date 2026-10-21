@@ -100,8 +100,7 @@ int runLoop(uint32_t captureAfterMs) {
         const uint32_t now = millis();
 
         SimInjector::tick(now);
-        SignalStore::checkTimeouts();
-
+        PageManager::tickAlerts();
         PageManager::updateWidgets();
         lv_timer_handler();
 

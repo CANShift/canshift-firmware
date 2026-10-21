@@ -90,6 +90,17 @@ visibility-toggled by `AlertEngine::isRevLimiterFlashOn()` from
 page transitions (the layer is shared across screens), so the alert flash
 keeps blinking through a swipe.
 
+## Alerts run on every frame
+
+`PageManager::tickAlerts()` runs on every UI frame before the dash/workshop
+split: stale invalidation, `AlertEngine::tick` and `AlertTakeover::update`. It
+does not depend on a page existing, so a critical alert still raises the
+takeover, the tone and the BLE `ALERT` frame in workshop mode, during an OTA and
+after a reload that left no page. Widget and chrome refresh stay in
+`updateWidgets()`, which skips all of that. The takeover is re-raised to the
+front of `lv_layer_top` on every update while it is active, so it covers the
+workshop card and the OTA overlay, and comes back after `releaseAll()` hid it.
+
 ## Page and widget budgets
 
 `CONFIG_MAX_PAGES` is 8 and `CONFIG_MAX_WIDGETS_PER_PAGE` is 12
