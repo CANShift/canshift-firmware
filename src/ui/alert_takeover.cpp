@@ -21,6 +21,7 @@ namespace {
 constexpr uint32_t kUpdatePeriodMs = 100;
 constexpr int kNoActiveSource = kAlertCriticalNoSource;
 constexpr const char *kLimitWord[] = {"MAX", "MIN"};
+constexpr const char *kSensorLostText = "SENSOR LOST";
 
 uint32_t s_lastUpdateMs = 0;
 int s_activeSource = kNoActiveSource;
@@ -56,8 +57,18 @@ uint32_t criticalSources(const AlertEngine::AlertState &state) {
     return critical;
 }
 
+uint32_t noDataSources() {
+    uint32_t noData = 0;
+    for (size_t i = 0; i < AlertSources::count(); ++i) {
+        if (!SignalStore::isValid(AlertSources::at(i).id))
+            noData |= 1u << i;
+    }
+    return noData;
+}
+
 int pickCriticalSource(const AlertEngine::AlertState &state) {
-    s_criticalSources = criticalSources(state);
+    s_criticalSources = alert_critical_hold_rs(s_criticalSources, criticalSources(state),
+                                               s_acknowledgedSources, noDataSources());
     s_acknowledgedSources = alert_critical_retain_rs(s_acknowledgedSources, s_criticalSources);
     return alert_critical_first_unacknowledged_rs(s_criticalSources, s_acknowledgedSources);
 }
@@ -96,6 +107,10 @@ void refreshValue(const AlertSources::CriticalSource &src) {
 
 void formatContext(char *out, size_t outLen, size_t index) {
     const AlertSources::CriticalSource &src = AlertSources::at(index);
+    if (!SignalStore::isValid(src.id)) {
+        strlcpy(out, kSensorLostText, outLen);
+        return;
+    }
     const int rpm = static_cast<int>(lroundf(SignalStore::read(SignalIds::kRpm)));
     const AlertEngine::CriticalLimit limit =
         AlertSources::limitAt(index, SignalStore::read(src.id));

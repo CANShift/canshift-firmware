@@ -101,6 +101,12 @@ after a reload that left no page. Widget and chrome refresh stay in
 front of `lv_layer_top` on every update while it is active, so it covers the
 workshop card and the OTA overlay, and comes back after `releaseAll()` hid it.
 
+**A critical takeover only goes away on acknowledgement or a live recovery.** If
+the source's signal goes invalid while the takeover is up (sensor unplugged, bus
+lost), `alert_critical_hold_rs` keeps it on screen until the driver acknowledges
+it, with `SENSOR LOST` in place of the limit line. A reading that comes back
+valid and below the limit still clears it on its own.
+
 ## Page and widget budgets
 
 `CONFIG_MAX_PAGES` is 8 and `CONFIG_MAX_WIDGETS_PER_PAGE` is 12
