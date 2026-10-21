@@ -52,20 +52,32 @@ const SpeedTiming kSpeedTimings[] = {
     {125, TWAI_TIMING_CONFIG_125KBITS()},
 };
 
+constexpr uint16_t kLastResortKbps = 500;
+
 constexpr twai_mode_t kTwaiModes[] = {TWAI_MODE_NORMAL, TWAI_MODE_LISTEN_ONLY};
 
 static_assert(sizeof(kTwaiModes) / sizeof(kTwaiModes[0]) ==
                   static_cast<size_t>(CanDriverInstall::BusMode::ListenOnly) + 1,
               "every bus mode needs a TWAI mode");
 
-twai_timing_config_t getTimingConfig(uint16_t kbps) {
+const SpeedTiming *findTiming(uint16_t kbps) {
     for (const SpeedTiming &entry : kSpeedTimings) {
         if (entry.kbps == kbps)
-            return entry.timing;
+            return &entry;
     }
-    LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps,
-             canshift::boards::runtimeBoardProfile().can.default_speed_kbps);
-    return TWAI_TIMING_CONFIG_500KBITS();
+    return nullptr;
+}
+
+twai_timing_config_t getTimingConfig(uint16_t kbps) {
+    const SpeedTiming *requested = findTiming(kbps);
+    if (requested != nullptr)
+        return requested->timing;
+    const SpeedTiming *fallback =
+        findTiming(canshift::boards::runtimeBoardProfile().can.default_speed_kbps);
+    if (fallback == nullptr)
+        fallback = findTiming(kLastResortKbps);
+    LOG_WARN("CAN", "Unsupported canSpeedKbps=%d — falling back to %dkbps", kbps, fallback->kbps);
+    return fallback->timing;
 }
 
 BusSetup resolveBusSetup() {

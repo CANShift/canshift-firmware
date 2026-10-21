@@ -62,13 +62,16 @@ whose `kind` is `"short"` reacts about 250 ms after release.
 The loader in [`config_file_loaders.inc`](../../src/config/config_file_loaders.inc)
 drops a binding, with a warning in the log, when:
 
-- `pin` is outside 0–39,
-- `pin` is one of the board's TWAI pins,
+- `pin` is not a GPIO the chip can read, or is reserved: flash 6–11 and the
+  UART 1 / 3 on the ESP32, USB 19 / 20 and flash / PSRAM 26–37 on the S3
+  ([`config_pin_guard.inc`](../../src/config/config_pin_guard.inc)),
+- `pin` belongs to the board profile (display, touch, SD, audio, IMU),
+- `pin` is one of the TWAI pins in use, the board's or the `device.json` override,
 - `action` is missing or its type is unknown.
 
-At most 16 bindings load (`kCfgMaxInputBindings`); extras are dropped. The finer
-pin allowlist, which refuses the flash pins 6–11, is enforced by core's schema
-before the tuner burns the file.
+A dropped pin also lands in the error store as `PIN_REJECT`. At most 16 bindings
+load (`kCfgMaxInputBindings`); extras are dropped. Core's schema refuses the
+flash pins 6–11 before the tuner burns the file.
 
 ## Behaviour at run time
 

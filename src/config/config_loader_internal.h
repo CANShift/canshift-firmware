@@ -54,6 +54,11 @@ void checkDashboardSchemaFloor(const char *fileVersion);
 
 [[nodiscard]] bool isPinConflict(int8_t pin);
 
+enum class PinUse : uint8_t { Input, Output };
+
+[[nodiscard]] bool isUsablePin(int pin, PinUse use);
+[[nodiscard]] int checkedTwaiPin(const char *key, int pin, int8_t boardPin, PinUse use);
+
 void parseButtonAction(JsonObjectConst src, CfgButtonAction *out);
 
 void parseWidget(JsonObjectConst src, CfgWidget *w);

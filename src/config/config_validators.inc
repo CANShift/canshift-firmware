@@ -3,6 +3,7 @@
 #include "config_loader_rust_bridge.h"
 
 #include "app_config.h"
+#include "config/board_profile_loader.h"
 #include "diag/error_store.h"
 #include "diag/logger.h"
 
@@ -201,9 +202,10 @@ CfgInputPressKind parseInputPressKind(const char *str) {
 
 bool isPinConflict(int8_t pin) {
     const CfgDeviceConfig &dev = s_device;
-    if (!dev.loaded)
-        return false;
-    return pin == dev.twaiTxPin || pin == dev.twaiRxPin;
+    const auto &can = canshift::boards::runtimeBoardProfile().can;
+    const int8_t tx = dev.loaded && dev.twaiTxPin >= 0 ? dev.twaiTxPin : can.pin_tx;
+    const int8_t rx = dev.loaded && dev.twaiRxPin >= 0 ? dev.twaiRxPin : can.pin_rx;
+    return pin == tx || pin == rx;
 }
 
 }
