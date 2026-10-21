@@ -54,7 +54,6 @@ BoardProfileParse parseBoardProfileBlob(const char *json, size_t len, BoardProfi
     if (!subObject(root, "profile", p) || !parseIdentity(p, out, idBuf, idCap, nameBuf, nameCap) ||
         !parseProfileSections(p, out))
         return BoardProfileParse::WrongShape;
-    out.audio = kNoAudio;
     return BoardProfileParse::Ok;
 }
 
