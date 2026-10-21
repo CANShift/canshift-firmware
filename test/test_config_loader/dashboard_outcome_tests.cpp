@@ -90,3 +90,27 @@ void test_loadDashboard_unparsable_isUnreadable() {
     TEST_ASSERT_TRUE(outcomeIs(ConfigLoader::DashboardOutcome::Unreadable,
                                ConfigLoader::lastDashboardOutcome()));
 }
+
+void test_loadDashboard_outOfMemory_keepsFileAndIgnoresBackup() {
+    stageDashboard(fixtures::kDashboardMinimalReload, fixtures::kDashboardMinimal);
+    StorageDriver::fakeParseOutOfMemory(kConfigPathDashboard);
+
+    TEST_ASSERT_FALSE(ConfigLoader::loadAll().dashboardOk);
+
+    TEST_ASSERT_TRUE(
+        outcomeIs(ConfigLoader::DashboardOutcome::NoMemory, ConfigLoader::lastDashboardOutcome()));
+    TEST_ASSERT_EQUAL_UINT32(strlen(fixtures::kDashboardMinimalReload),
+                             StorageDriver::fileSize(kConfigPathDashboard));
+    TEST_ASSERT_TRUE(StorageDriver::fileExists(kDashboardBakPath));
+}
+
+void runDashboardOutcomeTests() {
+    RUN_TEST(test_loadDashboard_belowGridFloor_reportsVersionTooOld);
+    RUN_TEST(test_loadDashboard_atGridFloor_reportsNothing);
+    RUN_TEST(test_loadDashboard_refusedWithBackup_restoresPrevious);
+    RUN_TEST(test_loadDashboard_refusedWithoutBackup_isRefused);
+    RUN_TEST(test_vetDashboard_refused_restoresFileAndKeepsLiveConfig);
+    RUN_TEST(test_vetDashboard_valid_isLoadedAndKeepsLiveConfig);
+    RUN_TEST(test_loadDashboard_unparsable_isUnreadable);
+    RUN_TEST(test_loadDashboard_outOfMemory_keepsFileAndIgnoresBackup);
+}

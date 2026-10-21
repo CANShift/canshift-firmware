@@ -41,6 +41,10 @@ void logPrimaryParseFailure(const char *path, const DeserializationError &err) {
         LOG_WARN("CFG", "%s could not be opened — falling back to .bak", path);
         return;
     }
+    if (err == DeserializationError::NoMemory) {
+        LOG_ERROR("CFG", "%s parse ran out of memory — .bak left untouched", path);
+        return;
+    }
     LOG_WARN("CFG", "%s parse error: %s — falling back to .bak", path, err.c_str());
 }
 
@@ -104,6 +108,8 @@ bool readAndParseWithBak(const char *path, JsonDocument &doc) {
     s_lastParseCode = DeserializationError::Ok;
     if (parsePrimary(path, doc))
         return true;
+    if (lastParseOutOfMemory())
+        return false;
     return recoverFromBak(path, doc);
 }
 

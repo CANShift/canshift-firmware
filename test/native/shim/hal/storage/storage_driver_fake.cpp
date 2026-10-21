@@ -21,6 +21,7 @@ struct FakeFile {
 };
 
 FakeFile s_files[kMaxFiles];
+std::string s_noMemoryPath;
 
 FakeFile *findFile(const char *path) {
     if (!path)
@@ -66,6 +67,8 @@ DeserializationError parseJsonFile(const char *path, JsonDocument &doc, size_t *
     }
     if (outSize)
         *outSize = f->size;
+    if (s_noMemoryPath == path)
+        return DeserializationError::NoMemory;
     return JsonReader::parse(doc, f->data, f->size);
 }
 
@@ -219,11 +222,16 @@ void sweepOrphanTmp(const char *) {}
 void fakeReset() {
     abortChunkedWrite();
     s_chunk.failAfter = kMaxFileBytes;
+    s_noMemoryPath.clear();
     for (auto &f : s_files) {
         f.used = false;
         f.size = 0;
         f.path[0] = '\0';
     }
+}
+
+void fakeParseOutOfMemory(const char *path) {
+    s_noMemoryPath = path;
 }
 
 void fakeWrite(const char *path, const char *contents, size_t length) {
