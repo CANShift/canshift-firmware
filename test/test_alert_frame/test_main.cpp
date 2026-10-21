@@ -100,6 +100,21 @@ void test_encode_skipsUnencodableEntries() {
     TEST_ASSERT_EQUAL_UINT8(0, buf[1]);
 }
 
+void test_encode_skipsNonPrintableSignalNames_keepsTheOthers() {
+    AlertFrame::Entry spaced = acknowledgedCoolantEntry();
+    spaced.signal = "coolant temp";
+    AlertFrame::Entry control = secondConfiguredEgtEntry();
+    control.signal = "egt\t1";
+    AlertFrame::Entry highBit = acknowledgedCoolantEntry();
+    highBit.source = 2;
+    highBit.signal = "temp\xc2\xb0";
+    const AlertFrame::Entry entries[] = {spaced, control, highBit, oilPressureEntry()};
+    uint8_t buf[AlertFrame::kMaxFrameBytes] = {0};
+    TEST_ASSERT_EQUAL_size_t(28, AlertFrame::encode(entries, 4, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_UINT8(1, buf[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, buf[2]);
+}
+
 void test_encode_rejectsNullBufferAndTooSmallHeader() {
     uint8_t buf[1] = {0};
     TEST_ASSERT_EQUAL_size_t(0, AlertFrame::encode(nullptr, 0, nullptr, 8));
@@ -147,6 +162,7 @@ int main() {
     RUN_TEST(test_encode_saturatesActiveSeconds);
     RUN_TEST(test_encode_dropsEntriesThatDoNotFit_keepsTheFirst);
     RUN_TEST(test_encode_skipsUnencodableEntries);
+    RUN_TEST(test_encode_skipsNonPrintableSignalNames_keepsTheOthers);
     RUN_TEST(test_encode_rejectsNullBufferAndTooSmallHeader);
     RUN_TEST(test_onsets_countWholeSecondsSinceTheSourceTurnedCritical);
     RUN_TEST(test_onsets_restartWhenTheSourceClearsAndReturns);

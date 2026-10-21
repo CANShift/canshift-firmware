@@ -8,6 +8,8 @@ namespace AlertFrame {
 namespace {
 
 constexpr uint32_t kMsPerSecond = 1000;
+constexpr char kFirstPrintableChar = '!';
+constexpr char kLastPrintableChar = '~';
 
 int32_t scaleValue(float value) {
     return static_cast<int32_t>(std::lroundf(value * static_cast<float>(TelemetryFrame::kScale)));
@@ -32,9 +34,19 @@ size_t signalLength(const Entry &entry) {
     return strnlen(entry.signal, kMaxSignalLen + 1);
 }
 
+bool isPrintableWithoutSpaces(const char *signal, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        if (signal[i] < kFirstPrintableChar || signal[i] > kLastPrintableChar)
+            return false;
+    }
+    return true;
+}
+
 bool isEncodable(const Entry &entry) {
     const size_t len = signalLength(entry);
     if (entry.source >= kSourceCount || len == 0 || len > kMaxSignalLen)
+        return false;
+    if (!isPrintableWithoutSpaces(entry.signal, len))
         return false;
     return std::isfinite(entry.value) && (!entry.hasLimit || std::isfinite(entry.limit));
 }
